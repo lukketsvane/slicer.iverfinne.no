@@ -22,8 +22,9 @@ leaves the machine it was dropped on.
 
 ## Use it
 
-1. **Drop a file** anywhere on the page — `.stl` (binary or ASCII), `.obj`,
-   `.ply` (ASCII or binary). Up to 220 MB. Or start from the built-in cube.
+1. **Drop a file** anywhere on the page — `.glb`, `.gltf`, `.stl` (binary or
+   ASCII), `.obj`, `.ply` (ASCII or binary). Up to 220 MB. Or start from the
+   built-in cube.
 2. **Place it**: size, rotation. Simplify and smooth if it came from a scanner.
 3. **Set the material**: thickness, kerf, cutter diameter, sheet size.
 4. **Read the rules.** The panel tells you what can't be cut or assembled, and
@@ -91,7 +92,7 @@ be made or can't be assembled; **soft** is a choice worth knowing about.
 ## How it works
 
 ```
-STL / OBJ / PLY
+GLB / glTF / STL / OBJ / PLY
   ├── weld        loose triangles become vertices with neighbours
   ├── unflip      an inside-out mesh is turned right side out
   ├── simplify    vertex clustering down to the triangle budget
@@ -119,6 +120,14 @@ with no genetic pass — the sheet count has to keep up with a slider.
 **Addresses are engraved as strokes, not text.** A `TEXT` entity is a question
 to the machine about whether it has that font, and the answer is often no.
 
+**A GLB is a scene, not a mesh.** Triangles sit in a tree of nodes, each with
+its own transform, and a Blender export usually keeps the whole up-axis
+conversion in the root node. Reading the vertex buffers and skipping the tree
+gives the right triangle count and the wrong object. slicerman walks the tree,
+then converts glTF's Y-up to the workshop's Z-up — glTF *says* which way is up,
+so the tool uses what it knows. STL and PLY say nothing, and come in as they
+are.
+
 ## Develop
 
 ```bash
@@ -137,6 +146,7 @@ deploys without touching any dashboard.
 
 ```bash
 pnpm probe   # engine without a browser: parts, joints, cut length, files
+pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps
 pnpm tung    # a million triangles in, and how long that takes
 pnpm ark     # cut sheets as images
@@ -147,7 +157,7 @@ pnpm look    # screenshots of the page, and any console errors
 |---|---|
 | `lib/core.ts` | **start here.** The contract: parameters, metrics, rules, views |
 | `lib/soup.ts` | mesh in two forms, and the road between them |
-| `lib/io/` | STL, OBJ, PLY readers |
+| `lib/io/` | GLB, glTF, STL, OBJ, PLY readers |
 | `lib/mesh/solid.ts` | the rays — a mesh you can ask questions of |
 | `lib/mesh/simplify.ts` `smooth.ts` | vertex clustering, Taubin |
 | `lib/contour.ts` | marching squares |
@@ -158,6 +168,11 @@ pnpm look    # screenshots of the page, and any console errors
 
 ## Limits
 
+- Draco- and meshopt-compressed GLB files cannot be read — the decoders are
+  hundreds of kilobytes of their own. The tool says so and names the extension
+  instead of importing nothing. Re-export without compression.
+- A `.gltf` that points at a separate `.bin` has no way to reach that file when
+  dropped into a browser. Use `.glb`, which carries everything in one file.
 - Slicing reads the mesh by counting winding. A globally inverted mesh is fixed
   automatically; a mesh with *inconsistently* wound triangles is a real defect
   and needs repairing elsewhere. The panel says how many open edges it found.
