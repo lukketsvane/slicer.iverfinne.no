@@ -99,11 +99,16 @@ function sjekk(namn: string, p: Params) {
   }
 
   const areal = pl.parts.reduce((s, q) => s + q.area, 0)
-  const ok = overlapp === 0 && utanfor === 0
+  // Delar som ikkje fekk plass står ikkje på noka plate, so overlappstesten
+  // ser dei aldri. Utan denne lina kan skriptet melde «ok» medan to delar
+  // stille har forsvunne ut av kuttlista.
+  const lagd = ns.sheets.reduce((n, q) => n + q.placed.length, 0)
+  const ok = overlapp === 0 && utanfor === 0 && lagd + ns.spilt === pl.parts.length
   if (!ok) brot++
   console.log(
     `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ` +
       `${String(pl.parts.length).padStart(3)} delar · ${ns.sheets.length} ark · ` +
+      `${ns.spilt ? `${ns.spilt} utanfor · ` : ""}` +
       `${Math.round(ns.util * 100)} % · ` +
       `overlapp ${overlapp} · utanfor ${utanfor} · ` +
       `næraste ${Number.isFinite(naer) ? naer.toFixed(1) : "–"} mm (luke ${gap}) · ` +
