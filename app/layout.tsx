@@ -15,13 +15,13 @@ const NOTE =
   "Snitt eit 3D-nett til flate delar for laser og CNC. Dra inn ei STL, sett tjukna, få DXF og kuttark. Ingen dyr programvare."
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://slicerman.iverfinne.no"),
+  metadataBase: new URL("https://slicer.iverfinne.no"),
   title: TITLE,
   description: NOTE,
   openGraph: {
     title: TITLE,
     description: NOTE,
-    url: "https://slicerman.iverfinne.no",
+    url: "https://slicer.iverfinne.no",
     siteName: TITLE,
     type: "website",
     locale: "nn_NO",
