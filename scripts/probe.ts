@@ -1,0 +1,166 @@
+/**
+ * Prøvebenken. Han køyrer motoren utan nettlesar og skriv ut det ein
+ * elles måtte sjå på skjermen for å vita: kor mange delar, kor mange
+ * ledd, kor lang kutten er, og om kuttfilene i det heile vart til noko.
+ *
+ *   npx tsx scripts/probe.ts
+ */
+import { VAFFEL } from "../lib/vaffel/engine"
+import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
+import { parseMesh } from "../lib/io"
+import { put } from "../lib/sources"
+import { meshToStl } from "../lib/vaffel/export-stl"
+import { makeSoup } from "../lib/soup"
+import type { ParamBag } from "../lib/core"
+
+const nn = (v: number, d = 1) => v.toFixed(d)
+
+function report(name: string, p: Params) {
+  const t0 = Date.now()
+  const bag = p as unknown as ParamBag
+  const m = VAFFEL.measure(bag)
+  const r = VAFFEL.rules(bag, m)
+  const tMeasure = Date.now() - t0
+
+  const t1 = Date.now()
+  const lag = VAFFEL.build(bag, "mid", "lag")
+  const flate = VAFFEL.build(bag, "mid", "flate")
+  const kontur = VAFFEL.build(bag, "mid", "kontur")
+  const tBuild = Date.now() - t1
+
+  const t2 = Date.now()
+  const stl = VAFFEL.exportFile(bag, "stl")
+  const dxf = VAFFEL.exportFile(bag, "dxf")
+  const svg = VAFFEL.exportFile(bag, "svg")
+  const ark = VAFFEL.exportFile(bag, "ark")
+  const tExport = Date.now() - t2
+
+  console.log(`\n=== ${name} ===`)
+  console.log(
+    `  nett      ${m.tris} trekantar (av ${m.srcTris}), ${m.openEdges} opne kantar`,
+  )
+  console.log(`  ytre      ${nn(m.envX)} x ${nn(m.envY)} x ${nn(m.envZ)} mm`)
+  console.log(`  ribber    ${m.units}   ledd ${m.joints}`)
+  console.log(`  delar     ${m.parts} (${m.unique} unike)`)
+  console.log(`  kutt      ${nn(m.cutLen / 1000, 2)} m   spor ${nn(m.slotW, 2)} mm`)
+  console.log(`  gods      ${nn(m.narrow)} mm   opning ${nn(m.minGap)} mm`)
+  console.log(
+    `  masse     ${nn(m.mass, 3)} kg   ark ${m.sheets} (${nn(m.util * 100, 0)} %)`,
+  )
+  console.log(
+    `  nett      lag ${lag.tris} tri, flate ${flate.tris} tri, kontur ${
+      (kontur.lines.length + kontur.heavy.length) / 6
+    } linjer`,
+  )
+  console.log(
+    `  filer     stl ${stl.data?.byteLength ?? 0} B, dxf ${dxf.text?.length ?? 0} B, ` +
+      `svg ${svg.text?.length ?? 0} B, ark ${ark.text?.length ?? 0} B`,
+  )
+  console.log(`  tid       mål ${tMeasure} ms, bygg ${tBuild} ms, eksport ${tExport} ms`)
+  const brot = r.filter((q) => !q.ok)
+  if (brot.length) {
+    for (const q of brot) {
+      console.log(`  ${q.hard ? "BRYT" : "merk"}  ${q.label}: ${q.value}`)
+    }
+  } else {
+    console.log("  reglar    alle held")
+  }
+  return { m, r, lag }
+}
+
+// --- 1 standarden: kuben --------------------------------------------------
+const kube = report("kube, standard", DEFAULT_PARAMS)
+if (kube.m.joints !== DEFAULT_PARAMS.ribbX * DEFAULT_PARAMS.ribbY) {
+  console.log(
+    `  !! venta ${DEFAULT_PARAMS.ribbX * DEFAULT_PARAMS.ribbY} ledd på ein kube`,
+  )
+}
+
+// --- 2 tettare rutenett og tjukkare plate ---------------------------------
+report("kube, 12x9 ribber i 12 mm", { ...DEFAULT_PARAMS, ribbX: 12, ribbY: 9, tjukn: 12 })
+
+// --- 3 hundebein og t-bein ------------------------------------------------
+report("kube, hundebein", { ...DEFAULT_PARAMS, leddtype: 1, fres: 6 })
+report("kube, t-bein", { ...DEFAULT_PARAMS, leddtype: 2, fres: 6 })
+
+// --- 4 vend og skaler -----------------------------------------------------
+report("kube, vend 30/20/10 og 700 mm", {
+  ...DEFAULT_PARAMS,
+  rotX: 30,
+  rotY: 20,
+  rotZ: 10,
+  storleik: 700,
+})
+
+// --- 5 eit importert nett: ei kule som STL --------------------------------
+function sphereStl(r: number, seg: number): ArrayBuffer {
+  const pos: number[] = []
+  const at = (i: number, j: number): [number, number, number] => {
+    const th = (i / seg) * Math.PI * 2
+    const ph = (j / seg) * Math.PI
+    return [
+      r * Math.sin(ph) * Math.cos(th),
+      r * Math.sin(ph) * Math.sin(th),
+      r * Math.cos(ph),
+    ]
+  }
+  for (let j = 0; j < seg; j++) {
+    for (let i = 0; i < seg; i++) {
+      const a = at(i, j)
+      const b = at(i + 1, j)
+      const c = at(i + 1, j + 1)
+      const d = at(i, j + 1)
+      pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+    }
+  }
+  const soup = makeSoup(new Float32Array(pos))
+  const nrm = new Float32Array(soup.pos.length)
+  for (let i = 0; i < nrm.length; i += 3) {
+    const L = Math.hypot(soup.pos[i], soup.pos[i + 1], soup.pos[i + 2]) || 1
+    nrm[i] = soup.pos[i] / L
+    nrm[i + 1] = soup.pos[i + 1] / L
+    nrm[i + 2] = soup.pos[i + 2] / L
+  }
+  const bytes = meshToStl({ positions: soup.pos, normals: nrm, tris: soup.tris }, "kule")
+  return bytes.buffer.slice(0) as ArrayBuffer
+}
+
+const stl = sphereStl(50, 48)
+const kule = parseMesh("kule.stl", stl)
+console.log(`\nles att STL: ${kule.tris} trekantar, boks ${kule.min} .. ${kule.max}`)
+put("kule", "kule.stl", kule)
+report("kule, importert STL", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 7, ribbY: 7 })
+report("kule, glatta og forenkla", {
+  ...DEFAULT_PARAMS,
+  kjelde: "kule",
+  glatt: 6,
+  trekant: 2,
+  ribbX: 7,
+  ribbY: 7,
+})
+
+// --- 6 ein torus: to stykke i same søyle, og eit hòl gjennom ---------------
+function torusSoup(R: number, r: number, n: number, m: number) {
+  const pos: number[] = []
+  const at = (i: number, j: number): [number, number, number] => {
+    const u = (i / n) * Math.PI * 2
+    const v = (j / m) * Math.PI * 2
+    return [
+      (R + r * Math.cos(v)) * Math.cos(u),
+      (R + r * Math.cos(v)) * Math.sin(u),
+      r * Math.sin(v),
+    ]
+  }
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < m; j++) {
+      const a = at(i, j)
+      const b = at(i + 1, j)
+      const c = at(i + 1, j + 1)
+      const d = at(i, j + 1)
+      pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+    }
+  }
+  return makeSoup(new Float32Array(pos))
+}
+put("torus", "torus", torusSoup(60, 22, 64, 32))
+report("torus, staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9 })
