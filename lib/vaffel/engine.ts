@@ -33,7 +33,8 @@ import { checkRules } from "./rules"
 import { makePlan } from "./plan"
 import { meshToStl } from "./export-stl"
 import { partsToDxf } from "./export-dxf"
-import { profileSvg, sheetSvg } from "./export-svg"
+import { couponSvg, profileSvg, sheetSvg } from "./export-svg"
+import { zip } from "../zip"
 import {
   DEFAULT_PARAMS,
   GROUPS,
@@ -72,6 +73,9 @@ const asP = (p: ParamBag) => p as unknown as Params
  *  fyrste gong han vert send gjennom postMessage, og då er alle seinare
  *  visningar tomme utan at noko feilar. */
 const EMPTY = () => new Float32Array(0)
+
+/** desimalkomma i eit filnamn er bråk: 2,5 mm vert «2p5» */
+const num = (v: number) => String(+v.toFixed(2)).replace(".", "p")
 
 /** filnamn utan mellomrom, utan aksentar og med kjelda i seg */
 const stem = (p: Params) =>
@@ -156,12 +160,36 @@ export const VAFFEL: EngineDef = {
         data: bytes.buffer.slice(0) as ArrayBuffer,
       }
     }
+    if (what === "prove") {
+      // Passprøva treng korkje ribber eller nesting — ho er ei lita plate
+      // med sju spor, og ho skal kunne hentast før du har bestemt deg for
+      // noko som helst anna.
+      return {
+        name: `passprove-${num(p.tjukn)}mm-${p.material}.svg`,
+        mime: "image/svg+xml",
+        text: couponSvg(p.tjukn, p.snitt, p.material),
+      }
+    }
     const { g, ns } = makePlan(p, DETAIL.mid)
     if (what === "svg") {
       return { name: `${name}-profilar.svg`, mime: "image/svg+xml", text: profileSvg(g, p.snitt) }
     }
     if (what === "ark") {
-      return { name: `${name}-ark.svg`, mime: "image/svg+xml", text: sheetSvg(ns, p.tjukn, p.snitt) }
+      const n = ns.sheets.length
+      const ark = (i: number) => sheetSvg(ns, i, p.snitt)
+      // Éi plate er éi fil. Fleire er ei mappe — og ei mappe i nettlesaren
+      // er ein ZIP. Alternativet er at brukaren må slette dei andre platene
+      // for hand kvar einaste gong han opnar uttaket.
+      if (n <= 1) {
+        return { name: `${name}-ark.svg`, mime: "image/svg+xml", text: ark(0) }
+      }
+      const buf = zip(
+        ns.sheets.map((_, i) => ({
+          name: `${name}-ark-${i + 1}av${n}.svg`,
+          text: ark(i),
+        })),
+      )
+      return { name: `${name}-ark-${n}plater.zip`, mime: "application/zip", data: buf }
     }
     return {
       name: `${name}.dxf`,

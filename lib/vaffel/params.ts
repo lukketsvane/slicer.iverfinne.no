@@ -96,7 +96,7 @@ export const PARAM_KEYS = GROUPS.flatMap((g) => g.keys)
 export const DEFAULT_PARAMS: Params = {
   kjelde: "kube",
 
-  storleik: 300,
+  storleik: 150,
   rotX: 0,
   rotY: 0,
   rotZ: 0,
@@ -106,18 +106,18 @@ export const DEFAULT_PARAMS: Params = {
 
   ribbX: 6,
   ribbY: 6,
-  tjukn: 6,
+  tjukn: 2,
 
   klaring: 0.15,
   ledd: 0.5,
   leddtype: 0,
 
-  fres: 3,
+  fres: 0,
   snitt: 0.2,
-  arkB: 900,
-  arkH: 600,
+  arkB: 600,
+  arkH: 400,
 
-  material: "finer",
+  material: "mdf",
 }
 
 /** kva to fingrar på lerretet skrur på */
@@ -144,7 +144,7 @@ export function randomParams(
   // Tjukna skal vera ei plate ein får kjøpt. Terningen får velje kva for
   // ei, men ikkje å finne opp ei ny.
   if (!locked.has("tjukn")) {
-    const t = [3, 4, 6, 9, 12, 18]
+    const t = [2, 2.5, 3, 4, 6]
     q.tjukn = t[Math.floor(rnd() * t.length)]
   }
   return q

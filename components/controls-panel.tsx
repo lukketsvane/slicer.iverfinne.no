@@ -42,7 +42,12 @@ const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[] = [
   { id: "stl", label: "stl", hint: "heile stabelen som trekantnett, til rendering og 3D-print" },
   { id: "dxf", label: "dxf", hint: "alle delane nesta på plate, med snittkompensasjon — til fresen" },
   { id: "svg", label: "svg", hint: "alle profilane ved sida av kvarandre, i 1:1" },
-  { id: "ark", label: "ark", hint: "fyrste plata slik ho er pakka" },
+  { id: "ark", label: "ark", hint: "platene slik dei er pakka — ei fil per plate" },
+  {
+    id: "prove",
+    label: "passprøve",
+    hint: "ei lita plate med sju spor, kvart ein tjuedels millimeter breiare enn det førre. Skjer henne i plata du skal bruke, skyv eit avkapp ned i kvart spor, og sett klaringa til det som går inn med tommelkraft",
+  },
 ]
 
 const DASH = "–"
