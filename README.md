@@ -128,7 +128,8 @@ pnpm build      # forces webpack, then checks the worker actually bundled
 ```
 
 Next.js + React Three Fiber. All geometry runs in a Web Worker; the main thread
-only draws.
+only draws. `vercel.json` pins the framework and build command, so a fork
+deploys without touching any dashboard.
 
 > Do not build with Turbopack. It ships `new Worker(new URL(…))` as raw
 > TypeScript in `static/media`; the worker then dies silently in the browser and
