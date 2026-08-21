@@ -209,6 +209,57 @@ export function shade(m: Indexed, creaseDeg = 40): { pos: Float32Array; nrm: Flo
 }
 
 // =============================================================================
+// VINDINGA
+// =============================================================================
+/**
+ * Volumet med forteikn, av divergenssetninga.
+ *
+ * Talet er interessant for ein einaste grunn: FORTEIKNET. Eit lukka nett
+ * med normalane ut har positivt volum; eit med normalane inn har negativt.
+ * Og eit nett med normalane inn er akkurat like vanleg som det andre —
+ * ein eksport som gløymde å snu, eit skann sett frå «feil» side, ein
+ * boolsk operasjon i eit program som ikkje reinsa opp etter seg.
+ */
+export function signedVolume(m: Indexed): number {
+  const V = m.verts
+  let v = 0
+  for (let t = 0; t < m.idx.length; t += 3) {
+    const a = m.idx[t] * 3
+    const b = m.idx[t + 1] * 3
+    const c = m.idx[t + 2] * 3
+    v +=
+      (V[a] * (V[b + 1] * V[c + 2] - V[b + 2] * V[c + 1]) -
+        V[a + 1] * (V[b] * V[c + 2] - V[b + 2] * V[c]) +
+        V[a + 2] * (V[b] * V[c + 1] - V[b + 1] * V[c])) /
+      6
+  }
+  return v
+}
+
+/**
+ * Nettet snudd ut-inn.
+ *
+ * Snittinga les innsida ved å telje kva veg kvar trekant vender. Vender
+ * dei alle feil veg, tel ho kvar veg INN som ein veg UT, summen kjem
+ * aldri over null, og svaret er at objektet ikkje finst: null ribber, null
+ * delar, tom skjerm. Reiskapen skal ikkje svare det på ei fil som er heilt
+ * i orden bortsett frå ein forteiknsfeil, so han snur henne i staden.
+ *
+ * Dette rettar den GLOBALE feilen. Eit nett der somme trekantar vender ut
+ * og andre inn, om kvarandre, er ein annan og verre skade — der hjelper
+ * berre å reparere nettet, og det er ikkje denne reiskapen sin jobb.
+ */
+export function flip(m: Indexed): Indexed {
+  const idx = Uint32Array.from(m.idx)
+  for (let t = 0; t < idx.length; t += 3) {
+    const q = idx[t + 1]
+    idx[t + 1] = idx[t + 2]
+    idx[t + 2] = q
+  }
+  return { verts: m.verts, idx }
+}
+
+// =============================================================================
 // KANTAR
 // =============================================================================
 /**

@@ -17,44 +17,71 @@
  * verktøyoffset, og dei skal kunne bruke reiskapen.
  */
 import { shoelace, type Pt } from "../core"
+import { fitSize, strokesAt, strokes } from "../stroke"
 import { placedRings, type Nesting } from "./nest"
 
 /** luka mellom arka i uttaket, mm */
 const SHEET_GAP = 200
 
-export function partsToDxf(nesting: Nesting, plyT: number, kerf: number): string {
+export function partsToDxf(n: Nesting, plyT: number, kerf: number): string {
   const out: string[] = []
   const h = kerf / 2
-  const pitch = nesting.sheetH + SHEET_GAP
+  const pitch = n.sheetH + SHEET_GAP
 
-  head(out, nesting.sheetW, Math.max(1, nesting.sheets.length) * pitch)
+  head(out, n.sheetW, Math.max(1, n.sheets.length) * pitch)
 
-  nesting.sheets.forEach((sheet, i) => {
+  n.sheets.forEach((sheet, i) => {
     const oy = i * pitch
-    // plateomrisset står på GRAVER: det er ei opplysning, ikkje eit kutt
+    // plateomrisset står på GRAVER: det er ei opplysning om kor plata
+    // ligg, ikkje ein kant nokon skal skjere
     poly(out, "GRAVER", [
       [0, oy],
-      [sheet.w, oy],
-      [sheet.w, oy + sheet.h],
-      [0, oy + sheet.h],
+      [n.sheetW, oy],
+      [n.sheetW, oy + n.sheetH],
+      [0, oy + n.sheetH],
     ])
-    text(
-      out,
-      "GRAVER",
-      [sheet.w / 2, oy + sheet.h - 26],
-      18,
-      `ARK ${i + 1}/${nesting.sheets.length}  ${fmt(plyT)} MM`,
-    )
+    // Overskrifta ligg UTANFOR plata. Ho er til den som opnar fila, ikkje
+    // til stråla — og ligg ho utanfor, kan ho ikkje brennast ved eit uhell.
+    for (const line of strokes(
+      `ARK ${i + 1}/${n.sheets.length}  ${fmt(plyT)} MM`,
+      0,
+      oy + n.sheetH + 24,
+      16,
+    )) {
+      poly(out, "GRAVER", line, false)
+    }
     for (const q of sheet.placed) {
-      const r = placedRings({ ...q, y: q.y + oy })
-      poly(out, "KUTT", offsetPoly(r.outline, +h))
-      for (const hole of r.holes) poly(out, "KUTT", offsetPoly(hole, -h))
-      text(out, "GRAVER", centre(r.outline), 14, q.part.id)
+      const r = placedRings(q)
+      poly(out, "KUTT", offsetPoly(r.outline.map(([x, y]) => [x, y + oy] as Pt), +h))
+      for (const hole of r.holes) {
+        poly(out, "KUTT", offsetPoly(hole.map(([x, y]) => [x, y + oy] as Pt), -h))
+      }
+      mark(out, q.part.from, q.label.p[0], q.label.p[1] + oy, q.label)
     }
   })
 
   out.push("0", "ENDSEC", "0", "EOF")
   return out.join("\r\n") + "\r\n"
+}
+
+/**
+ * Adressa til delen, gravert som strekar.
+ *
+ * Ikkje som ein TEXT-entitet. Ein TEXT er eit spørsmål til maskina om ho
+ * har den skrifta, og svaret er ofte at ho hoppar over han — og då står du
+ * med tretti like ribber og ingen måte å vita kva som er kva. Strekar er
+ * geometri, og geometri kan ingen maskin misforstå.
+ */
+function mark(
+  out: string[],
+  text: string,
+  x: number,
+  y: number,
+  rom: { room: number; wide: number },
+) {
+  const size = fitSize(text, rom.room, rom.wide)
+  if (!size) return
+  for (const line of strokesAt(text, x, y, size)) poly(out, "GRAVER", line, false)
 }
 
 // =============================================================================
@@ -137,27 +164,16 @@ function head(out: string[], w: number, h: number) {
   )
 }
 
-function poly(out: string[], layer: string, pts: Pt[]) {
+function poly(out: string[], layer: string, pts: Pt[], closed = true) {
   if (pts.length < 2) return
   out.push(
     "0", "POLYLINE", "8", layer,
     "66", "1", // hjørna fylgjer som eigne VERTEX-entitetar
-    "70", "1", // lukka
+    "70", closed ? "1" : "0",
     "10", "0.0", "20", "0.0", "30", "0.0",
   )
   for (const q of pts) {
     out.push("0", "VERTEX", "8", layer, "10", f(q[0]), "20", f(q[1]), "30", "0.0")
   }
   out.push("0", "SEQEND", "8", layer)
-}
-
-function text(out: string[], layer: string, at: Pt, hgt: number, s: string) {
-  out.push(
-    "0", "TEXT", "8", layer,
-    "10", f(at[0]), "20", f(at[1]), "30", "0.0",
-    "40", f(hgt),
-    "1", s,
-    "72", "1", "73", "2", // midtstilt i begge retningar
-    "11", f(at[0]), "21", f(at[1]), "31", "0.0",
-  )
 }

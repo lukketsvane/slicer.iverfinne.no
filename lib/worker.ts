@@ -145,9 +145,9 @@ self.onmessage = (e: MessageEvent<Req>) => {
         // Profilane som bilete, i same utsette steget: mellombygga er alt
         // hugsa frå målinga, so teikninga kostar berre sjølve SVG-en.
         if (newest !== req.id) return
-        const svg = VAFFEL.exportFile(req.params, "svg")
-        if (newest !== req.id || !svg.text) return
-        post({ kind: "syn", id: req.id, svg: svg.text })
+        const svg = VAFFEL.preview(req.params)
+        if (newest !== req.id || !svg) return
+        post({ kind: "syn", id: req.id, svg })
       } catch (err) {
         console.error("slicerman: målinga slo feil", err)
       }

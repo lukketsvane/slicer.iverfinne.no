@@ -9,7 +9,9 @@
     "sjekk": "tsc --noEmit",
     "probe": "tsx scripts/probe.ts",
     "tung": "tsx scripts/tung.ts",
-    "look": "tsx scripts/look.ts"
+    "look": "tsx scripts/look.ts",
+    "pakk": "tsx scripts/nest-sjekk.ts",
+    "ark": "tsx scripts/ark.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

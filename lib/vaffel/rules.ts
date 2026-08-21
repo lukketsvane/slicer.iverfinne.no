@@ -15,20 +15,14 @@
  * éin av dei, ligg det ein haug med finér på bordet og ingen vaffel.
  */
 import { nn, type Metrics, type Rule } from "../core"
-import { makeKropp } from "./kropp"
-import { buildGrid, DETAIL } from "./ribs"
-import { buildParts } from "./parts"
-import { nest } from "./nest"
-import { nestGap } from "./metrics"
+import { DETAIL } from "./ribs"
+import { makePlan } from "./plan"
 import type { Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
 
 export function checkRules(p: Params, m: Metrics): Rule[] {
-  const k = makeKropp(p)
-  const g = buildGrid(k, p, DETAIL.mid)
-  const pl = buildParts(g)
-  const ns = nest(pl.parts, p.arkB, p.arkH, nestGap(p))
+  const { pl, ns } = makePlan(p, DETAIL.mid)
   const out: Rule[] = []
   const add = (r: Rule) => out.push(r)
 

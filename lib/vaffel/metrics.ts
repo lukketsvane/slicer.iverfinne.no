@@ -20,20 +20,12 @@ import {
   type Metric,
   type Metrics,
 } from "../core"
-import { makeKropp } from "./kropp"
-import { buildGrid, DETAIL, type Grid } from "./ribs"
-import { buildParts } from "./parts"
-import { nest } from "./nest"
+import { DETAIL, type Grid } from "./ribs"
+import { makePlan } from "./plan"
 import type { Params } from "./params"
 
-/** luft mellom delane på plata: verktøyet sin diameter pluss litt å ta i */
-export const nestGap = (p: Params) => Math.max(4, p.fres + 2)
-
 export function measure(p: Params): Metrics {
-  const k = makeKropp(p)
-  const g = buildGrid(k, p, DETAIL.mid)
-  const pl = buildParts(g)
-  const ns = nest(pl.parts, p.arkB, p.arkH, nestGap(p))
+  const { k, g, pl, ns } = makePlan(p, DETAIL.mid)
 
   const env = envelope(g)
   const narrow = g.ribs.reduce(
