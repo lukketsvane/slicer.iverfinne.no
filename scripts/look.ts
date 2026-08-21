@@ -9,7 +9,7 @@
  *   npx tsx scripts/look.ts [url]
  */
 import { chromium } from "playwright"
-import { mkdirSync, writeFileSync } from "node:fs"
+import { mkdirSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { makeSoup } from "../lib/soup"
 import { meshToStl } from "../lib/vaffel/export-stl"
@@ -23,7 +23,10 @@ const main = async () => {
   const browser = await chromium.launch({
     executablePath: process.env.PW_CHROMIUM || undefined,
   })
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  const page = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+    acceptDownloads: true,
+  })
   const feil: string[] = []
   // Ei melding om ein ressurs som ikkje kom, seier ikkje KVA for ein i
   // teksten sin. Difor vert nettverket lese for seg, og konsollen berre
@@ -115,6 +118,31 @@ const main = async () => {
 
   await importer("prove.stl", kuleStl(60, 40), "5-import-stl.png")
   await importer("prove.glb", eggGlb(60, 40), "6-import-glb.png")
+
+  // --- uttaka ---------------------------------------------------------------
+  // Ei knapp som ikkje leverer ei fil er ei knapp som ikkje finst. Kvart
+  // uttak vert trykt på, og fila som kjem ut vert lesen: rett namn, rett
+  // type, og noko inni.
+  await page.getByRole("button", { name: "vis kontrollane" }).click()
+  await page.waitForTimeout(400)
+  for (const [chip, vent] of [
+    ["passprøve", /^passprove-.*\.svg$/],
+    ["ark", /\.svg$|\.zip$/],
+    ["dxf", /\.dxf$/],
+    ["svg", /profilar\.svg$/],
+  ] as [string, RegExp][]) {
+    const [dl] = await Promise.all([
+      page.waitForEvent("download", { timeout: 30000 }),
+      page.getByRole("button", { name: chip, exact: true }).click(),
+    ])
+    const namn = dl.suggestedFilename()
+    const sti = join(UT, namn)
+    await dl.saveAs(sti)
+    const stor = statSync(sti).size
+    console.log(`uttak ${chip.padEnd(10)} → ${namn} (${stor} B)`)
+    if (!vent.test(namn)) feil.push(`${chip}: uventa filnamn «${namn}»`)
+    if (stor < 200) feil.push(`${chip}: fila er tom (${stor} B)`)
+  }
 
   await browser.close()
   if (feil.length) {
