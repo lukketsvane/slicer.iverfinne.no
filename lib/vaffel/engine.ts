@@ -158,10 +158,10 @@ export const VAFFEL: EngineDef = {
     }
     const { g, ns } = makePlan(p, DETAIL.mid)
     if (what === "svg") {
-      return { name: `${name}-profilar.svg`, mime: "image/svg+xml", text: profileSvg(g) }
+      return { name: `${name}-profilar.svg`, mime: "image/svg+xml", text: profileSvg(g, p.snitt) }
     }
     if (what === "ark") {
-      return { name: `${name}-ark.svg`, mime: "image/svg+xml", text: sheetSvg(ns, p.tjukn) }
+      return { name: `${name}-ark.svg`, mime: "image/svg+xml", text: sheetSvg(ns, p.tjukn, p.snitt) }
     }
     return {
       name: `${name}.dxf`,
@@ -172,6 +172,6 @@ export const VAFFEL: EngineDef = {
 
   preview(bag: ParamBag): string {
     const p = asP(bag)
-    return profileSvg(buildGrid(makeKropp(p), p, DETAIL.mid), true)
+    return profileSvg(buildGrid(makeKropp(p), p, DETAIL.mid), p.snitt, true)
   },
 }

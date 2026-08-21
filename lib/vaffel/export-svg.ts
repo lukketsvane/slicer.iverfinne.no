@@ -20,7 +20,7 @@
  * Alt er i millimeter med viewBox i millimeter, so eit uttak kan skrivast
  * ut i 1:1 utan at nokon må rekne om noko.
  */
-import type { Pt } from "../core"
+import { offsetPoly, type Pt } from "../core"
 import { fitSize, strokes, strokesAt } from "../stroke"
 import { placedRings, type Nesting } from "./nest"
 import type { Grid } from "./ribs"
@@ -72,7 +72,7 @@ const nedover = (lines: Pt[][], base: number): Pt[][] =>
  * på arket. Platene ligg under kvarandre med luft imellom, so det som er
  * eit ark i fila er eit ark på bordet.
  */
-export function sheetSvg(n: Nesting, plyT: number): string {
+export function sheetSvg(n: Nesting, plyT: number, kerf: number): string {
   const W = n.sheetW
   const H = n.sheetH
   const PAD = 46
@@ -92,8 +92,13 @@ export function sheetSvg(n: Nesting, plyT: number): string {
     body.push(`<rect x="0" y="0" width="${f(W)}" height="${f(H)}" ${note(w)}/>`)
     for (const q of sheet.placed) {
       const r = placedRings(q)
-      body.push(`<path d="${ring(r.outline)}" ${KUTT}/>`)
-      for (const h of r.holes) body.push(`<path d="${ring(h)}" ${KUTT}/>`)
+      // Snittbreidda ligg i FILA, som i DXF-en: den som har ein laser i
+      // kjellaren har sjeldan ein CAM-pakke som kan setje verktøyoffset.
+      // Set du kerf i programmet ditt òg, kompenserer du to gonger.
+      body.push(`<path d="${ring(offsetPoly(r.outline, kerf / 2))}" ${KUTT}/>`)
+      for (const h of r.holes) {
+        body.push(`<path d="${ring(offsetPoly(h, -kerf / 2))}" ${KUTT}/>`)
+      }
       const size = fitSize(q.part.from, q.label.room, q.label.wide)
       if (size) {
         // Ingen spegling her: gruppa er alt spegla, so ein tekst teikna
@@ -133,7 +138,7 @@ export function sheetSvg(n: Nesting, plyT: number): string {
  * teikning som er skrumpa til hundre og seksti pikslar er ingen strek i
  * det heile.
  */
-export function profileSvg(g: Grid, syn = false): string {
+export function profileSvg(g: Grid, kerf: number, syn = false): string {
   const GAP = Math.max(10, g.p.tjukn * 2)
   const xr = g.ribs.filter((r) => r.axis === "x")
   const yr = g.ribs.filter((r) => r.axis === "y")
@@ -187,11 +192,16 @@ export function profileSvg(g: Grid, syn = false): string {
         }
       }
       if (!Number.isFinite(lo)) continue
-      for (const q of [...r.outlines, ...r.holes]) {
-        // Y vert spegla: SVG reknar nedover, og ei ribbe står oppreist.
-        out.push(
-          `<path d="${ring(q.map((p) => [x + (p[0] - lo), yOff - p[1]] as Pt))}" ${KUTT}/>`,
-        )
+      // Y vert spegla: SVG reknar nedover, og ei ribbe står oppreist. Etter
+      // speglinga snur ytterkant og hòl om på vindinga, so skuvet er alt
+      // rekna FØR henne.
+      const lagd = (q: Pt[], d: number) =>
+        offsetPoly(q, d).map((p) => [x + (p[0] - lo), yOff - p[1]] as Pt)
+      for (const q of r.outlines) {
+        out.push(`<path d="${ring(lagd(q, kerf / 2))}" ${KUTT}/>`)
+      }
+      for (const q of r.holes) {
+        out.push(`<path d="${ring(lagd(q, -kerf / 2))}" ${KUTT}/>`)
       }
       const adr = r.axis.toUpperCase() + (r.k + 1)
       for (const line of nedover(strokes(adr, x + 1, 0, 8), yOff + 11)) {

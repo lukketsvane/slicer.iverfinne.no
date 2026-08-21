@@ -16,7 +16,7 @@
  * som eig ein laser i kjellaren ikkje har ein CAM-pakke som kan setje
  * verktøyoffset, og dei skal kunne bruke reiskapen.
  */
-import { shoelace, type Pt } from "../core"
+import { offsetPoly, type Pt } from "../core"
 import { fitSize, strokesAt, strokes } from "../stroke"
 import { placedRings, type Nesting } from "./nest"
 
@@ -82,51 +82,6 @@ function mark(
   const size = fitSize(text, rom.room, rom.wide)
   if (!size) return
   for (const line of strokesAt(text, x, y, size)) poly(out, "GRAVER", line, false)
-}
-
-// =============================================================================
-// SNITTBREIDD
-// =============================================================================
-/**
- * Konturen skuva `d` millimeter utover langs vinkelhalveringslina. Det er
- * ikkje eit ekte offset — eit ekte offset kollapsar hjørne der radien er
- * mindre enn skuvet — men på ein tidels millimeter mot ein hjørneradius på
- * fleire er skilnaden under det maskina kan halde, og han går rette vegen.
- */
-export function offsetPoly(poly: Pt[], d: number): Pt[] {
-  const n = poly.length
-  if (n < 3 || Math.abs(d) < 1e-6) return poly
-  const ccw = shoelace(poly) > 0
-  const s = ccw ? d : -d
-  const out: Pt[] = []
-  for (let i = 0; i < n; i++) {
-    const a = poly[(i - 1 + n) % n]
-    const b = poly[i]
-    const c = poly[(i + 1) % n]
-    const n1 = norm(a, b)
-    const n2 = norm(b, c)
-    let mx = n1[0] + n2[0]
-    let my = n1[1] + n2[1]
-    const L = Math.hypot(mx, my)
-    if (L < 1e-9) {
-      out.push(b)
-      continue
-    }
-    mx /= L
-    my /= L
-    // korriger for at halveringslina er kortare enn normalen i eit hjørne
-    const k = Math.max(0.4, n1[0] * mx + n1[1] * my || 1)
-    out.push([b[0] + (s * mx) / k, b[1] + (s * my) / k])
-  }
-  return out
-}
-
-/** utovernormalen til kanten a→b i eit polygon mot klokka */
-function norm(a: Pt, b: Pt): Pt {
-  const dx = b[0] - a[0]
-  const dy = b[1] - a[1]
-  const L = Math.hypot(dx, dy) || 1
-  return [dy / L, -dx / L]
 }
 
 const centre = (poly: Pt[]): Pt => {
