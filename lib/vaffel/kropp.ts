@@ -5,9 +5,10 @@
  * dei skjer alltid i denne rekkjefylgja:
  *
  *   1  SVEIS      lause trekantar vert hjørne med naboar
- *   2  FORENKL    hjørneklynging ned til det taket skyvaren set
- *   3  GLATT      Taubin, so ruglet går og volumet står
- *   4  PLASSER    vend, skaler til storleiken, sentrer og sett på golvet
+ *   2  SNU        er heile nettet ut-inn, vert det snudd
+ *   3  FORENKL    hjørneklynging ned til det taket skyvaren set
+ *   4  GLATT      Taubin, so ruglet går og volumet står
+ *   5  PLASSER    vend, skaler til storleiken, sentrer og sett på golvet
  *
  * Rekkjefylgja er ikkje ein smak. Glatting før forenkling er å bruke tid
  * på hjørne som skal bort; forenkling etter plassering gjer at «tjue tusen
@@ -19,7 +20,17 @@
  * her; utan hugs kostar eit skyvartrykk tre snittingar av same nett.
  */
 import { keep } from "../core"
-import { makeSoup, openEdges, place, shade, weld, type Indexed, type Soup } from "../soup"
+import {
+  flip,
+  makeSoup,
+  openEdges,
+  place,
+  shade,
+  signedVolume,
+  weld,
+  type Indexed,
+  type Soup,
+} from "../soup"
 import { decimate } from "../mesh/simplify"
 import { taubin } from "../mesh/smooth"
 import { makeSolid, type Solid } from "../mesh/solid"
@@ -65,6 +76,9 @@ function makeNet(p: Params): Net {
   return NETT_HUGS(NETT_NOKKEL(p), () => {
     const raw = source(p.kjelde)
     let net = weld(raw)
+    // Ut-inn fyrst, og før alt anna: er nettet snudd, er kvar einaste
+    // seinare avgjerd teken på feil side av flata.
+    if (signedVolume(net) < 0) net = flip(net)
     net = decimate(net, Math.max(64, Math.round(p.trekant * 1000)))
     net = taubin(net, p.glatt)
     return { net, srcTris: raw.tris, openEdges: openEdges(net) }

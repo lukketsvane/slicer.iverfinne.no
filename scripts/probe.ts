@@ -164,3 +164,35 @@ function torusSoup(R: number, r: number, n: number, m: number) {
 }
 put("torus", "torus", torusSoup(60, 22, 64, 32))
 report("torus, staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9 })
+
+// --- 7 eit nett som er snudd ut-inn ---------------------------------------
+// Ein eksport som gløymde å snu normalane er ei heilt vanleg fil, og
+// stråleskytinga les henne som tom luft om ingen tek tak i det. Ho skal gje
+// nøyaktig det same objektet som den rettvende.
+const vrengd = makeSoup(
+  (() => {
+    const src = torusSoup(60, 22, 64, 32).pos
+    const out = new Float32Array(src.length)
+    for (let t = 0; t < src.length; t += 9) {
+      for (let c = 0; c < 3; c++) {
+        out[t + c] = src[t + c]
+        out[t + 3 + c] = src[t + 6 + c]
+        out[t + 6 + c] = src[t + 3 + c]
+      }
+    }
+    return out
+  })(),
+)
+put("vrengd", "vrengd", vrengd)
+const a = report("torus, snudd ut-inn", {
+  ...DEFAULT_PARAMS, kjelde: "vrengd", rotX: 90, ribbX: 9, ribbY: 9,
+})
+const b = report("torus, rettvend (fasit)", {
+  ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9,
+})
+if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
+  console.log(
+    `  !! eit vrengd nett gav ${a.m.parts}/${a.m.joints} der det rettvende gav ` +
+      `${b.m.parts}/${b.m.joints}`,
+  )
+}

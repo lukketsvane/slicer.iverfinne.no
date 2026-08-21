@@ -69,6 +69,50 @@ Reiskapen snittar kva som helst, men han seier frå og han seier kvifor:
 Harde reglar tyder at delane ikkje kan lagast eller ikkje kan monterast.
 Mjuke er val som skal stå på papiret i staden for i hovudet.
 
+## Nestinga
+
+Delane vert lagde ut etter KONTUREN og ikkje etter den omsluttande boksen.
+Skilnaden er ikkje liten: ei ribbe frå eit krumt objekt er ei tunge eller
+ein boge, og boksen kring henne er mest luft. Tel du boksar, kjøper du to
+plater der du trong ei.
+
+Kvar del vert rasterisert til eit rutenett, og HÒLA i han er ledig plass —
+so ein mindre del kan liggje inne i opninga på ein større. Så vert delen
+dytta ned og til venstre til han stoggar mot noko. Det er den same
+grunnalgoritmen som ligg under svgnest; skilnaden er at svgnest legg ein
+genetisk algoritme oppå og prøver tusen rekkjefylgjer. Det er betre, og det
+tek minutt. Denne køyrer éin gong, deterministisk, på nokre titals
+millisekund — og han må det, av di talet på plater står i panelet og skal
+fylgje skyvaren medan du dreg i han.
+
+Klaringa ligg i rasteret og ikkje i søket: kvar del vert utvida med halve
+luka på alle kantar før han vert lagd. Oppløysinga vert vald av luka, so
+klaringa ikkje kan kvantiserast bort.
+
+## Merkinga
+
+Kvar del får adressa si gravert: `X3` er tredje ribba langs X, `Y7a` er
+fyrste stykket av sjuande ribba langs Y. Det er dét som fortel deg kvar
+delen høyrer heime når du har seksti like plater på bordet.
+
+Bokstavane er **polyliner og ikkje tekst**. Ein TEXT-entitet i ein DXF og
+eit `<text>` i ein SVG er begge eit spørsmål til maskina om ho tilfeldigvis
+har den skrifta, og svaret er ofte nei: laserpanelet hoppar over teksten,
+eller det brenn eit fylt svart felt der det skulle stått eit tal. Ein strek
+kan ingen maskin misforstå. Adressa ligg der det er mest gods — største
+innskrivne kvadrat, ikkje tyngdepunktet, av di tyngdepunktet til ein boge
+ligg i lause lufta under han.
+
+I SVG-ane er fargen laget:
+
+| | |
+|---|---|
+| svart | KUTT — heilt gjennom |
+| blått | GRAVER — adressa, ein strek og ikkje eit fylt felt |
+| grått | berre til opplysning: plateomrisset og overskrifta |
+
+Ingenting er fylt. I DXF-en er det ekte lag: `KUTT` og `GRAVER`.
+
 ## Ledda
 
 Sporet er halve overlappet, og djupna er difor ikkje eit tal du set — ho
@@ -97,6 +141,8 @@ nøyaktig den ribba biletet viser, spor, hundebein og alt.
 | `lib/mesh/smooth.ts` | Taubin: lågpass som ikkje krympar |
 | `lib/mesh/solid.ts` | strålane. Nettet som ein kropp du kan spørje |
 | `lib/contour.ts` | marsjerande rute: nullstaden i eit felt, som lukka polygon |
+| `lib/pack.ts` | nestinga: raster, bottom-left-fill, hòl som ledig plass |
+| `lib/stroke.ts` | éin-strøks skrift, so eit gravert nummer er geometri |
 | `lib/vaffel/` | kroppen, ribbene, ledda, delane, nestinga, måltala, reglane, filene |
 | `lib/worker.ts` | motoren i eigen tråd; hovudtråden teiknar og gjer ikkje anna |
 | `components/` | scena, gestane, panelet |
@@ -117,7 +163,10 @@ då lydlaust i nettlesaren.
 
 ```bash
 pnpm probe   # motoren utan nettlesar: delar, ledd, kuttlengd, filer
+pnpm pakk    # teiknar kvar plate opp att og tel celler: ligg to delar oppå
+             # kvarandre, eller utanfor plata, seier han frå
 pnpm tung    # ein million trekantar inn, og kor lang tid det tek
+pnpm ark     # kuttarka som bilete, so ein kan sjå at nummera hamna på gods
 pnpm look    # bilete av sida, og alle konsollfeil som eventuelt står der
 ```
 

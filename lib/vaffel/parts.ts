@@ -15,8 +15,11 @@ import { inRing } from "./mesh"
 import type { Grid } from "./ribs"
 
 export type Part = {
+  /** forma. To delar med same id er den same delen */
   id: string
-  /** kva ribbe han kom frå — «X3», «Y7» */
+  /** kvar han skal stå — «X3», «Y7». Er ei ribbe delt i fleire stykke,
+   *  får kvart stykke sin bokstav: «X3a», «X3b». Det er DETTE som vert
+   *  gravert, av di det er det som fortel deg kvar delen høyrer heime. */
   from: string
   outline: Pt[]
   holes: Pt[][]
@@ -103,6 +106,8 @@ export function buildParts(g: Grid): PartList {
   const MIN = 400
 
   for (const r of g.ribs) {
+    let stykke = 0
+    const fleire = r.outlines.length > 1
     for (const o of r.outlines) {
       // Hòl høyrer til den ytterkanten som omsluttar dei. Med éin ytterkant
       // er det trivielt; er ribba delt, må kvart hòl finne heimen sin.
@@ -131,9 +136,11 @@ export function buildParts(g: Grid): PartList {
           q.zEnd >= b.y0 - 0.6 &&
           q.zEnd <= b.y1 + 0.6,
       ).length
+      const adr =
+        r.axis.toUpperCase() + (r.k + 1) + (fleire ? "abcdefgh"[stykke++] ?? "z" : "")
       parts.push({
         id,
-        from: r.axis.toUpperCase() + (r.k + 1),
+        from: adr,
         outline: o,
         holes: mine,
         t,

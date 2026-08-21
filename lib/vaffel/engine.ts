@@ -28,10 +28,9 @@ import { label as srcLabel } from "../sources"
 import { makeKropp } from "./kropp"
 import { buildGrid, DETAIL } from "./ribs"
 import { contourLines, flateMesh, lagMesh } from "./mesh"
-import { measure, nestGap } from "./metrics"
+import { measure } from "./metrics"
 import { checkRules } from "./rules"
-import { buildParts } from "./parts"
-import { nest } from "./nest"
+import { makePlan } from "./plan"
 import { meshToStl } from "./export-stl"
 import { partsToDxf } from "./export-dxf"
 import { profileSvg, sheetSvg } from "./export-svg"
@@ -62,6 +61,9 @@ export type EngineDef = {
   measure(p: ParamBag): Metrics
   rules(p: ParamBag, m: Metrics): Rule[]
   exportFile(p: ParamBag, what: ExportKind): ExportOut
+  /** profilane som bilete til panelet — same teikning som SVG-uttaket,
+   *  men med strek tjukk nok til å sjåast når ho er skrumpa til ei rute */
+  preview(p: ParamBag): string
 }
 
 const asP = (p: ParamBag) => p as unknown as Params
@@ -154,19 +156,22 @@ export const VAFFEL: EngineDef = {
         data: bytes.buffer.slice(0) as ArrayBuffer,
       }
     }
-    const g = buildGrid(k, p, DETAIL.mid)
+    const { g, ns } = makePlan(p, DETAIL.mid)
     if (what === "svg") {
       return { name: `${name}-profilar.svg`, mime: "image/svg+xml", text: profileSvg(g) }
     }
-    const pl = buildParts(g)
-    const ns = nest(pl.parts, p.arkB, p.arkH, nestGap(p))
     if (what === "ark") {
-      return { name: `${name}-ark1.svg`, mime: "image/svg+xml", text: sheetSvg(ns, 0) }
+      return { name: `${name}-ark.svg`, mime: "image/svg+xml", text: sheetSvg(ns, p.tjukn) }
     }
     return {
       name: `${name}.dxf`,
       mime: "application/dxf",
       text: partsToDxf(ns, p.tjukn, p.snitt),
     }
+  },
+
+  preview(bag: ParamBag): string {
+    const p = asP(bag)
+    return profileSvg(buildGrid(makeKropp(p), p, DETAIL.mid), true)
   },
 }
