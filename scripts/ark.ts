@@ -1,9 +1,11 @@
 /**
- * Kuttarket som bilete.
+ * Uttaka på disk, og som bilete.
  *
  * Ei pakking kan vera rett i tal og likevel gale for handa: nummer som
- * fell utanfor delen, delar som ligg opp i kanten, eit ark som er tomt.
- * Talet fangar ikkje det. Difor vert arka skrivne ut og fotograferte.
+ * fell utanfor delen, tekst opp-ned, eit ark som er tomt. Talet fangar
+ * ikkje det. Difor vert filene skrivne ut og fotograferte — og zoomen vert
+ * rekna av SVG-en sitt eige millimetermål, so eit ark på seks hundre
+ * millimeter og ein kupong på sytti begge fyller ruta.
  *
  *   npx tsx scripts/ark.ts
  */
@@ -13,10 +15,14 @@ import { join, resolve } from "node:path"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
 import { VAFFEL } from "../lib/vaffel/engine"
+import { sheetSvg } from "../lib/vaffel/export-svg"
+import { makePlan } from "../lib/vaffel/plan"
+import { DETAIL } from "../lib/vaffel/ribs"
 import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
-import type { ParamBag } from "../lib/core"
+import type { ExportKind, ParamBag } from "../lib/core"
 
 const UT = "bilete"
+const RUTE = { width: 1180, height: 800 }
 
 function kule(r: number, seg: number, strekk = 1) {
   const pos: number[] = []
@@ -44,36 +50,58 @@ function kule(r: number, seg: number, strekk = 1) {
 const main = async () => {
   mkdirSync(UT, { recursive: true })
   put("egg", "egg.stl", kule(50, 40, 1.7))
+
+  const filer: { namn: string; svg: string }[] = []
   const saker: [string, Params][] = [
     ["kube", DEFAULT_PARAMS],
-    ["egg", { ...DEFAULT_PARAMS, kjelde: "egg", ribbX: 8, ribbY: 8, tjukn: 4 }],
+    ["egg", { ...DEFAULT_PARAMS, kjelde: "egg", ribbX: 8, ribbY: 8, storleik: 200 }],
   ]
+
+  for (const [namn, p] of saker) {
+    const bag = p as unknown as ParamBag
+    // uttaka slik brukaren får dei
+    for (const kind of ["ark", "prove", "svg", "dxf"] as ExportKind[]) {
+      const o = VAFFEL.exportFile(bag, kind)
+      const data = o.text ? Buffer.from(o.text) : Buffer.from(new Uint8Array(o.data!))
+      writeFileSync(join(UT, o.name), data)
+      console.log(`${namn} ${kind.padEnd(6)} → ${o.name} (${data.length} B)`)
+    }
+    // og kvar einskild plate, til biletet
+    const { ns } = makePlan(p, DETAIL.mid)
+    ns.sheets.forEach((_, i) => {
+      filer.push({
+        namn: `ark-${namn}-${i + 1}av${ns.sheets.length}`,
+        svg: sheetSvg(ns, i, p.snitt),
+      })
+    })
+    filer.push({ namn: `prove-${namn}`, svg: couponOf(bag) })
+  }
+
   const browser = await chromium.launch({
     executablePath: process.env.PW_CHROMIUM || undefined,
   })
-  const page = await browser.newPage({ viewport: { width: 1200, height: 900 } })
-  for (const [namn, p] of saker) {
-    for (const kind of ["ark", "svg"] as const) {
-      const out = VAFFEL.exportFile(p as unknown as ParamBag, kind)
-      const svg = out.text ?? ""
-      writeFileSync(join(UT, `${namn}-${kind}.svg`), svg)
-      // SVG-en er i millimeter og kan vera fleire meter høg. Han vert lagd
-      // i ei side som klemmer han ned til ruta, elles ventar nettlesaren
-      // på ei teikning ingen skjerm har plass til.
-      const html = join(UT, `${namn}-${kind}.html`)
-      writeFileSync(
-        html,
-        `<!doctype html><meta charset="utf-8">` +
-          `<style>html,body{margin:0;background:#fff}` +
-          `svg{display:block;width:auto;height:auto;max-width:100vw;max-height:100vh;margin:0 auto}</style>` +
-          svg.replace(/ width="[^"]*" height="[^"]*"/, ""),
-      )
-      await page.goto("file://" + resolve(html), { waitUntil: "load" })
-      await page.screenshot({ path: join(UT, `ark-${namn}-${kind}.png`) })
-      console.log(`${namn} ${kind}: ${svg.length} B`)
-    }
+  for (const { namn, svg } of filer) {
+    // millimetermålet står i sjølve fila; zoomen fell ut av det
+    const mm = svg.match(/width="([\d.]+)mm" height="([\d.]+)mm"/)
+    const px = (v: number) => (v / 25.4) * 96
+    const zoom = mm
+      ? Math.min(RUTE.width / px(+mm[1]), RUTE.height / px(+mm[2])) * 0.95
+      : 1
+    const html = join(UT, `${namn}.html`)
+    writeFileSync(
+      html,
+      `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;background:#fff}` +
+        `#w{zoom:${zoom.toFixed(3)};display:inline-block}</style><div id="w">${svg}</div>`,
+    )
+    const page = await browser.newPage({ viewport: RUTE })
+    await page.goto("file://" + resolve(html), { waitUntil: "load" })
+    await page.screenshot({ path: join(UT, `${namn}.png`) })
+    await page.close()
+    console.log(`bilete → ${namn}.png`)
   }
   await browser.close()
 }
+
+const couponOf = (bag: ParamBag) => VAFFEL.exportFile(bag, "prove").text ?? ""
 
 void main()

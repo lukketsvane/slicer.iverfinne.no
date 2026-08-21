@@ -53,9 +53,13 @@ function report(name: string, p: Params) {
       (kontur.lines.length + kontur.heavy.length) / 6
     } linjer`,
   )
+  const bytes = (o: { text?: string; data?: ArrayBuffer }) =>
+    o.text?.length ?? o.data?.byteLength ?? 0
+  const prove = VAFFEL.exportFile(bag, "prove")
   console.log(
-    `  filer     stl ${stl.data?.byteLength ?? 0} B, dxf ${dxf.text?.length ?? 0} B, ` +
-      `svg ${svg.text?.length ?? 0} B, ark ${ark.text?.length ?? 0} B`,
+    `  filer     stl ${bytes(stl)} B, dxf ${bytes(dxf)} B, svg ${bytes(svg)} B, ` +
+      `${ark.name.endsWith(".zip") ? "zip" : "ark"} ${bytes(ark)} B, ` +
+      `prøve ${bytes(prove)} B`,
   )
   console.log(`  tid       mål ${tMeasure} ms, bygg ${tBuild} ms, eksport ${tExport} ms`)
   const brot = r.filter((q) => !q.ok)
@@ -78,19 +82,23 @@ if (kube.m.joints !== DEFAULT_PARAMS.ribbX * DEFAULT_PARAMS.ribbY) {
 }
 
 // --- 2 tettare rutenett og tjukkare plate ---------------------------------
-report("kube, 12x9 ribber i 12 mm", { ...DEFAULT_PARAMS, ribbX: 12, ribbY: 9, tjukn: 12 })
+report("kube 400, 12x9 ribber i 6 mm", {
+  ...DEFAULT_PARAMS, storleik: 400, ribbX: 12, ribbY: 9, tjukn: 6,
+  arkB: 1200, arkH: 900,
+})
 
 // --- 3 hundebein og t-bein ------------------------------------------------
-report("kube, hundebein", { ...DEFAULT_PARAMS, leddtype: 1, fres: 6 })
-report("kube, t-bein", { ...DEFAULT_PARAMS, leddtype: 2, fres: 6 })
+report("kube 300 i 9 mm, hundebein", {
+  ...DEFAULT_PARAMS, storleik: 300, tjukn: 9, leddtype: 1, fres: 6, arkB: 1200, arkH: 900,
+})
+report("kube 300 i 9 mm, t-bein", {
+  ...DEFAULT_PARAMS, storleik: 300, tjukn: 9, leddtype: 2, fres: 6, arkB: 1200, arkH: 900,
+})
 
 // --- 4 vend og skaler -----------------------------------------------------
 report("kube, vend 30/20/10 og 700 mm", {
   ...DEFAULT_PARAMS,
-  rotX: 30,
-  rotY: 20,
-  rotZ: 10,
-  storleik: 700,
+  rotX: 30, rotY: 20, rotZ: 10, storleik: 700, tjukn: 6, arkB: 1200, arkH: 900,
 })
 
 // --- 5 eit importert nett: ei kule som STL --------------------------------

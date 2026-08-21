@@ -12,7 +12,10 @@
  *
  *   svart   KUTT — heilt gjennom
  *   blått   GRAVER — adressa til delen, ein strek og ikkje eit fylt felt
- *   grått   berre til opplysning: plateomrisset og overskrifta
+ *
+ * To fargar, og ikkje ein til. Alt anna — plateramme, overskrift, hjelpe-
+ * liner — er eit lag nokon må hugse å slå av, og eit lag nokon ein dag
+ * gløymer å slå av. Kva plate dette er, står i filnamnet.
  *
  * Ingenting er fylt. Ei fylling er ei oppmoding til maskina om å brenne
  * heile flata, og det er nett det ho ikkje skal.
@@ -20,7 +23,7 @@
  * Alt er i millimeter med viewBox i millimeter, so eit uttak kan skrivast
  * ut i 1:1 utan at nokon må rekne om noko.
  */
-import { offsetPoly, type Pt } from "../core"
+import { nn, offsetPoly, type Pt } from "../core"
 import { fitSize, strokes, strokesAt } from "../stroke"
 import { placedRings, type Nesting } from "./nest"
 import type { Grid } from "./ribs"
@@ -36,24 +39,28 @@ const open = (pts: Pt[]) =>
  *
  * Eit laserprogram les banen og fargen; kor tjukk streken er teikna, bryr
  * det seg ikkje om. Difor kan ho veljast etter kor stor teikninga er, so
- * eit kuttark på ni hundre millimeter framleis er synleg når nokon opnar
- * det i ein nettlesar — ein hårstrek på ei plate i den storleiken er ein
+ * eit kuttark på ein halv meter framleis er synleg når nokon opnar det i
+ * ein nettlesar — ein hårstrek på ei plate i den storleiken er ein
  * femtedels piksel, og ei fil ingen kan sjå er ei fil ingen stolar på.
  */
 const pen = (span: number) => Math.max(0.4, span / 1400)
 
-/** kuttlinene: svarte, utan fyll. Ei fylling er ei oppmoding om å brenne
- *  heile flata, og det er nett det ho ikkje skal. */
-const kutt = (w: number) => `fill="none" stroke="#000000" stroke-width="${f(w)}"`
-/** graveringa: blå — det er fargen som skil operasjonane */
+/**
+ * FARGEN ER OPERASJONEN, og han må vera EKSAKT.
+ *
+ * Ein SVG har ikkje lag slik ein DXF har det, so laserprogramma har landa
+ * på ein avtale i staden: éin farge er éi operasjon. LightBurn — som ni av
+ * ti av desse filene endar i — held ein palett med faste verdiar, og ein
+ * farge som ligg NÆR ein av dei er ikkje den fargen. #0047ff er ikkje blå;
+ * han er noko som må gjettast på ved import, og gjettinga treng ikkje falle
+ * likt to gonger. Rein svart og rein blå fell alltid på same laget.
+ */
+const CUT = "#000000"
+const GRAV = "#0000ff"
+
+const kutt = (w: number) => `fill="none" stroke="${CUT}" stroke-width="${f(w)}"`
 const grav = (w: number) =>
-  `fill="none" stroke="#0047ff" stroke-width="${f(w)}" stroke-linecap="round"`
-/** opplysning, ikkje ein operasjon */
-const note = (w: number) =>
-  `fill="none" stroke="#9a9a9a" stroke-width="${f(w * 1.4)}" stroke-dasharray="${f(w * 14)} ${f(w * 10)}"`
-/** overskrifta, som ligg utanfor materialet */
-const tekst = (w: number) =>
-  `fill="none" stroke="#9a9a9a" stroke-width="${f(w * 1.2)}" stroke-linecap="round"`
+  `fill="none" stroke="${GRAV}" stroke-width="${f(w)}" stroke-linecap="round"`
 
 /**
  * Ein tekst rett-lesande i eit SVG, som er snudd på hovudet i høve til ei
@@ -65,62 +72,119 @@ const nedover = (lines: Pt[][], base: number): Pt[][] =>
   lines.map((l) => l.map(([x, y]) => [x, base - y] as Pt))
 
 /**
- * Kuttarket, alle platene i éi fil.
+ * EI plate, i éi fil.
+ *
+ * Ikkje alle på ein gong. I LightBurn arbeider du med ei plate om gongen,
+ * og eit uttak med tre plater i same fila tyder at du må merkje og slette
+ * dei to andre kvar einaste gong. Uttaket gjev ein ZIP med ei fil per
+ * plate når det er fleire enn ei.
+ *
+ * Dokumentet ER plata: `width` og `height` i millimeter, med viewBox i dei
+ * same millimetrane. Difor treng fila korkje ei plateramme eller ei
+ * overskrift — ramma ville berre vore eit lag til å slå av, og eit lag til
+ * å skjere ved eit uhell. Kva plate dette er, står i FILNAMNET.
  *
  * Y vert spegla, av di SVG reknar nedover og ei plate ikkje gjer det:
- * delen som ligg nede til venstre på plata skal liggja nede til venstre
- * på arket. Platene ligg under kvarandre med luft imellom, so det som er
- * eit ark i fila er eit ark på bordet.
+ * delen som ligg nede til venstre på plata skal liggja nede til venstre på
+ * papiret.
  */
-export function sheetSvg(n: Nesting, plyT: number, kerf: number): string {
+export function sheetSvg(n: Nesting, index: number, kerf: number): string {
   const W = n.sheetW
   const H = n.sheetH
-  const PAD = 46
-  const pitch = H + PAD
-  const total = Math.max(1, n.sheets.length) * pitch
   const w = pen(Math.max(W, H))
   const KUTT = kutt(w)
   const GRAV = grav(w)
+  const sheet = n.sheets[index]
 
   const body: string[] = []
-  n.sheets.forEach((sheet, i) => {
-    const top = i * pitch
-    // Plata står med botnen ned. SVG reknar y nedover, so heile arket vert
-    // spegla om si eiga midtline: delen som ligg nede til venstre på plata
-    // skal liggja nede til venstre på papiret.
-    body.push(`<g transform="translate(0,${f(top + H)}) scale(1,-1)">`)
-    body.push(`<rect x="0" y="0" width="${f(W)}" height="${f(H)}" ${note(w)}/>`)
-    for (const q of sheet.placed) {
-      const r = placedRings(q)
-      // Snittbreidda ligg i FILA, som i DXF-en: den som har ein laser i
-      // kjellaren har sjeldan ein CAM-pakke som kan setje verktøyoffset.
-      // Set du kerf i programmet ditt òg, kompenserer du to gonger.
-      body.push(`<path d="${ring(offsetPoly(r.outline, kerf / 2))}" ${KUTT}/>`)
-      for (const h of r.holes) {
-        body.push(`<path d="${ring(offsetPoly(h, -kerf / 2))}" ${KUTT}/>`)
-      }
-      const size = fitSize(q.part.from, q.label.room, q.label.wide)
-      if (size) {
-        // Ingen spegling her: gruppa er alt spegla, so ein tekst teikna
-        // med y opp kjem ut rett veg. Det er overskrifta UTANFOR gruppa
-        // som treng snuinga.
-        for (const line of strokesAt(q.part.from, q.label.p[0], q.label.p[1], size)) {
-          body.push(`<path d="${open(line)}" ${GRAV}/>`)
-        }
+  for (const q of sheet?.placed ?? []) {
+    const r = placedRings(q)
+    // Snittbreidda ligg i FILA, som i DXF-en: den som har ein laser i
+    // kjellaren har sjeldan ein CAM-pakke som kan setje verktøyoffset.
+    // Set du kerf i programmet ditt òg, kompenserer du to gonger.
+    body.push(`<path d="${ring(offsetPoly(r.outline, kerf / 2))}" ${KUTT}/>`)
+    for (const h of r.holes) {
+      body.push(`<path d="${ring(offsetPoly(h, -kerf / 2))}" ${KUTT}/>`)
+    }
+    const size = fitSize(q.part.from, q.label.room, q.label.wide)
+    if (size) {
+      for (const line of strokesAt(q.part.from, q.label.p[0], q.label.p[1], size)) {
+        body.push(`<path d="${open(line)}" ${GRAV}/>`)
       }
     }
-    body.push(`</g>`)
-    // Overskrifta ligg i luka MELLOM platene og ikkje på materialet: ho er
-    // til den som opnar fila, og ho skal ikkje kunne brennast ved eit uhell.
-    const base = top + H + PAD - 12
-    for (const line of nedover(strokes(`ARK ${i + 1}/${n.sheets.length}  ${+plyT.toFixed(2)} MM  ${Math.round(n.util * 100)} PROSENT`, 2, 0, 16), base)) {
-      body.push(`<path d="${open(line)}" ${tekst(w)}/>`)
-    }
-  })
+  }
 
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${f(W)}mm" height="${f(total)}mm" viewBox="0 0 ${f(W)} ${f(total)}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${f(W)}mm" height="${f(H)}mm" viewBox="0 0 ${f(W)} ${f(H)}">`,
+    `<g transform="translate(0,${f(H)}) scale(1,-1)">`,
     ...body,
+    `</g>`,
+    `</svg>`,
+  ].join("\n")
+}
+
+/**
+ * PASSPRØVA.
+ *
+ * Klaring og snittbreidd er to gjettingar, og dei gangar seg med kvarandre
+ * i kvart einaste ledd. Bommar du med ein tjuedels millimeter, må seksti
+ * ledd bankast i hop — eller dei sit ikkje. Og du får ikkje vita det før
+ * heile plata er skoren.
+ *
+ * Dette er heile svaret, og det tek tjue sekund å skjere: ei lita plate
+ * med sju spor, kvart av dei ein tjuedel breiare enn det førre, og talet
+ * gravert under. Skjer henne i den plata du skal bruke, skyv eit avkapp av
+ * den SAME plata ned i kvart spor, og finn det som går inn med
+ * tommelkraft. Det talet er klaringa di.
+ *
+ * Prøva ber snittbreidda som er sett, av di det er SUMMEN av dei to som
+ * vert målt. Kalibrerer du med kerf på null og skjer med kerf på 0,2, har
+ * du målt noko anna enn det du skal byggje.
+ */
+const STEG = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3] as const
+
+export function couponSvg(tjukn: number, kerf: number, material: string): string {
+  const djup = Math.max(10, tjukn * 4)
+  const skulder = Math.max(4, tjukn * 2)
+  const celle = tjukn + STEG[STEG.length - 1] + 2 * skulder
+  const W = celle * STEG.length
+  const H = djup + 22
+  const w = pen(Math.max(W, H))
+
+  // Omrisset går mot klokka og dukkar ned i eit spor for kvart steg. Spora
+  // er OPNE i overkanten: du skal kunne skyve avkappet ned i dei ovanfrå.
+  const o: Pt[] = [
+    [0, 0],
+    [W, 0],
+    [W, H],
+  ]
+  for (let i = STEG.length - 1; i >= 0; i--) {
+    const cx = (i + 0.5) * celle
+    const half = (tjukn + STEG[i]) / 2
+    o.push([cx + half, H], [cx + half, H - djup], [cx - half, H - djup], [cx - half, H])
+  }
+  o.push([0, H])
+
+  const body = [`<path d="${ring(offsetPoly(o, kerf / 2))}" ${kutt(w)}/>`]
+  const GRAV = grav(w)
+  // Inga spegling her: gruppa er alt spegla, so ein tekst teikna med y opp
+  // kjem ut rett veg.
+  const merk = (t: string, cx: number, cy: number, size: number) => {
+    for (const line of strokesAt(t, cx, cy, size)) {
+      body.push(`<path d="${open(line)}" ${GRAV}/>`)
+    }
+  }
+  for (let i = 0; i < STEG.length; i++) {
+    merk(String(Math.round(STEG[i] * 100)), (i + 0.5) * celle, H - djup - 7, 4)
+  }
+  merk("KLARING 1/100 MM", W / 2, 10, 3)
+  merk(`T${nn(tjukn, 1)} ${material.toUpperCase()}  KERF ${nn(kerf, 2)}`, W / 2, 4.5, 3)
+
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${f(W)}mm" height="${f(H)}mm" viewBox="0 0 ${f(W)} ${f(H)}">`,
+    `<g transform="translate(0,${f(H)}) scale(1,-1)">`,
+    ...body,
+    `</g>`,
     `</svg>`,
   ].join("\n")
 }

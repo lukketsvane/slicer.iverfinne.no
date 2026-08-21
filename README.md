@@ -20,6 +20,14 @@ assembly.
 Everything is computed in your browser, in a worker thread. Your mesh never
 leaves the machine it was dropped on.
 
+## Defaults
+
+The tool opens on **2 mm MDF, cut on a laser**: no cutter diameter, straight
+joint corners, a 600 × 400 mm bed. That is what most people who open it are
+holding. Set `fres` above zero and it becomes a CNC tool again, with dogbones
+and T-bones — and the rules start checking that the slot is wide enough for the
+tool.
+
 ## Use it
 
 1. **Drop a file** anywhere on the page — `.glb`, `.gltf`, `.stl` (binary or
@@ -41,11 +49,27 @@ Double-tap reframes. The URL carries every setting except the mesh itself.
 | **STL** | the assembled stack, for rendering or 3D printing |
 | **DXF** | R12 ASCII, mm, layers `KUTT` and `GRAVER`, kerf-compensated |
 | **SVG** | every rib profile side by side, 1:1 |
-| **ARK** | the nested sheets, 1:1 |
+| **ARK** | one file per nested sheet, 1:1 — zipped when there is more than one |
+| **PRØVE** | fit-test coupon: seven slots, each 0.05 mm wider than the last |
 
-In the SVG files, **colour is the operation**: black = cut, blue = engrave,
-grey = information only (sheet outline, header). Nothing is filled. The DXF has
-real layers instead.
+In the SVG files, **colour is the operation**: `#000000` cut, `#0000FF` engrave.
+Exact palette values, so LightBurn puts them on the same layers every time.
+Two colours and no more — a sheet outline or a header is just another layer to
+remember to switch off, and one somebody eventually forgets. Which sheet a file
+is comes from its **name**. Nothing is filled; a fill tells the machine to burn
+the whole face. The DXF has real layers (`KUTT`, `GRAVER`) instead.
+
+`ARK` gives **one file per sheet** — a single SVG when it fits on one sheet, a
+ZIP of `…-ark-1av3.svg` and friends when it does not.
+
+**Cut the fit-test coupon first.** `klaring` and `snitt` are two guesses that
+multiply in every joint; get it wrong by 0.05 mm and sixty joints either need a
+hammer or fall apart, and you only find out once the whole sheet is cut. The
+coupon is a 70 × 30 mm plate with seven slots, each 0.05 mm wider than the last
+and engraved with its value. Cut it in the sheet you are about to use, push an
+offcut of that same sheet into each slot, and set `klaring` to the one that goes
+in under thumb pressure. Twenty seconds of laser time, and it settles kerf and
+press fit together.
 
 Kerf compensation is applied **in the file**, in both DXF and SVG — most people
 with a laser in the basement don't have a CAM package that can set tool offset.
@@ -163,6 +187,7 @@ pnpm look    # screenshots of the page, and any console errors
 | `lib/contour.ts` | marching squares |
 | `lib/pack.ts` | nesting |
 | `lib/stroke.ts` | single-stroke font |
+| `lib/zip.ts` | fifty lines of ZIP, so one export is one download |
 | `lib/vaffel/` | body, ribs, joints, parts, metrics, rules, exports |
 | `lib/worker.ts` | the engine in its own thread |
 

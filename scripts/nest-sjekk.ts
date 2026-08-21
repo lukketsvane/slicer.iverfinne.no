@@ -74,10 +74,16 @@ function sjekk(namn: string, p: Params) {
       if (b.x0 < -0.01 || b.y0 < -0.01 || b.x1 > p.arkB + 0.01 || b.y1 > p.arkH + 0.01) {
         utanfor++
       }
-      fill([r.outline, ...r.holes], (i, j) => {
-        if (grid[j * w + i]++ > 0) overlapp++
+      // Cellene vert samla per DEL fyrst. Utan det steget tel ein profil
+      // som kryssar seg sjølv — noko som skjer når ribbene er tjukkare enn
+      // opninga mellom dei — som eit overlapp mot seg sjølv, og då melder
+      // vakta feil på pakkinga for noko pakkinga ikkje har gjort.
+      const mine = new Set<number>()
+      fill([r.outline, ...r.holes], (i, j) => mine.add(j * w + i), w, h)
+      for (const c of mine) {
+        if (grid[c]++ > 0) overlapp++
         dekt++
-      }, w, h)
+      }
     }
     // kortaste avstand mellom to delar på plata, målt frå kuttbanene
     for (let a = 0; a < sheet.placed.length; a++) {
@@ -167,8 +173,14 @@ put("egg", "egg", kule(50, 48, 1.7))
 put("torus", "torus", torus(60, 22, 64, 32))
 
 sjekk("kube 6x6", DEFAULT_PARAMS)
-sjekk("kube 12x9 i 12 mm", { ...DEFAULT_PARAMS, ribbX: 12, ribbY: 9, tjukn: 12 })
-sjekk("kube vend/700", { ...DEFAULT_PARAMS, rotX: 30, rotY: 20, rotZ: 10, storleik: 700 })
+sjekk("kube 400, 12x9 i 12 mm", {
+  ...DEFAULT_PARAMS, storleik: 400, ribbX: 12, ribbY: 9, tjukn: 12,
+  arkB: 1200, arkH: 900,
+})
+sjekk("kube vend/700", {
+  ...DEFAULT_PARAMS, rotX: 30, rotY: 20, rotZ: 10, storleik: 700, tjukn: 6,
+  arkB: 1200, arkH: 900,
+})
 sjekk("kule 7x7", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 7, ribbY: 7 })
 sjekk("egg 8x8", { ...DEFAULT_PARAMS, kjelde: "egg", ribbX: 8, ribbY: 8 })
 sjekk("torus staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9 })

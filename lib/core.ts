@@ -36,7 +36,7 @@ export const MATERIALS: Record<
 /** Platetjukner ein faktisk får kjøpt. Skyvaren er fri — ei plate kan vera
  *  5,8 mm om ho er det — men desse er dei ein finn på lager, og difor er
  *  dei knappar og ikkje eit tal ein må treffe. */
-export const TJUKNER = [3, 4, 6, 9, 12, 18] as const
+export const TJUKNER = [2, 2.5, 3, 4, 6, 9, 12, 18] as const
 
 // =============================================================================
 // PARAMETERROM
@@ -215,7 +215,7 @@ export type DetailKey = "lav" | "mid" | "hog"
  *   kontur  dei flate kuttprofilane, lagde ved sida av kvarandre */
 export type View = "flate" | "lag" | "kontur"
 
-export type ExportKind = "stl" | "dxf" | "svg" | "ark"
+export type ExportKind = "stl" | "dxf" | "svg" | "ark" | "prove"
 
 export type BuildOut = {
   positions: Float32Array<ArrayBufferLike>

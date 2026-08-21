@@ -79,7 +79,14 @@ export function nest(
     sheets[i].used = u
   })
 
-  const area = parts.reduce((s, p) => s + p.area, 0)
+  // Berre delar som FAKTISK LIGG på ei plate tel. Ein del som ikkje fekk
+  // plass er ikkje utnytta materiale — han er ikkje skoren i det heile —
+  // og tel han med, kan utnyttinga gå over hundre prosent. Det gjorde ho:
+  // eit objekt med åtte delar utanfor melde 377 %.
+  const area = sheets.reduce(
+    (s, q) => s + q.placed.reduce((t, r) => t + r.part.area, 0),
+    0,
+  )
   // «Utnytting» er kor mykje av det du faktisk SKAR I som vart del. Resten
   // av den siste plata er ikkje svinn — han ligg der og ventar på neste
   // jobb — so han tel ikkje med.
