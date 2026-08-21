@@ -2,8 +2,8 @@
  * VAFFEL — parameterrommet.
  *
  * Eitt uttak er eitt punkt her inne. Nettet, ribbene, ledda og kuttfilene
- * er alle funksjonar av desse nitten tala, og ingen annan fil held eit tal
- * som ikkje kjem herifrå.
+ * er alle funksjonar av desse tala, og ingen annan fil held eit tal som
+ * ikkje kjem herifrå.
  *
  * Djupna på ledda står ikkje her. Ho ER halve overlappet, og eit tal for
  * noko som alt er bestemt av geometrien er eit tal som kan kome i utakt med
@@ -44,6 +44,8 @@ export type Params = {
   // --- KUTT ---------------------------------------------------------------
   fres: number // fresediameter, mm — null er laser
   snitt: number // snittbreidd, mm
+  snittveg: number // 0 kompenserer i fila, 1 lèt maskina gjera det
+  fart: number // kuttfart, mm/s — berre til tidsoverslaget
   arkB: number // plata, mm
   arkH: number
 
@@ -51,6 +53,20 @@ export type Params = {
 }
 
 export const LEDDTYPAR = ["rett", "hundebein", "t-bein"] as const
+
+/**
+ * Kven som tek snittbreidda.
+ *
+ * Ho må takast NØYAKTIG éin gong. Tek både fila og maskina henne, vert
+ * kvart spor ei snittbreidd for vidt, og eit rutenett med spor som er ei
+ * snittbreidd for vide held seg ikkje sjølv. Tek ingen henne, er delane
+ * ei snittbreidd for små og ingenting sit fast.
+ *
+ * Standarden er fila, av di dei fleste som har ein laser i kjellaren
+ * ikkje har ein CAM-pakke som kan setje verktøyoffset. Har du sett
+ * offset i LightBurn, står valet her.
+ */
+export const SNITTVEGAR = ["i fila", "i maskina"] as const
 
 export const PARAM_RANGES: Record<string, Range> = {
   storleik: { min: 40, max: 1200, step: 5, label: "storleik", unit: "mm" },
@@ -71,6 +87,8 @@ export const PARAM_RANGES: Record<string, Range> = {
 
   fres: { min: 0, max: 12, step: 0.5, label: "fres", unit: "mm" },
   snitt: { min: 0, max: 6, step: 0.05, label: "snittbreidd", unit: "mm" },
+  snittveg: { min: 0, max: 1, step: 1, label: "kompensasjon", int: true, names: SNITTVEGAR },
+  fart: { min: 1, max: 200, step: 1, label: "kuttfart", unit: "mm/s", int: true },
   arkB: { min: 200, max: 3000, step: 10, label: "ark breidd", unit: "mm" },
   arkH: { min: 200, max: 2000, step: 10, label: "ark høgd", unit: "mm" },
 }
@@ -80,7 +98,7 @@ export const GROUPS: readonly Group[] = [
   { id: "nett", label: "nett", keys: ["glatt", "trekant"] },
   { id: "ribber", label: "ribber", keys: ["ribbX", "ribbY", "tjukn"] },
   { id: "ledd", label: "ledd", keys: ["klaring", "ledd", "leddtype"] },
-  { id: "kutt", label: "kutt", keys: ["fres", "snitt", "arkB", "arkH"] },
+  { id: "kutt", label: "kutt", keys: ["fres", "snitt", "snittveg", "fart", "arkB", "arkH"] },
 ]
 
 export const PARAM_KEYS = GROUPS.flatMap((g) => g.keys)
@@ -114,6 +132,8 @@ export const DEFAULT_PARAMS: Params = {
 
   fres: 0,
   snitt: 0.2,
+  snittveg: 0,
+  fart: 20,
   arkB: 600,
   arkH: 400,
 

@@ -20,6 +20,13 @@
  * Ingenting er fylt. Ei fylling er ei oppmoding til maskina om å brenne
  * heile flata, og det er nett det ho ikkje skal.
  *
+ * REKKJEFYLGDA er ein del av fila. Fyrst graveringa, so dei INNVENDIGE
+ * kutta, og omrisset heilt til slutt. Skjer du omrisset fyrst, ligg delen
+ * laus i plata medan spora skal skjerast: han sig ned i bordet, tippar, og
+ * det som var eit spor vert ei stripe ved sida av eit spor. Mange program
+ * sorterer om på dette sjølve, men ikkje alle, og eit program som gjer det
+ * gjer det rett anten fila var sortert eller ikkje.
+ *
  * Alt er i millimeter med viewBox i millimeter, so eit uttak kan skrivast
  * ut i 1:1 utan at nokon må rekne om noko.
  */
@@ -96,23 +103,28 @@ export function sheetSvg(n: Nesting, index: number, kerf: number): string {
   const GRAV = grav(w)
   const sheet = n.sheets[index]
 
-  const body: string[] = []
+  // Tre bunkar, og dei vert skrivne i denne rekkjefylgda: gravering,
+  // innvendige kutt, omriss. Sjå merknaden øvst i fila.
+  const gravert: string[] = []
+  const innvendig: string[] = []
+  const omriss: string[] = []
   for (const q of sheet?.placed ?? []) {
     const r = placedRings(q)
-    // Snittbreidda ligg i FILA, som i DXF-en: den som har ein laser i
-    // kjellaren har sjeldan ein CAM-pakke som kan setje verktøyoffset.
-    // Set du kerf i programmet ditt òg, kompenserer du to gonger.
-    body.push(`<path d="${ring(offsetPoly(r.outline, kerf / 2))}" ${KUTT}/>`)
+    // Snittbreidda ligg i FILA når `snittveg` seier det: den som har ein
+    // laser i kjellaren har sjeldan ein CAM-pakke som kan setje
+    // verktøyoffset. Tek maskina henne, kjem `kerf` inn som null.
+    omriss.push(`<path d="${ring(offsetPoly(r.outline, kerf / 2))}" ${KUTT}/>`)
     for (const h of r.holes) {
-      body.push(`<path d="${ring(offsetPoly(h, -kerf / 2))}" ${KUTT}/>`)
+      innvendig.push(`<path d="${ring(offsetPoly(h, -kerf / 2))}" ${KUTT}/>`)
     }
     const size = fitSize(q.part.from, q.label.room, q.label.wide)
     if (size) {
       for (const line of strokesAt(q.part.from, q.label.p[0], q.label.p[1], size)) {
-        body.push(`<path d="${open(line)}" ${GRAV}/>`)
+        gravert.push(`<path d="${open(line)}" ${GRAV}/>`)
       }
     }
   }
+  const body = [...gravert, ...innvendig, ...omriss]
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${f(W)}mm" height="${f(H)}mm" viewBox="0 0 ${f(W)} ${f(H)}">`,
@@ -143,7 +155,12 @@ export function sheetSvg(n: Nesting, index: number, kerf: number): string {
  */
 const STEG = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3] as const
 
-export function couponSvg(tjukn: number, kerf: number, material: string): string {
+export function couponSvg(
+  tjukn: number,
+  kerf: number,
+  snitt: number,
+  material: string,
+): string {
   const djup = Math.max(10, tjukn * 4)
   const skulder = Math.max(4, tjukn * 2)
   const celle = tjukn + STEG[STEG.length - 1] + 2 * skulder
@@ -165,7 +182,7 @@ export function couponSvg(tjukn: number, kerf: number, material: string): string
   }
   o.push([0, H])
 
-  const body = [`<path d="${ring(offsetPoly(o, kerf / 2))}" ${kutt(w)}/>`]
+  const body: string[] = []
   const GRAV = grav(w)
   // Inga spegling her: gruppa er alt spegla, so ein tekst teikna med y opp
   // kjem ut rett veg.
@@ -178,7 +195,12 @@ export function couponSvg(tjukn: number, kerf: number, material: string): string
     merk(String(Math.round(STEG[i] * 100)), (i + 0.5) * celle, H - djup - 7, 4)
   }
   merk("KLARING 1/100 MM", W / 2, 10, 3)
-  merk(`T${nn(tjukn, 1)} ${material.toUpperCase()}  KERF ${nn(kerf, 2)}`, W / 2, 4.5, 3)
+  // Snittbreidda som er SETT, ikkje den fila kompenserer for: står
+  // `snittveg` på maskina, er talet like sant, men kompensasjonen skjer
+  // ein annan stad. Prøva er berre gyldig for det talet.
+  merk(`T${nn(tjukn, 1)} ${material.toUpperCase()}  KERF ${nn(snitt, 2)}`, W / 2, 4.5, 3)
+  // Omrisset sist: graveringa skal stå i plata før noko vert skore laust.
+  body.push(`<path d="${ring(offsetPoly(o, kerf / 2))}" ${kutt(w)}/>`)
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${f(W)}mm" height="${f(H)}mm" viewBox="0 0 ${f(W)} ${f(H)}">`,
@@ -243,6 +265,12 @@ export function profileSvg(g: Grid, kerf: number, syn = false): string {
       `viewBox="0 0 ${f(W)} ${f(H)}">`,
   )
 
+  // Tre bunkar, som på kuttarket: gravering, innvendige kutt, omriss.
+  // Rekkjefylgda skal vera den same same kva for ei fil du opnar.
+  const gravert: string[] = []
+  const innvendig: string[] = []
+  const omriss: string[] = []
+
   let yOff = GAP + ex.h
   for (const rs of [xr, yr]) {
     let x = GAP
@@ -261,20 +289,21 @@ export function profileSvg(g: Grid, kerf: number, syn = false): string {
       // rekna FØR henne.
       const lagd = (q: Pt[], d: number) =>
         offsetPoly(q, d).map((p) => [x + (p[0] - lo), yOff - p[1]] as Pt)
-      for (const q of r.outlines) {
-        out.push(`<path d="${ring(lagd(q, kerf / 2))}" ${KUTT}/>`)
-      }
-      for (const q of r.holes) {
-        out.push(`<path d="${ring(lagd(q, -kerf / 2))}" ${KUTT}/>`)
-      }
       const adr = r.axis.toUpperCase() + (r.k + 1)
       for (const line of nedover(strokes(adr, x + 1, 0, 8), yOff + 11)) {
-        out.push(`<path d="${open(line)}" ${GRAV}/>`)
+        gravert.push(`<path d="${open(line)}" ${GRAV}/>`)
+      }
+      for (const q of r.holes) {
+        innvendig.push(`<path d="${ring(lagd(q, -kerf / 2))}" ${KUTT}/>`)
+      }
+      for (const q of r.outlines) {
+        omriss.push(`<path d="${ring(lagd(q, kerf / 2))}" ${KUTT}/>`)
       }
       x += hi - lo + GAP
     }
     yOff += ey.h + GAP + 12
   }
+  out.push(...gravert, ...innvendig, ...omriss)
   out.push("</svg>")
   return out.join("\n")
 }

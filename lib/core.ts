@@ -140,6 +140,18 @@ export function seeded(seed: string): () => number {
 export const nn = (v: number, d = 0) =>
   Number.isFinite(v) ? v.toFixed(d).replace(".", ",") : "–"
 
+/** Sekund som klokke. «1520 s» er eit tal ein må rekne om for å kjenne att;
+ *  «25:20» er den same opplysninga i det formatet ein alt les tid i. */
+export const klokke = (s: number) => {
+  if (!Number.isFinite(s) || s < 0) return "–"
+  const t = Math.round(s)
+  const h = Math.floor(t / 3600)
+  const m = Math.floor((t % 3600) / 60)
+  const r = t % 60
+  const pad = (v: number) => String(v).padStart(2, "0")
+  return h ? `${h}:${pad(m)}:${pad(r)}` : `${m}:${pad(r)}`
+}
+
 // =============================================================================
 // MÅLTAL
 // =============================================================================
@@ -175,6 +187,7 @@ export type Metrics = {
   sheets: number // ark som trengst
   util: number // utnytting av arka, 0–1
   cutLen: number // samla kuttlengd, mm — laseren si eiga tid
+  cutTime: number // kuttetid, sekund: kuttlengda delt på kuttfarta
 
   narrow: number // smalaste gods som er att i eit ledd, mm
   minGap: number // minste opning mellom to naboribber, mm
