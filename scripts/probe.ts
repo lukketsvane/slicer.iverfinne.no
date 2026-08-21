@@ -12,7 +12,7 @@ import { put } from "../lib/sources"
 import { meshToStl } from "../lib/vaffel/export-stl"
 import { makeSoup } from "../lib/soup"
 import { glb } from "./glbfil"
-import type { ParamBag } from "../lib/core"
+import { klokke, type ParamBag } from "../lib/core"
 
 const nn = (v: number, d = 1) => v.toFixed(d)
 
@@ -43,7 +43,10 @@ function report(name: string, p: Params) {
   console.log(`  ytre      ${nn(m.envX)} x ${nn(m.envY)} x ${nn(m.envZ)} mm`)
   console.log(`  ribber    ${m.units}   ledd ${m.joints}`)
   console.log(`  delar     ${m.parts} (${m.unique} unike)`)
-  console.log(`  kutt      ${nn(m.cutLen / 1000, 2)} m   spor ${nn(m.slotW, 2)} mm`)
+  console.log(
+    `  kutt      ${nn(m.cutLen / 1000, 2)} m   ${klokke(m.cutTime)} ved ${p.fart} mm/s   ` +
+      `spor ${nn(m.slotW, 2)} mm`,
+  )
   console.log(`  gods      ${nn(m.narrow)} mm   opning ${nn(m.minGap)} mm`)
   console.log(
     `  masse     ${nn(m.mass, 3)} kg   ark ${m.sheets} (${nn(m.util * 100, 0)} %)`,

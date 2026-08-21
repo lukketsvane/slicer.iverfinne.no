@@ -69,6 +69,16 @@ export type EngineDef = {
 
 const asP = (p: ParamBag) => p as unknown as Params
 
+/**
+ * Kor mykje snitt kuttfila skal kompensere for.
+ *
+ * Snittbreidda må takast nøyaktig éin gong. Står `snittveg` på maskina,
+ * er ho alt teken der, og fila skal levere den NOMINELLE konturen — legg
+ * ho på òg, vert kvart spor ei snittbreidd for vidt og rutenettet held
+ * seg ikkje sjølv.
+ */
+const kerfOf = (p: Params) => (p.snittveg ? 0 : p.snitt)
+
 /** Ein ny tom buffer kvar gong. Ein delt tom Float32Array vert kopla frå
  *  fyrste gong han vert send gjennom postMessage, og då er alle seinare
  *  visningar tomme utan at noko feilar. */
@@ -167,16 +177,16 @@ export const VAFFEL: EngineDef = {
       return {
         name: `passprove-${num(p.tjukn)}mm-${p.material}.svg`,
         mime: "image/svg+xml",
-        text: couponSvg(p.tjukn, p.snitt, p.material),
+        text: couponSvg(p.tjukn, kerfOf(p), p.snitt, p.material),
       }
     }
     const { g, ns } = makePlan(p, DETAIL.mid)
     if (what === "svg") {
-      return { name: `${name}-profilar.svg`, mime: "image/svg+xml", text: profileSvg(g, p.snitt) }
+      return { name: `${name}-profilar.svg`, mime: "image/svg+xml", text: profileSvg(g, kerfOf(p)) }
     }
     if (what === "ark") {
       const n = ns.sheets.length
-      const ark = (i: number) => sheetSvg(ns, i, p.snitt)
+      const ark = (i: number) => sheetSvg(ns, i, kerfOf(p))
       // Éi plate er éi fil. Fleire er ei mappe — og ei mappe i nettlesaren
       // er ein ZIP. Alternativet er at brukaren må slette dei andre platene
       // for hand kvar einaste gong han opnar uttaket.
@@ -194,12 +204,12 @@ export const VAFFEL: EngineDef = {
     return {
       name: `${name}.dxf`,
       mime: "application/dxf",
-      text: partsToDxf(ns, p.tjukn, p.snitt),
+      text: partsToDxf(ns, p.tjukn, kerfOf(p)),
     }
   },
 
   preview(bag: ParamBag): string {
     const p = asP(bag)
-    return profileSvg(buildGrid(makeKropp(p), p, DETAIL.mid), p.snitt, true)
+    return profileSvg(buildGrid(makeKropp(p), p, DETAIL.mid), kerfOf(p), true)
   },
 }

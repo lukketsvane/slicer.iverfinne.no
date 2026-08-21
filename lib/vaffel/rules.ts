@@ -17,7 +17,7 @@
 import { nn, type Metrics, type Rule } from "../core"
 import { DETAIL } from "./ribs"
 import { makePlan } from "./plan"
-import type { Params } from "./params"
+import { SNITTVEGAR, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
 
@@ -97,7 +97,23 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Under 0,05 mm får du ikkje delane i hop utan hammar, og finér som vert slegen i hop flisar seg. Over 0,35 mm sit dei ikkje fast, og då treng vaffelen lim — som er nett det han ikkje skulle treng.",
   })
 
-  // --- 8 opninga mellom ribbene (mjuk) ---------------------------------------
+  // --- 8 nokon tek snittbreidda (mjuk) ---------------------------------------
+  /**
+   * Snittbreidda må takast NØYAKTIG éin gong. `snittveg` seier kven som
+   * tek henne, men ingen av vala hjelper om talet sjølv er null: då er
+   * kvart spor ei snittbreidd for vidt, og eit rutenett med slike spor
+   * held seg ikkje sjølv.
+   */
+  add({
+    id: "snitt",
+    label: "snittbreidd",
+    hard: false,
+    ok: p.snitt > 0,
+    value: p.snitt > 0 ? `${mm1(p.snitt)} ${SNITTVEGAR[p.snittveg] ?? ""}`.trim() : "null",
+    why: "Stråla og fresen har breidd, og kutten et henne ut av delen. Er snittbreidda null, kompenserer korkje fila eller maskina for henne: kvart spor kjem ut ei snittbreidd for vidt og kvar tapp ei snittbreidd for tynn. Passprøva måler henne og klaringa i eitt.",
+  })
+
+  // --- 9 opninga mellom ribbene (mjuk) ---------------------------------------
   add({
     id: "opning",
     label: "opning mellom ribber",
@@ -107,7 +123,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Ribbene står så tett at verktøyet ikkje kjem imellom dei når du monterer — og på plata står delane så nær kvarandre at nestinga ikkje har noko å gå på.",
   })
 
-  // --- 9 lukka nett (mjuk) ---------------------------------------------------
+  // --- 10 lukka nett (mjuk) --------------------------------------------------
   add({
     id: "lukka",
     label: "lukka nett",
@@ -117,7 +133,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Snittinga les nettet med strålar og tel kva veg kvar trekant vender. Eit nett med hòl i har ingen innside å telje, og då kan ein profil kome ut som eit stykke der han skulle vore to. Reiskapen snittar det likevel — men no veit du kvifor det ser rart ut.",
   })
 
-  // --- 10 oppløysinga (mjuk) -------------------------------------------------
+  // --- 11 oppløysinga (mjuk) -------------------------------------------------
   add({
     id: "nett",
     label: "nettoppløysing",
@@ -130,7 +146,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Forenklinga har teke nettet under eit par hundre trekantar, og då er det grovare enn ribbene som skal lesast av det: profilane vert fasettar i staden for kurver. Skru opp trekanttaket.",
   })
 
-  // --- 11 utnyttinga (mjuk) --------------------------------------------------
+  // --- 12 utnyttinga (mjuk) --------------------------------------------------
   add({
     id: "utnytting",
     label: "utnytting",

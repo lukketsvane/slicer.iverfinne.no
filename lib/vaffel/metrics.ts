@@ -6,14 +6,16 @@
  * mål, tal delar, kuttlengd, masse, kor mange ark du må kjøpe — er målt av
  * dei polygona kuttfila sjølv vert skriven av.
  *
- * KUTTLENGDA er talet dei fleste kjem for. Ein laser gjer om lag tjue
- * millimeter i sekundet gjennom seks millimeter finér; ein vaffel med ti
- * ribber er lett tretti meter kutt. Det er femogtjue minutt, og det er verdt
- * å vita FØR ein trykkjer på knappen og ikkje etter.
+ * KUTTLENGDA er talet dei fleste kjem for, og KUTTETIDA er det dei
+ * eigentleg spurde om. Ein vaffel med ti ribber er lett tretti meter kutt;
+ * på tjue millimeter i sekundet er det femogtjue minutt, og det er verdt å
+ * vita FØR ein trykkjer på knappen og ikkje etter. Farta står i panelet, av
+ * di ho høyrer til maskina og materialet og ikkje til geometrien.
  */
 import {
   MATERIALS,
   bbox,
+  klokke,
   metric,
   nn,
   type Material,
@@ -52,6 +54,10 @@ export function measure(p: Params): Metrics {
     sheets: ns.sheets.length,
     util: ns.util,
     cutLen: pl.cutLen,
+    // Rein kuttetid ved den farta som er sett. Tomgangen mellom delane er
+    // ikkje med: han kjem an på kor programmet vel å hoppe, og eit tal som
+    // er gjetta oppå eit tal som er gjetta er ikkje eit overslag lenger.
+    cutTime: p.fart > 0 ? pl.cutLen / p.fart : 0,
 
     narrow: Number.isFinite(narrow) ? narrow : 0,
     minGap: Math.min(g.gapX, g.gapY),
@@ -73,6 +79,7 @@ export function measure(p: Params): Metrics {
   add("ledd", "ledd", m.joints, "stk", nn(m.joints))
   add("lause", "lause delar", m.loose, "stk", nn(m.loose))
   add("kutt", "kuttlengd", m.cutLen, "m", nn(m.cutLen / 1000, 1))
+  add("tid", "kuttetid", m.cutTime, "min", klokke(m.cutTime))
   add("masse", "masse", m.mass, "kg", nn(m.mass, 2))
   add("ark", "ark", m.sheets, "stk", `${nn(m.sheets)} × ${nn(p.arkB)}×${nn(p.arkH)}`)
   add("utnytting", "utnytting", m.util, "%", nn(m.util * 100))

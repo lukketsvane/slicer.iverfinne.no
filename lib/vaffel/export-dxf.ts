@@ -12,16 +12,21 @@
  * under ein tidels millimeter per side, og eit ukompensert kutt gjer kvart
  * spor eit heilt snitt for vidt — og då fell rutenettet frå kvarandre.
  *
- * Kompensasjonen ligg i FILA og ikkje i maskina. Grunnen er at dei fleste
- * som eig ein laser i kjellaren ikkje har ein CAM-pakke som kan setje
- * verktøyoffset, og dei skal kunne bruke reiskapen.
+ * Kompensasjonen ligg i FILA og ikkje i maskina så lenge `snittveg` seier
+ * det. Grunnen er at dei fleste som eig ein laser i kjellaren ikkje har ein
+ * CAM-pakke som kan setje verktøyoffset, og dei skal kunne bruke reiskapen.
+ * Set du offset i programmet ditt, kjem `kerf` hit som null.
+ *
+ * REKKJEFYLGDA: gravering fyrst, so dei innvendige kutta, og omrisset til
+ * slutt. Ein del som er skoren laus før spora er skorne, ligg ikkje lenger
+ * i plata når stråla kjem tilbake til han.
  */
 import { offsetPoly, type Pt } from "../core"
 import { fitSize, strokesAt, strokes } from "../stroke"
 import { placedRings, type Nesting } from "./nest"
 
 /** luka mellom arka i uttaket, mm */
-const SHEET_GAP = 200
+export const SHEET_GAP = 200
 
 export function partsToDxf(n: Nesting, plyT: number, kerf: number): string {
   const out: string[] = []
@@ -51,12 +56,16 @@ export function partsToDxf(n: Nesting, plyT: number, kerf: number): string {
       poly(out, "GRAVER", line, false)
     }
     for (const q of sheet.placed) {
-      const r = placedRings(q)
-      poly(out, "KUTT", offsetPoly(r.outline.map(([x, y]) => [x, y + oy] as Pt), +h))
-      for (const hole of r.holes) {
+      mark(out, q.part.from, q.label.p[0], q.label.p[1] + oy, q.label)
+    }
+    for (const q of sheet.placed) {
+      for (const hole of placedRings(q).holes) {
         poly(out, "KUTT", offsetPoly(hole.map(([x, y]) => [x, y + oy] as Pt), -h))
       }
-      mark(out, q.part.from, q.label.p[0], q.label.p[1] + oy, q.label)
+    }
+    for (const q of sheet.placed) {
+      const r = placedRings(q)
+      poly(out, "KUTT", offsetPoly(r.outline.map(([x, y]) => [x, y + oy] as Pt), +h))
     }
   })
 

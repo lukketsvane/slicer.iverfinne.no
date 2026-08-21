@@ -39,6 +39,10 @@ tool.
    why.
 5. **Export.**
 
+The panel reads everything off the geometry, including **cut length and cut
+time** at the speed in `fart`. That is pure beam-on time, no travel between
+parts, and it is worth seeing before you press the button rather than after.
+
 Two fingers on the canvas change the rib counts; three fingers move the light.
 Double-tap reframes. The URL carries every setting except the mesh itself.
 
@@ -71,10 +75,18 @@ offcut of that same sheet into each slot, and set `klaring` to the one that goes
 in under thumb pressure. Twenty seconds of laser time, and it settles kerf and
 press fit together.
 
-Kerf compensation is applied **in the file**, in both DXF and SVG — most people
-with a laser in the basement don't have a CAM package that can set tool offset.
-If your software also compensates, set `snitt` to 0 or you will compensate
-twice.
+**Kerf is taken exactly once.** By default it is taken **in the file**, in both
+DXF and SVG, because most people with a laser in the basement don't have a CAM
+package that can set tool offset. If yours does, set `snittveg` to *i maskina*
+and the files carry the nominal outline instead. Take it twice and every slot
+comes out a full kerf too wide; take it nowhere and nothing grips.
+
+**Order is part of the file.** Engraving first, then the inner cuts, then the
+outline. Cut the outline first and the part is loose in the sheet while its
+slots are still to be cut: it drops into the bed, tips, and what should have
+been a slot becomes a stripe beside one. Most laser software reorders this
+anyway; not all of it does, and software that does it does it right whether the
+file was sorted or not.
 
 ## Parameters
 
@@ -91,6 +103,8 @@ twice.
 | `leddtype` | joint corners | straight / dogbone / T-bone |
 | `fres` | cutter diameter | 0–12 mm (0 = laser) |
 | `snitt` | kerf | 0–6 mm |
+| `snittveg` | who compensates | in the file / in the machine |
+| `fart` | cut speed | 1–200 mm/s, for the time estimate only |
 | `arkB/H` | sheet | up to 3000 × 2000 mm |
 
 Materials: plywood, MDF, acrylic, cardboard — they set density (mass) and how
@@ -108,6 +122,7 @@ be made or can't be assembled; **soft** is a choice worth knowing about.
 - material remains at the joint after the slot has eaten half the overlap
 - parts fit on the sheet you actually have
 - press fit is in a workable band (soft)
+- somebody takes the kerf (soft)
 - ribs are far enough apart to get a tool between them (soft)
 - the mesh is closed (soft)
 - resolution wasn't simplified away (soft)
@@ -170,6 +185,7 @@ deploys without touching any dashboard.
 
 ```bash
 pnpm probe   # engine without a browser: parts, joints, cut length, files
+pnpm rekkje  # reads the cut files back: engrave, inner cuts, outline, in that order
 pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps
 pnpm tung    # a million triangles in, and how long that takes
