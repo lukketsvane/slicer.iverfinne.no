@@ -1,0 +1,321 @@
+/**
+ * SLICERMAN — kontrakten.
+ *
+ * Reiskapen gjer éin ting: han tek eit tredimensjonalt nett og gjev deg
+ * flate delar du kan skjere ut på laser eller fres, og som held seg sjølve
+ * saman når du set dei i hop. Ingen dyr programvare, ingen lisens, ingen
+ * eksportdialog i tolv steg.
+ *
+ * Denne fila er det alt anna les frå: kva ein parameter er, kva eit måltal
+ * er, kva ein regel er, og geometrien som både snittinga, målinga og
+ * kuttfilene deler. Ho kjenner korkje vaffel, kube eller STL.
+ *
+ * Aksar: X og Y er planet, Z er opp. Alt i millimeter, vinklar i grader ut
+ * mot skyvaren.
+ */
+
+export type Pt = [number, number]
+export type Vec3 = [number, number, number]
+
+// =============================================================================
+// MATERIALE
+// =============================================================================
+export type Material = "finer" | "mdf" | "akryl" | "papp"
+
+export const MATERIALS: Record<
+  Material,
+  { label: string; rho: number; hex: string }
+> = {
+  // rho i kg/m³ — det er han massen vert rekna av
+  finer: { label: "kryssfinér", rho: 680, hex: "#e9dcc0" },
+  mdf: { label: "mdf", rho: 750, hex: "#c9a889" },
+  akryl: { label: "akryl", rho: 1190, hex: "#dfe7ea" },
+  papp: { label: "papp", rho: 220, hex: "#d8c9ac" },
+}
+
+/** Platetjukner ein faktisk får kjøpt. Skyvaren er fri — ei plate kan vera
+ *  5,8 mm om ho er det — men desse er dei ein finn på lager, og difor er
+ *  dei knappar og ikkje eit tal ein må treffe. */
+export const TJUKNER = [3, 4, 6, 9, 12, 18] as const
+
+// =============================================================================
+// PARAMETERROM
+// =============================================================================
+export type Range = {
+  min: number
+  max: number
+  step: number
+  label: string
+  unit?: string
+  int?: boolean
+  /** namn i staden for tal: eit val og ikkje ei mengd */
+  names?: readonly string[]
+}
+
+export type Group = { id: string; label: string; keys: readonly string[] }
+
+/** Ein parametersats slik grensesnittet ser han: tal, pluss dei få nøklane
+ *  som er namn — materialet og kjelda. */
+export type ParamBag = Record<string, number | string>
+
+const clamp1 = (v: number, r: Range) => {
+  if (!Number.isFinite(v)) return NaN
+  const c = Math.min(r.max, Math.max(r.min, v))
+  return r.int ? Math.round(c) : +c.toFixed(4)
+}
+
+/**
+ * URL-hashen er ikkje til å stole på. Kvart felt vert lese for seg, klemt
+ * inn i sitt eige band, og alt som ikkje er eit tal fell tilbake til det som
+ * stod frå før — inga laga lenkje kan skyve NaN inn i snittinga.
+ */
+export function clampBag<P extends ParamBag>(
+  o: unknown,
+  prev: P,
+  ranges: Record<string, Range>,
+  keys: readonly string[],
+): P {
+  if (!o || typeof o !== "object") return prev
+  const rec = o as Record<string, unknown>
+  const out = { ...prev } as Record<string, number | string>
+  for (const k of keys) {
+    const raw = rec[k]
+    if (typeof raw !== "number") continue
+    const v = clamp1(raw, ranges[k])
+    if (Number.isFinite(v)) out[k] = v
+  }
+  if (typeof rec.material === "string" && rec.material in MATERIALS) {
+    out.material = rec.material
+  }
+  // Kjelda er eit lause-handtak til eit nett som ligg i arbeidaren. Ei
+  // lenkje kan ikkje bera nettet, so ho ber berre namnet — og eit namn
+  // arbeidaren ikkje kjenner fell tilbake til kuben når han vert bygd.
+  if (typeof rec.kjelde === "string" && /^[a-z0-9_-]{1,40}$/i.test(rec.kjelde)) {
+    out.kjelde = rec.kjelde
+  }
+  return out as P
+}
+
+/** Terningen: nye tal innanfor grensene, låste nøklar rører seg ikkje.
+ *  Kjelda vert aldri kasta — han er nettet ditt, ikkje ein smak. */
+export function randomBag<P extends ParamBag>(
+  rnd: () => number,
+  prev: P,
+  ranges: Record<string, Range>,
+  keys: readonly string[],
+  locked: ReadonlySet<string> = new Set(),
+): P {
+  const out = { ...prev } as Record<string, number | string>
+  for (const k of keys) {
+    if (locked.has(k)) continue
+    const r = ranges[k]
+    // Trekk mot midten av bandet. Reine uniforme trekk gjev for mange
+    // objekt som ligg og skrapar mot ei grense, og eit objekt som ligg mot
+    // grensa er som regel eit objekt som bryt ein regel.
+    const t = (rnd() + rnd() + rnd()) / 3
+    out[k] = clamp1(r.min + t * (r.max - r.min), r)
+  }
+  return out as P
+}
+
+/** Deterministisk PRNG, slik at éin frøtekst alltid gjev same objekt. */
+export function seeded(seed: string): () => number {
+  let h = 2166136261 >>> 0
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i)
+    h = Math.imul(h, 16777619) >>> 0
+  }
+  return () => {
+    h ^= h << 13
+    h >>>= 0
+    h ^= h >> 17
+    h ^= h << 5
+    h >>>= 0
+    return h / 4294967296
+  }
+}
+
+/** Norsk desimalskiljeteikn. Eit tal med punktum i ein norsk tabell les som
+ *  eit tal henta frå eit anna dokument. */
+export const nn = (v: number, d = 0) =>
+  Number.isFinite(v) ? v.toFixed(d).replace(".", ",") : "–"
+
+// =============================================================================
+// MÅLTAL
+// =============================================================================
+/** Eit måltal med ferdig sats. Formateringa skjer i motoren og ikkje i
+ *  grensesnittet: målinga går i ein worker, og ein funksjon kan ikkje
+ *  sendast gjennom postMessage — han ville drepe heile meldinga. */
+export type Metric = {
+  id: string
+  label: string
+  value: number
+  unit: string
+  text: string
+}
+
+/**
+ * Det reiskapen må kunne svare på. Alt er LESE av geometrien: eit tal her
+ * er aldri ei avskrift av eit tal frå ein skyvar.
+ */
+export type Metrics = {
+  envX: number // ytre mål på det ferdige objektet, mm
+  envY: number
+  envZ: number
+
+  parts: number // tal delar i kuttlista
+  unique: number // kor mange av dei som er ULIKE — det er oppspenningane
+  loose: number // delar utan eit einaste ledd — dei fell ut av stabelen
+  joints: number // kryssledd som faktisk vart skorne
+  units: number // ribber i alt
+  unitLabel: string
+
+  mass: number // ferdig masse, kg
+  plyArea: number // plateareal delane dekkjer, mm²
+  sheets: number // ark som trengst
+  util: number // utnytting av arka, 0–1
+  cutLen: number // samla kuttlengd, mm — laseren si eiga tid
+
+  narrow: number // smalaste gods som er att i eit ledd, mm
+  minGap: number // minste opning mellom to naboribber, mm
+  slotW: number // sporbreidd, mm
+
+  tris: number // trekantar i kjeldenettet etter forenkling
+  srcTris: number // trekantar i kjeldenettet slik det kom inn
+  openEdges: number // kantar som berre høyrer til éin trekant
+
+  list: Metric[]
+}
+
+// =============================================================================
+// REGLAR
+// =============================================================================
+/**
+ * Det som skil ein reiskap frå ein demonstrasjon er om han seier nei.
+ * `hard` tyder at delane ikkje kan skjerast eller ikkje kan setjast saman;
+ * ein mjuk regel er eit val som skal stå på papiret i staden for i hovudet.
+ */
+export type Rule = {
+  id: string
+  label: string
+  ok: boolean
+  hard: boolean
+  value: string
+  why: string
+}
+
+// =============================================================================
+// NETT UT AV MOTOREN
+// =============================================================================
+export type DetailKey = "lav" | "mid" | "hog"
+
+/** Dei tre lesemåtane av eitt og same objekt:
+ *   flate   nettet slik det kom inn — etter forenkling og glatting
+ *   lag     ribbene slik dei faktisk står, med spor
+ *   kontur  dei flate kuttprofilane, lagde ved sida av kvarandre */
+export type View = "flate" | "lag" | "kontur"
+
+export type ExportKind = "stl" | "dxf" | "svg" | "ark"
+
+export type BuildOut = {
+  positions: Float32Array<ArrayBufferLike>
+  normals: Float32Array<ArrayBufferLike>
+  tris: number
+  min: Vec3
+  max: Vec3
+  lines: Float32Array<ArrayBufferLike>
+  heavy: Float32Array<ArrayBufferLike>
+  /**
+   * Flate eller kant, eitt tal per hjørne: 0 er ei PLATEFLATE, 1 er eit
+   * KUTT gjennom plata. Skiljet er noko berre byggjaren veit — ei loddrett
+   * ribbe har flatene sine liggjande vassrett i normalen, og ei global
+   * tommelfingerregel ville farga henne feil.
+   */
+  kant: Float32Array<ArrayBufferLike>
+}
+
+export type ExportOut = {
+  name: string
+  mime: string
+  text?: string
+  data?: ArrayBuffer
+}
+
+// =============================================================================
+// GEOMETRI ALLE DELER
+// =============================================================================
+export function shoelace(poly: Pt[]): number {
+  let a = 0
+  for (let i = 0; i < poly.length; i++) {
+    const b = poly[(i + 1) % poly.length]
+    a += poly[i][0] * b[1] - b[0] * poly[i][1]
+  }
+  return a / 2
+}
+
+export function bbox(poly: Pt[]): { x0: number; y0: number; x1: number; y1: number } {
+  let x0 = Infinity
+  let y0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  for (const q of poly) {
+    if (q[0] < x0) x0 = q[0]
+    if (q[0] > x1) x1 = q[0]
+    if (q[1] < y0) y0 = q[1]
+    if (q[1] > y1) y1 = q[1]
+  }
+  return { x0, y0, x1, y1 }
+}
+
+/** omkrinsen av ein ring — kuttlengda hans */
+export function perimeter(ring: Pt[]): number {
+  let L = 0
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]
+    const b = ring[(i + 1) % ring.length]
+    L += Math.hypot(b[0] - a[0], b[1] - a[1])
+  }
+  return L
+}
+
+/** sats av eit måltal: teksten som skal stå på skjermen */
+export function metric(
+  id: string,
+  label: string,
+  value: number,
+  unit: string,
+  text: string,
+): Metric {
+  return { id, label, value, unit, text }
+}
+
+// =============================================================================
+// HUGS
+// =============================================================================
+/**
+ * Hugsar dei siste resultata per nøkkel — ein bitteliten LRU.
+ *
+ * For eitt og same punkt spør arbeidaren om bygg, måltal og reglar etter
+ * kvarandre, og kvar av dei tre startar med å reise det same rutenettet frå
+ * dei same tala. Utan hugs kostar kvart skyvartrykk tre snittingar; med han
+ * kostar det éin.
+ *
+ * Berre mellombygg skal hugsast — ALDRI eit nett som vert sendt gjennom
+ * postMessage: overføringa koplar frå bufferane, og eit hugsa nett med
+ * fråkopla bufferar er eit usynleg objekt.
+ */
+export function keep<T>(size = 3): (key: string, make: () => T) => T {
+  const m = new Map<string, T>()
+  return (key, make) => {
+    if (m.has(key)) {
+      const hit = m.get(key) as T
+      m.delete(key)
+      m.set(key, hit)
+      return hit
+    }
+    const v = make()
+    m.set(key, v)
+    if (m.size > size) m.delete(m.keys().next().value as string)
+    return v
+  }
+}
