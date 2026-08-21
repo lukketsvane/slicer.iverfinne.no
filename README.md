@@ -5,8 +5,8 @@ themselves together with no glue and no screws.
 
 Drop in an STL. Set the material thickness. Download a DXF.
 
-**[slicerman.iverfinne.no](https://slicerman.iverfinne.no)** — runs in the
-browser, nothing to install, no account, no licence key.
+**[slicer.iverfinne.no](https://slicer.iverfinne.no)** — runs in the browser,
+nothing to install, no account, no licence key.
 
 > The interface is in Norwegian (nynorsk). The code and this README are not.
 
