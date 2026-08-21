@@ -11,7 +11,8 @@
     "tung": "tsx scripts/tung.ts",
     "look": "tsx scripts/look.ts",
     "pakk": "tsx scripts/nest-sjekk.ts",
-    "ark": "tsx scripts/ark.ts"
+    "ark": "tsx scripts/ark.ts",
+    "glb": "tsx scripts/glb-sjekk.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

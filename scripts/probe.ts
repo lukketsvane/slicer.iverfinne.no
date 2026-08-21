@@ -11,6 +11,7 @@ import { parseMesh } from "../lib/io"
 import { put } from "../lib/sources"
 import { meshToStl } from "../lib/vaffel/export-stl"
 import { makeSoup } from "../lib/soup"
+import { glb } from "./glbfil"
 import type { ParamBag } from "../lib/core"
 
 const nn = (v: number, d = 1) => v.toFixed(d)
@@ -194,5 +195,59 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   console.log(
     `  !! eit vrengd nett gav ${a.m.parts}/${a.m.joints} der det rettvende gav ` +
       `${b.m.parts}/${b.m.joints}`,
+  )
+}
+
+// --- 8 same forma som GLB og som STL ---------------------------------------
+// Ein GLB er Y-opp og ei STL er som ho er lagd. Same kule, skriven begge
+// vegar, skal difor gje NØYAKTIG same objekt — elles er vendinga feil.
+{
+  const seg = 32
+  const pos: number[] = []
+  const at = (i: number, j: number): [number, number, number] => {
+    const th = (i / seg) * Math.PI * 2
+    const ph = (j / seg) * Math.PI
+    // Y opp, som glTF krev
+    return [
+      50 * Math.sin(ph) * Math.cos(th),
+      50 * Math.cos(ph) * 1.6,
+      50 * Math.sin(ph) * Math.sin(th),
+    ]
+  }
+  for (let j = 0; j < seg; j++) {
+    for (let i = 0; i < seg; i++) {
+      const a = at(i, j)
+      const b = at(i + 1, j)
+      const c = at(i + 1, j + 1)
+      const d = at(i, j + 1)
+      // Y opp er venstrehendt sett frå Z-opp-verda, so vindinga vert snudd
+      // her for at kula skal vende utover etter vendinga.
+      pos.push(...a, ...c, ...b, ...a, ...d, ...c)
+    }
+  }
+  const yup = new Float32Array(pos)
+  put("glbkule", "kule.glb", parseMesh("k.glb", glb(yup, null, [{ mesh: 0 }], [0])))
+
+  // den same kula, men allereie Z-opp, rett inn som trekantsuppe
+  const zup = new Float32Array(pos.length)
+  for (let i = 0; i < pos.length; i += 3) {
+    zup[i] = pos[i]
+    zup[i + 1] = -pos[i + 2]
+    zup[i + 2] = pos[i + 1]
+  }
+  put("rawkule", "kule.raw", makeSoup(zup))
+
+  const g = report("kule frå GLB", { ...DEFAULT_PARAMS, kjelde: "glbkule", ribbX: 7, ribbY: 7 })
+  const r = report("same kule, Z-opp direkte", { ...DEFAULT_PARAMS, kjelde: "rawkule", ribbX: 7, ribbY: 7 })
+  const likt =
+    g.m.parts === r.m.parts &&
+    g.m.joints === r.m.joints &&
+    Math.abs(g.m.envZ - r.m.envZ) < 0.5 &&
+    Math.abs(g.m.cutLen - r.m.cutLen) < 1
+  console.log(
+    likt
+      ? "  GLB og Z-opp gjev same objekt"
+      : `  !! GLB gav ${g.m.parts}/${g.m.joints}/${g.m.envZ.toFixed(1)}, ` +
+        `Z-opp gav ${r.m.parts}/${r.m.joints}/${r.m.envZ.toFixed(1)}`,
   )
 }

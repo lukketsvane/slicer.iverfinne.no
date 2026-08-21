@@ -13,6 +13,7 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { makeSoup } from "../lib/soup"
 import { meshToStl } from "../lib/vaffel/export-stl"
+import { glb } from "./glbfil"
 
 const URL = process.argv[2] ?? "http://127.0.0.1:3210"
 const UT = "bilete"
@@ -80,27 +81,40 @@ const main = async () => {
   // panelet heilt att, so biletet syner objektet og ikkje menyen
   await page.getByRole("button", { name: "færre kontrollar" }).click()
   await page.getByRole("button", { name: "gøym kontrollane" }).click()
-  const fil = join(UT, "prove.stl")
-  writeFileSync(fil, kuleStl(60, 40))
-  await page.setInputFiles("input[type=file]", fil)
-  await page.waitForFunction(
-    () =>
-      document
-        .querySelector('section[aria-label="kontrollar"]')
-        ?.getAttribute("aria-busy") === "false",
-    undefined,
-    { timeout: 45000 },
-  )
-  await page.waitForTimeout(1500)
-  const kjelde = await page.locator("button[aria-label='hent eit nett']").innerText()
-  const etter = await page
-    .locator("section[aria-label='kontrollar'] span.tab")
-    .first()
-    .innerText()
-  console.log("etter import:", kjelde.trim(), "—", etter.replace(/\s+/g, " "))
-  await page.screenshot({ path: `${UT}/5-import.png` })
-  if (!/prove\.stl/i.test(kjelde)) feil.push("filnamnet kom ikkje fram i kjeldepilla")
-  if (/^\s*$|snittar/.test(etter)) feil.push("ingen måltal etter import")
+  const ferdig = () =>
+    page.waitForFunction(
+      () =>
+        document
+          .querySelector('section[aria-label="kontrollar"]')
+          ?.getAttribute("aria-busy") === "false",
+      undefined,
+      { timeout: 45000 },
+    )
+
+  /** legg ei fil på filveljaren og les av kva reiskapen gjorde med henne */
+  const importer = async (namn: string, data: Buffer, bilete: string) => {
+    const fil = join(UT, namn)
+    writeFileSync(fil, data)
+    await page.setInputFiles("input[type=file]", fil)
+    await ferdig()
+    await page.waitForTimeout(1500)
+    const kjelde = (
+      await page.locator("button[aria-label='hent eit nett']").innerText()
+    ).trim()
+    const tal = (
+      await page.locator("section[aria-label='kontrollar'] span.tab").first().innerText()
+    ).replace(/\s+/g, " ")
+    console.log(`import ${namn}: ${kjelde} — ${tal}`)
+    await page.screenshot({ path: `${UT}/${bilete}` })
+    if (!kjelde.toLowerCase().includes(namn.toLowerCase())) {
+      feil.push(`${namn}: filnamnet kom ikkje fram i kjeldepilla («${kjelde}»)`)
+    }
+    if (/^\s*$|snittar/.test(tal)) feil.push(`${namn}: ingen måltal etter import`)
+    if (/^0 delar/.test(tal)) feil.push(`${namn}: null delar — nettet vart ikkje lese`)
+  }
+
+  await importer("prove.stl", kuleStl(60, 40), "5-import-stl.png")
+  await importer("prove.glb", eggGlb(60, 40), "6-import-glb.png")
 
   await browser.close()
   if (feil.length) {
@@ -113,6 +127,39 @@ const main = async () => {
 
 void main()
 
+
+/**
+ * Det same egget som binær GLB, med Y opp slik glTF krev og heile
+ * plasseringa i ein node — altså slik Blender faktisk skriv ei fil.
+ */
+function eggGlb(r: number, seg: number): Buffer {
+  const pos: number[] = []
+  const at = (i: number, j: number): [number, number, number] => {
+    const th = (i / seg) * Math.PI * 2
+    const ph = (j / seg) * Math.PI
+    return [
+      r * Math.sin(ph) * Math.cos(th),
+      r * Math.cos(ph) * 1.6,
+      r * Math.sin(ph) * Math.sin(th),
+    ]
+  }
+  for (let j = 0; j < seg; j++) {
+    for (let i = 0; i < seg; i++) {
+      const a = at(i, j)
+      const b = at(i + 1, j)
+      const c = at(i + 1, j + 1)
+      const d = at(i, j + 1)
+      pos.push(...a, ...c, ...b, ...a, ...d, ...c)
+    }
+  }
+  const buf = glb(
+    new Float32Array(pos),
+    null,
+    [{ mesh: 0, translation: [12, 40, -7], scale: [1.5, 1.5, 1.5] }],
+    [0],
+  )
+  return Buffer.from(new Uint8Array(buf))
+}
 
 /** ei kule som binær STL — noko å dra inn som ikkje er kuben */
 function kuleStl(r: number, seg: number): Buffer {

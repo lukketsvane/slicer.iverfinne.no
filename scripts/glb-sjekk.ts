@@ -1,0 +1,191 @@
+/**
+ * Vakta over GLB-lesaren.
+ *
+ * Ein GLB er ikkje eit nett — han er ei scene, og dei fleste feil ein kan
+ * gjere her er USYNLEGE i tala: objektet kjem inn på skakke, i feil
+ * storleik, eller ti meter frå origo, og trekanttalet stemmer heile vegen.
+ * Difor vert filene skrivne her, med kjend geometri, og lesne att med
+ * fasit i handa.
+ *
+ *   npx tsx scripts/glb-sjekk.ts
+ */
+import { parseMesh } from "../lib/io"
+import { bounds } from "../lib/soup"
+import { glb, kasse } from "./glbfil"
+
+let brot = 0
+
+const nn = (v: number) => (Math.abs(v) < 1e-4 ? 0 : +v.toFixed(2))
+
+function sjekk(
+  namn: string,
+  buf: ArrayBuffer,
+  fasit: { min: number[]; max: number[]; tris: number },
+  fil = "prove.glb",
+) {
+  try {
+    const s = parseMesh(fil, buf)
+    const b = bounds(s.pos)
+    const got = { min: b.min.map(nn), max: b.max.map(nn), tris: s.tris }
+    const ok =
+      got.tris === fasit.tris &&
+      got.min.every((v, i) => Math.abs(v - fasit.min[i]) < 0.05) &&
+      got.max.every((v, i) => Math.abs(v - fasit.max[i]) < 0.05)
+    if (!ok) brot++
+    console.log(
+      `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(30)} ${got.tris} tri  ` +
+        `[${got.min}] .. [${got.max}]` +
+        (ok ? "" : `\n        venta ${fasit.tris} tri  [${fasit.min}] .. [${fasit.max}]`),
+    )
+  } catch (e) {
+    brot++
+    console.log(`FEIL  ${namn.padEnd(30)} kasta: ${(e as Error).message}`)
+  }
+}
+
+function sjekkFeil(namn: string, buf: ArrayBuffer, vent: RegExp) {
+  try {
+    parseMesh("prove.glb", buf)
+    brot++
+    console.log(`FEIL  ${namn.padEnd(30)} skulle ha kasta`)
+  } catch (e) {
+    const m = (e as Error).message
+    const ok = vent.test(m)
+    if (!ok) brot++
+    console.log(`${ok ? "  ok " : "FEIL"}  ${namn.padEnd(30)} «${m}»`)
+  }
+}
+
+// =============================================================================
+// PRØVENE
+// =============================================================================
+const k = kasse(20, 40, 10)
+
+// glTF er Y-OPP: kassa er 20 brei langs X, 40 høg langs Y, 10 djup langs Z.
+// Verkstaden er Z-opp, so (x, y, z) skal kome ut som (x, −z, y).
+sjekk("kasse, inga flytting", glb(k.pos, k.idx, [{ mesh: 0 }], [0]), {
+  min: [-10, -5, 0],
+  max: [10, 5, 40],
+  tris: 12,
+})
+
+// Flytting og skalering i noden. Blender legg som regel heile vendinga si
+// her, og ein lesar som hoppar over treet får rett trekanttal og feil objekt.
+sjekk(
+  "kasse, flytta og skalert node",
+  glb(k.pos, k.idx, [{ mesh: 0, translation: [100, 5, -3], scale: [2, 2, 2] }], [0]),
+  { min: [80, -7, 5], max: [120, 13, 85], tris: 12 },
+)
+
+// Ein forelder med skalering og eit barn med flytting: matrisene skal
+// hopast opp nedover treet, ikkje berre lesast av den siste noden.
+sjekk(
+  "kasse, node inni node",
+  glb(
+    k.pos,
+    k.idx,
+    [
+      { children: [1], scale: [3, 3, 3] },
+      { mesh: 0, translation: [0, 10, 0] },
+    ],
+    [0],
+  ),
+  { min: [-30, -15, 30], max: [30, 15, 150], tris: 12 },
+)
+
+// Ei kvartsving om Y i kvaternion. Kjem tala ut i feil rekkjefylgje her,
+// står objektet på skakke — og trekanttalet er framleis tolv.
+const s45 = Math.SQRT1_2
+sjekk(
+  "kasse, vend 90° om Y",
+  glb(k.pos, k.idx, [{ mesh: 0, rotation: [0, s45, 0, s45] }], [0]),
+  { min: [-5, -10, 0], max: [5, 10, 40], tris: 12 },
+)
+
+// Utan indeksliste: hjørna ligg tre og tre, slik ei STL har dei.
+const laus = new Float32Array(k.idx.length * 3)
+k.idx.forEach((v, i) => {
+  laus[i * 3] = k.pos[v * 3]
+  laus[i * 3 + 1] = k.pos[v * 3 + 1]
+  laus[i * 3 + 2] = k.pos[v * 3 + 2]
+})
+sjekk("kasse, utan indeksar", glb(laus, null, [{ mesh: 0 }], [0]), {
+  min: [-10, -5, 0],
+  max: [10, 5, 40],
+  tris: 12,
+})
+
+// Trekantstripe. Annakvar trekant må snuast, elles vender halve nettet
+// feil veg og stråleskytinga les halve objektet som luft.
+const stripe = new Float32Array([0, 0, 0, 10, 0, 0, 0, 10, 0, 10, 10, 0])
+sjekk(
+  "stripe (mode 5)",
+  glb(stripe, new Uint32Array([0, 1, 2, 3]), [{ mesh: 0 }], [0], { mode: 5 }),
+  { min: [0, 0, 0], max: [10, 0, 10], tris: 2 },
+)
+
+// Ein vifte-primitiv.
+sjekk(
+  "vifte (mode 6)",
+  glb(stripe, new Uint32Array([0, 1, 3, 2]), [{ mesh: 0 }], [0], { mode: 6 }),
+  { min: [0, 0, 0], max: [10, 0, 10], tris: 2 },
+)
+
+// Komprimerte nett kan vi ikkje lese. Då skal brukaren få vita KVA som er
+// gale og kva han skal gjere, ikkje eit tomt objekt.
+sjekkFeil(
+  "draco-komprimert",
+  glb(k.pos, k.idx, [{ mesh: 0 }], [0], { kravExt: "KHR_draco_mesh_compression" }),
+  /Draco/,
+)
+sjekkFeil(
+  "meshopt-komprimert",
+  glb(k.pos, k.idx, [{ mesh: 0 }], [0], { kravExt: "EXT_meshopt_compression" }),
+  /meshopt/,
+)
+
+// .gltf som tekst, med bufferen som data-URI.
+{
+  const buf = glb(k.pos, k.idx, [{ mesh: 0 }], [0])
+  const dv = new DataView(buf)
+  const jsonLen = dv.getUint32(12, true)
+  const doc = JSON.parse(
+    new TextDecoder().decode(new Uint8Array(buf, 20, jsonLen)),
+  ) as Record<string, unknown>
+  const binLen = dv.getUint32(20 + jsonLen, true)
+  const bin = new Uint8Array(buf, 28 + jsonLen, binLen)
+  ;(doc.buffers as { uri?: string }[])[0].uri =
+    "data:application/octet-stream;base64," + Buffer.from(bin).toString("base64")
+  const txt = new TextEncoder().encode(JSON.stringify(doc))
+  sjekk(
+    "gltf med data-uri",
+    txt.buffer.slice(txt.byteOffset, txt.byteOffset + txt.byteLength) as ArrayBuffer,
+    { min: [-10, -5, 0], max: [10, 5, 40], tris: 12 },
+    "prove.gltf",
+  )
+}
+
+// Ei .gltf som peikar på ei .bin ved sida av seg har ikkje den fila med seg
+// når ho vert dregen inn i ein nettlesar. Sei det, i staden for å ryke.
+{
+  const doc = {
+    asset: { version: "2.0" },
+    buffers: [{ byteLength: 12, uri: "scene.bin" }],
+  }
+  const txt = new TextEncoder().encode(JSON.stringify(doc))
+  sjekkFeil(
+    "gltf med ekstern .bin",
+    txt.buffer.slice(txt.byteOffset, txt.byteOffset + txt.byteLength) as ArrayBuffer,
+    /\.bin|glb/i,
+  )
+}
+
+// Ei GLB som heiter noko anna skal framleis lesast som GLB.
+sjekk("glb kalla .stl", glb(k.pos, k.idx, [{ mesh: 0 }], [0]), {
+  min: [-10, -5, 0],
+  max: [10, 5, 40],
+  tris: 12,
+}, "skann.stl")
+
+console.log(brot ? `\n${brot} PRØVER RYK` : "\nalle GLB-prøver held")
+process.exit(brot ? 1 : 0)
