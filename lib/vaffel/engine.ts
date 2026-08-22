@@ -34,6 +34,7 @@ import { makePlan } from "./plan"
 import { meshToStl } from "./export-stl"
 import { partsToDxf } from "./export-dxf"
 import { couponSvg, profileSvg, sheetSvg } from "./export-svg"
+import { bruk, tune, type Kandidat } from "./tune"
 import { zip } from "../zip"
 import {
   DEFAULT_PARAMS,
@@ -60,6 +61,10 @@ export type EngineDef = {
   measure(p: ParamBag): Metrics
   rules(p: ParamBag, m: Metrics): Rule[]
   exportFile(p: ParamBag, what: ExportKind): ExportOut
+  /** gode innstillingar for det nettet og den storleiken som står, sorterte */
+  tune(p: ParamBag): Kandidat[]
+  /** det n-te svaret frå ei liste som alt er rekna */
+  pick(p: ParamBag, alle: Kandidat[], nth: number): ParamBag
   /** profilane som bilete til panelet — same teikning som SVG-uttaket,
    *  men med strek tjukk nok til å sjåast når ho er skrumpa til ei rute */
   preview(p: ParamBag): string
@@ -153,6 +158,8 @@ export const VAFFEL: EngineDef = {
   },
 
   measure: (bag) => measure(asP(bag)),
+  tune: (bag) => tune(asP(bag)),
+  pick: (bag, alle, nth) => bruk(asP(bag), alle, nth) as unknown as ParamBag,
   rules: (bag, m) => checkRules(asP(bag), m),
 
   exportFile(bag: ParamBag, what: ExportKind): ExportOut {

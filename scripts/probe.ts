@@ -90,12 +90,9 @@ report("kube 400, 12x9 ribber i 6 mm", {
   arkB: 1200, arkH: 900,
 })
 
-// --- 3 hundebein og t-bein ------------------------------------------------
-report("kube 300 i 9 mm, hundebein", {
-  ...DEFAULT_PARAMS, storleik: 300, tjukn: 9, leddtype: 1, fres: 6, arkB: 1200, arkH: 900,
-})
-report("kube 300 i 9 mm, t-bein", {
-  ...DEFAULT_PARAMS, storleik: 300, tjukn: 9, leddtype: 2, fres: 6, arkB: 1200, arkH: 900,
+// --- 3 tjukk plate --------------------------------------------------------
+report("kube 300 i 9 mm", {
+  ...DEFAULT_PARAMS, storleik: 300, tjukn: 9, arkB: 1200, arkH: 900,
 })
 
 // --- 4 vend og skaler -----------------------------------------------------

@@ -1,9 +1,10 @@
 # slicerman
 
-Turn a 3D mesh into flat parts you can cut on a laser or CNC — parts that hold
+Turn a 3D mesh into flat parts you can cut on a laser — parts that hold
 themselves together with no glue and no screws.
 
-Drop in an STL. Set the material thickness. Download a DXF.
+Drop in a file. Set how big you want it. Press **find settings**. Download the
+sheets.
 
 **[slicer.iverfinne.no](https://slicer.iverfinne.no)** — runs in the browser,
 nothing to install, no account, no licence key.
@@ -22,22 +23,30 @@ leaves the machine it was dropped on.
 
 ## Defaults
 
-The tool opens on **2 mm MDF, cut on a laser**: no cutter diameter, straight
-joint corners, a 600 × 400 mm bed. That is what most people who open it are
-holding. Set `fres` above zero and it becomes a CNC tool again, with dogbones
-and T-bones — and the rules start checking that the slot is wide enough for the
-tool.
+The tool opens on **3 mm MDF on an 800 × 600 mm bed**. That is what most people
+who open it are standing next to. Change the thickness to the sheet in your
+hand and the bed to your machine; the link carries both.
+
+**It is a laser tool.** There is no cutter diameter and no dogbones, because a
+beam has no radius. That decision removed a slider, a hard rule and a
+correction in the metrics, and it is why the panel fits on a phone.
 
 ## Use it
 
 1. **Drop a file** anywhere on the page — `.glb`, `.gltf`, `.stl` (binary or
    ASCII), `.obj`, `.ply` (ASCII or binary). Up to 220 MB. Or start from the
    built-in cube.
-2. **Place it**: size, rotation. Simplify and smooth if it came from a scanner.
-3. **Set the material**: thickness, kerf, cutter diameter, sheet size.
+2. **Set the size** — the one slider that is always on screen.
+3. **Press find settings.** It slices a dozen rib grids for real and ranks
+   them, then sets the best. Press again for the next best.
 4. **Read the rules.** The panel tells you what can't be cut or assembled, and
    why.
-5. **Export.**
+5. **Export ARK** and open it in LightBurn.
+
+**Find settings** only moves the rib counts and the joint split. Your mesh,
+your size, your material thickness, your press fit, your kerf and your bed
+stay exactly where you put them — a button that changes those has not answered
+your question, it has replaced it.
 
 The panel reads everything off the geometry, including **cut length and cut
 time** at the speed in `fart`. That is pure beam-on time, no travel between
@@ -45,6 +54,25 @@ parts, and it is worth seeing before you press the button rather than after.
 
 Two fingers on the canvas change the rib counts; three fingers move the light.
 Double-tap reframes. The URL carries every setting except the mesh itself.
+
+## Find settings
+
+The button next to the panel handle. It takes your mesh at your size on your
+sheet, slices about a dozen rib grids **for real** — ribs, joints, parts,
+nesting, every hard rule — and ranks what came out:
+
+- **does it hold together?** joints per part, weighted heaviest
+- **how many parts?** a soft bell around twenty; six is not a grid, seventy is
+  an evening with tweezers
+- **how many sheets?** each one is money and another setup
+- **utilisation** and **room between ribs**
+
+A broken hard rule is not a deduction. It is a no: that candidate does not
+exist. What survives comes back sorted, and each press walks one step down the
+list — the first press is the best answer, the second is the second best, and
+sometimes that is the one you wanted. The list is computed once and held in the
+page, so only the first press costs anything (about a second, four on a
+half-million-triangle scan).
 
 ## Output
 
@@ -117,11 +145,9 @@ file was sorted or not.
 | `trekant` | triangle budget | 0.5–60 k, by vertex clustering |
 | `ribbX/Y` | rib counts | 1–32 each way |
 | `lause` | pieces with no joint | keep / drop (default drop) |
-| `tjukn` | thickness | 1–25 mm (presets 3/4/6/9/12/18) |
+| `tjukn` | thickness | 1–25 mm (presets 2/2.5/3/4/6/9/12/18) |
 | `klaring` | press fit | 0–0.6 mm — slot wider than the plate |
 | `ledd` | joint split | 0.2–0.8 — where in the overlap the slot bottoms out |
-| `leddtype` | joint corners | straight / dogbone / T-bone |
-| `fres` | cutter diameter | 0–12 mm (0 = laser) |
 | `snitt` | kerf | 0–6 mm |
 | `snittveg` | who compensates | in the file / in the machine |
 | `fart` | cut speed | 1–200 mm/s, for the time estimate only |
@@ -139,12 +165,11 @@ be made or can't be assembled; **soft** is a choice worth knowing about.
 - there are parts to cut
 - every part hangs in at least one joint (hard while `lause` keeps them, soft
   once it drops them — the count stays in the panel either way)
-- the slot is wider than the cutter
 - material remains at the joint after the slot has eaten half the overlap
 - parts fit on the sheet you actually have
 - press fit is in a workable band (soft)
 - somebody takes the kerf (soft)
-- ribs are far enough apart to get a tool between them (soft)
+- ribs are far enough apart to get a finger between them (soft)
 - the mesh is closed (soft)
 - resolution wasn't simplified away (soft)
 - sheet utilisation (soft)
@@ -170,7 +195,7 @@ above zero is material. Sum, not parity — scans often have overlapping shells,
 and parity reads the overlap as a hole.
 
 **Slots are cut in the field, not in the polygon** — the only way the cut file
-and the 3D view cannot drift apart. What you see is what the cutter follows.
+and the 3D view cannot drift apart. What you see is what the beam follows.
 
 **Nesting follows the outline, not the bounding box.** A rib from a curved
 object is a tongue or an arch, and the box around it is mostly air. Same idea as
