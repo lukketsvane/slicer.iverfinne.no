@@ -103,6 +103,16 @@ const STROKE = {
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
 }
+/** to piler som byter plass: gjev meg eit anna svar */
+const IcoFinn = (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
+    <path d="M2 18h2.9a4 4 0 0 0 3.4-1.9l5.4-8.2A4 4 0 0 1 17.1 6H22" />
+    <path d="m18 2 4 4-4 4" />
+    <path d="M2 6h2.9a4 4 0 0 1 3.4 1.9l.5.8" />
+    <path d="m14.6 14.5.5.8a4 4 0 0 0 3.4 1.9H22" />
+    <path d="m18 14 4 4-4 4" />
+  </svg>
+)
 const IcoSliders = (
   <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
     <path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4" />
@@ -251,6 +261,7 @@ export function ControlsPanel(props: {
   onReset: () => void
   onToggleDetail: () => void
   onExport: (kind: ExportKind) => void
+  onFinn: () => void
   onShare: () => void
   onFile: (f: File) => void
 }): JSX.Element {
@@ -270,6 +281,7 @@ export function ControlsPanel(props: {
     onReset,
     onToggleDetail,
     onExport,
+    onFinn,
     onShare,
     onFile,
   } = props
@@ -447,6 +459,17 @@ export function ControlsPanel(props: {
 
             <button
               type="button"
+              onClick={onFinn}
+              disabled={busy}
+              aria-label="finn innstillingar"
+              title="finn innstillingar — reknar gjennom eit titals rutenett og set det beste. Trykk igjen for det nest beste. Nettet, storleiken, tjukna og plata står."
+              className={ICON_BTN}
+              style={{ background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }}
+            >
+              {IcoFinn}
+            </button>
+            <button
+              type="button"
               onClick={() => setMode(open ? "lukka" : "halv")}
               aria-label={open ? "gøym kontrollane" : "vis kontrollane"}
               aria-expanded={open}
@@ -533,6 +556,18 @@ export function ControlsPanel(props: {
                 </button>
               ))}
             </div>
+
+            {/* STORLEIKEN STÅR FRAMME.
+                Han er steg to for kvar einaste brukar: du slepper ei fil
+                inn, og so bestemmer du kor stort det skal vera. Å måtte
+                opne skyveveggen for det eine talet er eit steg for mykje —
+                og «finn innstillingar» reknar ut frå nett det talet. */}
+            <SliderRow
+              k="storleik"
+              r={VAFFEL.ranges.storleik}
+              value={num(params, "storleik", VAFFEL.ranges.storleik.min)}
+              onChange={setParam}
+            />
 
             {/* reglane som ryk: éi line kvar, grunngjevinga i title. Panelet
                 seier KVA som er gale; KVIFOR ligg eit fingertrykk unna. */}

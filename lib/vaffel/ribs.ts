@@ -136,53 +136,25 @@ function axisDist(spans: Span[], t: number): number {
   return best
 }
 
-type Box = {
-  t: number
-  half: number
-  zlo: number
-  zhi: number
-  /** avlastingshòl i dei to innerste hjørna — hundebein eller t-bein */
-  discs: { cx: number; cz: number; r: number }[]
-}
+type Box = { t: number; half: number; zlo: number; zhi: number }
 
 /**
- * Sporet som ein boks med forteikn, pluss avlastinga.
+ * Sporet som ein boks med forteikn.
  *
- * Ein fres har ein diameter, og eit rundt verktøy kan ikkje skjere eit
- * skarpt innerhjørne. Utan avlasting står det att ein liten kvartsirkel av
- * gods i kvart hjørne av sporet, og den kvartsirkelen er nøyaktig det som
- * hindrar at dei to ribbene går heilt saman. Difor:
- *
- *   HUNDEBEIN  eit hòl på diagonalen ut frå hjørnet. Kortaste vegen ut,
- *              og det som stel minst av godset.
- *   T-BEIN     eit hòl på sjølve sporveggen, tangert av sporbotnen.
- *              Sporet vert like djupt, og botnen står flat — ein del som
- *              skal liggje an mot botnen ligg an mot han og ikkje mot to
- *              hundebein.
- *
- * På laser er det ingenting å avlaste: stråla har ingen radius å snakke
- * om, og då står valet på «rett».
+ * Her stod det ei avlasting òg: hundebein og t-bein, hòl i dei innerste
+ * hjørna av sporet. Eit rundt verktøy kan ikkje skjere eit skarpt
+ * innerhjørne, so ein fres treng dei. Ei laserstråle har ingen radius å
+ * snakke om, og denne reiskapen skjer på laser. Avlastinga er ute, og med
+ * henne ein skyvar, ein hard regel og ei korrigering i måltala.
  */
-function boxOf(q: Slot, p: Params): Box {
+function boxOf(q: Slot): Box {
   const fromTop = q.fromTop
-  const zlo = fromTop ? Math.min(q.zEnd, q.zMouth) : q.zOut
-  const zhi = fromTop ? q.zOut : Math.max(q.zEnd, q.zMouth)
-  const half = q.w / 2
-  const discs: Box["discs"] = []
-  const r = p.fres / 2
-  if (p.leddtype > 0 && r > 0.05) {
-    // inn i godset: sporet ligg over botnen når det kjem ovanfrå
-    const sZ = fromTop ? -1 : 1
-    for (const sT of [-1, 1]) {
-      if (p.leddtype === 1) {
-        const d = r / Math.SQRT2
-        discs.push({ cx: q.t + sT * (half + d), cz: q.zEnd + sZ * d, r })
-      } else {
-        discs.push({ cx: q.t + sT * half, cz: q.zEnd - sZ * r, r })
-      }
-    }
+  return {
+    t: q.t,
+    half: q.w / 2,
+    zlo: fromTop ? Math.min(q.zEnd, q.zMouth) : q.zOut,
+    zhi: fromTop ? q.zOut : Math.max(q.zEnd, q.zMouth),
   }
-  return { t: q.t, half, zlo, zhi, discs }
 }
 
 function profileOf(
@@ -220,7 +192,7 @@ function profileOf(
     cols[i] = axis === "x" ? s.runs(2, pos, t) : s.runs(2, t, pos)
   }
 
-  const boxes = slots.map((q) => boxOf(q, p))
+  const boxes = slots.map(boxOf)
   const g = new Float64Array((nt + 1) * (nz + 1))
   for (let j = 0; j <= nz; j++) {
     const z = z0 + j * dz
@@ -240,10 +212,6 @@ function profileOf(
         if (v <= 0) break
         const d = Math.max(Math.abs(t - q.t) - q.half, q.zlo - z, z - q.zhi)
         if (d < v) v = d
-        for (const c of q.discs) {
-          const dd = Math.hypot(t - c.cx, z - c.cz) - c.r
-          if (dd < v) v = dd
-        }
       }
       g[j * (nt + 1) + i] = v
     }
@@ -514,7 +482,7 @@ function buildGridRaw(k: Kropp, p: Params, cells: number): Grid {
       narrow: 0,
       cutLen: cut,
     }
-    r.narrow = narrowOf(r, p, (q) => {
+    r.narrow = narrowOf(r, (q) => {
       // Stykket sporet står i, ikkje heile ribba: eit spor i overkroppen
       // skal ikkje målast mot foten som ligg under ei luke. Munnen på
       // sporet ligg per definisjon på kanten av sitt eige stykke.
@@ -563,27 +531,12 @@ const shoe = (poly: Pt[]) => {
  * frå toppen, so det som ber er det som ligg UNDER sporbotnen; eit spor
  * nedanfrå et motsett veg.
  */
-/**
- * Godset som står att under sporbotnen — det smalaste i heile ribba.
- *
- * HUNDEBEINET ET AV DET, og det gjorde det utan at nokon rekna med det.
- * Avlastingshòlet ligg på diagonalen UT frå hjørnet, altso ned i godset:
- * senteret ein radius delt på rota av to under botnen, og hòlet ein
- * radius til. Til saman ein komma sju radiusar. Med ein fres på seks er
- * det fem millimeter av det godset den harde regelen trur står der.
- *
- * T-beinet gjer det ikkje: hòlet der ligg på sporveggen med botnen
- * tangert, so botnen står flat og godset er heilt. Det er heile grunnen
- * til at t-beinet finst.
- */
-function narrowOf(r: Rib, p: Params, span: (s: Slot) => Span | null): number {
-  const rad = p.fres / 2
-  const ete = p.leddtype === 1 && rad > 0.05 ? rad * (1 / Math.SQRT2 + 1) : 0
+function narrowOf(r: Rib, span: (s: Slot) => Span | null): number {
   let worst = Infinity
   for (const s of r.slots) {
     const q = span(s)
     if (!q) continue
-    const left = (s.fromTop ? s.zEnd - q[0] : q[1] - s.zEnd) - ete
+    const left = s.fromTop ? s.zEnd - q[0] : q[1] - s.zEnd
     if (left < worst) worst = left
   }
   return Number.isFinite(worst) ? worst : r.height

@@ -16,17 +16,25 @@
  */
 import { nn, type Metrics, type Rule } from "../core"
 import { DETAIL } from "./ribs"
-import { makePlan } from "./plan"
+import { makePlan, type Plan } from "./plan"
 import { SNITTVEGAR, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
 
-export function checkRules(p: Params, m: Metrics): Rule[] {
-  const { g, pl, ns } = makePlan(p, DETAIL.mid)
+/**
+ * `plan` kan sendast inn av den som alt har rekna han.
+ *
+ * Reglane treng ribbene, delane og pakkinga. Utan denne opninga rekna dei
+ * dei sjølve, på det FINE nivået — og knappen som leitar etter gode
+ * innstillingar prøver tretten punkt, so det var tretten fine snittingar
+ * ingen skulle sjå. Standarden er den same som før.
+ */
+export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
+  const { g, pl, ns } = plan ?? makePlan(p, DETAIL.mid)
   const out: Rule[] = []
   const add = (r: Rule) => out.push(r)
 
-  // --- 1 ribbene grip (hard) -------------------------------------------------
+  // --- 1 ribbene grip (hard) --------------------------------------------------
   add({
     id: "grip",
     label: "ribbene grip",
@@ -36,7 +44,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Utan eit einaste kryssledd er dette ikkje eit objekt, men ein bunke laust liggjande plater. Vanlegaste grunnen er at nettet er for tynt der ribbene kryssar, eller at det står for få ribber til at nokon av dei møtest i gods.",
   })
 
-  // --- 2 delane finst (hard) -------------------------------------------------
+  // --- 2 delane finst (hard) --------------------------------------------------
   add({
     id: "delar",
     label: "delar å skjere",
@@ -46,7 +54,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Ingen ribbe råka nettet. Anten står objektet utanfor rutenettet, eller so er nettet så tynt at kvar profil fell under minstearealet.",
   })
 
-  // --- 3 kvar del heng i noko (hard) -----------------------------------------
+  // --- 3 kvar del heng i noko (hard) ------------------------------------------
   /**
    * Hard når du tek dei med, mjuk når du kastar dei.
    *
@@ -69,17 +77,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Eit stykke som ikkje kryssar ei einaste ribbe frå den andre familien heng ikkje i noko: det står i kuttlista, kostar plass på plata, og ligg laust i eska. Vanlegaste grunnen er at kroppen er tynnare enn luka mellom ribbene akkurat der, som på ein øyretipp eller ein hov. Fleire ribber tek han med i rutenettet; `lause` på «kast» tek han ut av fila.",
   })
 
-  // --- 4 verktøyet kjem ned i sporet (hard) ----------------------------------
-  add({
-    id: "spor",
-    label: "sporet tek verktøyet",
-    hard: true,
-    ok: p.fres <= m.slotW + 1e-6,
-    value: `${nn(m.slotW, 2)} mot ${nn(p.fres, 1)} mm`,
-    why: "Eit spor som er smalare enn fresen kan ikkje skjerast — verktøyet kjem ikkje ned i det. Anten tjukkare plate, eller tynnare fres. På laser står fresen på null og regelen slår aldri ut.",
-  })
-
-  // --- 5 gods att i leddet (hard) --------------------------------------------
+  // --- 4 gods att i leddet (hard) ---------------------------------------------
   const minGods = Math.max(2, p.tjukn)
   add({
     id: "gods",
@@ -90,7 +88,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: `Sporet et halve overlappet, og det som er att må bera resten av ribba. Under éi platetjukn (${mm1(minGods)}) knekk finéren i sporbotnen når du pressar delane saman. Flytt leddelinga, eller sett ribbene der nettet er tjukkare.`,
   })
 
-  // --- 6 delane får plass på plata (hard) ------------------------------------
+  // --- 5 delane får plass på plata (hard) -------------------------------------
   add({
     id: "plate",
     label: "delane får plass",
@@ -100,7 +98,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: `Ein del er større enn plata. Anten mindre objekt, fleire ribber (kvar ribbe vert mindre), eller ei større plate enn ${nn(p.arkB)} × ${nn(p.arkH)} mm.`,
   })
 
-  // --- 7 klaringa (mjuk) -----------------------------------------------------
+  // --- 6 klaringa (mjuk) ------------------------------------------------------
   add({
     id: "klaring",
     label: "klaring",
@@ -110,7 +108,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Under 0,05 mm får du ikkje delane i hop utan hammar, og finér som vert slegen i hop flisar seg. Over 0,35 mm sit dei ikkje fast, og då treng vaffelen lim — som er nett det han ikkje skulle treng.",
   })
 
-  // --- 8 nokon tek snittbreidda (mjuk) ---------------------------------------
+  // --- 7 nokon tek snittbreidda (mjuk) ----------------------------------------
   /**
    * Snittbreidda må takast NØYAKTIG éin gong. `snittveg` seier kven som
    * tek henne, men ingen av vala hjelper om talet sjølv er null: då er
@@ -123,10 +121,10 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     hard: false,
     ok: p.snitt > 0,
     value: p.snitt > 0 ? `${mm1(p.snitt)} ${SNITTVEGAR[p.snittveg] ?? ""}`.trim() : "null",
-    why: "Stråla og fresen har breidd, og kutten et henne ut av delen. Er snittbreidda null, kompenserer korkje fila eller maskina for henne: kvart spor kjem ut ei snittbreidd for vidt og kvar tapp ei snittbreidd for tynn. Passprøva måler henne og klaringa i eitt.",
+    why: "Stråla har breidd, og kutten et henne ut av delen. Er snittbreidda null, kompenserer korkje fila eller maskina for henne: kvart spor kjem ut ei snittbreidd for vidt og kvar tapp ei snittbreidd for tynn. Passprøva måler henne og klaringa i eitt.",
   })
 
-  // --- 9 snittet et ikkje opp sporet (hard) ----------------------------------
+  // --- 8 snittet et ikkje opp sporet (hard) -----------------------------------
   /**
    * Kompensasjonen skuvar omrisset UTOVER med eit halvt snitt, so sporet
    * vert teikna eit hardt snitt smalare enn det skal verta. Er snittet like
@@ -146,37 +144,17 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Snittbreidda vert kompensert ved å skuve omrisset utover, og sporet vert teikna like mykje smalare. Er snittet like breitt som sporet, er det teikna sporet borte, og konturen brettar seg over seg sjølv. Anten står snittbreidda for høgt, eller so er plata for tynn til det verktøyet.",
   })
 
-  // --- 10 snittet mot fresen (mjuk) ------------------------------------------
-  /**
-   * På ein fres ER snittet verktøyet. Han fjernar heile diameteren sin, og
-   * kompensasjonen her skuvar eit halvt snitt — altso ein radius. Difor
-   * skal `snitt` vera lik `fres` når du fresar. Står fresen på seks og
-   * snittet på null komma to, kjem kvar del ut nesten tre millimeter for
-   * lita på kvar side.
-   *
-   * På laser står fresen på null og regelen gjeld ikkje: der er snittet
-   * strålebreidda, og ho har ingenting med eit verktøy å gjere.
-   */
-  add({
-    id: "snittfres",
-    label: "snittet mot fresen",
-    hard: false,
-    ok: p.fres === 0 || Math.abs(p.snitt - p.fres) <= 0.5,
-    value: p.fres === 0 ? "laser" : `${mm1(p.snitt)} mot ${mm1(p.fres)}`,
-    why: "Ein fres fjernar heile diameteren sin, so snittbreidda skal vera lik fresediameteren. Er ho mindre, kjem kvar del ut for lita med halve skilnaden på kvar side, og ledda vert slakke. På laser står fresen på null, og då er snittet strålebreidda i staden.",
-  })
-
-  // --- 11 opninga mellom ribbene (mjuk) --------------------------------------
+  // --- 9 opninga mellom ribbene (mjuk) ----------------------------------------
   add({
     id: "opning",
     label: "opning mellom ribber",
     hard: false,
-    ok: m.minGap >= Math.max(3, p.fres + 1),
+    ok: m.minGap >= 3,
     value: mm1(m.minGap),
-    why: "Ribbene står så tett at verktøyet ikkje kjem imellom dei når du monterer — og på plata står delane så nær kvarandre at nestinga ikkje har noko å gå på.",
+    why: "Ribbene står så tett at fingrane ikkje kjem imellom dei når du monterer — og på plata står delane så nær kvarandre at nestinga ikkje har noko å gå på.",
   })
 
-  // --- 12 lukka nett (mjuk) --------------------------------------------------
+  // --- 10 lukka nett (mjuk) ---------------------------------------------------
   add({
     id: "lukka",
     label: "lukka nett",
@@ -186,7 +164,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Snittinga les nettet med strålar og tel kva veg kvar trekant vender. Eit nett med hòl i har ingen innside å telje, og då kan ein profil kome ut som eit stykke der han skulle vore to. Reiskapen snittar det likevel — men no veit du kvifor det ser rart ut.",
   })
 
-  // --- 13 oppløysinga (mjuk) -------------------------------------------------
+  // --- 11 oppløysinga (mjuk) --------------------------------------------------
   add({
     id: "nett",
     label: "nettoppløysing",
@@ -199,7 +177,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Forenklinga har teke nettet under eit par hundre trekantar, og då er det grovare enn ribbene som skal lesast av det: profilane vert fasettar i staden for kurver. Skru opp trekanttaket.",
   })
 
-  // --- 14 utnyttinga (mjuk) --------------------------------------------------
+  // --- 12 utnyttinga (mjuk) ---------------------------------------------------
   add({
     id: "utnytting",
     label: "utnytting",

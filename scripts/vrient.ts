@@ -263,7 +263,6 @@ const KOMBI: [string, Partial<Params>][] = [
   ["alt på ei ribbe", { ribbX: 32, ribbY: 1 }],
   ["tett rutenett i tjukk plate", { ribbX: 32, ribbY: 32, tjukn: 25 }],
   ["tjukkare plate enn objekt", { storleik: 40, tjukn: 25 }],
-  ["fres breiare enn sporet", { fres: 12, tjukn: 2 }],
   ["snitt breiare enn godset", { snitt: 6, tjukn: 2 }],
   ["minsteark, størst objekt", { storleik: 1200, arkB: 200, arkH: 200 }],
   ["glatta i hel", { glatt: 24, trekant: 0.5 }],
@@ -342,8 +341,10 @@ const RØRER: Rørt[] = [
   { k: "ribbY", v: 9, les: (m) => m.parts },
   { k: "storleik", v: 300, les: (m) => m.envX },
   { k: "klaring", v: 0.4, les: (m) => m.slotW },
-  { k: "arkB", v: 1200, les: (m) => m.sheets },
-  { k: "arkH", v: 900, les: (m) => m.sheets },
+  // Mindre plate, ikkje større: standarden er 800 x 600, og kuben får
+  // plass på ei plate uansett kor mykje større ho vert.
+  { k: "arkB", v: 300, les: (m) => m.sheets },
+  { k: "arkH", v: 300, les: (m) => m.sheets },
   { k: "fart", v: 60, les: (m) => m.cutTime },
   { k: "glatt", v: 12, les: (m) => m.cutLen, kjelde: "v-kule" },
   { k: "trekant", v: 1, les: (m) => m.tris, kjelde: "v-kule" },
@@ -431,8 +432,8 @@ function lesZip(buf: ArrayBuffer): { name: string; text: string }[] {
 
 console.log("\npakka må kunne opnast")
 for (const [namn, over] of [
-  ["to plater", { storleik: 150 }],
-  ["seks plater", { storleik: 400, ribbX: 12, ribbY: 9, tjukn: 6, arkB: 1200, arkH: 900 }],
+  ["seks små plater", { storleik: 150, arkB: 400, arkH: 300 }],
+  ["seks store plater", { storleik: 400, ribbX: 12, ribbY: 9, tjukn: 6, arkB: 1200, arkH: 900 }],
 ] as [string, Partial<Params>][]) {
   saker++
   const o = VAFFEL.exportFile({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag, "ark")

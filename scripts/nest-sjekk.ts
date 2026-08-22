@@ -12,8 +12,9 @@
  *
  *   npx tsx scripts/nest-sjekk.ts
  */
-import { bbox, offsetPoly, type Pt } from "../lib/core"
-import { apply, pack } from "../lib/pack"
+import { bbox, inRing, offsetPoly, type Pt } from "../lib/core"
+import { fitSize } from "../lib/stroke"
+import { anchor, apply, pack } from "../lib/pack"
 import { makePlan, nestGap } from "../lib/vaffel/plan"
 import { DETAIL } from "../lib/vaffel/ribs"
 import { placedRings } from "../lib/vaffel/nest"
@@ -98,6 +99,31 @@ function pakkarenSjolv() {
       [rekt(0, 0, 80, 200), rekt(500, 300, 80, 200), rekt(-900, -700, 80, 200)],
     ],
   ]
+  // Merket er ein EIGENSKAP VED FORMA, og difor hugsa per form. Då må
+  // svaret vera relativt til delen sin eigen boks: same ring flytta ein
+  // halv meter skal gje same svar. Er det absolutt, peikar det hugsa
+  // svaret inn i det fyrste stykket sitt rom, og adressa hamnar på
+  // nabodelen.
+  //
+  // Denne vegen når ikkje nettet i dag: signaturen som avgjer kva som er
+  // «same form» tek omsyn til kvar konturen startar, so to stykke som
+  // ligg ulikt får ulik nøkkel i praksis — prøvd på tolv oppsett av ein
+  // kam med tre like tindar, utan eitt tilfelle. Det er flaks, og han
+  // fell bort i det sekundet nokon gjer signaturen betre.
+  {
+    const a = anchor([rekt(0, 0, 90, 60)])
+    const b = anchor([rekt(500, -300, 90, 60)])
+    const like =
+      Math.abs(a.p[0] - b.p[0]) < 1e-6 &&
+      Math.abs(a.p[1] - b.p[1]) < 1e-6 &&
+      Math.abs(a.room - b.room) < 1e-6
+    if (!like) brot++
+    console.log(
+      `${like ? "  ok " : "FEIL"}  ${"merket fylgjer forma".padEnd(26)} ` +
+        `[${a.p.map((v) => v.toFixed(1))}] mot [${b.p.map((v) => v.toFixed(1))}]`,
+    )
+  }
+
   for (const [namn, W, H, rings] of saker) {
     const pieces = rings.map((r) => ({ key: "same", rings: [r] }))
     const out = pack(pieces, W, H, 5)
@@ -196,12 +222,32 @@ function sjekk(namn: string, p: Params) {
   // ser dei aldri. Utan denne lina kan skriptet melde «ok» medan to delar
   // stille har forsvunne ut av kuttlista.
   const lagd = ns.sheets.reduce((n, q) => n + q.placed.length, 0)
+  // ADRESSA SKAL LIGGJE I SIN EIGEN DEL.
+  //
+  // Ikkje «i ein del» — i SIN. Merket vert rekna per FORM, av di to like
+  // ribber har det på same staden i seg sjølve, og same form kan liggje
+  // fleire stader i objektet: tre bein under ein kropp gjev tre like
+  // stykke i kvar tverribbe. Vert svaret lese som ein absolutt koordinat,
+  // får alle tre adressa til det fyrste — altso på nabodelen, eller på
+  // bert bord.
+  //
+  // Vakta i `rekkje.ts` ser på fila og kan berre spørje om punktet ligg i
+  // NOKON del. Her finst delen, so her kan ein spørje om rett del.
+  let feilmerkt = 0
+  for (const sheet of ns.sheets) {
+    for (const q of sheet.placed) {
+      if (!fitSize(q.part.from, q.label.room, q.label.wide)) continue
+      if (!inRing(placedRings(q).outline, q.label.p)) feilmerkt++
+    }
+  }
+
   // Ein millimeter gods er det minste som held ei plate saman medan resten
   // vert skoren. Under det går dei to kutta i kvarandre.
   const ok =
     overlapp === 0 &&
     utanfor === 0 &&
     lagd + ns.spilt === pl.parts.length &&
+    feilmerkt === 0 &&
     (!Number.isFinite(gods) || gods >= 1)
   if (!ok) brot++
   console.log(
@@ -212,8 +258,28 @@ function sjekk(namn: string, p: Params) {
       `overlapp ${overlapp} · utanfor ${utanfor} · ` +
       `næraste ${Number.isFinite(naer) ? naer.toFixed(1) : "–"} mm (luke ${gap}) · ` +
       `gods ${Number.isFinite(gods) ? gods.toFixed(1) : "–"} mm · ` +
+      `${feilmerkt} feilmerkte · ` +
       `areal ${(areal / 1e4).toFixed(0)} vs teikna ${((dekt * RES * RES) / 1e4).toFixed(0)} cm²`,
   )
+}
+
+/** tre like tindar under ein rygg */
+function kam() {
+  const out: number[] = []
+  const boks = (w: number, d: number, h: number, ox: number, oy: number, oz: number) => {
+    const q: [number, number, number][] = [
+      [ox, oy, oz], [ox + w, oy, oz], [ox + w, oy + d, oz], [ox, oy + d, oz],
+      [ox, oy, oz + h], [ox + w, oy, oz + h], [ox + w, oy + d, oz + h], [ox, oy + d, oz + h],
+    ]
+    const f = [
+      [0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4],
+      [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7],
+    ]
+    for (const [a, b, c] of f) out.push(...q[a], ...q[b], ...q[c])
+  }
+  for (const x of [-50, -10, 30]) boks(20, 40, 90, x, -20, 0)
+  boks(100, 40, 12, -50, -20, 90)
+  return makeSoup(new Float32Array(out))
 }
 
 function kule(r: number, seg: number, strekk = 1) {
@@ -265,6 +331,7 @@ function torus(R: number, r: number, n: number, m: number) {
 put("kule", "kule", kule(50, 48))
 put("egg", "egg", kule(50, 48, 1.7))
 put("torus", "torus", torus(60, 22, 64, 32))
+put("kam", "kam", kam())
 
 sjekk("kube 6x6", DEFAULT_PARAMS)
 sjekk("kube 400, 12x9 i 12 mm", {
@@ -279,11 +346,15 @@ sjekk("kule 7x7", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 7, ribbY: 7 })
 sjekk("egg 8x8", { ...DEFAULT_PARAMS, kjelde: "egg", ribbX: 8, ribbY: 8 })
 sjekk("torus staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9 })
 sjekk("kule stor plate", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 10, ribbY: 10, arkB: 2500, arkH: 1250 })
-sjekk("hundebein", { ...DEFAULT_PARAMS, kjelde: "egg", leddtype: 1, fres: 6, ribbX: 7, ribbY: 7 })
-// Ein fres på seks, med snittet sett rett. Her var godset mellom to delar
-// minus ein komma tre millimeter: dei to kutta gjekk i kvarandre.
-sjekk("fres 6 mm, snitt 6", {
-  ...DEFAULT_PARAMS, kjelde: "kule", fres: 6, snitt: 6, tjukn: 12,
+sjekk("egg i 6 mm", { ...DEFAULT_PARAMS, kjelde: "egg", tjukn: 6, ribbX: 7, ribbY: 7 })
+// Ein kam: tre like tindar under ein rygg. Kvar tverribbe vert delt i tre
+// stykke med NØYAKTIG same form, som ligg tre ulike stader. Det er den
+// eine forma der eit merke rekna per form kan hamne på nabodelen.
+sjekk("kam med tre tindar", { ...DEFAULT_PARAMS, kjelde: "kam", ribbX: 5, ribbY: 4, lause: 0 })
+// Eit breitt snitt et av luka frå begge sider. Her var godset mellom to
+// delar minus ein komma tre millimeter: dei to kutta gjekk i kvarandre.
+sjekk("breitt snitt", {
+  ...DEFAULT_PARAMS, kjelde: "kule", snitt: 6, tjukn: 12,
   storleik: 400, arkB: 1200, arkH: 900,
 })
 

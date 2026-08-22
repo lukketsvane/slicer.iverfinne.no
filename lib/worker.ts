@@ -12,6 +12,7 @@
 import { VAFFEL } from "./vaffel/engine"
 import { parseMesh } from "./io"
 import { forget, put, type SourceInfo } from "./sources"
+import type { Kandidat } from "./vaffel/tune"
 import type {
   DetailKey,
   ExportKind,
@@ -31,7 +32,9 @@ export type BuildReq = {
 }
 export type ExportReq = { kind: "export"; id: number; params: ParamBag; what: ExportKind }
 export type ImportReq = { kind: "import"; id: number; name: string; buf: ArrayBuffer }
-export type Req = BuildReq | ExportReq | ImportReq
+/** «finn gode innstillingar»: snittar eit titals punkt og rangerer dei */
+export type TuneReq = { kind: "tune"; id: number; params: ParamBag }
+export type Req = BuildReq | ExportReq | ImportReq | TuneReq
 
 export type BuildRes = {
   kind: "build"
@@ -61,11 +64,12 @@ export type ExportRes = {
  *  sjå kva det er dei har snitta. */
 export type SynRes = { kind: "syn"; id: number; svg: string }
 export type KjeldeRes = { kind: "kjelde"; id: number; src: SourceInfo }
+export type TuneRes = { kind: "tune"; id: number; alle: Kandidat[] }
 /** Eit bygg som kasta. Svaret finst av éin grunn: porten i studioet slepp
  *  ikkje neste førespurnad før han har fått svar på den førre, og eit
  *  unntak utan svar ville låse heile appen for alltid. */
 export type FeilRes = { kind: "feil"; id: number; kva: string; kvifor?: string }
-export type Res = BuildRes | MaalRes | ExportRes | SynRes | KjeldeRes | FeilRes
+export type Res = BuildRes | MaalRes | ExportRes | SynRes | KjeldeRes | TuneRes | FeilRes
 
 const post = (r: Res, transfer: Transferable[] = []) =>
   (self as unknown as Worker).postMessage(r, transfer)
@@ -121,6 +125,11 @@ self.onmessage = (e: MessageEvent<Req>) => {
       // treng ikkje dei fem fyrste.
       forget(id)
       post({ kind: "kjelde", id: req.id, src })
+      return
+    }
+
+    if (req.kind === "tune") {
+      post({ kind: "tune", id: req.id, alle: VAFFEL.tune(req.params) })
       return
     }
 

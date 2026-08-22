@@ -34,10 +34,8 @@ export type Params = {
   // --- LEDD ---------------------------------------------------------------
   klaring: number // sporet breiare enn plata, mm
   ledd: number // kvar i overlappet delinga ligg, 0,5 er halvt om halvt
-  leddtype: number // 0 rett, 1 hundebein, 2 t-bein
 
   // --- KUTT ---------------------------------------------------------------
-  fres: number // fresediameter, mm — null er laser
   snitt: number // snittbreidd, mm
   snittveg: number // 0 kompenserer i fila, 1 lèt maskina gjera det
   fart: number // kuttfart, mm/s — berre til tidsoverslaget
@@ -46,8 +44,6 @@ export type Params = {
 
   material: string
 }
-
-export const LEDDTYPAR = ["rett", "hundebein", "t-bein"] as const
 
 /**
  * Kven som tek snittbreidda.
@@ -92,9 +88,7 @@ export const PARAM_RANGES: Record<string, Range> = {
 
   klaring: { min: 0, max: 0.6, step: 0.01, label: "klaring", unit: "mm" },
   ledd: { min: 0.2, max: 0.8, step: 0.01, label: "leddeling" },
-  leddtype: { min: 0, max: 2, step: 1, label: "leddform", int: true, names: LEDDTYPAR },
 
-  fres: { min: 0, max: 12, step: 0.5, label: "fres", unit: "mm" },
   snitt: { min: 0, max: 6, step: 0.05, label: "snittbreidd", unit: "mm" },
   snittveg: { min: 0, max: 1, step: 1, label: "kompensasjon", int: true, names: SNITTVEGAR },
   fart: { min: 1, max: 200, step: 1, label: "kuttfart", unit: "mm/s", int: true },
@@ -106,8 +100,8 @@ export const GROUPS: readonly Group[] = [
   { id: "form", label: "form", keys: ["storleik", "rotX", "rotY", "rotZ"] },
   { id: "nett", label: "nett", keys: ["glatt", "trekant"] },
   { id: "ribber", label: "ribber", keys: ["ribbX", "ribbY", "tjukn", "lause"] },
-  { id: "ledd", label: "ledd", keys: ["klaring", "ledd", "leddtype"] },
-  { id: "kutt", label: "kutt", keys: ["fres", "snitt", "snittveg", "fart", "arkB", "arkH"] },
+  { id: "ledd", label: "ledd", keys: ["klaring", "ledd"] },
+  { id: "kutt", label: "kutt", keys: ["snitt", "snittveg", "fart", "arkB", "arkH"] },
 ]
 
 export const PARAM_KEYS = GROUPS.flatMap((g) => g.keys)
@@ -166,12 +160,16 @@ export const gridKey = (p: ParamBag, cells: number) =>
   nokkel(p, utan([...BERRE_UTTAK, ...BERRE_ARK]), cells)
 
 /**
- * Standarden er ein kube.
+ * Standarden er ein kube i tre millimeter MDF, på ei plate på 800 × 600.
  *
- * Ikkje av di kuben er interessant, men av di han er det einaste objektet
- * som ikkje gøymer noko. Seks ribber kvar veg gjev seks og tretti ledd, alle
- * like, alle synlege — og ser du at kuben held seg sjølv oppe, veit du kva
- * reiskapen gjer før du har lasta opp noko som helst.
+ * Kuben er ikkje interessant. Han er det einaste objektet som ikkje gøymer
+ * noko: seks ribber kvar veg gjev seks og tretti ledd, alle like, alle
+ * synlege — og ser du at kuben held seg sjølv oppe, veit du kva reiskapen
+ * gjer før du har lasta opp noko som helst.
+ *
+ * Resten er den maskina folk faktisk står ved. Tre millimeter MDF er det
+ * som ligg i hylla på eit makerspace, og 800 × 600 er bordet på ein
+ * vanleg CO2-laser. Set du inn dine eigne tal, står dei i lenkja.
  */
 export const DEFAULT_PARAMS: Params = {
   kjelde: "kube",
@@ -186,19 +184,17 @@ export const DEFAULT_PARAMS: Params = {
 
   ribbX: 6,
   ribbY: 6,
-  tjukn: 2,
+  tjukn: 3,
   lause: 1,
 
   klaring: 0.15,
   ledd: 0.5,
-  leddtype: 0,
 
-  fres: 0,
   snitt: 0.2,
   snittveg: 0,
   fart: 20,
-  arkB: 600,
-  arkH: 400,
+  arkB: 800,
+  arkH: 600,
 
   material: "mdf",
 }

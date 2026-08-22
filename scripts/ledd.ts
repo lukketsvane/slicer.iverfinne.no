@@ -208,8 +208,6 @@ const SAKER: [string, Partial<Params>][] = [
   ["kube, tjukk plate", { tjukn: 12, storleik: 400 }],
   ["kube, leddet høgt", { ledd: 0.8 }],
   ["kube, leddet lågt", { ledd: 0.2 }],
-  ["kube, hundebein", { leddtype: 1, fres: 3, tjukn: 6 }],
-  ["kube, t-bein", { leddtype: 2, fres: 3, tjukn: 6 }],
   ["kube, vend", { rotX: 30, rotY: 20, rotZ: 10 }],
   ["kule", { kjelde: "kule" }],
   ["kule, 16 ribber", { kjelde: "kule", ribbX: 16, ribbY: 16 }],

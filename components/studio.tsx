@@ -5,12 +5,19 @@ import type { DetailKey, ExportKind, Metrics, ParamBag, Rule, View } from "@/lib
 import { KUBE } from "@/lib/sources"
 import { VAFFEL } from "@/lib/vaffel/engine"
 import type { BuildRes, MaalRes, Req, Res, SynRes } from "@/lib/worker"
+import type { Kandidat } from "@/lib/vaffel/tune"
 import { Viewer, type LightDir } from "./viewer"
 import { ControlsPanel } from "./controls-panel"
 import type { NudgeAxis } from "./gesture-params"
 
 /** kor mange piksel to-fingers-rulling må dra for å sveipe eit heilt band */
 const NUDGE_RANGE_PX = 420
+
+/** alt «finn innstillingar» IKKJE rører: endrar noko av dette seg, er eit
+ *  hugsa svar eit svar på eit anna spørsmål */
+const tuneBase = (p: ParamBag) =>
+  [p.kjelde, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant, p.tjukn,
+   p.klaring, p.arkB, p.arkH, p.lause].join("|")
 /** ei fil på meir enn dette er ikkje ein modell, det er eit uhell */
 const MAX_FIL = 220 * 1024 * 1024
 
@@ -43,6 +50,17 @@ export function Studio() {
   const [busy, setBusy] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [feil, setFeil] = useState<string | null>(null)
+  /**
+   * Svara frå «finn innstillingar», og kor langt ned i lista vi står.
+   *
+   * `base` er dei parametrane knappen IKKJE rører — nettet, storleiken,
+   * tjukna, plata. Endrar du ein av dei, er lista eit svar på eit anna
+   * spørsmål, og neste trykk må rekne på nytt.
+   *
+   * Ein REF og ikkje ein tilstand: to trykk kan lande i same runden, og
+   * eit steg som vert rekna av ein gamal kopi går same steget to gonger.
+   */
+  const finn = useRef<{ base: string; alle: Kandidat[]; nth: number } | null>(null)
   const [drag, setDrag] = useState(false)
   /** id → filnamn, for pilla. Nettet sjølv bur i arbeidaren. */
   const [namn, setNamn] = useState<Record<string, string>>({})
@@ -130,6 +148,15 @@ export function Studio() {
         inFlight.current = false
         pump()
         if (r.id >= reqId.current) setBusy(false)
+        return
+      }
+      if (r.kind === "tune") {
+        // Lista vert halden her og ikkje i arbeidaren: andre trykk på
+        // knappen skal vera momentant, og då kan han ikkje gå ein tur
+        // gjennom ein tråd som held på å snitte.
+        if (finn.current) finn.current.alle = r.alle
+        if (r.alle.length) setParams((q) => VAFFEL.pick(q, r.alle, 0))
+        setBusy(false)
         return
       }
       const blob = r.text
@@ -237,6 +264,33 @@ export function Studio() {
       el: Math.min(1.4, Math.max(0.12, l.el - dy * 0.008)),
     }))
   }, [])
+
+  /**
+   * FINN INNSTILLINGAR.
+   *
+   * Fyrste trykket reknar: eit titals punkt vert snitta for alvor og
+   * rangerte, og det beste vert sett. Kvart trykk etterpå går eitt steg
+   * ned i den lista, og det kostar ingenting — lista ligg her.
+   *
+   * Har du flytta på noko han ikkje rører imens, er lista eit svar på eit
+   * anna spørsmål, og han reknar på nytt.
+   */
+  const finnInnstillingar = useCallback(() => {
+    const base = tuneBase(params)
+    const cur = finn.current
+    if (cur && cur.base === base && cur.alle.length) {
+      cur.nth += 1
+      setParams((q) => VAFFEL.pick(q, cur.alle, cur.nth))
+      return
+    }
+    setBusy(true)
+    finn.current = { base, alle: [], nth: 0 }
+    // Utanom porten, som uttaka: eit klikk er ikkje ein straum, og eit
+    // søk som stod i kø bak eit bygg ville kome fram etter at brukaren
+    // hadde gjeve opp.
+    const msg: Req = { kind: "tune", id: ++reqId.current, params }
+    worker.current?.postMessage(msg)
+  }, [params])
 
   const doExport = useCallback(
     (what: ExportKind) => {
@@ -383,6 +437,7 @@ export function Studio() {
         onReset={() => setParams((p) => ({ ...VAFFEL.defaults, kjelde: p.kjelde }))}
         onToggleDetail={() => setHiDetail((d) => !d)}
         onExport={doExport}
+        onFinn={finnInnstillingar}
         onShare={share}
         onFile={(f) => void takeFile(f)}
       />

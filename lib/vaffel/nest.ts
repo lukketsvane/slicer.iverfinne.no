@@ -12,7 +12,7 @@
  * det tomrommet. Det er skilnaden mellom å telje boksar og å telje form,
  * og på eit krumt objekt er han fort ei heil plate.
  */
-import type { Pt } from "../core"
+import { bbox, type Pt } from "../core"
 import { anchor, pack, apply, type Slot } from "../pack"
 import type { Part } from "./parts"
 
@@ -46,7 +46,12 @@ export function nest(
   const out = pack(pieces, sheetW, sheetH, gap)
 
   // Merket høyrer til FORMA og ikkje til den einskilde delen: to like
-  // ribber har det på same staden, og då vert det rekna éin gong.
+  // ribber har det på same staden I SEG SJØLVE, og då vert det rekna éin
+  // gong. «I seg sjølve» er heile poenget: `anchor` svarar relativt til
+  // hjørnet av delen sin eigen boks, og hjørnet vert lagt til her, for
+  // KVAR del. Same form kan liggje fleire stader i objektet — tre bein
+  // under ein kropp — og eit svar som var absolutt ville sende adressa
+  // til alle tre til der det fyrste beinet låg.
   const anchors = new Map<string, ReturnType<typeof anchor>>()
   const sheets: Sheet[] = Array.from({ length: out.sheets }, () => ({
     placed: [],
@@ -65,11 +70,12 @@ export function nest(
     // loddrett no. Då fell vi tilbake på kvadratet — teksten står alltid
     // vassrett på plata, uansett kva veg delen ligg.
     const snudd = slot.rot === 1 || slot.rot === 3
+    const eige = bbox(part.outline)
     sheets[slot.sheet].placed.push({
       part,
       slot,
       label: {
-        p: apply(slot.m, a.p),
+        p: apply(slot.m, [a.p[0] + eige.x0, a.p[1] + eige.y0]),
         room: a.room,
         wide: snudd ? a.room : a.wide,
       },

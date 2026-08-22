@@ -471,10 +471,16 @@ function affine(
  * rutenettet.
  */
 export function anchor(rings: Ring[], res = 2): { p: Pt; room: number; wide: number } {
+  // `p` kjem ut RELATIVT til hjørnet av delen sin eigen boks, og ikkje i
+  // absolutte koordinatar. Grunnen er at svaret høyrer til FORMA: to like
+  // ribber har merket på same staden i seg sjølve, og då kan rekninga
+  // hugsast per form. Var svaret absolutt, ville det hugsa svaret peike på
+  // ein stad i den FYRSTE ribba sitt rom — og på ei form som finst fleire
+  // stader i objektet hamna adressa på nabodelen eller på bert bord.
   const bb = bbox(rings[0])
   const w = Math.max(1, Math.ceil((bb.x1 - bb.x0) / res) + 1)
   const h = Math.max(1, Math.ceil((bb.y1 - bb.y0) / res) + 1)
-  const mid: Pt = [(bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2]
+  const mid: Pt = [(bb.x1 - bb.x0) / 2, (bb.y1 - bb.y0) / 2]
   if (w * h > 4e6) return { p: mid, room: 0, wide: 0 }
   const arr = rasterise(rings, bb.x0, bb.y0, res, w, h).a
   const dp = new Int32Array(w * h)
@@ -510,7 +516,7 @@ export function anchor(rings: Ring[], res = 2): { p: Pt; room: number; wide: num
   while (a > 0 && arr[cj * w + a - 1]) a--
   while (b < w - 1 && arr[cj * w + b + 1]) b++
   return {
-    p: [bb.x0 + (ci + 0.5) * res, bb.y0 + (cj + 0.5) * res],
+    p: [(ci + 0.5) * res, (cj + 0.5) * res],
     room: best * res,
     wide: 2 * Math.min(ci - a, b - ci) * res,
   }
