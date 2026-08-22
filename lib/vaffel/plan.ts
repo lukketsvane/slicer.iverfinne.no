@@ -30,7 +30,7 @@ export function makePlan(p: Params, cells: number): Plan {
   return HUGS(planKey(p as unknown as ParamBag, cells), () => {
     const k = makeKropp(p)
     const g = buildGrid(k, p, cells)
-    const pl = buildParts(g)
+    const pl = buildParts(g, p)
     return { k, g, pl, ns: nest(pl.parts, p.arkB, p.arkH, nestGap(p)) }
   })
 }
