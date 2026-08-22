@@ -514,7 +514,7 @@ function buildGridRaw(k: Kropp, p: Params, cells: number): Grid {
       narrow: 0,
       cutLen: cut,
     }
-    r.narrow = narrowOf(r, (q) => {
+    r.narrow = narrowOf(r, p, (q) => {
       // Stykket sporet står i, ikkje heile ribba: eit spor i overkroppen
       // skal ikkje målast mot foten som ligg under ei luke. Munnen på
       // sporet ligg per definisjon på kanten av sitt eige stykke.
@@ -563,12 +563,27 @@ const shoe = (poly: Pt[]) => {
  * frå toppen, so det som ber er det som ligg UNDER sporbotnen; eit spor
  * nedanfrå et motsett veg.
  */
-function narrowOf(r: Rib, span: (s: Slot) => Span | null): number {
+/**
+ * Godset som står att under sporbotnen — det smalaste i heile ribba.
+ *
+ * HUNDEBEINET ET AV DET, og det gjorde det utan at nokon rekna med det.
+ * Avlastingshòlet ligg på diagonalen UT frå hjørnet, altso ned i godset:
+ * senteret ein radius delt på rota av to under botnen, og hòlet ein
+ * radius til. Til saman ein komma sju radiusar. Med ein fres på seks er
+ * det fem millimeter av det godset den harde regelen trur står der.
+ *
+ * T-beinet gjer det ikkje: hòlet der ligg på sporveggen med botnen
+ * tangert, so botnen står flat og godset er heilt. Det er heile grunnen
+ * til at t-beinet finst.
+ */
+function narrowOf(r: Rib, p: Params, span: (s: Slot) => Span | null): number {
+  const rad = p.fres / 2
+  const ete = p.leddtype === 1 && rad > 0.05 ? rad * (1 / Math.SQRT2 + 1) : 0
   let worst = Infinity
   for (const s of r.slots) {
     const q = span(s)
     if (!q) continue
-    const left = s.fromTop ? s.zEnd - q[0] : q[1] - s.zEnd
+    const left = (s.fromTop ? s.zEnd - q[0] : q[1] - s.zEnd) - ete
     if (left < worst) worst = left
   }
   return Number.isFinite(worst) ? worst : r.height
