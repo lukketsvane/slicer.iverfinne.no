@@ -21,7 +21,7 @@ import { VAFFEL } from "../lib/vaffel/engine"
 import { DEFAULT_PARAMS, PARAM_RANGES, type Params } from "../lib/vaffel/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
-import type { ExportKind, ParamBag } from "../lib/core"
+import type { ExportKind, Metrics, ParamBag } from "../lib/core"
 
 let brot = 0
 let saker = 0
@@ -96,6 +96,51 @@ const NETT: [string, Float32Array][] = [
 ]
 
 for (const [namn, pos] of NETT) put(`v-${namn}`, namn, makeSoup(pos))
+
+/** ei kule med mange nok trekantar til at forenklinga har noko å ta */
+function kule(r: number, seg: number): Float32Array {
+  const pos: number[] = []
+  const at = (i: number, j: number): [number, number, number] => {
+    const th = (i / seg) * Math.PI * 2
+    const ph = (j / seg) * Math.PI
+    return [r * Math.sin(ph) * Math.cos(th), r * Math.sin(ph) * Math.sin(th), r * Math.cos(ph)]
+  }
+  for (let j = 0; j < seg; j++)
+    for (let i = 0; i < seg; i++) {
+      const a = at(i, j)
+      const b = at(i + 1, j)
+      const c = at(i + 1, j + 1)
+      const d = at(i, j + 1)
+      pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+    }
+  return new Float32Array(pos)
+}
+
+/** ein torus som står gjev stykke utan ledd, so `lause` har noko å kaste */
+function torus(R: number, r: number, n: number, m: number): Float32Array {
+  const pos: number[] = []
+  const at = (i: number, j: number): [number, number, number] => {
+    const u = (i / n) * Math.PI * 2
+    const v = (j / m) * Math.PI * 2
+    return [
+      (R + r * Math.cos(v)) * Math.cos(u),
+      (R + r * Math.cos(v)) * Math.sin(u),
+      r * Math.sin(v),
+    ]
+  }
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < m; j++) {
+      const a = at(i, j)
+      const b = at(i + 1, j)
+      const c = at(i + 1, j + 1)
+      const d = at(i, j + 1)
+      pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+    }
+  return new Float32Array(pos)
+}
+
+put("v-kule", "kule", makeSoup(kule(50, 60)))
+put("v-torus", "torus", makeSoup(torus(50, 18, 48, 24)))
 
 // =============================================================================
 // KVA EIT SVAR MÅ HALDE
@@ -266,6 +311,72 @@ for (const s of SØPPEL) {
   if (!(q.material in { finer: 1, mdf: 1, akryl: 1, papp: 1 })) {
     feil("hash", `materialet vart «${q.material}»`)
   }
+}
+
+// =============================================================================
+// KVAR SKYVAR MÅ RØRE NOKO
+// =============================================================================
+/**
+ * Eit hugsa mellombygg som er nøkla på for få parametrar er den verste
+ * feilen denne koden kan gjere: skyvaren rører seg, talet står stille, og
+ * ingenting feilar. Det har hendt tre gonger no — sist med materialet,
+ * der massen fraus på det fyrste du valde av di rutenettet var hugsa utan
+ * materialet i nøkkelen og massen vart lesen ut av rutenettet.
+ *
+ * Difor står det her, som ei liste over kva kvar skyvar MÅ røre. Ho er
+ * ikkje uttømmande, og han skal ho ikkje vera: ho dekkjer den eine
+ * eigenskapen kvar parameter finst for.
+ */
+type Rørt = {
+  k: string
+  v: unknown
+  les: (m: Metrics, uttak: number) => number
+  /** kva objekt skyvaren har noko å seie på. Kuben har tolv trekantar og
+   *  ingen lause stykke, so han kan ikkje prøve forenkling eller kasting. */
+  kjelde?: string
+}
+const RØRER: Rørt[] = [
+  { k: "material", v: "papp", les: (m) => m.mass },
+  { k: "tjukn", v: 6, les: (m) => m.slotW },
+  { k: "ribbX", v: 9, les: (m) => m.parts },
+  { k: "ribbY", v: 9, les: (m) => m.parts },
+  { k: "storleik", v: 300, les: (m) => m.envX },
+  { k: "klaring", v: 0.4, les: (m) => m.slotW },
+  { k: "arkB", v: 1200, les: (m) => m.sheets },
+  { k: "arkH", v: 900, les: (m) => m.sheets },
+  { k: "fart", v: 60, les: (m) => m.cutTime },
+  { k: "glatt", v: 12, les: (m) => m.cutLen, kjelde: "v-kule" },
+  { k: "trekant", v: 1, les: (m) => m.tris, kjelde: "v-kule" },
+  { k: "lause", v: 0, les: (m) => m.parts + m.loose, kjelde: "v-torus" },
+  { k: "snitt", v: 0.5, les: (_m, uttak) => uttak },
+  { k: "snittveg", v: 1, les: (_m, uttak) => uttak },
+]
+
+console.log("\nkvar skyvar må røre noko")
+{
+  const grunn = { ...DEFAULT_PARAMS, kjelde: "kube" }
+  const les = (p: Params) => {
+    const bag = p as unknown as ParamBag
+    const m = VAFFEL.measure(bag)
+    // Uttaket er summen av teiknetala i profilarket: han flyttar seg når
+    // snittkompensasjonen gjer det, og står stille elles.
+    const svg = VAFFEL.exportFile(bag, "svg").text ?? ""
+    let sum = 0
+    for (const t of svg.match(/-?\d+\.\d+/g) ?? []) sum += Number(t)
+    return { m, uttak: sum }
+  }
+  for (const r of RØRER) {
+    saker++
+    const base = { ...grunn, ...(r.kjelde ? { kjelde: r.kjelde, rotX: 90 } : {}) } as Params
+    const fyrst = les(base)
+    const etter = les({ ...base, [r.k]: r.v } as Params)
+    const a = r.les(fyrst.m, fyrst.uttak)
+    const b = r.les(etter.m, etter.uttak)
+    if (Math.abs(a - b) < 1e-6) {
+      feil(`${r.k} = ${r.v}`, `talet står stille på ${a} — er noko hugsa på feil nøkkel?`)
+    }
+  }
+  console.log(`  ${RØRER.length} skyvarar, alle rører sitt eige tal`)
 }
 
 // =============================================================================

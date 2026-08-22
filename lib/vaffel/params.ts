@@ -127,24 +127,43 @@ export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "material"
  * bygg vert rekna ein gong for mykje — ikkje at det står att eit svar frå
  * eit anna punkt i parameterrommet.
  */
-const BERRE_UTTAK = new Set(["snitt", "snittveg", "fart"])
-const BERRE_ARK = new Set(["arkB", "arkH", "material"])
+const BERRE_UTTAK = ["snitt", "snittveg", "fart"] as const
+const BERRE_ARK = ["arkB", "arkH", "material"] as const
+
+/**
+ * Kva eit hugsa RUTENETT har lov til å vita om.
+ *
+ * Rutenettet vert hugsa på ein nøkkel som ikkje inneheld plata eller
+ * materialet, av di dei ikkje rører geometrien. Men rutenettet ber med
+ * seg parametrane det vart bygd med, og les nokon materialet DERIFRÅ, får
+ * han materialet frå det fyrste bygget: massen i panelet fraus på papp og
+ * stod der same kva du valde etterpå. Det stod der i ein halvtime.
+ *
+ * Difor er typen skoren ned til nett dei nøklane som ligg i nøkkelen.
+ * Å lesa `material` av eit rutenett er no ein typefeil, og ikkje ein feil
+ * nokon oppdagar på plata.
+ */
+export type NettParams = Omit<
+  Params,
+  (typeof BERRE_UTTAK)[number] | (typeof BERRE_ARK)[number]
+>
 
 const nokkel = (p: ParamBag, keys: readonly string[], cells: number) =>
   cells + "|" + keys.map((k) => p[k]).join("|")
 
+const utan = (drop: readonly string[]) => {
+  const s = new Set<string>(drop)
+  return ALLE_KEYS.filter((k) => !s.has(k))
+}
+
 /** planen: ribber, delar og pakking. Alt utanom det som berre er uttak. */
 export const planKey = (p: ParamBag, cells: number) =>
-  nokkel(p, ALLE_KEYS.filter((k) => !BERRE_UTTAK.has(k)), cells)
+  nokkel(p, utan(BERRE_UTTAK), cells)
 
 /** rutenettet: som planen, men plata og materialet rører det ikkje. Han
  *  vert hugsa per kropp, so kroppsparametrane ligg alt i kroppen. */
 export const gridKey = (p: ParamBag, cells: number) =>
-  nokkel(
-    p,
-    ALLE_KEYS.filter((k) => !BERRE_UTTAK.has(k) && !BERRE_ARK.has(k)),
-    cells,
-  )
+  nokkel(p, utan([...BERRE_UTTAK, ...BERRE_ARK]), cells)
 
 /**
  * Standarden er ein kube.

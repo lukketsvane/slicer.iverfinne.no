@@ -31,7 +31,7 @@ import { bbox, inRing, MIN_AREA, perimeter, type ParamBag, type Pt } from "../co
 import { contour, simplify } from "../contour"
 import type { Span } from "../mesh/solid"
 import type { Kropp } from "./kropp"
-import { gridKey, type Params } from "./params"
+import { gridKey, type NettParams, type Params } from "./params"
 
 /** ruter langs den lengste sida av objektet, per detaljnivå */
 export const DETAIL = { lav: 90, mid: 150, hog: 240 } as const
@@ -99,7 +99,9 @@ export function jointsIn(slots: Slot[], outline: Pt[]): number {
 
 export type Grid = {
   k: Kropp
-  p: Params
+  /** Berre det rutenettet ER ein funksjon av. Sjå `NettParams`: eit
+   *  hugsa rutenett kan ikkje svare på kva material du valde. */
+  p: NettParams
   ribs: Rib[]
   joints: number
   /** stykke som vart kasta av di dei ikkje hang i eit einaste ledd */

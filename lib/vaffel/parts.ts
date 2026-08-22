@@ -12,6 +12,7 @@
  */
 import { bbox, MATERIALS, perimeter, shoelace, inRing, type Material, type Pt } from "../core"
 import { jointsIn, type Grid } from "./ribs"
+import type { Params } from "./params"
 
 export type Part = {
   /** forma. To delar med same id er den same delen */
@@ -94,8 +95,16 @@ function shapeKey(o: Pt[], holes: Pt[][]): string {
   ].join("|")
 }
 
-export function buildParts(g: Grid): PartList {
-  const rho = MATERIALS[(g.p.material as Material) in MATERIALS ? (g.p.material as Material) : "finer"].rho
+/**
+ * `p` kjem inn utanfrå og vert ikkje lesen av rutenettet.
+ *
+ * Materialet rører ikkje geometrien, so rutenettet vert hugsa utan det i
+ * nøkkelen — og eit hugsa rutenett ber difor materialet frå det fyrste
+ * bygget. Massen i panelet fraus på det materialet du valde fyrst.
+ */
+export function buildParts(g: Grid, p: Params): PartList {
+  const mat = (p.material as Material) in MATERIALS ? (p.material as Material) : "finer"
+  const rho = MATERIALS[mat].rho
   const t = g.p.tjukn
   const parts: Part[] = []
   const seen = new Map<string, string>()
