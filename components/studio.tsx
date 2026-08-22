@@ -157,20 +157,31 @@ export function Studio() {
   // Under eit drag er det grove alt ein rekk å sjå, og det fine ville berre
   // stå i kø og gjere alt tregare. Vert punktet endra før det fine steget
   // fyrer, vert det avlyst av oppryddinga — det er heile logikken.
+  //
+  // Det GROVE steget låg òg på ei klokke, på fire og tjue millisekund. Ei
+  // klokke som vart avlyst av oppryddinga kvar gong punktet flytta seg —
+  // og under eit drag flyttar det seg oftare enn det. Klokka fyrte difor
+  // aldri: objektet stod bom stille heilt til fingeren slapp. Ho trongst
+  // ikkje heller. `pump` held berre EIN førespurnad om gongen og byter
+  // ut han som ventar, so arbeidaren kan ikkje druknast uansett kor fort
+  // ein dreg.
   useEffect(() => {
     if (!mounted) return
     setBusy(true)
+    // Ei feilmelding frå ein import står i hovudlina, PÅ PLASSEN til
+    // delar, kutt og ark. Ho vart berre rydda vekk av ein ny import, so
+    // ein som prøvde ei Draco-komprimert fil og gav opp mista dei tre
+    // tala for resten av økta. Rører du ein skyvar, har du lese henne.
+    setFeil(null)
     const enqueue = (d: DetailKey) => {
       const id = ++reqId.current
       pending.current = { kind: "build", id, params, detail: d, view }
       pump()
     }
-    const t1 = window.setTimeout(() => enqueue("lav"), 24)
-    const t2 = detail !== "lav" ? window.setTimeout(() => enqueue(detail), 300) : null
-    return () => {
-      window.clearTimeout(t1)
-      if (t2 !== null) window.clearTimeout(t2)
-    }
+    enqueue("lav")
+    if (detail === "lav") return
+    const t = window.setTimeout(() => enqueue(detail), 300)
+    return () => window.clearTimeout(t)
   }, [params, detail, view, mounted, pump])
 
   // URL-en kodar alltid det objektet som står på skjermen — bortsett frå
@@ -189,15 +200,34 @@ export function Studio() {
     return () => window.clearTimeout(t)
   }, [params, view, mounted])
 
+  /**
+   * Resten som ikkje vart eit heilt steg.
+   *
+   * Fingeren flyttar seg nokre få pikslar per hending, og eit ribbetal er
+   * eit heiltal. Vert kvar hending runda av for seg, er kvar av dei null:
+   * seks pikslar er fire tidels ribbe, det rundar til null, og gesten som
+   * står i README-en gjorde ingenting. Berre eit rykk stort nok til å
+   * krysse ein halv ribbe i EI hending kom gjennom, og då som eit hopp.
+   *
+   * Difor vert resten liggjande att her til neste hending.
+   */
+  const rest = useRef<Record<string, number>>({})
+
   const nudge = useCallback((axis: NudgeAxis, deltaPx: number) => {
     const key = VAFFEL.nudge[axis]
     const r = VAFFEL.ranges[key]
     if (!r) return
-    const frac = deltaPx / NUDGE_RANGE_PX
+    const raa = (deltaPx / NUDGE_RANGE_PX) * (r.max - r.min) + (rest.current[key] ?? 0)
+    const steg = r.int ? Math.trunc(raa) : raa
+    rest.current[key] = r.int ? raa - steg : 0
+    if (steg === 0) return
     setParams((cur) => {
       const at = typeof cur[key] === "number" ? (cur[key] as number) : r.min
-      const v = Math.min(r.max, Math.max(r.min, at + frac * (r.max - r.min)))
-      return { ...cur, [key]: r.int ? Math.round(v) : +v.toFixed(4) }
+      const v = Math.min(r.max, Math.max(r.min, at + steg))
+      // Ligg han mot ei grense, skal ikkje resten hope seg opp: elles må
+      // du dra like langt attende før noko skjer.
+      if (v === at) rest.current[key] = 0
+      return v === at ? cur : { ...cur, [key]: r.int ? Math.round(v) : +v.toFixed(4) }
     })
   }, [])
 
