@@ -126,7 +126,47 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Stråla og fresen har breidd, og kutten et henne ut av delen. Er snittbreidda null, kompenserer korkje fila eller maskina for henne: kvart spor kjem ut ei snittbreidd for vidt og kvar tapp ei snittbreidd for tynn. Passprøva måler henne og klaringa i eitt.",
   })
 
-  // --- 9 opninga mellom ribbene (mjuk) ---------------------------------------
+  // --- 9 snittet et ikkje opp sporet (hard) ----------------------------------
+  /**
+   * Kompensasjonen skuvar omrisset UTOVER med eit halvt snitt, so sporet
+   * vert teikna eit hardt snitt smalare enn det skal verta. Er snittet like
+   * breitt som sporet, er det teikna sporet null breitt: dei to veggene
+   * fell saman og omrisset brettar seg over seg sjølv. Fila ser ut som ei
+   * fil, og maskina skjer ein sløyfe.
+   *
+   * Målt på ein kube i to millimeter byrjar brettinga eit stykke før
+   * grensa, so dette er ei ytre grense og ikkje ei trygg sone.
+   */
+  add({
+    id: "snittspor",
+    label: "snittet mot sporet",
+    hard: true,
+    ok: p.snitt < m.slotW,
+    value: `${mm1(p.snitt)} mot ${mm1(m.slotW)}`,
+    why: "Snittbreidda vert kompensert ved å skuve omrisset utover, og sporet vert teikna like mykje smalare. Er snittet like breitt som sporet, er det teikna sporet borte, og konturen brettar seg over seg sjølv. Anten står snittbreidda for høgt, eller so er plata for tynn til det verktøyet.",
+  })
+
+  // --- 10 snittet mot fresen (mjuk) ------------------------------------------
+  /**
+   * På ein fres ER snittet verktøyet. Han fjernar heile diameteren sin, og
+   * kompensasjonen her skuvar eit halvt snitt — altso ein radius. Difor
+   * skal `snitt` vera lik `fres` når du fresar. Står fresen på seks og
+   * snittet på null komma to, kjem kvar del ut nesten tre millimeter for
+   * lita på kvar side.
+   *
+   * På laser står fresen på null og regelen gjeld ikkje: der er snittet
+   * strålebreidda, og ho har ingenting med eit verktøy å gjere.
+   */
+  add({
+    id: "snittfres",
+    label: "snittet mot fresen",
+    hard: false,
+    ok: p.fres === 0 || Math.abs(p.snitt - p.fres) <= 0.5,
+    value: p.fres === 0 ? "laser" : `${mm1(p.snitt)} mot ${mm1(p.fres)}`,
+    why: "Ein fres fjernar heile diameteren sin, so snittbreidda skal vera lik fresediameteren. Er ho mindre, kjem kvar del ut for lita med halve skilnaden på kvar side, og ledda vert slakke. På laser står fresen på null, og då er snittet strålebreidda i staden.",
+  })
+
+  // --- 11 opninga mellom ribbene (mjuk) --------------------------------------
   add({
     id: "opning",
     label: "opning mellom ribber",
@@ -136,7 +176,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Ribbene står så tett at verktøyet ikkje kjem imellom dei når du monterer — og på plata står delane så nær kvarandre at nestinga ikkje har noko å gå på.",
   })
 
-  // --- 10 lukka nett (mjuk) --------------------------------------------------
+  // --- 12 lukka nett (mjuk) --------------------------------------------------
   add({
     id: "lukka",
     label: "lukka nett",
@@ -146,7 +186,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Snittinga les nettet med strålar og tel kva veg kvar trekant vender. Eit nett med hòl i har ingen innside å telje, og då kan ein profil kome ut som eit stykke der han skulle vore to. Reiskapen snittar det likevel — men no veit du kvifor det ser rart ut.",
   })
 
-  // --- 11 oppløysinga (mjuk) -------------------------------------------------
+  // --- 13 oppløysinga (mjuk) -------------------------------------------------
   add({
     id: "nett",
     label: "nettoppløysing",
@@ -159,7 +199,7 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
     why: "Forenklinga har teke nettet under eit par hundre trekantar, og då er det grovare enn ribbene som skal lesast av det: profilane vert fasettar i staden for kurver. Skru opp trekanttaket.",
   })
 
-  // --- 12 utnyttinga (mjuk) --------------------------------------------------
+  // --- 14 utnyttinga (mjuk) --------------------------------------------------
   add({
     id: "utnytting",
     label: "utnytting",
