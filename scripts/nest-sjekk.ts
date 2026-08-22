@@ -13,6 +13,7 @@
  *   npx tsx scripts/nest-sjekk.ts
  */
 import { bbox, type Pt } from "../lib/core"
+import { apply, pack } from "../lib/pack"
 import { makePlan, nestGap } from "../lib/vaffel/plan"
 import { DETAIL } from "../lib/vaffel/ribs"
 import { placedRings } from "../lib/vaffel/nest"
@@ -55,6 +56,71 @@ function fill(
 }
 
 let brot = 0
+
+// =============================================================================
+// PAKKAREN SJØLV
+// =============================================================================
+/**
+ * Rasteret er felles for like former, og det SKAL det vera: eit kuttark med
+ * femti ribber har ofte ti former, og å rasterisere kvar del for seg er ni
+ * tidelar bortkasta. Men forma hugsa òg kvar det FYRSTE stykket med den
+ * nøkkelen låg, og den koordinaten høyrer til stykket og ikkje til forma.
+ *
+ * To like ribber kan liggje kvar sin stad i sitt eige rom — to like tårn,
+ * to bein under ein kropp — og det andre stykket kom då ut skuva med
+ * skilnaden mellom dei to. To hundre millimeter utanfor ei plate på fire
+ * hundre, medan pakkinga melde null delar utanfor.
+ *
+ * Vegen gjennom nettet nådde han ikkje: signaturen som avgjer kva som er
+ * «same form» tek omsyn til kvar konturen startar, so to stykke som ligg
+ * ulikt får ulik nøkkel i praksis. Det er flaks og ikkje design, og han
+ * ville falle bort i det sekundet nokon gjorde signaturen betre. Difor
+ * vert pakkaren prøvd her, rett på, med nøklar som er like med vilje.
+ */
+function pakkarenSjolv() {
+  const rekt = (x: number, y: number, w: number, h: number): Pt[] => [
+    [x, y],
+    [x + w, y],
+    [x + w, y + h],
+    [x, y + h],
+  ]
+  const saker: [string, number, number, Pt[][]][] = [
+    [
+      "same form, tre opphav",
+      400,
+      300,
+      [rekt(0, 0, 80, 60), rekt(500, 300, 80, 60), rekt(-900, -700, 80, 60)],
+    ],
+    [
+      "same form, kvartsving",
+      300,
+      120,
+      [rekt(0, 0, 80, 200), rekt(500, 300, 80, 200), rekt(-900, -700, 80, 200)],
+    ],
+  ]
+  for (const [namn, W, H, rings] of saker) {
+    const pieces = rings.map((r) => ({ key: "same", rings: [r] }))
+    const out = pack(pieces, W, H, 5)
+    let ute = 0
+    let verst = 0
+    for (const q of out.slots) {
+      const b = bbox(pieces[q.piece].rings[0].map((pt) => apply(q.m, pt)))
+      const av = Math.max(-b.x0, -b.y0, b.x1 - W, b.y1 - H)
+      if (av > 0.01) {
+        ute++
+        verst = Math.max(verst, av)
+      }
+    }
+    const ok = ute === 0 && out.slots.length + out.spilt.length === pieces.length
+    if (!ok) brot++
+    console.log(
+      `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ` +
+        `${out.slots.length} lagde på ${out.sheets} plater · ` +
+        `${ute} utanfor${ute ? ` (verst ${verst.toFixed(1)} mm)` : ""}`,
+    )
+  }
+}
+
 
 function sjekk(namn: string, p: Params) {
   const { pl, ns } = makePlan(p, DETAIL.mid)
@@ -186,6 +252,8 @@ sjekk("egg 8x8", { ...DEFAULT_PARAMS, kjelde: "egg", ribbX: 8, ribbY: 8 })
 sjekk("torus staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9 })
 sjekk("kule stor plate", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 10, ribbY: 10, arkB: 2500, arkH: 1250 })
 sjekk("hundebein", { ...DEFAULT_PARAMS, kjelde: "egg", leddtype: 1, fres: 6, ribbX: 7, ribbY: 7 })
+
+pakkarenSjolv()
 
 console.log(brot ? `\n${brot} PAKKINGAR ER BROTNE` : "\nalle pakkingar held")
 process.exit(brot ? 1 : 0)

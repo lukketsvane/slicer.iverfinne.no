@@ -316,6 +316,16 @@ export function pack(
 
   // Like delar er like: eit kuttark med femti ribber har ofte ti former.
   // Rasteret vert laga éin gong per FORM, ikkje éin gong per del.
+  //
+  // Men RASTERET er det einaste som er felles. Forma hugsar òg kvar det
+  // fyrste stykket med den nøkkelen låg, og den koordinaten høyrer til
+  // det stykket og ikkje til forma: to like ribber kan liggje kvar sin
+  // stad i sitt eige rom. Vert det andre stykket lagt ut med det fyrste
+  // sitt opphav, kjem det ut skuva med skilnaden mellom dei to — og
+  // pakkinga melder null delar utanfor plata medan delen ligg to hundre
+  // millimeter utanfor henne.
+  //
+  // Difor: masker frå forma, opphav frå stykket.
   type Form = { masks: Mask[]; ox: number; oy: number; Wm: number; Hm: number; cells: number }
   const forms = new Map<string, Form>()
   const formOf = (p: Piece): Form => {
@@ -393,11 +403,17 @@ export function pack(
     }
     const m = f.masks[put.rot]
     stamp(boards[put.s], m, put.px, put.py)
+    const bb = bbox(pieces[i].rings[0])
     slots.push({
       piece: i,
       sheet: put.s,
       rot: put.rot,
-      m: affine(f, put.rot, put.px * res, put.py * res),
+      m: affine(
+        { ...f, ox: bb.x0 - k * res, oy: bb.y0 - k * res },
+        put.rot,
+        put.px * res,
+        put.py * res,
+      ),
     })
   }
 
