@@ -207,6 +207,7 @@ deploys without touching any dashboard.
 ```bash
 pnpm probe   # engine without a browser: parts, joints, cut length, files
 pnpm rekkje  # reads the cut files back: engrave, inner cuts, outline, in that order
+pnpm vrient  # meshes that aren't meshes, sliders at both ends, and a hostile URL
 pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps
 pnpm tung    # a million triangles in, and how long that takes

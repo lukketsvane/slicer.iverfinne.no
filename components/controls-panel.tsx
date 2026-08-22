@@ -38,6 +38,28 @@ const VIEWS: readonly { id: View; label: string; hint: string }[] = [
   { id: "kontur", label: "kontur", hint: "dei flate kuttprofilane" },
 ]
 
+/**
+ * NÅR EIN KNAPP IKKJE SKAL VERA TRYKKBAR.
+ *
+ * Ein knapp som leverer ei tom fil er ein knapp som lyg, og han lyg på det
+ * verste tidspunktet: du lastar ned, opnar i LightBurn, ser eit tomt ark og
+ * trur programmet er øydelagt.
+ *
+ * Det skjer i to tilfelle. Objektet gjev ingen delar — då er alt tomt. Eller
+ * ingen del fekk plass på plata du har sett — då er profilarket og STL-en
+ * framleis heile, men platene finst ikkje, so DXF-en og arka er tomme
+ * dokument. Passprøva står alltid open: ho er ei plate med sju spor, og ho
+ * treng ikkje eit objekt i det heile.
+ */
+function stengd(x: ExportKind, m: Metrics | null): string {
+  if (x === "prove" || !m) return ""
+  if (m.parts === 0) return "ingen delar å skjere — sjå reglane"
+  if ((x === "ark" || x === "dxf") && m.sheets === 0) {
+    return "ingen del fekk plass på plata — større plate, eller mindre objekt"
+  }
+  return ""
+}
+
 const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[] = [
   { id: "stl", label: "stl", hint: "heile stabelen som trekantnett, til rendering og 3D-print" },
   { id: "dxf", label: "dxf", hint: "alle delane nesta på plate, med snittkompensasjon — til fresen" },
@@ -582,19 +604,26 @@ export function ControlsPanel(props: {
 
             {/* eksporten og verktøya i EI rad */}
             <div className="flex flex-wrap items-center gap-1.5 py-1">
-              {EXPORTS.map((x) => (
-                <button
-                  key={x.id}
-                  type="button"
-                  title={x.hint}
-                  disabled={busy}
-                  onClick={() => onExport(x.id)}
-                  className={CHIP + " uppercase tracking-[0.1em]"}
-                  style={chipStyle(false)}
-                >
-                  {x.label}
-                </button>
-              ))}
+              {EXPORTS.map((x) => {
+                const stopp = stengd(x.id, metrics)
+                return (
+                  <button
+                    key={x.id}
+                    type="button"
+                    title={stopp || x.hint}
+                    disabled={busy || stopp !== ""}
+                    onClick={() => onExport(x.id)}
+                    className={CHIP + " uppercase tracking-[0.1em]"}
+                    style={{
+                      ...chipStyle(false),
+                      opacity: stopp ? 0.3 : undefined,
+                      textDecoration: stopp ? "line-through" : undefined,
+                    }}
+                  >
+                    {x.label}
+                  </button>
+                )
+              })}
               <button
                 type="button"
                 onClick={onReset}

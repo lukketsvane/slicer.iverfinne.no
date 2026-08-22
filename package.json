@@ -12,6 +12,7 @@
     "look": "tsx scripts/look.ts",
     "pakk": "tsx scripts/nest-sjekk.ts",
     "rekkje": "tsx scripts/rekkje.ts",
+    "vrient": "tsx scripts/vrient.ts",
     "ark": "tsx scripts/ark.ts",
     "glb": "tsx scripts/glb-sjekk.ts"
   },
