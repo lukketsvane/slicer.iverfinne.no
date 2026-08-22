@@ -10,7 +10,7 @@
  *   npx tsx scripts/glb-sjekk.ts
  */
 import { parseMesh } from "../lib/io"
-import { bounds } from "../lib/soup"
+import { bounds, signedVolume, weld } from "../lib/soup"
 import { glb, kasse } from "./glbfil"
 
 let brot = 0
@@ -186,6 +186,98 @@ sjekk("glb kalla .stl", glb(k.pos, k.idx, [{ mesh: 0 }], [0]), {
   max: [10, 5, 40],
   tris: 12,
 }, "skann.stl")
+
+// =============================================================================
+// SPEGLA NODAR OG PLY-LISTER
+// =============================================================================
+/**
+ * Ei spegling snur handa på trekantane, og snittinga tel vindinga med SUM.
+ * Ein spegla node vert difor talt som minus eitt skal: der han ligg har
+ * objektet inga innside. Det globale vrengjevernet reddar det ikkje —
+ * det snur heile nettet når volumet er negativt, og eit nett der berre
+ * HALVPARTEN er spegla har framleis positivt volum. Ein symmetrisk
+ * Blender-modell med ein spegla instans er nett den fila.
+ */
+/**
+ * Fasiten er ikkje eit forteikn, men SAMSVAR: den spegla noden skal vende
+ * same vegen som den uspegla. Kva veg hjelpefunksjonen `kasse` vind
+ * boksen sin er hennar sak, og ho skal ikkje stå i ein fasit her.
+ */
+function speglaSjekk(namn: string, buf: ArrayBuffer, vent: number) {
+  const s = parseMesh("spegla.glb", buf)
+  const v = signedVolume(weld(s))
+  const ok = Math.sign(v) === Math.sign(vent) && Math.abs(Math.abs(v) - Math.abs(vent)) < 1
+  if (!ok) brot++
+  console.log(
+    `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(30)} ${s.tris} tri, signert volum ${v.toFixed(0)}` +
+      (ok ? "" : `  venta ${vent}`),
+  )
+  return v
+}
+
+{
+  const { pos: boks, idx: boksIdx } = kasse(10, 4, 6)
+  const I = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+  const speglX = [-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+  const flytt = (x: number) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, 0, 0, 1]
+  const speglOgFlytt = [-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 40, 0, 0, 1]
+  // Boksen er 10 x 4 x 6. Forteiknet kjem frå den uspegla noden.
+  const fasit = signedVolume(weld(parseMesh("spegla.glb", glb(boks, boksIdx, [{ mesh: 0, matrix: I }], [0]))))
+  const vol = fasit
+
+  speglaSjekk("node utan spegling", glb(boks, boksIdx, [{ mesh: 0, matrix: I }], [0]), vol)
+  speglaSjekk("node spegla i X", glb(boks, boksIdx, [{ mesh: 0, matrix: speglX }], [0]), vol)
+  // Den viktige: ein heil node og ein spegla, side om side. Volumet er
+  // positivt anten vindinga er rett eller ikkje, so det globale
+  // vrengjevernet ser ingenting — men halve objektet er vrengt.
+  speglaSjekk(
+    "halv scene spegla",
+    glb(
+      boks,
+      boksIdx,
+      [
+        { mesh: 0, matrix: flytt(-20) },
+        { mesh: 0, matrix: speglOgFlytt },
+      ],
+      [0, 1],
+    ),
+    vol * 2,
+  )
+}
+
+/**
+ * Ei PLY-flate kan ha fleire lister. `vertex_indices` er hjørna; ved sida
+ * av han ligg det ofte `texcoord` med seks flyttal. Vert HO lesen som
+ * hjørne òg, kjem det fire ekstra trekantar per flate, laga av
+ * teksturkoordinatar tolka som indeksar.
+ */
+{
+  const V = [[0, 0, 0], [10, 0, 0], [0, 10, 0], [0, 0, 10]]
+  const F = [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]]
+  const ply = (texcoord: boolean) =>
+    [
+      "ply",
+      "format ascii 1.0",
+      `element vertex ${V.length}`,
+      "property float x",
+      "property float y",
+      "property float z",
+      `element face ${F.length}`,
+      "property list uchar int vertex_indices",
+      ...(texcoord ? ["property list uchar float texcoord"] : []),
+      "end_header",
+      ...V.map((p) => p.join(" ")),
+      ...F.map((f) => `3 ${f.join(" ")}${texcoord ? " 6 0.1 0.2 0.3 0.4 0.5 0.6" : ""}`),
+    ].join("\n")
+  for (const [namn, tex] of [["ply utan texcoord", false], ["ply med texcoord", true]] as const) {
+    sjekk(
+      namn,
+      new TextEncoder().encode(ply(tex)).buffer as ArrayBuffer,
+      { min: [0, 0, 0], max: [10, 10, 10], tris: 4 },
+      "skann.ply",
+    )
+  }
+}
 
 console.log(brot ? `\n${brot} PRØVER RYK` : "\nalle GLB-prøver held")
 process.exit(brot ? 1 : 0)
