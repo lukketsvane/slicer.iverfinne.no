@@ -26,6 +26,7 @@
 import { inRing, type Pt } from "../lib/core"
 import { makePlan } from "../lib/vaffel/plan"
 import { DETAIL, jointsIn, type Rib } from "../lib/vaffel/ribs"
+import type { Kropp } from "../lib/vaffel/kropp"
 import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
@@ -42,13 +43,48 @@ function gods(r: Rib, p: Pt): boolean {
   return false
 }
 
+/**
+ * SPORET SKAL IKKJE NÅ INN I NABOSTYKKET.
+ *
+ * Ei søyle kan treffe kroppen fleire gonger: ein torus som står har ein
+ * nedre og ein øvre boge, ein hest har eit bein under ein kropp. Sporet
+ * skal gå ut gjennom sin eigen kant og stogge i lufta over eller under.
+ * Når det held fram inn i stykket på andre sida av lufta, vert ribba saga
+ * i to i staden for å få eit hakk, og det som fell av vert ei laus plate.
+ *
+ * Å skjere gjennom LUFT er greitt — der er det ingenting å skjere. Det er
+ * nabostykket det ikkje har noko i å gjere.
+ */
+function inniNabo(k: Kropp, r: Rib): { tal: number; verst: number } {
+  let tal = 0
+  let verst = 0
+  for (const q of r.slots) {
+    const runs = r.axis === "x" ? k.solid.runsZ(r.pos, q.t) : k.solid.runsZ(q.t, r.pos)
+    const i = runs.findIndex(([lo, hi]) => q.zMouth >= lo - 0.6 && q.zMouth <= hi + 0.6)
+    if (i < 0) continue
+    const nabo = q.fromTop ? runs[i + 1] : runs[i - 1]
+    if (!nabo) continue
+    const inn = q.fromTop ? q.zOut - nabo[0] : nabo[1] - q.zOut
+    if (inn > 0.01) {
+      tal++
+      verst = Math.max(verst, inn)
+    }
+  }
+  return { tal, verst }
+}
+
 function sjekk(namn: string, p: Params) {
-  const { g } = makePlan(p, DETAIL.mid)
+  const { k, g } = makePlan(p, DETAIL.mid)
   let ledd = 0
   let tapt = 0
   let uteneskulder = 0
+  let nabo = 0
+  let naboVerst = 0
 
   for (const r of g.ribs) {
+    const n = inniNabo(k, r)
+    nabo += n.tal
+    naboVerst = Math.max(naboVerst, n.verst)
     for (const q of r.slots) {
       // Eit spor som høyrer til eit stykke som er kasta, er ikkje eit
       // spor lenger. Det er berre bokføring frå før kastinga.
@@ -78,12 +114,13 @@ function sjekk(namn: string, p: Params) {
     }
   }
 
-  const ok = tapt === 0
+  const ok = tapt === 0 && nabo === 0
   if (!ok) brot++
   console.log(
     `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ` +
       `${String(ledd).padStart(4)} ledd i profilane · ` +
-      `${tapt} tapte · ${uteneskulder} utan gods på begge sider`,
+      `${tapt} tapte · ${uteneskulder} utan gods på begge sider · ` +
+      `${nabo} inn i nabostykket${nabo ? ` (verst ${naboVerst.toFixed(1)} mm)` : ""}`,
   )
 }
 
@@ -134,7 +171,33 @@ function torus(R: number, r: number, n: number, m: number) {
   return makeSoup(new Float32Array(pos))
 }
 
+/**
+ * Ein kropp på fire bein. Poenget er ikkje at han liknar ein hest, men at
+ * ei loddrett søyle gjennom eit bein treffer kroppen ein gong til lenger
+ * oppe, med luft imellom — og det er nett den forma sporet kan sage seg
+ * gjennom.
+ */
+function firbeint() {
+  const out: number[] = []
+  const boks = (w: number, d: number, h: number, ox: number, oy: number, oz: number) => {
+    const p: [number, number, number][] = [
+      [ox, oy, oz], [ox + w, oy, oz], [ox + w, oy + d, oz], [ox, oy + d, oz],
+      [ox, oy, oz + h], [ox + w, oy, oz + h], [ox + w, oy + d, oz + h], [ox, oy + d, oz + h],
+    ]
+    const f = [
+      [0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4],
+      [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7],
+    ]
+    for (const [a, b, c] of f) out.push(...p[a], ...p[b], ...p[c])
+  }
+  for (const [x, y] of [[-40, -18], [22, -18], [-40, 8], [22, 8]]) boks(18, 10, 60, x, y, 0)
+  boks(100, 40, 40, -50, -20, 60)
+  boks(26, 24, 46, 44, -12, 88)
+  return makeSoup(new Float32Array(out))
+}
+
 put("kule", "kule", kule(50, 40))
+put("firbeint", "firbeint", firbeint())
 put("egg", "egg", kule(50, 40, 1.6))
 put("torus", "torus", torus(50, 18, 48, 24))
 
@@ -153,6 +216,9 @@ const SAKER: [string, Partial<Params>][] = [
   ["egg", { kjelde: "egg" }],
   ["torus ståande", { kjelde: "torus", rotX: 90 }],
   ["torus, lause med", { kjelde: "torus", rotX: 90, lause: 0 }],
+  ["firbeint", { kjelde: "firbeint", lause: 0 }],
+  ["firbeint, 10 ribber", { kjelde: "firbeint", ribbX: 10, ribbY: 10, lause: 0 }],
+  ["firbeint, tjukk plate", { kjelde: "firbeint", tjukn: 6, storleik: 300, lause: 0 }],
   ["kule, tett og tynt", { kjelde: "kule", ribbX: 24, ribbY: 24, tjukn: 1 }],
 ]
 

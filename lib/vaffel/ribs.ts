@@ -337,7 +337,31 @@ function buildGridRaw(k: Kropp, p: Params, cells: number): Grid {
     return true
   }
 
-  /** kor langt sporet må gå for å koma UT på den krumme kanten */
+  /**
+   * Kor langt sporet må gå for å koma UT på den krumme kanten.
+   *
+   * Kanten ribba opnar seg i er krum, so eit spor som stoggar nøyaktig
+   * ved munnen står att med gods i kvar side: munnen er målt midt i
+   * sporet, og kanten ligg lenger ute eit par millimeter til sidene.
+   * Difor vert kanten lesen tre stader tvers over sporbreidda, og sporet
+   * går til den ytste av dei, pluss tre millimeter.
+   *
+   * MEN DET MÅ ALDRI NÅ INN I NABOSTYKKET.
+   *
+   * Ei søyle kan treffe kroppen fleire gonger: ein torus som står har ein
+   * nedre og ein øvre boge, ein hest har eit bein under ein kropp. Og
+   * tvers over sporbreidda kan topologien BYTE — ein millimeter til sida
+   * kan dei to stykka ha runne saman til eitt. Les ein då ytterkanten av
+   * den søyla, får eit ledd i det eine stykket eit spor som går heilt
+   * gjennom det andre, og ribba vert saga i to i staden for å få eit
+   * hakk. Målt på ein torus som står: 72 spor gjekk forbi, det verste 107
+   * mm på eit objekt som er 150 mm høgt, og stykka som fall av vart lause
+   * plater.
+   *
+   * Difor er svaret klemt inn i LUFTA mellom stykka: sporet får gå til
+   * midt i glipa og ikkje ein millimeter lenger. Gjennom luft skjer det
+   * ingenting — det er nabostykket det ikkje har noko i å gjere.
+   */
   const clear = (
     axis: "x" | "y",
     rpos: number,
@@ -354,7 +378,20 @@ function buildGridRaw(k: Kropp, p: Params, cells: number): Grid {
       e = up ? Math.max(e, pick) : Math.min(e, pick)
     }
     if (!Number.isFinite(e)) e = fall
-    return up ? e + 3 : e - 3
+    e = up ? e + 3 : e - 3
+
+    // Glipa over eller under leddet sitt eige stykke, i leddet si eiga
+    // søyle. `fall` er munnen, so stykket som inneheld han er stykket.
+    const eiga = axis === "x" ? runsZ(rpos, t) : runsZ(t, rpos)
+    let grense = up ? Infinity : -Infinity
+    for (let i = 0; i < eiga.length; i++) {
+      const [lo, hi] = eiga[i]
+      if (fall < lo - 0.6 || fall > hi + 0.6) continue
+      const nabo = up ? eiga[i + 1] : eiga[i - 1]
+      if (nabo) grense = up ? (hi + nabo[0]) / 2 : (lo + nabo[1]) / 2
+      break
+    }
+    return up ? Math.min(e, grense) : Math.max(e, grense)
   }
 
   for (let i = 0; i < xs.length; i++) {
