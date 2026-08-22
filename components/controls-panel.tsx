@@ -63,8 +63,6 @@ const num = (p: ParamBag, k: string, fallback: number) =>
 const HAIR: CSSProperties = { borderColor: "var(--rule)" }
 const ICON_BTN =
   "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition active:scale-95"
-const ICON_BTN_SOLID =
-  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition active:scale-95"
 
 function chipStyle(active: boolean): CSSProperties {
   return active
@@ -83,15 +81,6 @@ const STROKE = {
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
 }
-const IcoShuffle = (
-  <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
-    <path d="M2 18h2.9a4 4 0 0 0 3.4-1.9l5.4-8.2A4 4 0 0 1 17.1 6H22" />
-    <path d="m18 2 4 4-4 4" />
-    <path d="M2 6h2.9a4 4 0 0 1 3.4 1.9l.5.8" />
-    <path d="m14.6 14.5.5.8a4 4 0 0 0 3.4 1.9H22" />
-    <path d="m18 14 4 4-4 4" />
-  </svg>
-)
 const IcoSliders = (
   <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
     <path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4" />
@@ -182,16 +171,12 @@ function SliderRow({
   k,
   r,
   value,
-  locked,
   onChange,
-  onToggleLock,
 }: {
   k: string
   r: Range
   value: number
-  locked: boolean
   onChange: (k: string, raw: string) => void
-  onToggleLock: (k: string) => void
 }) {
   // Eit val er ikkje ei mengd. Står det namn i bandet, er det namnet som
   // skal stå til høgre — «hundebein» seier kva det er; «1» seier ingenting.
@@ -199,34 +184,13 @@ function SliderRow({
     ? (r.names[Math.round(value)] ?? String(value))
     : value.toFixed(decimals(r.step)).replace(".", ",")
   return (
-    <div
-      className="flex items-center gap-3 py-1.5 transition-opacity"
-      style={{ opacity: locked ? 0.35 : 1 }}
-    >
-      <button
-        type="button"
-        aria-pressed={locked}
-        title={
-          locked
-            ? "låst mot terningen — trykk for å låse opp"
-            : "trykk for å låse mot terningen"
-        }
-        onClick={() => onToggleLock(k)}
-        className="flex w-24 shrink-0 items-center gap-1.5 text-left text-[10px] uppercase leading-[1.2] tracking-[0.14em]"
+    <div className="flex items-center gap-3 py-1.5">
+      <span
+        className="w-24 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.14em]"
         style={{ color: "var(--ink)" }}
       >
-        <span
-          aria-hidden="true"
-          className="block h-[5px] w-[5px] shrink-0 rounded-full"
-          style={{
-            background: locked ? "var(--ink)" : "transparent",
-            border: locked
-              ? "none"
-              : "1px solid color-mix(in srgb, var(--ink) 30%, transparent)",
-          }}
-        />
-        <span className="min-w-0 flex-1">{r.label}</span>
-      </button>
+        {r.label}
+      </span>
       <input
         type="range"
         className="pslider flex-1"
@@ -234,7 +198,7 @@ function SliderRow({
         max={r.max}
         step={r.step}
         value={value}
-        aria-label={locked ? `${r.label}, låst` : r.label}
+        aria-label={r.label}
         onChange={(e) => onChange(k, e.target.value)}
       />
       <span
@@ -256,16 +220,13 @@ export function ControlsPanel(props: {
   view: View
   /** profilane som bilete (SVG-tekst), generert automatisk av arbeidaren */
   syn: string | null
-  locked: ReadonlySet<string>
   hiDetail: boolean
   isDesktop: boolean
   busy: boolean
   feil: string | null
   onChange: (p: ParamBag) => void
   onView: (v: View) => void
-  onShuffle: () => void
   onReset: () => void
-  onToggleLock: (k: string) => void
   onToggleDetail: () => void
   onExport: (kind: ExportKind) => void
   onShare: () => void
@@ -278,16 +239,13 @@ export function ControlsPanel(props: {
     rules,
     view,
     syn,
-    locked,
     hiDetail,
     isDesktop,
     busy,
     feil,
     onChange,
     onView,
-    onShuffle,
     onReset,
-    onToggleLock,
     onToggleDetail,
     onExport,
     onShare,
@@ -467,16 +425,6 @@ export function ControlsPanel(props: {
 
             <button
               type="button"
-              onClick={onShuffle}
-              aria-label="terning — nye tal innanfor grensene, låste skruar står"
-              title="terning — nettet ditt står, resten vert kasta om"
-              className={ICON_BTN_SOLID}
-              style={{ background: "var(--ink)", color: "var(--paper)" }}
-            >
-              {IcoShuffle}
-            </button>
-            <button
-              type="button"
               onClick={() => setMode(open ? "lukka" : "halv")}
               aria-label={open ? "gøym kontrollane" : "vis kontrollane"}
               aria-expanded={open}
@@ -605,6 +553,33 @@ export function ControlsPanel(props: {
               </div>
             )}
 
+            {/*
+              KVA FARGANE TYDER, der uttaka står.
+              Han er to ord, og han sparar den einaste feilen som kostar
+              ei heil plate: å setje kutteffekt på graveringslaget. Svart
+              er fyrste laget i LightBurn, og fyrste laget køyrer fyrst,
+              so graveringa MÅ liggje der.
+            */}
+            <div
+              className="flex items-center gap-3 pt-1 text-[10px] uppercase tracking-[0.14em]"
+              style={{ color: "var(--ink)", opacity: 0.55 }}
+              title="LightBurn tek laga i palettorden: svart er C00 og køyrer fyrst, blå er C01. Difor graverer det svarte og kuttar det blå."
+            >
+              {[
+                { farge: "#000000", ord: "graver" },
+                { farge: "#0000ff", ord: "kutt" },
+              ].map((q) => (
+                <span key={q.ord} className="flex items-center gap-1.5">
+                  <span
+                    aria-hidden="true"
+                    className="block h-[7px] w-[7px] shrink-0 rounded-full"
+                    style={{ background: q.farge }}
+                  />
+                  {q.ord}
+                </span>
+              ))}
+            </div>
+
             {/* eksporten og verktøya i EI rad */}
             <div className="flex flex-wrap items-center gap-1.5 py-1">
               {EXPORTS.map((x) => (
@@ -702,9 +677,7 @@ export function ControlsPanel(props: {
                         k={k}
                         r={VAFFEL.ranges[k]}
                         value={num(params, k, VAFFEL.ranges[k].min)}
-                        locked={locked.has(k)}
                         onChange={setParam}
-                        onToggleLock={onToggleLock}
                       />
                     ))}
                   </div>

@@ -42,7 +42,6 @@ import {
   PARAM_KEYS,
   PARAM_RANGES,
   clampParams,
-  randomParams,
   type Params,
 } from "./params"
 
@@ -57,7 +56,6 @@ export type EngineDef = {
   nudge: { vertical: string; horizontal: string }
   unitLabel: string
   clamp(o: unknown, prev: ParamBag): ParamBag
-  random(rnd: () => number, prev: ParamBag, locked: ReadonlySet<string>): ParamBag
   build(p: ParamBag, detail: DetailKey, view: View): BuildOut
   measure(p: ParamBag): Metrics
   rules(p: ParamBag, m: Metrics): Rule[]
@@ -108,7 +106,6 @@ export const VAFFEL: EngineDef = {
   unitLabel: "ribber",
 
   clamp: (o, prev) => clampParams(o, asP(prev)) as unknown as ParamBag,
-  random: (rnd, prev, locked) => randomParams(rnd, asP(prev), locked) as unknown as ParamBag,
 
   build(bag: ParamBag, detail: DetailKey, view: View): BuildOut {
     const p = asP(bag)

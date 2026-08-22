@@ -44,7 +44,9 @@ export function measure(p: Params): Metrics {
 
     parts: pl.parts.length,
     unique: pl.ids.length,
-    loose: pl.lause,
+    // Ein av dei to er alltid null: anten står dei lause stykka i lista,
+    // eller so er dei kasta ut av rutenettet.
+    loose: pl.lause + g.kasta,
     joints: g.joints,
     units: g.ribs.length,
     unitLabel: "ribber",
@@ -77,7 +79,7 @@ export function measure(p: Params): Metrics {
     `${nn(env.x)} × ${nn(env.y)} × ${nn(env.z)}`)
   add("delar", "delar · unike", m.parts, "stk", `${nn(m.parts)} · ${nn(m.unique)}`)
   add("ledd", "ledd", m.joints, "stk", nn(m.joints))
-  add("lause", "lause delar", m.loose, "stk", nn(m.loose))
+  add("lause", p.lause ? "kasta stykke" : "lause delar", m.loose, "stk", nn(m.loose))
   add("kutt", "kuttlengd", m.cutLen, "m", nn(m.cutLen / 1000, 1))
   add("tid", "kuttetid", m.cutTime, "min", klokke(m.cutTime))
   add("masse", "masse", m.mass, "kg", nn(m.mass, 2))

@@ -22,7 +22,7 @@ import { SNITTVEGAR, type Params } from "./params"
 const mm1 = (v: number) => nn(v, 1) + " mm"
 
 export function checkRules(p: Params, m: Metrics): Rule[] {
-  const { pl, ns } = makePlan(p, DETAIL.mid)
+  const { g, pl, ns } = makePlan(p, DETAIL.mid)
   const out: Rule[] = []
   const add = (r: Rule) => out.push(r)
 
@@ -47,13 +47,26 @@ export function checkRules(p: Params, m: Metrics): Rule[] {
   })
 
   // --- 3 kvar del heng i noko (hard) -----------------------------------------
+  /**
+   * Hard når du tek dei med, mjuk når du kastar dei.
+   *
+   * Ei laus plate i eska er ein feil. Ei laus plate du valde bort er ei
+   * opplysning: du mista øyretippen, og det er verdt å vite, men fila er
+   * skjerbar.
+   */
   add({
     id: "lause",
-    label: "delar utan ledd",
-    hard: true,
-    ok: pl.lause === 0,
-    value: pl.lause ? `${nn(pl.lause)} av ${nn(pl.parts.length)}` : "ingen",
-    why: "Ein del som ikkje kryssar ei einaste ribbe frå den andre familien er ei laus plate: han står i kuttlista, han kostar material, og han fell ut av stabelen når du løftar han. Vanlegaste grunnen er ei ribbe heilt ute i kanten, der objektet er for tynt til at nokon møter henne — færre ribber, eller eit anna rutenett.",
+    label: p.lause ? "kasta stykke" : "delar utan ledd",
+    hard: !p.lause,
+    ok: p.lause ? g.kasta === 0 : pl.lause === 0,
+    value: p.lause
+      ? g.kasta
+        ? `${nn(g.kasta)} kasta`
+        : "ingen"
+      : pl.lause
+        ? `${nn(pl.lause)} av ${nn(pl.parts.length)}`
+        : "ingen",
+    why: "Eit stykke som ikkje kryssar ei einaste ribbe frå den andre familien heng ikkje i noko: det står i kuttlista, kostar plass på plata, og ligg laust i eska. Vanlegaste grunnen er at kroppen er tynnare enn luka mellom ribbene akkurat der, som på ein øyretipp eller ein hov. Fleire ribber tek han med i rutenettet; `lause` på «kast» tek han ut av fila.",
   })
 
   // --- 4 verktøyet kjem ned i sporet (hard) ----------------------------------

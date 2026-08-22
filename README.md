@@ -56,12 +56,23 @@ Double-tap reframes. The URL carries every setting except the mesh itself.
 | **ARK** | one file per nested sheet, 1:1 — zipped when there is more than one |
 | **PRØVE** | fit-test coupon: seven slots, each 0.05 mm wider than the last |
 
-In the SVG files, **colour is the operation**: `#000000` cut, `#0000FF` engrave.
-Exact palette values, so LightBurn puts them on the same layers every time.
+In the SVG files, **colour is the operation, and the colour carries the
+order**: `#000000` engrave, `#0000FF` cut.
+
+Those are exact LightBurn palette values — black is layer C00, blue is C01 —
+so the file lands on the same two layers every time. LightBurn runs layers in
+the order they appear in the Cuts/Layers list, and a fresh import lists them
+by number, so **whatever is black runs first**. Engraving has to happen while
+the part is still held by the sheet, so engraving gets black. It reads
+backwards to anyone used to black-is-cut; it is the way round that comes out
+right without touching the layer order. The panel prints the legend next to
+the export buttons.
+
 Two colours and no more — a sheet outline or a header is just another layer to
 remember to switch off, and one somebody eventually forgets. Which sheet a file
 is comes from its **name**. Nothing is filled; a fill tells the machine to burn
-the whole face. The DXF has real layers (`KUTT`, `GRAVER`) instead.
+the whole face. The DXF has real layers (`KUTT`, `GRAVER`), with `GRAVER`
+declared first for the same reason.
 
 `ARK` gives **one file per sheet** — a single SVG when it fits on one sheet, a
 ZIP of `…-ark-1av3.svg` and friends when it does not.
@@ -74,6 +85,14 @@ and engraved with its value. Cut it in the sheet you are about to use, push an
 offcut of that same sheet into each slot, and set `klaring` to the one that goes
 in under thumb pressure. Twenty seconds of laser time, and it settles kerf and
 press fit together.
+
+**Pieces that hang in nothing are dropped.** Slice a horse and the grid finds
+an ear tip and a bit of a hoof where the body is thinner than the gap between
+ribs: no rib from the other family reaches them, so they are plates that fall
+out of the box. They are culled in the grid rather than in the cut list, so the
+3D view and the cut file are the same object — set `lause` to *ta med* to cut
+them anyway. The same pass drops anything under 4 cm², which the cut list has
+always refused; until now those flakes still floated in the 3D view.
 
 **Kerf is taken exactly once.** By default it is taken **in the file**, in both
 DXF and SVG, because most people with a laser in the basement don't have a CAM
@@ -97,6 +116,7 @@ file was sorted or not.
 | `glatt` | smoothing | 0–24 Taubin passes — removes scanner noise without shrinking |
 | `trekant` | triangle budget | 0.5–60 k, by vertex clustering |
 | `ribbX/Y` | rib counts | 1–32 each way |
+| `lause` | pieces with no joint | keep / drop (default drop) |
 | `tjukn` | thickness | 1–25 mm (presets 3/4/6/9/12/18) |
 | `klaring` | press fit | 0–0.6 mm — slot wider than the plate |
 | `ledd` | joint split | 0.2–0.8 — where in the overlap the slot bottoms out |
@@ -117,7 +137,8 @@ be made or can't be assembled; **soft** is a choice worth knowing about.
 
 - ribs actually interlock
 - there are parts to cut
-- every part hangs in at least one joint — otherwise it's a loose plate
+- every part hangs in at least one joint (hard while `lause` keeps them, soft
+  once it drops them — the count stays in the panel either way)
 - the slot is wider than the cutter
 - material remains at the joint after the slot has eaten half the overlap
 - parts fit on the sheet you actually have

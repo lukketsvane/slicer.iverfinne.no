@@ -12,30 +12,22 @@
  * ark» i panelet, skal DXF-en innehalde dei same to arka — ikkje to som
  * liknar. Éin plan, éin sanning.
  */
-import { keep } from "../core"
+import { keep, type ParamBag } from "../core"
 import { makeKropp, type Kropp } from "./kropp"
 import { buildGrid, type Grid } from "./ribs"
 import { buildParts, type PartList } from "./parts"
 import { nest, type Nesting } from "./nest"
-import type { Params } from "./params"
+import { planKey, type Params } from "./params"
 
 export type Plan = { k: Kropp; g: Grid; pl: PartList; ns: Nesting }
 
 /** luft mellom delane på plata: verktøyet sin diameter pluss litt å ta i */
 export const nestGap = (p: Params) => Math.max(4, p.fres + 2)
 
-const NOKKEL = (p: Params, cells: number) =>
-  [
-    cells,
-    p.kjelde, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant,
-    p.ribbX, p.ribbY, p.tjukn, p.klaring, p.ledd, p.leddtype,
-    p.fres, p.arkB, p.arkH, p.material,
-  ].join("|")
-
 const HUGS = keep<Plan>(2)
 
 export function makePlan(p: Params, cells: number): Plan {
-  return HUGS(NOKKEL(p, cells), () => {
+  return HUGS(planKey(p as unknown as ParamBag, cells), () => {
     const k = makeKropp(p)
     const g = buildGrid(k, p, cells)
     const pl = buildParts(g)

@@ -10,8 +10,10 @@
  * laserprogram i verda har landa på den same avtalen i staden: éin farge
  * er éi operasjon. Her tyder
  *
- *   svart   KUTT — heilt gjennom
- *   blått   GRAVER — adressa til delen, ein strek og ikkje eit fylt felt
+ *   svart   GRAVER — adressa til delen, ein strek og ikkje eit fylt felt.
+ *           Svart er fyrste laget i LightBurn, og fyrste laget køyrer
+ *           fyrst: adressa skal brennast medan delen sit fast.
+ *   blått   KUTT — heilt gjennom, og sist
  *
  * To fargar, og ikkje ein til. Alt anna — plateramme, overskrift, hjelpe-
  * liner — er eit lag nokon må hugse å slå av, og eit lag nokon ein dag
@@ -53,17 +55,29 @@ const open = (pts: Pt[]) =>
 const pen = (span: number) => Math.max(0.4, span / 1400)
 
 /**
- * FARGEN ER OPERASJONEN, og han må vera EKSAKT.
+ * FARGEN ER OPERASJONEN, og han må vera EKSAKT — og REKKJEFYLGDA LIGG I
+ * FARGEN.
  *
  * Ein SVG har ikkje lag slik ein DXF har det, so laserprogramma har landa
- * på ein avtale i staden: éin farge er éi operasjon. LightBurn — som ni av
- * ti av desse filene endar i — held ein palett med faste verdiar, og ein
+ * på ein avtale i staden: éin farge er éi operasjon. LightBurn, som ni av
+ * ti av desse filene endar i, held ein palett med faste verdiar, og ein
  * farge som ligg NÆR ein av dei er ikkje den fargen. #0047ff er ikkje blå;
- * han er noko som må gjettast på ved import, og gjettinga treng ikkje falle
- * likt to gonger. Rein svart og rein blå fell alltid på same laget.
+ * han er noko som må gjettast på ved import.
+ *
+ * Dei to fyrste plassane i den paletten er svart (C00) og blå (C01), og
+ * LightBurn køyrer laga i den rekkjefylgda dei står i lista. Difor er
+ * GRAVERINGA svart og KUTTET blått, og ikkje omvendt: svart kjem fyrst,
+ * og graveringa må skje medan delen framleis sit fast i plata. Med kuttet
+ * på det fyrste laget vert adressa brend etter at delen er skoren laus,
+ * altso ned i bordet eller på ein del som har flytta seg.
+ *
+ * Det er den eine staden i denne koden der ein vane måtte vike for ei
+ * maskin: «svart er kutt» sit i fingrane på alle som har brukt ein laser.
+ * Men fargen er berre eit namn på eit lag, og rekkjefylgda er ikkje eit
+ * namn. Panelet og README-en seier kva som er kva.
  */
-const CUT = "#000000"
-const GRAV = "#0000ff"
+const GRAV = "#000000"
+const CUT = "#0000ff"
 
 const kutt = (w: number) => `fill="none" stroke="${CUT}" stroke-width="${f(w)}"`
 const grav = (w: number) =>
@@ -224,6 +238,18 @@ export function couponSvg(
  * teikning som er skrumpa til hundre og seksti pikslar er ingen strek i
  * det heile.
  */
+/**
+ * SYNET I PANELET er ikkje ei kuttfil.
+ *
+ * Han er eit bilete på ein skjerm, og der er fargen ikkje ein operasjon —
+ * han er berre farge. Med maskinpaletten vert heile ruta blå, av di kuttet
+ * er det som fyller henne, og ei blå rute ser ut som ein feil. Difor har
+ * synet blekk og grått: kuttet i blekk, adressene svakare, slik panelet
+ * elles ser ut.
+ */
+const SYN_KUTT = "#141414"
+const SYN_GRAV = "#9a9a9a"
+
 export function profileSvg(g: Grid, kerf: number, syn = false): string {
   const GAP = Math.max(10, g.p.tjukn * 2)
   const xr = g.ribs.filter((r) => r.axis === "x")
@@ -256,8 +282,12 @@ export function profileSvg(g: Grid, kerf: number, syn = false): string {
   // Synet i panelet er vist tjue gonger for lite. Ein strek som er rett
   // på ei plate er ingen strek i det heile der.
   const w = syn ? pen(Math.max(W, H)) * 2.2 : pen(Math.max(W, H))
-  const KUTT = kutt(w)
-  const GRAV = grav(w)
+  const KUTT = syn
+    ? `fill="none" stroke="${SYN_KUTT}" stroke-width="${f(w)}"`
+    : kutt(w)
+  const GRAV = syn
+    ? `fill="none" stroke="${SYN_GRAV}" stroke-width="${f(w)}" stroke-linecap="round"`
+    : grav(w)
 
   const out: string[] = []
   out.push(

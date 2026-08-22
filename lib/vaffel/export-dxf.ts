@@ -121,8 +121,11 @@ function head(out: string[], w: number, h: number) {
     "0", "ENDSEC",
     "0", "SECTION", "2", "TABLES",
     "0", "TABLE", "2", "LAYER", "70", "2",
-    "0", "LAYER", "2", "KUTT", "70", "0", "62", "1", "6", "CONTINUOUS",
-    "0", "LAYER", "2", "GRAVER", "70", "0", "62", "3", "6", "CONTINUOUS",
+    // GRAVER står FYRST i tabellen og har det same fargenummeret som
+    // graveringa har i SVG-en. Grunnen er den same: eit program som tek
+    // laga i den orden dei kjem, skal ta graveringa før kuttet.
+    "0", "LAYER", "2", "GRAVER", "70", "0", "62", "7", "6", "CONTINUOUS",
+    "0", "LAYER", "2", "KUTT", "70", "0", "62", "5", "6", "CONTINUOUS",
     "0", "ENDTAB", "0", "ENDSEC",
     "0", "SECTION", "2", "ENTITIES",
   )
