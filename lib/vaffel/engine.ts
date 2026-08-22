@@ -157,10 +157,19 @@ export const VAFFEL: EngineDef = {
 
   exportFile(bag: ParamBag, what: ExportKind): ExportOut {
     const p = asP(bag)
-    const k = makeKropp(p)
     const name = stem(p)
     if (what === "stl") {
-      const bytes = meshToStl(lagMesh(buildGrid(k, p, DETAIL.hog)), name)
+      // SAME OBJEKT SOM DELANE.
+      //
+      // STL-en vart bygd på det finaste detaljnivået medan kuttfilene og
+      // kvart tal i panelet kjem frå det midtre. Det gav elleve til
+      // femogtjue prosent fleire trekantar: ein annan stabel enn den du
+      // skjer. Han er til rendering og 3D-print, so skilnaden er ikkje
+      // farleg — men eit uttak som viser noko anna enn resten av
+      // reiskapen er nett det denne koden elles nektar for. Og det var
+      // ei heil snitting til, på eit nett som kan ha ein million
+      // trekantar.
+      const bytes = meshToStl(lagMesh(makePlan(p, DETAIL.mid).g), name)
       return {
         name: `${name}.stl`,
         mime: "model/stl",
