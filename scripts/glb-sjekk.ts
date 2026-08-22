@@ -43,9 +43,9 @@ function sjekk(
   }
 }
 
-function sjekkFeil(namn: string, buf: ArrayBuffer, vent: RegExp) {
+function sjekkFeil(namn: string, buf: ArrayBuffer, vent: RegExp, fil = "prove.glb") {
   try {
-    parseMesh("prove.glb", buf)
+    parseMesh(fil, buf)
     brot++
     console.log(`FEIL  ${namn.padEnd(30)} skulle ha kasta`)
   } catch (e) {
@@ -186,6 +186,31 @@ sjekk("glb kalla .stl", glb(k.pos, k.idx, [{ mesh: 0 }], [0]), {
   max: [10, 5, 40],
   tris: 12,
 }, "skann.stl")
+
+// Ei fil kan ha fleire bufferar, og `bufferView.buffer` seier kva for ein.
+// Vakta mot .bin-filer ved sida av såg berre på den fyrste: ei fil der
+// buffer TO låg utanfor slapp gjennom, og las skrot ut av den fyrste i
+// staden — utan ei feilmelding, av di byte er byte.
+{
+  const doc = {
+    asset: { version: "2.0" },
+    buffers: [
+      { byteLength: 4, uri: "data:application/octet-stream;base64,AAAAAA==" },
+      { byteLength: 12, uri: "hjorne.bin" },
+    ],
+    bufferViews: [{ buffer: 1, byteOffset: 0, byteLength: 12 }],
+    accessors: [{ bufferView: 0, componentType: 5126, count: 1, type: "VEC3" }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0 } }] }],
+    nodes: [{ mesh: 0 }],
+    scenes: [{ nodes: [0] }],
+  }
+  sjekkFeil(
+    "gltf med .bin i buffer to",
+    new TextEncoder().encode(JSON.stringify(doc)).buffer as ArrayBuffer,
+    /bruk \.glb i staden/,
+    "scene.gltf",
+  )
+}
 
 // =============================================================================
 // SPEGLA NODAR OG PLY-LISTER
