@@ -11,7 +11,7 @@
  * Nettet og kuttfila kjem frå dei same polygona. Ein fres som fylgjer
  * konturen skjer den ribba biletet viser.
  */
-import type { Pt, Vec3 } from "../core"
+import { inRing, type Pt, type Vec3 } from "../core"
 import type { Kropp } from "./kropp"
 import type { Grid, Rib } from "./ribs"
 
@@ -252,19 +252,6 @@ export function ribSolid(s: Soup, r: Rib, t: number) {
 
 /** Ligg punktet inne i ringen? Eit hòl høyrer til den ytterkanten som
  *  omsluttar det, og ei delt ribbe har fleire å velje mellom. */
-export function inRing(ring: Pt[], p: Pt): boolean {
-  let inside = false
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[i]
-    const b = ring[j]
-    if (a[1] > p[1] !== b[1] > p[1]) {
-      const x = ((b[0] - a[0]) * (p[1] - a[1])) / (b[1] - a[1]) + a[0]
-      if (p[0] < x) inside = !inside
-    }
-  }
-  return inside
-}
-
 export function lagMesh(g: Grid) {
   const s = newSoup()
   for (const r of g.ribs) ribSolid(s, r, g.p.tjukn)

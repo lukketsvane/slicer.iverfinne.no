@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { DetailKey, ExportKind, Metrics, ParamBag, Rule, View } from "@/lib/core"
-import { seeded } from "@/lib/core"
 import { KUBE } from "@/lib/sources"
 import { VAFFEL } from "@/lib/vaffel/engine"
 import type { BuildRes, MaalRes, Req, Res, SynRes } from "@/lib/worker"
@@ -29,7 +28,6 @@ function useIsDesktop() {
 
 export function Studio() {
   const [params, setParams] = useState<ParamBag>(() => ({ ...VAFFEL.defaults }))
-  const [locked, setLocked] = useState<ReadonlySet<string>>(() => new Set<string>())
   // «lag» fyrst: ribbene slik dei faktisk står. Det er dei som ER objektet,
   // og det er dei som skil reiskapen frå ein framsyningsmodell. Nettet du
   // kom med er eit klikk unna.
@@ -210,20 +208,6 @@ export function Studio() {
     }))
   }, [])
 
-  const shuffle = useCallback(() => {
-    const rnd = seeded("vaffel:" + Date.now())
-    setParams((p) => VAFFEL.random(rnd, p, locked))
-  }, [locked])
-
-  const toggleLock = useCallback((k: string) => {
-    setLocked((L) => {
-      const cur = new Set(L)
-      if (cur.has(k)) cur.delete(k)
-      else cur.add(k)
-      return cur
-    })
-  }, [])
-
   const doExport = useCallback(
     (what: ExportKind) => {
       setBusy(true)
@@ -360,16 +344,13 @@ export function Studio() {
         rules={rules}
         view={view}
         syn={syn?.svg ?? null}
-        locked={locked}
         hiDetail={hiDetail}
         isDesktop={isDesktop}
         busy={busy}
         feil={feil}
         onChange={setParams}
         onView={setView}
-        onShuffle={shuffle}
         onReset={() => setParams((p) => ({ ...VAFFEL.defaults, kjelde: p.kjelde }))}
-        onToggleLock={toggleLock}
         onToggleDetail={() => setHiDetail((d) => !d)}
         onExport={doExport}
         onShare={share}

@@ -27,11 +27,11 @@
  * nettet ikkje kan kome i utakt på. Ein fres som fylgjer denne konturen
  * skjer nøyaktig den ribba biletet viser, spor, hundebein og alt.
  */
-import { perimeter, type Pt } from "../core"
+import { bbox, inRing, MIN_AREA, perimeter, type ParamBag, type Pt } from "../core"
 import { contour, simplify } from "../contour"
 import type { Span } from "../mesh/solid"
 import type { Kropp } from "./kropp"
-import type { Params } from "./params"
+import { gridKey, type Params } from "./params"
 
 /** ruter langs den lengste sida av objektet, per detaljnivå */
 export const DETAIL = { lav: 90, mid: 150, hog: 240 } as const
@@ -73,11 +73,37 @@ export type Rib = {
   cutLen: number
 }
 
+/**
+ * Kor mange ledd som fell innanfor EITT stykke av ei ribbe.
+ *
+ * Ei ribbe kan vera delt: eit dyr med fire bein gjev ei tverribbe i fire
+ * stykke, og at RIBBA har spor seier ingenting om at akkurat dette stykket
+ * har det. Sporet ligg i stykket sitt eige omriss, med munnen på kanten av
+ * det og botnen inne i det.
+ */
+export function jointsIn(slots: Slot[], outline: Pt[]): number {
+  const b = bbox(outline)
+  let n = 0
+  for (const q of slots) {
+    if (
+      q.t >= b.x0 - 0.6 &&
+      q.t <= b.x1 + 0.6 &&
+      q.zEnd >= b.y0 - 0.6 &&
+      q.zEnd <= b.y1 + 0.6
+    ) {
+      n++
+    }
+  }
+  return n
+}
+
 export type Grid = {
   k: Kropp
   p: Params
   ribs: Rib[]
   joints: number
+  /** stykke som vart kasta av di dei ikkje hang i eit einaste ledd */
+  kasta: number
   xs: number[]
   ys: number[]
   pitchX: number
@@ -226,9 +252,7 @@ function profileOf(
 const NETT = new WeakMap<Kropp, Map<string, Grid>>()
 
 export function buildGrid(k: Kropp, p: Params, cells: number): Grid {
-  const key = [cells, p.ribbX, p.ribbY, p.tjukn, p.klaring, p.ledd, p.leddtype, p.fres].join(
-    "|",
-  )
+  const key = gridKey(p as unknown as ParamBag, cells)
   let per = NETT.get(k)
   if (!per) {
     per = new Map()
@@ -369,16 +393,55 @@ function buildGridRaw(k: Kropp, p: Params, cells: number): Grid {
   for (const l of slotsX) l.sort((u, v) => u.t - v.t)
   for (const l of slotsY) l.sort((u, v) => u.t - v.t)
 
+  let kasta = 0
+
   const mk = (axis: "x" | "y", kk: number, pos: number, slots: Slot[]): Rib => {
     const loops = profileOf(k, p, axis, pos, slots, step)
-    const outlines: Pt[][] = []
-    const holes: Pt[][] = []
+    let outlines: Pt[][] = []
+    let holes: Pt[][] = []
     for (const l of loops) {
       const q = simplify(l.pts, Math.min(0.25, step / 8)) as Pt[]
       if (q.length < 3) continue
       if (l.area > 0) outlines.push(q)
       else holes.push(q)
     }
+
+    /**
+     * KVA SOM IKKJE SKAL VERA MED.
+     *
+     * To ting, og begge vert avgjorde HER — i rutenettet, ikkje i
+     * kuttlista. Blir dei avgjorde seinare, står det att stykke i biletet
+     * som aldri kjem i fila, og då er ikkje biletet lenger eit svar på kva
+     * maskina gjer. Nett det var feilen: små flis flaut i lufta på skjermen
+     * medan uttaket for lengst hadde sila dei bort.
+     *
+     *   FLIS    under `MIN_AREA`. Går alltid bort.
+     *   LAUST   eit stykke utan eit einaste ledd. Det heng ikkje i noko:
+     *           på ein hest er det øyretippen og ein bit av ein hov, der
+     *           kroppen er tynnare enn luka mellom ribbene og ingen ribbe
+     *           frå den andre familien møter han. `lause` avgjer om han
+     *           skal skjerast likevel.
+     */
+    const holesOf = (o: Pt[]) =>
+      outlines.length === 1 ? holes : holes.filter((h) => inRing(o, h[0]))
+    const netto = (o: Pt[]) => {
+      let a = Math.abs(shoe(o))
+      for (const h of holesOf(o)) a -= Math.abs(shoe(h))
+      return a
+    }
+    const heil = outlines.filter((o) => {
+      if (netto(o) < MIN_AREA) return false
+      if (p.lause && jointsIn(slots, o) === 0) {
+        kasta++
+        return false
+      }
+      return true
+    })
+    if (heil.length !== outlines.length) {
+      holes = holes.filter((h) => heil.some((o) => inRing(o, h[0])))
+      outlines = heil
+    }
+
     let area = 0
     let cut = 0
     for (const o of outlines) {
@@ -434,6 +497,7 @@ function buildGridRaw(k: Kropp, p: Params, cells: number): Grid {
     p,
     ribs,
     joints,
+    kasta,
     xs,
     ys,
     pitchX,

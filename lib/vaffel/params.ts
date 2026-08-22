@@ -9,13 +9,7 @@
  * noko som alt er bestemt av geometrien er eit tal som kan kome i utakt med
  * henne. Det einaste som er eit val, er kvar i overlappet delinga ligg.
  */
-import {
-  clampBag,
-  randomBag,
-  type Group,
-  type ParamBag,
-  type Range,
-} from "../core"
+import { clampBag, type Group, type ParamBag, type Range } from "../core"
 
 export type Params = {
   /** kva nett som vert snitta: «kube», eller namnet på ei importert fil */
@@ -35,6 +29,7 @@ export type Params = {
   ribbX: number // ribber på tvers av X
   ribbY: number // ribber på tvers av Y
   tjukn: number // platetjukn, mm
+  lause: number // 0 tek med stykke utan ledd, 1 kastar dei
 
   // --- LEDD ---------------------------------------------------------------
   klaring: number // sporet breiare enn plata, mm
@@ -68,6 +63,19 @@ export const LEDDTYPAR = ["rett", "hundebein", "t-bein"] as const
  */
 export const SNITTVEGAR = ["i fila", "i maskina"] as const
 
+/**
+ * Kva som skjer med eit stykke som ikkje heng i eit einaste ledd.
+ *
+ * Ei ribbe kan vera delt, og eit av stykka kan liggje der kroppen er
+ * tynnare enn luka mellom ribbene: øyretippen på ein hest, ein bit av ein
+ * hov. Ingen ribbe frå den andre familien møter han, so han er ei laus
+ * plate. Han står i kuttlista, tek plass på plata, og ligg att i eska.
+ *
+ * Standarden kastar dei. Talet står framleis i panelet, so du ser kva du
+ * mista — men du får ikkje ei fil full av flis du ikkje bad om.
+ */
+export const LAUSE = ["ta med", "kast"] as const
+
 export const PARAM_RANGES: Record<string, Range> = {
   storleik: { min: 40, max: 1200, step: 5, label: "storleik", unit: "mm" },
   rotX: { min: -180, max: 180, step: 1, label: "vend x", unit: "°" },
@@ -80,6 +88,7 @@ export const PARAM_RANGES: Record<string, Range> = {
   ribbX: { min: 1, max: 32, step: 1, label: "ribber langs x", int: true },
   ribbY: { min: 1, max: 32, step: 1, label: "ribber langs y", int: true },
   tjukn: { min: 1, max: 25, step: 0.1, label: "tjukn", unit: "mm" },
+  lause: { min: 0, max: 1, step: 1, label: "lause stykke", int: true, names: LAUSE },
 
   klaring: { min: 0, max: 0.6, step: 0.01, label: "klaring", unit: "mm" },
   ledd: { min: 0.2, max: 0.8, step: 0.01, label: "leddeling" },
@@ -96,12 +105,46 @@ export const PARAM_RANGES: Record<string, Range> = {
 export const GROUPS: readonly Group[] = [
   { id: "form", label: "form", keys: ["storleik", "rotX", "rotY", "rotZ"] },
   { id: "nett", label: "nett", keys: ["glatt", "trekant"] },
-  { id: "ribber", label: "ribber", keys: ["ribbX", "ribbY", "tjukn"] },
+  { id: "ribber", label: "ribber", keys: ["ribbX", "ribbY", "tjukn", "lause"] },
   { id: "ledd", label: "ledd", keys: ["klaring", "ledd", "leddtype"] },
   { id: "kutt", label: "kutt", keys: ["fres", "snitt", "snittveg", "fart", "arkB", "arkH"] },
 ]
 
 export const PARAM_KEYS = GROUPS.flatMap((g) => g.keys)
+
+/** alt eit uttak er ein funksjon av, tal og namn */
+export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "material"]
+
+/**
+ * NØKLANE EIT MELLOMBYGG KAN HUGSAST PÅ.
+ *
+ * Eit hugsa bygg som er nøkla på for få parametrar er den verste feilen
+ * denne koden kan gjere: skyvaren rører seg, talet i panelet står stille,
+ * og ingenting feilar. Det har hendt to gonger her.
+ *
+ * Difor er lista snudd. Ho seier kva som IKKJE tel, og alt anna tel. Ein
+ * ny parameter hamnar automatisk i nøkkelen, og verste utfallet er at eit
+ * bygg vert rekna ein gong for mykje — ikkje at det står att eit svar frå
+ * eit anna punkt i parameterrommet.
+ */
+const BERRE_UTTAK = new Set(["snitt", "snittveg", "fart"])
+const BERRE_ARK = new Set(["arkB", "arkH", "material"])
+
+const nokkel = (p: ParamBag, keys: readonly string[], cells: number) =>
+  cells + "|" + keys.map((k) => p[k]).join("|")
+
+/** planen: ribber, delar og pakking. Alt utanom det som berre er uttak. */
+export const planKey = (p: ParamBag, cells: number) =>
+  nokkel(p, ALLE_KEYS.filter((k) => !BERRE_UTTAK.has(k)), cells)
+
+/** rutenettet: som planen, men plata og materialet rører det ikkje. Han
+ *  vert hugsa per kropp, so kroppsparametrane ligg alt i kroppen. */
+export const gridKey = (p: ParamBag, cells: number) =>
+  nokkel(
+    p,
+    ALLE_KEYS.filter((k) => !BERRE_UTTAK.has(k) && !BERRE_ARK.has(k)),
+    cells,
+  )
 
 /**
  * Standarden er ein kube.
@@ -125,6 +168,7 @@ export const DEFAULT_PARAMS: Params = {
   ribbX: 6,
   ribbY: 6,
   tjukn: 2,
+  lause: 1,
 
   klaring: 0.15,
   ledd: 0.5,
@@ -145,27 +189,4 @@ export const NUDGE_PARAMS = { vertical: "ribbY", horizontal: "ribbX" }
 
 export function clampParams(o: unknown, prev: Params): Params {
   return clampBag(o, prev, PARAM_RANGES, PARAM_KEYS)
-}
-
-/**
- * Terningen rører ribber, tjukn og vending — ikkje kjelda, ikkje arket og
- * ikkje fresen. Eit kast som byter ut nettet ditt er ikkje eit kast, det er
- * eit tap; og eit kast som gjev deg ei plate du ikkje har, er eit kast som
- * ikkje kan skjerast.
- */
-const KAST = ["storleik", "rotX", "rotY", "rotZ", "glatt", "ribbX", "ribbY", "tjukn", "ledd"]
-
-export function randomParams(
-  rnd: () => number,
-  prev: Params,
-  locked: ReadonlySet<string> = new Set(),
-): Params {
-  const q = randomBag(rnd, prev, PARAM_RANGES, KAST, locked)
-  // Tjukna skal vera ei plate ein får kjøpt. Terningen får velje kva for
-  // ei, men ikkje å finne opp ei ny.
-  if (!locked.has("tjukn")) {
-    const t = [2, 2.5, 3, 4, 6]
-    q.tjukn = t[Math.floor(rnd() * t.length)]
-  }
-  return q
 }

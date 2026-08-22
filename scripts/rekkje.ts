@@ -34,6 +34,10 @@ const feil = (namn: string, kva: string) => {
 // =============================================================================
 // SVG
 // =============================================================================
+/** Graveringa er svart (C00) og kuttet blått (C01). Sjå export-svg.ts:
+ *  fargen ber rekkjefylgda, av di LightBurn tek laga i palettorden. */
+const GRAV_FARGE = /stroke="#000000"/i
+
 /** hjørna i eit «d»-attributt — banene her er berre M, L og Z */
 function pathPts(d: string): Pt[] {
   return d
@@ -46,12 +50,21 @@ function pathPts(d: string): Pt[] {
 
 type Steg = { grav: boolean; areal: number; y: number }
 
-function svgSteg(svg: string): Steg[] {
+function svgSteg(namn: string, svg: string): Steg[] {
   const out: Steg[] = []
+  const fargar = new Set<string>()
   for (const m of svg.matchAll(/<path d="([^"]+)"([^>]*)>/g)) {
-    const grav = /stroke="#0000ff"/i.test(m[2])
+    const grav = GRAV_FARGE.test(m[2])
+    fargar.add((m[2].match(/stroke="([^"]+)"/i)?.[1] ?? "").toLowerCase())
     out.push({ grav, areal: grav ? 0 : shoelace(pathPts(m[1])), y: 0 })
   }
+  // To fargar, og ikkje ein til. Ein tredje farge er eit tredje lag i
+  // LightBurn: eitt nokon må hugse å slå av, og eitt nokon ein dag
+  // gløymer. Fyllingar er same saka: ei fylling ber maskina brenne heile
+  // flata.
+  const ulovleg = [...fargar].filter((f) => f !== "#000000" && f !== "#0000ff")
+  if (ulovleg.length) feil(namn, `framande fargar: ${ulovleg.join(", ")}`)
+  if (/fill="(?!none)/i.test(svg)) feil(namn, "noko er fylt")
   return out
 }
 
@@ -187,10 +200,10 @@ const saker: [string, Params][] = [
 ]
 
 /** kuttfila er éi fil per plate, so kvar plate vert prøvd for seg */
-function arkSteg(p: Params): Steg[][] {
+function arkSteg(namn: string, p: Params): Steg[][] {
   const { ns } = makePlan(p, DETAIL.mid)
   const kerf = p.snittveg ? 0 : p.snitt
-  return ns.sheets.map((_, i) => svgSteg(sheetSvg(ns, i, kerf)))
+  return ns.sheets.map((_, i) => svgSteg(`${namn} · ark ${i + 1}`, sheetSvg(ns, i, kerf)))
 }
 
 /**
@@ -210,10 +223,13 @@ function dxfPerArk(dxf: string, arkH: number): Steg[][] {
 
 for (const [namn, p] of saker) {
   const bag = p as unknown as ParamBag
-  arkSteg(p).forEach((steg, i, all) =>
+  arkSteg(namn, p).forEach((steg, i, all) =>
     sjekkSteg(`${namn} · ark ${i + 1}/${all.length}`, steg),
   )
-  sjekkSteg(`${namn} · profilar`, svgSteg(VAFFEL.exportFile(bag, "svg").text ?? ""))
+  sjekkSteg(
+    `${namn} · profilar`,
+    svgSteg(`${namn} · profilar`, VAFFEL.exportFile(bag, "svg").text ?? ""),
+  )
   dxfPerArk(VAFFEL.exportFile(bag, "dxf").text ?? "", p.arkH).forEach((steg, i, all) =>
     sjekkSteg(`${namn} · dxf ${i + 1}/${all.length}`, steg),
   )
@@ -221,7 +237,7 @@ for (const [namn, p] of saker) {
 
 sjekkSteg(
   "passprøve",
-  svgSteg(VAFFEL.exportFile(DEFAULT_PARAMS as unknown as ParamBag, "prove").text ?? ""),
+  svgSteg("passprøve", VAFFEL.exportFile(DEFAULT_PARAMS as unknown as ParamBag, "prove").text ?? ""),
 )
 
 // =============================================================================
@@ -233,7 +249,11 @@ sjekkSteg(
  * like, kompenserer nokon to gonger.
  */
 const teikn = (p: Partial<Params>) =>
-  JSON.stringify(arkSteg({ ...DEFAULT_PARAMS, ...p }).map((s) => s.map((q) => q.areal.toFixed(3))))
+  JSON.stringify(
+    arkSteg("snittveg", { ...DEFAULT_PARAMS, ...p }).map((s) =>
+      s.map((q) => q.areal.toFixed(3)),
+    ),
+  )
 
 const nominell = teikn({ snitt: 0 })
 const iMaskina = teikn({ snitt: 0.2, snittveg: 1 })

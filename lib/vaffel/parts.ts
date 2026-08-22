@@ -10,9 +10,8 @@
  * lista av di det er talet som avgjer kor mange oppspenningar ein treng —
  * og på ein kube er det eitt, same kor mange ribber du set opp.
  */
-import { bbox, MATERIALS, perimeter, shoelace, type Material, type Pt } from "../core"
-import { inRing } from "./mesh"
-import type { Grid } from "./ribs"
+import { bbox, MATERIALS, perimeter, shoelace, inRing, type Material, type Pt } from "../core"
+import { jointsIn, type Grid } from "./ribs"
 
 export type Part = {
   /** forma. To delar med same id er den same delen */
@@ -101,9 +100,6 @@ export function buildParts(g: Grid): PartList {
   const parts: Part[] = []
   const seen = new Map<string, string>()
   const ids: string[] = []
-  // Ein del under fire kvadratcentimeter er ein flis fresen slit seg laus
-  // på, ikkje ein del. Han står ikkje i lista og han vert ikkje skoren.
-  const MIN = 400
 
   for (const r of g.ribs) {
     let stykke = 0
@@ -113,9 +109,10 @@ export function buildParts(g: Grid): PartList {
       // er det trivielt; er ribba delt, må kvart hòl finne heimen sin.
       const mine =
         r.outlines.length === 1 ? r.holes : r.holes.filter((h) => inRing(o, h[0]))
+      // Ingen minstegrense her: rutenettet har alt sila bort flisa, og
+      // det er heile poenget at dei to listene er den same lista.
       let area = Math.abs(shoelace(o))
       for (const h of mine) area -= Math.abs(shoelace(h))
-      if (area < MIN) continue
       const key = shapeKey(o, mine)
       let id = seen.get(key)
       if (!id) {
@@ -126,16 +123,8 @@ export function buildParts(g: Grid): PartList {
       let cut = perimeter(o)
       for (const h of mine) cut += perimeter(h)
       // Ei ribbe kan vera delt i fleire stykke, og då er det ikkje nok at
-      // RIBBA har ledd — dette stykket må ha dei. Sporet ligg i stykket
-      // sitt eige omriss: munnen på det, og botnen inne i det.
-      const b = bbox(o)
-      const joints = r.slots.filter(
-        (q) =>
-          q.t >= b.x0 - 0.6 &&
-          q.t <= b.x1 + 0.6 &&
-          q.zEnd >= b.y0 - 0.6 &&
-          q.zEnd <= b.y1 + 0.6,
-      ).length
+      // RIBBA har ledd — dette stykket må ha dei.
+      const joints = jointsIn(r.slots, o)
       const adr =
         r.axis.toUpperCase() + (r.k + 1) + (fleire ? "abcdefgh"[stykke++] ?? "z" : "")
       parts.push({

@@ -38,6 +38,16 @@ export const MATERIALS: Record<
  *  dei knappar og ikkje eit tal ein må treffe. */
 export const TJUKNER = [2, 2.5, 3, 4, 6, 9, 12, 18] as const
 
+/**
+ * Minste stykke som er ein DEL, mm².
+ *
+ * Under fire kvadratcentimeter er det ein flis: fresen slit han laus,
+ * laseren slepp han ned i bordet, og ingen finn han att i eska. Talet står
+ * her og ikkje i kuttlista, av di rutenettet må bruke det same: eit stykke
+ * som ikkje kjem i fila, skal ikkje stå i biletet heller.
+ */
+export const MIN_AREA = 400
+
 // =============================================================================
 // PARAMETERROM
 // =============================================================================
@@ -96,45 +106,6 @@ export function clampBag<P extends ParamBag>(
   return out as P
 }
 
-/** Terningen: nye tal innanfor grensene, låste nøklar rører seg ikkje.
- *  Kjelda vert aldri kasta — han er nettet ditt, ikkje ein smak. */
-export function randomBag<P extends ParamBag>(
-  rnd: () => number,
-  prev: P,
-  ranges: Record<string, Range>,
-  keys: readonly string[],
-  locked: ReadonlySet<string> = new Set(),
-): P {
-  const out = { ...prev } as Record<string, number | string>
-  for (const k of keys) {
-    if (locked.has(k)) continue
-    const r = ranges[k]
-    // Trekk mot midten av bandet. Reine uniforme trekk gjev for mange
-    // objekt som ligg og skrapar mot ei grense, og eit objekt som ligg mot
-    // grensa er som regel eit objekt som bryt ein regel.
-    const t = (rnd() + rnd() + rnd()) / 3
-    out[k] = clamp1(r.min + t * (r.max - r.min), r)
-  }
-  return out as P
-}
-
-/** Deterministisk PRNG, slik at éin frøtekst alltid gjev same objekt. */
-export function seeded(seed: string): () => number {
-  let h = 2166136261 >>> 0
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i)
-    h = Math.imul(h, 16777619) >>> 0
-  }
-  return () => {
-    h ^= h << 13
-    h >>>= 0
-    h ^= h >> 17
-    h ^= h << 5
-    h >>>= 0
-    return h / 4294967296
-  }
-}
-
 /** Norsk desimalskiljeteikn. Eit tal med punktum i ein norsk tabell les som
  *  eit tal henta frå eit anna dokument. */
 export const nn = (v: number, d = 0) =>
@@ -177,7 +148,7 @@ export type Metrics = {
 
   parts: number // tal delar i kuttlista
   unique: number // kor mange av dei som er ULIKE — det er oppspenningane
-  loose: number // delar utan eit einaste ledd — dei fell ut av stabelen
+  loose: number // stykke utan eit einaste ledd: kasta, eller med i lista
   joints: number // kryssledd som faktisk vart skorne
   units: number // ribber i alt
   unitLabel: string
@@ -278,6 +249,26 @@ export function bbox(poly: Pt[]): { x0: number; y0: number; x1: number; y1: numb
     if (q[1] > y1) y1 = q[1]
   }
   return { x0, y0, x1, y1 }
+}
+
+/**
+ * Ligg punktet inne i ringen? Stråle mot høgre, tel kryssingar.
+ *
+ * Ho står her og ikkje i vaffelmappa av di tre ting spør om det same:
+ * kva hòl som høyrer til kva ytterkant når ei ribbe er delt i fleire
+ * stykke — i biletet, i kuttlista og i ribba sjølv.
+ */
+export function inRing(ring: Pt[], p: Pt): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i]
+    const b = ring[j]
+    if (a[1] > p[1] !== b[1] > p[1]) {
+      const x = ((b[0] - a[0]) * (p[1] - a[1])) / (b[1] - a[1]) + a[0]
+      if (p[0] < x) inside = !inside
+    }
+  }
+  return inside
 }
 
 /** omkrinsen av ein ring — kuttlengda hans */
