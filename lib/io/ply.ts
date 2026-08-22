@@ -15,6 +15,32 @@
 import { makeSoup, type Soup } from "../soup"
 
 type Prop = { name: string; type: string; list?: { count: string; item: string } }
+
+/**
+ * KVA FOR EI LISTE PÅ EI FLATE SOM ER TREKANTANE.
+ *
+ * Ei PLY-flate kan ha fleire lister. `vertex_indices` er hjørna; ved sida
+ * av han ligg det ofte ei `texcoord`-liste med seks flyttal, og på fila
+ * frå ein fotogrammetri-pakke er ho der nesten alltid. Blir HO òg lesen
+ * som hjørne, kjem det fire ekstra trekantar per flate, laga av
+ * teksturkoordinatar tolka som indeksar — eit tetraeder på fire trekantar
+ * kom inn med tjue.
+ *
+ * Ingen av dei ekstra trekantane er der objektet er, og strålane tel
+ * vindinga: eit nett med slikt i seg har ikkje ei innside lenger.
+ *
+ * Er ingen av listene namngjeven som ein indeks, held vi på den fyrste.
+ * Ho står fyrst i kvar PLY nokon har skrive.
+ */
+function indeksLista(props: Prop[]): number {
+  let fyrste = -1
+  for (let i = 0; i < props.length; i++) {
+    if (props[i].type !== "list") continue
+    if (fyrste < 0) fyrste = i
+    if (props[i].name.toLowerCase().includes("ind")) return i
+  }
+  return fyrste
+}
 type Elem = { name: string; count: number; props: Prop[] }
 
 const SIZE: Record<string, number> = {
@@ -102,12 +128,18 @@ function readAscii(txt: string, elems: Elem[]): Soup {
         for (let j = 0; j < e.props.length; j++) row.push(next())
         vx.push(row[xi], row[yi], row[zi])
       } else if (e.name === "face") {
-        for (const p of e.props) {
+        const idx = indeksLista(e.props)
+        for (let k = 0; k < e.props.length; k++) {
+          const p = e.props[k]
           if (p.type === "list") {
             const c = next()
-            const ring: number[] = []
-            for (let j = 0; j < c; j++) ring.push(next())
-            fan(ring, tri)
+            if (k === idx) {
+              const ring: number[] = []
+              for (let j = 0; j < c; j++) ring.push(next())
+              fan(ring, tri)
+            } else {
+              for (let j = 0; j < c; j++) next()
+            }
           } else next()
         }
       } else {
@@ -165,11 +197,13 @@ function readBinary(dv: DataView, elems: Elem[], le: boolean): Soup {
       at = base + e.count * off
       continue
     }
+    const idx = indeksLista(e.props)
     for (let i = 0; i < e.count; i++) {
-      for (const p of e.props) {
+      for (let k = 0; k < e.props.length; k++) {
+        const p = e.props[k]
         if (p.type === "list" && p.list) {
           const c = read(p.list.count)
-          if (e.name === "face" && p.name.includes("ind")) {
+          if (e.name === "face" && k === idx) {
             const ring: number[] = []
             for (let j = 0; j < c; j++) ring.push(read(p.list.item))
             fan(ring, tri)

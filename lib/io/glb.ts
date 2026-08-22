@@ -31,6 +31,30 @@ const ID: Mat = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 /** Y opp (glTF) til Z opp (verkstaden): (x, y, z) → (x, −z, y) */
 const ZUP: Mat = [1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1]
 
+/**
+ * Determinanten til dei tre basisvektorane.
+ *
+ * Er han negativ, er noden SPEGLA, og ei spegling snur handa: trekantane
+ * kjem ut med motsett vinding og vender inn i staden for ut. glTF seier
+ * det sjølv, og det er ikkje ein finesse her — snittinga tel vindinga med
+ * SUM. Ein spegla node vert då talt som minus eitt skal, og der han
+ * ligg har objektet inga innside: hòl midt i kroppen, eller ingen delar
+ * i det heile.
+ *
+ * Det globale vrengjevernet i `makeKropp` reddar ikkje dette. Han snur
+ * heile nettet når volumet er negativt, og eit nett der HALVPARTEN er
+ * spegla — ein Blender-modell med ein spegla instans, som er den
+ * vanlegaste symmetriske modellen som finst — har framleis positivt
+ * volum.
+ */
+function det3(m: Mat): number {
+  return (
+    m[0] * (m[5] * m[10] - m[6] * m[9]) -
+    m[4] * (m[1] * m[10] - m[2] * m[9]) +
+    m[8] * (m[1] * m[6] - m[2] * m[5])
+  )
+}
+
 function mul(a: Mat, b: Mat): Mat {
   const o = new Array<number>(16)
   for (let c = 0; c < 4; c++) {
@@ -249,30 +273,27 @@ function fromDoc(doc: Doc, bin: Uint8Array | null): Soup {
         )
       }
 
+      // Ein spegla node snur handa, og då må vindinga snuast attende.
+      const spegla = det3(m) < 0
+      const tri = (a: number, b: number, c: number) => {
+        put(a)
+        put(spegla ? c : b)
+        put(spegla ? b : c)
+      }
+
       if (mode === 4) {
         for (let t = 0; t + 2 < idx.length; t += 3) {
-          put(idx[t])
-          put(idx[t + 1])
-          put(idx[t + 2])
+          tri(idx[t], idx[t + 1], idx[t + 2])
         }
       } else if (mode === 5) {
         // stripe: annakvar trekant snur, elles vender halve nettet feil veg
         for (let t = 0; t + 2 < idx.length; t++) {
-          if (t % 2 === 0) {
-            put(idx[t])
-            put(idx[t + 1])
-            put(idx[t + 2])
-          } else {
-            put(idx[t + 1])
-            put(idx[t])
-            put(idx[t + 2])
-          }
+          if (t % 2 === 0) tri(idx[t], idx[t + 1], idx[t + 2])
+          else tri(idx[t + 1], idx[t], idx[t + 2])
         }
       } else if (mode === 6) {
         for (let t = 1; t + 1 < idx.length; t++) {
-          put(idx[0])
-          put(idx[t])
-          put(idx[t + 1])
+          tri(idx[0], idx[t], idx[t + 1])
         }
       }
     }
