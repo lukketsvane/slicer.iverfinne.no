@@ -15,7 +15,7 @@
  *
  *   npx tsx scripts/rekkje.ts
  */
-import { shoelace, type ParamBag, type Pt } from "../lib/core"
+import { inRing, shoelace, type ParamBag, type Pt } from "../lib/core"
 import { VAFFEL } from "../lib/vaffel/engine"
 import { makePlan } from "../lib/vaffel/plan"
 import { DETAIL } from "../lib/vaffel/ribs"
@@ -66,6 +66,43 @@ function svgSteg(namn: string, svg: string): Steg[] {
   if (ulovleg.length) feil(namn, `framande fargar: ${ulovleg.join(", ")}`)
   if (/fill="(?!none)/i.test(svg)) feil(namn, "noko er fylt")
   return out
+}
+
+/**
+ * GRAVERINGA SKAL LIGGJE I SIN EIGEN DEL.
+ *
+ * Adressa vert plassert av nestinga, i eit rom ho har målt seg fram til
+ * inne i delen. Bommar den målinga, hamnar bokstavane utanfor omrisset —
+ * og då brenner du dei ned i bordet, eller på nabodelen. På skjermen ser
+ * arket likt ut anten adressa ligg to millimeter innanfor kanten eller to
+ * millimeter utanfor.
+ *
+ * Difor vert kvart einaste punkt i kvar graverte bane prøvd mot dei
+ * kuttbanene som er OMRISS. Ligg eit punkt i inkje, seier vakta frå.
+ *
+ * Gjeld ark og passprøve. Profilarket legg adressa UNDER kvar profil med
+ * vilje: det er ei teikning til å lese, ikkje ei plate til å skjere.
+ */
+function graveringaLiggInne(namn: string, svg: string) {
+  const omriss: Pt[][] = []
+  const grav: Pt[][] = []
+  for (const m of svg.matchAll(/<path d="([^"]+)"([^>]*)>/g)) {
+    const pts = pathPts(m[1])
+    if (GRAV_FARGE.test(m[2])) grav.push(pts)
+    else omriss.push(pts)
+  }
+  if (!grav.length || !omriss.length) return
+  // Vindinga er ikkje til å stole på her; storleiken er. Eit hòl ligg
+  // inni eit omriss og er mindre, so den største banen er eit omriss, og
+  // alt som går same vegen som han er det òg.
+  const v = omriss.reduce((b, o) => (Math.abs(shoelace(o)) > Math.abs(shoelace(b)) ? o : b))
+  const vv = shoelace(v) < 0 ? -1 : 1
+  const ytre = omriss.filter((o) => shoelace(o) * vv > 0)
+  let ute = 0
+  for (const g of grav) {
+    for (const q of g) if (!ytre.some((o) => inRing(o, q))) ute++
+  }
+  if (ute) feil(namn, `${ute} graverte punkt ligg utanfor alle omriss`)
 }
 
 /**
@@ -203,7 +240,11 @@ const saker: [string, Params][] = [
 function arkSteg(namn: string, p: Params): Steg[][] {
   const { ns } = makePlan(p, DETAIL.mid)
   const kerf = p.snittveg ? 0 : p.snitt
-  return ns.sheets.map((_, i) => svgSteg(`${namn} · ark ${i + 1}`, sheetSvg(ns, i, kerf)))
+  return ns.sheets.map((_, i) => {
+    const svg = sheetSvg(ns, i, kerf)
+    graveringaLiggInne(`${namn} · ark ${i + 1}`, svg)
+    return svgSteg(`${namn} · ark ${i + 1}`, svg)
+  })
 }
 
 /**
@@ -235,10 +276,9 @@ for (const [namn, p] of saker) {
   )
 }
 
-sjekkSteg(
-  "passprøve",
-  svgSteg("passprøve", VAFFEL.exportFile(DEFAULT_PARAMS as unknown as ParamBag, "prove").text ?? ""),
-)
+const kupong = VAFFEL.exportFile(DEFAULT_PARAMS as unknown as ParamBag, "prove").text ?? ""
+graveringaLiggInne("passprøve", kupong)
+sjekkSteg("passprøve", svgSteg("passprøve", kupong))
 
 // =============================================================================
 // SNITTET SKAL TAKAST NØYAKTIG EIN GONG
