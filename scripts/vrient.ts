@@ -268,5 +268,86 @@ for (const s of SØPPEL) {
   }
 }
 
+// =============================================================================
+// PAKKA MÅ KUNNE OPNAST
+// =============================================================================
+/**
+ * ZIP-en er femti liner skrivne for hand, og ein ZIP med feil offset er
+ * ikkje ein ZIP med ein liten feil — han er ei fil ingenting opnar. Verre:
+ * han lastar ned utan eit pip, og brukaren står med ei arkivfil
+ * nettlesaren nektar å pakke ut.
+ *
+ * Difor vert han lesen tilbake her, gjennom den sentrale katalogen slik
+ * eit ekte program les han, og innhaldet samanlikna med det som gjekk inn.
+ */
+function lesZip(buf: ArrayBuffer): { name: string; text: string }[] {
+  const b = new DataView(buf)
+  const u8 = new Uint8Array(buf)
+  const tekst = (fra: number, n: number) =>
+    new TextDecoder().decode(u8.subarray(fra, fra + n))
+
+  // EOCD ligg sist, med kommentaren etter seg. Han vert leita opp bakfrå.
+  let eocd = -1
+  for (let i = buf.byteLength - 22; i >= 0; i--) {
+    if (b.getUint32(i, true) === 0x06054b50) {
+      eocd = i
+      break
+    }
+  }
+  if (eocd < 0) throw new Error("ingen EOCD: dette er ikkje ein ZIP")
+  const tal = b.getUint16(eocd + 10, true)
+  let p = b.getUint32(eocd + 16, true)
+
+  const ut: { name: string; text: string }[] = []
+  for (let i = 0; i < tal; i++) {
+    if (b.getUint32(p, true) !== 0x02014b50) throw new Error(`katalogpost ${i} har feil signatur`)
+    const nLen = b.getUint16(p + 28, true)
+    const eLen = b.getUint16(p + 30, true)
+    const kLen = b.getUint16(p + 32, true)
+    const size = b.getUint32(p + 24, true)
+    const lokal = b.getUint32(p + 42, true)
+    const name = tekst(p + 46, nLen)
+    if (b.getUint32(lokal, true) !== 0x04034b50) {
+      throw new Error(`«${name}» peikar på noko som ikkje er ein lokal hovudpost`)
+    }
+    const lnLen = b.getUint16(lokal + 26, true)
+    const leLen = b.getUint16(lokal + 28, true)
+    ut.push({ name, text: tekst(lokal + 30 + lnLen + leLen, size) })
+    p += 46 + nLen + eLen + kLen
+  }
+  return ut
+}
+
+console.log("\npakka må kunne opnast")
+for (const [namn, over] of [
+  ["to plater", { storleik: 150 }],
+  ["seks plater", { storleik: 400, ribbX: 12, ribbY: 9, tjukn: 6, arkB: 1200, arkH: 900 }],
+] as [string, Partial<Params>][]) {
+  saker++
+  const o = VAFFEL.exportFile({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag, "ark")
+  // Éi plate er éi fil og ingen pakke. Er det fleire, MÅ det vera ei
+  // pakke — kjem det ei enkelt fil då, har ei plate forsvunne.
+  const ark = VAFFEL.measure({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag).sheets
+  if (!o.data) {
+    if (ark > 1) feil(namn, `${ark} plater, men uttaket er éi enkelt fil`)
+    else console.log(`  ${namn.padEnd(14)} ${ark} plate, ingen pakke`)
+    continue
+  }
+  try {
+    const filer = lesZip(o.data)
+    const tomme = filer.filter((f) => !f.text.includes("<path"))
+    if (!filer.length) feil(namn, "pakka er tom")
+    if (tomme.length) feil(namn, `${tomme.length} filer i pakka har ingen banar`)
+    for (const f of filer) {
+      if (!f.text.startsWith("<svg") || !f.text.trimEnd().endsWith("</svg>")) {
+        feil(namn, `«${f.name}» er ikkje eit heilt SVG-dokument`)
+      }
+    }
+    console.log(`  ${namn.padEnd(14)} ${filer.length} filer, ${o.data.byteLength} B: ${filer.map((f) => f.name).join(", ")}`)
+  } catch (e) {
+    feil(namn, `pakka let seg ikkje lesa: ${(e as Error).message}`)
+  }
+}
+
 console.log(brot ? `\n${saker} saker, ${brot} brot` : `\n${saker} saker, ingen brot`)
 process.exit(brot ? 1 : 0)
