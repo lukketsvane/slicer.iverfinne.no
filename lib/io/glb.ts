@@ -173,16 +173,7 @@ export function parseGlb(buf: ArrayBuffer): Soup {
 /** glTF som tekst. Berre med data-URI-ar: ei .gltf som peikar på ei .bin
  *  ved sida av seg har ikkje den fila med seg når ho vert dregen inn. */
 export function parseGltf(txt: string): Soup {
-  const doc = JSON.parse(txt) as Doc
-  const uri = doc.buffers?.[0]?.uri
-  let bin: Uint8Array | null = null
-  if (uri) {
-    if (!uri.startsWith("data:")) {
-      throw new Error("gltf peikar på ei .bin ved sida av seg — bruk .glb i staden")
-    }
-    bin = b64(uri.slice(uri.indexOf(",") + 1))
-  }
-  return fromDoc(doc, bin)
+  return fromDoc(JSON.parse(txt) as Doc, null)
 }
 
 function b64(s: string): Uint8Array {
@@ -200,7 +191,32 @@ function fromDoc(doc: Doc, bin: Uint8Array | null): Soup {
       )
     }
   }
-  if (!bin) throw new Error("fann ingen bufferdata i fila")
+  /**
+   * EI FIL KAN HA FLEIRE BUFFERAR.
+   *
+   * `bufferView.buffer` seier kva for ein. Det talet vart ikkje lese: alt
+   * vart henta ut av den fyrste, med offset som høyrer til ein annan. Og
+   * vakta mot .bin-filer ved sida av såg berre på buffer null, so ei fil
+   * der buffer TO låg utanfor slapp gjennom og las skrot i staden — utan
+   * ei feilmelding, av di byte er byte.
+   *
+   * I ein GLB er buffer null BIN-blokka. Alle andre må ha ein uri, og han
+   * må vera ein data-uri: ei fil ved sida av seg finst ikkje når nokon
+   * har drege ei einskild fil inn i ein nettlesar.
+   */
+  const bufs: Uint8Array[] = (doc.buffers ?? []).map((b, i) => {
+    if (i === 0 && !b.uri && bin) return bin
+    if (!b.uri) {
+      if (bin) return bin
+      throw new Error("fann ingen bufferdata i fila")
+    }
+    if (!b.uri.startsWith("data:")) {
+      throw new Error("gltf peikar på ei .bin ved sida av seg — bruk .glb i staden")
+    }
+    return b64(b.uri.slice(b.uri.indexOf(",") + 1))
+  })
+  if (!bufs.length && bin) bufs.push(bin)
+  if (!bufs.length) throw new Error("fann ingen bufferdata i fila")
   const views = doc.bufferViews ?? []
   const accs = doc.accessors ?? []
 
@@ -215,14 +231,16 @@ function fromDoc(doc: Doc, bin: Uint8Array | null): Soup {
     if (a.bufferView === undefined) return out
     const v = views[a.bufferView]
     if (!v) return out
+    const buf = bufs[v.buffer ?? 0]
+    if (!buf) return out
     const stride = v.byteStride || size * n
     const base = (v.byteOffset ?? 0) + (a.byteOffset ?? 0)
-    const dv = new DataView(bin.buffer, bin.byteOffset, bin.byteLength)
+    const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength)
     for (let e = 0; e < a.count; e++) {
       const o = base + e * stride
       for (let k = 0; k < n; k++) {
         const p = o + k * size
-        if (p + size > bin.byteLength) return out
+        if (p + size > buf.byteLength) return out
         switch (a.componentType) {
           case 5120: out[e * n + k] = dv.getInt8(p); break
           case 5121: out[e * n + k] = dv.getUint8(p); break
