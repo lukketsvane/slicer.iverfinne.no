@@ -96,6 +96,25 @@ function shapeKey(o: Pt[], holes: Pt[][]): string {
 }
 
 /**
+ * Bokstaven til eit stykke: a, b, ... z, aa, ab.
+ *
+ * Åtte bokstavar heldt i den fyrste utgåva, og alt over det fekk «z».
+ * Ei ribbe gjennom eit gitter eller ei hand kan bli delt i tjue stykke,
+ * og då stod det «X7z» på fleire av dei. To ulike delar med same adressa
+ * er verre enn ingen adresse: du finn ut av det når du står med ei plate
+ * som ikkje passar i det hòlet ho seier ho høyrer til.
+ */
+function bokstav(n: number): string {
+  let s = ""
+  let k = n
+  do {
+    s = "abcdefghijklmnopqrstuvwxyz"[k % 26] + s
+    k = Math.floor(k / 26) - 1
+  } while (k >= 0)
+  return s
+}
+
+/**
  * `p` kjem inn utanfrå og vert ikkje lesen av rutenettet.
  *
  * Materialet rører ikkje geometrien, so rutenettet vert hugsa utan det i
@@ -134,8 +153,7 @@ export function buildParts(g: Grid, p: Params): PartList {
       // Ei ribbe kan vera delt i fleire stykke, og då er det ikkje nok at
       // RIBBA har ledd — dette stykket må ha dei.
       const joints = jointsIn(r.slots, o)
-      const adr =
-        r.axis.toUpperCase() + (r.k + 1) + (fleire ? "abcdefgh"[stykke++] ?? "z" : "")
+      const adr = r.axis.toUpperCase() + (r.k + 1) + (fleire ? bokstav(stykke++) : "")
       parts.push({
         id,
         from: adr,
