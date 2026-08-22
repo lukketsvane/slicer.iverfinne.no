@@ -21,8 +21,29 @@ import { planKey, type Params } from "./params"
 
 export type Plan = { k: Kropp; g: Grid; pl: PartList; ns: Nesting }
 
-/** luft mellom delane på plata: verktøyet sin diameter pluss litt å ta i */
-export const nestGap = (p: Params) => Math.max(4, p.fres + 2)
+/**
+ * Luft mellom delane på plata.
+ *
+ * To krav, og det andre vart gløymt.
+ *
+ * Verktøyet må koma imellom: diameteren pluss litt å ta i. Det er det
+ * openberre kravet, og det stod her.
+ *
+ * Men luka vert målt mellom dei NOMINELLE omrissa, og det maskina fylgjer
+ * er dei KOMPENSERTE. Kvar av dei ligg eit halvt snitt lenger ut, og kvart
+ * kutt et eit halvt snitt til på kvar side. Godset som står att mellom to
+ * delar er difor luka minus to snittbreidder — ikkje luka.
+ *
+ * På laser tyder det ingenting: fire millimeter minus fire tidelar er
+ * framleis nesten fire. På ein fres på seks, der snittet SKAL vera seks,
+ * var luka åtte og godset som stod att minus ein komma tre. Dei to kutta
+ * gjekk i kvarandre, og båe delane var øydelagde.
+ *
+ * Kravet er difor at det står att minst to millimeter gods: luka må vera
+ * minst to snittbreidder pluss to. På laser held dei fire millimetrane
+ * som før.
+ */
+export const nestGap = (p: Params) => Math.max(4, p.fres + 2, 2 * p.snitt + 2)
 
 const HUGS = keep<Plan>(2)
 

@@ -12,7 +12,7 @@
  *
  *   npx tsx scripts/nest-sjekk.ts
  */
-import { bbox, type Pt } from "../lib/core"
+import { bbox, offsetPoly, type Pt } from "../lib/core"
 import { apply, pack } from "../lib/pack"
 import { makePlan, nestGap } from "../lib/vaffel/plan"
 import { DETAIL } from "../lib/vaffel/ribs"
@@ -130,6 +130,7 @@ function sjekk(namn: string, p: Params) {
   let utanfor = 0
   let dekt = 0
   let naer = Infinity
+  let gods = Infinity
   const gap = nestGap(p)
 
   for (const sheet of ns.sheets) {
@@ -151,9 +152,29 @@ function sjekk(namn: string, p: Params) {
         dekt++
       }
     }
-    // kortaste avstand mellom to delar på plata, målt frå kuttbanene
+    // Kortaste avstand mellom to delar på plata, målt frå dei banene
+    // maskina FAKTISK fylgjer — altso dei kompenserte. Godset som står att
+    // er den avstanden minus ei snittbreidd til, av di kvart kutt et eit
+    // halvt snitt på kvar side. Det er det talet som avgjer om dei to
+    // kutta går i kvarandre.
+    const komp = sheet.placed.map((q) => offsetPoly(placedRings(q).outline, p.snitt / 2))
     for (let a = 0; a < sheet.placed.length; a++) {
       for (let c = a + 1; c < sheet.placed.length; c++) {
+        const ba2 = bbox(komp[a])
+        const bb3 = bbox(komp[c])
+        if (
+          ba2.x0 <= bb3.x1 + gap * 3 &&
+          bb3.x0 <= ba2.x1 + gap * 3 &&
+          ba2.y0 <= bb3.y1 + gap * 3 &&
+          bb3.y0 <= ba2.y1 + gap * 3
+        ) {
+          for (const u of komp[a]) {
+            for (const v of komp[c]) {
+              const d = Math.hypot(u[0] - v[0], u[1] - v[1]) - p.snitt
+              if (d < gods) gods = d
+            }
+          }
+        }
         const ra = placedRings(sheet.placed[a]).outline
         const rb = placedRings(sheet.placed[c]).outline
         const ba = bbox(ra)
@@ -175,7 +196,13 @@ function sjekk(namn: string, p: Params) {
   // ser dei aldri. Utan denne lina kan skriptet melde «ok» medan to delar
   // stille har forsvunne ut av kuttlista.
   const lagd = ns.sheets.reduce((n, q) => n + q.placed.length, 0)
-  const ok = overlapp === 0 && utanfor === 0 && lagd + ns.spilt === pl.parts.length
+  // Ein millimeter gods er det minste som held ei plate saman medan resten
+  // vert skoren. Under det går dei to kutta i kvarandre.
+  const ok =
+    overlapp === 0 &&
+    utanfor === 0 &&
+    lagd + ns.spilt === pl.parts.length &&
+    (!Number.isFinite(gods) || gods >= 1)
   if (!ok) brot++
   console.log(
     `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ` +
@@ -184,6 +211,7 @@ function sjekk(namn: string, p: Params) {
       `${Math.round(ns.util * 100)} % · ` +
       `overlapp ${overlapp} · utanfor ${utanfor} · ` +
       `næraste ${Number.isFinite(naer) ? naer.toFixed(1) : "–"} mm (luke ${gap}) · ` +
+      `gods ${Number.isFinite(gods) ? gods.toFixed(1) : "–"} mm · ` +
       `areal ${(areal / 1e4).toFixed(0)} vs teikna ${((dekt * RES * RES) / 1e4).toFixed(0)} cm²`,
   )
 }
@@ -252,6 +280,12 @@ sjekk("egg 8x8", { ...DEFAULT_PARAMS, kjelde: "egg", ribbX: 8, ribbY: 8 })
 sjekk("torus staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9 })
 sjekk("kule stor plate", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 10, ribbY: 10, arkB: 2500, arkH: 1250 })
 sjekk("hundebein", { ...DEFAULT_PARAMS, kjelde: "egg", leddtype: 1, fres: 6, ribbX: 7, ribbY: 7 })
+// Ein fres på seks, med snittet sett rett. Her var godset mellom to delar
+// minus ein komma tre millimeter: dei to kutta gjekk i kvarandre.
+sjekk("fres 6 mm, snitt 6", {
+  ...DEFAULT_PARAMS, kjelde: "kule", fres: 6, snitt: 6, tjukn: 12,
+  storleik: 400, arkB: 1200, arkH: 900,
+})
 
 pakkarenSjolv()
 
