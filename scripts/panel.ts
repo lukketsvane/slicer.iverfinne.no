@@ -337,6 +337,42 @@ async function benken(browser: Browser, feil: string[]) {
   const stor1 = Number((await lenkja(page)).storleik)
   ok("drag på storleikstalet skrur han", stor1 > stor0, `${stor0} → ${stor1} mm`)
 
+  // --- BLINDGATA HAR EIN VEG UT --------------------------------------------
+  /**
+   * Det brukaren sat med: eit klyp gjorde objektet så stort at kvar del
+   * var større enn plata. «bryt · delane får plass · 15 utanfor», DXF og
+   * ARK strekne over, og ingen ting å trykkje på.
+   *
+   * `raad.ts` prøver at rådet reknar rett. Dette prøver at det er ein
+   * KNAPP: at han står i lina, at han set talet, og at uttaka som var
+   * stengde opnar seg av det.
+   */
+  // Lenkja vert lesen når sida vert MONTERT, og ei navigering som berre
+  // byter hash monterer ingenting. Difor ei omlasting etterpå.
+  await page.goto(
+    URL + "#p=" + encodeURIComponent(JSON.stringify({ storleik: 1100, ribbX: 3, ribbY: 3, arkB: 400, arkH: 300 })),
+    { waitUntil: "networkidle" },
+  )
+  await page.reload({ waitUntil: "networkidle" })
+  await rolig(page)
+  const ark = page.locator("aside[aria-label='måltal'] button", { hasText: /^ark$/i })
+  ok("eit objekt som ikkje får plass stengjer arket", await ark.isDisabled())
+
+  const knapp = page.getByLabel(/^fiks delane får plass/)
+  const ordet = (await knapp.innerText()).trim()
+  ok("og lina ber rådet som ein knapp", /^prøv \d+ mm$/.test(ordet), ordet)
+
+  await knapp.click()
+  await rolig(page)
+  const etter = await lenkja(page)
+  ok(
+    "knappen set talet han seier",
+    String(etter.storleik) === ordet.replace(/\D/g, ""),
+    `${ordet} → ${etter.storleik} mm`,
+  )
+  ok("og arket er ope att", !(await ark.isDisabled()))
+  ok("og rådet er borte når regelen står", (await page.getByLabel(/^fiks delane får plass/).count()) === 0)
+
   await page.close()
 }
 

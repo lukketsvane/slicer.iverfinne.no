@@ -156,6 +156,40 @@ const main = async () => {
     if (stor < 200) feil.push(`${chip}: fila er tom (${stor} B)`)
   }
 
+  // --- BLINDGATA ------------------------------------------------------------
+  // Eit uttak som ikkje let seg hente er det einaste stoppunktet i heile
+  // reiskapen. Det skal alltid ha ein knapp i seg, og han skal vera til å
+  // sjå: eit bilete av kvar av dei to flatene med regelen broten.
+  {
+    const brote =
+      "#p=" +
+      encodeURIComponent(
+        JSON.stringify({ storleik: 1100, ribbX: 3, ribbY: 3, arkB: 400, arkH: 300 }),
+      )
+    for (const [namn, w, h] of [
+      ["9-blindgate-benk.png", 1320, 900],
+      ["9-blindgate-ark.png", 420, 860],
+    ] as [string, number, number][]) {
+      await page.setViewportSize({ width: w, height: h })
+      await page.goto(URL + brote, { waitUntil: "networkidle" })
+      await page.reload({ waitUntil: "networkidle" })
+      await ferdig()
+      // Arket ligg att når det er lukka, og ein regel du ikkje ser har
+      // ingen knapp. Hovudlina er vegen inn: ho er raud, og eit trykk på
+      // henne opnar det halve steget der reglane står.
+      if (w < 1180) {
+        await page.locator("button[aria-expanded]").first().click()
+        await page.waitForTimeout(700)
+      }
+      await page.waitForTimeout(900)
+      const raad = page.getByLabel(/^fiks /)
+      const tal = await raad.count()
+      console.log(`blindgate ${w}px: ${tal} råd — ${(await raad.allInnerTexts()).join(", ")}`)
+      if (tal === 0) feil.push(`blindgate ${w}px: ingen veg ut av ein broten regel`)
+      await page.screenshot({ path: `${UT}/${namn}` })
+    }
+  }
+
   await browser.close()
   if (feil.length) {
     console.error("KONSOLLFEIL:")

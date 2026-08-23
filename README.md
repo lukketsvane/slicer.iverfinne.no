@@ -233,6 +233,14 @@ be made or can't be assembled; **soft** is a choice worth knowing about.
 - resolution wasn't simplified away (soft)
 - sheet utilisation (soft)
 
+A broken rule carries its own way out. The rule that knows fifteen parts are
+too big for the sheet also knows *how much* too big, so instead of the word
+"smaller" it offers a button that says `prøv 290 mm` and sets it. Rules that
+have no remedy in the parameters (an open mesh isn't closed by a number) offer
+nothing, which is the honest answer. `pnpm raad` takes each of them, breaks it
+on purpose, presses the button, and recomputes: a remedy that doesn't remedy is
+worse than no button at all.
+
 ## How it works
 
 ```
@@ -298,6 +306,7 @@ pnpm probe   # engine without a browser: parts, joints, cut length, files
 pnpm rekkje  # reads the cut files back: engrave, inner cuts, outline, in that order
 pnpm vrient  # meshes that aren't meshes, sliders at both ends, and a hostile URL
 pnpm ledd    # asks the cut profiles whether every joint the panel counted is really there
+pnpm raad    # breaks each rule, presses the fix it offers, and checks it worked
 pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps
 pnpm tung    # a million triangles in, and how long that takes

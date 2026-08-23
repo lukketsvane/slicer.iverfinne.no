@@ -26,6 +26,7 @@ import { VAFFEL } from "@/lib/vaffel/engine"
 import {
   CHIP,
   EXPORTS,
+  Fiksen,
   HAIR,
   ICON_BTN,
   IcoAngre,
@@ -584,14 +585,15 @@ export function ControlsPanel(props: {
             </div>
 
             {/* reglane som ryk: éi line kvar, grunngjevinga i title. Panelet
-                seier KVA som er gale; KVIFOR ligg eit fingertrykk unna. */}
+                seier KVA som er gale; KVIFOR ligg eit fingertrykk unna, og
+                rettinga står i lina som eit tal du kan trykkje på. */}
             {failed.length > 0 && (
               <ul className="space-y-1 py-1">
                 {failed.map((r) => (
                   <li
                     key={r.id}
                     title={r.why}
-                    className="flex items-baseline justify-between gap-3 text-[11px] leading-4"
+                    className="flex items-center justify-between gap-3 text-[11px] leading-4"
                     style={{
                       color: r.hard ? "var(--warn)" : undefined,
                       opacity: r.hard ? 1 : 0.65,
@@ -600,9 +602,13 @@ export function ControlsPanel(props: {
                     <span className="tracking-[0.06em]">
                       {r.hard ? "bryt" : "merk"} · {r.label}
                     </span>
-                    {/* Talet står i tavla under når heile veggen er open, og
-                        er alt farga raudt der. Her oppe er lina eit flagg. */}
-                    {mode !== "full" && <span className="tab shrink-0">{r.value}</span>}
+                    <span className="flex shrink-0 items-center gap-2">
+                      {/* Talet står i tavla under når heile veggen er open,
+                          og er alt farga raudt der. Her oppe er lina eit
+                          flagg. Knappen står uansett: han er vegen ut. */}
+                      {mode !== "full" && <span className="tab">{r.value}</span>}
+                      <Fiksen rule={r} params={params} onChange={onChange} />
+                    </span>
                   </li>
                 ))}
               </ul>

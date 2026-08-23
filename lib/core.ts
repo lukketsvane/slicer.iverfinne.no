@@ -194,6 +194,33 @@ export type Rule = {
   hard: boolean
   value: string
   why: string
+  /** kva som rettar han, om noko av det reiskapen rår over gjer det */
+  fiks?: Fiks
+}
+
+/**
+ * REGELEN BER RÅDA SI.
+ *
+ * Ein regel som ryk og ikkje seier vegen ut er ei blindgate: «delane får
+ * plass · 15 utanfor», og so står du der med to uttak strekne over og
+ * ingen ting å trykkje på. Grunngjevinga sa alt kva som måtte gjerast —
+ * «anten mindre objekt, fleire ribber, eller ei større plate» — men ho sa
+ * det med ord, og orda måtte lesast, tolkast og reknast om til eit tal du
+ * sjølv skulle finne fram til i ein skyvar.
+ *
+ * Tala står alt her. Regelen som veit at femten delar er for store veit
+ * òg kor mykje for store dei er, og då kan han seie 420 i staden for
+ * «mindre». `set` går rett inn i parametrane gjennom den vanlege vegen,
+ * so eit råd du ikkje likar er eitt angre unna.
+ *
+ * Nokre reglar har ikkje noko råd, og då skal dei ikkje lage eit. Eit
+ * nett med hòl i vert ikkje lukka av eit tal.
+ */
+export type Fiks = {
+  /** det som står på knappen: «prøv 420 mm» */
+  ord: string
+  /** parametrane som skal endrast */
+  set: Record<string, number>
 }
 
 // =============================================================================
