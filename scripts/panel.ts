@@ -23,7 +23,7 @@
  *   npx tsx scripts/panel.ts [url]
  */
 import { chromium, type Browser, type Page } from "playwright"
-import { MAX_DEKKE, paaSkjermen, ramme, type Fit } from "../lib/ramme"
+import { fritt, paaSkjermen, ramme, type Fit, type Rute } from "../lib/ramme"
 import { SKALAR, skalaBoks } from "../lib/skala"
 import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -62,12 +62,11 @@ async function lenkja(page: Page): Promise<Record<string, number | string>> {
   return JSON.parse(decodeURIComponent(sist.replace(/^#p=/, "")))
 }
 
+/** Arket og benken er to ulike element; begge ber aria-busy, og det er det
+ *  einaste haldepunktet som ikkje er ei gjetting på tid. */
 const rolig = (page: Page) =>
   page.waitForFunction(
-    () =>
-      document
-        .querySelector('section[aria-label="kontrollar"]')
-        ?.getAttribute("aria-busy") === "false",
+    () => document.querySelector("[aria-busy]")?.getAttribute("aria-busy") === "false",
     undefined,
     { timeout: 60000 },
   )
@@ -123,28 +122,42 @@ function innramminga() {
     ["høg søyle", { r: 1.12, w: 0.44, h: 2.2, cy: 1.1 }],
     ["høgt attmed", { r: 1.343, w: 1.542, h: 2.2, cy: 1.1 }],
   ]
-  const ruter: [string, number][] = [
-    ["telefon 390×780", 390 / 780],
-    ["telefon smal 320×700", 320 / 700],
-    ["brett 820×1180", 820 / 1180],
-    ["skjerm 1280×900", 1280 / 900],
-    ["vid 1920×800", 1920 / 800],
+  /** ruter og det som ligg over dei: telefonarket nedst, benken i sidene */
+  const ruter: [string, Rute][] = [
+    ["telefon 390×780, lukka", { W: 390, H: 780, venstre: 0, hogre: 0, topp: 0, botn: 70 }],
+    ["telefon 390×780, halvope", { W: 390, H: 780, venstre: 0, hogre: 0, topp: 0, botn: 314 }],
+    ["telefon 390×780, heilope", { W: 390, H: 780, venstre: 0, hogre: 0, topp: 0, botn: 523 }],
+    ["smal 320×700, halvope", { W: 320, H: 700, venstre: 0, hogre: 0, topp: 0, botn: 300 }],
+    ["brett 820×1180, halvope", { W: 820, H: 1180, venstre: 0, hogre: 0, topp: 0, botn: 330 }],
+    ["benk 1280×900", { W: 1280, H: 900, venstre: 264, hogre: 304, topp: 44, botn: 0 }],
+    ["benk 1920×1080", { W: 1920, H: 1080, venstre: 288, hogre: 336, topp: 44, botn: 0 }],
+    ["benk 1180×720", { W: 1180, H: 720, venstre: 240, hogre: 272, topp: 44, botn: 0 }],
   ]
-  for (const [rn, aspect] of ruter) {
+  for (const [rn, rute] of ruter) {
     for (const [fn, fit] of saker) {
-      let verst = ""
-      for (let d = 0; d <= MAX_DEKKE + 1e-9; d += 0.05) {
-        const r = ramme(fit, { dekke: d, aspect, fovDeg: 30, flat: false })
-        const p = paaSkjermen(fit, r)
-        // Kula er romsleg: ho er rotasjonsfast og tek med hjørne objektet
-        // ikkje har. Difor ein liten slark på toppen.
-        if (p.topp < -0.06 || p.botn > 1 - d + 0.02) {
-          verst = `dekke ${d.toFixed(2)}: topp ${p.topp.toFixed(2)}, botn ${p.botn.toFixed(2)} mot ${(1 - d).toFixed(2)}`
-        }
-      }
-      ok(`${rn} · ${fn}`, verst === "", verst)
+      const r = ramme(fit, { rute, fovDeg: 30, flat: false })
+      const p = paaSkjermen(fit, r, 30)
+      // Kula er romsleg: ho er rotasjonsfast og tek med hjørne objektet
+      // ikkje har. Difor ein liten slark.
+      const held = p.topp > -0.06 && p.botn < 1.06
+      ok(
+        `${rn} · ${fn}`,
+        held,
+        held ? "" : `topp ${p.topp.toFixed(2)}, botn ${p.botn.toFixed(2)}`,
+      )
     }
   }
+
+  // Klemminga: eit ark som tek meir enn helvta av ruta får ikkje meir.
+  const kvalt = fritt({ W: 390, H: 780, venstre: 0, hogre: 0, topp: 0, botn: 700 })
+  ok("eit ark som tek nesten alt får berre helvta", kvalt.h === 390, `${kvalt.h} px fritt`)
+  // …og forhaldet mellom kantane skal halde, elles hoppar objektet sidelengs.
+  const skeiv = fritt({ W: 1000, H: 600, venstre: 300, hogre: 600, topp: 0, botn: 0 })
+  ok(
+    "to veggar som til saman er for breie krympar likt",
+    Math.abs(skeiv.L / (1000 - skeiv.L - skeiv.w) - 300 / 600) < 0.001 && skeiv.w === 500,
+    `venstre ${skeiv.L.toFixed(0)}, fritt ${skeiv.w.toFixed(0)}`,
+  )
 }
 
 /**
@@ -254,6 +267,109 @@ async function gestane(browser: Browser) {
   await page.close()
 }
 
+/**
+ * BENKEN.
+ *
+ * Over 1180 px er grensesnittet eit heilt anna: to faste veggar, ingen
+ * tilstandar, og svaret frå finn som ei liste du kan peike i. Tre ting der
+ * inne kan svikte utan at noko feilar, og alle tre er nye:
+ *
+ *   · lista syner tolv rader og set ein annan kandidat enn den du klikka
+ *   · peikaren byggjer ei førehandsvising som ikkje vert rydda opp att
+ *   · og verre: ei førehandsvising som vert BOKFØRT, so angre går attende
+ *     til noko du berre såg på
+ */
+async function benken(browser: Browser, feil: string[]) {
+  const page = await browser.newPage({ viewport: { width: 1320, height: 900 } })
+  page.on("pageerror", (e) => feil.push(String(e)))
+  page.on("console", (m) => {
+    if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) feil.push(m.text())
+  })
+  await page.goto(URL, { waitUntil: "networkidle" })
+  await rolig(page)
+  ok("benken står over 1180 px", (await page.locator("aside[aria-label='innstillingar']").count()) === 1)
+
+  const rader = page.locator("aside[aria-label='innstillingar'] button.tab")
+  ok("og ingen svarliste før nokon har spurt", (await rader.count()) === 0)
+
+  await page.getByLabel("finn innstillingar").click()
+  await rolig(page)
+  const n = await rader.count()
+  ok("finn gjev heile lista, ikkje eitt svar", n >= 8, `${n} rader`)
+
+  let p = await lenkja(page)
+  const fyrst = `${p.ribbX}×${p.ribbY}`
+  const raden = (i: number) => rader.nth(i).innerText()
+  ok("og den fyrste rada er den som står", (await raden(0)).includes(fyrst), fyrst)
+
+  // --- KLIKK BIND ----------------------------------------------------------
+  const fjerde = (await raden(3)).split("\n")
+  await rader.nth(3).click()
+  await rolig(page)
+  p = await lenkja(page)
+  ok(
+    "eit klikk i lista set den kandidaten",
+    fjerde.join(" ").includes(`${p.ribbX}×${p.ribbY}`),
+    `${p.ribbX}×${p.ribbY}`,
+  )
+
+  // --- PEIKAREN BYGGJER, OG RYDDAR OPP ATT ---------------------------------
+  const for0 = `${p.ribbX}×${p.ribbY}`
+  await rader.nth(7).hover()
+  await page.waitForTimeout(900)
+  const under = await lenkja(page)
+  ok(
+    "å stå over ei rad byggjer henne",
+    `${under.ribbX}×${under.ribbY}` !== for0,
+    `${for0} → ${under.ribbX}×${under.ribbY}`,
+  )
+  await page.mouse.move(660, 500)
+  await rolig(page)
+  p = await lenkja(page)
+  ok("og å fare ut att gjev deg ditt attende", `${p.ribbX}×${p.ribbY}` === for0, for0)
+
+  // --- OG EI FØREHANDSVISING ER INGA ENDRING -------------------------------
+  await page.keyboard.press("z")
+  await rolig(page)
+  p = await lenkja(page)
+  ok(
+    "angre hoppar ikkje til noko du berre såg på",
+    `${p.ribbX}×${p.ribbY}` !== `${under.ribbX}×${under.ribbY}`,
+    `${p.ribbX}×${p.ribbY}`,
+  )
+
+  // --- MELLOMROM: BERRE OBJEKTET -------------------------------------------
+  await page.locator("body").click({ position: { x: 660, y: 500 } })
+  await page.keyboard.down("Space")
+  await page.waitForTimeout(300)
+  const skjult = await page.evaluate(
+    `getComputedStyle(document.querySelector("aside[aria-label='innstillingar']")).opacity`,
+  )
+  await page.keyboard.up("Space")
+  await page.waitForTimeout(300)
+  const synleg = await page.evaluate(
+    `getComputedStyle(document.querySelector("aside[aria-label='innstillingar']")).opacity`,
+  )
+  ok("mellomrom tek veggane bort", Number(skjult) < 0.1 && Number(synleg) > 0.9, `${skjult} → ${synleg}`)
+
+  // --- STORLEIKEN ER EIT TAL DU KAN DRA I ----------------------------------
+  const felt = page.getByLabel("storleik, tal", { exact: true })
+  const boks = (await felt.boundingBox())!
+  const stor0 = Number((await lenkja(page)).storleik)
+  await page.mouse.move(boks.x + 20, boks.y + boks.height / 2)
+  await page.mouse.down()
+  for (let i = 1; i <= 10; i++) {
+    await page.mouse.move(boks.x + 20 + i * 8, boks.y + boks.height / 2)
+    await page.waitForTimeout(16)
+  }
+  await page.mouse.up()
+  await rolig(page)
+  const stor1 = Number((await lenkja(page)).storleik)
+  ok("drag på storleikstalet skrur han", stor1 > stor0, `${stor0} → ${stor1} mm`)
+
+  await page.close()
+}
+
 async function main() {
   console.log("innramminga:")
   innramminga()
@@ -261,7 +377,8 @@ async function main() {
   referansane()
   console.log("panelet:")
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  // Under 1180 px er det ARKET som gjeld. Benken har sin eigen bolk.
+  const page = await browser.newPage({ viewport: { width: 1000, height: 900 } })
   const feil: string[] = []
   page.on("pageerror", (e) => feil.push(String(e)))
   page.on("console", (m) => {
@@ -399,6 +516,9 @@ async function main() {
   // i hovudlina og fortalde om eit objekt som ikkje var der lenger. No
   // står det at fila vert lesen — og det MÅ slutte å stå der når ho er
   // lesen: ei line som heng att er verre enn inga line.
+  // Prøvetakaren ser på ENDRINGAR og ikkje på klokka: ei lita fil kan verte
+  // lesen på under ein tjuedels sekund, og ein prøvetakar som ser kvart
+  // tjuande millisekund melder då at lina aldri stod der ho stod.
   await page.evaluate(`(function(){
     window.LES = []
     function sjaa(){
@@ -407,6 +527,11 @@ async function main() {
       var L = window.LES
       if (txt && (!L.length || L[L.length-1] !== txt)) L.push(txt)
     }
+    new MutationObserver(sjaa).observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    })
     setInterval(sjaa, 20)
   })()`)
   const mappe = mkdtempSync(join(tmpdir(), "slicerman-"))
@@ -454,9 +579,10 @@ async function main() {
     })()`)
     ok(`tala står heile på ${breidd} px`, kappa === 0, `${kappa} px kappa`)
   }
-  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.setViewportSize({ width: 1000, height: 900 })
 
   await gestane(browser)
+  await benken(browser, feil)
 
   ok("ingen feil i konsollen", feil.length === 0, feil.slice(0, 2).join(" | "))
   await browser.close()

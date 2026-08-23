@@ -47,10 +47,17 @@ export function GestureParams({
   onGest,
 }: {
   onNudge: (axis: NudgeAxis, deltaPx: number) => void
-  /** klyp: storleiken gonga med denne faktoren */
-  onSkala?: (faktor: number) => void
-  /** vri: så mange grader kring den ståande aksen */
-  onVend?: (grader: number) => void
+  /**
+   * Klyp og vri gjev TOTALEN sidan gesten byrja, ikkje eit steg per
+   * hending: fingrane som står tre gonger so langt frå kvarandre skal gje
+   * eit objekt som er tre gonger so stort, same kor mange hendingar som
+   * kom fram undervegs. Nettlesaren slår saman rørsler når hovudtråden er
+   * oppteken, og eit bygg tek hundre millisekund: eit klyp som la saman
+   * steg mista det som vart slege saman, og same gesten gav tre gonger
+   * den eine gongen og ein og ein halv den neste.
+   */
+  onSkala?: (faktorFraaStart: number) => void
+  onVend?: (graderFraaStart: number) => void
   onLight?: (dxPx: number, dyPx: number) => void
   onDoubleTap?: () => void
   /** kva gesten held på med, eller null når ingen finger er nede */
@@ -70,6 +77,10 @@ export function GestureParams({
     const pts = new Map<number, { x: number; y: number }>()
     let mode: "none" | "klyp" | "vri" | "v" | "h" | "light" = "none"
     let last = { cx: 0, cy: 0, d: 0, a: 0 }
+    /** stoda då gesten vart klassifisert, som klyp og vri måler frå */
+    let start = { d: 0, a: 0 }
+    /** summen av vridinga, so ho kan gå forbi eit halvt omdreiing */
+    let vridd = 0
     let snap: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null
     // dobbelttrykket: to korte, stillestandande trykk nær kvarandre i tid
     // og rom — same terskel som iOS sjølv brukar på kartet
@@ -173,6 +184,10 @@ export function GestureParams({
         else if (Y > 6 && Y > 1.3 * Math.max(X, D, A)) mode = "v"
         else if (X > 6 && X > 1.3 * Math.max(Y, D, A)) mode = "h"
         else return
+        // Nullpunktet er der gesten VART til, ikkje der fingrane landa:
+        // daudsona skal ikkje telje med i totalen.
+        start = { d: last.d, a: last.a }
+        vridd = 0
         // Den fyrste fingeren rakk å snu synet litt før den andre landa.
         // Den rotasjonen høyrer ikkje til gesten, so han vert lagd attende.
         restore()
@@ -181,12 +196,13 @@ export function GestureParams({
         )
       }
       if (mode === "klyp") {
-        if (last.d > 8 && c.d > 8) onSkala?.(c.d / last.d)
+        if (start.d > 8 && c.d > 8) onSkala?.(c.d / start.d)
       } else if (mode === "vri") {
         // Skjermen har y nedover, so ein vri med klokka aukar vinkelen.
         // Objektet skal fylgje fingrane, og ei rotasjon med klokka sett
         // ovanfrå er negativ kring den ståande aksen.
-        onVend?.((-dv * 180) / Math.PI)
+        vridd += dv
+        onVend?.((-vridd * 180) / Math.PI)
       } else if (mode === "v") {
         onNudge("vertical", -dy)
       } else {
@@ -240,12 +256,19 @@ export function GestureParams({
       if (!e.ctrlKey || !onSkala) return
       e.preventDefault()
       e.stopPropagation()
-      onSkala(Math.exp(-e.deltaY * 0.01))
+      // Hjulet har ingen start og ingen slutt, so gesten er «hakk som kjem
+      // tett»: totalen står til det har vore stille i eit halvt sekund.
       onGest?.("storleik")
+      hjulTotal *= Math.exp(-e.deltaY * 0.01)
+      onSkala(hjulTotal)
       window.clearTimeout(hjulTimer)
-      hjulTimer = window.setTimeout(() => onGest?.(null), 500)
+      hjulTimer = window.setTimeout(() => {
+        onGest?.(null)
+        hjulTotal = 1
+      }, 500)
     }
     let hjulTimer = 0
+    let hjulTotal = 1
 
     el.addEventListener("pointerdown", down)
     el.addEventListener("wheel", hjul, { passive: false, capture: true })

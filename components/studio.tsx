@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import type { DetailKey, ExportKind, Metrics, ParamBag, Rule, View } from "@/lib/core"
 import { KUBE } from "@/lib/sources"
 import { VAFFEL } from "@/lib/vaffel/engine"
@@ -10,6 +10,8 @@ import { Viewer, type LightDir } from "./viewer"
 import { ControlsPanel, type PanelMode } from "./controls-panel"
 import type { GestKva, NudgeAxis } from "./gesture-params"
 import type { SkalaId } from "@/lib/skala"
+import type { Rute } from "@/lib/ramme"
+import { Benk, VEGG } from "./benk"
 
 /** kor mange piksel to-fingers-rulling må dra for å sveipe eit heilt band */
 const NUDGE_RANGE_PX = 420
@@ -24,6 +26,42 @@ const MAX_FIL = 220 * 1024 * 1024
 /** kor mange steg attende du kjem. Fleire enn dette er ikkje ei angring,
  *  det er ein annan dag. */
 const ANGRE_DJUPN = 50
+
+/** ruta, i CSS-pikslar */
+function useVindu() {
+  const [v, setV] = useState({ w: 1280, h: 800 })
+  useEffect(() => {
+    const sync = () => setV({ w: window.innerWidth, h: window.innerHeight })
+    sync()
+    window.addEventListener("resize", sync)
+    return () => window.removeEventListener("resize", sync)
+  }, [])
+  return v
+}
+
+/**
+ * BENKEN.
+ *
+ * Dei tre høgdene på arket er eit svar på ein telefon. På ein skjerm er
+ * svaret at dei forsvinn: det er plass til alt samstundes, og då er kvart
+ * steg mellom lukka og ope eit steg som ikkje treng finnast.
+ *
+ * Terskelen er både peikaren og breidda. Ein pekefinger på eit brett skal
+ * ha arket same kor breitt brettet er, av di veggane har knappar for ein
+ * peikar; og under tolv hundre piksel er det ikkje plass til to veggar og
+ * eit objekt imellom.
+ */
+function useBenk() {
+  const [benk, setBenk] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: fine) and (min-width: 1180px)")
+    const sync = () => setBenk(mq.matches)
+    sync()
+    mq.addEventListener("change", sync)
+    return () => mq.removeEventListener("change", sync)
+  }, [])
+  return benk
+}
 
 function useIsDesktop() {
   const [desktop, setDesktop] = useState(false)
@@ -81,12 +119,26 @@ export function Studio() {
   const [stad, setStad] = useState<
     { nth: number; tal: number; ribbX: number; ribbY: number; base: string } | null
   >(null)
+  /** heile svarlista, til benken. Ho står til nokon spør om noko anna. */
+  const [liste, setListe] = useState<Kandidat[]>([])
   /** kor langt søket er kome, medan det går */
   const [tunar, setTunar] = useState<{ gjort: number; av: number } | null>(null)
   const [drag, setDrag] = useState(false)
   /** kva ein finger held på med akkurat no, til lesing over objektet */
   const [gest, setGest] = useState<GestKva>(null)
   const gestTimer = useRef(0)
+  /** Ein gest som melder seg, låser grunnstoda han skal måle frå. */
+  const taGest = useCallback((kva: GestKva) => {
+    grunn.current =
+      kva === null
+        ? null
+        : {
+            storleik: typeof naa.current.storleik === "number" ? naa.current.storleik : 150,
+            rotZ: typeof naa.current.rotZ === "number" ? naa.current.rotZ : 0,
+          }
+    setGest(kva)
+  }, [])
+  const hintTimer = useRef(0)
   /** ei fil er undervegs inn. Eit skann på hundre megabyte tek fleire
    *  sekund å tolke og sveise, og i dei sekunda står dei gamle tala i
    *  hovudlina og seier noko om eit anna objekt. */
@@ -94,15 +146,39 @@ export function Studio() {
   /** eit ord attende på noko som elles ikkje synest. Det står i hovudlina
    *  eit lite bel og går av seg sjølv. */
   const [melding, setMelding] = useState<string | null>(null)
-  /** fyrste gongen: eit ord om at fila kan sleppast. Det forsvinn i det
-   *  nokon rører noko som helst, og kjem aldri att. */
-  const [hint, setHint] = useState(true)
-  /** kor stor del av ruta kontrollarket dekkjer. Kameraet stiller objektet
-   *  inn i det som er att, so eit ope ark ikkje legg seg over det. */
-  const [dekke, setDekke] = useState(0)
+  /**
+   * EIT ORD, TO GONGER I EI ØKT.
+   *
+   * Fyrst at fila kan sleppast, av di kuben står der og ingenting seier at
+   * han kan bytast ut. So, når fila har landa og fingrane er det einaste
+   * som finst: kva to fingrar gjer. Gestane er den raskaste vegen gjennom
+   * heile reiskapen og den einaste som ikkje syner seg sjølv.
+   */
+  const [hint, setHint] = useState<"fil" | "gest" | null>("fil")
+  /** kor høgt kontrollarket er, i pikslar. Kameraet stiller objektet inn i
+   *  det som er att, so eit ope ark ikkje legg seg over det. */
+  const [arkH, setArkH] = useState(0)
   /** id → filnamn, for pilla. Nettet sjølv bur i arbeidaren. */
   const [namn, setNamn] = useState<Record<string, string>>({})
   const isDesktop = useIsDesktop()
+  const benk = useBenk()
+  const vindu = useVindu()
+
+  /**
+   * RUTA, OG KVA SOM LIGG OVER HENNE.
+   *
+   * To heilt ulike oppsett, eitt tal: kva rektangel objektet har for seg
+   * sjølv. På ein telefon er det ruta minus arket nedst; på ein benk er det
+   * ruta minus dei to veggane og topplina. Kameraet treng ikkje vita kva
+   * for eit av dei det er.
+   */
+  const rute: Rute = useMemo(
+    () =>
+      benk
+        ? { W: vindu.w, H: vindu.h, venstre: VEGG.venstre, hogre: VEGG.hogre, topp: VEGG.topp, botn: 0 }
+        : { W: vindu.w, H: vindu.h, venstre: 0, hogre: 0, topp: 0, botn: arkH },
+    [benk, vindu, arkH],
+  )
 
   const worker = useRef<Worker | null>(null)
   const reqId = useRef(0)
@@ -181,6 +257,12 @@ export function Studio() {
         setParams((p) => ({ ...p, kjelde: r.src.id }))
         setFeil(null)
         setHentar(false)
+        // Nettet er inne. No er det fingrane som gjeld, og dei syner seg
+        // ikkje sjølve. Berre der det finst fingrar.
+        if (!matchMedia("(pointer: coarse)").matches) return
+        setHint("gest")
+        window.clearTimeout(hintTimer.current)
+        hintTimer.current = window.setTimeout(() => setHint(null), 7000)
         return
       }
       if (r.kind === "feil") {
@@ -220,6 +302,7 @@ export function Studio() {
         setBusy(false)
         const base = finn.current?.base ?? ""
         if (finn.current) finn.current.alle = r.alle
+        setListe(r.alle)
         if (!r.alle.length) {
           // Eit søk utan svar er ikkje eit søk som feila: det er eit nett
           // som ikkje kan verte ein vaffel i den plata. Det skal STÅ, elles
@@ -332,6 +415,11 @@ export function Studio() {
       setKanAngre(fortid.current.length > 0)
       return
     }
+    // Ei førehandsvising er ikkje ei endring, og ho får ikkje flytte
+    // bokføringa heller. Set ein `stodd` til det ein berre ser på, vert
+    // det bokført i det ein fer ut av rada att: angre hoppa attende til
+    // kandidaten du aldri valde.
+    if (forhand.current) return
     // Det finst noko å gå attende til med det same — sjølv om det ikkje er
     // bokført enno. Sjå `angre`.
     setKanAngre(true)
@@ -378,7 +466,7 @@ export function Studio() {
     const steg = r.int ? Math.trunc(raa) : raa
     rest.current[key] = r.int ? raa - steg : 0
     if (steg === 0) return
-    setHint(false)
+    setHint(null)
     setParams((cur) => {
       const at = typeof cur[key] === "number" ? (cur[key] as number) : r.min
       const v = Math.min(r.max, Math.max(r.min, at + steg))
@@ -390,25 +478,29 @@ export function Studio() {
   }, [])
 
   /**
-   * KLYPET: STORLEIKEN.
+   * KLYPET OG VRIDINGA MÅLER FRÅ DER GESTEN BYRJA.
    *
-   * Faktoren kjem for kvar hending og vert gonga inn. Resten som ikkje vart
-   * eit heilt steg vert liggjande att, akkurat som for ribbetalet: eit klyp
-   * er hundre små hendingar, og rundar ein kvar av dei for seg, er kvar av
-   * dei null.
+   * Fingrane som står tre gonger so langt frå kvarandre skal gje eit objekt
+   * som er tre gonger so stort, same kor mange hendingar som kom fram
+   * undervegs. Nettlesaren slår saman rørsler når hovudtråden er oppteken,
+   * og eit bygg tek hundre millisekund: la ein saman steg for steg, mista
+   * ein det som vart slege saman, og den same gesten gav tre gonger den
+   * eine gongen og halvanna den neste.
+   *
+   * Difor hugsar vi kva som stod då gesten byrja, og reknar alltid frå
+   * det. Grunnstoda vert sett når gesten melder seg og rydda når han
+   * sluttar; sjå `setGest` i onGest.
    */
-  const skalaRest = useRef(0)
-  const skalerObjektet = useCallback((faktor: number) => {
-    if (!Number.isFinite(faktor) || faktor <= 0) return
-    setHint(false)
+  const grunn = useRef<{ storleik: number; rotZ: number } | null>(null)
+
+  const skalerObjektet = useCallback((total: number) => {
+    if (!Number.isFinite(total) || total <= 0) return
+    const g = grunn.current
+    if (!g) return
+    setHint(null)
     const r = VAFFEL.ranges.storleik
-    setParams((cur) => {
-      const at = typeof cur.storleik === "number" ? cur.storleik : r.min
-      const raa = at * faktor + skalaRest.current
-      const v = Math.min(r.max, Math.max(r.min, Math.round(raa / r.step) * r.step))
-      skalaRest.current = v === at ? 0 : raa - v
-      return v === at ? cur : { ...cur, storleik: v }
-    })
+    const v = Math.min(r.max, Math.max(r.min, Math.round((g.storleik * total) / r.step) * r.step))
+    setParams((cur) => (cur.storleik === v ? cur : { ...cur, storleik: v }))
   }, [])
 
   /**
@@ -418,18 +510,25 @@ export function Studio() {
    * inni dei, so du ser med det same om ei anna vending gjev eit betre
    * snitt. Det er den eine tingen ingen skyvar viser deg fort nok.
    */
-  const vendRest = useRef(0)
   const vendObjektet = useCallback((grader: number) => {
     if (!Number.isFinite(grader)) return
-    setHint(false)
+    const g = grunn.current
+    if (!g) return
+    setHint(null)
+    setParams((cur) => {
+      // Vendinga går rundt: 181 grader er det same som −179.
+      const v = ((((Math.round(g.rotZ + grader) + 180) % 360) + 360) % 360) - 180
+      return cur.rotZ === v ? cur : { ...cur, rotZ: v }
+    })
+  }, [])
+
+  /** eitt steg frå tastaturet, utan ein gest kring seg */
+  const vendSteg = useCallback((grader: number) => {
+    setHint(null)
     setParams((cur) => {
       const at = typeof cur.rotZ === "number" ? cur.rotZ : 0
-      const raa = at + grader + vendRest.current
-      const heil = Math.round(raa)
-      vendRest.current = raa - heil
-      // Vendinga går rundt: 181 grader er det same som −179.
-      const v = ((((heil + 180) % 360) + 360) % 360) - 180
-      return v === at ? cur : { ...cur, rotZ: v }
+      const v = ((((Math.round(at + grader) + 180) % 360) + 360) % 360) - 180
+      return { ...cur, rotZ: v }
     })
   }, [])
 
@@ -464,7 +563,7 @@ export function Studio() {
     }
     // Ingen liste: det finst ikkje noko «førre svar» å gå attende til.
     if (dir < 0) return
-    setHint(false)
+    setHint(null)
     setBusy(true)
     tunarRef.current = true
     setTunar({ gjort: 0, av: 0 })
@@ -474,6 +573,45 @@ export function Studio() {
     // hadde gjeve opp.
     const msg: Req = { kind: "tune", id: ++reqId.current, params: naa.current }
     worker.current?.postMessage(msg)
+  }, [])
+
+  /**
+   * EIT SVAR VALT MED PEIKAREN.
+   *
+   * Klikk BIND: det er ei endring som vert bokført og som kan angrast.
+   * Å stå over ei rad BYGGJER berre: du ser kandidaten på skjermen, og
+   * fer du ut att, kjem det du hadde attende. Utan skiljet ville tolv
+   * kandidatar vore tolv steg i angrelista, og ingen av dei var noko du
+   * bad om.
+   */
+  const forhand = useRef<ParamBag | null>(null)
+  const velSvar = useCallback((i: number) => {
+    const cur = finn.current
+    if (!cur?.alle.length) return
+    forhand.current = null
+    cur.nth = i
+    setStad({
+      nth: i,
+      tal: cur.alle.length,
+      ribbX: cur.alle[i].ribbX,
+      ribbY: cur.alle[i].ribbY,
+      base: cur.base,
+    })
+    setParams((q) => VAFFEL.pick(q, cur.alle, i))
+  }, [])
+
+  const synSvar = useCallback((i: number | null) => {
+    const cur = finn.current
+    if (!cur?.alle.length) return
+    if (i === null) {
+      const attende = forhand.current
+      forhand.current = null
+      if (attende) setParams(attende)
+      return
+    }
+    if (!forhand.current) forhand.current = naa.current
+    const grunn = forhand.current
+    setParams(VAFFEL.pick(grunn, cur.alle, i))
   }, [])
 
   const doExport = useCallback((what: ExportKind) => {
@@ -510,7 +648,7 @@ export function Studio() {
    * hundre megabyte kryssar trådgrensa utan at det finst to av det.
    */
   const takeFile = useCallback(async (f: File) => {
-    setHint(false)
+    setHint(null)
     if (f.size > MAX_FIL) {
       setFeil("fila er for stor")
       return
@@ -598,7 +736,7 @@ export function Studio() {
       // Vending frå tastaturet: styreflata sender aldri ei vriding til
       // sida, so det er komma og punktum som gjer det der.
       if (k === "," || k === ".") {
-        vendObjektet((k === "," ? -1 : 1) * (e.shiftKey ? 15 : 5))
+        vendSteg((k === "," ? -1 : 1) * (e.shiftKey ? 15 : 5))
         setGest("vend")
         window.clearTimeout(gestTimer.current)
         gestTimer.current = window.setTimeout(() => setGest(null), 900)
@@ -611,11 +749,11 @@ export function Studio() {
       else if (k === "o") setMode((m) => (m === "lukka" ? "halv" : "lukka"))
       else if (k === "escape") setMode("lukka")
       else return
-      setHint(false)
+      setHint(null)
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, steg, vendObjektet])
+  }, [angre, steg, vendSteg])
 
   useEffect(() => {
     if (!melding) return
@@ -624,12 +762,18 @@ export function Studio() {
   }, [melding])
 
   const endre = useCallback((p: ParamBag) => {
-    setHint(false)
+    setHint(null)
     setParams(p)
   }, [])
 
   const metrics: Metrics | null = tal?.metrics ?? null
   const rules: Rule[] = useMemo(() => tal?.rules ?? [], [tal])
+  /** det frie bandet som eit CSS-rektangel, til det som skal stå oppå
+   *  lerretet og ikkje bak eit panel */
+  const fritt: CSSProperties = benk
+    ? { left: VEGG.venstre, right: VEGG.hogre, top: VEGG.topp + 56, bottom: 16 }
+    : { left: 0, right: 0, top: 52, bottom: arkH + 24 }
+
   const les = (k: string) =>
     String(typeof params[k] === "number" ? Math.round(params[k] as number) : 0)
   const gestTekst =
@@ -670,18 +814,20 @@ export function Studio() {
             material={String(params.material ?? "finer")}
             skala={skala}
             hiDetail={hiDetail && isDesktop}
-            dekke={dekke}
+            rute={rute}
             light={light}
             onNudge={nudge}
             onSkala={skalerObjektet}
             onVend={vendObjektet}
             onLight={nudgeLight}
-            onGest={setGest}
+            onGest={taGest}
           />
         )}
       </div>
 
-      {/* Eitt ord og ei lenkje. Alt anna sida har å seie, seier objektet. */}
+      {/* Eitt ord og ei lenkje. Alt anna sida har å seie, seier objektet.
+          På benken bur dei i topplina hans i staden. */}
+      {!benk && (
       <header className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-5 pt-[calc(env(safe-area-inset-top)+16px)]">
         <div className="text-[11px] tracking-[0.22em]" style={{ color: "var(--ink)" }}>
           SLICERMAN
@@ -696,6 +842,7 @@ export function Studio() {
           iverfinne.no
         </a>
       </header>
+      )}
 
       {/*
         KVA FINGRANE GJER, I TAL.
@@ -706,11 +853,12 @@ export function Studio() {
       */}
       {gestTekst && (
         <div
-          className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+52px)] flex justify-center"
+          className="pointer-events-none absolute flex justify-center"
+          style={fritt}
           aria-hidden="true"
         >
           <span
-            className="tab text-[26px] leading-none tracking-[0.02em]"
+            className="tab h-fit text-[26px] leading-none tracking-[0.02em]"
             style={{ color: "var(--ink)", opacity: 0.5 }}
           >
             {gestTekst}
@@ -721,16 +869,17 @@ export function Studio() {
       {/* Fyrste gongen, og berre då: kuben står der, og ingenting på sida
           seier at han kan bytast ut. Ei line. Ho går i det nokon rører
           noko som helst. */}
-      {hint && !drag && kjelde === KUBE && (
+      {hint && !drag && (hint === "gest" || kjelde === KUBE) && (
         <div
-          className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+86px)] flex justify-center px-6"
+          className="pointer-events-none absolute flex items-end justify-center px-6"
+          style={fritt}
           aria-hidden="true"
         >
           <span
             className="fade-inn text-center text-[10px] uppercase tracking-[0.2em]"
             style={{ color: "var(--ink)", opacity: 0.4 }}
           >
-            slepp ei fil kvar som helst
+            {hint === "gest" ? "to fingrar: klyp, vri, dra" : "slepp ei fil kvar som helst"}
           </span>
         </div>
       )}
@@ -749,6 +898,38 @@ export function Studio() {
         </div>
       )}
 
+      {benk ? (
+        <Benk
+          params={params}
+          kjelde={kjeldeNamn}
+          metrics={metrics}
+          rules={rules}
+          view={view}
+          skala={skala}
+          syn={syn?.svg ?? null}
+          hiDetail={hiDetail}
+          busy={busy}
+          feil={feil}
+          hentar={hentar}
+          tunar={tunar}
+          liste={liste}
+          paa={finnStad ? finnStad.nth : null}
+          gjeld={!!stad && stad.base === tuneBase(params)}
+          kanAngre={kanAngre}
+          onChange={endre}
+          onView={setView}
+          onSkala={setSkala}
+          onReset={() => endre({ ...VAFFEL.defaults, kjelde: params.kjelde })}
+          onAngre={angre}
+          onToggleDetail={() => setHiDetail((d) => !d)}
+          onExport={doExport}
+          onFinn={() => steg(1)}
+          onVelSvar={velSvar}
+          onSynSvar={synSvar}
+          onShare={share}
+          onFile={(f) => void takeFile(f)}
+        />
+      ) : (
       <ControlsPanel
         params={params}
         kjelde={kjeldeNamn}
@@ -767,9 +948,9 @@ export function Studio() {
         tunar={tunar}
         finnStad={finnStad}
         kanAngre={kanAngre}
-        onDekke={setDekke}
+        onHogd={setArkH}
         onMode={(m) => {
-          setHint(false)
+          setHint(null)
           setMode(m)
         }}
         onChange={endre}
@@ -784,6 +965,7 @@ export function Studio() {
         onShare={share}
         onFile={(f) => void takeFile(f)}
       />
+      )}
     </main>
   )
 }

@@ -50,10 +50,36 @@ correction in the metrics, and it is why the panel fits on a phone.
 Nothing here is one-way. Every change is undoable, by the arrow in the panel or
 by `Z`.
 
-The sheet has three heights: one line, the controls, everything. Half open is a
-third of a phone screen and never scrolls; the object keeps the rest. What you
-press — the exports, undo, share, and the way into the slider wall — sits in a
-footer that stays put while the rest scrolls.
+## Two surfaces
+
+**On a phone** the controls are a sheet at the bottom with three heights: one
+line, the controls, everything. Half open is a third of the screen and never
+scrolls; the object keeps the rest. What you press sits in a footer that stays
+put while the rest scrolls.
+
+**On a screen wider than 1180 px there is no sheet at all.** Three heights are
+an answer to a phone; on a desk the answer is that they disappear. Two fixed
+walls stand instead, and the object lives between them. The left wall is what
+you put in, in the order you do it: the file, the size, what to measure it
+against, the button that finds the grid, the plate, and then every slider. The
+right wall is what comes out: the numbers, the twelve rules, the profiles, the
+files. Nothing opens and nothing scrolls away.
+
+The camera knows about the walls. It frames the object into the rectangle
+between them (`camera.setViewOffset`, not a moved target — moving the target
+moves the pivot, and then the object spins around a point that isn't in it),
+while the scene is still drawn edge to edge underneath, so the walls sit on
+paper rather than on a hard edge.
+
+**Find settings answers with a list, not a number.** Twelve rows: ribs, parts,
+sheets, joints. You see that number four has half as many parts and jump
+straight there. Hovering a row builds that candidate on screen after 90 ms and
+leaving puts yours back; only a click binds, and only a click is undoable. Above
+400 000 source triangles each build is too expensive for that, so it takes a
+click.
+
+Hold space and both walls fade: a key you *hold* is not a state, you are always
+back where you were when you let go.
 
 **Find settings** only moves the rib counts and the joint split. Your mesh,
 your size, your material thickness, your press fit, your kerf and your bed
@@ -263,6 +289,11 @@ deploys without touching any dashboard.
 > TypeScript in `static/media`; the worker then dies silently in the browser and
 > the page just sits there. A guard script fails the build if that happens.
 
+> Point `pnpm panel` at `next start`, not at the dev server. It drives a real
+> browser for several minutes, and any file you touch while it runs makes HMR
+> reload the page underneath it. The failures that produces look exactly like
+> real ones.
+
 ```bash
 pnpm probe   # engine without a browser: parts, joints, cut length, files
 pnpm rekkje  # reads the cut files back: engrave, inner cuts, outline, in that order
@@ -273,7 +304,7 @@ pnpm pakk    # redraws every sheet and counts cells — catches overlaps
 pnpm tung    # a million triangles in, and how long that takes
 pnpm ark     # cut sheets as images
 pnpm look    # screenshots of the page, and any console errors
-pnpm panel   # the controls in a real browser: find, walk, undo, type, keys
+pnpm panel   # the controls in a real browser: both surfaces, gestures, keys
 ```
 
 | | |
