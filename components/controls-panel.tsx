@@ -543,7 +543,15 @@ export function ControlsPanel(props: {
             </div>
           )}
 
-          <div className="flex items-center gap-1.5 p-2.5">
+          {/*
+            TALA KAPPAST IKKJE.
+            På ein smal telefon er det ikkje plass til kjelda, tre tal og
+            tre knappar på ei line, og det som gav etter var tala: «12 delar
+            · 17,…». Dei er heile grunnen til at lina finst. So på smale
+            skjermar fell dei ned på si eiga line i staden, og får henne
+            heil. Over fire hundre pikslar står alt som før.
+          */}
+          <div className="flex flex-wrap items-center gap-1.5 p-2.5">
             {/* Kjelda. Han er ikkje ein nedtrekk med tre demofigurar — han er
                 DIN fil, og trykket opnar filveljaren. Kuben står der til
                 nokon gjev han noko betre. */}
@@ -571,7 +579,10 @@ export function ControlsPanel(props: {
                   : "delar, kuttlengd og ark — trykk for kontrollane"
               }
               aria-label="delar, kuttlengd og ark"
-              className="tab min-w-0 flex-1 truncate pl-1 text-left text-[11px] tracking-[0.06em]"
+              className={
+                "tab min-w-0 flex-1 truncate pl-1 text-left text-[11px] tracking-[0.06em] " +
+                "max-[399px]:order-last max-[399px]:w-full max-[399px]:flex-none max-[399px]:pt-2"
+              }
             >
               {feil ? (
                 <span style={{ color: "var(--warn)" }}>{feil}</span>
@@ -604,7 +615,7 @@ export function ControlsPanel(props: {
             {/* prikken har fast plass, så lina står i ro medan motoren reknar */}
             <span
               aria-hidden="true"
-              className="block h-[5px] w-[5px] shrink-0 rounded-full"
+              className="ml-auto block h-[5px] w-[5px] shrink-0 rounded-full"
               style={{
                 background: "var(--ink)",
                 opacity: busy && !tunar ? 0.8 : 0.12,

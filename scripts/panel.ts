@@ -269,6 +269,21 @@ async function main() {
     (await page.getByLabel("hent eit nett").innerText()).toLowerCase().includes("kule"),
   )
 
+  // --- PÅ EIN SMAL TELEFON -------------------------------------------------
+  // Dei tre tala ER grunnen til at lina finst. På ein skjerm på 320 stod
+  // det «12 delar · 17,…»: kjelda, tala og tre knappar fekk ikkje plass på
+  // ei line, og det som gav etter var det einaste som ikkje kunne det.
+  for (const breidd of [320, 360, 414]) {
+    await page.setViewportSize({ width: breidd, height: 720 })
+    await page.waitForTimeout(250)
+    const kappa = await page.evaluate(`(function(){
+      var el = document.querySelector("section[aria-label='kontrollar'] button[aria-label='delar, kuttlengd og ark']")
+      return el ? el.scrollWidth - el.clientWidth : -1
+    })()`)
+    ok(`tala står heile på ${breidd} px`, kappa === 0, `${kappa} px kappa`)
+  }
+  await page.setViewportSize({ width: 1280, height: 900 })
+
   ok("ingen feil i konsollen", feil.length === 0, feil.slice(0, 2).join(" | "))
   await browser.close()
   console.log(brot ? `\n${brot} brot` : "\npanelet gjer det det seier")
