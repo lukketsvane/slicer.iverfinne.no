@@ -109,6 +109,13 @@ html {
   }
 }
 
+/* Merkinga i eit talfelt òg: sida er kvit og svart, og nettlesaren sin
+   blå er den einaste fargen som ikkje er vald. */
+::selection {
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+  color: var(--ink);
+}
+
 /* Lina som seier at fila kan sleppast. Ho skal ikkje vera der før auget er
    framme. */
 .fade-inn {
