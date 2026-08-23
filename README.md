@@ -40,14 +40,20 @@ correction in the metrics, and it is why the panel fits on a phone.
    pictures 240 mm; everybody pictures an A4 sheet. Stand one next to it, or
    a can, an apple, a chair.
 3. **Press find settings.** It slices a dozen rib grids for real and ranks
-   them, then sets the best. A line under the panel says where you are in that
-   list — `1 av 12 · 7×7 ribber` — and walks it both ways.
+   them, then sets the best. A ring around the button fills while it runs, and
+   a line under the panel then says where you are in that list (`1 av 12 · 7×7
+   ribber`) and walks it both ways.
 4. **Read the rules.** Tap the three numbers to open the panel: it tells you
    what can't be cut or assembled, and why.
 5. **Export ARK** and open it in LightBurn.
 
 Nothing here is one-way. Every change is undoable, by the arrow in the panel or
 by `Z`.
+
+The sheet has three heights: one line, the controls, everything. Half open is a
+third of a phone screen and never scrolls; the object keeps the rest. What you
+press — the exports, undo, share, and the way into the slider wall — sits in a
+footer that stays put while the rest scrolls.
 
 **Find settings** only moves the rib counts and the joint split. Your mesh,
 your size, your material thickness, your press fit, your kerf and your bed
@@ -162,19 +168,19 @@ file was sorted or not.
 |---|---|---|
 | `storleik` | size | longest side, 40–1200 mm |
 | `rotX/Y/Z` | rotation | ±180° |
-| `glatt` | smoothing | 0–24 Taubin passes — removes scanner noise without shrinking |
+| `glatt` | smoothing | 0–24 Taubin passes, removes scanner noise without shrinking |
 | `trekant` | triangle budget | 0.5–60 k, by vertex clustering |
 | `ribbX/Y` | rib counts | 1–32 each way |
 | `lause` | pieces with no joint | keep / drop (default drop) |
-| `tjukn` | thickness | 1–25 mm (presets 2/2.5/3/4/6/9/12/18) |
-| `klaring` | press fit | 0–0.6 mm — slot wider than the plate |
-| `ledd` | joint split | 0.2–0.8 — where in the overlap the slot bottoms out |
+| `tjukn` | thickness | 1–25 mm (buttons for 2/2.5/3/4/6, the plates a laser cuts) |
+| `klaring` | press fit | 0–0.6 mm, slot wider than the plate |
+| `ledd` | joint split | 0.2–0.8, where in the overlap the slot bottoms out |
 | `snitt` | kerf | 0–6 mm |
 | `snittveg` | who compensates | in the file / in the machine |
 | `fart` | cut speed | 1–200 mm/s, for the time estimate only |
 | `arkB/H` | sheet | up to 3000 × 2000 mm |
 
-Materials: plywood, MDF, acrylic, cardboard — they set density (mass) and how
+Materials: plywood, MDF, acrylic, cardboard. They set density (mass) and how
 the surface is drawn.
 
 ## Rules

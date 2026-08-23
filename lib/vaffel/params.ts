@@ -72,6 +72,14 @@ export const SNITTVEGAR = ["i fila", "i maskina"] as const
  */
 export const LAUSE = ["ta med", "kast"] as const
 
+/**
+ * ETIKETTANE STÅR UNDER SI EIGA OVERSKRIFT.
+ *
+ * Skyvarane er grupperte, og gruppa har namnet sitt over seg. Ein skyvar
+ * som heiter «ribber langs x» under overskrifta «RIBBER» seier ordet to
+ * gonger, og det andre er berre lengd: på ein telefon braut det etiketten
+ * over to liner og gjorde rada halvanna gong so høg. Difor «langs x».
+ */
 export const PARAM_RANGES: Record<string, Range> = {
   storleik: { min: 40, max: 1200, step: 5, label: "storleik", unit: "mm" },
   rotX: { min: -180, max: 180, step: 1, label: "vend x", unit: "°" },
@@ -79,21 +87,21 @@ export const PARAM_RANGES: Record<string, Range> = {
   rotZ: { min: -180, max: 180, step: 1, label: "vend z", unit: "°" },
 
   glatt: { min: 0, max: 24, step: 1, label: "glatting", int: true },
-  trekant: { min: 0.5, max: 60, step: 0.5, label: "trekantar", unit: "k" },
+  trekant: { min: 0.5, max: 60, step: 0.5, label: "tak", unit: "k" },
 
-  ribbX: { min: 1, max: 32, step: 1, label: "ribber langs x", int: true },
-  ribbY: { min: 1, max: 32, step: 1, label: "ribber langs y", int: true },
+  ribbX: { min: 1, max: 32, step: 1, label: "langs x", int: true },
+  ribbY: { min: 1, max: 32, step: 1, label: "langs y", int: true },
   tjukn: { min: 1, max: 25, step: 0.1, label: "tjukn", unit: "mm" },
-  lause: { min: 0, max: 1, step: 1, label: "lause stykke", int: true, names: LAUSE },
+  lause: { min: 0, max: 1, step: 1, label: "lause", int: true, names: LAUSE },
 
   klaring: { min: 0, max: 0.6, step: 0.01, label: "klaring", unit: "mm" },
-  ledd: { min: 0.2, max: 0.8, step: 0.01, label: "leddeling" },
+  ledd: { min: 0.2, max: 0.8, step: 0.01, label: "deling" },
 
-  snitt: { min: 0, max: 6, step: 0.05, label: "snittbreidd", unit: "mm" },
+  snitt: { min: 0, max: 6, step: 0.05, label: "snitt", unit: "mm" },
   snittveg: { min: 0, max: 1, step: 1, label: "kompensasjon", int: true, names: SNITTVEGAR },
-  fart: { min: 1, max: 200, step: 1, label: "kuttfart", unit: "mm/s", int: true },
-  arkB: { min: 200, max: 3000, step: 10, label: "ark breidd", unit: "mm" },
-  arkH: { min: 200, max: 2000, step: 10, label: "ark høgd", unit: "mm" },
+  fart: { min: 1, max: 200, step: 1, label: "fart", unit: "mm/s", int: true },
+  arkB: { min: 200, max: 3000, step: 10, label: "breidd", unit: "mm" },
+  arkH: { min: 200, max: 2000, step: 10, label: "høgd", unit: "mm" },
 }
 
 export const GROUPS: readonly Group[] = [
@@ -101,7 +109,8 @@ export const GROUPS: readonly Group[] = [
   { id: "nett", label: "nett", keys: ["glatt", "trekant"] },
   { id: "ribber", label: "ribber", keys: ["ribbX", "ribbY", "tjukn", "lause"] },
   { id: "ledd", label: "ledd", keys: ["klaring", "ledd"] },
-  { id: "kutt", label: "kutt", keys: ["snitt", "snittveg", "fart", "arkB", "arkH"] },
+  { id: "kutt", label: "kutt", keys: ["snitt", "snittveg", "fart"] },
+  { id: "plate", label: "plate", keys: ["arkB", "arkH"] },
 ]
 
 export const PARAM_KEYS = GROUPS.flatMap((g) => g.keys)

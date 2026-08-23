@@ -26,6 +26,40 @@ import { DETAIL, type Grid } from "./ribs"
 import { makePlan } from "./plan"
 import type { Params } from "./params"
 
+/**
+ * RADENE I TAVLA, EIN STAD.
+ *
+ * Panelet må kunne teikne tavla FØR fyrste målinga er inne, og gjorde det
+ * med si eiga handskrivne liste over dei same etikettane. Dei to lista
+ * dreiv frå kvarandre: tavla synte tretten rader tom og femten full, ho
+ * bytte ord på ei rad i det fyrste svaret kom, og to av radene datt inn
+ * frå ingenstad. Ei liste kan ikkje drive frå seg sjølv.
+ *
+ * EININGA STÅR BERRE DER HO SEIER NOKO. «40 ledd stk» er ikkje eit
+ * målesystem, det er støy: talet ved sida av ordet «ledd» er sjølvsagt eit
+ * tal ledd. Millimeter, kilogram, meter og prosent seier noko.
+ *
+ * Kva som IKKJE står her: ytremålet, som står under storleikskyvaren der
+ * handa er når spørsmålet vert stilt, og materialet, som står som fire
+ * fargeprikkar og ei rad tjukner rett over. Eit tal to stader er eit tal
+ * for mykje, og det som er handsett høyrer heime ved handa.
+ */
+export const RADER: readonly { id: string; label: string; unit: string }[] = [
+  { id: "delar", label: "delar · unike", unit: "" },
+  { id: "ledd", label: "ledd", unit: "" },
+  { id: "lause", label: "lause stykke", unit: "" },
+  { id: "kutt", label: "kuttlengd", unit: "m" },
+  { id: "tid", label: "kuttetid", unit: "min" },
+  { id: "masse", label: "masse", unit: "kg" },
+  { id: "ark", label: "ark", unit: "" },
+  { id: "utnytting", label: "utnytting", unit: "%" },
+  { id: "gods", label: "minste gods", unit: "mm" },
+  { id: "opning", label: "opning", unit: "mm" },
+  { id: "spor", label: "sporbreidd", unit: "mm" },
+  { id: "nett", label: "trekantar", unit: "" },
+  { id: "kantar", label: "opne kantar", unit: "" },
+]
+
 export function measure(p: Params): Metrics {
   const { k, g, pl, ns } = makePlan(p, DETAIL.mid)
 
@@ -72,25 +106,24 @@ export function measure(p: Params): Metrics {
     list,
   }
 
-  const add = (id: string, label: string, v: number, unit: string, text: string) =>
-    list.push(metric(id, label, v, unit, text))
+  const add = (id: string, v: number, text: string) => {
+    const r = RADER.find((q) => q.id === id)
+    if (r) list.push(metric(id, r.label, v, r.unit, text))
+  }
 
-  add("ytre", "ytre mål", Math.max(env.x, env.y, env.z), "mm",
-    `${nn(env.x)} × ${nn(env.y)} × ${nn(env.z)}`)
-  add("delar", "delar · unike", m.parts, "stk", `${nn(m.parts)} · ${nn(m.unique)}`)
-  add("ledd", "ledd", m.joints, "stk", nn(m.joints))
-  add("lause", p.lause ? "kasta stykke" : "lause delar", m.loose, "stk", nn(m.loose))
-  add("kutt", "kuttlengd", m.cutLen, "m", nn(m.cutLen / 1000, 1))
-  add("tid", "kuttetid", m.cutTime, "min", klokke(m.cutTime))
-  add("masse", "masse", m.mass, "kg", nn(m.mass, 2))
-  add("ark", "ark", m.sheets, "stk", `${nn(m.sheets)} × ${nn(p.arkB)}×${nn(p.arkH)}`)
-  add("utnytting", "utnytting", m.util, "%", nn(m.util * 100))
-  add("gods", "minste gods", m.narrow, "mm", nn(m.narrow, 1))
-  add("opning", "opning", m.minGap, "mm", nn(m.minGap, 1))
-  add("spor", "sporbreidd", m.slotW, "mm", nn(m.slotW, 2))
-  add("nett", "trekantar", m.tris, "stk", `${nn(m.tris)} av ${nn(m.srcTris)}`)
-  add("kantar", "opne kantar", m.openEdges, "stk", nn(m.openEdges))
-  add("materiale", "materiale", 0, "", `${MATERIALS[mat].label} ${nn(p.tjukn, 1)} mm`)
+  add("delar", m.parts, `${nn(m.parts)} · ${nn(m.unique)}`)
+  add("ledd", m.joints, nn(m.joints))
+  add("lause", m.loose, nn(m.loose))
+  add("kutt", m.cutLen, nn(m.cutLen / 1000, 1))
+  add("tid", m.cutTime, klokke(m.cutTime))
+  add("masse", m.mass, nn(m.mass, 2))
+  add("ark", m.sheets, nn(m.sheets))
+  add("utnytting", m.util, nn(m.util * 100))
+  add("gods", m.narrow, nn(m.narrow, 1))
+  add("opning", m.minGap, nn(m.minGap, 1))
+  add("spor", m.slotW, nn(m.slotW, 2))
+  add("nett", m.tris, `${nn(m.tris)} av ${nn(m.srcTris)}`)
+  add("kantar", m.openEdges, nn(m.openEdges))
 
   return m
 }
