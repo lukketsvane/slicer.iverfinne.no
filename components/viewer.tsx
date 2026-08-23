@@ -8,7 +8,7 @@ import type { View } from "@/lib/core"
 import type { BuildRes } from "@/lib/worker"
 import { ObjectMesh } from "./object-mesh"
 import { GestureParams, type GestKva, type NudgeAxis } from "./gesture-params"
-import { GROUND_Y, ramme, type Fit } from "@/lib/ramme"
+import { GROUND_Y, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkalaId } from "@/lib/skala"
 
 export type LightDir = { az: number; el: number }
@@ -27,31 +27,33 @@ const HEIM = {
 
 function FitCamera({
   fit,
-  dekke,
+  rute,
   flat,
   reframe,
 }: {
   fit: Fit | null
-  /** kor stor del av ruta kontrollarket dekkjer, 0 til 1 */
-  dekke: number
+  /** ruta og kva som ligg over henne, i CSS-pikslar */
+  rute: Rute
   /** konturvisinga: flat teikning, ikkje objekt i eit rom */
   flat: boolean
   /** teljar frå dobbelttrykket: kvart hopp rammar inn på nytt, uansett */
   reframe: number
 }) {
   const camera = useThree((s) => s.camera)
+  const size = useThree((s) => s.size)
   const controls = useThree((s) => s.controls) as
     | { target: THREE.Vector3; update?: () => void }
     | null
   const invalidate = useThree((s) => s.invalidate)
   const lastR = useRef(0)
-  const lastDekke = useRef(-1)
+  const lastRute = useRef("")
   const lastReframe = useRef(0)
   const lastFlat = useRef<boolean | null>(null)
+  const nokkel = `${rute.W}|${rute.H}|${rute.venstre}|${rute.hogre}|${rute.topp}|${rute.botn}`
   useEffect(() => {
     if (!fit || !controls) return
     // Dobbelttrykk: nullstill vaktene so innramminga alltid vert gjord om,
-    // og legg kameraet heim i standardvinkelen — trykket TYDER «kom heim».
+    // og legg kameraet heim i standardvinkelen. Trykket TYDER «kom heim».
     // Eit byte mellom teikning og objekt tel som det same: dei to vil ha
     // kvar sin vinkel, og å halde på den førre er å syne ei teikning på
     // skrå.
@@ -61,33 +63,42 @@ function FitCamera({
       lastFlat.current = flat
       lastR.current = 0
     }
-    // Arket som veks er ei like god grunn til å ramme inn på nytt som eit
-    // objekt som veks: begge to endrar kor mykje rute objektet har.
-    const flytta = Math.abs(dekke - lastDekke.current) > 0.03
+    // Ei rute som har endra seg er ei like god grunn til å ramme inn på
+    // nytt som eit objekt som har endra seg: begge to endrar kor mykje
+    // plass objektet har.
+    const flytta = lastRute.current !== nokkel
     if (!flytta && lastR.current && Math.abs(fit.r - lastR.current) / lastR.current < 0.1) return
     lastR.current = fit.r
-    lastDekke.current = dekke
+    lastRute.current = nokkel
     const persp = camera as THREE.PerspectiveCamera
     // Sjølve rekninga står i lib/ramme.ts: ho er den einaste staden i
     // reiskapen der eit objekt kan verte usynleg utan at noko feilar, og
     // difor den einaste staden som må kunne prøvast utanfor ein nettlesar.
-    const r = ramme(fit, {
-      dekke,
-      aspect: persp.aspect || 1,
-      fovDeg: persp.fov ?? 30,
-      flat,
-    })
-    const dist = r.dist
+    const r = ramme(fit, { rute, fovDeg: persp.fov ?? 30, flat })
+    /**
+     * OBJEKTET STÅR MIDT I DET SOM ER FRITT.
+     *
+     * Ikkje midt i ruta: midt i det rektangelet ingen panel ligg over.
+     * Frustumet vert difor rekna på det frie bandet, og so vert det
+     * teikna eit stykke UTANFOR det på kvar kant, so scena fyller heile
+     * lerretet og panela ligg over papir og ikkje over ein hard kant.
+     *
+     * Dette er ei forskyving av projeksjonen og ikkje av siktepunktet.
+     * Flyttar ein siktepunktet i staden, flyttar ein dreiepunktet med, og
+     * då snurrar objektet kring eit punkt som ikkje er i det.
+     */
+    persp.aspect = r.fri.w / r.fri.h
+    persp.setViewOffset(r.fri.w, r.fri.h, -r.fri.L, -r.fri.T, size.width, size.height)
     controls.target.set(0, r.y, 0)
     const heim = flat ? HEIM.flat : HEIM.rom
     const dir = homing
       ? new THREE.Vector3(...heim)
       : camera.position.clone().sub(controls.target)
     if (dir.lengthSq() < 1e-6) dir.set(...heim)
-    camera.position.copy(controls.target).add(dir.setLength(dist))
+    camera.position.copy(controls.target).add(dir.setLength(r.dist))
     controls.update?.()
     invalidate()
-  }, [fit, dekke, reframe, controls, camera, invalidate])
+  }, [fit, nokkel, rute, reframe, controls, camera, invalidate, flat, size])
   return null
 }
 
@@ -111,7 +122,7 @@ export const Viewer = memo(function Viewer({
   material,
   skala,
   hiDetail,
-  dekke,
+  rute,
   light,
   onNudge,
   onSkala,
@@ -124,8 +135,8 @@ export const Viewer = memo(function Viewer({
   material: string
   skala: SkalaId
   hiDetail: boolean
-  /** kor stor del av ruta kontrollarket dekkjer, 0 til 1 */
-  dekke: number
+  /** ruta og kva som ligg over henne, i CSS-pikslar */
+  rute: Rute
   light: LightDir
   onNudge: (axis: NudgeAxis, deltaPx: number) => void
   onSkala: (faktor: number) => void
@@ -223,7 +234,7 @@ export const Viewer = memo(function Viewer({
         </group>
       </Suspense>
 
-      <FitCamera fit={fit} dekke={dekke} flat={view === "kontur"} reframe={reframe} />
+      <FitCamera fit={fit} rute={rute} flat={view === "kontur"} reframe={reframe} />
       <GestureParams
         onNudge={onNudge}
         onSkala={onSkala}

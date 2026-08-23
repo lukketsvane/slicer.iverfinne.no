@@ -16,8 +16,7 @@ import { meshToStl } from "../lib/vaffel/export-stl"
 import { glb } from "./glbfil"
 
 const URL = process.argv[2] ?? "http://127.0.0.1:3210"
-const HOVUDLINA =
-  "section[aria-label='kontrollar'] button[aria-label='delar, kuttlengd og ark']"
+const HOVUDLINA = "[aria-label='delar, kuttlengd og ark']"
 const UT = "bilete"
 
 const main = async () => {
@@ -52,11 +51,16 @@ const main = async () => {
   // Prikken i hovudlina er «reknar». Er han dimma, er motoren ferdig — og
   // det er det einaste haldepunktet som ikkje er ei gjetting på tid.
   await page.waitForFunction(
-    () => document.querySelector('section[aria-label="kontrollar"]')?.getAttribute("aria-busy") === "false",
+    () => document.querySelector("[aria-busy]")?.getAttribute("aria-busy") === "false",
     undefined,
     { timeout: 45000 },
   )
   await page.waitForTimeout(1200)
+  // To heilt ulike oppsett: benken med to veggar over 1180 px, arket med
+  // tre høgder under. Alt som skal fotograferast finst i begge, men stega
+  // for å opne eit ark finst berre i det eine.
+  const benk = (await page.locator("aside[aria-label='innstillingar']").count()) > 0
+  console.log("oppsett:", benk ? "benk" : "ark")
 
   // Hovudlina er ein KNAPP: eit trykk på tala opnar arket der grunngjevinga
   // står. Ho vert difor funnen på det ho heiter og ikkje på kva element ho
@@ -66,8 +70,10 @@ const main = async () => {
   await page.screenshot({ path: `${UT}/1-lag.png` })
 
   // panelet ope
-  await page.locator("button[aria-expanded]").first().click()
-  await page.waitForTimeout(600)
+  if (!benk) {
+    await page.locator("button[aria-expanded]").first().click()
+    await page.waitForTimeout(600)
+  }
   await page.screenshot({ path: `${UT}/2-panel.png` })
 
   for (const v of ["flate", "kontur"]) {
@@ -77,8 +83,10 @@ const main = async () => {
   }
 
   // heile skyveveggen
-  await page.getByRole("button", { name: "alle parametrar" }).click()
-  await page.waitForTimeout(600)
+  if (!benk) {
+    await page.getByRole("button", { name: "alle parametrar" }).click()
+    await page.waitForTimeout(600)
+  }
   await page.screenshot({ path: `${UT}/4-skyvarar.png`, fullPage: false })
 
   // --- importen ------------------------------------------------------------
@@ -87,14 +95,13 @@ const main = async () => {
   // har heile vegen fil → arbeidar → strålar → ribber → skjerm gått.
   await page.getByRole("button", { name: "lag", exact: true }).click()
   // panelet heilt att, so biletet syner objektet og ikkje menyen
-  await page.getByRole("button", { name: "færre kontrollar" }).click()
-  await page.getByRole("button", { name: "gøym kontrollane" }).click()
+  if (!benk) {
+    await page.getByRole("button", { name: "færre kontrollar" }).click()
+    await page.getByRole("button", { name: "gøym kontrollane" }).click()
+  }
   const ferdig = () =>
     page.waitForFunction(
-      () =>
-        document
-          .querySelector('section[aria-label="kontrollar"]')
-          ?.getAttribute("aria-busy") === "false",
+      () => document.querySelector("[aria-busy]")?.getAttribute("aria-busy") === "false",
       undefined,
       { timeout: 45000 },
     )
@@ -126,8 +133,10 @@ const main = async () => {
   // Ei knapp som ikkje leverer ei fil er ei knapp som ikkje finst. Kvart
   // uttak vert trykt på, og fila som kjem ut vert lesen: rett namn, rett
   // type, og noko inni.
-  await page.getByRole("button", { name: "vis kontrollane" }).click()
-  await page.waitForTimeout(400)
+  if (!benk) {
+    await page.getByRole("button", { name: "vis kontrollane" }).click()
+    await page.waitForTimeout(400)
+  }
   for (const [chip, vent] of [
     ["passprøve", /^passprove-.*\.svg$/],
     ["ark", /\.svg$|\.zip$/],
