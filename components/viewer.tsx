@@ -7,7 +7,7 @@ import * as THREE from "three"
 import type { View } from "@/lib/core"
 import type { BuildRes } from "@/lib/worker"
 import { ObjectMesh } from "./object-mesh"
-import { GestureParams, type NudgeAxis } from "./gesture-params"
+import { GestureParams, type GestKva, type NudgeAxis } from "./gesture-params"
 import { GROUND_Y, ramme, type Fit } from "@/lib/ramme"
 import type { SkalaId } from "@/lib/skala"
 
@@ -114,7 +114,10 @@ export const Viewer = memo(function Viewer({
   dekke,
   light,
   onNudge,
+  onSkala,
+  onVend,
   onLight,
+  onGest,
 }: {
   data: BuildRes | null
   view: View
@@ -125,7 +128,10 @@ export const Viewer = memo(function Viewer({
   dekke: number
   light: LightDir
   onNudge: (axis: NudgeAxis, deltaPx: number) => void
+  onSkala: (faktor: number) => void
+  onVend: (grader: number) => void
   onLight: (dxPx: number, dyPx: number) => void
+  onGest: (kva: GestKva) => void
 }) {
   const bg = "#ffffff"
   const shadow = hiDetail ? 4096 : 2048
@@ -218,7 +224,14 @@ export const Viewer = memo(function Viewer({
       </Suspense>
 
       <FitCamera fit={fit} dekke={dekke} flat={view === "kontur"} reframe={reframe} />
-      <GestureParams onNudge={onNudge} onLight={onLight} onDoubleTap={handleDoubleTap} />
+      <GestureParams
+        onNudge={onNudge}
+        onSkala={onSkala}
+        onVend={onVend}
+        onLight={onLight}
+        onDoubleTap={handleDoubleTap}
+        onGest={onGest}
+      />
       <OrbitControls
         target={[0, 0.35, 0]}
         enablePan={false}

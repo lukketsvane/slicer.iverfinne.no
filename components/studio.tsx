@@ -8,7 +8,7 @@ import type { BuildRes, MaalRes, Req, Res, SynRes } from "@/lib/worker"
 import type { Kandidat } from "@/lib/vaffel/tune"
 import { Viewer, type LightDir } from "./viewer"
 import { ControlsPanel, type PanelMode } from "./controls-panel"
-import type { NudgeAxis } from "./gesture-params"
+import type { GestKva, NudgeAxis } from "./gesture-params"
 import type { SkalaId } from "@/lib/skala"
 
 /** kor mange piksel to-fingers-rulling må dra for å sveipe eit heilt band */
@@ -84,6 +84,9 @@ export function Studio() {
   /** kor langt søket er kome, medan det går */
   const [tunar, setTunar] = useState<{ gjort: number; av: number } | null>(null)
   const [drag, setDrag] = useState(false)
+  /** kva ein finger held på med akkurat no, til lesing over objektet */
+  const [gest, setGest] = useState<GestKva>(null)
+  const gestTimer = useRef(0)
   /** ei fil er undervegs inn. Eit skann på hundre megabyte tek fleire
    *  sekund å tolke og sveise, og i dei sekunda står dei gamle tala i
    *  hovudlina og seier noko om eit anna objekt. */
@@ -140,7 +143,7 @@ export function Studio() {
       const v = obj.view
       if (v === "lag" || v === "kontur" || v === "flate") setView(v)
       const sk = obj.skala
-      if (sk === "a4" || sk === "brus" || sk === "eple" || sk === "stol") setSkala(sk)
+      if (sk === "a4" || sk === "brus" || sk === "eple") setSkala(sk)
     } catch {
       // øydelagd hash — lat standardobjektet stå
     }
@@ -386,6 +389,50 @@ export function Studio() {
     })
   }, [])
 
+  /**
+   * KLYPET: STORLEIKEN.
+   *
+   * Faktoren kjem for kvar hending og vert gonga inn. Resten som ikkje vart
+   * eit heilt steg vert liggjande att, akkurat som for ribbetalet: eit klyp
+   * er hundre små hendingar, og rundar ein kvar av dei for seg, er kvar av
+   * dei null.
+   */
+  const skalaRest = useRef(0)
+  const skalerObjektet = useCallback((faktor: number) => {
+    if (!Number.isFinite(faktor) || faktor <= 0) return
+    setHint(false)
+    const r = VAFFEL.ranges.storleik
+    setParams((cur) => {
+      const at = typeof cur.storleik === "number" ? cur.storleik : r.min
+      const raa = at * faktor + skalaRest.current
+      const v = Math.min(r.max, Math.max(r.min, Math.round(raa / r.step) * r.step))
+      skalaRest.current = v === at ? 0 : raa - v
+      return v === at ? cur : { ...cur, storleik: v }
+    })
+  }, [])
+
+  /**
+   * VRIDINGA: OBJEKTET SNUR SEG PÅ BORDET.
+   *
+   * Ribbene fylgjer ikkje med. Dei står i verda, og objektet vender seg
+   * inni dei, so du ser med det same om ei anna vending gjev eit betre
+   * snitt. Det er den eine tingen ingen skyvar viser deg fort nok.
+   */
+  const vendRest = useRef(0)
+  const vendObjektet = useCallback((grader: number) => {
+    if (!Number.isFinite(grader)) return
+    setHint(false)
+    setParams((cur) => {
+      const at = typeof cur.rotZ === "number" ? cur.rotZ : 0
+      const raa = at + grader + vendRest.current
+      const heil = Math.round(raa)
+      vendRest.current = raa - heil
+      // Vendinga går rundt: 181 grader er det same som −179.
+      const v = ((((heil + 180) % 360) + 360) % 360) - 180
+      return v === at ? cur : { ...cur, rotZ: v }
+    })
+  }, [])
+
   const nudgeLight = useCallback((dx: number, dy: number) => {
     setLight((l) => ({
       az: l.az + dx * 0.012,
@@ -548,6 +595,15 @@ export function Studio() {
         steg(e.shiftKey ? -1 : 1)
         return
       }
+      // Vending frå tastaturet: styreflata sender aldri ei vriding til
+      // sida, so det er komma og punktum som gjer det der.
+      if (k === "," || k === ".") {
+        vendObjektet((k === "," ? -1 : 1) * (e.shiftKey ? 15 : 5))
+        setGest("vend")
+        window.clearTimeout(gestTimer.current)
+        gestTimer.current = window.setTimeout(() => setGest(null), 900)
+        return
+      }
       if (k === "z") angre()
       else if (k === "1") setView("flate")
       else if (k === "2") setView("lag")
@@ -559,7 +615,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, steg])
+  }, [angre, steg, vendObjektet])
 
   useEffect(() => {
     if (!melding) return
@@ -574,6 +630,17 @@ export function Studio() {
 
   const metrics: Metrics | null = tal?.metrics ?? null
   const rules: Rule[] = useMemo(() => tal?.rules ?? [], [tal])
+  const les = (k: string) =>
+    String(typeof params[k] === "number" ? Math.round(params[k] as number) : 0)
+  const gestTekst =
+    gest === "storleik"
+      ? `${les("storleik")} mm`
+      : gest === "ribber"
+        ? `${les("ribbX")} × ${les("ribbY")} ribber`
+        : gest === "vend"
+          ? `${les("rotZ")}°`
+          : null
+
   const kjelde = String(params.kjelde ?? KUBE)
   const kjeldeNamn = kjelde === KUBE ? "kube" : (namn[kjelde] ?? "nett")
 
@@ -606,7 +673,10 @@ export function Studio() {
             dekke={dekke}
             light={light}
             onNudge={nudge}
+            onSkala={skalerObjektet}
+            onVend={vendObjektet}
             onLight={nudgeLight}
+            onGest={setGest}
           />
         )}
       </div>
@@ -626,6 +696,27 @@ export function Studio() {
           iverfinne.no
         </a>
       </header>
+
+      {/*
+        KVA FINGRANE GJER, I TAL.
+        Ein gest utan tal er ein gest du ikkje kan sikte med: du klyper og
+        objektet står like stort på skjermen, av di kameraet rammar det inn
+        av seg sjølv. Talet er heile tilbakemeldinga, og det står berre so
+        lenge fingrane er nede.
+      */}
+      {gestTekst && (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+52px)] flex justify-center"
+          aria-hidden="true"
+        >
+          <span
+            className="tab text-[26px] leading-none tracking-[0.02em]"
+            style={{ color: "var(--ink)", opacity: 0.5 }}
+          >
+            {gestTekst}
+          </span>
+        </div>
+      )}
 
       {/* Fyrste gongen, og berre då: kuben står der, og ingenting på sida
           seier at han kan bytast ut. Ei line. Ho går i det nokon rører

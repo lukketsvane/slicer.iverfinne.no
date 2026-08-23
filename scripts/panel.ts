@@ -22,7 +22,7 @@
  *
  *   npx tsx scripts/panel.ts [url]
  */
-import { chromium, type Page } from "playwright"
+import { chromium, type Browser, type Page } from "playwright"
 import { MAX_DEKKE, paaSkjermen, ramme, type Fit } from "../lib/ramme"
 import { SKALAR, skalaBoks } from "../lib/skala"
 import { mkdtempSync, writeFileSync } from "node:fs"
@@ -121,7 +121,7 @@ function innramminga() {
     ["kube", { r: 1.556, w: 2.2, h: 2.2, cy: 1.1 }],
     ["flat plate", { r: 1.12, w: 2.2, h: 0.44, cy: 0.22 }],
     ["høg søyle", { r: 1.12, w: 0.44, h: 2.2, cy: 1.1 }],
-    ["stol attmed", { r: 1.343, w: 1.542, h: 2.2, cy: 1.1 }],
+    ["høgt attmed", { r: 1.343, w: 1.542, h: 2.2, cy: 1.1 }],
   ]
   const ruter: [string, number][] = [
     ["telefon 390×780", 390 / 780],
@@ -161,7 +161,6 @@ function referansane() {
     a4: [297, 210, 0.6],
     brus: [66, 66, 115],
     eple: [78, 78, 78],
-    stol: [450, 450, 920],
   }
   for (const q of SKALAR) {
     const b = skalaBoks(q.id)
@@ -175,6 +174,84 @@ function referansane() {
     )
   }
   ok("og «av» er ingenting", skalaBoks("av") === null)
+}
+
+/**
+ * FINGRANE.
+ *
+ * Gestane er det einaste i reiskapen ingen annan prøve kjem nær: dei har
+ * ingen knapp å trykkje på, dei står ikkje i DOM-en, og eit bilete syner
+ * dei ikkje. Dei kan slutte å verke — ein terskel som er feil veg, eit
+ * forteikn som er snudd, ein klassifikator som tek eit klyp for eit drag —
+ * utan at noko som helst feilar.
+ *
+ * Difor vert dei send inn som ekte punkt gjennom nettlesaren sin eigen
+ * inngang, og svaret vert lese av lenkja.
+ */
+async function gestane(browser: Browser) {
+  const page = await browser.newPage({
+    viewport: { width: 900, height: 900 },
+    hasTouch: true,
+  })
+  await page.goto(URL, { waitUntil: "networkidle" })
+  await rolig(page)
+  const cdp = await page.context().newCDPSession(page)
+  type Pt = { x: number; y: number; id: number }
+  const send = (type: string, touchPoints: Pt[]) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints } as never)
+
+  /** to fingrar frå ei stode til ei anna, i tjue steg */
+  const gest = async (fra: [Pt, Pt], til: (t: number) => [Pt, Pt]) => {
+    await send("touchStart", fra)
+    for (let i = 1; i <= 20; i++) {
+      await send("touchMove", til(i / 20))
+      await page.waitForTimeout(16)
+    }
+    await send("touchEnd", [])
+    await rolig(page)
+  }
+
+  const midt = { x: 450, y: 300 }
+  const pkt = (r: number, v: number): [Pt, Pt] => [
+    { x: midt.x - r * Math.cos(v), y: midt.y - r * Math.sin(v), id: 1 },
+    { x: midt.x + r * Math.cos(v), y: midt.y + r * Math.sin(v), id: 2 },
+  ]
+
+  // --- KLYP: STORLEIKEN ----------------------------------------------------
+  let p = await lenkja(page)
+  const for0 = Number(p.storleik)
+  await gest(pkt(60, 0), (t) => pkt(60 + 120 * t, 0))
+  p = await lenkja(page)
+  ok("klyp ut gjer objektet større", Number(p.storleik) > for0 * 1.5, `${for0} → ${p.storleik} mm`)
+
+  const for1 = Number(p.storleik)
+  await gest(pkt(180, 0), (t) => pkt(180 - 120 * t, 0))
+  p = await lenkja(page)
+  ok("og klyp inn gjer det mindre", Number(p.storleik) < for1 * 0.8, `${for1} → ${p.storleik} mm`)
+
+  // --- VRI: VENDINGA -------------------------------------------------------
+  // Med klokka på skjermen skal objektet gå med klokka, og det er negativ
+  // rotasjon kring den ståande aksen.
+  const vend0 = Number(p.rotZ)
+  await gest(pkt(140, 0), (t) => pkt(140, (t * 40 * Math.PI) / 180))
+  p = await lenkja(page)
+  const dv = Number(p.rotZ) - vend0
+  ok("vri med klokka vender objektet med klokka", dv < -25 && dv > -55, `${vend0}° → ${p.rotZ}°`)
+
+  // --- DRAG: RIBBETALET ----------------------------------------------------
+  const ribb0 = Number(p.ribbY)
+  const stor0 = Number(p.storleik)
+  await gest(pkt(90, 0), (t) => [
+    { x: midt.x - 90, y: midt.y - 220 * t, id: 1 },
+    { x: midt.x + 90, y: midt.y - 220 * t, id: 2 },
+  ])
+  p = await lenkja(page)
+  ok("drag oppover gjev fleire ribber", Number(p.ribbY) > ribb0, `${ribb0} → ${p.ribbY}`)
+  // Klassifikatoren vel ÉIN gest. Eit drag som òg skalerer tyder at
+  // terskelen mellom dei to er for laus.
+  ok("og lét storleiken stå", Number(p.storleik) === stor0, `${stor0} → ${p.storleik} mm`)
+
+  await page.close()
 }
 
 async function main() {
@@ -355,11 +432,11 @@ async function main() {
   // --- SKALAREFERANSEN FYLGJER LENKJA -------------------------------------
   // Lenkja ber alt anna; ein referanse som ikkje er med i henne er ei
   // innstilling som forsvinn i det du deler.
-  await page.getByLabel("skala: stol").click()
+  await page.getByLabel("skala: eple").click()
   await page.waitForTimeout(300)
   p = await lenkja(page)
-  ok("referansen fylgjer lenkja", p.skala === "stol", String(p.skala))
-  await page.getByLabel("skala: stol").click()
+  ok("referansen fylgjer lenkja", p.skala === "eple", String(p.skala))
+  await page.getByLabel("skala: eple").click()
   await page.waitForTimeout(300)
   p = await lenkja(page)
   ok("og eit nytt trykk tek han bort", p.skala === "av", String(p.skala))
@@ -378,6 +455,8 @@ async function main() {
     ok(`tala står heile på ${breidd} px`, kappa === 0, `${kappa} px kappa`)
   }
   await page.setViewportSize({ width: 1280, height: 900 })
+
+  await gestane(browser)
 
   ok("ingen feil i konsollen", feil.length === 0, feil.slice(0, 2).join(" | "))
   await browser.close()

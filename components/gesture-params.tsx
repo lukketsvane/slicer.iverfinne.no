@@ -5,30 +5,56 @@ import * as THREE from "three"
 import { useThree } from "@react-three/fiber"
 
 export type NudgeAxis = "vertical" | "horizontal"
+/** kva ein gest held på med, til lesing på skjermen */
+export type GestKva = "storleik" | "ribber" | "vend" | "lys" | null
 
 /**
- * Fingergestar på lerretet. Ein skyvar er presis, men treg; ein gest er
- * upresis, men rask. Reiskapen treng begge, og dei må ikkje slåst om
- * dei same fingrane.
+ * FINGRANE PÅ OBJEKTET.
  *
- *  - éin finger        → OrbitControls, snu objektet
- *  - dobbelttrykk      → onDoubleTap, ramm inn objektet på nytt
- *  - to fingrar loddrett / vassrett → onNudge, skrur ribbetalet
- *  - klyp              → kamera nærare og lenger unna
- *  - tre fingrar       → onLight, styrer hovudlyset. Kameraet står stille;
- *                        posituren frå før fingrane landa vert lagd
- *                        tilbake med det same gesten er avgjord, slik at
- *                        den tilfeldige rotasjonen frå den fyrste fingeren
- *                        ikkje vert hengande att.
+ * Ein skyvar er presis og treg; ein gest er upresis og rask. Reiskapen
+ * treng begge, men gestane har vore fattige: to fingrar skrudde ribbetalet,
+ * klypet flytta kameraet, og det var det. Kameraet er det EINASTE i heile
+ * reiskapen som ikkje endrar noko, av di det rammar inn objektet av seg
+ * sjølv same kva. Å bruke den beste gesten på skjermen til å gjere det som
+ * skjer av seg sjølv er å kaste henne bort.
+ *
+ * So no ligg objektet under fingrane:
+ *
+ *   éin finger        snu synet (OrbitControls)
+ *   dobbelttrykk      ramm inn på nytt, heim i standardvinkelen
+ *   to fingrar, klyp  STORLEIKEN. Du dreg objektet stort og lite.
+ *   to fingrar, vri   VEND. Objektet snur seg på bordet, og ribbene
+ *                     fylgjer ikkje med: du ser med det same om ei anna
+ *                     vending gjev eit betre snitt.
+ *   to fingrar, dra   ribbetalet, loddrett og vassrett kvar sin veg
+ *   tre fingrar       hovudlyset
+ *
+ * Klassifiseringa skjer ÉIN gong, etter ei daudsone, og alle fire kandidatar
+ * vert målte i same eining: pikslar. Vridinga vert rekna om til bogelengda
+ * kvar finger har gått, so ein liten vri på to fingrar tett i hop ikkje
+ * skuggar for eit drag.
+ *
+ * Klypet tek ikkje lenger kameraet. Det er eit medvite tap: du kan ikkje
+ * zoome med fingrane. Til gjengjeld rammar kameraet inn av seg sjølv, og
+ * dobbelttrykket set det heim.
  */
 export function GestureParams({
   onNudge,
+  onSkala,
+  onVend,
   onLight,
   onDoubleTap,
+  onGest,
 }: {
   onNudge: (axis: NudgeAxis, deltaPx: number) => void
+  /** klyp: storleiken gonga med denne faktoren */
+  onSkala?: (faktor: number) => void
+  /** vri: så mange grader kring den ståande aksen */
+  onVend?: (grader: number) => void
   onLight?: (dxPx: number, dyPx: number) => void
   onDoubleTap?: () => void
+  /** kva gesten held på med, eller null når ingen finger er nede */
+  onGest?: (kva: GestKva) => void
 }) {
   const gl = useThree((s) => s.gl)
   const controls = useThree((s) => s.controls) as {
@@ -42,8 +68,8 @@ export function GestureParams({
   useEffect(() => {
     const el = gl.domElement
     const pts = new Map<number, { x: number; y: number }>()
-    let mode: "none" | "pinch" | "v" | "h" | "light" = "none"
-    let last = { cx: 0, cy: 0, d: 0 }
+    let mode: "none" | "klyp" | "vri" | "v" | "h" | "light" = "none"
+    let last = { cx: 0, cy: 0, d: 0, a: 0 }
     let snap: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null
     // dobbelttrykket: to korte, stillestandande trykk nær kvarandre i tid
     // og rom — same terskel som iOS sjølv brukar på kartet
@@ -66,7 +92,16 @@ export function GestureParams({
         cx: (a.x + b.x) / 2,
         cy: (a.y + b.y) / 2,
         d: Math.hypot(a.x - b.x, a.y - b.y),
+        a: Math.atan2(b.y - a.y, b.x - a.x),
       }
+    }
+
+    /** vinkelskilnad inn i (-π, π] */
+    const vinkel = (ny: number, gml: number) => {
+      let v = ny - gml
+      while (v > Math.PI) v -= 2 * Math.PI
+      while (v <= -Math.PI) v += 2 * Math.PI
+      return v
     }
 
     const centroid = () => {
@@ -101,9 +136,10 @@ export function GestureParams({
       if (pts.size === 3) {
         mode = "light"
         const c = centroid()
-        last = { cx: c.x, cy: c.y, d: 0 }
+        last = { cx: c.x, cy: c.y, d: 0, a: 0 }
         if (controls) controls.enabled = false
         restore()
+        onGest?.("lys")
       }
     }
 
@@ -114,7 +150,7 @@ export function GestureParams({
         if (pts.size < 3) return
         const c = centroid()
         onLight?.(c.x - last.cx, c.y - last.cy)
-        last = { cx: c.x, cy: c.y, d: 0 }
+        last = { cx: c.x, cy: c.y, d: 0, a: 0 }
         return
       }
       if (pts.size !== 2) return
@@ -122,27 +158,35 @@ export function GestureParams({
       const dx = c.cx - last.cx
       const dy = c.cy - last.cy
       const dd = c.d - last.d
+      const dv = vinkel(c.a, last.a)
+      // Vridinga målt i pikslar: bogen kvar finger har gått.
+      const boge = dv * (c.d / 2)
       if (mode === "none") {
-        // gesten vert klassifisert éin gong, etter ei lita daudsone
-        if (Math.abs(dd) > Math.max(Math.abs(dx), Math.abs(dy)) * 1.2 && Math.abs(dd) > 5) {
-          mode = "pinch"
-        } else if (Math.abs(dy) > Math.abs(dx) * 1.3 && Math.abs(dy) > 5) {
-          mode = "v"
-        } else if (Math.abs(dx) > Math.abs(dy) * 1.3 && Math.abs(dx) > 5) {
-          mode = "h"
-        } else {
-          return
-        }
-        if (mode !== "pinch") restore()
+        // Gesten vert klassifisert ÉIN gong, etter ei daudsone, og alle
+        // fire kandidatane står i same eining.
+        const A = Math.abs(boge)
+        const D = Math.abs(dd)
+        const X = Math.abs(dx)
+        const Y = Math.abs(dy)
+        if (A > 6 && A > 1.3 * Math.max(D, X, Y)) mode = "vri"
+        else if (D > 6 && D > 1.2 * Math.max(X, Y, A)) mode = "klyp"
+        else if (Y > 6 && Y > 1.3 * Math.max(X, D, A)) mode = "v"
+        else if (X > 6 && X > 1.3 * Math.max(Y, D, A)) mode = "h"
+        else return
+        // Den fyrste fingeren rakk å snu synet litt før den andre landa.
+        // Den rotasjonen høyrer ikkje til gesten, so han vert lagd attende.
+        restore()
+        onGest?.(
+          mode === "klyp" ? "storleik" : mode === "vri" ? "vend" : "ribber",
+        )
       }
-      if (mode === "pinch") {
-        if (last.d > 0 && c.d > 0) {
-          const target = controls?.target?.clone() ?? new THREE.Vector3(0, 0.35, 0)
-          const offset = camera.position.clone().sub(target)
-          const dist = THREE.MathUtils.clamp(offset.length() * (last.d / c.d), 2.4, 16)
-          camera.position.copy(target).add(offset.setLength(dist))
-          invalidate()
-        }
+      if (mode === "klyp") {
+        if (last.d > 8 && c.d > 8) onSkala?.(c.d / last.d)
+      } else if (mode === "vri") {
+        // Skjermen har y nedover, so ein vri med klokka aukar vinkelen.
+        // Objektet skal fylgje fingrane, og ei rotasjon med klokka sett
+        // ovanfrå er negativ kring den ståande aksen.
+        onVend?.((-dv * 180) / Math.PI)
       } else if (mode === "v") {
         onNudge("vertical", -dy)
       } else {
@@ -177,23 +221,47 @@ export function GestureParams({
         mode = "none"
         snap = null
         if (controls) controls.enabled = true
+        onGest?.(null)
       } else if (pts.size < 2 && mode !== "light") {
         mode = "none"
+        onGest?.(null)
       }
     }
 
+    /**
+     * KLYPET PÅ EI STYREFLATE.
+     *
+     * Nettlesaren sender det som eit hjul med ctrl nede, og det er det
+     * einaste klypet ein får på skrivebordet: rotasjon med to fingrar når
+     * aldri fram til sida i det heile. So styreflata får storleiken, og
+     * vendinga har tastane komma og punktum.
+     */
+    const hjul = (e: WheelEvent) => {
+      if (!e.ctrlKey || !onSkala) return
+      e.preventDefault()
+      e.stopPropagation()
+      onSkala(Math.exp(-e.deltaY * 0.01))
+      onGest?.("storleik")
+      window.clearTimeout(hjulTimer)
+      hjulTimer = window.setTimeout(() => onGest?.(null), 500)
+    }
+    let hjulTimer = 0
+
     el.addEventListener("pointerdown", down)
+    el.addEventListener("wheel", hjul, { passive: false, capture: true })
     window.addEventListener("pointermove", move, { passive: true })
     window.addEventListener("pointerup", up)
     window.addEventListener("pointercancel", up)
     return () => {
       el.removeEventListener("pointerdown", down)
+      el.removeEventListener("wheel", hjul, { capture: true } as EventListenerOptions)
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerup", up)
       window.removeEventListener("pointercancel", up)
+      window.clearTimeout(hjulTimer)
       if (controls) controls.enabled = true
     }
-  }, [gl, controls, camera, invalidate, onNudge, onLight, onDoubleTap])
+  }, [gl, controls, camera, invalidate, onNudge, onSkala, onVend, onLight, onDoubleTap, onGest])
 
   return null
 }
