@@ -23,6 +23,7 @@ import {
 } from "@/lib/core"
 import { FORMAT } from "@/lib/io"
 import { VAFFEL } from "@/lib/vaffel/engine"
+import { RADER } from "@/lib/vaffel/metrics"
 import { SKALAR, type SkalaId } from "@/lib/skala"
 
 /**
@@ -65,28 +66,32 @@ const VIEWS: readonly { id: View; label: string; hint: string; tast: string }[] 
  */
 function stengd(x: ExportKind, m: Metrics | null): string {
   if (x === "prove" || !m) return ""
-  if (m.parts === 0) return "ingen delar å skjere — sjå reglane"
+  if (m.parts === 0) return "ingen delar å skjere. sjå reglane"
   if ((x === "ark" || x === "dxf") && m.sheets === 0) {
-    return "ingen del fekk plass på plata — større plate, eller mindre objekt"
+    return "ingen del fekk plass på plata. større plate, eller mindre objekt"
   }
   return ""
 }
 
 const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[] = [
   { id: "stl", label: "stl", hint: "heile stabelen som trekantnett, til rendering og 3D-print" },
-  { id: "dxf", label: "dxf", hint: "alle delane nesta på plate, med snittkompensasjon — til fresen" },
+  { id: "dxf", label: "dxf", hint: "alle delane nesta på plate, med snittkompensasjon" },
   { id: "svg", label: "svg", hint: "alle profilane ved sida av kvarandre, i 1:1" },
-  { id: "ark", label: "ark", hint: "platene slik dei er pakka — ei fil per plate" },
+  { id: "ark", label: "ark", hint: "platene slik dei er pakka, ei fil per plate" },
   {
     id: "prove",
     label: "passprøve",
-    hint: "ei lita plate med sju spor, kvart ein tjuedels millimeter breiare enn det førre. Skjer henne i plata du skal bruke, skyv eit avkapp ned i kvart spor, og sett klaringa til det som går inn med tommelkraft",
+    hint: "sju spor, kvart 0,05 mm breiare. skjer i di eiga plate og sett klaringa til det som går inn med tommelkraft",
   },
 ]
 
 /** Kva tastane gjer. Dei står i kvar sin tooltip òg, men ei samla line er
  *  den einaste staden nokon kan finne dei UTAN å vite at dei finst. */
 const TASTAR = "f finn · ⇧f førre · 1 2 3 lesemåte · z angre · o panel"
+
+/** Dei som alt står framme i det halve steget. Dei skal ikkje kome ein
+ *  gong til i skyveveggen: éin kontroll per tal. */
+const FRAMME = new Set(["storleik", "tjukn"])
 
 const DASH = "–"
 /** Plata er 2, 2,5 eller 3 mm. Rundar ein av desimalen, står det to
@@ -154,11 +159,6 @@ const IcoSliders = (
 const IcoDown = (
   <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
     <path d="m6 9 6 6 6-6" />
-  </svg>
-)
-const IcoUp = (
-  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" {...STROKE}>
-    <path d="m18 15-6-6-6 6" />
   </svg>
 )
 const IcoVenstre = (
@@ -242,24 +242,6 @@ const R_OPNING = ["opning"]
 type TableRow = { label: string; value: string; unit: string; rules?: readonly string[] }
 
 function tableRows(m: Metrics | null): TableRow[] {
-  if (!m) {
-    const tom = (label: string, unit: string): TableRow => ({ label, value: DASH, unit })
-    return [
-      tom("ytre mål", "mm"),
-      tom("delar · unike", "stk"),
-      tom("ledd", "stk"),
-      tom("lause delar", "stk"),
-      tom("kuttlengd", "m"),
-      tom("masse", "kg"),
-      tom("ark", "stk"),
-      tom("utnytting", "%"),
-      tom("minste gods", "mm"),
-      tom("opning", "mm"),
-      tom("sporbreidd", "mm"),
-      tom("trekantar", "stk"),
-      tom("opne kantar", "stk"),
-    ]
-  }
   const by: Record<string, readonly string[]> = {
     delar: R_DELAR,
     ledd: R_DELAR,
@@ -272,7 +254,11 @@ function tableRows(m: Metrics | null): TableRow[] {
     nett: R_NETT,
     kantar: R_NETT,
   }
-  return m.list.map((q) => ({
+  // Tom tavle og full tavle er den SAME lista. Ho stod ein gong to stader,
+  // og dei to dreiv frå kvarandre: tretten rader tom og femten full, og
+  // eit ord som bytte seg i det fyrste svaret kom.
+  const rader = m ? m.list : RADER.map((r) => ({ ...r, text: DASH }))
+  return rader.map((q) => ({
     label: q.label,
     value: q.text,
     unit: q.unit,
@@ -292,11 +278,14 @@ function SliderRow({
   k,
   r,
   value,
+  bi,
   onChange,
 }: {
   k: string
   r: Range
   value: number
+  /** ei måling som høyrer til denne skyvaren, under etiketten */
+  bi?: string
   onChange: (k: string, raw: string) => void
 }) {
   // Eit val er ikkje ei mengd. Står det namn i bandet, er det namnet som
@@ -322,6 +311,11 @@ function SliderRow({
         style={{ color: "var(--ink)" }}
       >
         {r.label}
+        {bi && (
+          <span className="tab block pt-px text-[9px] normal-case tracking-[0.02em] opacity-40">
+            {bi}
+          </span>
+        )}
       </span>
       <input
         type="range"
@@ -617,9 +611,9 @@ export function ControlsPanel(props: {
             <button
               type="button"
               onClick={() => pick.current?.click()}
-              title={`${kjelde} — trykk for å hente eit nett (${FORMAT.join(" ")})`}
+              title={`hent eit nett: ${FORMAT.join(" ")}`}
               aria-label="hent eit nett"
-              className="hit flex h-9 min-w-0 max-w-[42%] shrink items-center gap-1.5 rounded-full border pl-2.5 pr-3 text-[11px] uppercase tracking-[0.14em] transition active:scale-95"
+              className="hit flex h-9 min-w-0 max-w-[34%] shrink items-center gap-1.5 rounded-full border pl-2.5 pr-3 text-[11px] uppercase tracking-[0.14em] transition active:scale-95 sm:max-w-[42%]"
               style={{ ...HAIR, color: "var(--ink)" }}
             >
               <span className="shrink-0 opacity-70">{IcoImport}</span>
@@ -635,12 +629,16 @@ export function ControlsPanel(props: {
               title={
                 failed.length
                   ? "trykk for å sjå kva som ryk"
-                  : "delar, kuttlengd og ark — trykk for kontrollane"
+                  : "trykk for kontrollane"
               }
               aria-label="delar, kuttlengd og ark"
               className={
-                "tab min-w-0 flex-1 truncate pl-1 text-left text-[11px] tracking-[0.06em] " +
-                "max-[399px]:order-last max-[399px]:w-full max-[399px]:flex-none max-[399px]:pt-2"
+                // Tala krympar ikkje. Kjeldepilla gjer det, og ho har eit
+                // ikon som seier kva ho er sjølv om namnet vert kappa;
+                // tala har ingenting å gje. Vert det for trongt likevel,
+                // bryt rada (flex-wrap over) og tala får ei line for seg.
+                "tab min-w-0 shrink-0 truncate pl-1 text-left text-[11px] tracking-[0.06em] " +
+                "max-[379px]:order-last max-[379px]:w-full max-[379px]:flex-none max-[379px]:pt-2"
               }
             >
               {feil ? (
@@ -689,7 +687,7 @@ export function ControlsPanel(props: {
               onClick={onFinn}
               disabled={busy}
               aria-label="finn innstillingar"
-              title="finn innstillingar (F) — reknar gjennom eit titals rutenett og set det beste. Trykk igjen for det nest beste. Nettet, storleiken, tjukna og plata står."
+              title="(F) reknar gjennom eit titals rutenett og set det beste. trykk igjen for det neste."
               className={ICON_BTN + " disabled:opacity-100"}
               style={{ background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }}
             >
@@ -719,50 +717,67 @@ export function ControlsPanel(props: {
           svarar på det spørsmålet som står — rører du storleiken eller
           plata, er ho borte.
         */}
-        {(tunar || finnStad) && (
+        {/*
+          KVAR I SVARLISTA VI STÅR.
+          Knappen reknar ei rangert liste og set det beste. Utan denne lina
+          er andre trykk eit hopp utan retning: du veit ikkje at det finst
+          tolv til, ikkje kvar du står, og du kjem deg ikkje attende til det
+          du nettopp hadde. Lina finst berre so lenge lista svarar på det
+          spørsmålet som står; rører du storleiken eller plata, er ho borte.
+
+          Medan søket går står det ingenting her. Ringen kring knappen ER
+          framdrifta, og eit tal som seier det same ein gong til er ei line
+          som spring opp og gjer arket høgare midt i det du ventar.
+        */}
+        {finnStad && (
           <div
             className="flex items-center gap-1.5 px-2.5 pb-2 text-[10px] uppercase tracking-[0.14em]"
             aria-live="polite"
           >
-            {tunar ? (
-              <span className="tab" style={{ opacity: 0.55 }}>
-                søkjer … {tunar.gjort} av {tunar.av}
-              </span>
-            ) : finnStad ? (
-              <>
-                <button
-                  type="button"
-                  onClick={onFinnAtt}
-                  disabled={busy}
-                  aria-label="førre svar"
-                  title="førre svar (⇧F)"
-                  className="hit flex h-6 w-6 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-30"
-                  style={{ ...HAIR, color: "var(--ink)" }}
-                >
-                  {IcoVenstre}
-                </button>
-                <button
-                  type="button"
-                  onClick={onFinn}
-                  disabled={busy}
-                  aria-label="neste svar"
-                  title="neste svar (F)"
-                  className="hit flex h-6 w-6 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-30"
-                  style={{ ...HAIR, color: "var(--ink)" }}
-                >
-                  {IcoHogre}
-                </button>
-                <span className="tab truncate pl-1" style={{ opacity: 0.55 }}>
-                  {finnStad.nth + 1} av {finnStad.tal} · {finnStad.ribbX}×{finnStad.ribbY} ribber
-                </span>
-              </>
-            ) : null}
+            <button
+              type="button"
+              onClick={onFinnAtt}
+              disabled={busy}
+              aria-label="førre svar"
+              title="førre svar (⇧F)"
+              className="hit flex h-6 w-6 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-30"
+              style={{ ...HAIR, color: "var(--ink)" }}
+            >
+              {IcoVenstre}
+            </button>
+            <button
+              type="button"
+              onClick={onFinn}
+              disabled={busy}
+              aria-label="neste svar"
+              title="neste svar (F)"
+              className="hit flex h-6 w-6 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-30"
+              style={{ ...HAIR, color: "var(--ink)" }}
+            >
+              {IcoHogre}
+            </button>
+            <span className="tab truncate pl-1" style={{ opacity: 0.55 }}>
+              {finnStad.nth + 1} av {finnStad.tal} · {finnStad.ribbX}×{finnStad.ribbY} ribber
+            </span>
           </div>
         )}
 
-        {/* det utvidbare arket */}
+        {/*
+          DET UTVIDBARE ARKET, OG HALVOPE ER HALVOPE.
+
+          Arket hadde éi høgd for begge dei opne stega, og ho var sett etter
+          det fulle. Halvope tok difor to tredelar av ein telefon, og eit
+          ark som tek to tredelar er ikkje eit halvope ark: det er eit ark
+          som ligg over objektet. Det halve steget er kortare enn det fulle
+          no, og det er innhaldet i det som avgjer kva som får plass der.
+        */}
         {open && (
-          <div className="max-h-[56vh] overflow-y-auto overscroll-contain px-3 pb-3">
+          <div
+            className={
+              "overflow-y-auto overscroll-contain px-3 pb-1 " +
+              (mode === "full" ? "max-h-[46vh]" : "max-h-[26vh]")
+            }
+          >
             {/* lesemåtane — tre ord held; kva dei tyder ligg i title */}
             <div className="flex flex-wrap items-center gap-1.5 py-1">
               {VIEWS.map((v) => (
@@ -796,7 +811,7 @@ export function ControlsPanel(props: {
             {/* materialet og plata i EI rad. Materialet er ikkje ein farge —
                 han er tettleiken massen vert rekna av, og han er det som
                 avgjer om åringane skal teiknast i det heile. */}
-            <div className="flex flex-wrap items-center gap-1.5 py-1.5">
+            <div className="flex flex-wrap items-center gap-1.5 py-1">
               {(Object.keys(MATERIALS) as Material[]).map((mk) => (
                 <button
                   key={mk}
@@ -846,23 +861,21 @@ export function ControlsPanel(props: {
               r={VAFFEL.ranges.storleik}
               value={num(params, "storleik", VAFFEL.ranges.storleik.min)}
               onChange={setParam}
+              // Storleiken er EIN skyvar, men objektet har tre mål, og
+              // skyvaren set berre den lengste sida. Målet står under
+              // etiketten og ikkje på ei eiga line: det er den same
+              // opplysninga, og ho treng ikkje ei rad for seg sjølv.
+              bi={
+                metrics
+                  ? `${n0(metrics.envX)}×${n0(metrics.envY)}×${n0(metrics.envZ)}`
+                  : undefined
+              }
             />
-            {/* Storleiken er EIN skyvar, men objektet har tre mål. Kameraet
-                rammar inn same kva, so utan denne lina finst det ikkje eit
-                einaste haldepunkt for kor stort tinget faktisk vert. */}
-            {metrics && (
-              <div
-                className="tab -mt-1 pb-1 text-right text-[10px] tracking-[0.08em]"
-                style={{ opacity: busy ? 0.25 : 0.42 }}
-              >
-                {n0(metrics.envX)} × {n0(metrics.envY)} × {n0(metrics.envZ)} mm
-              </div>
-            )}
 
             {/* …og eit tal er noko ein må rekne om. Difor kan ein setje noko
                 ein kjenner ned attmed. Trykk på det som står på for å ta det
                 bort att. */}
-            <div className="flex items-center gap-1.5 py-1">
+            <div className="flex items-center gap-1.5 py-0.5">
               <span
                 className="w-24 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.14em]"
                 style={{ color: "var(--ink)" }}
@@ -902,7 +915,9 @@ export function ControlsPanel(props: {
                     <span className="tracking-[0.06em]">
                       {r.hard ? "bryt" : "merk"} · {r.label}
                     </span>
-                    <span className="tab shrink-0">{r.value}</span>
+                    {/* Talet står i tavla under når heile veggen er open, og
+                        er alt farga raudt der. Her oppe er lina eit flagg. */}
+                    {mode !== "full" && <span className="tab shrink-0">{r.value}</span>}
                   </li>
                 ))}
               </ul>
@@ -911,126 +926,33 @@ export function ControlsPanel(props: {
             {/* profilane, automatisk: kvar del slik han ligg på plata. Det
                 ein før måtte laste ned ei fil for å sjå, står i menyen og
                 fylgjer kvar einaste parameterendring. */}
-            {syn && (
-              <div
-                className="my-1.5 overflow-hidden rounded-2xl border p-2"
-                style={{ ...HAIR, background: "#ffffff" }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`data:image/svg+xml;utf8,${encodeURIComponent(syn)}`}
-                  alt="alle profilane, slik dei ligg på plata"
-                  className="max-h-32 w-full object-contain"
-                  style={{ opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
-                />
-              </div>
-            )}
-
             {/*
-              KVA FARGANE TYDER, der uttaka står.
-              Han er to ord, og han sparar den einaste feilen som kostar
-              ei heil plate: å setje kutteffekt på graveringslaget. Svart
-              er fyrste laget i LightBurn, og fyrste laget køyrer fyrst,
-              so graveringa MÅ liggje der.
+              PROFILANE STÅR I DET FULLE STEGET.
+
+              Teikninga er det einaste i arket som ikkje er ein kontroll: ho
+              er eit svar, og svaret står alt på skjermen som eit objekt rett
+              over. Ho tok ein tredel av høgda i det halve steget og skuva
+              det objektet ho skulle forklare ut av ruta. Her nede har ho
+              plass, og ramma kring henne er borte: sida er kvit og
+              teikninga er kvit, so ramma skilde ingenting frå noko.
             */}
-            <div
-              className="flex items-center gap-3 pt-1 text-[10px] uppercase tracking-[0.14em]"
-              style={{ color: "var(--ink)", opacity: 0.55 }}
-              title="LightBurn tek laga i palettorden: svart er C00 og køyrer fyrst, blå er C01. Difor graverer det svarte og kuttar det blå."
-            >
-              {[
-                { farge: "#000000", ord: "graver" },
-                { farge: "#0000ff", ord: "kutt" },
-              ].map((q) => (
-                <span key={q.ord} className="flex items-center gap-1.5">
-                  <span
-                    aria-hidden="true"
-                    className="block h-[7px] w-[7px] shrink-0 rounded-full"
-                    style={{ background: q.farge }}
-                  />
-                  {q.ord}
-                </span>
-              ))}
-            </div>
-
-            {/* eksporten og verktøya i EI rad */}
-            <div className="flex flex-wrap items-center gap-1.5 py-1">
-              {EXPORTS.map((x) => {
-                const stopp = stengd(x.id, metrics)
-                return (
-                  <button
-                    key={x.id}
-                    type="button"
-                    title={stopp || x.hint}
-                    disabled={busy || stopp !== ""}
-                    onClick={() => onExport(x.id)}
-                    className={CHIP + " uppercase tracking-[0.1em]"}
-                    style={{
-                      ...chipStyle(false),
-                      opacity: stopp ? 0.3 : undefined,
-                      textDecoration: stopp ? "line-through" : undefined,
-                    }}
-                  >
-                    {x.label}
-                  </button>
-                )
-              })}
-              {/* Dei tre står i ei eiga eining. Kvar for seg ville dei brote
-                  linja kvar for seg, og den siste hamna åleine på ei line
-                  under — tre knappar som høyrer i hop, spreidde over to
-                  liner, ser ut som tre ulike ting. */}
-              <div className="ml-auto flex shrink-0 items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={onAngre}
-                  disabled={!kanAngre}
-                  aria-label="angre siste endring"
-                  title="angre siste endring (Z)"
-                  className={CHIP}
-                  style={chipStyle(false)}
-                >
-                  {IcoAngre}
-                </button>
-                <button
-                  type="button"
-                  onClick={onReset}
-                  aria-label="tilbake til standarden"
-                  title="tilbake til standarden — nettet ditt står"
-                  className={CHIP}
-                  style={chipStyle(false)}
-                >
-                  {IcoReset}
-                </button>
-                <button
-                  type="button"
-                  onClick={onShare}
-                  aria-label="del — lenkja ber alle innstillingane"
-                  title="del — lenkja ber alle innstillingane, men ikkje nettet"
-                  className={CHIP}
-                  style={chipStyle(false)}
-                >
-                  {IcoShare}
-                </button>
-              </div>
-            </div>
-
-            {/* utvidaren mellom halvt og heilt ope — skyveveggen bak han.
-                Berre pila: kva ho gjer, viser ho. */}
-            <button
-              type="button"
-              aria-expanded={mode === "full"}
-              aria-label={mode === "full" ? "færre kontrollar" : "alle parametrar"}
-              onClick={() => onMode(mode === "full" ? "halv" : "full")}
-              className="hit mt-1.5 flex w-full items-center justify-center rounded-2xl border py-1.5 opacity-60 transition active:scale-[0.99]"
-              style={HAIR}
-            >
-              {mode === "full" ? IcoUp : IcoDown}
-            </button>
+            {syn && mode === "full" && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={`data:image/svg+xml;utf8,${encodeURIComponent(syn)}`}
+                alt="alle profilane, slik dei ligg på plata"
+                className="my-1.5 max-h-40 w-full object-contain"
+                style={{ opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
+              />
+            )}
 
             {mode === "full" && (
               <>
+                {/* To spalter. Kvar rad brukte under ein tredel av breidda
+                    og betalte for resten i høgd: tretten rader vart tolv
+                    tomme midtfelt og to hundre og seksti piksel. */}
                 <dl
-                  className="mt-3"
+                  className="mt-3 grid grid-cols-2 gap-x-6"
                   style={{ opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
                 >
                   {rows.map((row) => {
@@ -1039,9 +961,9 @@ export function ControlsPanel(props: {
                     return (
                       <div
                         key={row.label}
-                        className="flex items-baseline justify-between gap-3 py-[2px] text-[11px] leading-4"
+                        className="flex items-baseline justify-between gap-2 py-[2px] text-[11px] leading-4"
                       >
-                        <dt className="shrink-0 opacity-50">{row.label}</dt>
+                        <dt className="shrink-0 truncate opacity-50">{row.label}</dt>
                         <dd
                           className="tab truncate text-right"
                           style={{
@@ -1063,15 +985,15 @@ export function ControlsPanel(props: {
                   })}
                 </dl>
 
-                {/* Storleiken står alt framme, over reglane. Same skyvar to
-                    gonger på same skjerm er ikkje to skyvarar — det er ein
-                    som ser ut til å ikkje verke når du dreg den andre. */}
+                {/* Same skyvar to gonger på same skjerm er ikkje to
+                    skyvarar: det er ein som ser ut til å ikkje verke når du
+                    dreg den andre. Storleiken og tjukna står alt framme. */}
                 {VAFFEL.groups.map((g) => (
                   <div key={g.id} className="pt-3">
                     <h3 className="pb-0.5 text-[10px] uppercase leading-none tracking-[0.24em] opacity-35">
                       {g.label}
                     </h3>
-                    {g.keys.filter((k) => k !== "storleik").map((k) => (
+                    {g.keys.filter((k) => !FRAMME.has(k)).map((k) => (
                       <SliderRow
                         key={k}
                         k={k}
@@ -1093,6 +1015,130 @@ export function ControlsPanel(props: {
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {/*
+          FOTEN STÅR STILLE.
+          Uttaka og dei fire verktøya låg inni rullekassa, og i det fulle
+          steget rulla dei ut av syne: den einaste vegen attende til det
+          halve steget låg under folden i eit ark som var femten skyvarar
+          langt. Det ein TRYKKJER på skal ikkje rulle.
+        */}
+        {open && (
+          <div className="px-3 pb-2">
+            {/*
+              KVA FARGANE TYDER, der uttaka står.
+              Han er to ord, og han sparar den einaste feilen som kostar
+              ei heil plate: å setje kutteffekt på graveringslaget. Svart
+              er fyrste laget i LightBurn, og fyrste laget køyrer fyrst,
+              so graveringa MÅ liggje der.
+            */}
+            {/* uttaka */}
+            <div className="flex flex-wrap items-center gap-1.5 py-1">
+              {EXPORTS.map((x) => {
+                const stopp = stengd(x.id, metrics)
+                return (
+                  <button
+                    key={x.id}
+                    type="button"
+                    title={stopp || x.hint}
+                    disabled={busy || stopp !== ""}
+                    onClick={() => onExport(x.id)}
+                    className={CHIP + " uppercase tracking-[0.1em]"}
+                    style={{
+                      ...chipStyle(false),
+                      opacity: stopp ? 0.3 : undefined,
+                      textDecoration: stopp ? "line-through" : undefined,
+                    }}
+                  >
+                    {x.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/*
+              KVA FARGANE TYDER, og dei tre verktøya, på SAME line.
+              Forklaringa er to ord, og ho sparar den einaste feilen som
+              kostar ei heil plate: å setje kutteffekt på graveringslaget.
+              Svart er fyrste laget i LightBurn, og fyrste laget køyrer
+              fyrst, so graveringa MÅ liggje der. To ord treng ikkje ei rad
+              åleine, og på ein telefon braut verktøya til ei tredje rad.
+            */}
+            <div className="flex items-center gap-3 py-1 text-[10px] uppercase tracking-[0.14em]">
+              <span
+                className="flex items-center gap-3"
+                style={{ color: "var(--ink)", opacity: 0.55 }}
+                title="svart er C00 i LightBurn og køyrer fyrst, difor graverer det"
+              >
+                {[
+                  { farge: "#000000", ord: "graver" },
+                  { farge: "#0000ff", ord: "kutt" },
+                ].map((q) => (
+                  <span key={q.ord} className="flex items-center gap-1.5">
+                    <span
+                      aria-hidden="true"
+                      className="block h-[7px] w-[7px] shrink-0 rounded-full"
+                      style={{ background: q.farge }}
+                    />
+                    {q.ord}
+                  </span>
+                ))}
+              </span>
+              <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onAngre}
+                  disabled={!kanAngre}
+                  aria-label="angre siste endring"
+                  title="angre siste endring (Z)"
+                  className={CHIP}
+                  style={chipStyle(false)}
+                >
+                  {IcoAngre}
+                </button>
+                <button
+                  type="button"
+                  onClick={onReset}
+                  aria-label="tilbake til standarden"
+                  title="tilbake til standarden. nettet ditt står"
+                  className={CHIP}
+                  style={chipStyle(false)}
+                >
+                  {IcoReset}
+                </button>
+                <button
+                  type="button"
+                  onClick={onShare}
+                  aria-label="del"
+                  title="lenkja ber innstillingane, ikkje nettet"
+                  className={CHIP}
+                  style={chipStyle(false)}
+                >
+                  {IcoShare}
+                </button>
+                {/*
+                  VEGEN INN I SKYVEVEGGEN.
+                  Han var ein knapp på tvers av heile arket, med NØYAKTIG
+                  same pil som sjeveronen i hovudlina, samstundes, med
+                  motsett tyding: den eine lukka, den andre opna meir. No
+                  er han eit ikon i verktøyrekkja, og ikonet er skyvarane
+                  sjølve.
+                */}
+                <button
+                  type="button"
+                  aria-expanded={mode === "full"}
+                  aria-label={mode === "full" ? "færre kontrollar" : "alle parametrar"}
+                  title={mode === "full" ? "færre kontrollar" : "alle parametrar"}
+                  onClick={() => onMode(mode === "full" ? "halv" : "full")}
+                  className={CHIP}
+                  style={chipStyle(mode === "full")}
+                >
+                  {IcoSliders}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </section>

@@ -211,7 +211,7 @@ function fromDoc(doc: Doc, bin: Uint8Array | null): Soup {
       throw new Error("fann ingen bufferdata i fila")
     }
     if (!b.uri.startsWith("data:")) {
-      throw new Error("gltf peikar på ei .bin ved sida av seg — bruk .glb i staden")
+      throw new Error("gltf peikar på ei .bin ved sida av seg. bruk .glb i staden")
     }
     return b64(b.uri.slice(b.uri.indexOf(",") + 1))
   })

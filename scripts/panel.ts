@@ -195,16 +195,17 @@ async function main() {
   await rolig(page)
 
   // --- FINN INNSTILLINGAR --------------------------------------------------
-  // Ein prøvetakar inne på sida, som skriv ned kvar gong lina endrar seg.
-  // Han må stå INNE i sida: sett utanfrå ville kvar avlesing gå ein tur
-  // over ei protokollgrense, og det er tregare enn det som skal målast.
+  // Ein prøvetakar inne på sida, som skriv ned kvar gong ringen kring
+  // finn-knappen flyttar seg. Han må stå INNE i sida: sett utanfrå ville
+  // kvar avlesing gå ein tur over ei protokollgrense, og det er tregare
+  // enn det som skal målast.
   await page.evaluate(`(function(){
     window.LOGG = []
     function sjaa(){
-      var row = document.querySelector("section[aria-label='kontrollar'] [aria-live='polite']")
-      var txt = row ? row.textContent.trim() : ""
+      var c = document.querySelector("section[aria-label='kontrollar'] button[aria-label='finn innstillingar'] svg circle:last-child")
+      var v = c ? c.getAttribute("stroke-dashoffset") : ""
       var L = window.LOGG
-      if (txt && (!L.length || L[L.length-1] !== txt)) L.push(txt)
+      if (v && (!L.length || L[L.length-1] !== v)) L.push(v)
     }
     setInterval(sjaa, 25)
   })()`)
@@ -214,18 +215,17 @@ async function main() {
   /**
    * FRAMDRIFTA MÅ RØRE SEG MEDAN HO GJELD.
    *
-   * Ho har to måtar å kollapse til «null, og so ferdig» på, og ingen av dei
-   * kastar: arbeidaren som reknar heile søket i eitt jafs (då kjem alle
-   * meldingane i same augeblinken som svaret), og hovudtråden som teiknar
-   * heile scena om att for kvar melding (då hopar dei seg opp i køen og kjem
-   * i klumpar). Begge to gjev ein ring som står stille og so er ferdig, og
-   * ein ring som står stille er verre enn ingen ring.
+   * Ringen kring knappen har to måtar å kollapse til «null, og so ferdig»
+   * på, og ingen av dei kastar: arbeidaren som reknar heile søket i eitt
+   * jafs (då kjem alle meldingane i same augeblinken som svaret), og
+   * hovudtråden som teiknar heile scena om att for kvar melding (då hopar
+   * dei seg opp i køen og kjem i klumpar). Begge to gjev ein ring som står
+   * stille og so er ferdig, og ein ring som står stille er verre enn ingen
+   * ring.
    */
-  const gang = (await page.evaluate(
-    "window.LOGG",
-  )) as string[]
-  const steg = gang.filter((t) => /søkjer/i.test(t))
+  const steg = (await page.evaluate("window.LOGG")) as string[]
   ok("framdrifta rører seg medan søket går", steg.length >= 4, `${steg.length} steg synte seg`)
+
   const forste = await stadLine(page).innerText()
   const m1 = forste.match(/(\d+) av (\d+) · (\d+)×(\d+)/i)
   ok("lina seier kvar i lista vi står", !!m1, forste.replace(/\s+/g, " "))
@@ -333,7 +333,9 @@ async function main() {
     setInterval(sjaa, 20)
   })()`)
   const mappe = mkdtempSync(join(tmpdir(), "slicerman-"))
-  const fil = join(mappe, "kule.stl")
+  // Eit langt filnamn er den verste saka for hovudlina: kjeldepilla
+  // veks til taket sitt og et av plassen tala har.
+  const fil = join(mappe, "kule-med-eit-ganske-langt-namn.stl")
   writeFileSync(fil, kuleStl(60, 150))
   await page.setInputFiles("input[type=file]", fil)
   await rolig(page)
@@ -366,7 +368,7 @@ async function main() {
   // Dei tre tala ER grunnen til at lina finst. På ein skjerm på 320 stod
   // det «12 delar · 17,…»: kjelda, tala og tre knappar fekk ikkje plass på
   // ei line, og det som gav etter var det einaste som ikkje kunne det.
-  for (const breidd of [320, 360, 414]) {
+  for (const breidd of [320, 360, 390, 414, 430]) {
     await page.setViewportSize({ width: breidd, height: 720 })
     await page.waitForTimeout(250)
     const kappa = await page.evaluate(`(function(){

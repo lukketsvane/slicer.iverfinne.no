@@ -105,7 +105,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     hard: false,
     ok: p.klaring >= 0.05 && p.klaring <= 0.35,
     value: mm1(p.klaring),
-    why: "Under 0,05 mm får du ikkje delane i hop utan hammar, og finér som vert slegen i hop flisar seg. Over 0,35 mm sit dei ikkje fast, og då treng vaffelen lim — som er nett det han ikkje skulle treng.",
+    why: "Under 0,05 mm får du ikkje delane i hop utan hammar, og finér som vert slegen i hop flisar seg. Over 0,35 mm sit dei ikkje fast, og då treng vaffelen lim, som er nett det han ikkje skulle treng.",
   })
 
   // --- 7 nokon tek snittbreidda (mjuk) ----------------------------------------
@@ -151,7 +151,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     hard: false,
     ok: m.minGap >= 3,
     value: mm1(m.minGap),
-    why: "Ribbene står så tett at fingrane ikkje kjem imellom dei når du monterer — og på plata står delane så nær kvarandre at nestinga ikkje har noko å gå på.",
+    why: "Ribbene står så tett at fingrane ikkje kjem imellom dei når du monterer, og på plata står delane så nær kvarandre at nestinga ikkje har noko å gå på.",
   })
 
   // --- 10 lukka nett (mjuk) ---------------------------------------------------
@@ -161,7 +161,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     hard: false,
     ok: m.openEdges === 0,
     value: m.openEdges ? `${nn(m.openEdges)} opne kantar` : "lukka",
-    why: "Snittinga les nettet med strålar og tel kva veg kvar trekant vender. Eit nett med hòl i har ingen innside å telje, og då kan ein profil kome ut som eit stykke der han skulle vore to. Reiskapen snittar det likevel — men no veit du kvifor det ser rart ut.",
+    why: "Snittinga les nettet med strålar og tel kva veg kvar trekant vender. Eit nett med hòl i har ingen innside å telje, og då kan ein profil kome ut som eit stykke der han skulle vore to. Reiskapen snittar det likevel, men no veit du kvifor det ser rart ut.",
   })
 
   // --- 11 oppløysinga (mjuk) --------------------------------------------------
@@ -184,7 +184,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     hard: false,
     ok: m.util >= 0.35 || m.sheets <= 1,
     value: `${nn(m.util * 100)} %`,
-    why: "Meir enn to tredelar av plata går i søppelbøtta. Prøv ei anna plate, eller færre og større delar — pakkinga her legg delane etter omrisset og ikkje etter konturen, so ei ribbe med ei stor opning i tel som full.",
+    why: "Meir enn to tredelar av plata går i søppelbøtta. Prøv ei anna plate, eller færre og større delar. Pakkinga her legg delane etter omrisset og ikkje etter konturen, so ei ribbe med ei stor opning i tel som full.",
   })
 
   return out

@@ -36,7 +36,15 @@ export const MATERIALS: Record<
 /** Platetjukner ein faktisk får kjøpt. Skyvaren er fri — ei plate kan vera
  *  5,8 mm om ho er det — men desse er dei ein finn på lager, og difor er
  *  dei knappar og ikkje eit tal ein må treffe. */
-export const TJUKNER = [2, 2.5, 3, 4, 6, 9, 12, 18] as const
+/**
+ * Platene som står som knappar i panelet.
+ *
+ * Ikkje alle platene som finst: dei ein laser skjer. Ni, tolv og atten
+ * millimeter er plater ein fres tek og ein CO2-laser ikkje, og åtte
+ * knappar braut rada i to på ein telefon for tre val ingen bruker her.
+ * Skyvaren går framleis frå éin til fem og tjue.
+ */
+export const TJUKNER = [2, 2.5, 3, 4, 6] as const
 
 /**
  * Minste stykke som er ein DEL, mm².
