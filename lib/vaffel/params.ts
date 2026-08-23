@@ -98,7 +98,7 @@ export const PARAM_RANGES: Record<string, Range> = {
   ledd: { min: 0.2, max: 0.8, step: 0.01, label: "deling" },
 
   snitt: { min: 0, max: 6, step: 0.05, label: "snitt", unit: "mm" },
-  snittveg: { min: 0, max: 1, step: 1, label: "kompensasjon", int: true, names: SNITTVEGAR },
+  snittveg: { min: 0, max: 1, step: 1, label: "snittveg", int: true, names: SNITTVEGAR },
   fart: { min: 1, max: 200, step: 1, label: "fart", unit: "mm/s", int: true },
   arkB: { min: 200, max: 3000, step: 10, label: "breidd", unit: "mm" },
   arkH: { min: 200, max: 2000, step: 10, label: "høgd", unit: "mm" },

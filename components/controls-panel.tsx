@@ -307,7 +307,7 @@ function SliderRow({
   return (
     <div className="flex items-center gap-3 py-1.5">
       <span
-        className="w-24 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.14em]"
+        className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]"
         style={{ color: "var(--ink)" }}
       >
         {r.label}
@@ -757,7 +757,10 @@ export function ControlsPanel(props: {
               {IcoHogre}
             </button>
             <span className="tab truncate pl-1" style={{ opacity: 0.55 }}>
-              {finnStad.nth + 1} av {finnStad.tal} · {finnStad.ribbX}×{finnStad.ribbY} ribber
+              {finnStad.nth + 1} av {finnStad.tal}
+              {/* Ribbetalet står som to skyvarar i skyveveggen. Der er
+                  halen ei avskrift av det du står og dreg i. */}
+              {mode !== "full" && ` · ${finnStad.ribbX}×${finnStad.ribbY} ribber`}
             </span>
           </div>
         )}
@@ -778,34 +781,51 @@ export function ControlsPanel(props: {
               (mode === "full" ? "max-h-[46vh]" : "max-h-[26vh]")
             }
           >
-            {/* lesemåtane — tre ord held; kva dei tyder ligg i title */}
-            <div className="flex flex-wrap items-center gap-1.5 py-1">
-              {VIEWS.map((v) => (
+            {/* STORLEIKEN STÅR FRAMME.
+                Han er steg to for kvar einaste brukar: du slepper ei fil
+                inn, og so bestemmer du kor stort det skal vera. Å måtte
+                opne skyveveggen for det eine talet er eit steg for mykje —
+                og «finn innstillingar» reknar ut frå nett det talet. */}
+            <SliderRow
+              k="storleik"
+              r={VAFFEL.ranges.storleik}
+              value={num(params, "storleik", VAFFEL.ranges.storleik.min)}
+              onChange={setParam}
+              // Storleiken er EIN skyvar, men objektet har tre mål, og
+              // skyvaren set berre den lengste sida. Målet står under
+              // etiketten og ikkje på ei eiga line: det er den same
+              // opplysninga, og ho treng ikkje ei rad for seg sjølv.
+              bi={
+                metrics
+                  ? `${n0(metrics.envX)}×${n0(metrics.envY)}×${n0(metrics.envZ)}`
+                  : undefined
+              }
+            />
+
+            {/* …og eit tal er noko ein må rekne om. Difor kan ein setje noko
+                ein kjenner ned attmed. Trykk på det som står på for å ta det
+                bort att. */}
+            <div className="flex items-center gap-1.5 py-0.5">
+              <span
+                className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]"
+                style={{ color: "var(--ink)" }}
+              >
+                skala
+              </span>
+              {SKALAR.map((q) => (
                 <button
-                  key={v.id}
+                  key={q.id}
                   type="button"
-                  title={`${v.hint} (${v.tast})`}
-                  aria-pressed={view === v.id}
-                  onClick={() => onView(v.id)}
-                  className={CHIP}
-                  style={chipStyle(view === v.id)}
+                  aria-pressed={skala === q.id}
+                  aria-label={`skala: ${q.label}`}
+                  title={q.hint}
+                  onClick={() => onSkala(skala === q.id ? "av" : q.id)}
+                  className={CHIP + " px-2.5"}
+                  style={chipStyle(skala === q.id)}
                 >
-                  {v.label}
+                  {q.label}
                 </button>
               ))}
-              {isDesktop && (
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={hiDetail}
-                  onClick={onToggleDetail}
-                  title="finare rute i profilane; tyngre å rekne"
-                  className={CHIP + " ml-auto"}
-                  style={chipStyle(hiDetail)}
-                >
-                  fint nett
-                </button>
-              )}
             </div>
 
             {/* materialet og plata i EI rad. Materialet er ikkje ein farge —
@@ -851,51 +871,38 @@ export function ControlsPanel(props: {
               ))}
             </div>
 
-            {/* STORLEIKEN STÅR FRAMME.
-                Han er steg to for kvar einaste brukar: du slepper ei fil
-                inn, og so bestemmer du kor stort det skal vera. Å måtte
-                opne skyveveggen for det eine talet er eit steg for mykje —
-                og «finn innstillingar» reknar ut frå nett det talet. */}
-            <SliderRow
-              k="storleik"
-              r={VAFFEL.ranges.storleik}
-              value={num(params, "storleik", VAFFEL.ranges.storleik.min)}
-              onChange={setParam}
-              // Storleiken er EIN skyvar, men objektet har tre mål, og
-              // skyvaren set berre den lengste sida. Målet står under
-              // etiketten og ikkje på ei eiga line: det er den same
-              // opplysninga, og ho treng ikkje ei rad for seg sjølv.
-              bi={
-                metrics
-                  ? `${n0(metrics.envX)}×${n0(metrics.envY)}×${n0(metrics.envZ)}`
-                  : undefined
-              }
-            />
-
-            {/* …og eit tal er noko ein må rekne om. Difor kan ein setje noko
-                ein kjenner ned attmed. Trykk på det som står på for å ta det
-                bort att. */}
-            <div className="flex items-center gap-1.5 py-0.5">
-              <span
-                className="w-24 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.14em]"
-                style={{ color: "var(--ink)" }}
-              >
-                skala
-              </span>
-              {SKALAR.map((q) => (
+            {/* Lesemåtane står SIST. Dei er eit blikk på lerretet og ikkje
+                eit steg i arbeidet: du slepper ei fil, set storleiken,
+                trykkjer finn. Rekkjefylgda i arket skal vera rekkjefylgda i
+                jobben, og det som berre er ein måte å sjå på, kan stå
+                nedst. Tre ord held; kva dei tyder ligg i title. */}
+            <div className="flex flex-wrap items-center gap-1.5 py-1">
+              {VIEWS.map((v) => (
                 <button
-                  key={q.id}
+                  key={v.id}
                   type="button"
-                  aria-pressed={skala === q.id}
-                  aria-label={`skala: ${q.label}`}
-                  title={q.hint}
-                  onClick={() => onSkala(skala === q.id ? "av" : q.id)}
-                  className={CHIP + " px-2.5"}
-                  style={chipStyle(skala === q.id)}
+                  title={`${v.hint} (${v.tast})`}
+                  aria-pressed={view === v.id}
+                  onClick={() => onView(v.id)}
+                  className={CHIP}
+                  style={chipStyle(view === v.id)}
                 >
-                  {q.label}
+                  {v.label}
                 </button>
               ))}
+              {isDesktop && (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={hiDetail}
+                  onClick={onToggleDetail}
+                  title="finare rute i profilane; tyngre å rekne"
+                  className={CHIP + " ml-auto"}
+                  style={chipStyle(hiDetail)}
+                >
+                  fint nett
+                </button>
+              )}
             </div>
 
             {/* reglane som ryk: éi line kvar, grunngjevinga i title. Panelet
