@@ -4,8 +4,6 @@ import { useEffect, useMemo, useRef } from "react"
 import { useThree } from "@react-three/fiber"
 import * as THREE from "three"
 import { MATERIALS, type Material, type View } from "@/lib/core"
-import { skalaBoks, type SkalaId } from "@/lib/skala"
-import { Skala } from "./skala"
 import type { BuildRes } from "@/lib/worker"
 
 /**
@@ -105,14 +103,11 @@ export function ObjectMesh({
   data,
   view,
   material,
-  skala,
   onFit,
 }: {
   data: BuildRes | null
   view: View
   material: string
-  /** noko kjent ved sida av, eller «av» */
-  skala: SkalaId
   onFit: (f: { r: number; w: number; h: number; cy: number }) => void
 }) {
   const invalidate = useThree((s) => s.invalidate)
@@ -168,52 +163,21 @@ export function ObjectMesh({
     invalidate()
   }, [built, invalidate])
 
-  // Referansen står berre i rommet. Konturvisinga er ei teikning av flate
-  // delar i 1:1, og eit eple midt i ho ville vore ein del av teikninga.
-  const ref = view === "kontur" ? "av" : skala
-
   // Auto-innramminga treng radius og senterhøgd i sceneeiningar. Storleiken
-  // vert lesen av det som faktisk er bygd — OG av det som står ved sida av.
-  // Ein referanse som ikkje er med i innramminga står utanfor ruta, og då er han
-  // ingen referanse.
+  // vert lesen av det som faktisk er bygd.
   const box = useMemo(() => {
     if (!data) return null
     const min = data.min
     const max = data.max
-    let x0 = min[0]
-    let x1 = max[0]
-    let y0 = min[1]
-    let y1 = max[1]
-    let z1 = max[2]
-    const z0 = Math.min(0, min[2])
-
-    // Referansen står attmed, på golvet, midt for objektet i djupna. Lufta
-    // imellom er ein tidel av det breiaste av dei to, so ho ser lik ut
-    // anten det står eit eple eller eit A4 der.
-    const rb = skalaBoks(ref)
-    const sett = rb
-      ? {
-          x: x1 + Math.max(x1 - x0, rb.w) * 0.1 + rb.w / 2,
-          y: (y0 + y1) / 2,
-        }
-      : null
-    if (rb && sett) {
-      x1 = sett.x + rb.w / 2
-      y0 = Math.min(y0, sett.y - rb.d / 2)
-      y1 = Math.max(y1, sett.y + rb.d / 2)
-      z1 = Math.max(z1, rb.h)
-    }
-
-    const cx = (x0 + x1) / 2
-    const cy = (y0 + y1) / 2
-    const h = Math.max(1e-6, z1 - z0)
-    const w = Math.max(x1 - x0, y1 - y0)
+    const cx = (min[0] + max[0]) / 2
+    const cy = (min[1] + max[1]) / 2
+    const h = Math.max(1e-6, max[2] - Math.min(0, min[2]))
+    const w = Math.max(max[0] - min[0], max[1] - min[1])
     const mm = FRAME / Math.max(w, h, 1e-6)
     return {
       cx,
       cy,
       mm,
-      sett,
       // Radien er rotasjonsfast og gjeld eit objekt som kan snuast; breidd
       // og høgd gjeld ei teikning, som ikkje kan det.
       r: (Math.hypot(w, h) / 2) * mm,
@@ -221,7 +185,7 @@ export function ObjectMesh({
       h: h * mm,
       mid: (h / 2) * mm,
     }
-  }, [data, ref])
+  }, [data])
 
   useEffect(() => {
     if (box) onFit({ r: box.r, w: box.w, h: box.h, cy: box.mid })
@@ -261,7 +225,6 @@ export function ObjectMesh({
       ) : (
         <mesh geometry={built.g} castShadow receiveShadow material={surf} />
       )}
-      {box.sett && <Skala id={ref} x={box.sett.x} y={box.sett.y} />}
     </group>
   )
 }

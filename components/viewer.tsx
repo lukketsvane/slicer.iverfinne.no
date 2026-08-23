@@ -9,7 +9,6 @@ import type { BuildRes } from "@/lib/worker"
 import { ObjectMesh } from "./object-mesh"
 import { GestureParams, type GestKva, type NudgeAxis } from "./gesture-params"
 import { GROUND_Y, ramme, type Fit, type Rute } from "@/lib/ramme"
-import type { SkalaId } from "@/lib/skala"
 
 export type LightDir = { az: number; el: number }
 /** kor stort det bygde er, i sceneeiningar */
@@ -120,7 +119,6 @@ export const Viewer = memo(function Viewer({
   data,
   view,
   material,
-  skala,
   hiDetail,
   rute,
   light,
@@ -133,7 +131,6 @@ export const Viewer = memo(function Viewer({
   data: BuildRes | null
   view: View
   material: string
-  skala: SkalaId
   hiDetail: boolean
   /** ruta og kva som ligg over henne, i CSS-pikslar */
   rute: Rute
@@ -224,7 +221,6 @@ export const Viewer = memo(function Viewer({
             data={data}
             view={view}
             material={material}
-            skala={skala}
             onFit={handleFit}
           />
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>

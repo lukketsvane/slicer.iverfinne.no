@@ -24,7 +24,6 @@
  */
 import { chromium, type Browser, type Page } from "playwright"
 import { fritt, paaSkjermen, ramme, type Fit, type Rute } from "../lib/ramme"
-import { SKALAR, skalaBoks } from "../lib/skala"
 import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -120,7 +119,7 @@ function innramminga() {
     ["kube", { r: 1.556, w: 2.2, h: 2.2, cy: 1.1 }],
     ["flat plate", { r: 1.12, w: 2.2, h: 0.44, cy: 0.22 }],
     ["høg søyle", { r: 1.12, w: 0.44, h: 2.2, cy: 1.1 }],
-    ["høgt attmed", { r: 1.343, w: 1.542, h: 2.2, cy: 1.1 }],
+    ["høgt og smalt", { r: 1.343, w: 1.542, h: 2.2, cy: 1.1 }],
   ]
   /** ruter og det som ligg over dei: telefonarket nedst, benken i sidene */
   const ruter: [string, Rute][] = [
@@ -158,35 +157,6 @@ function innramminga() {
     Math.abs(skeiv.L / (1000 - skeiv.L - skeiv.w) - 300 / 600) < 0.001 && skeiv.w === 500,
     `venstre ${skeiv.L.toFixed(0)}, fritt ${skeiv.w.toFixed(0)}`,
   )
-}
-
-/**
- * ER REFERANSANE SÅ STORE SOM DEI SEIER?
- *
- * Heile poenget med å setje eit A4-ark ned ved sida av objektet er at
- * lesaren KJENNER det arket. Er det teikna 250 millimeter langt, er det
- * ikkje eit haldepunkt lenger — det er ei løgn om storleik, og ho er verre
- * enn ingen referanse i det heile. Måla står i ei tabell nokon kjem til å
- * pirke på, so dei vert prøvde.
- */
-function referansane() {
-  const fasit: Record<string, [number, number, number]> = {
-    a4: [297, 210, 0.6],
-    brus: [66, 66, 115],
-    eple: [78, 78, 78],
-  }
-  for (const q of SKALAR) {
-    const b = skalaBoks(q.id)
-    const f = fasit[q.id]
-    const rett =
-      !!b && !!f && Math.abs(b.w - f[0]) < 1 && Math.abs(b.d - f[1]) < 1 && Math.abs(b.h - f[2]) < 1
-    ok(
-      `${q.label} er ${f?.[0]} × ${f?.[1]} × ${f?.[2]} mm`,
-      rett,
-      b ? `${b.w} × ${b.d} × ${b.h}` : "fanst ikkje",
-    )
-  }
-  ok("og «av» er ingenting", skalaBoks("av") === null)
 }
 
 /**
@@ -373,8 +343,6 @@ async function benken(browser: Browser, feil: string[]) {
 async function main() {
   console.log("innramminga:")
   innramminga()
-  console.log("referansane:")
-  referansane()
   console.log("panelet:")
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
   // Under 1180 px er det ARKET som gjeld. Benken har sin eigen bolk.
@@ -553,18 +521,6 @@ async function main() {
     "kjelda er fila",
     (await page.getByLabel("hent eit nett").innerText()).toLowerCase().includes("kule"),
   )
-
-  // --- SKALAREFERANSEN FYLGJER LENKJA -------------------------------------
-  // Lenkja ber alt anna; ein referanse som ikkje er med i henne er ei
-  // innstilling som forsvinn i det du deler.
-  await page.getByLabel("skala: eple").click()
-  await page.waitForTimeout(300)
-  p = await lenkja(page)
-  ok("referansen fylgjer lenkja", p.skala === "eple", String(p.skala))
-  await page.getByLabel("skala: eple").click()
-  await page.waitForTimeout(300)
-  p = await lenkja(page)
-  ok("og eit nytt trykk tek han bort", p.skala === "av", String(p.skala))
 
   // --- PÅ EIN SMAL TELEFON -------------------------------------------------
   // Dei tre tala ER grunnen til at lina finst. På ein skjerm på 320 stod

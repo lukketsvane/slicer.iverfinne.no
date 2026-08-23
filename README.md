@@ -36,9 +36,8 @@ correction in the metrics, and it is why the panel fits on a phone.
 1. **Drop a file** anywhere on the page — `.glb`, `.gltf`, `.stl` (binary or
    ASCII), `.obj`, `.ply` (ASCII or binary). Up to 220 MB. Or start from the
    built-in cube.
-2. **Set the size** — pinch the object, or use the slider. Nobody pictures
-   240 mm; everybody pictures an A4 sheet. Stand one next to it, or a can, or
-   an apple.
+2. **Set the size** — pinch the object, or drag the number. The height in
+   millimetres is the one number the rest of the tool is measured against.
 3. **Press find settings.** It slices a dozen rib grids for real and ranks
    them, then sets the best. A ring around the button fills while it runs, and
    a line under the panel then says where you are in that list (`1 av 12 · 7×7
