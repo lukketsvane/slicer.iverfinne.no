@@ -36,7 +36,9 @@ correction in the metrics, and it is why the panel fits on a phone.
 1. **Drop a file** anywhere on the page — `.glb`, `.gltf`, `.stl` (binary or
    ASCII), `.obj`, `.ply` (ASCII or binary). Up to 220 MB. Or start from the
    built-in cube.
-2. **Set the size** — the one slider that is always on screen.
+2. **Set the size** — the one slider that is always on screen. Nobody
+   pictures 240 mm; everybody pictures an A4 sheet. Stand one next to it, or
+   a can, an apple, a chair.
 3. **Press find settings.** It slices a dozen rib grids for real and ranks
    them, then sets the best. A line under the panel says where you are in that
    list — `1 av 12 · 7×7 ribber` — and walks it both ways.
@@ -58,6 +60,10 @@ parts, and it is worth seeing before you press the button rather than after.
 
 Two fingers on the canvas change the rib counts; three fingers move the light.
 Double-tap reframes. The URL carries every setting except the mesh itself.
+
+The camera frames whatever is on screen — the reference included, so a chair
+next to a 40 mm knob makes the knob small, which is the point — and it frames
+it into the band the control sheet leaves free rather than the whole window.
 
 Every number next to a slider is a **field**: a slider is good at hunting and
 bad at hitting, so type `240` when you want 240. Keys, on a desktop: `F` finds

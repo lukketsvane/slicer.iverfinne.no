@@ -9,6 +9,7 @@ import type { Kandidat } from "@/lib/vaffel/tune"
 import { Viewer, type LightDir } from "./viewer"
 import { ControlsPanel, type PanelMode } from "./controls-panel"
 import type { NudgeAxis } from "./gesture-params"
+import type { SkalaId } from "@/lib/skala"
 
 /** kor mange piksel to-fingers-rulling må dra for å sveipe eit heilt band */
 const NUDGE_RANGE_PX = 420
@@ -42,6 +43,15 @@ export function Studio() {
   // og det er dei som skil reiskapen frå ein framsyningsmodell. Nettet du
   // kom med er eit klikk unna.
   const [view, setView] = useState<View>("lag")
+  /**
+   * NOKO KJENT VED SIDA AV.
+   *
+   * Ikkje ein parameter. Han rører ikkje ein einaste del, og ein parameter
+   * som ikkje rører noko ville lagt seg i nøkkelen til kvart mellombygg og
+   * fått motoren til å rekne om att for ingenting. Han er ein lesemåte, som
+   * `view`, og han fylgjer lenkja på same viset.
+   */
+  const [skala, setSkala] = useState<SkalaId>("av")
   const [hiDetail, setHiDetail] = useState(false)
   const [light, setLight] = useState<LightDir>({ az: 0.62, el: 0.92 })
   const [data, setData] = useState<BuildRes | null>(null)
@@ -81,6 +91,9 @@ export function Studio() {
   /** fyrste gongen: eit ord om at fila kan sleppast. Det forsvinn i det
    *  nokon rører noko som helst, og kjem aldri att. */
   const [hint, setHint] = useState(true)
+  /** kor stor del av ruta kontrollarket dekkjer. Kameraet stiller objektet
+   *  inn i det som er att, so eit ope ark ikkje legg seg over det. */
+  const [dekke, setDekke] = useState(0)
   /** id → filnamn, for pilla. Nettet sjølv bur i arbeidaren. */
   const [namn, setNamn] = useState<Record<string, string>>({})
   const isDesktop = useIsDesktop()
@@ -123,6 +136,8 @@ export function Studio() {
       setParams((p) => VAFFEL.clamp({ ...obj, kjelde: KUBE }, p))
       const v = obj.view
       if (v === "lag" || v === "kontur" || v === "flate") setView(v)
+      const sk = obj.skala
+      if (sk === "a4" || sk === "brus" || sk === "eple" || sk === "stol") setSkala(sk)
     } catch {
       // øydelagd hash — lat standardobjektet stå
     }
@@ -279,11 +294,11 @@ export function Studio() {
       window.history.replaceState(
         null,
         "",
-        "#p=" + encodeURIComponent(JSON.stringify({ ...rest, view })),
+        "#p=" + encodeURIComponent(JSON.stringify({ ...rest, view, skala })),
       )
     }, 500)
     return () => window.clearTimeout(t)
-  }, [params, view, mounted])
+  }, [params, view, skala, mounted])
 
   /**
    * ANGRE.
@@ -563,8 +578,9 @@ export function Studio() {
             data={data}
             view={view}
             material={String(params.material ?? "finer")}
+            skala={skala}
             hiDetail={hiDetail && isDesktop}
-            mobile={!isDesktop}
+            dekke={dekke}
             light={light}
             onNudge={nudge}
             onLight={nudgeLight}
@@ -625,6 +641,7 @@ export function Studio() {
         metrics={metrics}
         rules={rules}
         view={view}
+        skala={skala}
         syn={syn?.svg ?? null}
         hiDetail={hiDetail}
         isDesktop={isDesktop}
@@ -635,12 +652,14 @@ export function Studio() {
         tunar={tunar}
         finnStad={finnStad}
         kanAngre={kanAngre}
+        onDekke={setDekke}
         onMode={(m) => {
           setHint(false)
           setMode(m)
         }}
         onChange={endre}
         onView={setView}
+        onSkala={setSkala}
         onReset={() => endre({ ...VAFFEL.defaults, kjelde: params.kjelde })}
         onAngre={angre}
         onToggleDetail={() => setHiDetail((d) => !d)}

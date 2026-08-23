@@ -1,6 +1,14 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState, type CSSProperties, type JSX } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type JSX,
+} from "react"
 import {
   MATERIALS,
   TJUKNER,
@@ -15,6 +23,7 @@ import {
 } from "@/lib/core"
 import { FORMAT } from "@/lib/io"
 import { VAFFEL } from "@/lib/vaffel/engine"
+import { SKALAR, type SkalaId } from "@/lib/skala"
 
 /**
  * SLICERMAN — kontrollflata.
@@ -369,6 +378,8 @@ export function ControlsPanel(props: {
   metrics: Metrics | null
   rules: Rule[]
   view: View
+  /** kva kjent ting som står ved sida av objektet, eller «av» */
+  skala: SkalaId
   /** profilane som bilete (SVG-tekst), generert automatisk av arbeidaren */
   syn: string | null
   hiDetail: boolean
@@ -383,9 +394,13 @@ export function ControlsPanel(props: {
   /** kvar i svarlista vi står, eller null når lista ikkje gjeld lenger */
   finnStad: { nth: number; tal: number; ribbX: number; ribbY: number } | null
   kanAngre: boolean
+  /** kor stor del av ruta arket dekkjer — kameraet stiller objektet inn i
+   *  det som er att */
+  onDekke: (d: number) => void
   onMode: (m: PanelMode) => void
   onChange: (p: ParamBag) => void
   onView: (v: View) => void
+  onSkala: (s: SkalaId) => void
   onReset: () => void
   onAngre: () => void
   onToggleDetail: () => void
@@ -401,6 +416,7 @@ export function ControlsPanel(props: {
     metrics,
     rules,
     view,
+    skala,
     syn,
     hiDetail,
     isDesktop,
@@ -411,9 +427,11 @@ export function ControlsPanel(props: {
     tunar,
     finnStad,
     kanAngre,
+    onDekke,
     onMode,
     onChange,
     onView,
+    onSkala,
     onReset,
     onAngre,
     onToggleDetail,
@@ -427,6 +445,41 @@ export function ControlsPanel(props: {
   // lukka → halv (lesemåtar, materiale, delane, eksport) → full (skyveveggen)
   const open = mode !== "lukka"
   const pick = useRef<HTMLInputElement | null>(null)
+
+  /**
+   * Kor mykje av ruta arket tek.
+   *
+   * Det er MÅLT og ikkje gjetta: arket er tre høgder, og kvar av dei er
+   * ulik på ein telefon og på ein skjerm. Kameraet får talet og stiller
+   * objektet inn i bandet som er att.
+   */
+  const arket = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    const el = arket.current
+    if (!el) return
+    const meld = () => {
+      // pluss botnmargen: han er like mykje dekt som arket sjølv
+      const h = el.getBoundingClientRect().height + 24
+      const del = Math.min(1, h / Math.max(1, window.innerHeight))
+      // GROVKORNA MED VILJE.
+      //
+      // Kvart tal som kjem herifrå rammar scena inn på nytt, og ei
+      // innramming er ei full forliking av scenegrafen. Arket veks med
+      // nokre og tjue pikslar berre av at det kjem ei line i det —
+      // framdriftslina under søket, til dømes. Utan trinn ville kvar slik
+      // line rykt kameraet og ete hovudtråden midt medan søket gjekk;
+      // framdrifta hoppa frå tolv steg til to.
+      onDekke(Math.round(del / 0.06) * 0.06)
+    }
+    const ro = new ResizeObserver(meld)
+    ro.observe(el)
+    window.addEventListener("resize", meld)
+    meld()
+    return () => {
+      ro.disconnect()
+      window.removeEventListener("resize", meld)
+    }
+  }, [onDekke])
 
   // Arket er eit iOS-ark: dra i grepet eller hovudlina, opp for meir og ned
   // for mindre. Fingeren får eit lite gummiband som svar medan han dreg, og
@@ -493,6 +546,7 @@ export function ControlsPanel(props: {
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
       <section
+        ref={arket}
         aria-label="kontrollar"
         aria-busy={busy}
         className="pointer-events-auto w-full max-w-md rounded-3xl border"
@@ -797,6 +851,32 @@ export function ControlsPanel(props: {
                 {n0(metrics.envX)} × {n0(metrics.envY)} × {n0(metrics.envZ)} mm
               </div>
             )}
+
+            {/* …og eit tal er noko ein må rekne om. Difor kan ein setje noko
+                ein kjenner ned attmed. Trykk på det som står på for å ta det
+                bort att. */}
+            <div className="flex items-center gap-1.5 py-1">
+              <span
+                className="w-24 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.14em]"
+                style={{ color: "var(--ink)" }}
+              >
+                skala
+              </span>
+              {SKALAR.map((q) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  aria-pressed={skala === q.id}
+                  aria-label={`skala: ${q.label}`}
+                  title={q.hint}
+                  onClick={() => onSkala(skala === q.id ? "av" : q.id)}
+                  className={CHIP + " px-2.5"}
+                  style={chipStyle(skala === q.id)}
+                >
+                  {q.label}
+                </button>
+              ))}
+            </div>
 
             {/* reglane som ryk: éi line kvar, grunngjevinga i title. Panelet
                 seier KVA som er gale; KVIFOR ligg eit fingertrykk unna. */}

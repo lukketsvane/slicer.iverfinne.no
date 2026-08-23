@@ -23,6 +23,8 @@
  *   npx tsx scripts/panel.ts [url]
  */
 import { chromium, type Page } from "playwright"
+import { MAX_DEKKE, paaSkjermen, ramme, type Fit } from "../lib/ramme"
+import { SKALAR, skalaBoks } from "../lib/skala"
 import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -101,7 +103,86 @@ function kuleStl(r: number, seg: number): Buffer {
   return Buffer.from(meshToStl({ positions: soup.pos, normals: nrm, tris: soup.tris }, "kule"))
 }
 
+/**
+ * STÅR OBJEKTET I DET BANDET ARKET LET STÅ ATT?
+ *
+ * Dette er den eine feilen i heile reiskapen som ikkje kastar, ikkje
+ * loggar og ikkje syner att på eit einaste måltal: kameraet rammar inn
+ * objektet i HEILE ruta, kontrollarket ligg over den nedste halvdelen, og
+ * det som er att på skjermen er toppen av noko. Ingen prøve i ein
+ * nettlesar fangar det heller — biletet er der, det er berre gøymt.
+ *
+ * So det vert rekna. For kvar rutestorleik nokon faktisk har, og for kvar
+ * høgd arket kan ha, skal kula kring objektet liggje mellom øvste kanten
+ * og overkanten av arket.
+ */
+function innramminga() {
+  const saker: [string, Fit][] = [
+    ["kube", { r: 1.556, w: 2.2, h: 2.2, cy: 1.1 }],
+    ["flat plate", { r: 1.12, w: 2.2, h: 0.44, cy: 0.22 }],
+    ["høg søyle", { r: 1.12, w: 0.44, h: 2.2, cy: 1.1 }],
+    ["stol attmed", { r: 1.343, w: 1.542, h: 2.2, cy: 1.1 }],
+  ]
+  const ruter: [string, number][] = [
+    ["telefon 390×780", 390 / 780],
+    ["telefon smal 320×700", 320 / 700],
+    ["brett 820×1180", 820 / 1180],
+    ["skjerm 1280×900", 1280 / 900],
+    ["vid 1920×800", 1920 / 800],
+  ]
+  for (const [rn, aspect] of ruter) {
+    for (const [fn, fit] of saker) {
+      let verst = ""
+      for (let d = 0; d <= MAX_DEKKE + 1e-9; d += 0.05) {
+        const r = ramme(fit, { dekke: d, aspect, fovDeg: 30, flat: false })
+        const p = paaSkjermen(fit, r)
+        // Kula er romsleg: ho er rotasjonsfast og tek med hjørne objektet
+        // ikkje har. Difor ein liten slark på toppen.
+        if (p.topp < -0.06 || p.botn > 1 - d + 0.02) {
+          verst = `dekke ${d.toFixed(2)}: topp ${p.topp.toFixed(2)}, botn ${p.botn.toFixed(2)} mot ${(1 - d).toFixed(2)}`
+        }
+      }
+      ok(`${rn} · ${fn}`, verst === "", verst)
+    }
+  }
+}
+
+/**
+ * ER REFERANSANE SÅ STORE SOM DEI SEIER?
+ *
+ * Heile poenget med å setje eit A4-ark ned ved sida av objektet er at
+ * lesaren KJENNER det arket. Er det teikna 250 millimeter langt, er det
+ * ikkje eit haldepunkt lenger — det er ei løgn om storleik, og ho er verre
+ * enn ingen referanse i det heile. Måla står i ei tabell nokon kjem til å
+ * pirke på, so dei vert prøvde.
+ */
+function referansane() {
+  const fasit: Record<string, [number, number, number]> = {
+    a4: [297, 210, 0.6],
+    brus: [66, 66, 115],
+    eple: [78, 78, 78],
+    stol: [450, 450, 920],
+  }
+  for (const q of SKALAR) {
+    const b = skalaBoks(q.id)
+    const f = fasit[q.id]
+    const rett =
+      !!b && !!f && Math.abs(b.w - f[0]) < 1 && Math.abs(b.d - f[1]) < 1 && Math.abs(b.h - f[2]) < 1
+    ok(
+      `${q.label} er ${f?.[0]} × ${f?.[1]} × ${f?.[2]} mm`,
+      rett,
+      b ? `${b.w} × ${b.d} × ${b.h}` : "fanst ikkje",
+    )
+  }
+  ok("og «av» er ingenting", skalaBoks("av") === null)
+}
+
 async function main() {
+  console.log("innramminga:")
+  innramminga()
+  console.log("referansane:")
+  referansane()
+  console.log("panelet:")
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
   const feil: string[] = []
@@ -268,6 +349,18 @@ async function main() {
     "kjelda er fila",
     (await page.getByLabel("hent eit nett").innerText()).toLowerCase().includes("kule"),
   )
+
+  // --- SKALAREFERANSEN FYLGJER LENKJA -------------------------------------
+  // Lenkja ber alt anna; ein referanse som ikkje er med i henne er ei
+  // innstilling som forsvinn i det du deler.
+  await page.getByLabel("skala: stol").click()
+  await page.waitForTimeout(300)
+  p = await lenkja(page)
+  ok("referansen fylgjer lenkja", p.skala === "stol", String(p.skala))
+  await page.getByLabel("skala: stol").click()
+  await page.waitForTimeout(300)
+  p = await lenkja(page)
+  ok("og eit nytt trykk tek han bort", p.skala === "av", String(p.skala))
 
   // --- PÅ EIN SMAL TELEFON -------------------------------------------------
   // Dei tre tala ER grunnen til at lina finst. På ein skjerm på 320 stod
