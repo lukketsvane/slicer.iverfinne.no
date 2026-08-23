@@ -40,15 +40,16 @@ import type { Params } from "./params"
  * tal ledd. Millimeter, kilogram, meter og prosent seier noko.
  *
  * Kva som IKKJE står her: ytremålet, som står under storleikskyvaren der
- * handa er når spørsmålet vert stilt, og materialet, som står som fire
- * fargeprikkar og ei rad tjukner rett over. Eit tal to stader er eit tal
- * for mykje, og det som er handsett høyrer heime ved handa.
+ * handa er når spørsmålet vert stilt; materialet, som står som fire
+ * fargeprikkar og ei rad tjukner rett over; og kuttlengda, som står i
+ * hovudlina i alle tre tilstandane, ordrett den same strengen. Eit tal to
+ * stader er eit tal for mykje, og det som er handsett høyrer heime ved
+ * handa. Kuttetida vert ståande: ho er det hovudlina ikkje kan seie.
  */
 export const RADER: readonly { id: string; label: string; unit: string }[] = [
   { id: "delar", label: "delar · unike", unit: "" },
   { id: "ledd", label: "ledd", unit: "" },
   { id: "lause", label: "lause stykke", unit: "" },
-  { id: "kutt", label: "kuttlengd", unit: "m" },
   { id: "tid", label: "kuttetid", unit: "min" },
   { id: "masse", label: "masse", unit: "kg" },
   { id: "ark", label: "ark", unit: "" },
@@ -114,7 +115,6 @@ export function measure(p: Params): Metrics {
   add("delar", m.parts, `${nn(m.parts)} · ${nn(m.unique)}`)
   add("ledd", m.joints, nn(m.joints))
   add("lause", m.loose, nn(m.loose))
-  add("kutt", m.cutLen, nn(m.cutLen / 1000, 1))
   add("tid", m.cutTime, klokke(m.cutTime))
   add("masse", m.mass, nn(m.mass, 2))
   add("ark", m.sheets, nn(m.sheets))
