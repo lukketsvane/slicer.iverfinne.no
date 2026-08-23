@@ -14,7 +14,6 @@ import {
 } from "@/lib/core"
 import { FORMAT } from "@/lib/io"
 import { VAFFEL } from "@/lib/vaffel/engine"
-import { SKALAR, type SkalaId } from "@/lib/skala"
 import type { Kandidat } from "@/lib/vaffel/tune"
 import {
   CHIP,
@@ -249,7 +248,6 @@ export function Benk(props: {
   metrics: Metrics | null
   rules: Rule[]
   view: View
-  skala: SkalaId
   syn: string | null
   hiDetail: boolean
   busy: boolean
@@ -264,7 +262,6 @@ export function Benk(props: {
   kanAngre: boolean
   onChange: (p: ParamBag) => void
   onView: (v: View) => void
-  onSkala: (s: SkalaId) => void
   onReset: () => void
   onAngre: () => void
   onToggleDetail: () => void
@@ -281,7 +278,6 @@ export function Benk(props: {
     metrics,
     rules,
     view,
-    skala,
     syn,
     hiDetail,
     busy,
@@ -294,7 +290,6 @@ export function Benk(props: {
     kanAngre,
     onChange,
     onView,
-    onSkala,
     onReset,
     onAngre,
     onToggleDetail,
@@ -480,24 +475,6 @@ export function Benk(props: {
         style={{ ...vegg("venstre"), top: VEGG.topp }}
       >
         <Storleik params={params} metrics={metrics} onChange={onChange} />
-
-        <div className="flex items-center gap-1.5 pt-2.5">
-          <span className={OVERSKRIFT + " w-10 shrink-0 pb-0"}>skala</span>
-          {SKALAR.map((q) => (
-            <button
-              key={q.id}
-              type="button"
-              aria-pressed={skala === q.id}
-              aria-label={`skala: ${q.label}`}
-              title={q.hint}
-              onClick={() => onSkala(skala === q.id ? "av" : q.id)}
-              className={CHIP + " px-2.5"}
-              style={chipStyle(skala === q.id)}
-            >
-              {q.label}
-            </button>
-          ))}
-        </div>
 
         <div className={BLOKK} style={HAIR}>
           <button

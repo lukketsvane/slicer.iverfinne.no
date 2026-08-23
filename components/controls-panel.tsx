@@ -23,7 +23,6 @@ import {
 } from "@/lib/core"
 import { FORMAT } from "@/lib/io"
 import { VAFFEL } from "@/lib/vaffel/engine"
-import { SKALAR, type SkalaId } from "@/lib/skala"
 import {
   CHIP,
   EXPORTS,
@@ -84,7 +83,6 @@ export function ControlsPanel(props: {
   rules: Rule[]
   view: View
   /** kva kjent ting som står ved sida av objektet, eller «av» */
-  skala: SkalaId
   /** profilane som bilete (SVG-tekst), generert automatisk av arbeidaren */
   syn: string | null
   hiDetail: boolean
@@ -107,7 +105,6 @@ export function ControlsPanel(props: {
   onMode: (m: PanelMode) => void
   onChange: (p: ParamBag) => void
   onView: (v: View) => void
-  onSkala: (s: SkalaId) => void
   onReset: () => void
   onAngre: () => void
   onToggleDetail: () => void
@@ -123,7 +120,6 @@ export function ControlsPanel(props: {
     metrics,
     rules,
     view,
-    skala,
     syn,
     hiDetail,
     isDesktop,
@@ -139,7 +135,6 @@ export function ControlsPanel(props: {
     onMode,
     onChange,
     onView,
-    onSkala,
     onReset,
     onAngre,
     onToggleDetail,
@@ -510,32 +505,6 @@ export function ControlsPanel(props: {
                   : undefined
               }
             />
-
-            {/* …og eit tal er noko ein må rekne om. Difor kan ein setje noko
-                ein kjenner ned attmed. Trykk på det som står på for å ta det
-                bort att. */}
-            <div className="flex items-center gap-1.5 py-0.5">
-              <span
-                className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]"
-                style={{ color: "var(--ink)" }}
-              >
-                skala
-              </span>
-              {SKALAR.map((q) => (
-                <button
-                  key={q.id}
-                  type="button"
-                  aria-pressed={skala === q.id}
-                  aria-label={`skala: ${q.label}`}
-                  title={q.hint}
-                  onClick={() => onSkala(skala === q.id ? "av" : q.id)}
-                  className={CHIP + " px-2.5"}
-                  style={chipStyle(skala === q.id)}
-                >
-                  {q.label}
-                </button>
-              ))}
-            </div>
 
             {/* materialet og plata i EI rad. Materialet er ikkje ein farge —
                 han er tettleiken massen vert rekna av, og han er det som
