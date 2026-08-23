@@ -8,17 +8,12 @@ import type { View } from "@/lib/core"
 import type { BuildRes } from "@/lib/worker"
 import { ObjectMesh } from "./object-mesh"
 import { GestureParams, type NudgeAxis } from "./gesture-params"
+import { GROUND_Y, ramme, type Fit } from "@/lib/ramme"
+import type { SkalaId } from "@/lib/skala"
 
 export type LightDir = { az: number; el: number }
 /** kor stort det bygde er, i sceneeiningar */
-export type Fit = { r: number; w: number; h: number; cy: number }
-
-const FIT_MARGIN = 1.35
-const GROUND_Y = -0.9
-/** Golvlina står i same skjermhøgd same kor stort objektet er:
- *  siktepunktet stig i takt med kameraavstanden, så vinkelen ned mot
- *  golvet er fast. */
-const FLOOR_TAN = 0.1637
+export type { Fit }
 
 /**
  * Konturen er ei TEIKNING og ikkje eit objekt, og ei teikning skal sjåast
@@ -32,12 +27,13 @@ const HEIM = {
 
 function FitCamera({
   fit,
-  lift,
+  dekke,
   flat,
   reframe,
 }: {
   fit: Fit | null
-  lift: number
+  /** kor stor del av ruta kontrollarket dekkjer, 0 til 1 */
+  dekke: number
   /** konturvisinga: flat teikning, ikkje objekt i eit rom */
   flat: boolean
   /** teljar frå dobbelttrykket: kvart hopp rammar inn på nytt, uansett */
@@ -49,6 +45,7 @@ function FitCamera({
     | null
   const invalidate = useThree((s) => s.invalidate)
   const lastR = useRef(0)
+  const lastDekke = useRef(-1)
   const lastReframe = useRef(0)
   const lastFlat = useRef<boolean | null>(null)
   useEffect(() => {
@@ -64,33 +61,24 @@ function FitCamera({
       lastFlat.current = flat
       lastR.current = 0
     }
-    if (lastR.current && Math.abs(fit.r - lastR.current) / lastR.current < 0.1) return
+    // Arket som veks er ei like god grunn til å ramme inn på nytt som eit
+    // objekt som veks: begge to endrar kor mykje rute objektet har.
+    const flytta = Math.abs(dekke - lastDekke.current) > 0.03
+    if (!flytta && lastR.current && Math.abs(fit.r - lastR.current) / lastR.current < 0.1) return
     lastR.current = fit.r
+    lastDekke.current = dekke
     const persp = camera as THREE.PerspectiveCamera
-    const vHalf = ((persp.fov ?? 30) * Math.PI) / 360
-    const hHalf = Math.atan(Math.tan(vHalf) * (persp.aspect || 1))
-    // Eit objekt kan snuast, og då må innramminga halde same kva veg det
-    // står: difor radien, som er den same frå alle kantar. Ei teikning kan
-    // ikkje snuast, og då er radien altfor raus — ein lang, låg rad ville
-    // stå og fylle halve ruta med luft over og under. Ho vert difor ramma
-    // inn i breidda og i høgda kvar for seg, og den strengaste vinn.
-    const raw = flat
-      ? Math.max(fit.w / 2 / Math.tan(hHalf), fit.h / 2 / Math.tan(vHalf)) * FIT_MARGIN
-      : (fit.r * FIT_MARGIN) / Math.tan(Math.min(vHalf, hHalf))
-    const dist = Math.min(15, Math.max(3.2, raw))
-    // Golvpinninga held golvlina i same skjermhøgd, men berre så lenge ho
-    // ikkje kastar sikta over objektet. På eit høgt og smalt lerret vert
-    // avstanden stor, og då ville siktepunktet flyge opp i lause lufta med
-    // objektet langt nede. Difor eit tak på objektet si eiga midje — og på
-    // mobilen eit lite lyft til, av di kontrollina ligg over den nedste
-    // kanten.
-    const mid = GROUND_Y + fit.cy
-    // Ei teikning har inga golvline å pinne mot: ho skal stå midt i ruta.
-    controls.target.set(
-      0,
-      flat ? mid : Math.min(GROUND_Y + dist * FLOOR_TAN, mid) - lift * fit.cy,
-      0,
-    )
+    // Sjølve rekninga står i lib/ramme.ts: ho er den einaste staden i
+    // reiskapen der eit objekt kan verte usynleg utan at noko feilar, og
+    // difor den einaste staden som må kunne prøvast utanfor ein nettlesar.
+    const r = ramme(fit, {
+      dekke,
+      aspect: persp.aspect || 1,
+      fovDeg: persp.fov ?? 30,
+      flat,
+    })
+    const dist = r.dist
+    controls.target.set(0, r.y, 0)
     const heim = flat ? HEIM.flat : HEIM.rom
     const dir = homing
       ? new THREE.Vector3(...heim)
@@ -99,7 +87,7 @@ function FitCamera({
     camera.position.copy(controls.target).add(dir.setLength(dist))
     controls.update?.()
     invalidate()
-  }, [fit, lift, reframe, controls, camera, invalidate])
+  }, [fit, dekke, reframe, controls, camera, invalidate])
   return null
 }
 
@@ -121,8 +109,9 @@ export const Viewer = memo(function Viewer({
   data,
   view,
   material,
+  skala,
   hiDetail,
-  mobile,
+  dekke,
   light,
   onNudge,
   onLight,
@@ -130,8 +119,10 @@ export const Viewer = memo(function Viewer({
   data: BuildRes | null
   view: View
   material: string
+  skala: SkalaId
   hiDetail: boolean
-  mobile: boolean
+  /** kor stor del av ruta kontrollarket dekkjer, 0 til 1 */
+  dekke: number
   light: LightDir
   onNudge: (axis: NudgeAxis, deltaPx: number) => void
   onLight: (dxPx: number, dyPx: number) => void
@@ -180,7 +171,10 @@ export const Viewer = memo(function Viewer({
       className="touch-none"
     >
       <color attach="background" args={[bg]} />
-      <fog attach="fog" args={[bg, 15, 36]} />
+      {/* Tåka byrjar bakanfor der kameraet kan kome: eit ope kontrollark
+          sender det attende til atten einingar, og eit objekt som bleiknar
+          av di menyen er open er ikkje ei innstilling. */}
+      <fog attach="fog" args={[bg, 22, 48]} />
 
       <directionalLight
         key={shadow}
@@ -209,7 +203,13 @@ export const Viewer = memo(function Viewer({
 
       <Suspense fallback={null}>
         <group position={[0, GROUND_Y, 0]}>
-          <ObjectMesh data={data} view={view} material={material} onFit={handleFit} />
+          <ObjectMesh
+            data={data}
+            view={view}
+            material={material}
+            skala={skala}
+            onFit={handleFit}
+          />
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[60, 60]} />
             <shadowMaterial transparent opacity={0.24} />
@@ -217,19 +217,14 @@ export const Viewer = memo(function Viewer({
         </group>
       </Suspense>
 
-      <FitCamera
-        fit={fit}
-        lift={mobile ? 0.3 : 0}
-        flat={view === "kontur"}
-        reframe={reframe}
-      />
+      <FitCamera fit={fit} dekke={dekke} flat={view === "kontur"} reframe={reframe} />
       <GestureParams onNudge={onNudge} onLight={onLight} onDoubleTap={handleDoubleTap} />
       <OrbitControls
         target={[0, 0.35, 0]}
         enablePan={false}
         enableZoom
         minDistance={2.4}
-        maxDistance={16}
+        maxDistance={18}
         rotateSpeed={0.9}
         // demping: rotasjonen glid til ro i staden for å stogge daudt.
         // change-hendinga held demand-løkkja i live til dempinga
