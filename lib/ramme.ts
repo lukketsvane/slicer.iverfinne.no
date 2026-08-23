@@ -38,7 +38,7 @@ export const MAX_DIST = 18
  * det er eit ark nokon arbeider i. Å sende objektet til himmels for å berge
  * dei siste pikslane gjer begge delar verre.
  */
-export const MAX_DEKKE = 0.45
+export const MAX_DEKKE = 0.5
 
 export function ramme(
   fit: Fit,

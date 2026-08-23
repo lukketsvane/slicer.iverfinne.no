@@ -388,6 +388,8 @@ export function ControlsPanel(props: {
   feil: string | null
   /** ei fil er undervegs inn: tala som står er frå det førre objektet */
   hentar: boolean
+  /** eit ord attende på noko som elles ikkje synest, eit lite bel */
+  melding: string | null
   mode: PanelMode
   /** kor langt søket er kome, eller null når det ikkje går noko søk */
   tunar: { gjort: number; av: number } | null
@@ -423,6 +425,7 @@ export function ControlsPanel(props: {
     busy,
     feil,
     hentar,
+    melding,
     mode,
     tunar,
     finnStad,
@@ -549,7 +552,9 @@ export function ControlsPanel(props: {
         ref={arket}
         aria-label="kontrollar"
         aria-busy={busy}
-        className="pointer-events-auto w-full max-w-md rounded-3xl border"
+        // Breiare enn ein telefon der det er plass: dei same knappane på
+        // færre liner er eit lågare ark, og eit lågare ark er meir objekt.
+        className="pointer-events-auto w-full max-w-md rounded-3xl border sm:max-w-xl"
         style={{
           ...HAIR,
           background: "var(--paper)",
@@ -640,6 +645,8 @@ export function ControlsPanel(props: {
             >
               {feil ? (
                 <span style={{ color: "var(--warn)" }}>{feil}</span>
+              ) : melding ? (
+                <span className="opacity-70">{melding}</span>
               ) : hentar ? (
                 // Tala som står er frå det objektet du hadde FØR. Å la dei
                 // stå medan ei ny fil vert tolka er å seie noko om eit
@@ -913,7 +920,7 @@ export function ControlsPanel(props: {
                 <img
                   src={`data:image/svg+xml;utf8,${encodeURIComponent(syn)}`}
                   alt="alle profilane, slik dei ligg på plata"
-                  className="max-h-40 w-full object-contain"
+                  className="max-h-32 w-full object-contain"
                   style={{ opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
                 />
               </div>
