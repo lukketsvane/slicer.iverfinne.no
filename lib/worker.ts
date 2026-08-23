@@ -65,11 +65,28 @@ export type ExportRes = {
 export type SynRes = { kind: "syn"; id: number; svg: string }
 export type KjeldeRes = { kind: "kjelde"; id: number; src: SourceInfo }
 export type TuneRes = { kind: "tune"; id: number; alle: Kandidat[] }
+/**
+ * Kor langt søket er kome.
+ *
+ * Han kjem MEDAN arbeidaren reknar, og det er heile poenget: hovudtråden
+ * står tom og tek imot, so knappen kan syne ein ring som fyllest i staden
+ * for tre sekund der ingenting rører seg. Ein reiskap som ser hengt fast
+ * vert lasta på nytt, og då er dei tre sekunda tapte for alltid.
+ */
+export type TuneProgRes = { kind: "tunep"; id: number; gjort: number; av: number }
 /** Eit bygg som kasta. Svaret finst av éin grunn: porten i studioet slepp
  *  ikkje neste førespurnad før han har fått svar på den førre, og eit
  *  unntak utan svar ville låse heile appen for alltid. */
 export type FeilRes = { kind: "feil"; id: number; kva: string; kvifor?: string }
-export type Res = BuildRes | MaalRes | ExportRes | SynRes | KjeldeRes | TuneRes | FeilRes
+export type Res =
+  | BuildRes
+  | MaalRes
+  | ExportRes
+  | SynRes
+  | KjeldeRes
+  | TuneRes
+  | TuneProgRes
+  | FeilRes
 
 const post = (r: Res, transfer: Transferable[] = []) =>
   (self as unknown as Worker).postMessage(r, transfer)
@@ -101,6 +118,8 @@ function build(req: BuildReq) {
  * kvart einaste mellombilete.
  */
 let newest = 0
+/** kva søk som gjeld. Sjå «eit steg om gongen» nedanfor. */
+let tuneKøyr = 0
 
 self.onmessage = (e: MessageEvent<Req>) => {
   const req = e.data
@@ -129,7 +148,44 @@ self.onmessage = (e: MessageEvent<Req>) => {
     }
 
     if (req.kind === "tune") {
-      post({ kind: "tune", id: req.id, alle: VAFFEL.tune(req.params) })
+      // EIT STEG OM GONGEN, med ein tur innom køen imellom.
+      //
+      // Framdrift som vert send inni ei lang rekning kjem ikkje fram:
+      // meldingsrøyret vert tømt fyrst når arbeidaren slepper tråden, so
+      // tolv meldingar sende inni lykkja landa alle tolv i det svaret kom.
+      // Ein ring som hoppar frå null til ferdig er ikkje framdrift.
+      //
+      // Turen innom køen kostar eit par millisekund per kandidat, og han
+      // gjev meir enn framdrifta attende: eit bygg som kjem medan søket
+      // går, slepp til imellom i staden for å stå og vente på heile.
+      const it = VAFFEL.tuneSteg(req.params)
+      const mitt = ++tuneKøyr
+      const steg = () => {
+        // Eit nytt søk gjer det gamle uinteressant. Utan denne ville to
+        // søk rekna om kvarandre og sendt kvar sine svar.
+        if (mitt !== tuneKøyr) return
+        try {
+          const n = it.next()
+          if (n.done) {
+            post({ kind: "tune", id: req.id, alle: n.value })
+            return
+          }
+          post({ kind: "tunep", id: req.id, gjort: n.value.gjort, av: n.value.av })
+          setTimeout(steg, 0)
+        } catch (err) {
+          // Ei tom liste tyder «ingen av dei held», og det er eit svar.
+          // Eit søk som kasta er noko anna, og skal ikkje seiast som om
+          // det var eit svar.
+          console.error("slicerman: søket slo feil", err)
+          post({
+            kind: "feil",
+            id: req.id,
+            kva: "tune",
+            kvifor: err instanceof Error ? err.message : undefined,
+          })
+        }
+      }
+      steg()
       return
     }
 
