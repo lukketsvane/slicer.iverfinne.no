@@ -89,9 +89,18 @@ const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[] = [
  *  den einaste staden nokon kan finne dei UTAN å vite at dei finst. */
 const TASTAR = "f finn · ⇧f førre · 1 2 3 lesemåte · z angre · o panel"
 
-/** Dei som alt står framme i det halve steget. Dei skal ikkje kome ein
- *  gong til i skyveveggen: éin kontroll per tal. */
-const FRAMME = new Set(["storleik", "tjukn"])
+/**
+ * STORLEIKEN STÅR ALT FRAMME, SOM DEN SAME SKYVAREN.
+ *
+ * Same skyvar to gonger på same skjerm er ikkje to skyvarar: det er ein som
+ * ser ut til å ikkje verke når du dreg den andre.
+ *
+ * Tjukna står framme som BRIKKER, og det er noko anna. Brikkene er dei fem
+ * platene ein laser skjer; skyvaren er kvar plate som finst. Tek ein
+ * skyvaren vekk, kan ingen setje sju millimeter finér lenger, og det er
+ * ikkje ei forenkling, det er ein reiskap som gjer mindre.
+ */
+const FRAMME = new Set(["storleik"])
 
 const DASH = "–"
 /** Plata er 2, 2,5 eller 3 mm. Rundar ein av desimalen, står det to
