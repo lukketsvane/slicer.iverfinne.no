@@ -88,6 +88,9 @@ export function Studio() {
    *  sekund å tolke og sveise, og i dei sekunda står dei gamle tala i
    *  hovudlina og seier noko om eit anna objekt. */
   const [hentar, setHentar] = useState(false)
+  /** eit ord attende på noko som elles ikkje synest. Det står i hovudlina
+   *  eit lite bel og går av seg sjølv. */
+  const [melding, setMelding] = useState<string | null>(null)
   /** fyrste gongen: eit ord om at fila kan sleppast. Det forsvinn i det
    *  nokon rører noko som helst, og kjem aldri att. */
   const [hint, setHint] = useState(true)
@@ -433,10 +436,24 @@ export function Studio() {
     worker.current?.postMessage(msg)
   }, [])
 
+  /**
+   * DEL.
+   *
+   * Ei lenkje som vert lagd på utklippstavla utan eit ord attende er ikkje
+   * til å skilje frå ein knapp som ikkje verkar: ingenting rører seg, og
+   * du trykkjer ein gong til. Difor eit ord. Delingsarket på telefonen
+   * seier frå sjølv, so der treng det ikkje stå noko.
+   */
   const share = useCallback(() => {
     const url = window.location.href
-    if (navigator.share) void navigator.share({ url })
-    else void navigator.clipboard?.writeText(url)
+    if (navigator.share) {
+      void navigator.share({ url })
+      return
+    }
+    void navigator.clipboard
+      ?.writeText(url)
+      .then(() => setMelding("lenkja er kopiert"))
+      .catch(() => setMelding("fekk ikkje kopiere lenkja"))
   }, [])
 
   /**
@@ -544,6 +561,12 @@ export function Studio() {
     return () => window.removeEventListener("keydown", onKey)
   }, [angre, steg])
 
+  useEffect(() => {
+    if (!melding) return
+    const t = window.setTimeout(() => setMelding(null), 2400)
+    return () => window.clearTimeout(t)
+  }, [melding])
+
   const endre = useCallback((p: ParamBag) => {
     setHint(false)
     setParams(p)
@@ -648,6 +671,7 @@ export function Studio() {
         busy={busy}
         feil={feil}
         hentar={hentar}
+        melding={melding}
         mode={mode}
         tunar={tunar}
         finnStad={finnStad}
