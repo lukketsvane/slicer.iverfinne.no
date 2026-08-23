@@ -87,7 +87,7 @@ const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[] = [
 
 /** Kva tastane gjer. Dei står i kvar sin tooltip òg, men ei samla line er
  *  den einaste staden nokon kan finne dei UTAN å vite at dei finst. */
-const TASTAR = "f finn · ⇧f førre · 1 2 3 lesemåte · z angre · o panel"
+const TASTAR = "f finn · ⇧f førre · 1 2 3 lesemåte · , . vend · z angre · o panel"
 
 /**
  * STORLEIKEN STÅR ALT FRAMME, SOM DEN SAME SKYVAREN.

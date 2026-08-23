@@ -36,9 +36,9 @@ correction in the metrics, and it is why the panel fits on a phone.
 1. **Drop a file** anywhere on the page — `.glb`, `.gltf`, `.stl` (binary or
    ASCII), `.obj`, `.ply` (ASCII or binary). Up to 220 MB. Or start from the
    built-in cube.
-2. **Set the size** — the one slider that is always on screen. Nobody
-   pictures 240 mm; everybody pictures an A4 sheet. Stand one next to it, or
-   a can, an apple, a chair.
+2. **Set the size** — pinch the object, or use the slider. Nobody pictures
+   240 mm; everybody pictures an A4 sheet. Stand one next to it, or a can, or
+   an apple.
 3. **Press find settings.** It slices a dozen rib grids for real and ranks
    them, then sets the best. A ring around the button fills while it runs, and
    a line under the panel then says where you are in that list (`1 av 12 · 7×7
@@ -64,11 +64,18 @@ The panel reads everything off the geometry, including **cut length and cut
 time** at the speed in `fart`. That is pure beam-on time, no travel between
 parts, and it is worth seeing before you press the button rather than after.
 
-Two fingers on the canvas change the rib counts; three fingers move the light.
-Double-tap reframes. The URL carries every setting except the mesh itself.
+**Two fingers on the object.** Spread to size it, twist to turn it on the bed,
+drag to change the rib counts. Three fingers move the light, double-tap
+reframes, one finger orbits. Pinch no longer zooms the camera: the camera
+frames the object by itself whatever size it is, so that gesture was being
+spent on the one thing in the tool that already happens on its own. On a
+trackpad, ctrl+scroll pinches and `,` / `.` turn. Whatever the fingers are
+doing shows as a number above the object while they do it, because a pinch
+that resizes an auto-framed object is otherwise invisible.
 
-The camera frames whatever is on screen — the reference included, so a chair
-next to a 40 mm knob makes the knob small, which is the point — and it frames
+The URL carries every setting except the mesh itself.
+
+The camera frames whatever is on screen, the reference included, and it frames
 it into the band the control sheet leaves free rather than the whole window.
 
 Every number next to a slider is a **field**: a slider is good at hunting and

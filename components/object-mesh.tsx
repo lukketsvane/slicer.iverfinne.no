@@ -174,7 +174,7 @@ export function ObjectMesh({
 
   // Auto-innramminga treng radius og senterhøgd i sceneeiningar. Storleiken
   // vert lesen av det som faktisk er bygd — OG av det som står ved sida av.
-  // Ein stol som ikkje er med i innramminga står utanfor ruta, og då er han
+  // Ein referanse som ikkje er med i innramminga står utanfor ruta, og då er han
   // ingen referanse.
   const box = useMemo(() => {
     if (!data) return null
@@ -189,7 +189,7 @@ export function ObjectMesh({
 
     // Referansen står attmed, på golvet, midt for objektet i djupna. Lufta
     // imellom er ein tidel av det breiaste av dei to, so ho ser lik ut
-    // anten det står eit eple eller ein stol der.
+    // anten det står eit eple eller eit A4 der.
     const rb = skalaBoks(ref)
     const sett = rb
       ? {
