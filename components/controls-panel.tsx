@@ -32,10 +32,13 @@ import { VAFFEL } from "@/lib/vaffel/engine"
  * målt det objektet som faktisk står på skjermen.
  */
 
-const VIEWS: readonly { id: View; label: string; hint: string }[] = [
-  { id: "flate", label: "flate", hint: "nettet slik det kom inn, etter forenkling og glatting" },
-  { id: "lag", label: "lag", hint: "ribbene slik dei faktisk står, med spor" },
-  { id: "kontur", label: "kontur", hint: "dei flate kuttprofilane" },
+export type PanelMode = "lukka" | "halv" | "full"
+export const PANEL_MODES: readonly PanelMode[] = ["lukka", "halv", "full"]
+
+const VIEWS: readonly { id: View; label: string; hint: string; tast: string }[] = [
+  { id: "flate", label: "flate", hint: "nettet slik det kom inn, etter forenkling og glatting", tast: "1" },
+  { id: "lag", label: "lag", hint: "ribbene slik dei faktisk står, med spor", tast: "2" },
+  { id: "kontur", label: "kontur", hint: "dei flate kuttprofilane", tast: "3" },
 ]
 
 /**
@@ -72,19 +75,40 @@ const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[] = [
   },
 ]
 
+/** Kva tastane gjer. Dei står i kvar sin tooltip òg, men ei samla line er
+ *  den einaste staden nokon kan finne dei UTAN å vite at dei finst. */
+const TASTAR = "f finn · ⇧f førre · 1 2 3 lesemåte · z angre · o panel"
+
 const DASH = "–"
+/** Plata er 2, 2,5 eller 3 mm. Rundar ein av desimalen, står det to
+ *  knappar med «3» på — og den eine av dei set ei halv millimeter tynnare
+ *  plate enn ho seier. Klaringa i kvart einaste spor kjem av det talet. */
+const tjukn = (v: number) => nn(v, Number.isInteger(v) ? 0 : 1)
 const n0 = (v: number) => nn(v, 0)
 const n1 = (v: number) => nn(v, 1)
 
 const decimals = (step: number) => (step >= 1 ? 0 : step >= 0.1 ? 1 : step >= 0.01 ? 2 : 3)
-const snap = (v: number, r: Range) =>
-  !Number.isFinite(v) ? r.min : r.int ? Math.round(v) : +v.toFixed(4)
+/**
+ * Eit tal inn i eit band.
+ *
+ * Klemminga er ikkje pynt. Ein skyvar kan ikkje gå utanfor bandet sitt, men
+ * talfeltet ved sida av kan: der kan nokon skrive 9999 i storleiken, og
+ * ingenting anna i reiskapen stoggar det.
+ */
+const snap = (v: number, r: Range) => {
+  if (!Number.isFinite(v)) return r.min
+  const c = Math.min(r.max, Math.max(r.min, v))
+  return r.int ? Math.round(c) : +c.toFixed(4)
+}
+/** «1,5» er eit tal for eit menneske og NaN for Number() */
+const lesTal = (raw: string) => Number(String(raw).replace(",", ".").replace(/\s+/g, ""))
 const num = (p: ParamBag, k: string, fallback: number) =>
   typeof p[k] === "number" ? (p[k] as number) : fallback
 
 const HAIR: CSSProperties = { borderColor: "var(--rule)" }
+/** `hit` gjev peikaren eit svar på ei flate som elles er heilt still */
 const ICON_BTN =
-  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition active:scale-95"
+  "hit relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition active:scale-95"
 
 function chipStyle(active: boolean): CSSProperties {
   return active
@@ -92,7 +116,7 @@ function chipStyle(active: boolean): CSSProperties {
     : { color: "var(--ink)", borderColor: "var(--rule)" }
 }
 const CHIP =
-  "min-h-[30px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] transition active:scale-95 disabled:opacity-30"
+  "hit min-h-[30px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] transition active:scale-95 disabled:opacity-30"
 
 /** Ikona er strekar, teikna her i staden for henta frå eit bibliotek:
  *  seks ikon er ikkje verdt ein avhengnad. */
@@ -128,6 +152,22 @@ const IcoUp = (
     <path d="m18 15-6-6-6 6" />
   </svg>
 )
+const IcoVenstre = (
+  <svg viewBox="0 0 24 24" className="h-3 w-3" {...STROKE}>
+    <path d="m15 18-6-6 6-6" />
+  </svg>
+)
+const IcoHogre = (
+  <svg viewBox="0 0 24 24" className="h-3 w-3" {...STROKE}>
+    <path d="m9 18 6-6-6-6" />
+  </svg>
+)
+const IcoAngre = (
+  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" {...STROKE}>
+    <path d="M9 14 4 9l5-5" />
+    <path d="M4 9h10a6 6 0 0 1 0 12h-3" />
+  </svg>
+)
 const IcoReset = (
   <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" {...STROKE}>
     <path d="M3 12a9 9 0 1 0 2.6-6.36" />
@@ -148,6 +188,39 @@ const IcoImport = (
     <path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
   </svg>
 )
+
+/**
+ * Ringen kring finn-knappen.
+ *
+ * Søket tek eit par sekund, og eit par sekund utan svar er ikkje til å
+ * skilje frå ein reiskap som har hengt seg. Ringen er ikkje pynt: han seier
+ * at det går, og omtrent kor langt det er att.
+ */
+function Ring({ del }: { del: number }) {
+  const R = 15.5
+  const O = 2 * Math.PI * R
+  return (
+    <svg
+      viewBox="0 0 36 36"
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 h-full w-full -rotate-90"
+    >
+      <circle cx="18" cy="18" r={R} fill="none" stroke="var(--paper)" strokeOpacity="0.25" strokeWidth="2" />
+      <circle
+        cx="18"
+        cy="18"
+        r={R}
+        fill="none"
+        stroke="var(--paper)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeDasharray={O}
+        strokeDashoffset={O * (1 - Math.max(0.04, Math.min(1, del)))}
+        style={{ transition: "stroke-dashoffset 150ms linear" }}
+      />
+    </svg>
+  )
+}
 
 /** Reglane som eig kvart tal. Ei rad som ikkje veit kva regel som gjeld
  *  henne, står svart medan uttaket ikkje let seg skjere. */
@@ -198,7 +271,14 @@ function tableRows(m: Metrics | null): TableRow[] {
   }))
 }
 
-/** Éin skyvar: etiketten er låsen, prikken seier om han er teken. */
+/**
+ * Éin skyvar: etiketten er låsen, prikken seier om han er teken.
+ *
+ * Talet til høgre er eit FELT og ikkje ei avskrift. Ein skyvar er god til å
+ * leite og elendig til å treffe: den som vil ha nøyaktig 240 millimeter,
+ * eller nøyaktig 0,15 i klaring frå passprøva, skal skrive det. Han står
+ * som tekst til nokon tek han, so lina er like still som før.
+ */
 function SliderRow({
   k,
   r,
@@ -215,6 +295,17 @@ function SliderRow({
   const shown = r.names
     ? (r.names[Math.round(value)] ?? String(value))
     : value.toFixed(decimals(r.step)).replace(".", ",")
+  /** det som står i feltet medan det er teke; null når det ikkje er teke */
+  const [utkast, setUtkast] = useState<string | null>(null)
+
+  const send = () => {
+    if (utkast === null) return
+    const v = lesTal(utkast)
+    setUtkast(null)
+    // Tull i feltet er ikkje ei endring. Talet som stod, står.
+    if (Number.isFinite(v)) onChange(k, String(v))
+  }
+
   return (
     <div className="flex items-center gap-3 py-1.5">
       <span
@@ -233,13 +324,41 @@ function SliderRow({
         aria-label={r.label}
         onChange={(e) => onChange(k, e.target.value)}
       />
-      <span
-        className="tab w-[68px] shrink-0 truncate text-right text-[11px]"
-        style={{ color: "var(--ink)" }}
-      >
-        {shown}
-        {r.unit && !r.names && <span className="pl-0.5 opacity-45">{r.unit}</span>}
-      </span>
+      {r.names ? (
+        <span
+          className="tab w-[68px] shrink-0 truncate text-right text-[11px]"
+          style={{ color: "var(--ink)" }}
+        >
+          {shown}
+        </span>
+      ) : (
+        <span
+          className="flex w-[68px] shrink-0 items-baseline justify-end text-[11px]"
+          style={{ color: "var(--ink)" }}
+        >
+          <input
+            className="tab talfelt min-w-0 flex-1 rounded bg-transparent text-right"
+            value={utkast ?? shown}
+            inputMode="decimal"
+            aria-label={`${r.label}, tal`}
+            title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""}`}
+            onFocus={(e) => {
+              setUtkast(shown)
+              e.currentTarget.select()
+            }}
+            onChange={(e) => setUtkast(e.target.value)}
+            onBlur={send}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur()
+              else if (e.key === "Escape") {
+                setUtkast(null)
+                e.currentTarget.blur()
+              }
+            }}
+          />
+          {r.unit && <span className="shrink-0 pl-0.5 opacity-45">{r.unit}</span>}
+        </span>
+      )}
     </div>
   )
 }
@@ -256,12 +375,23 @@ export function ControlsPanel(props: {
   isDesktop: boolean
   busy: boolean
   feil: string | null
+  /** ei fil er undervegs inn: tala som står er frå det førre objektet */
+  hentar: boolean
+  mode: PanelMode
+  /** kor langt søket er kome, eller null når det ikkje går noko søk */
+  tunar: { gjort: number; av: number } | null
+  /** kvar i svarlista vi står, eller null når lista ikkje gjeld lenger */
+  finnStad: { nth: number; tal: number; ribbX: number; ribbY: number } | null
+  kanAngre: boolean
+  onMode: (m: PanelMode) => void
   onChange: (p: ParamBag) => void
   onView: (v: View) => void
   onReset: () => void
+  onAngre: () => void
   onToggleDetail: () => void
   onExport: (kind: ExportKind) => void
   onFinn: () => void
+  onFinnAtt: () => void
   onShare: () => void
   onFile: (f: File) => void
 }): JSX.Element {
@@ -276,30 +406,38 @@ export function ControlsPanel(props: {
     isDesktop,
     busy,
     feil,
+    hentar,
+    mode,
+    tunar,
+    finnStad,
+    kanAngre,
+    onMode,
     onChange,
     onView,
     onReset,
+    onAngre,
     onToggleDetail,
     onExport,
     onFinn,
+    onFinnAtt,
     onShare,
     onFile,
   } = props
 
   // lukka → halv (lesemåtar, materiale, delane, eksport) → full (skyveveggen)
-  const [mode, setMode] = useState<"lukka" | "halv" | "full">("lukka")
   const open = mode !== "lukka"
   const pick = useRef<HTMLInputElement | null>(null)
 
   // Arket er eit iOS-ark: dra i grepet eller hovudlina, opp for meir og ned
   // for mindre. Fingeren får eit lite gummiband som svar medan han dreg, og
   // slepp han forbi terskelen, byter arket steg.
-  const MODES = ["lukka", "halv", "full"] as const
-  const stepMode = useCallback((dir: 1 | -1) => {
-    setMode((m) => MODES[Math.min(2, Math.max(0, MODES.indexOf(m) + dir))])
-    // MODES er ein konstant
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const stepMode = useCallback(
+    (dir: 1 | -1) => {
+      const i = PANEL_MODES.indexOf(mode)
+      onMode(PANEL_MODES[Math.min(2, Math.max(0, i + dir))])
+    },
+    [mode, onMode],
+  )
   const dragging = useRef<{ y0: number; id: number } | null>(null)
   const [pull, setPull] = useState(0)
   const onSheetDown = (e: React.PointerEvent) => {
@@ -338,8 +476,7 @@ export function ControlsPanel(props: {
   const rows = useMemo(() => tableRows(metrics), [metrics])
 
   const setParam = useCallback(
-    (k: string, raw: string) =>
-      onChange({ ...params, [k]: snap(Number(raw), VAFFEL.ranges[k]) }),
+    (k: string, raw: string) => onChange({ ...params, [k]: snap(lesTal(raw), VAFFEL.ranges[k]) }),
     [params, onChange],
   )
 
@@ -415,16 +552,34 @@ export function ControlsPanel(props: {
               onClick={() => pick.current?.click()}
               title={`${kjelde} — trykk for å hente eit nett (${FORMAT.join(" ")})`}
               aria-label="hent eit nett"
-              className="flex h-9 min-w-0 max-w-[42%] shrink items-center gap-1.5 rounded-full border pl-2.5 pr-3 text-[11px] uppercase tracking-[0.14em] transition active:scale-95"
+              className="hit flex h-9 min-w-0 max-w-[42%] shrink items-center gap-1.5 rounded-full border pl-2.5 pr-3 text-[11px] uppercase tracking-[0.14em] transition active:scale-95"
               style={{ ...HAIR, color: "var(--ink)" }}
             >
               <span className="shrink-0 opacity-70">{IcoImport}</span>
               <span className="min-w-0 flex-1 truncate text-left">{kjelde}</span>
             </button>
 
-            <span className="tab min-w-0 flex-1 truncate pl-1 text-[11px] tracking-[0.06em]">
+            {/* Tala er ikkje berre til å lese: eit trykk på dei opnar arket
+                der grunngjevinga står. Det er den kortaste vegen frå «det
+                står raudt» til «kvifor står det raudt». */}
+            <button
+              type="button"
+              onClick={() => onMode(open ? "lukka" : "halv")}
+              title={
+                failed.length
+                  ? "trykk for å sjå kva som ryk"
+                  : "delar, kuttlengd og ark — trykk for kontrollane"
+              }
+              aria-label="delar, kuttlengd og ark"
+              className="tab min-w-0 flex-1 truncate pl-1 text-left text-[11px] tracking-[0.06em]"
+            >
               {feil ? (
                 <span style={{ color: "var(--warn)" }}>{feil}</span>
+              ) : hentar ? (
+                // Tala som står er frå det objektet du hadde FØR. Å la dei
+                // stå medan ei ny fil vert tolka er å seie noko om eit
+                // objekt som ikkje er der.
+                <span className="opacity-40">les fila …</span>
               ) : headline.length === 0 ? (
                 <span className="opacity-40">snittar …</span>
               ) : (
@@ -444,7 +599,7 @@ export function ControlsPanel(props: {
                   </span>
                 ))
               )}
-            </span>
+            </button>
 
             {/* prikken har fast plass, så lina står i ro medan motoren reknar */}
             <span
@@ -452,7 +607,7 @@ export function ControlsPanel(props: {
               className="block h-[5px] w-[5px] shrink-0 rounded-full"
               style={{
                 background: "var(--ink)",
-                opacity: busy ? 0.8 : 0.12,
+                opacity: busy && !tunar ? 0.8 : 0.12,
                 transition: "opacity 200ms ease",
               }}
             />
@@ -462,17 +617,19 @@ export function ControlsPanel(props: {
               onClick={onFinn}
               disabled={busy}
               aria-label="finn innstillingar"
-              title="finn innstillingar — reknar gjennom eit titals rutenett og set det beste. Trykk igjen for det nest beste. Nettet, storleiken, tjukna og plata står."
-              className={ICON_BTN}
+              title="finn innstillingar (F) — reknar gjennom eit titals rutenett og set det beste. Trykk igjen for det nest beste. Nettet, storleiken, tjukna og plata står."
+              className={ICON_BTN + " disabled:opacity-100"}
               style={{ background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }}
             >
               {IcoFinn}
+              {tunar && <Ring del={tunar.av ? tunar.gjort / tunar.av : 0} />}
             </button>
             <button
               type="button"
-              onClick={() => setMode(open ? "lukka" : "halv")}
+              onClick={() => onMode(open ? "lukka" : "halv")}
               aria-label={open ? "gøym kontrollane" : "vis kontrollane"}
               aria-expanded={open}
+              title={open ? "gøym kontrollane (O)" : "vis kontrollane (O)"}
               className={ICON_BTN}
               style={{ ...HAIR, color: "var(--ink)" }}
             >
@@ -480,6 +637,56 @@ export function ControlsPanel(props: {
             </button>
           </div>
         </div>
+
+        {/*
+          KVAR I SVARLISTA VI STÅR.
+          Knappen reknar ei rangert liste og set det beste. Utan denne lina
+          er andre trykk eit hopp utan retning: du veit ikkje at det finst
+          tolv til, du veit ikkje kva du står på, og du kjem deg ikkje
+          attende til det du nettopp hadde. Lina finst berre so lenge lista
+          svarar på det spørsmålet som står — rører du storleiken eller
+          plata, er ho borte.
+        */}
+        {(tunar || finnStad) && (
+          <div
+            className="flex items-center gap-1.5 px-2.5 pb-2 text-[10px] uppercase tracking-[0.14em]"
+            aria-live="polite"
+          >
+            {tunar ? (
+              <span className="tab" style={{ opacity: 0.55 }}>
+                søkjer … {tunar.gjort} av {tunar.av}
+              </span>
+            ) : finnStad ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onFinnAtt}
+                  disabled={busy}
+                  aria-label="førre svar"
+                  title="førre svar (⇧F)"
+                  className="hit flex h-6 w-6 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-30"
+                  style={{ ...HAIR, color: "var(--ink)" }}
+                >
+                  {IcoVenstre}
+                </button>
+                <button
+                  type="button"
+                  onClick={onFinn}
+                  disabled={busy}
+                  aria-label="neste svar"
+                  title="neste svar (F)"
+                  className="hit flex h-6 w-6 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-30"
+                  style={{ ...HAIR, color: "var(--ink)" }}
+                >
+                  {IcoHogre}
+                </button>
+                <span className="tab truncate pl-1" style={{ opacity: 0.55 }}>
+                  {finnStad.nth + 1} av {finnStad.tal} · {finnStad.ribbX}×{finnStad.ribbY} ribber
+                </span>
+              </>
+            ) : null}
+          </div>
+        )}
 
         {/* det utvidbare arket */}
         {open && (
@@ -490,7 +697,7 @@ export function ControlsPanel(props: {
                 <button
                   key={v.id}
                   type="button"
-                  title={v.hint}
+                  title={`${v.hint} (${v.tast})`}
                   aria-pressed={view === v.id}
                   onClick={() => onView(v.id)}
                   className={CHIP}
@@ -547,12 +754,12 @@ export function ControlsPanel(props: {
                   key={t}
                   type="button"
                   aria-pressed={params.tjukn === t}
-                  title={`${nn(t)} mm plate`}
+                  title={`${tjukn(t)} mm plate`}
                   onClick={() => onChange({ ...params, tjukn: t })}
                   className={CHIP + " px-2"}
                   style={chipStyle(params.tjukn === t)}
                 >
-                  {nn(t)}
+                  {tjukn(t)}
                 </button>
               ))}
             </div>
@@ -568,6 +775,17 @@ export function ControlsPanel(props: {
               value={num(params, "storleik", VAFFEL.ranges.storleik.min)}
               onChange={setParam}
             />
+            {/* Storleiken er EIN skyvar, men objektet har tre mål. Kameraet
+                rammar inn same kva, so utan denne lina finst det ikkje eit
+                einaste haldepunkt for kor stort tinget faktisk vert. */}
+            {metrics && (
+              <div
+                className="tab -mt-1 pb-1 text-right text-[10px] tracking-[0.08em]"
+                style={{ opacity: busy ? 0.25 : 0.42 }}
+              >
+                {n0(metrics.envX)} × {n0(metrics.envY)} × {n0(metrics.envZ)} mm
+              </div>
+            )}
 
             {/* reglane som ryk: éi line kvar, grunngjevinga i title. Panelet
                 seier KVA som er gale; KVIFOR ligg eit fingertrykk unna. */}
@@ -659,26 +877,43 @@ export function ControlsPanel(props: {
                   </button>
                 )
               })}
-              <button
-                type="button"
-                onClick={onReset}
-                aria-label="tilbake til standarden"
-                title="tilbake til standarden — nettet ditt står"
-                className={CHIP + " ml-auto"}
-                style={chipStyle(false)}
-              >
-                {IcoReset}
-              </button>
-              <button
-                type="button"
-                onClick={onShare}
-                aria-label="del — lenkja ber alle innstillingane"
-                title="del — lenkja ber alle innstillingane, men ikkje nettet"
-                className={CHIP}
-                style={chipStyle(false)}
-              >
-                {IcoShare}
-              </button>
+              {/* Dei tre står i ei eiga eining. Kvar for seg ville dei brote
+                  linja kvar for seg, og den siste hamna åleine på ei line
+                  under — tre knappar som høyrer i hop, spreidde over to
+                  liner, ser ut som tre ulike ting. */}
+              <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onAngre}
+                  disabled={!kanAngre}
+                  aria-label="angre siste endring"
+                  title="angre siste endring (Z)"
+                  className={CHIP}
+                  style={chipStyle(false)}
+                >
+                  {IcoAngre}
+                </button>
+                <button
+                  type="button"
+                  onClick={onReset}
+                  aria-label="tilbake til standarden"
+                  title="tilbake til standarden — nettet ditt står"
+                  className={CHIP}
+                  style={chipStyle(false)}
+                >
+                  {IcoReset}
+                </button>
+                <button
+                  type="button"
+                  onClick={onShare}
+                  aria-label="del — lenkja ber alle innstillingane"
+                  title="del — lenkja ber alle innstillingane, men ikkje nettet"
+                  className={CHIP}
+                  style={chipStyle(false)}
+                >
+                  {IcoShare}
+                </button>
+              </div>
             </div>
 
             {/* utvidaren mellom halvt og heilt ope — skyveveggen bak han.
@@ -687,8 +922,8 @@ export function ControlsPanel(props: {
               type="button"
               aria-expanded={mode === "full"}
               aria-label={mode === "full" ? "færre kontrollar" : "alle parametrar"}
-              onClick={() => setMode(mode === "full" ? "halv" : "full")}
-              className="mt-1.5 flex w-full items-center justify-center rounded-2xl border py-1.5 opacity-60 transition active:scale-[0.99]"
+              onClick={() => onMode(mode === "full" ? "halv" : "full")}
+              className="hit mt-1.5 flex w-full items-center justify-center rounded-2xl border py-1.5 opacity-60 transition active:scale-[0.99]"
               style={HAIR}
             >
               {mode === "full" ? IcoUp : IcoDown}
@@ -730,12 +965,15 @@ export function ControlsPanel(props: {
                   })}
                 </dl>
 
+                {/* Storleiken står alt framme, over reglane. Same skyvar to
+                    gonger på same skjerm er ikkje to skyvarar — det er ein
+                    som ser ut til å ikkje verke når du dreg den andre. */}
                 {VAFFEL.groups.map((g) => (
                   <div key={g.id} className="pt-3">
                     <h3 className="pb-0.5 text-[10px] uppercase leading-none tracking-[0.24em] opacity-35">
                       {g.label}
                     </h3>
-                    {g.keys.map((k) => (
+                    {g.keys.filter((k) => k !== "storleik").map((k) => (
                       <SliderRow
                         key={k}
                         k={k}
@@ -746,6 +984,15 @@ export function ControlsPanel(props: {
                     ))}
                   </div>
                 ))}
+
+                {/* Tastane. Dei står nedst i det som alt er ope: den som har
+                    opna heile veggen er den som kjem att, og det er han som
+                    har bruk for dei. */}
+                {isDesktop && (
+                  <p className="pt-4 text-[10px] leading-relaxed tracking-[0.1em] opacity-30">
+                    {TASTAR}
+                  </p>
+                )}
               </>
             )}
           </div>

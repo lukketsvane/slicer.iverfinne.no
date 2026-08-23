@@ -7,7 +7,7 @@ import { VAFFEL } from "@/lib/vaffel/engine"
 import type { BuildRes, MaalRes, Req, Res, SynRes } from "@/lib/worker"
 import type { Kandidat } from "@/lib/vaffel/tune"
 import { Viewer, type LightDir } from "./viewer"
-import { ControlsPanel } from "./controls-panel"
+import { ControlsPanel, type PanelMode } from "./controls-panel"
 import type { NudgeAxis } from "./gesture-params"
 
 /** kor mange piksel to-fingers-rulling må dra for å sveipe eit heilt band */
@@ -20,6 +20,9 @@ const tuneBase = (p: ParamBag) =>
    p.klaring, p.arkB, p.arkH, p.lause].join("|")
 /** ei fil på meir enn dette er ikkje ein modell, det er eit uhell */
 const MAX_FIL = 220 * 1024 * 1024
+/** kor mange steg attende du kjem. Fleire enn dette er ikkje ei angring,
+ *  det er ein annan dag. */
+const ANGRE_DJUPN = 50
 
 function useIsDesktop() {
   const [desktop, setDesktop] = useState(false)
@@ -50,6 +53,9 @@ export function Studio() {
   const [busy, setBusy] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [feil, setFeil] = useState<string | null>(null)
+  // Arket sin tilstand bur her og ikkje i panelet: tastaturet skal kunne
+  // opne og lukke han, og ein tilstand to stader er to tilstandar.
+  const [mode, setMode] = useState<PanelMode>("lukka")
   /**
    * Svara frå «finn innstillingar», og kor langt ned i lista vi står.
    *
@@ -61,7 +67,20 @@ export function Studio() {
    * eit steg som vert rekna av ein gamal kopi går same steget to gonger.
    */
   const finn = useRef<{ base: string; alle: Kandidat[]; nth: number } | null>(null)
+  /** det same, men til SKJERMEN: kvar i lista vi står, og kva som kom ut */
+  const [stad, setStad] = useState<
+    { nth: number; tal: number; ribbX: number; ribbY: number; base: string } | null
+  >(null)
+  /** kor langt søket er kome, medan det går */
+  const [tunar, setTunar] = useState<{ gjort: number; av: number } | null>(null)
   const [drag, setDrag] = useState(false)
+  /** ei fil er undervegs inn. Eit skann på hundre megabyte tek fleire
+   *  sekund å tolke og sveise, og i dei sekunda står dei gamle tala i
+   *  hovudlina og seier noko om eit anna objekt. */
+  const [hentar, setHentar] = useState(false)
+  /** fyrste gongen: eit ord om at fila kan sleppast. Det forsvinn i det
+   *  nokon rører noko som helst, og kjem aldri att. */
+  const [hint, setHint] = useState(true)
   /** id → filnamn, for pilla. Nettet sjølv bur i arbeidaren. */
   const [namn, setNamn] = useState<Record<string, string>>({})
   const isDesktop = useIsDesktop()
@@ -69,6 +88,10 @@ export function Studio() {
   const worker = useRef<Worker | null>(null)
   const reqId = useRef(0)
   const shown = useRef(0)
+  /** dei parametrane som står NO, lesbare frå ei stabil lukking */
+  const naa = useRef(params)
+  naa.current = params
+  const tunarRef = useRef(false)
   // Siste-vinn-porten: aldri meir enn eitt bygg i lufta. Ein skyvar som
   // vert dregen lagar punkt fortare enn motoren byggjer dei, og utan port
   // stiller kvart einaste mellombilete seg i kø i arbeidaren — som so
@@ -136,11 +159,23 @@ export function Studio() {
         setNamn((m) => ({ ...m, [r.src.id]: r.src.label }))
         setParams((p) => ({ ...p, kjelde: r.src.id }))
         setFeil(null)
+        setHentar(false)
         return
       }
       if (r.kind === "feil") {
         if (r.kva === "import") {
           setFeil(r.kvifor ?? "las ikkje fila")
+          setHentar(false)
+          setBusy(false)
+          return
+        }
+        if (r.kva === "tune") {
+          // Eit søk som kasta må sleppe knappen fri. Elles står vakta som
+          // hindrar to søk om gongen for alltid, og knappen gjer ingenting
+          // resten av økta — utan at noko har feila for auget.
+          tunarRef.current = false
+          setTunar(null)
+          setFeil("søket slo feil")
           setBusy(false)
           return
         }
@@ -150,13 +185,36 @@ export function Studio() {
         if (r.id >= reqId.current) setBusy(false)
         return
       }
+      if (r.kind === "tunep") {
+        // framdrifta kjem medan arbeidaren reknar — sjå TuneProgRes
+        setTunar({ gjort: r.gjort, av: r.av })
+        return
+      }
       if (r.kind === "tune") {
         // Lista vert halden her og ikkje i arbeidaren: andre trykk på
         // knappen skal vera momentant, og då kan han ikkje gå ein tur
         // gjennom ein tråd som held på å snitte.
-        if (finn.current) finn.current.alle = r.alle
-        if (r.alle.length) setParams((q) => VAFFEL.pick(q, r.alle, 0))
+        tunarRef.current = false
+        setTunar(null)
         setBusy(false)
+        const base = finn.current?.base ?? ""
+        if (finn.current) finn.current.alle = r.alle
+        if (!r.alle.length) {
+          // Eit søk utan svar er ikkje eit søk som feila: det er eit nett
+          // som ikkje kan verte ein vaffel i den plata. Det skal STÅ, elles
+          // ser knappen ut som han ikkje verkar.
+          setStad(null)
+          setFeil("fann ingen innstillingar som held")
+          return
+        }
+        setParams((q) => VAFFEL.pick(q, r.alle, 0))
+        setStad({
+          nth: 0,
+          tal: r.alle.length,
+          ribbX: r.alle[0].ribbX,
+          ribbY: r.alle[0].ribbY,
+          base,
+        })
         return
       }
       const blob = r.text
@@ -228,6 +286,57 @@ export function Studio() {
   }, [params, view, mounted])
 
   /**
+   * ANGRE.
+   *
+   * Reiskapen inviterer til å prøve: dra i ein skyvar, trykk på knappen som
+   * finn eit anna svar, sveip med to fingrar. Alt det er billig å gjere og
+   * dyrt å finne att — punktet du kom frå står ingen stad.
+   *
+   * Bokføringa ventar med å skrive ned. Eit drag er hundre punkt, og hundre
+   * punkt er ikkje hundre endringar; det er éi. Difor vert eit punkt fyrst
+   * ført opp når det har fått stå i ein knapp sekund.
+   */
+  const fortid = useRef<ParamBag[]>([])
+  /** det siste punktet som har fått stå lenge nok til å vera ei endring */
+  const stodd = useRef<ParamBag | null>(null)
+  const [kanAngre, setKanAngre] = useState(false)
+
+  useEffect(() => {
+    if (!mounted) return
+    if (stodd.current === null) {
+      stodd.current = params
+      return
+    }
+    if (stodd.current === params) {
+      setKanAngre(fortid.current.length > 0)
+      return
+    }
+    // Det finst noko å gå attende til med det same — sjølv om det ikkje er
+    // bokført enno. Sjå `angre`.
+    setKanAngre(true)
+    const t = window.setTimeout(() => {
+      if (stodd.current === null || stodd.current === params) return
+      fortid.current.push(stodd.current)
+      if (fortid.current.length > ANGRE_DJUPN) fortid.current.shift()
+      stodd.current = params
+    }, 450)
+    return () => window.clearTimeout(t)
+  }, [params, mounted])
+
+  const angre = useCallback(() => {
+    const no = naa.current
+    // Ei endring som ikkje har rukke å verte bokført er framleis ei
+    // endring: han som dreg ein skyvar og angrar med det same, vil attende
+    // dit han var FØR draget, ikkje eit steg lenger.
+    const mal =
+      stodd.current !== null && stodd.current !== no ? stodd.current : fortid.current.pop()
+    if (!mal) return
+    stodd.current = mal
+    setKanAngre(fortid.current.length > 0)
+    setParams(mal)
+  }, [])
+
+  /**
    * Resten som ikkje vart eit heilt steg.
    *
    * Fingeren flyttar seg nokre få pikslar per hending, og eit ribbetal er
@@ -248,6 +357,7 @@ export function Studio() {
     const steg = r.int ? Math.trunc(raa) : raa
     rest.current[key] = r.int ? raa - steg : 0
     if (steg === 0) return
+    setHint(false)
     setParams((cur) => {
       const at = typeof cur[key] === "number" ? (cur[key] as number) : r.min
       const v = Math.min(r.max, Math.max(r.min, at + steg))
@@ -266,41 +376,47 @@ export function Studio() {
   }, [])
 
   /**
-   * FINN INNSTILLINGAR.
+   * FINN INNSTILLINGAR, eitt steg om gongen.
    *
    * Fyrste trykket reknar: eit titals punkt vert snitta for alvor og
-   * rangerte, og det beste vert sett. Kvart trykk etterpå går eitt steg
-   * ned i den lista, og det kostar ingenting — lista ligg her.
+   * rangerte, og det beste vert sett. Kvart trykk etterpå går eitt steg i
+   * den lista, og det kostar ingenting — lista ligg her.
    *
-   * Har du flytta på noko han ikkje rører imens, er lista eit svar på eit
-   * anna spørsmål, og han reknar på nytt.
+   * Bakover går berre i ei liste som alt finst. Har du flytta på noko han
+   * ikkje rører imens, er lista eit svar på eit anna spørsmål, og han
+   * reknar på nytt.
    */
-  const finnInnstillingar = useCallback(() => {
-    const base = tuneBase(params)
+  const steg = useCallback((dir: 1 | -1) => {
+    if (tunarRef.current) return
+    const base = tuneBase(naa.current)
     const cur = finn.current
     if (cur && cur.base === base && cur.alle.length) {
-      cur.nth += 1
-      setParams((q) => VAFFEL.pick(q, cur.alle, cur.nth))
+      const i = (((cur.nth + dir) % cur.alle.length) + cur.alle.length) % cur.alle.length
+      cur.nth = i
+      setStad({ nth: i, tal: cur.alle.length, ribbX: cur.alle[i].ribbX, ribbY: cur.alle[i].ribbY, base })
+      setParams((q) => VAFFEL.pick(q, cur.alle, i))
       return
     }
+    // Ingen liste: det finst ikkje noko «førre svar» å gå attende til.
+    if (dir < 0) return
+    setHint(false)
     setBusy(true)
+    tunarRef.current = true
+    setTunar({ gjort: 0, av: 0 })
     finn.current = { base, alle: [], nth: 0 }
     // Utanom porten, som uttaka: eit klikk er ikkje ein straum, og eit
     // søk som stod i kø bak eit bygg ville kome fram etter at brukaren
     // hadde gjeve opp.
-    const msg: Req = { kind: "tune", id: ++reqId.current, params }
+    const msg: Req = { kind: "tune", id: ++reqId.current, params: naa.current }
     worker.current?.postMessage(msg)
-  }, [params])
+  }, [])
 
-  const doExport = useCallback(
-    (what: ExportKind) => {
-      setBusy(true)
-      // utanom porten: eit klikk, ikkje ein straum — og svaret slepp porten fri
-      const msg: Req = { kind: "export", id: ++reqId.current, params, what }
-      worker.current?.postMessage(msg)
-    },
-    [params],
-  )
+  const doExport = useCallback((what: ExportKind) => {
+    setBusy(true)
+    // utanom porten: eit klikk, ikkje ein straum — og svaret slepp porten fri
+    const msg: Req = { kind: "export", id: ++reqId.current, params: naa.current, what }
+    worker.current?.postMessage(msg)
+  }, [])
 
   const share = useCallback(() => {
     const url = window.location.href
@@ -315,18 +431,21 @@ export function Studio() {
    * hundre megabyte kryssar trådgrensa utan at det finst to av det.
    */
   const takeFile = useCallback(async (f: File) => {
+    setHint(false)
     if (f.size > MAX_FIL) {
       setFeil("fila er for stor")
       return
     }
     setFeil(null)
     setBusy(true)
+    setHentar(true)
     try {
       const buf = await f.arrayBuffer()
       const msg: Req = { kind: "import", id: ++reqId.current, name: f.name, buf }
       worker.current?.postMessage(msg, [buf])
     } catch {
       setFeil("fekk ikkje lese fila")
+      setHentar(false)
       setBusy(false)
     }
   }, [])
@@ -369,10 +488,72 @@ export function Studio() {
     }
   }, [takeFile])
 
+  /**
+   * TASTANE.
+   *
+   * Den som kjem att til reiskapen gjer det same kvar gong: hentar, skalar,
+   * finn, ser på det, finn eit anna. Med musa er det fire treff på små
+   * knappar; med tastaturet er det fire tastar. Dei står nedst i panelet og
+   * i kvar sin tooltip, so dei let seg finne utan å gjettast.
+   *
+   * Eit felt som er teke eig sine eigne tastar: skriv du 150 i storleiken,
+   * skal ikkje 1 byte lesemåte.
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName))) return
+      if (e.altKey) return
+      const k = e.key.toLowerCase()
+      if ((e.metaKey || e.ctrlKey) && k === "z") {
+        e.preventDefault()
+        angre()
+        return
+      }
+      if (e.metaKey || e.ctrlKey) return
+      if (k === "f") {
+        e.preventDefault()
+        steg(e.shiftKey ? -1 : 1)
+        return
+      }
+      if (k === "z") angre()
+      else if (k === "1") setView("flate")
+      else if (k === "2") setView("lag")
+      else if (k === "3") setView("kontur")
+      else if (k === "o") setMode((m) => (m === "lukka" ? "halv" : "lukka"))
+      else if (k === "escape") setMode("lukka")
+      else return
+      setHint(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [angre, steg])
+
+  const endre = useCallback((p: ParamBag) => {
+    setHint(false)
+    setParams(p)
+  }, [])
+
   const metrics: Metrics | null = tal?.metrics ?? null
   const rules: Rule[] = useMemo(() => tal?.rules ?? [], [tal])
   const kjelde = String(params.kjelde ?? KUBE)
   const kjeldeNamn = kjelde === KUBE ? "kube" : (namn[kjelde] ?? "nett")
+
+  /**
+   * Står svaret framleis?
+   *
+   * Lista svarar på eitt spørsmål: dette nettet, i den storleiken, i den
+   * plata. Og han som les lina skal kunne stole på at det som står der er
+   * det som ER sett — so ribbetalet må stemme òg. Skyv nokon ribbene for
+   * hand etterpå, er «2 av 13» ei påstand om noko anna enn det på skjermen.
+   */
+  const finnStad =
+    stad &&
+    stad.base === tuneBase(params) &&
+    stad.ribbX === params.ribbX &&
+    stad.ribbY === params.ribbY
+      ? stad
+      : null
 
   return (
     <main className="fixed inset-0 overflow-hidden" style={{ background: "var(--paper)" }}>
@@ -407,6 +588,23 @@ export function Studio() {
         </a>
       </header>
 
+      {/* Fyrste gongen, og berre då: kuben står der, og ingenting på sida
+          seier at han kan bytast ut. Ei line. Ho går i det nokon rører
+          noko som helst. */}
+      {hint && !drag && kjelde === KUBE && (
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+86px)] flex justify-center px-6"
+          aria-hidden="true"
+        >
+          <span
+            className="fade-inn text-center text-[10px] uppercase tracking-[0.2em]"
+            style={{ color: "var(--ink)", opacity: 0.4 }}
+          >
+            slepp ei fil kvar som helst
+          </span>
+        </div>
+      )}
+
       {drag && (
         <div
           className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center"
@@ -432,12 +630,23 @@ export function Studio() {
         isDesktop={isDesktop}
         busy={busy}
         feil={feil}
-        onChange={setParams}
+        hentar={hentar}
+        mode={mode}
+        tunar={tunar}
+        finnStad={finnStad}
+        kanAngre={kanAngre}
+        onMode={(m) => {
+          setHint(false)
+          setMode(m)
+        }}
+        onChange={endre}
         onView={setView}
-        onReset={() => setParams((p) => ({ ...VAFFEL.defaults, kjelde: p.kjelde }))}
+        onReset={() => endre({ ...VAFFEL.defaults, kjelde: params.kjelde })}
+        onAngre={angre}
         onToggleDetail={() => setHiDetail((d) => !d)}
         onExport={doExport}
-        onFinn={finnInnstillingar}
+        onFinn={() => steg(1)}
+        onFinnAtt={() => steg(-1)}
         onShare={share}
         onFile={(f) => void takeFile(f)}
       />

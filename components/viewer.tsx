@@ -2,7 +2,7 @@
 
 import { Canvas, useThree } from "@react-three/fiber"
 import { OrbitControls } from "@react-three/drei"
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import * as THREE from "three"
 import type { View } from "@/lib/core"
 import type { BuildRes } from "@/lib/worker"
@@ -103,7 +103,21 @@ function FitCamera({
   return null
 }
 
-export function Viewer({
+/**
+ * HUGSA MELLOM TEIKNINGANE.
+ *
+ * Alt som skjer i panelet — ein prikk som blinkar, ein ring som fyllest,
+ * eit tal som tikkar — teiknar studioet på nytt. Utan denne innpakkinga
+ * teiknar det scena på nytt òg, og det er ikkje ei billeg teikning: heile
+ * scenegrafen vert forlikt gjennom R3F for kvar einaste tilstandsendring i
+ * grensesnittet.
+ *
+ * Det kosta over eit halvt sekund av hovudtråden medan søket gjekk — nok
+ * til at framdriftsmeldingane hopa seg opp i køen og kom i klumpar på fire.
+ * Scena treng berre teiknast på nytt når noko som ER scena har endra seg,
+ * og det er nett det denne lista seier.
+ */
+export const Viewer = memo(function Viewer({
   data,
   view,
   material,
@@ -229,4 +243,4 @@ export function Viewer({
       />
     </Canvas>
   )
-}
+})

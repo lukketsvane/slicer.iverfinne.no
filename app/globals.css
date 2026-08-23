@@ -67,3 +67,61 @@ html {
 .pslider:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 2px var(--ink);
 }
+
+/*
+ * EIT SVAR PÅ PEIKAREN.
+ *
+ * Flata er med vilje still: kvit, hårfine strekar, ingen skuggar. Men ei
+ * flate som ikkje svarar når peikaren står over henne, ser ut som ho ikkje
+ * er trykkbar. Skuggen ligg INNI knappen og ikkje som ein bakgrunn, so han
+ * verkar likt på ein knapp som er kvit og ein som er svart — den svarte
+ * vert litt mørkare, den kvite litt grå. Éin regel, to tilstandar.
+ *
+ * Berre der det finst ein peikar. På ein telefon ville han hengt att etter
+ * kvart trykk.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .hit:hover:not(:disabled) {
+    box-shadow: inset 0 0 0 40px color-mix(in srgb, var(--ink) 7%, transparent);
+  }
+}
+
+/* Tastaturet skal kunne sjåast. Ein ring utanpå, i same blekket som alt
+   anna — ikkje nettlesaren sin blå. */
+:where(button, a, [role="switch"], input):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
+.pslider:focus-visible {
+  outline: none;
+}
+/* Talfeltet er eit felt og ikkje ei avskrift, men det skal ikkje ropa det:
+   streken under kjem når peikaren er der, og ringen er firkanta av di
+   feltet er det. */
+.talfelt:focus-visible {
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .talfelt:hover {
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 32%, transparent);
+  }
+}
+
+/* Lina som seier at fila kan sleppast. Ho skal ikkje vera der før auget er
+   framme. */
+.fade-inn {
+  animation: fade-inn 900ms ease both;
+}
+@keyframes fade-inn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-inn {
+    animation: none;
+  }
+}

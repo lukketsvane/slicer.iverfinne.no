@@ -34,7 +34,7 @@ import { makePlan } from "./plan"
 import { meshToStl } from "./export-stl"
 import { partsToDxf } from "./export-dxf"
 import { couponSvg, profileSvg, sheetSvg } from "./export-svg"
-import { bruk, tune, type Kandidat } from "./tune"
+import { bruk, tune, tuneSteg, type Kandidat } from "./tune"
 import { zip } from "../zip"
 import {
   DEFAULT_PARAMS,
@@ -63,6 +63,9 @@ export type EngineDef = {
   exportFile(p: ParamBag, what: ExportKind): ExportOut
   /** gode innstillingar for det nettet og den storleiken som står, sorterte */
   tune(p: ParamBag): Kandidat[]
+  /** det same søket, men eitt steg om gongen: den som driv han kan sleppe
+   *  tråden imellom, og då kjem framdrifta fram medan ho gjeld */
+  tuneSteg(p: ParamBag): Generator<{ gjort: number; av: number }, Kandidat[], void>
   /** det n-te svaret frå ei liste som alt er rekna */
   pick(p: ParamBag, alle: Kandidat[], nth: number): ParamBag
   /** profilane som bilete til panelet — same teikning som SVG-uttaket,
@@ -159,6 +162,7 @@ export const VAFFEL: EngineDef = {
 
   measure: (bag) => measure(asP(bag)),
   tune: (bag) => tune(asP(bag)),
+  tuneSteg: (bag) => tuneSteg(asP(bag)),
   pick: (bag, alle, nth) => bruk(asP(bag), alle, nth) as unknown as ParamBag,
   rules: (bag, m) => checkRules(asP(bag), m),
 

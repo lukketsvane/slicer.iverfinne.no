@@ -10,6 +10,7 @@
     "probe": "tsx scripts/probe.ts",
     "tung": "tsx scripts/tung.ts",
     "look": "tsx scripts/look.ts",
+    "panel": "tsx scripts/panel.ts",
     "pakk": "tsx scripts/nest-sjekk.ts",
     "rekkje": "tsx scripts/rekkje.ts",
     "vrient": "tsx scripts/vrient.ts",

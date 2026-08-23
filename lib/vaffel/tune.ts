@@ -162,8 +162,18 @@ function poengOf(
  * der godset er tynt kan ho vera skilnaden på ein regel som held og ein
  * som brest. Å prøve henne på alle ville tredoble rekninga for eit tal som
  * står stille på dei fleste former.
+ *
+ * HAN GJEV FRÅ SEG STYRINGA MELLOM KVAR KANDIDAT, og det er ikkje pynt.
+ * Ei melding frå ein arbeidar som står midt i ei lang rekning kjem ikkje
+ * fram: nettlesaren tømer røyret fyrst når arbeidaren er ferdig med det
+ * han held på med, so tolv framdriftsmeldingar sende inni lykkja landa
+ * alle tolv i same augeblinken som svaret. Ein ring som hoppar frå null
+ * til ferdig er ikkje framdrift. Difor eit steg om gongen, med ei
+ * generatorlykkje: den som driv han vel sjølv å sleppe tråden imellom.
  */
-export function tune(p: Params): Kandidat[] {
+export function* tuneSteg(
+  p: Params,
+): Generator<{ gjort: number; av: number }, Kandidat[], void> {
   const k = makeKropp(p)
   const spennX = Math.max(1, k.solid.max[0] - k.solid.min[0])
   const spennY = Math.max(1, k.solid.max[1] - k.solid.min[1])
@@ -196,7 +206,10 @@ export function tune(p: Params): Kandidat[] {
     }
   }
 
-  for (const [x, y] of kandidatar(p, spennX, spennY)) {
+  const liste = kandidatar(p, spennX, spennY)
+  yield { gjort: 0, av: liste.length }
+  for (let i = 0; i < liste.length; i++) {
+    const [x, y] = liste[i]
     // Leddelinga står midt på. Ho rører ingen av tala i summen — ho
     // flyttar sporbotnen, og det ser du berre i godset — so å prøve
     // henne på alle er å rekne det same tre gonger. Men på ei form der
@@ -211,9 +224,18 @@ export function tune(p: Params): Kandidat[] {
     if (fall.length === 1 && fall[0] === "gods") {
       if (prov(x, y, 0.35).length) prov(x, y, 0.65)
     }
+    yield { gjort: i + 1, av: liste.length }
   }
   ut.sort((a, b) => b.poeng - a.poeng)
   return ut
+}
+
+/** heile søket i eitt jafs, for den som ikkje har bruk for framdrifta */
+export function tune(p: Params): Kandidat[] {
+  const it = tuneSteg(p)
+  let r = it.next()
+  while (!r.done) r = it.next()
+  return r.value
 }
 
 /** måltala reglane vil ha, henta ut av ein plan som alt er rekna */

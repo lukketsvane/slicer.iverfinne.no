@@ -38,10 +38,14 @@ correction in the metrics, and it is why the panel fits on a phone.
    built-in cube.
 2. **Set the size** — the one slider that is always on screen.
 3. **Press find settings.** It slices a dozen rib grids for real and ranks
-   them, then sets the best. Press again for the next best.
-4. **Read the rules.** The panel tells you what can't be cut or assembled, and
-   why.
+   them, then sets the best. A line under the panel says where you are in that
+   list — `1 av 12 · 7×7 ribber` — and walks it both ways.
+4. **Read the rules.** Tap the three numbers to open the panel: it tells you
+   what can't be cut or assembled, and why.
 5. **Export ARK** and open it in LightBurn.
+
+Nothing here is one-way. Every change is undoable, by the arrow in the panel or
+by `Z`.
 
 **Find settings** only moves the rib counts and the joint split. Your mesh,
 your size, your material thickness, your press fit, your kerf and your bed
@@ -54,6 +58,11 @@ parts, and it is worth seeing before you press the button rather than after.
 
 Two fingers on the canvas change the rib counts; three fingers move the light.
 Double-tap reframes. The URL carries every setting except the mesh itself.
+
+Every number next to a slider is a **field**: a slider is good at hunting and
+bad at hitting, so type `240` when you want 240. Keys, on a desktop: `F` finds
+settings and `⇧F` steps back, `1` `2` `3` switch views, `Z` undoes, `O` opens
+the panel.
 
 ## Find settings
 
@@ -72,7 +81,13 @@ exist. What survives comes back sorted, and each press walks one step down the
 list — the first press is the best answer, the second is the second best, and
 sometimes that is the one you wanted. The list is computed once and held in the
 page, so only the first press costs anything (about a second, four on a
-half-million-triangle scan).
+half-million-triangle scan), and a ring around the button fills while it runs.
+
+The search yields between candidates rather than running to completion in one
+go. That is not politeness: a worker that never lets go of its thread has its
+messages flushed only when it finally does, so twelve progress reports would
+land in the same instant as the answer. A ring that jumps from nothing to done
+is not progress.
 
 ## Output
 
@@ -239,6 +254,7 @@ pnpm pakk    # redraws every sheet and counts cells — catches overlaps
 pnpm tung    # a million triangles in, and how long that takes
 pnpm ark     # cut sheets as images
 pnpm look    # screenshots of the page, and any console errors
+pnpm panel   # the controls in a real browser: find, walk, undo, type, keys
 ```
 
 | | |

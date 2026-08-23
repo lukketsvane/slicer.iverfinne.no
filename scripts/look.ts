@@ -16,6 +16,8 @@ import { meshToStl } from "../lib/vaffel/export-stl"
 import { glb } from "./glbfil"
 
 const URL = process.argv[2] ?? "http://127.0.0.1:3210"
+const HOVUDLINA =
+  "section[aria-label='kontrollar'] button[aria-label='delar, kuttlengd og ark']"
 const UT = "bilete"
 
 const main = async () => {
@@ -56,7 +58,10 @@ const main = async () => {
   )
   await page.waitForTimeout(1200)
 
-  const line = await page.locator("section[aria-label='kontrollar'] span.tab").first().innerText()
+  // Hovudlina er ein KNAPP: eit trykk på tala opnar arket der grunngjevinga
+  // står. Ho vert difor funnen på det ho heiter og ikkje på kva element ho
+  // er laga av.
+  const line = await page.locator(HOVUDLINA).innerText()
   console.log("hovudlina:", line.replace(/\s+/g, " "))
   await page.screenshot({ path: `${UT}/1-lag.png` })
 
@@ -104,9 +109,7 @@ const main = async () => {
     const kjelde = (
       await page.locator("button[aria-label='hent eit nett']").innerText()
     ).trim()
-    const tal = (
-      await page.locator("section[aria-label='kontrollar'] span.tab").first().innerText()
-    ).replace(/\s+/g, " ")
+    const tal = (await page.locator(HOVUDLINA).innerText()).replace(/\s+/g, " ")
     console.log(`import ${namn}: ${kjelde} — ${tal}`)
     await page.screenshot({ path: `${UT}/${bilete}` })
     if (!kjelde.toLowerCase().includes(namn.toLowerCase())) {
