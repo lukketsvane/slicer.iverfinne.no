@@ -18,6 +18,7 @@ import type { Kandidat } from "@/lib/vaffel/tune"
 import {
   CHIP,
   EXPORTS,
+  Fiksen,
   HAIR,
   IcoAngre,
   IcoFinn,
@@ -654,27 +655,31 @@ export function Benk(props: {
         </dl>
 
         {/* REGLANE. Alle tolv, ikkje berre dei som ryk: ein mjuk regel
-            finst nettopp for at du skal sjå marginen FØR han ryk. */}
+            finst nettopp for at du skal sjå marginen FØR han ryk. Den som
+            ryk og har eit råd, ber rådet med seg i same lina. */}
         <div className={BLOKK + " min-h-0 shrink overflow-y-auto"} style={HAIR}>
           {rules.map((r) => (
             <div
               key={r.id}
               title={r.why}
-              className="flex items-baseline justify-between gap-2 py-[1px] text-[10px] leading-4"
+              className="flex items-center justify-between gap-2 py-[1px] text-[10px] leading-4"
               style={{
                 color: !r.ok && r.hard ? "var(--warn)" : undefined,
                 opacity: r.ok ? 0.35 : 1,
               }}
             >
               <span className="truncate tracking-[0.04em]">{r.label}</span>
-              <span
-                className="tab shrink-0"
-                style={{
-                  textDecoration: !r.ok && !r.hard ? "underline dotted" : undefined,
-                  textUnderlineOffset: 3,
-                }}
-              >
-                {r.value}
+              <span className="flex shrink-0 items-center gap-1.5">
+                <span
+                  className="tab"
+                  style={{
+                    textDecoration: !r.ok && !r.hard ? "underline dotted" : undefined,
+                    textUnderlineOffset: 3,
+                  }}
+                >
+                  {r.value}
+                </span>
+                <Fiksen rule={r} params={params} onChange={onChange} />
               </span>
             </div>
           ))}

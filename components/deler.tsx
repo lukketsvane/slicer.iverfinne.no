@@ -8,6 +8,7 @@ import {
   type Metrics,
   type ParamBag,
   type Range,
+  type Rule,
   type View,
 } from "@/lib/core"
 import { RADER } from "@/lib/vaffel/metrics"
@@ -123,6 +124,42 @@ export function chipStyle(active: boolean): CSSProperties {
 }
 export const CHIP =
   "hit min-h-[30px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] transition active:scale-95 disabled:opacity-30"
+
+/**
+ * RÅDET, SOM EIN KNAPP.
+ *
+ * Ein regel som ryk peikar på eit tal han sjølv har rekna ut. Knappen set
+ * det talet, gjennom den vanlege vegen inn i parametrane: han legg seg i
+ * angrestabelen som alt anna, so eit råd du ikkje likar kostar eitt trykk
+ * å gå ut av att.
+ *
+ * Knappen er raud som lina han står i. Han er ikkje ei åtvaring — han er
+ * det einaste i den lina som gjer noko med henne.
+ */
+export function Fiksen({
+  rule,
+  params,
+  onChange,
+}: {
+  rule: Rule
+  params: ParamBag
+  onChange: (p: ParamBag) => void
+}) {
+  if (rule.ok || !rule.fiks) return null
+  const f = rule.fiks
+  return (
+    <button
+      type="button"
+      aria-label={`fiks ${rule.label}: ${f.ord}`}
+      title="set dette og rekn om att"
+      onClick={() => onChange({ ...params, ...f.set })}
+      className="hit shrink-0 rounded-full border px-2 py-[2px] text-[10px] leading-[14px] tracking-[0.04em] transition active:scale-95"
+      style={{ borderColor: "currentColor", opacity: 0.85 }}
+    >
+      {f.ord}
+    </button>
+  )
+}
 
 /** Ikona er strekar, teikna her i staden for henta frå eit bibliotek:
  *  seks ikon er ikkje verdt ein avhengnad. */

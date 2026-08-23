@@ -14,12 +14,29 @@
  * gods att i leddet; og delane må få plass på plata du faktisk har. Bryt
  * éin av dei, ligg det ein haug med finér på bordet og ingen vaffel.
  */
-import { nn, type Metrics, type Rule } from "../core"
+import { bbox, nn, type Fiks, type Metrics, type Rule } from "../core"
 import { DETAIL } from "./ribs"
-import { makePlan, type Plan } from "./plan"
+import { makePlan, nestGap, type Plan } from "./plan"
 import { SNITTVEGAR, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
+/** klaringa bur mellom 0,05 og 0,35: éin desimal gjer heile bandet til
+ *  tre tal, og «0,0 mm» av noko som ikkje er null */
+const mm2 = (v: number) => nn(v, 2) + " mm"
+
+/** eit steg opp eller ned i den skyvaren tala faktisk bur i */
+const snapp = (v: number, steg: number) => Math.round(v / steg) * steg
+
+/**
+ * FÆRRE RIBBER, REKNA OG IKKJE GJETTA.
+ *
+ * Ribbene står i cellesenter, so stigninga er spennet delt på talet, og
+ * opninga er stigninga minus ei platetjukn. Vil du ha opninga G, treng du
+ * spenn / (G + tjukn) ribber — og spennet står alt i den opninga du har:
+ * det er (gap + tjukn) × talet du står med.
+ */
+const ribberFor = (n: number, gap: number, tjukn: number, mål: number) =>
+  Math.max(1, Math.floor((n * (gap + tjukn)) / (mål + tjukn)))
 
 /**
  * `plan` kan sendast inn av den som alt har rekna han.
@@ -34,6 +51,69 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
   const out: Rule[] = []
   const add = (r: Rule) => out.push(r)
 
+  /**
+   * KOR MYKJE MINDRE?
+   *
+   * Delane er lineære i storleiken: doblar du objektet, doblar kvar ribbe
+   * seg med det. So den verste delen seier kva heile objektet må gangast
+   * med for å kome innanfor plata — og han seier det for begge leier, av
+   * di pakkinga får snu han ein kvartsving.
+   *
+   * To prosent til gode, og so ned til næraste steg i skyvaren: eit råd
+   * som legg seg akkurat på grensa er eit råd som ryk att på ei
+   * avrunding.
+   */
+  const plateFiks = (): Fiks | undefined => {
+    if (ns.spilt === 0) return undefined
+    const romB = p.arkB - nestGap(p)
+    const romH = p.arkH - nestGap(p)
+    let verst = 1
+    for (const q of pl.parts) {
+      const b = bbox(q.outline)
+      const w = b.x1 - b.x0
+      const h = b.y1 - b.y0
+      if (w <= 0 || h <= 0) continue
+      const rett = Math.min(romB / w, romH / h)
+      const snudd = Math.min(romB / h, romH / w)
+      verst = Math.min(verst, Math.max(rett, snudd))
+    }
+    // Passar kvar del kvar for seg, er det pakkinga som ikkje fekk dei
+    // ned, og då er ikkje storleiken svaret.
+    if (verst >= 1) return undefined
+    const ny = Math.max(40, snapp(p.storleik * verst * 0.98, 5))
+    return ny < p.storleik ? { ord: `prøv ${nn(ny)} mm`, set: { storleik: ny } } : undefined
+  }
+
+  const snittFiks = (): Fiks | undefined => {
+    if (p.snitt < m.slotW) return undefined
+    const ny = Math.max(0.05, snapp(m.slotW * 0.5, 0.05))
+    return ny < p.snitt ? { ord: `prøv ${mm1(ny)}`, set: { snitt: ny } } : undefined
+  }
+
+  const opningFiks = (): Fiks | undefined => {
+    if (m.minGap >= 3) return undefined
+    // 3,2 og ikkje 3: den nye ribba landar på eit heiltal, og eit heiltal
+    // som er runda ned frå akkurat 3 kjem ut på 2,9.
+    const nx = ribberFor(p.ribbX, g.gapX, p.tjukn, 3.2)
+    const ny = ribberFor(p.ribbY, g.gapY, p.tjukn, 3.2)
+    if (nx >= p.ribbX && ny >= p.ribbY) return undefined
+    const sett = { ribbX: Math.min(nx, p.ribbX), ribbY: Math.min(ny, p.ribbY) }
+    return { ord: `prøv ${sett.ribbX}×${sett.ribbY}`, set: sett }
+  }
+
+  /**
+   * Ingen ledd, eller ingen delar. Begge er det same tomrommet sett frå
+   * kvar si side, og begge har det same rådet: eit tettare rutenett tek
+   * fleire bitar av kroppen og gjev fleire stader dei kan møtast.
+   */
+  const fleireRibber = (): Fiks | undefined => {
+    if (m.joints > 0 && m.parts > 0) return undefined
+    const nx = Math.min(32, Math.max(4, p.ribbX * 2))
+    const ny = Math.min(32, Math.max(4, p.ribbY * 2))
+    if (nx === p.ribbX && ny === p.ribbY) return undefined
+    return { ord: `prøv ${nx}×${ny}`, set: { ribbX: nx, ribbY: ny } }
+  }
+
   // --- 1 ribbene grip (hard) --------------------------------------------------
   add({
     id: "grip",
@@ -42,6 +122,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     ok: m.joints > 0,
     value: `${nn(m.joints)} ledd`,
     why: "Utan eit einaste kryssledd er dette ikkje eit objekt, men ein bunke laust liggjande plater. Vanlegaste grunnen er at nettet er for tynt der ribbene kryssar, eller at det står for få ribber til at nokon av dei møtest i gods.",
+    fiks: fleireRibber(),
   })
 
   // --- 2 delane finst (hard) --------------------------------------------------
@@ -52,6 +133,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     ok: m.parts > 0,
     value: `${nn(m.parts)} stk`,
     why: "Ingen ribbe råka nettet. Anten står objektet utanfor rutenettet, eller so er nettet så tynt at kvar profil fell under minstearealet.",
+    fiks: fleireRibber(),
   })
 
   // --- 3 kvar del heng i noko (hard) ------------------------------------------
@@ -75,6 +157,10 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
         ? `${nn(pl.lause)} av ${nn(pl.parts.length)}`
         : "ingen",
     why: "Eit stykke som ikkje kryssar ei einaste ribbe frå den andre familien heng ikkje i noko: det står i kuttlista, kostar plass på plata, og ligg laust i eska. Vanlegaste grunnen er at kroppen er tynnare enn luka mellom ribbene akkurat der, som på ein øyretipp eller ein hov. Fleire ribber tek han med i rutenettet; `lause` på «kast» tek han ut av fila.",
+    // Rådet gjeld berre den harde vegen: står `lause` på «kast», er talet
+    // ei opplysning om kva du valde bort, og eit råd om å velje det er
+    // eit råd om å gjera det du alt har gjort.
+    fiks: !p.lause && pl.lause > 0 ? { ord: "kast dei", set: { lause: 1 } } : undefined,
   })
 
   // --- 4 gods att i leddet (hard) ---------------------------------------------
@@ -86,6 +172,13 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     ok: m.narrow >= minGods,
     value: mm1(m.narrow),
     why: `Sporet et halve overlappet, og det som er att må bera resten av ribba. Under éi platetjukn (${mm1(minGods)}) knekk finéren i sporbotnen når du pressar delane saman. Flytt leddelinga, eller sett ribbene der nettet er tjukkare.`,
+    // Det tynnaste godset står på den sida av leddet delinga gjev minst
+    // til. Halvt om halvt gjev dei to sidene like mykje, og er difor det
+    // einaste svaret reiskapen kan rekne seg fram til her.
+    fiks:
+      m.narrow < minGods && Math.abs(p.ledd - 0.5) > 0.01
+        ? { ord: "del i midten", set: { ledd: 0.5 } }
+        : undefined,
   })
 
   // --- 5 delane får plass på plata (hard) -------------------------------------
@@ -96,6 +189,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     ok: ns.spilt === 0,
     value: ns.spilt ? `${nn(ns.spilt)} utanfor` : `${nn(ns.sheets.length)} ark`,
     why: `Ein del er større enn plata. Anten mindre objekt, fleire ribber (kvar ribbe vert mindre), eller ei større plate enn ${nn(p.arkB)} × ${nn(p.arkH)} mm.`,
+    fiks: plateFiks(),
   })
 
   // --- 6 klaringa (mjuk) ------------------------------------------------------
@@ -104,8 +198,15 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     label: "klaring",
     hard: false,
     ok: p.klaring >= 0.05 && p.klaring <= 0.35,
-    value: mm1(p.klaring),
+    value: mm2(p.klaring),
     why: "Under 0,05 mm får du ikkje delane i hop utan hammar, og finér som vert slegen i hop flisar seg. Over 0,35 mm sit dei ikkje fast, og då treng vaffelen lim, som er nett det han ikkje skulle treng.",
+    // Ikkje kanten av bandet. Ein verdi som so vidt står innanfor er ein
+    // verdi som ryk av den fyrste plata som er ein tidel tjukkare enn ho
+    // seier. Midt i bandet er det einaste rådet som toler noko.
+    fiks:
+      p.klaring < 0.05 || p.klaring > 0.35
+        ? { ord: "prøv 0,15 mm", set: { klaring: 0.15 } }
+        : undefined,
   })
 
   // --- 7 nokon tek snittbreidda (mjuk) ----------------------------------------
@@ -122,6 +223,9 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     ok: p.snitt > 0,
     value: p.snitt > 0 ? `${mm1(p.snitt)} ${SNITTVEGAR[p.snittveg] ?? ""}`.trim() : "null",
     why: "Stråla har breidd, og kutten et henne ut av delen. Er snittbreidda null, kompenserer korkje fila eller maskina for henne: kvart spor kjem ut ei snittbreidd for vidt og kvar tapp ei snittbreidd for tynn. Passprøva måler henne og klaringa i eitt.",
+    // To tidelar er ein vanleg laser i tynn MDF. Det er eit utgangspunkt
+    // og ikkje eit mål: passprøva er der for å byte det ut med ditt eige.
+    fiks: p.snitt > 0 ? undefined : { ord: "prøv 0,2 mm", set: { snitt: 0.2 } },
   })
 
   // --- 8 snittet et ikkje opp sporet (hard) -----------------------------------
@@ -142,6 +246,9 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     ok: p.snitt < m.slotW,
     value: `${mm1(p.snitt)} mot ${mm1(m.slotW)}`,
     why: "Snittbreidda vert kompensert ved å skuve omrisset utover, og sporet vert teikna like mykje smalare. Er snittet like breitt som sporet, er det teikna sporet borte, og konturen brettar seg over seg sjølv. Anten står snittbreidda for høgt, eller so er plata for tynn til det verktøyet.",
+    // Halve sporet, ikkje heile: brettinga byrjar eit stykke før grensa,
+    // so eit råd som legg seg inntil henne er eit råd som ikkje held.
+    fiks: snittFiks(),
   })
 
   // --- 9 opninga mellom ribbene (mjuk) ----------------------------------------
@@ -152,6 +259,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     ok: m.minGap >= 3,
     value: mm1(m.minGap),
     why: "Ribbene står så tett at fingrane ikkje kjem imellom dei når du monterer, og på plata står delane så nær kvarandre at nestinga ikkje har noko å gå på.",
+    fiks: opningFiks(),
   })
 
   // --- 10 lukka nett (mjuk) ---------------------------------------------------
