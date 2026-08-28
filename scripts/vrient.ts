@@ -20,7 +20,8 @@
 import { VAFFEL } from "../lib/vaffel/engine"
 import { DEFAULT_PARAMS, PARAM_RANGES, type Params } from "../lib/vaffel/params"
 import { parseMesh } from "../lib/io"
-import { makeSoup } from "../lib/soup"
+import { bounds, makeSoup, weld } from "../lib/soup"
+import { taubin } from "../lib/mesh/smooth"
 import { put } from "../lib/sources"
 import type { ExportKind, Metrics, ParamBag } from "../lib/core"
 
@@ -267,7 +268,39 @@ function sjekk(namn: string, p: Params, vis = false) {
  * UV-kule har ein slik trekant per rute ved kvar pol: `kule(50, 40)` er
  * tett, og vart meld med 80 opne kantar.
  */
-console.log("lukka nett skal meldast lukka")
+/**
+ * UTJAMNINGA SKAL IKKJE ETE KANTEN.
+ *
+ * README-en seier at glattinga tek skannarstøy «without shrinking», og
+ * koden har ei grein som skal halde randa i ro. Ho prøvde GRADEN — under
+ * to naboar — og grad er ikkje rand: eit hjørne på ein open kant har tre
+ * eller fire naboar. Ei open plate på hundre millimeter kraup til 93,3
+ * etter fire og tjue rundar, tre millimeter av kvar kant.
+ */
+console.log("randa står stille")
+{
+  saker++
+  const n = 10
+  const pos: number[] = []
+  const at = (i: number, j: number): [number, number, number] => [(i / n) * 100 - 50, (j / n) * 100 - 50, 0]
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++) {
+      const a = at(i, j), b = at(i + 1, j), c = at(i + 1, j + 1), d = at(i, j + 1)
+      pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+    }
+  // Rett på nettet: ei flat plate har ingen ribber å måle gjennom motoren.
+  const plate = weld(makeSoup(new Float32Array(pos)))
+  const breidd = (rundar: number) => {
+    const b = bounds(taubin(plate, rundar).verts)
+    return b.max[0] - b.min[0]
+  }
+  const rein = breidd(0)
+  const glatta = breidd(24)
+  if (rein - glatta > 0.05) feil("open plate, glatta", `krympa ${(rein - glatta).toFixed(2)} mm`)
+  console.log(`  open plate, 0 mot 24 rundar: ${rein.toFixed(3)} → ${glatta.toFixed(3)} mm`)
+}
+
+console.log("\nlukka nett skal meldast lukka")
 {
   saker++
   const seg = 40
