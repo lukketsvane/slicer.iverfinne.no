@@ -259,7 +259,12 @@ async function benken(browser: Browser, feil: string[]) {
   await rolig(page)
   ok("benken står over 1180 px", (await page.locator("aside[aria-label='innstillingar']").count()) === 1)
 
-  const rader = page.locator("aside[aria-label='innstillingar'] button.tab")
+  // Lista sitt eige namn, og ikkje skriftklassen på radene. Selektoren
+  // stod på «.tab»; radene skifta til «.mono» i ei endring som ser lik ut
+  // på benken, og vakta fann null rader og sa frå — men berre om at det
+  // var null, ikkje om at det var HO som hadde drive. Eit namn skiftar
+  // ikkje av at nokon vel ei anna skrift.
+  const rader = page.locator("aside[aria-label='innstillingar'] [aria-label='svar'] button")
   ok("og ingen svarliste før nokon har spurt", (await rader.count()) === 0)
 
   await page.getByLabel("finn innstillingar").click()

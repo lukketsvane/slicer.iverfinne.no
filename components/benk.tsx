@@ -121,10 +121,18 @@ function Svarlista({
   return (
     <div
       className="rull min-h-0 flex-1"
+      // Lista er ei liste, og ho har eit namn. Namnet er ikkje pynt: det
+      // er det einaste greipet på henne som ikkje er ein skriftklasse.
+      // Panelvakta valde radene med «.tab», og den dagen radene skifta
+      // til «.mono» — ei endring som ser lik ut på benken, av di ein
+      // «.tab» inne i ein vegg alt står i maskinskrift — fann ho null
+      // rader og heile lista var uprøvd.
+      role="group"
+      aria-label="svar"
       style={{ opacity: gjeld ? 1 : 0.35, transition: "opacity 160ms ease" }}
       onPointerLeave={() => over(null)}
     >
-      <div className="dim flex text-[9px] uppercase tracking-[0.14em]">
+      <div className="dim flex text-[9px] uppercase tracking-[0.14em]" aria-hidden>
         <span className="w-5" />
         <span className="flex-1">ribber</span>
         <span className="w-9 text-right">delar</span>
@@ -137,6 +145,13 @@ function Svarlista({
           type="button"
           onClick={() => onVel(i)}
           onPointerEnter={() => over(i)}
+          // Fem tal i kolonne er ei rad å SJÅ på. Til den som høyrer henne
+          // er kolonnane borte, og overskrifta står ein heilt annan stad —
+          // difor står talet og namnet på det saman her.
+          aria-label={
+            `svar ${i + 1}: ${k.ribbX}×${k.ribbY} ribber, ${k.parts} delar, ` +
+            `${k.sheets} ark, ${k.joints} ledd`
+          }
           className="hit mono flex w-full items-baseline rounded-[2px] py-[2px] text-[10px]"
           style={
             i === paa
