@@ -20,6 +20,8 @@
 import { VAFFEL } from "../lib/vaffel/engine"
 import { DEFAULT_PARAMS, PARAM_RANGES, type Params } from "../lib/vaffel/params"
 import { parseMesh } from "../lib/io"
+import { unzip } from "../lib/zip"
+import { meshToStl } from "../lib/vaffel/export-stl"
 import { bounds, makeSoup, weld } from "../lib/soup"
 import { taubin } from "../lib/mesh/smooth"
 import { put } from "../lib/sources"
@@ -373,6 +375,64 @@ console.log("\nsame geometri, same svar")
   }
   if (new Set(svar).size !== 1) feil("ope nett flytta", svar.join("  |  "))
   console.log(`  ope nett, fire origo:          ${svar[0]}`)
+}
+
+// =============================================================================
+// DET DU LAGRAR ER DET DU OPNAR
+// =============================================================================
+/**
+ * Lenkja ber kvar innstilling utan om nettet, av di ein URL ikkje kan bera
+ * hundre megabyte. Prosjektfila kan: oppsettet og fila du slepte inn, i
+ * lag. Kravet er ikkje at ho opnar — det er at ho gjev DEN SAME
+ * KUTTFILA. Ei lagring som kjem attende med eit anna objekt er verre enn
+ * ingen lagring: du oppdagar det når platene ikkje går i hop.
+ */
+console.log("det du lagrar er det du opnar")
+{
+  // Ei kjelde som er IMPORTERT, slik arbeidaren gjer det: nettet og bytane
+  // det kom av. Ei kjelde utan bytar — kuben, eller eit nett laga i koden —
+  // ber seg sjølv i `kjelde`, og då er oppsettet heile prosjektet.
+  saker++
+  const soup = makeSoup(kule(50, 24))
+  const nrm = new Float32Array(soup.pos.length)
+  for (let i = 0; i < nrm.length; i += 3) {
+    const L = Math.hypot(soup.pos[i], soup.pos[i + 1], soup.pos[i + 2]) || 1
+    nrm[i] = soup.pos[i] / L
+    nrm[i + 1] = soup.pos[i + 1] / L
+    nrm[i + 2] = soup.pos[i + 2] / L
+  }
+  const stl = meshToStl({ positions: soup.pos, normals: nrm, tris: soup.tris }, "kule")
+  const lest = parseMesh("kule.stl", stl.buffer.slice(0) as ArrayBuffer)
+  put("v-lagra", "kule.stl", lest, new Uint8Array(stl))
+
+  const p: Params = { ...DEFAULT_PARAMS, kjelde: "v-lagra", storleik: 220, ribbX: 7, ribbY: 7, tjukn: 4 }
+  const bag = p as unknown as ParamBag
+  const pro = VAFFEL.exportFile(bag, "prosjekt")
+  const inni = unzip(pro.data as ArrayBuffer)
+  const opp = inni.find((f) => f.name === "oppsett.json")
+  const nett = inni.find((f) => f.name.startsWith("nett/"))
+  if (!opp) feil("prosjekt", "arkivet manglar oppsett.json")
+  else if (!nett) feil("prosjekt", "arkivet manglar nettet")
+  else {
+    const lese = (JSON.parse(new TextDecoder().decode(opp.data)) as { p: ParamBag }).p
+    const attende = parseMesh(nett.name.slice(5), new Uint8Array(nett.data).buffer.slice(0) as ArrayBuffer)
+    put("v-attende", "attende", attende)
+    const b = VAFFEL.exportFile({ ...lese, kjelde: "v-attende" }, "dxf").text ?? ""
+    const a = VAFFEL.exportFile(bag, "dxf").text ?? ""
+    if (a !== b) feil("prosjekt", `DXF-en er ein annan etter opning (${a.length} mot ${b.length} teikn)`)
+    console.log(`  prosjekt: ${inni.length} filer, ${attende.tris} trekantar attende, same DXF: ${a === b}`)
+  }
+
+  // og «alt» skal ha kvar einaste fil i seg
+  saker++
+  const alt = VAFFEL.exportFile(bag, "alt")
+  const filer = unzip(alt.data as ArrayBuffer).map((f) => f.name)
+  const mangler = ["stl", "dxf", "profilar.svg", "passprove", "kuttliste.csv", "oppsett.json"].filter(
+    (q) => !filer.some((n) => n.includes(q)),
+  )
+  if (mangler.length) feil("alt", `manglar ${mangler.join(", ")}`)
+  if (!filer.some((n) => n.includes("-ark"))) feil("alt", "manglar platene")
+  console.log(`  alt: ${filer.length} filer — ${filer.join(", ")}`)
 }
 
 // =============================================================================

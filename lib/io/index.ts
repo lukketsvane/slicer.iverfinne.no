@@ -22,7 +22,9 @@ import { parseObj } from "./obj"
 import { parsePly } from "./ply"
 import { parseStl } from "./stl"
 
-export const FORMAT = [".glb", ".gltf", ".stl", ".obj", ".ply"] as const
+/** Det som kan sleppast inn. `.zip` er ikkje eit nett — det er ei
+ *  prosjektfil, og ho vert opna i arbeidaren og ikkje her. */
+export const FORMAT = [".glb", ".gltf", ".stl", ".obj", ".ply", ".zip"] as const
 
 export function parseMesh(name: string, buf: ArrayBuffer): Soup {
   // Magien fyrst. Ei GLB som heiter «scan.stl» er framleis ei GLB, og ho

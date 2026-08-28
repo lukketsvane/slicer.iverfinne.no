@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rule, View } from "@/lib/core"
 import { KUBE } from "@/lib/sources"
+import { hent, lagre } from "@/lib/lagring"
 import { VAFFEL } from "@/lib/vaffel/engine"
 import type { BuildRes, MaalRes, Req, Res, SynRes } from "@/lib/worker"
 import { Verkty, type VerktyId } from "./verkty"
@@ -215,7 +216,31 @@ export function Studio() {
     setMounted(true)
     try {
       const h = window.location.hash.slice(1)
-      if (!h.startsWith("p=")) return
+      if (!h.startsWith("p=")) {
+        /**
+         * INGEN LENKJE: TAK DET DU HADDE.
+         *
+         * Ei lenkje er nokon som seier kva du skal sjå, og då skal ikkje
+         * di eiga førre økt overstyre henne. Utan lenkje er det motsett:
+         * fana som vart lukka ved eit uhell skal ikkje koste deg
+         * arbeidet. Nettet kjem inn den vanlege vegen — gjennom
+         * arbeidaren — so det er den same importen som alltid.
+         */
+        void hent().then((v) => {
+          if (!v) return
+          setParams((q) => VAFFEL.clamp({ ...v.params, kjelde: KUBE }, q))
+          if (!v.nett) return
+          setHentar(true)
+          const msg: Req = {
+            kind: "import",
+            id: ++reqId.current,
+            name: v.filnamn ?? "nett.stl",
+            buf: v.nett,
+          }
+          worker.current?.postMessage(msg, [v.nett])
+        })
+        return
+      }
       const obj = JSON.parse(decodeURIComponent(h.slice(2))) as Record<string, unknown>
       // Kjelda kan ikkje reise med ei lenkje: nettet er megabyte og ligg
       // berre i den maskina som lasta det opp. Ei lenkje som peikar på ei
@@ -251,6 +276,17 @@ export function Studio() {
         setKuttliste(r.liste)
         // fyrst når rekninga for det siste punktet er inne, er motoren ferdig
         if (r.id >= reqId.current) setBusy(false)
+        return
+      }
+      if (r.kind === "prosjekt") {
+        // Nettet OG innstillingane i eitt steg: to setParams etter kvarandre
+        // ville bygd eit mellombilete som er kjelda utan oppsettet.
+        setHentar(false)
+        setFeil(null)
+        if (r.src) setNamn((m) => ({ ...m, [r.src!.id]: r.src!.label }))
+        const kjelde = r.src ? r.src.id : KUBE
+        setParams((p) => VAFFEL.clamp({ ...r.params, kjelde }, { ...p, kjelde }))
+        setMelding(r.src ? "prosjektet er ope" : "innstillingane er sette")
         return
       }
       if (r.kind === "ark") {
@@ -688,6 +724,12 @@ export function Studio() {
     setHentar(true)
     try {
       const buf = await f.arrayBuffer()
+      // Ned i basen FØR bufferen vert overført: etterpå er han ikkje her
+      // lenger. Ei prosjektfil vert ikkje hugsa som eit nett — ho ER eit
+      // oppsett, og oppsettet kjem attende gjennom `prosjekt`-svaret.
+      if (!/\.zip$/i.test(f.name)) {
+        await lagre({ filnamn: f.name, nett: buf.slice(0) })
+      }
       const msg: Req = { kind: "import", id: ++reqId.current, name: f.name, buf }
       worker.current?.postMessage(msg, [buf])
     } catch {
@@ -801,6 +843,18 @@ export function Studio() {
     // bilete av at han fekk eit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verkty, tal, askArk])
+
+  // Skriv ned innstillingane når dei har fått stå. Same klokka som
+  // angrelista bruker: eit drag er hundre punkt og éi endring.
+  useEffect(() => {
+    if (!mounted) return
+    const t = window.setTimeout(() => {
+      const { kjelde, ...rest } = params
+      void kjelde
+      void lagre({ params: rest as Record<string, number | string> })
+    }, 900)
+    return () => window.clearTimeout(t)
+  }, [params, mounted])
 
   useEffect(() => {
     if (!melding) return

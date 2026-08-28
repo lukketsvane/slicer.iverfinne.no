@@ -11,7 +11,7 @@
  * ein skrue eller ei oppspenning i heile stabelen. Rutenettet held seg
  * sjølv, og det er heile poenget.
  */
-import { bbox } from "../core"
+import { bbox, kuttCsv } from "../core"
 import type {
   BuildOut,
   DetailKey,
@@ -27,7 +27,7 @@ import type {
   Vec3,
   View,
 } from "../core"
-import { label as srcLabel } from "../sources"
+import { label as srcLabel, raw as srcRaw } from "../sources"
 import { makeKropp } from "./kropp"
 import { buildGrid, DETAIL } from "./ribs"
 import { contourLines, flateMesh, lagMesh } from "./mesh"
@@ -206,6 +206,67 @@ export const VAFFEL: EngineDef = {
       }
     }
     const { g, ns } = makePlan(p, DETAIL.mid)
+
+    /** Éi plate = éi fil. Namnet seier kva for ei av kor mange. */
+    const arkFiler = () => {
+      const n = ns.sheets.length
+      return ns.sheets.map((_, i) => ({
+        name: n <= 1 ? `${name}-ark.svg` : `${name}-ark-${i + 1}av${n}.svg`,
+        text: sheetSvg(ns, i, kerfOf(p)),
+      }))
+    }
+
+    /** Innstillingane som tekst. Det same lenkja ber, berre lesbart — og
+     *  det er denne fila som gjer eit prosjekt til noko du kan opne att. */
+    const oppsett = () =>
+      JSON.stringify(
+        { reiskap: "slicer.iverfinne", utgåve: 1, kjelde: srcLabel(p.kjelde), p },
+        null,
+        1,
+      )
+
+    if (what === "alt") {
+      // HEILE JOBBEN I EI NEDLASTING.
+      //
+      // Fem knappar er fem nedlastingar, fem stader i nedlastingsmappa og
+      // fem sjansar til å ta med seg feil versjon av ei av dei. Her ligg
+      // alt som høyrer til det same objektet i den same mappa, og
+      // kuttlista og oppsettet ved sida av — det du treng for å skjere
+      // dette om att om eit år.
+      return {
+        name: `${name}-alt.zip`,
+        mime: "application/zip",
+        data: zip([
+          { name: `${name}.stl`, data: meshToStl(lagMesh(g), name) },
+          { name: `${name}.dxf`, text: partsToDxf(ns, p.tjukn, kerfOf(p)) },
+          { name: `${name}-profilar.svg`, text: profileSvg(g, kerfOf(p)) },
+          ...arkFiler(),
+          {
+            name: `passprove-${num(p.tjukn)}mm-${p.material}.svg`,
+            text: couponSvg(p.tjukn, kerfOf(p), p.snitt, p.material),
+          },
+          { name: "kuttliste.csv", text: kuttCsv(VAFFEL.liste(bag)) },
+          { name: "oppsett.json", text: oppsett() },
+        ]),
+      }
+    }
+
+    if (what === "prosjekt") {
+      // PROSJEKTET, SLIK DU KAN OPNE DET ATT.
+      //
+      // Lenkja ber kvar innstilling utan om nettet, av di ein URL ikkje kan
+      // bera hundre megabyte. Denne fila kan: oppsettet og fila du slepte
+      // inn, i lag. Slepp henne inn att, og du står der du gjekk frå.
+      const bytes = srcRaw(String(p.kjelde))
+      const filer = [{ name: "oppsett.json", text: oppsett() }]
+      if (bytes) filer.push({ name: `nett/${srcLabel(p.kjelde)}`, data: bytes } as never)
+      return {
+        name: `${name}-prosjekt.zip`,
+        mime: "application/zip",
+        data: zip(filer),
+      }
+    }
+
     if (what === "svg") {
       return { name: `${name}-profilar.svg`, mime: "image/svg+xml", text: profileSvg(g, kerfOf(p)) }
     }
@@ -218,12 +279,7 @@ export const VAFFEL: EngineDef = {
       if (n <= 1) {
         return { name: `${name}-ark.svg`, mime: "image/svg+xml", text: ark(0) }
       }
-      const buf = zip(
-        ns.sheets.map((_, i) => ({
-          name: `${name}-ark-${i + 1}av${n}.svg`,
-          text: ark(i),
-        })),
-      )
+      const buf = zip(arkFiler())
       return { name: `${name}-ark-${n}plater.zip`, mime: "application/zip", data: buf }
     }
     return {

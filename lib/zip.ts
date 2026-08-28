@@ -11,7 +11,8 @@
  * Namna er ASCII. ZIP kan bera UTF-8, men berre med eit flagg somme
  * gamle utpakkarar ikkje les, og filnamna herifrå er alt reinska.
  */
-export type Entry = { name: string; text: string }
+/** Anten tekst eller bytar. Ein STL og eit nett er ikkje tekst. */
+export type Entry = { name: string; text?: string; data?: Uint8Array }
 
 const TABLE = (() => {
   const t = new Uint32Array(256)
@@ -33,7 +34,7 @@ export function zip(entries: readonly Entry[]): ArrayBuffer {
   const enc = new TextEncoder()
   const files = entries.map((e) => {
     const name = enc.encode(e.name)
-    const data = enc.encode(e.text)
+    const data = e.data ?? enc.encode(e.text ?? "")
     return { name, data, crc: crc32(data) }
   })
 
@@ -99,4 +100,57 @@ export function zip(entries: readonly Entry[]): ArrayBuffer {
   dv.setUint32(at + 16, cdStart, true)
   dv.setUint16(at + 20, 0, true)
   return buf
+}
+
+/**
+ * Og attende igjen.
+ *
+ * Berre den eine modusen skrivaren over lagar: bytane etter kvarandre,
+ * ukomprimerte. Ein ZIP som er komprimert treng ein inflate, og det er
+ * hundre gonger meir kode enn heile denne fila — so han vert sagt nei til
+ * med eit ord i staden for lesen halvvegs.
+ *
+ * Innhaldslista til slutt er fasiten, ikkje dei lokale hovuda: eit arkiv
+ * som er skrive om att kan ha gamle hovud liggjande att framme.
+ */
+export function unzip(buf: ArrayBuffer): { name: string; data: Uint8Array }[] {
+  const dv = new DataView(buf)
+  const u8 = new Uint8Array(buf)
+  const dec = new TextDecoder()
+  // Slutten på innhaldslista står bakarst, og kan ha ein kommentar etter
+  // seg. Difor eit søk bakfrå, og ikkje ei fast adresse.
+  let eocd = -1
+  for (let i = buf.byteLength - 22; i >= 0 && i > buf.byteLength - 22 - 65536; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) {
+      eocd = i
+      break
+    }
+  }
+  if (eocd < 0) throw new Error("ikkje eit ZIP-arkiv")
+  const tal = dv.getUint16(eocd + 10, true)
+  let at = dv.getUint32(eocd + 16, true)
+  const ut: { name: string; data: Uint8Array }[] = []
+  for (let i = 0; i < tal; i++) {
+    if (at + 46 > buf.byteLength || dv.getUint32(at, true) !== 0x02014b50) {
+      throw new Error("øydelagd innhaldsliste i ZIP-en")
+    }
+    const metode = dv.getUint16(at + 10, true)
+    const storleik = dv.getUint32(at + 24, true)
+    const nLen = dv.getUint16(at + 28, true)
+    const eLen = dv.getUint16(at + 30, true)
+    const kLen = dv.getUint16(at + 32, true)
+    const lokal = dv.getUint32(at + 42, true)
+    const name = dec.decode(u8.subarray(at + 46, at + 46 + nLen))
+    if (metode !== 0) throw new Error(`«${name}» er komprimert, og det les ikkje denne`)
+    if (lokal + 30 > buf.byteLength || dv.getUint32(lokal, true) !== 0x04034b50) {
+      throw new Error(`fann ikkje «${name}» der innhaldslista sa`)
+    }
+    const lnLen = dv.getUint16(lokal + 26, true)
+    const leLen = dv.getUint16(lokal + 28, true)
+    const start = lokal + 30 + lnLen + leLen
+    if (start + storleik > buf.byteLength) throw new Error(`«${name}» rekk utanfor arkivet`)
+    ut.push({ name, data: u8.subarray(start, start + storleik) })
+    at += 46 + nLen + eLen + kLen
+  }
+  return ut
 }

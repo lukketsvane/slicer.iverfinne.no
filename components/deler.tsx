@@ -45,9 +45,12 @@ export const VIEWS: readonly { id: View; label: string; hint: string; tast: stri
  * treng ikkje eit objekt i det heile.
  */
 export function stengd(x: ExportKind, m: Metrics | null): string {
-  if (x === "prove" || !m) return ""
+  // Passprøva treng ingen delar — ho er ei plate med sju spor. Og
+  // prosjektfila ber oppsettet og nettet: ho skal kunne lagrast midt i eit
+  // arbeid som ikkje held ein einaste regel enno.
+  if (x === "prove" || x === "prosjekt" || !m) return ""
   if (m.parts === 0) return "ingen delar å skjere. sjå reglane"
-  if ((x === "ark" || x === "dxf") && m.sheets === 0) {
+  if ((x === "ark" || x === "dxf" || x === "alt") && m.sheets === 0) {
     return "ingen del fekk plass på plata. større plate, eller mindre objekt"
   }
   return ""
@@ -62,6 +65,16 @@ export const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[]
     id: "prove",
     label: "passprøve",
     hint: "sju spor, kvart 0,05 mm breiare. skjer i di eiga plate og sett klaringa til det som går inn med tommelkraft",
+  },
+  {
+    id: "alt",
+    label: "alt",
+    hint: "heile jobben i éi nedlasting: stl, dxf, profilar, kvar plate, passprøve, kuttlista som csv og oppsettet",
+  },
+  {
+    id: "prosjekt",
+    label: "lagre",
+    hint: "oppsettet og nettet i lag. slepp fila inn att, og du står der du gjekk frå",
   },
 ]
 
