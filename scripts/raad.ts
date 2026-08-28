@@ -187,6 +187,19 @@ prov("eit stykke heng ikkje i noko", "lause", {
   lause: 0,
 })
 
+// --- godset i leddet -------------------------------------------------------
+// Leddelinga langt ute gjev den eine sida av sporet nesten ingenting. Rådet
+// er å dele i midten, og på denne forma gjer det jobben: 5,1 mm vert 12,7.
+prov("godset er tynt", "gods", {
+  ...DEFAULT_PARAMS,
+  kjelde: "torus",
+  storleik: 120,
+  tjukn: 8,
+  ribbX: 8,
+  ribbY: 8,
+  ledd: 0.2,
+})
+
 // --- ingen ledd ------------------------------------------------------------
 prov("ingen ribber møtest", "grip", {
   ...DEFAULT_PARAMS,
@@ -210,6 +223,41 @@ prov("ingen ribber møtest", "grip", {
     !alle.some((r) => r.ok && r.fiks),
     utan.length ? `utan råd: ${utan.join(", ")}` : "alle grøne",
   )
+}
+
+/**
+ * EIT RÅD SKAL IKKJE GJERE DET VERRE.
+ *
+ * Det strengaste kravet, og det billegaste å bryte: trykk kva som helst
+ * som står der, og tel dei harde brota att. Vert dei fleire, har knappen
+ * teke deg lenger frå ei fil enn du var.
+ *
+ * Det var ikkje teoretisk. «Del i midten» på ein torus i ti millimeter
+ * tok godset frå 4,3 mm til ingenting, delane frå fire til null, og eitt
+ * brot til tre — av di `ledd` ikkje berre flyttar sporbotnen, han
+ * avgjer om leddet i det heile vert lagt.
+ */
+{
+  const saker: Params[] = [
+    { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 100, tjukn: 10, ribbX: 10, ribbY: 10, ledd: 0.2 },
+    { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 100, tjukn: 10, ribbX: 10, ribbY: 10, ledd: 0.8 },
+    { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 120, tjukn: 8, ribbX: 8, ribbY: 8, ledd: 0.2 },
+    { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 200, ribbX: 13, ribbY: 2, lause: 0 },
+    { ...DEFAULT_PARAMS, storleik: 1200, ribbX: 3, ribbY: 3, arkB: 300, arkH: 200 },
+    { ...DEFAULT_PARAMS, tjukn: 1, snitt: 6 },
+    { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 60, ribbX: 30, ribbY: 30 },
+  ]
+  const harde = (p: Params) => reglane(p).filter((r) => !r.ok && r.hard).length
+  let verre: string[] = []
+  for (const p of saker) {
+    const før = harde(p)
+    for (const r of reglane(p)) {
+      if (r.ok || !r.fiks) continue
+      const etter = harde({ ...p, ...r.fiks.set } as Params)
+      if (etter > før) verre.push(`${r.id}/«${r.fiks.ord}»: ${før} → ${etter} harde brot`)
+    }
+  }
+  ok("ikkje eit råd gjer det verre", verre.length === 0, verre.join("; "))
 }
 
 // Rådet skal vera eit LOVLEG punkt i parameterrommet: klemmer motoren det
