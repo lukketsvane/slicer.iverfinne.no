@@ -239,12 +239,22 @@ export function ribSolid(s: Soup, r: Rib, t: number) {
       T(put(a, -h), put(b, -h), put(b, h))
       T(put(a, -h), put(b, h), put(a, h))
     }
+    // Same to trekantane som ytterkanten. Det ser feil ut — ein hòlvegg
+    // skal jo vende INN mot tomrommet, motsett av ytterkanten — men
+    // vendinga ligg alt i ringen: `contour` gjev hòl med motsett omløp av
+    // ytterkantar, so den same rekkjefylgja peikar den andre vegen av seg
+    // sjølv. Å snu han her er å snu han to gonger.
+    //
+    // Målt på ståande torus: kvar ribbe med eit hòl kom ut på 52 386,6
+    // mm³ der ho skulle vore 33 216,3 — 19 170,3 for mykje, som er
+    // nøyaktig 2·(2/3)·tjukn·hòlareal, altso hòlveggen tald med feil
+    // forteikn. STL-en hadde vrengde flater rundt kvart einaste hòl.
     for (const hole of mine) {
       for (let i = 0; i < hole.length; i++) {
         const a = hole[i]
         const b = hole[(i + 1) % hole.length]
-        T(put(b, -h), put(a, -h), put(a, h))
-        T(put(b, -h), put(a, h), put(b, h))
+        T(put(a, -h), put(b, -h), put(b, h))
+        T(put(a, -h), put(b, h), put(a, h))
       }
     }
   }

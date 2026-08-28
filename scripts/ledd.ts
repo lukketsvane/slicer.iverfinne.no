@@ -23,9 +23,10 @@
  *
  *   npx tsx scripts/ledd.ts
  */
-import { inRing, type Pt } from "../lib/core"
+import { inRing, shoelace, type Pt } from "../lib/core"
 import { makePlan } from "../lib/vaffel/plan"
-import { DETAIL, jointsIn, type Rib } from "../lib/vaffel/ribs"
+import { newSoup, ribSolid, soupToMesh } from "../lib/vaffel/mesh"
+import { DETAIL, jointsIn, type Grid, type Rib } from "../lib/vaffel/ribs"
 import type { Kropp } from "../lib/vaffel/kropp"
 import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
 import { makeSoup } from "../lib/soup"
@@ -68,6 +69,52 @@ function inniNabo(k: Kropp, r: Rib): { tal: number; verst: number } {
     if (inn > 0.01) {
       tal++
       verst = Math.max(verst, inn)
+    }
+  }
+  return { tal, verst }
+}
+
+/**
+ * STÅR DET SAME OBJEKTET PÅ SKJERMEN SOM I FILA?
+ *
+ * Profilen er sanninga: han er det laseren fylgjer. Klumpen på skjermen
+ * vert bygd av den same profilen, so volumet hans er gjeve på førehand —
+ * arealet innanfor ytterkanten, minus hòla, gonger tjukna. Er det noko
+ * anna, er det ikkje den same forma.
+ *
+ * Det er ikkje ein teoretisk fare. Sideveggene i eit HÒL var vende
+ * baklengs: `contour` gjev hòl med motsett omløp av ytterkantar, so
+ * rekkjefylgja peikar rett veg av seg sjølv, og koden snudde han ein gong
+ * til. Ei ribbe i den ståande torusen kom ut på 52 386,6 mm³ der ho skulle
+ * vore 33 216,3 — og STL-en hadde vrengde flater rundt kvart hòl.
+ */
+function volumAvvik(g: Grid): { tal: number; verst: number } {
+  let tal = 0
+  let verst = 0
+  for (const r of g.ribs) {
+    if (!r.outlines.length) continue
+    const s = newSoup()
+    ribSolid(s, r, g.p.tjukn)
+    const pos = soupToMesh(s).positions
+    let V = 0
+    for (let i = 0; i < pos.length; i += 9) {
+      V +=
+        (pos[i] * (pos[i + 4] * pos[i + 8] - pos[i + 5] * pos[i + 7]) -
+          pos[i + 1] * (pos[i + 3] * pos[i + 8] - pos[i + 5] * pos[i + 6]) +
+          pos[i + 2] * (pos[i + 3] * pos[i + 7] - pos[i + 4] * pos[i + 6])) /
+        6
+    }
+    let A = 0
+    for (const o of r.outlines) {
+      A += Math.abs(shoelace(o))
+      for (const h of r.holes) if (inRing(o, h[0])) A -= Math.abs(shoelace(h))
+    }
+    const venta = A * g.p.tjukn
+    if (venta < 1) continue
+    const av = Math.abs(Math.abs(V) - venta) / venta
+    if (av > 0.01) {
+      tal++
+      verst = Math.max(verst, av)
     }
   }
   return { tal, verst }
@@ -130,14 +177,17 @@ function sjekk(namn: string, p: Params) {
   for (const r of g.ribs) if (r.slots.length) godsVerst = Math.min(godsVerst, r.narrow)
   const godsOk = !Number.isFinite(godsVerst) || godsVerst > 0
 
-  const ok = tapt === 0 && nabo === 0 && godsOk
+  const vol = volumAvvik(g)
+
+  const ok = tapt === 0 && nabo === 0 && godsOk && vol.tal === 0
   if (!ok) brot++
   console.log(
     `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ` +
       `${String(ledd).padStart(4)} ledd i profilane · ` +
       `${tapt} tapte · ${uteneskulder} utan gods på begge sider · ` +
       `${nabo} inn i nabostykket${nabo ? ` (verst ${naboVerst.toFixed(1)} mm)` : ""}` +
-      `${godsOk ? "" : ` · GODS ${godsVerst.toFixed(1)} mm`}`,
+      `${godsOk ? "" : ` · GODS ${godsVerst.toFixed(1)} mm`}` +
+      `${vol.tal ? ` · VOLUM ${vol.tal} ribber, verst ${(vol.verst * 100).toFixed(0)} %` : ""}`,
   )
 }
 
