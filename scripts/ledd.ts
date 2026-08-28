@@ -114,13 +114,30 @@ function sjekk(namn: string, p: Params) {
     }
   }
 
-  const ok = tapt === 0 && nabo === 0
+  // GODSET ER EI LENGD, OG EI LENGD ER IKKJE NEGATIV.
+  //
+  // «Minste gods» er det tynnaste som står att i eit ledd, og panelet
+  // vrakar heile modellen på det talet. Det vart lese ved å slå opp
+  // stykket sporet står i, og oppslaget gjekk på MUNNEN — som ligg på
+  // kanten mellom to stykke når ein kropp står på bein. Då fann han
+  // stykket under, og trekte frå feil veg: firbeint kom ut på −22,4 mm,
+  // den harde regelen rauk, og «finn innstillingar» gav null kandidatar
+  // på ein modell det ikkje var noko gale med.
+  //
+  // Talet er ikkje til å gjette på fortegnet til. Står det negativt, er
+  // det ikkje ei tynn ribbe — det er ei måling som har spegla seg.
+  let godsVerst = Infinity
+  for (const r of g.ribs) if (r.slots.length) godsVerst = Math.min(godsVerst, r.narrow)
+  const godsOk = !Number.isFinite(godsVerst) || godsVerst > 0
+
+  const ok = tapt === 0 && nabo === 0 && godsOk
   if (!ok) brot++
   console.log(
     `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ` +
       `${String(ledd).padStart(4)} ledd i profilane · ` +
       `${tapt} tapte · ${uteneskulder} utan gods på begge sider · ` +
-      `${nabo} inn i nabostykket${nabo ? ` (verst ${naboVerst.toFixed(1)} mm)` : ""}`,
+      `${nabo} inn i nabostykket${nabo ? ` (verst ${naboVerst.toFixed(1)} mm)` : ""}` +
+      `${godsOk ? "" : ` · GODS ${godsVerst.toFixed(1)} mm`}`,
   )
 }
 

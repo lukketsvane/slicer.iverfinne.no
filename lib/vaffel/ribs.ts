@@ -484,11 +484,20 @@ function buildGridRaw(k: Kropp, p: Params, cells: number): Grid {
     }
     r.narrow = narrowOf(r, (q) => {
       // Stykket sporet står i, ikkje heile ribba: eit spor i overkroppen
-      // skal ikkje målast mot foten som ligg under ei luke. Munnen på
-      // sporet ligg per definisjon på kanten av sitt eige stykke.
+      // skal ikkje målast mot foten som ligg under ei luke.
+      //
+      // Botnen i sporet peikar ut stykket, ikkje munnen. Munnen ligg per
+      // definisjon PÅ kanten av stykket sitt — og ein kropp som står på
+      // bein har eit stykke som sluttar nett der det neste byrjar. Då
+      // svarar munnen på to stykke, og lista vert lesen nedanfrå: for eit
+      // spor som opnar seg nedover fann han beinet under i staden for
+      // kroppen sporet står i, og godset kom ut NEGATIVT — ribba vart
+      // spegla i staden for målt. Botnen ligg `ledd` inne i sitt eige
+      // stykke, og kan ikkje svare på noko anna. Difor heller ingen
+      // slingring her: ho er det som gjorde munnen tvitydig.
       const rr = axis === "x" ? runsZ(pos, q.t) : runsZ(q.t, pos)
       for (const run of rr) {
-        if (q.zMouth >= run[0] - 0.6 && q.zMouth <= run[1] + 0.6) return run
+        if (q.zEnd >= run[0] && q.zEnd <= run[1]) return run
       }
       return rr.length ? rr[rr.length - 1] : null
     })
