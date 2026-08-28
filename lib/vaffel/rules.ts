@@ -16,6 +16,7 @@
  */
 import { bbox, nn, type Fiks, type Metrics, type Rule } from "../core"
 import { DETAIL } from "./ribs"
+import { fitRoom } from "../pack"
 import { makePlan, nestGap, type Plan } from "./plan"
 import { SNITTVEGAR, type Params } from "./params"
 
@@ -65,8 +66,10 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
    */
   const plateFiks = (): Fiks | undefined => {
     if (ns.spilt === 0) return undefined
-    const romB = p.arkB - nestGap(p)
-    const romH = p.arkH - nestGap(p)
+    // Rommet er pakkinga si eiga rekning og ikkje ei gjetting her: ho
+    // reserverer meir enn ei luke, og «plata minus luka» gav eit råd som
+    // lét lina stå raud. Sjå `fitRoom`.
+    const { w: romB, h: romH } = fitRoom(p.arkB, p.arkH, nestGap(p))
     let verst = 1
     for (const q of pl.parts) {
       const b = bbox(q.outline)

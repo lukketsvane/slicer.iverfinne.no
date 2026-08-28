@@ -334,6 +334,68 @@ function lowest(b: Board, m: Mask, px: number, step: number): number {
 // =============================================================================
 // PAKKINGA
 // =============================================================================
+/**
+ * Cella og utvidinga pakkinga arbeider i.
+ *
+ * Oppløysinga vert vald av KLARINGA og ikkje av plata.
+ *
+ * Klaringa er kvantisert til rutenettet: ei celle for grovt, og to delar
+ * som ser ut til å ha fem millimeter imellom seg har fire. Med ei celle på
+ * ein tredels luke og to celler utviding er den minste avstanden som kan
+ * oppstå nøyaktig luka — og det er den eine garantien pakkinga må gje, av
+ * di ho er det som avgjer om verktøyet kjem imellom delane. Golvet er der
+ * for store plater: ein fire meters plate på ei millimetercelle er fire
+ * millionar celler, og det er inga pakking, det er ei venting.
+ *
+ * Men golvet braut garantien det stod under. Cellene vert sette på
+ * senterpunkt, so rasteret dekkjer forma for lite med ei halv celle på
+ * kvar side, og den avstanden som faktisk kjem ut er (2k−1)·res. Med
+ * res = luke/3 og k = 2 er det nøyaktig luka. Vart res drege OPP av plata,
+ * fall k til 1, og då er avstanden berre res: ei plate på 1600 × 1000 gav
+ * 2,58 mm av ei lova luke på 4, og ei heil finérplate på 2440 × 1220 gav
+ * 3,94. Målt mellom dei lagde omrissa: 3,23 mm.
+ *
+ * Vegen ut er ikkje å utvide meir — k = 2 på ei grov celle reserverer tre
+ * celler og kastar bort ei plate. Det er å la cella VERA luka når ho fyrst
+ * er drege forbi ein tredel av henne: éi celle utviding er då nøyaktig den
+ * luka som er lova, og rutenettet vert på kjøpet fire gonger billegare.
+ */
+function rutenettet(sheetW: number, sheetH: number, gap: number) {
+  let res = Math.min(6, Math.max(gap / 3, Math.max(sheetW, sheetH) / 620, 1))
+  if (res > gap / 3 && res < gap) res = gap
+  return { res, k: Math.max(1, Math.ceil((gap / res + 1) / 2)) }
+}
+
+/**
+ * KOR STOR EIN DEL KAN VERA OG FRAMLEIS FÅ PLASS PÅ EI TOM PLATE.
+ *
+ * Ein del vert spilt når ikkje ein einaste kvartsving av masken hans går
+ * inn i brettet. Masken er delen sitt raster — `ceil(boks/res) + 1` celler
+ * — pluss `k` celler utviding på KVAR side, og brettet er `floor(plate/res)`
+ * celler. Difor er det største boksmålet som går inn `(SW − 1 − 2k)·res`,
+ * og ikkje plata minus ei luke.
+ *
+ * Skilnaden er ikkje akademisk. Rådet «for stort til plata» rekna på plata
+ * minus ei luke, og på ei plate på 200 × 200 er det 196 mm der det verkelege
+ * svaret er 193,3. Knappen sa «prøv 195 mm», du trykte, og lina stod
+ * framleis raud med to delar utanfor. Seks prosent av dei brotne tilfella
+ * i eit sveip på 252 var slik.
+ *
+ * Difor står talet HER, hjå den som avgjer det, og ikkje som ei gjetting
+ * hjå den som spør.
+ */
+export function fitRoom(
+  sheetW: number,
+  sheetH: number,
+  gap: number,
+): { w: number; h: number } {
+  const { res, k } = rutenettet(sheetW, sheetH, gap)
+  return {
+    w: Math.max(0, (Math.floor(sheetW / res) - 1 - 2 * k) * res),
+    h: Math.max(0, (Math.floor(sheetH / res) - 1 - 2 * k) * res),
+  }
+}
+
 export function pack(
   pieces: readonly Piece[],
   sheetW: number,
@@ -368,9 +430,7 @@ export function pack(
   // ho fyrst er drege forbi ein tredel av henne: éi celle utviding er då
   // nøyaktig den luka som er lova, og rutenettet vert på kjøpet fire
   // gonger billegare.
-  let res = Math.min(6, Math.max(gap / 3, Math.max(sheetW, sheetH) / 620, 1))
-  if (res > gap / 3 && res < gap) res = gap
-  const k = Math.max(1, Math.ceil((gap / res + 1) / 2))
+  const { res, k } = rutenettet(sheetW, sheetH, gap)
   const step = Math.max(1, Math.round(3 / res))
   const SW = Math.floor(sheetW / res)
   const SH = Math.floor(sheetH / res)
