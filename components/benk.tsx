@@ -68,6 +68,9 @@ import {
 export const VEGG = { venstre: 272, hogre: 312, topp: 44 }
 
 const BLOKK = "border-t pt-2.5 mt-2.5"
+/** Same knappen som på telefonen, men med hjørne som ein knapp på eit
+ *  instrument har: nesten ingen. */
+const CHIP_B = CHIP.replace("rounded-full", "rounded-[2px]")
 /** plata står saman med materialet og tjukna, ikkje nedst i veggen */
 const PLATE = ["arkB", "arkH"]
 const OVERSKRIFT = "dim pb-1 text-[10px] uppercase leading-none tracking-[0.24em]"
@@ -132,7 +135,7 @@ function Svarlista({
           type="button"
           onClick={() => onVel(i)}
           onPointerEnter={() => over(i)}
-          className="hit tab flex w-full items-baseline rounded-[3px] py-[2px] text-[10px]"
+          className="hit mono flex w-full items-baseline rounded-[2px] py-[2px] text-[10px]"
           style={
             i === paa
               ? { background: "var(--ink)", color: "var(--paper)" }
@@ -179,7 +182,7 @@ function Storleik({
     <div>
       <div className="flex items-baseline gap-1">
         <input
-          className="tab talfelt w-[110px] rounded bg-transparent text-[32px] leading-none tracking-[-0.01em]"
+          className="mono talfelt w-[110px] rounded-[2px] bg-transparent text-[32px] leading-none tracking-[-0.01em]"
           // Peikaren seier kva talet er: noko du dreg i.
           style={{ color: "var(--ink)", cursor: "ew-resize" }}
           value={utkast ?? String(Math.round(verdi))}
@@ -223,7 +226,7 @@ function Storleik({
           }}
         />
         <span className="dim text-[11px]">mm</span>
-        <span className="dim tab ml-auto text-[10px]">
+        <span className="dim mono ml-auto text-[10px]">
           {metrics
             ? `${n0(metrics.envX)}×${n0(metrics.envY)}×${n0(metrics.envZ)}`
             : ""}
@@ -378,7 +381,7 @@ export function Benk(props: {
 
       {/* TOPPLINA. Namnet, fila, og lenkja. Streken under er framdrifta. */}
       <header
-        className="pointer-events-auto fixed inset-x-0 top-0 z-20 flex items-center gap-4 border-b px-4"
+        className="benk pointer-events-auto fixed inset-x-0 top-0 z-20 flex items-center gap-4 border-b px-4"
         style={{
           ...HAIR,
           height: VEGG.topp,
@@ -387,8 +390,8 @@ export function Benk(props: {
           transition: "opacity 160ms ease",
         }}
       >
-        <span className="text-[11px] tracking-[0.22em]" style={{ color: "var(--ink)" }}>
-          SLICERMAN
+        <span className="mono text-[11px] tracking-[0.06em]" style={{ color: "var(--ink)" }}>
+          slicer.iverfinne
         </span>
         <span aria-hidden="true" className="h-4 w-px" style={{ background: "var(--rule)" }} />
         <button
@@ -396,7 +399,7 @@ export function Benk(props: {
           onClick={() => pick.current?.click()}
           title={`hent eit nett: ${FORMAT.join(" ")}`}
           aria-label="hent eit nett"
-          className="hit flex h-7 min-w-0 max-w-[280px] items-center gap-1.5 rounded-full border pl-2.5 pr-3 text-[11px] uppercase tracking-[0.14em] transition active:scale-95"
+          className="hit flex h-7 min-w-0 max-w-[280px] items-center gap-1.5 rounded-[2px] border pl-2.5 pr-3 text-[11px] uppercase tracking-[0.14em] transition active:scale-95"
           style={{ ...HAIR, color: "var(--ink)" }}
         >
           <span className="shrink-0 opacity-70">{IcoImport}</span>
@@ -404,7 +407,7 @@ export function Benk(props: {
         </button>
         {(feil || melding || hentar) && (
           <span
-            className="tab truncate text-[11px]"
+            className="mono truncate text-[11px]"
             style={{ color: feil ? "var(--warn)" : undefined, opacity: feil ? 1 : melding ? 0.7 : 0.4 }}
           >
             {feil ?? melding ?? "les fila …"}
@@ -455,7 +458,7 @@ export function Benk(props: {
             title={`${v.hint} (${v.tast})`}
             aria-pressed={view === v.id}
             onClick={() => onView(v.id)}
-            className={CHIP}
+            className={CHIP_B}
             style={chipStyle(view === v.id)}
           >
             {v.label}
@@ -467,7 +470,7 @@ export function Benk(props: {
           aria-checked={hiDetail}
           onClick={onToggleDetail}
           title="finare rute i profilane; tyngre å rekne"
-          className={CHIP + " ml-2"}
+          className={CHIP_B + " ml-2"}
           style={chipStyle(hiDetail)}
         >
           fint nett
@@ -478,7 +481,7 @@ export function Benk(props: {
       <aside
         aria-label="innstillingar"
         aria-busy={busy}
-        className="fixed bottom-0 left-0 z-20 flex flex-col border-r px-4 pb-3 pt-3"
+        className="benk fixed bottom-0 left-0 z-20 flex flex-col border-r px-4 pb-3 pt-3"
         style={{ ...vegg("venstre"), top: VEGG.topp }}
       >
         <Storleik params={params} metrics={metrics} onChange={onChange} />
@@ -490,7 +493,7 @@ export function Benk(props: {
             disabled={busy}
             aria-label="finn innstillingar"
             title="(F) reknar gjennom eit titals rutenett og set det beste"
-            className="hit relative flex h-9 w-full items-center justify-center gap-2 rounded-full text-[11px] uppercase tracking-[0.14em] transition active:scale-[0.99] disabled:opacity-100"
+            className="hit relative flex h-9 w-full items-center justify-center gap-2 rounded-[2px] text-[11px] uppercase tracking-[0.14em] transition active:scale-[0.99] disabled:opacity-100"
             style={{ background: "var(--ink)", color: "var(--paper)" }}
           >
             {/* Framdrifta fyller knappen frå venstre. Ringen som står kring
@@ -499,7 +502,7 @@ export function Benk(props: {
             {tunar && (
               <span
                 aria-hidden="true"
-                className="absolute inset-y-0 left-0 rounded-full"
+                className="absolute inset-y-0 left-0 rounded-[2px]"
                 style={{
                   width: tunar.av ? `${(tunar.gjort / tunar.av) * 100}%` : "4%",
                   background: "var(--paper)",
@@ -550,7 +553,7 @@ export function Benk(props: {
                 aria-pressed={params.tjukn === t}
                 title={`${tjukn(t)} mm plate`}
                 onClick={() => onChange({ ...params, tjukn: t })}
-                className={CHIP + " px-2"}
+                className={CHIP_B + " px-2"}
                 style={chipStyle(params.tjukn === t)}
               >
                 {tjukn(t)}
@@ -604,12 +607,12 @@ export function Benk(props: {
       {/* HØGRE VEGG: det som kjem ut. */}
       <aside
         aria-label="måltal"
-        className="fixed bottom-0 right-0 z-20 flex flex-col border-l px-4 pb-3 pt-3"
+        className="benk fixed bottom-0 right-0 z-20 flex flex-col border-l px-4 pb-3 pt-3"
         style={{ ...vegg("hogre"), top: VEGG.topp }}
       >
         <div
           aria-label="delar, kuttlengd og ark"
-          className="tab flex flex-col gap-0.5 text-[13px]"
+          className="mono flex flex-col gap-0.5 text-[13px]"
           style={{ opacity: busy ? 0.45 : 1 }}
         >
           {tal.length === 0 ? (
@@ -645,7 +648,7 @@ export function Benk(props: {
               >
                 <dt className="dim shrink-0 truncate">{row.label}</dt>
                 <dd
-                  className="tab truncate text-right"
+                  className="mono truncate text-right"
                   style={{
                     color: hard ? "var(--warn)" : undefined,
                     textDecoration: soft ? "underline dotted" : undefined,
@@ -680,7 +683,7 @@ export function Benk(props: {
               <span className="truncate tracking-[0.04em]">{r.label}</span>
               <span className="flex shrink-0 items-center gap-1.5">
                 <span
-                  className="tab"
+                  className="mono"
                   style={{
                     textDecoration: !r.ok && !r.hard ? "underline dotted" : undefined,
                     textUnderlineOffset: 3,
@@ -719,7 +722,7 @@ export function Benk(props: {
                   title={stopp || x.hint}
                   disabled={busy || stopp !== ""}
                   onClick={() => onExport(x.id)}
-                  className={CHIP + " uppercase tracking-[0.1em]"}
+                  className={CHIP_B + " uppercase tracking-[0.1em]"}
                   style={{
                     ...chipStyle(false),
                     opacity: stopp ? 0.3 : undefined,
@@ -758,7 +761,7 @@ export function Benk(props: {
                 disabled={!kanAngre}
                 aria-label="angre siste endring"
                 title="angre siste endring (Z)"
-                className={CHIP}
+                className={CHIP_B}
                 style={chipStyle(false)}
               >
                 {IcoAngre}
@@ -768,7 +771,7 @@ export function Benk(props: {
                 onClick={onReset}
                 aria-label="tilbake til standarden"
                 title="tilbake til standarden. nettet ditt står"
-                className={CHIP}
+                className={CHIP_B}
                 style={chipStyle(false)}
               >
                 {IcoReset}
@@ -778,7 +781,7 @@ export function Benk(props: {
                 onClick={onShare}
                 aria-label="del"
                 title="lenkja ber innstillingane, ikkje nettet"
-                className={CHIP}
+                className={CHIP_B}
                 style={chipStyle(false)}
               >
                 {IcoShare}
