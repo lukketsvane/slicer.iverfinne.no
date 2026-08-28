@@ -189,7 +189,27 @@ export function makeSolid(soup: Soup): Solid {
     }
     if (!hit.length) return []
 
-    const ord = hit.map((_, k) => k).sort((a, b) => hit[a] - hit[b])
+    /**
+     * LIKT DJUP: INN FØR UT.
+     *
+     * Eit skal som sluttar nett der det neste byrjar — ein kropp som står
+     * på bein, to klossar oppå kvarandre, ein skann sydd av to delar — gjev
+     * ei utgang og ei inngang på NØYAKTIG same koordinaten. Vart dei
+     * sorterte på djupn åleine, låg dei i den rekkjefylgja trekantane
+     * tilfeldigvis stod i fila, og talet på skal gjekk innom null midt i
+     * godset. Éin samanhengande køyr vart lesen som to som ligg inntil
+     * kvarandre.
+     *
+     * To like klossar, 100 mm kvar, som deler planet z = 100:
+     *   nedre boks fyrst i fila → [[0,100],[100,200]]
+     *   øvre boks fyrst i fila  → [[0,200]]
+     * Same geometri, to svar. Og eit skøytepunkt som er to køyrar er eit
+     * spor til: leddet vert lagt der det ikkje er noka opning.
+     *
+     * Går inngangen fyrst, kan djupna aldri falle til null i eit punkt der
+     * noko byrjar, og svaret sluttar å henge på fillekkjefylgja.
+     */
+    const ord = hit.map((_, k) => k).sort((a, b) => hit[a] - hit[b] || dir[b] - dir[a])
     const out: Span[] = []
     let depth = 0
     let open = 0
