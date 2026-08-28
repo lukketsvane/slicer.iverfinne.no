@@ -104,7 +104,7 @@ function shapeKey(o: Pt[], holes: Pt[][]): string {
  * er verre enn ingen adresse: du finn ut av det når du står med ei plate
  * som ikkje passar i det hòlet ho seier ho høyrer til.
  */
-function bokstav(n: number): string {
+export function bokstav(n: number): string {
   let s = ""
   let k = n
   do {

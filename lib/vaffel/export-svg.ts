@@ -34,6 +34,7 @@
  */
 import { nn, offsetPoly, type Pt } from "../core"
 import { fitSize, strokes, strokesAt } from "../stroke"
+import { bokstav } from "./parts"
 import { placedRings, type Nesting } from "./nest"
 import type { Grid } from "./ribs"
 
@@ -319,10 +320,27 @@ export function profileSvg(g: Grid, kerf: number, syn = false): string {
       // rekna FØR henne.
       const lagd = (q: Pt[], d: number) =>
         offsetPoly(q, d).map((p) => [x + (p[0] - lo), yOff - p[1]] as Pt)
-      const adr = r.axis.toUpperCase() + (r.k + 1)
-      for (const line of nedover(strokes(adr, x + 1, 0, 8), yOff + 11)) {
-        gravert.push(`<path d="${open(line)}" ${GRAV}/>`)
-      }
+      // ADRESSA SKAL VERA DEN SOM STÅR PÅ DELEN.
+      //
+      // Kuttlista og kuttarket gjev kvart STYKKE si adresse — «X3a»,
+      // «X3b» — av di ei ribbe kan vera delt. Profilarket gav éi adresse
+      // per RIBBE, og skreiv «X3». Den som står med plata merkt X3b fann
+      // ingen X3b på profilarket, berre ein X3 som er to plater.
+      //
+      // Bokstavane kjem frå `buildParts`, som går dei same omrissa i den
+      // same rekkjefylgja og ikkje hoppar over noko, so dei to listene
+      // ikkje kan gli frå kvarandre. Kvar adresse står under sitt eige
+      // stykke og ikkje ved kanten av heile rada.
+      const fleire = r.outlines.length > 1
+      const base = r.axis.toUpperCase() + (r.k + 1)
+      r.outlines.forEach((o, i) => {
+        let olo = Infinity
+        for (const q of o) olo = Math.min(olo, q[0])
+        const adr = base + (fleire ? bokstav(i) : "")
+        for (const line of nedover(strokes(adr, x + (olo - lo) + 1, 0, 8), yOff + 11)) {
+          gravert.push(`<path d="${open(line)}" ${GRAV}/>`)
+        }
+      })
       for (const q of r.holes) {
         innvendig.push(`<path d="${ring(lagd(q, -kerf / 2))}" ${KUTT}/>`)
       }
