@@ -50,7 +50,10 @@ export const RADER: readonly { id: string; label: string; unit: string }[] = [
   { id: "delar", label: "delar · unike", unit: "" },
   { id: "ledd", label: "ledd", unit: "" },
   { id: "lause", label: "lause stykke", unit: "" },
-  { id: "tid", label: "kuttetid", unit: "min" },
+  // Verdien er ei KLOKKE — «14:54», og «1:02:03» over timen. Ho stod med
+  // «min» etter seg, so ein jobb på ein time og to minutt las «1:02:03
+  // min». Kolonet seier alt som skal seiast om eininga.
+  { id: "tid", label: "kuttetid", unit: "" },
   { id: "masse", label: "masse", unit: "kg" },
   { id: "ark", label: "ark", unit: "" },
   { id: "utnytting", label: "utnytting", unit: "%" },
