@@ -12,6 +12,7 @@
 import { VAFFEL } from "./vaffel/engine"
 import { parseMesh } from "./io"
 import { forget, put, type SourceInfo } from "./sources"
+import { unzip } from "./zip"
 import type { Kandidat } from "./vaffel/tune"
 import type {
   DetailKey,
@@ -76,6 +77,13 @@ export type ExportRes = {
  *  sjå kva det er dei har snitta. */
 export type SynRes = { kind: "syn"; id: number; svg: string }
 export type KjeldeRes = { kind: "kjelde"; id: number; src: SourceInfo }
+/** Ei prosjektfil som er opna: nettet OG innstillingane som låg med det. */
+export type ProsjektRes = {
+  kind: "prosjekt"
+  id: number
+  src: SourceInfo | null
+  params: ParamBag
+}
 export type ArkRes = { kind: "ark"; id: number } & ArkSyn
 export type TuneRes = { kind: "tune"; id: number; alle: Kandidat[] }
 /**
@@ -97,6 +105,7 @@ export type Res =
   | ExportRes
   | SynRes
   | ArkRes
+  | ProsjektRes
   | KjeldeRes
   | TuneRes
   | TuneProgRes
@@ -139,6 +148,44 @@ self.onmessage = (e: MessageEvent<Req>) => {
   const req = e.data
   try {
     if (req.kind === "import") {
+      /**
+       * EI PROSJEKTFIL ER EI FIL SOM BER TO TING.
+       *
+       * Ein ZIP inn er ikkje eit nett — det er eit oppsett og eit nett i
+       * lag. Nettet vert lese som vanleg; oppsettet fylgjer med i svaret,
+       * so hovudtråden kan setje det saman med kjelda i eitt steg. Er det
+       * berre eit oppsett i arkivet, kjem innstillingane åleine, og kuben
+       * står — som ei lenkje.
+       */
+      const erZip =
+        req.buf.byteLength > 4 && new DataView(req.buf).getUint32(0, true) === 0x04034b50
+      if (erZip) {
+        const filer = unzip(req.buf)
+        const opp = filer.find((f) => f.name === "oppsett.json" || f.name.endsWith("/oppsett.json"))
+        const nett = filer.find((f) => f.name.startsWith("nett/") && f.data.byteLength > 0)
+        if (!opp && !nett) throw new Error("arkivet er korkje eit oppsett eller eit nett")
+        let params: ParamBag = {}
+        if (opp) {
+          const lese = JSON.parse(new TextDecoder().decode(opp.data)) as { p?: ParamBag }
+          params = lese.p ?? {}
+        }
+        let src: SourceInfo | null = null
+        if (nett) {
+          const kort = nett.name.slice(5)
+          // ein eigen kopi: `subarray` peikar inn i arkivet, og arkivet
+          // skal kunne sleppast
+          const bytes = new Uint8Array(nett.data)
+          const soup = parseMesh(kort, bytes.buffer.slice(0) as ArrayBuffer)
+          if (soup.tris > 0) {
+            const id = "f" + req.id.toString(36) + Math.floor(soup.tris).toString(36)
+            src = put(id, kort, soup, bytes)
+            forget(id)
+          }
+        }
+        post({ kind: "prosjekt", id: req.id, src, params })
+        return
+      }
+      const bytes = new Uint8Array(req.buf.slice(0))
       const soup = parseMesh(req.name, req.buf)
       if (soup.tris < 1) {
         post({
@@ -153,7 +200,7 @@ self.onmessage = (e: MessageEvent<Req>) => {
       // lenkje som peikar på ei fil ingen andre har er verdilaus uansett —
       // men ho skal ikkje kunne peike på noko anna heller.
       const id = "f" + req.id.toString(36) + Math.floor(soup.tris).toString(36)
-      const src = put(id, req.name, soup)
+      const src = put(id, req.name, soup, bytes)
       // Eit skann er lett hundre megabyte. Den som har prøvd seks filer
       // treng ikkje dei fem fyrste.
       forget(id)

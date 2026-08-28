@@ -66,7 +66,20 @@ export function cubeSoup(side = 100): Soup {
   return makeSoup(pos)
 }
 
-const RAW = new Map<string, { soup: Soup; label: string }>()
+/**
+ * Fila slik ho kom inn, ved sida av nettet ho vart til.
+ *
+ * Ein URL kan ikkje bera eit nett, so ei lenkje tek deg attende til
+ * innstillingane og ikkje til arbeidet. Ei prosjektfil kan — men berre om
+ * nokon har teke vare på bytane. Difor ligg dei her, hjå kjelda dei høyrer
+ * til, og `forget` ryddar dei bort saman med henne.
+ *
+ * Med eit tak: over dette er nettet alt so stort at ein kopi til er ein
+ * kopi for mykje, og prosjektfila seier frå i staden for å ta maskina.
+ */
+const MAX_RAW = 96 * 1024 * 1024
+
+const RAW = new Map<string, { soup: Soup; label: string; fil?: Uint8Array }>()
 
 export const KUBE = "kube"
 
@@ -79,9 +92,14 @@ export function source(id: string): Soup {
   return s
 }
 
-export function put(id: string, label: string, soup: Soup): SourceInfo {
-  RAW.set(id, { soup, label })
+export function put(id: string, label: string, soup: Soup, fil?: Uint8Array): SourceInfo {
+  RAW.set(id, { soup, label, fil: fil && fil.byteLength <= MAX_RAW ? fil : undefined })
   return { id, label, tris: soup.tris }
+}
+
+/** fila kjelda kom av, om ho er teken vare på */
+export function raw(id: string): Uint8Array | undefined {
+  return RAW.get(id)?.fil
 }
 
 export function label(id: string): string {

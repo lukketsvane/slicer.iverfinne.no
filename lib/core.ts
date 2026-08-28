@@ -277,7 +277,31 @@ export type DetailKey = "lav" | "mid" | "hog"
  *   kontur  dei flate kuttprofilane, lagde ved sida av kvarandre */
 export type View = "flate" | "lag" | "kontur"
 
-export type ExportKind = "stl" | "dxf" | "svg" | "ark" | "prove"
+export type ExportKind = "stl" | "dxf" | "svg" | "ark" | "prove" | "alt" | "prosjekt"
+
+/**
+ * Kuttlista som tekst, til rekneark og til innkjøpslista.
+ *
+ * Semikolon og ikkje komma: tala er norske og har komma i seg, og eit
+ * rekneark som skal gjettast på er eit rekneark som gjettar feil.
+ */
+export function kuttCsv(liste: readonly Kutt[]): string {
+  return [
+    "adresse;form;breidd_mm;hogd_mm;flate_cm2;kutt_mm;ledd;plate",
+    ...liste.map((k) =>
+      [
+        k.adr,
+        k.id,
+        nn(k.w, 2),
+        nn(k.h, 2),
+        nn(k.area / 100, 2),
+        nn(k.cutLen, 1),
+        String(k.joints),
+        k.ark ? String(k.ark) : "",
+      ].join(";"),
+    ),
+  ].join("\n")
+}
 
 export type BuildOut = {
   positions: Float32Array<ArrayBufferLike>
