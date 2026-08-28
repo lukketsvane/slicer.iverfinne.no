@@ -9,6 +9,10 @@
   --rule: #00000021;
   --warn: #b91c1c;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Systemet si eiga maskinskrift. Ingen nedlasting: ho ligg i maskina,
+     og ho er den skrifta tal står i overalt elles på ho òg. */
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
 }
 
 html {
@@ -33,6 +37,33 @@ html {
   .tab {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
+  }
+  /*
+   * Tala på benken står i maskinskrift.
+   *
+   * Ein telefon er ein telefon, og der er tala tal i den same skrifta som
+   * alt anna. Ein benk er eit instrument: tala er avlesingar, dei skal
+   * stå i kolonne, og dei skal sjå ut som noko som er MÅLT og ikkje
+   * skrive. Skrifta ligg i maskina frå før, so ho kostar ikkje ei
+   * nedlasting.
+   */
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    letter-spacing: -0.01em;
+  }
+  /*
+   * Og alt som står INNI ein vegg, same kven som teikna det.
+   *
+   * Skyvarane, talfelta og tavla er dei same komponentane på begge
+   * flatene, og dei skal ikkje trenge å vita kva for ei dei står i. Ein
+   * vegg er ein vegg: står eit tal der, står det i maskinskrift.
+   */
+  .benk .tab,
+  .benk .talfelt {
+    font-family: var(--font-mono);
+    letter-spacing: -0.01em;
   }
 }
 

@@ -816,8 +816,8 @@ export function Studio() {
           På benken bur dei i topplina hans i staden. */}
       {!benk && (
       <header className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-5 pt-[calc(env(safe-area-inset-top)+16px)]">
-        <div className="text-[11px] tracking-[0.22em]" style={{ color: "var(--ink)" }}>
-          SLICERMAN
+        <div className="tab text-[11px] tracking-[0.14em]" style={{ color: "var(--ink)" }}>
+          slicer.iverfinne
         </div>
         <a
           href="https://iverfinne.no"
