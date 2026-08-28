@@ -85,14 +85,26 @@ export function jointsIn(slots: Slot[], outline: Pt[]): number {
   const b = bbox(outline)
   let n = 0
   for (const q of slots) {
+    // Boksen fyrst, av di han er billeg og tek dei fleste.
     if (
-      q.t >= b.x0 - 0.6 &&
-      q.t <= b.x1 + 0.6 &&
-      q.zEnd >= b.y0 - 0.6 &&
-      q.zEnd <= b.y1 + 0.6
+      q.t < b.x0 - 0.6 ||
+      q.t > b.x1 + 0.6 ||
+      q.zEnd < b.y0 - 0.6 ||
+      q.zEnd > b.y1 + 0.6
     ) {
-      n++
+      continue
     }
+    // Og so omrisset, av di boksen ikkje er stykket.
+    //
+    // Ei ribbe frå eit krumt objekt er ein boge, og boksen kring ein boge
+    // er for det meste lufta under han. Sporet til nabostykket ligg i den
+    // lufta, og vart talt med: ståande torus med fjorten ribber kvar veg
+    // gav 424 ledd i boksane der stykka har 388.
+    //
+    // Punktet er eit hakk FORBI sporbotnen, der godset stykket skal bera
+    // på står. Eit spor som opnar seg oppover et frå toppen, so godset
+    // ligg under botnen; eit spor nedanfrå et motsett veg.
+    if (inRing(outline, [q.t, q.zEnd + (q.fromTop ? -0.3 : 0.3)])) n++
   }
   return n
 }
