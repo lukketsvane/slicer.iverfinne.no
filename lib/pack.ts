@@ -308,8 +308,23 @@ export function pack(
   // Golvet er der for store plater: ein fire meters plate på ei
   // millimetercelle er fire millionar celler, og det er inga pakking, det
   // er ei venting.
-  const res = Math.min(6, Math.max(gap / 3, Math.max(sheetW, sheetH) / 620, 1))
-  const k = Math.max(1, Math.ceil(gap / 2 / res))
+  //
+  // Men golvet braut garantien det stod under. Cellene vert sette på
+  // senterpunkt, so rasteret dekkjer forma for lite med ei halv celle på
+  // kvar side, og den avstanden som faktisk kjem ut er (2k−1)·res. Med
+  // res = luke/3 og k = 2 er det nøyaktig luka. Vart res drege OPP av
+  // plata, fall k til 1, og då er avstanden berre res: ei plate på 1600 ×
+  // 1000 gav 2,58 mm av ei lova luke på 4, og ei heil finérplate på 2440
+  // × 1220 gav 3,94. Målt mellom dei lagde omrissa: 3,23 mm.
+  //
+  // Vegen ut er ikkje å utvide meir — k = 2 på ei grov celle reserverer
+  // tre celler og kastar bort ei plate. Det er å la cella VERA luka når
+  // ho fyrst er drege forbi ein tredel av henne: éi celle utviding er då
+  // nøyaktig den luka som er lova, og rutenettet vert på kjøpet fire
+  // gonger billegare.
+  let res = Math.min(6, Math.max(gap / 3, Math.max(sheetW, sheetH) / 620, 1))
+  if (res > gap / 3 && res < gap) res = gap
+  const k = Math.max(1, Math.ceil((gap / res + 1) / 2))
   const step = Math.max(1, Math.round(3 / res))
   const SW = Math.floor(sheetW / res)
   const SH = Math.floor(sheetH / res)
