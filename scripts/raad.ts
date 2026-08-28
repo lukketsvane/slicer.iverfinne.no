@@ -155,6 +155,23 @@ prov("for stort på ei lita plate òg", "plate", {
   arkB: 300,
   arkH: 200,
 })
+// AKKURAT PÅ KANTEN.
+//
+// Dei to over er langt over: kvar del er fleire gonger plata, og eit råd
+// som bommar med tre millimeter treffer likevel. Denne ligg like utanfor,
+// og då er det den siste millimeteren som avgjer. Rådet rekna på «plata
+// minus ei luke»; pakkinga reserverer meir enn det, og svaret vart eit
+// tal som framleis lét to delar liggje utanfor. Du trykte på knappen, noko
+// endra seg, og lina stod raud.
+prov("så vidt for stort", "plate", {
+  ...DEFAULT_PARAMS,
+  kjelde: "kule",
+  storleik: 300,
+  ribbX: 3,
+  ribbY: 3,
+  arkB: 420,
+  arkH: 297,
+})
 
 // --- opning mellom ribbene -------------------------------------------------
 // Tettleiken er rekna på ei jamn stigning over eit ujamnt legeme, so her
