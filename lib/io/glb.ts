@@ -330,9 +330,25 @@ function fromDoc(doc: Doc, bin: Uint8Array | null): Soup {
     for (const c of n.children ?? []) walk(c, m)
   }
 
-  const roots =
-    doc.scenes?.[doc.scene ?? 0]?.nodes ??
-    (nodes.length ? nodes.map((_, i) => i) : [])
+  /**
+   * KVA ER EI ROT NÅR FILA IKKJE SEIER DET?
+   *
+   * `scene` og `scenes` er begge valfrie i glTF 2.0 — berre `asset` er
+   * påkravd — so ei fil utan dei er ei lovleg fil, og eksportørar skriv
+   * dei. Reserveløysinga var å gå KVAR node som ei rot. Det er ikkje det
+   * same som å gå røtene: eit barn med lågare nodenummer enn forelderen
+   * vert då gått fyrst, med identitet, og `seen` hindrar forelderen i å
+   * gå det på nytt. Nettet hamnar der forelderen ikkje flytta det.
+   *
+   * Målt: eit hjørne med `translation [100, 0, 0]` over eit barn med
+   * nettet gav objektet på origo — hundre millimeter frå der fila set
+   * det. Ei rot er ein node som ingen har som barn.
+   */
+  const scene = doc.scenes?.[doc.scene ?? 0]?.nodes
+  const barn = new Set(nodes.flatMap((n) => n.children ?? []))
+  const roots = scene?.length
+    ? scene
+    : nodes.map((_, i) => i).filter((i) => !barn.has(i))
   if (roots.length) {
     for (const r of roots) walk(r, ZUP)
   } else {

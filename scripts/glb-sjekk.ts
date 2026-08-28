@@ -304,5 +304,43 @@ function speglaSjekk(namn: string, buf: ArrayBuffer, vent: number) {
   }
 }
 
+/**
+ * EI ROT ER EIN NODE INGEN HAR SOM BARN.
+ *
+ * `scene` og `scenes` er begge valfrie i glTF 2.0 — berre `asset` er
+ * påkravd. Kvar prøve i denne fila går gjennom `glbfil.ts`, som alltid
+ * skriv ein `scenes`-tabell, so reserveløysinga for filer UTAN har aldri
+ * vore prøvd her. Ho gjekk kvar node som ei rot, og eit barn med lågare
+ * nodenummer enn forelderen vart då gått fyrst, med identitet: eit hjørne
+ * med `translation [100, 0, 0]` over eit barn med nettet la objektet på
+ * origo i staden for hundre millimeter ut.
+ *
+ * Tre filer med det same nettet og det same treet — berre scena skil dei —
+ * skal gje det same objektet.
+ */
+{
+  const tri = new Float32Array([0, 0, 0, 20, 0, 0, 0, 20, 0])
+  const b64 = Buffer.from(new Uint8Array(tri.buffer)).toString("base64")
+  const doc = (ekstra: Record<string, unknown>) =>
+    new TextEncoder().encode(
+      JSON.stringify({
+        asset: { version: "2.0" },
+        buffers: [{ byteLength: tri.byteLength, uri: `data:application/octet-stream;base64,${b64}` }],
+        bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: tri.byteLength }],
+        accessors: [{ bufferView: 0, componentType: 5126, count: 3, type: "VEC3", min: [0, 0, 0], max: [20, 20, 0] }],
+        meshes: [{ primitives: [{ attributes: { POSITION: 0 } }] }],
+        // barnet fyrst, forelderen etterpå: nett den rekkjefylgja som beit
+        nodes: [{ mesh: 0 }, { children: [0], translation: [100, 0, 0] }],
+        ...ekstra,
+      }),
+    ).buffer as ArrayBuffer
+
+  // Y-opp vert Z-opp: [100..120, 0..20, 0] i fila vert [100..120, 0, 0..20]
+  const fasit = { min: [100, 0, 0], max: [120, 0, 20], tris: 1 }
+  sjekk("gltf med scene", doc({ scene: 0, scenes: [{ nodes: [1] }] }), fasit, "p.gltf")
+  sjekk("gltf utan scenes", doc({}), fasit, "p.gltf")
+  sjekk("gltf med tom scene", doc({ scene: 0, scenes: [{ nodes: [] }] }), fasit, "p.gltf")
+}
+
 console.log(brot ? `\n${brot} PRØVER RYK` : "\nalle GLB-prøver held")
 process.exit(brot ? 1 : 0)

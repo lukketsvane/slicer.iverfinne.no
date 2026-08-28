@@ -90,6 +90,32 @@ export function parsePly(buf: ArrayBuffer): Soup {
     }
   }
 
+  /**
+   * TALET I HOVUDET ER EIT TAL NOKON HAR SKRIVE, IKKJE EIT TAL NOKON HAR TALT.
+   *
+   * `element vertex 1000000000` vart lese rett inn som lykkjegrense. Ei fil
+   * på to hundre byte med `element foo 1e18` i hovudet sette difor arbeidaren
+   * til å telje til ein trillion — han kom aldri attende, sida stod på «les
+   * fila …» for alltid, og einaste vegen ut var å laste henne på nytt. Det
+   * skal ikkje ei fil kunne gjere.
+   *
+   * Ei rad kan ikkje vera mindre enn dei faste felta sine: i ei binær fil er
+   * det byta til kvar eigenskap, og i ei tekstfil minst eitt teikn per
+   * verdi. Er talet i hovudet større enn det som får plass i det som ligg
+   * att av fila, er hovudet ikkje til å tru på — og då er det ei ulesbar
+   * fil, som er noko reiskapen alt veit å seie frå om.
+   */
+  const att = buf.byteLength - end
+  for (const e of elems) {
+    const minRad = e.props.reduce(
+      (n, q) => n + (format === "ascii" ? 1 : q.type === "list" ? 1 : (SIZE[q.type] ?? 4)),
+      0,
+    )
+    if (!Number.isFinite(e.count) || e.count < 0 || (minRad > 0 && e.count * minRad > att)) {
+      throw new Error(`ply: «${e.name} ${e.count}» får ikkje plass i fila`)
+    }
+  }
+
   return format === "ascii"
     ? readAscii(new TextDecoder().decode(bytes.subarray(end)), elems)
     : readBinary(new DataView(buf, end), elems, format === "binary_little_endian")
