@@ -222,16 +222,60 @@ export function shade(m: Indexed, creaseDeg = 40): { pos: Float32Array; nrm: Flo
  */
 export function signedVolume(m: Indexed): number {
   const V = m.verts
+  /**
+   * RUNDT NETTET SITT EIGE MIDTPUNKT, IKKJE RUNDT ORIGO I FILA.
+   *
+   * For ei LUKKA flate er summen den same kvar du legg origo — det er
+   * divergensteoremet, og flyttinga fell ut. For ei OPEN flate gjer ho
+   * ikkje det: kjeglene frå origo ut til randa tel med, og då avgjer det
+   * punktet fila tilfeldigvis har som null kva forteikn svaret får.
+   *
+   * Ein kube utan ei sideflate, rett vunden heile vegen:
+   *   origo i hjørnet      +1 000 000   står
+   *   origo 300 mm unna             0   står
+   *   origo 500 mm unna      −666 667   VERT SNUDD
+   *
+   * Same form, same vinding. Og eit nett som vert snudd ut-inn les som
+   * ingen ting: null ribber, null delar, tom skjerm — nett det `flip` er
+   * til for å hindre. «Eit nett frå ein skannar har origo der skannaren
+   * stod», seier `place` sin eigen kommentar; det er den situasjonen.
+   *
+   * Midtpunktet i boksen kring nettet er eit punkt som fylgjer forma og
+   * ikkje fila. For lukka nett endrar det ingenting.
+   */
+  let x0 = Infinity
+  let y0 = Infinity
+  let z0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  let z1 = -Infinity
+  for (let i = 0; i < V.length; i += 3) {
+    if (V[i] < x0) x0 = V[i]
+    if (V[i] > x1) x1 = V[i]
+    if (V[i + 1] < y0) y0 = V[i + 1]
+    if (V[i + 1] > y1) y1 = V[i + 1]
+    if (V[i + 2] < z0) z0 = V[i + 2]
+    if (V[i + 2] > z1) z1 = V[i + 2]
+  }
+  if (!Number.isFinite(x0)) return 0
+  const cx = (x0 + x1) / 2
+  const cy = (y0 + y1) / 2
+  const cz = (z0 + z1) / 2
   let v = 0
   for (let t = 0; t < m.idx.length; t += 3) {
     const a = m.idx[t] * 3
     const b = m.idx[t + 1] * 3
     const c = m.idx[t + 2] * 3
-    v +=
-      (V[a] * (V[b + 1] * V[c + 2] - V[b + 2] * V[c + 1]) -
-        V[a + 1] * (V[b] * V[c + 2] - V[b + 2] * V[c]) +
-        V[a + 2] * (V[b] * V[c + 1] - V[b + 1] * V[c])) /
-      6
+    const ax = V[a] - cx
+    const ay = V[a + 1] - cy
+    const az = V[a + 2] - cz
+    const bx = V[b] - cx
+    const by = V[b + 1] - cy
+    const bz = V[b + 2] - cz
+    const cx2 = V[c] - cx
+    const cy2 = V[c + 1] - cy
+    const cz2 = V[c + 2] - cz
+    v += (ax * (by * cz2 - bz * cy2) - ay * (bx * cz2 - bz * cx2) + az * (bx * cy2 - by * cx2)) / 6
   }
   return v
 }
@@ -276,12 +320,20 @@ export function openEdges(m: Indexed): number {
     const a = m.idx[t]
     const b = m.idx[t + 1]
     const c = m.idx[t + 2]
+    // Ein NULLTREKANT, ikkje berre den samanfalne kanten hans.
+    //
+    // Ein trekant med to like hjørne har ikkje noka flate. Berre den
+    // samanfalne kanten vart hoppa over, so dei to andre — som er den
+    // SAME kanten, gått kvar sin veg — vart begge talde, og den kanten
+    // kom opp i fire og vart meld som open. Ei UV-kule har ein slik
+    // trekant per rute ved kvar pol: kule(50, 40) er tett, og vart meld
+    // med 80 opne kantar. Panelet sa «open» om eit nett som er lukka.
+    if (a === b || b === c || c === a) continue
     for (const [u, v] of [
       [a, b],
       [b, c],
       [c, a],
     ]) {
-      if (u === v) continue
       const k = key(u, v)
       seen.set(k, (seen.get(k) ?? 0) + 1)
     }

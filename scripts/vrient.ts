@@ -257,7 +257,38 @@ function sjekk(namn: string, p: Params, vis = false) {
  * svar — og eit skøytepunkt som er to køyrar er eit spor til, lagt der det
  * ikkje er noka opning.
  */
-console.log("same geometri, same svar")
+/**
+ * EI LUKKA FLATE SKAL MELDAST LUKKA.
+ *
+ * «Opne kantar» er kantar som berre høyrer til éin trekant, og talet står
+ * i panelet med ein mjuk regel bak seg. Ein trekant med to like hjørne har
+ * inga flate — men berre den samanfalne kanten vart hoppa over, so dei to
+ * andre (som er den same kanten, gått kvar sin veg) vart begge talde. Ei
+ * UV-kule har ein slik trekant per rute ved kvar pol: `kule(50, 40)` er
+ * tett, og vart meld med 80 opne kantar.
+ */
+console.log("lukka nett skal meldast lukka")
+{
+  saker++
+  const seg = 40
+  const pos: number[] = []
+  const at = (i: number, j: number): [number, number, number] => {
+    const th = (i / seg) * Math.PI * 2
+    const ph = (j / seg) * Math.PI
+    return [50 * Math.sin(ph) * Math.cos(th), 50 * Math.sin(ph) * Math.sin(th), 50 * Math.cos(ph)]
+  }
+  for (let j = 0; j < seg; j++)
+    for (let i = 0; i < seg; i++) {
+      const a = at(i, j), b = at(i + 1, j), c = at(i + 1, j + 1), d = at(i, j + 1)
+      pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+    }
+  put("v-tett-kule", "tett-kule", makeSoup(new Float32Array(pos)))
+  const m = VAFFEL.measure({ ...DEFAULT_PARAMS, kjelde: "v-tett-kule" } as unknown as ParamBag)
+  if (m.openEdges !== 0) feil("tett kule", `${m.openEdges} opne kantar på ei lukka flate`)
+  console.log(`  ei UV-kule med polar: ${m.openEdges} opne kantar`)
+}
+
+console.log("\nsame geometri, same svar")
 {
   const kloss = (out: number[], w: number, d: number, h: number, ox: number, oy: number, oz: number) => {
     const q: [number, number, number][] = [
@@ -280,6 +311,35 @@ console.log("same geometri, same svar")
   if (a !== b) feil("skøytte klossar", `${a}  mot  ${b}`)
   console.log(`  to klossar som deler eit plan: ${a}`)
   console.log(`  same to, motsett rekkjefylgje:  ${b}`)
+
+  /**
+   * OG DET SAME NETTET FLYTTA.
+   *
+   * «Eit nett frå ein skannar har origo der skannaren stod», seier `place`
+   * sin eigen kommentar. Vendingsvakta spurde om summen av
+   * divergensleddet var negativ, og for ei OPEN flate er den summen ikkje
+   * uavhengig av kvar origo ligg: den same, rett vunde kuben utan ei
+   * sideflate gav +1 000 000 med origo i hjørnet og −666 667 med origo
+   * 500 mm unna — og då vart han snudd ut-inn, som les som ingen ting.
+   */
+  const opneBoks = (ox: number) => {
+    const out: number[] = []
+    const q: [number, number, number][] = [
+      [ox, 0, 0], [ox + 100, 0, 0], [ox + 100, 100, 0], [ox, 100, 0],
+      [ox, 0, 100], [ox + 100, 0, 100], [ox + 100, 100, 100], [ox, 100, 100]]
+    // −x-flata er borte: eit ope nett med rett vinding heile vegen
+    const f = [[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[1,2,6],[1,6,5],[2,3,7],[2,7,6]]
+    for (const [i, j, k] of f) out.push(...q[i], ...q[j], ...q[k])
+    return makeSoup(new Float32Array(out))
+  }
+  saker++
+  const svar: string[] = []
+  for (const ox of [0, -300, -500, 700]) {
+    put(`v-open-${ox}`, `open-${ox}`, opneBoks(ox))
+    svar.push(tal(`v-open-${ox}`))
+  }
+  if (new Set(svar).size !== 1) feil("ope nett flytta", svar.join("  |  "))
+  console.log(`  ope nett, fire origo:          ${svar[0]}`)
 }
 
 // =============================================================================
