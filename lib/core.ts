@@ -180,6 +180,49 @@ export type Metrics = {
 }
 
 // =============================================================================
+// KUTTLISTA
+// =============================================================================
+/**
+ * EI LINE PER DEL SOM SKAL SKJERAST.
+ *
+ * Panelet seier «12 delar · 12 · 2 unike». Det er sant, og det er ikkje
+ * nok når du står ved maskina: kva for tolv, kor store, kva for plate,
+ * og kva for to av dei er den same forma. Kuttlista er det same talet
+ * skrive ut — ikkje ei ny rekning, berre den som alt er gjord, lesen linje
+ * for linje.
+ *
+ * Adressa er den som står gravert på delen. Det er nøkkelen mellom denne
+ * lista, kuttfila og plata du held i handa.
+ */
+export type Kutt = {
+  /** «X3», «X3b» — det som er gravert på delen */
+  adr: string
+  /** forma. To delar med same id er den same delen, og treng éi oppspenning */
+  id: string
+  /** ytremål, mm */
+  w: number
+  h: number
+  /** flate, mm² */
+  area: number
+  /** kuttlengd for denne eine delen, mm */
+  cutLen: number
+  /** kryssledd som fell i dette stykket */
+  joints: number
+  /** kva plate han ligg på, frå 1. Null tyder at han ikkje fekk plass. */
+  ark: number
+}
+
+/** Ei plate slik ho ligg, til skjermen: teikninga og dei to tala som høyrer
+ *  til henne. `tal` er kor mange plater det er i alt. */
+export type ArkSyn = {
+  i: number
+  tal: number
+  svg: string
+  delar: number
+  util: number
+}
+
+// =============================================================================
 // REGLAR
 // =============================================================================
 /**

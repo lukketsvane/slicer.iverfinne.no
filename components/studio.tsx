@@ -1,10 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
-import type { DetailKey, ExportKind, Metrics, ParamBag, Rule, View } from "@/lib/core"
+import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rule, View } from "@/lib/core"
 import { KUBE } from "@/lib/sources"
 import { VAFFEL } from "@/lib/vaffel/engine"
 import type { BuildRes, MaalRes, Req, Res, SynRes } from "@/lib/worker"
+import { Verkty, type VerktyId } from "./verkty"
 import type { Kandidat } from "@/lib/vaffel/tune"
 import { Viewer, type LightDir } from "./viewer"
 import { ControlsPanel, type PanelMode } from "./controls-panel"
@@ -88,6 +89,21 @@ export function Studio() {
   // stoggar, i staden for at kvart einaste mellombilete vert rekna på.
   const [tal, setTal] = useState<MaalRes | null>(null)
   const [syn, setSyn] = useState<SynRes | null>(null)
+  /**
+   * VERKTYA.
+   *
+   * Kuttlista, platene og oppsettet er ting du les — ikkje ting du stiller
+   * på — og dei treng brei plass. Difor bur dei ikkje i veggane, men i ei
+   * skuff som legg seg over lerretet mellom dei, og som er open eller ikkje.
+   * Éin om gongen: to opne verkty er to ting som kjempar om det same auget.
+   */
+  const [verkty, setVerkty] = useState<VerktyId | null>(null)
+  /** kuttlista, slik ho står no. Ho kjem med måltala. */
+  const [kuttliste, setKuttliste] = useState<Kutt[]>([])
+  /** den plata skuffa syner, og teikninga hennar */
+  const [ark, setArk] = useState<ArkSyn | null>(null)
+  /** adressa peikaren står på, i lista eller i objektet */
+  const [peikt, setPeikt] = useState<string | null>(null)
   const [busy, setBusy] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [feil, setFeil] = useState<string | null>(null)
@@ -232,8 +248,13 @@ export function Studio() {
       }
       if (r.kind === "maal") {
         setTal(r)
+        setKuttliste(r.liste)
         // fyrst når rekninga for det siste punktet er inne, er motoren ferdig
         if (r.id >= reqId.current) setBusy(false)
+        return
+      }
+      if (r.kind === "ark") {
+        setArk({ i: r.i, tal: r.tal, svg: r.svg, delar: r.delar, util: r.util })
         return
       }
       if (r.kind === "syn") {
@@ -602,6 +623,27 @@ export function Studio() {
     setParams(VAFFEL.pick(grunn, cur.alle, i))
   }, [])
 
+  /**
+   * Ei plate til skjermen.
+   *
+   * Utanom porten, som uttaka: planen er alt rekna, so dette er ei
+   * teikning og ikkje ei snitting. Kjem det ei ny måling imellom, byter
+   * teikninga seg sjølv ut — det er berre eit bilete.
+   */
+  const askArk = useCallback((i: number) => {
+    const msg: Req = { kind: "ark", id: ++reqId.current, params: naa.current, sheet: Math.max(0, i) }
+    worker.current?.postMessage(msg)
+  }, [])
+
+  /** Opnar eit verkty, eller lèt det att om det alt stod ope. */
+  const opneVerkty = useCallback(
+    (id: VerktyId) => {
+      setVerkty((v) => (v === id ? null : id))
+      if (id === "ark") askArk(0)
+    },
+    [askArk],
+  )
+
   const doExport = useCallback((what: ExportKind) => {
     setBusy(true)
     // utanom porten: eit klikk, ikkje ein straum — og svaret slepp porten fri
@@ -730,7 +772,14 @@ export function Studio() {
         gestTimer.current = window.setTimeout(() => setGest(null), 900)
         return
       }
-      if (k === "z") angre()
+      if (k === "escape" && verkty) {
+        setVerkty(null)
+        setHint(null)
+        return
+      }
+      if (k === "l") opneVerkty("liste")
+      else if (k === "a") opneVerkty("ark")
+      else if (k === "z") angre()
       else if (k === "1") setView("flate")
       else if (k === "2") setView("lag")
       else if (k === "3") setView("kontur")
@@ -741,7 +790,17 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, steg, vendSteg])
+  }, [angre, steg, vendSteg, opneVerkty, verkty])
+
+  // Står plateskuffa open og noko flyttar seg, skal teikninga fylgje med.
+  // Ho ventar på at motoren er ferdig: `tal` er det siste svaret hans.
+  useEffect(() => {
+    if (verkty !== "ark") return
+    askArk(ark?.i ?? 0)
+    // ark.i er med vilje ikkje ei avhengnad: han skal ikkje be om nytt
+    // bilete av at han fekk eit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verkty, tal, askArk])
 
   useEffect(() => {
     if (!melding) return
@@ -885,6 +944,30 @@ export function Studio() {
         </div>
       )}
 
+      {benk && (
+        <Verkty
+          open={verkty}
+          liste={kuttliste}
+          ark={ark}
+          params={params}
+          ranges={VAFFEL.ranges}
+          keys={VAFFEL.keys}
+          clamp={(o, prev) => VAFFEL.clamp(o, prev)}
+          peikt={peikt}
+          rute={{ venstre: VEGG.venstre, hogre: VEGG.hogre, topp: VEGG.topp }}
+          onArk={askArk}
+          onPeik={setPeikt}
+          onChange={endre}
+          onClose={() => setVerkty(null)}
+          onOrd={(t) => {
+            void navigator.clipboard
+              ?.writeText(t)
+              .then(() => setMelding("kuttlista er kopiert"))
+              .catch(() => setMelding("fekk ikkje kopiere"))
+          }}
+        />
+      )}
+
       {benk ? (
         <Benk
           params={params}
@@ -914,6 +997,8 @@ export function Studio() {
           onSynSvar={synSvar}
           onShare={share}
           onFile={(f) => void takeFile(f)}
+          verkty={verkty}
+          onVerkty={opneVerkty}
         />
       ) : (
       <ControlsPanel

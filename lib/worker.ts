@@ -16,6 +16,8 @@ import type { Kandidat } from "./vaffel/tune"
 import type {
   DetailKey,
   ExportKind,
+  ArkSyn,
+  Kutt,
   Metrics,
   ParamBag,
   Rule,
@@ -34,7 +36,9 @@ export type ExportReq = { kind: "export"; id: number; params: ParamBag; what: Ex
 export type ImportReq = { kind: "import"; id: number; name: string; buf: ArrayBuffer }
 /** «finn gode innstillingar»: snittar eit titals punkt og rangerer dei */
 export type TuneReq = { kind: "tune"; id: number; params: ParamBag }
-export type Req = BuildReq | ExportReq | ImportReq | TuneReq
+/** «syn meg plate nummer i» — teikninga kjem attende, ikkje ei fil */
+export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number }
+export type Req = BuildReq | ExportReq | ImportReq | TuneReq | ArkReq
 
 export type BuildRes = {
   kind: "build"
@@ -49,8 +53,16 @@ export type BuildRes = {
   lines: Float32Array<ArrayBufferLike>
   heavy: Float32Array<ArrayBufferLike>
 }
-/** Måltala kjem i eiga melding, ETTER nettet — sjå kommentaren nedanfor. */
-export type MaalRes = { kind: "maal"; id: number; metrics: Metrics; rules: Rule[] }
+/** Måltala kjem i eiga melding, ETTER nettet — sjå kommentaren nedanfor.
+ *  Kuttlista fylgjer med: ho vert lesen rett ut av den planen målinga alt
+ *  har rekna, so ho kostar eit oppslag og ikkje ei snitting. */
+export type MaalRes = {
+  kind: "maal"
+  id: number
+  metrics: Metrics
+  rules: Rule[]
+  liste: Kutt[]
+}
 export type ExportRes = {
   kind: "export"
   id: number
@@ -64,6 +76,7 @@ export type ExportRes = {
  *  sjå kva det er dei har snitta. */
 export type SynRes = { kind: "syn"; id: number; svg: string }
 export type KjeldeRes = { kind: "kjelde"; id: number; src: SourceInfo }
+export type ArkRes = { kind: "ark"; id: number } & ArkSyn
 export type TuneRes = { kind: "tune"; id: number; alle: Kandidat[] }
 /**
  * Kor langt søket er kome.
@@ -83,6 +96,7 @@ export type Res =
   | MaalRes
   | ExportRes
   | SynRes
+  | ArkRes
   | KjeldeRes
   | TuneRes
   | TuneProgRes
@@ -189,6 +203,13 @@ self.onmessage = (e: MessageEvent<Req>) => {
       return
     }
 
+    if (req.kind === "ark") {
+      // Utanom porten som uttaka: eit klikk på ei plate er eit klikk, og
+      // planen er alt rekna, so dette er ei teikning og ikkje ei snitting.
+      post({ kind: "ark", id: req.id, ...VAFFEL.arkSyn(req.params, req.sheet) })
+      return
+    }
+
     if (req.kind === "export") {
       const out = VAFFEL.exportFile(req.params, req.what)
       post({ kind: "export", id: req.id, ...out }, out.data ? [out.data] : [])
@@ -206,7 +227,7 @@ self.onmessage = (e: MessageEvent<Req>) => {
         const metrics = VAFFEL.measure(req.params)
         if (newest !== req.id) return
         const rules = VAFFEL.rules(req.params, metrics)
-        post({ kind: "maal", id: req.id, metrics, rules })
+        post({ kind: "maal", id: req.id, metrics, rules, liste: VAFFEL.liste(req.params) })
         // Profilane som bilete, i same utsette steget: mellombygga er alt
         // hugsa frå målinga, so teikninga kostar berre sjølve SVG-en.
         if (newest !== req.id) return

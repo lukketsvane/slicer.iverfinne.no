@@ -11,12 +11,15 @@
  * ein skrue eller ei oppspenning i heile stabelen. Rutenettet held seg
  * sjølv, og det er heile poenget.
  */
+import { bbox } from "../core"
 import type {
   BuildOut,
   DetailKey,
   ExportKind,
   ExportOut,
   Group,
+  ArkSyn,
+  Kutt,
   Metrics,
   ParamBag,
   Range,
@@ -31,6 +34,7 @@ import { contourLines, flateMesh, lagMesh } from "./mesh"
 import { measure } from "./metrics"
 import { checkRules } from "./rules"
 import { makePlan } from "./plan"
+import type { Part } from "./parts"
 import { meshToStl } from "./export-stl"
 import { partsToDxf } from "./export-dxf"
 import { couponSvg, profileSvg, sheetSvg } from "./export-svg"
@@ -61,6 +65,10 @@ export type EngineDef = {
   measure(p: ParamBag): Metrics
   rules(p: ParamBag, m: Metrics): Rule[]
   exportFile(p: ParamBag, what: ExportKind): ExportOut
+  /** kuttlista: éi line per del, med adressa, forma, målet og plata */
+  liste(p: ParamBag): Kutt[]
+  /** éi plate slik ho ligg, som SVG — den same teikninga uttaket gjev */
+  arkSyn(p: ParamBag, i: number): ArkSyn
   /** gode innstillingar for det nettet og den storleiken som står, sorterte */
   tune(p: ParamBag): Kandidat[]
   /** det same søket, men eitt steg om gongen: den som driv han kan sleppe
@@ -222,6 +230,54 @@ export const VAFFEL: EngineDef = {
       name: `${name}.dxf`,
       mime: "application/dxf",
       text: partsToDxf(ns, p.tjukn, kerfOf(p)),
+    }
+  },
+
+  liste(bag: ParamBag): Kutt[] {
+    const p = asP(bag)
+    const { pl, ns } = makePlan(p, DETAIL.mid)
+    // Kva plate kvar del hamna på. Pakkinga kjenner delen sjølv, so det er
+    // eit oppslag og ikkje ei gjetting på adresse.
+    const ark = new Map<Part, number>()
+    ns.sheets.forEach((s, i) => {
+      for (const q of s.placed) ark.set(q.part, i + 1)
+    })
+    return pl.parts.map((q) => {
+      const b = bbox(q.outline)
+      return {
+        adr: q.from,
+        id: q.id,
+        w: b.x1 - b.x0,
+        h: b.y1 - b.y0,
+        area: q.area,
+        cutLen: q.cutLen,
+        joints: q.joints,
+        ark: ark.get(q) ?? 0,
+      }
+    })
+  },
+
+  arkSyn(bag: ParamBag, i: number): ArkSyn {
+    const p = asP(bag)
+    const { ns } = makePlan(p, DETAIL.mid)
+    const tal = ns.sheets.length
+    if (i < 0 || i >= tal) return { i, tal, svg: "", delar: 0, util: 0 }
+    const sheet = ns.sheets[i]
+    const flate = sheet.placed.reduce((a, q) => a + q.part.area, 0)
+    // SAME REKNESTYKKET SOM I TAVLA.
+    //
+    // «Utnytting» er kor mykje av det du faktisk SKAR I som vart del —
+    // `used` og ikkje heile plata, av di resten av den siste plata ikkje
+    // er svinn, han ligg der og ventar på neste jobb. Rekna på heile plata
+    // gav 53 % der tavla sa 68, og to tal om det same er verre enn eitt.
+    const skore = sheet.used * ns.sheetW
+    return {
+      i,
+      tal,
+      // Same teikninga som fila. Ikkje ei framsyning AV fila — fila.
+      svg: sheetSvg(ns, i, kerfOf(p)),
+      delar: sheet.placed.length,
+      util: skore > 0 ? flate / skore : 0,
     }
   },
 
