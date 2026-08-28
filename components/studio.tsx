@@ -179,12 +179,26 @@ export function Studio() {
    * ruta minus dei to veggane og topplina. Kameraet treng ikkje vita kva
    * for eit av dei det er.
    */
+  /** kor høg verktyskuffa er når ho står open, i CSS-pikslar */
+  const verktyH = useMemo(
+    () => Math.round(Math.min(460, Math.max(240, vindu.h * 0.36))),
+    [vindu.h],
+  )
   const rute: Rute = useMemo(
     () =>
       benk
-        ? { W: vindu.w, H: vindu.h, venstre: VEGG.venstre, hogre: VEGG.hogre, topp: VEGG.topp, botn: 0 }
+        ? {
+            W: vindu.w,
+            H: vindu.h,
+            venstre: VEGG.venstre,
+            hogre: VEGG.hogre,
+            topp: VEGG.topp,
+            // Ei open skuff er ei mindre rute, og kameraet rammar inn i
+            // det som er att — same mekanismen som arket på telefonen.
+            botn: verkty ? verktyH : 0,
+          }
         : { W: vindu.w, H: vindu.h, venstre: 0, hogre: 0, topp: 0, botn: arkH },
-    [benk, vindu, arkH],
+    [benk, vindu, arkH, verkty, verktyH],
   )
 
   const worker = useRef<Worker | null>(null)
@@ -384,6 +398,28 @@ export function Studio() {
     // pump er stabil (useCallback utan avhengnader)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /**
+   * FRÅ EIN PIKSEL TIL EI LINE, OG ATTENDE.
+   *
+   * Objektet kjenner stykka sine som eit tal — den lina i kuttlista dei
+   * vart bygde av. Lista kjenner dei som ei ADRESSE, av di det er adressa
+   * som står gravert på plata. Adressa er nøkkelen: ho overlever ei
+   * sortering av tabellen, og eit tal gjer ikkje det.
+   */
+  const peiktIdx = useMemo(
+    () => (peikt === null ? -1 : kuttliste.findIndex((k) => k.adr === peikt)),
+    [peikt, kuttliste],
+  )
+  const peikDel = useCallback(
+    (i: number) => {
+      const adr = i >= 0 ? (kuttliste[i]?.adr ?? null) : null
+      setPeikt(adr)
+      // Eit trykk på ein del er eit spørsmål om han. Svaret står i lista.
+      if (adr) setVerkty("liste")
+    },
+    [kuttliste],
+  )
 
   const detail: DetailKey = hiDetail && isDesktop ? "hog" : isDesktop ? "mid" : "lav"
 
@@ -872,7 +908,7 @@ export function Studio() {
   /** det frie bandet som eit CSS-rektangel, til det som skal stå oppå
    *  lerretet og ikkje bak eit panel */
   const fritt: CSSProperties = benk
-    ? { left: VEGG.venstre, right: VEGG.hogre, top: VEGG.topp + 56, bottom: 16 }
+    ? { left: VEGG.venstre, right: VEGG.hogre, top: VEGG.topp + 56, bottom: (verkty ? verktyH : 0) + 16 }
     : { left: 0, right: 0, top: 52, bottom: arkH + 24 }
 
   const les = (k: string) =>
@@ -921,6 +957,8 @@ export function Studio() {
             onVend={vendObjektet}
             onLight={nudgeLight}
             onGest={taGest}
+            peikt={peiktIdx}
+            onPeik={peikDel}
           />
         )}
       </div>
@@ -1008,7 +1046,7 @@ export function Studio() {
           keys={VAFFEL.keys}
           clamp={(o, prev) => VAFFEL.clamp(o, prev)}
           peikt={peikt}
-          rute={{ venstre: VEGG.venstre, hogre: VEGG.hogre, topp: VEGG.topp }}
+          rute={{ venstre: VEGG.venstre, hogre: VEGG.hogre, høgd: verktyH }}
           onArk={askArk}
           onPeik={setPeikt}
           onChange={endre}

@@ -129,7 +129,7 @@ export const VAFFEL: EngineDef = {
 
     if (view === "flate") {
       const m = flateMesh(k)
-      return { ...m, kant: EMPTY(), lines: EMPTY(), heavy: EMPTY() }
+      return { ...m, kant: EMPTY(), del: EMPTY(), lines: EMPTY(), heavy: EMPTY() }
     }
 
     const g = buildGrid(k, p, DETAIL[detail])
@@ -161,6 +161,7 @@ export const VAFFEL: EngineDef = {
       normals: EMPTY(),
       tris: 0,
       kant: EMPTY(),
+      del: EMPTY(),
       min,
       max,
       lines: c.lines,
