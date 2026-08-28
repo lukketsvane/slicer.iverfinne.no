@@ -20,8 +20,12 @@ const NUDGE_RANGE_PX = 420
 /** alt «finn innstillingar» IKKJE rører: endrar noko av dette seg, er eit
  *  hugsa svar eit svar på eit anna spørsmål */
 const tuneBase = (p: ParamBag) =>
+  // `snitt` står her av di han rører PAKKINGA: luka mellom delane er
+  // 2·snitt + 2, og både platetalet og utnyttinga er med i rangeringa. Ei
+  // hugsa liste som overlevde ein ny snittbreidd var tolv svar på eit
+  // spørsmål som ikkje vart stilt.
   [p.kjelde, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant, p.tjukn,
-   p.klaring, p.arkB, p.arkH, p.lause].join("|")
+   p.klaring, p.snitt, p.arkB, p.arkH, p.lause].join("|")
 /** ei fil på meir enn dette er ikkje ein modell, det er eit uhell */
 const MAX_FIL = 220 * 1024 * 1024
 /** kor mange steg attende du kjem. Fleire enn dette er ikkje ei angring,

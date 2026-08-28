@@ -200,6 +200,14 @@ function Storleik({
             const dx = e.clientX - d.x
             if (!d.rort && Math.abs(dx) < 3) return
             d.rort = true
+            // UTKASTET SKAL VEKK NÅR DRAGET BYRJAR.
+            //
+            // `onFocus` fyrer på det same peikartrykket som draget og
+            // legg talet slik det stod FØR draget i utkastet. Feltet syner
+            // utkastet når det finst, so talet fraus medan objektet vaks —
+            // og `onBlur` skreiv det gamle talet attende. Heile draget
+            // vart rulla attende i det du klikka ein annan stad.
+            setUtkast(null)
             // Fire pikslar per steg: fint nok til å treffe, grovt nok til
             // at heile bandet ligg i ei armlengd.
             sett(d.fra + Math.round(dx / 4) * r.step * (e.shiftKey ? 0.2 : 1))
