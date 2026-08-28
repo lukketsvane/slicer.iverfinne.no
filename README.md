@@ -36,8 +36,8 @@ correction in the metrics, and it is why the panel fits on a phone.
 1. **Drop a file** anywhere on the page — `.glb`, `.gltf`, `.stl` (binary or
    ASCII), `.obj`, `.ply` (ASCII or binary), or a `.zip` saved by **LAGRE**.
    Up to 220 MB. Or start from the built-in cube.
-2. **Set the size** — pinch the object, or drag the number. The height in
-   millimetres is the one number the rest of the tool is measured against.
+2. **Set the size** — pinch the object, or drag the number. The longest side
+   in millimetres is the one number the rest of the tool is measured against.
 3. **Press find settings.** It slices a dozen rib grids for real and ranks
    them, then sets the best. A ring around the button fills while it runs, and
    a line under the panel then says where you are in that list (`1 av 12 · 7×7
@@ -56,7 +56,9 @@ line, the controls, everything. Half open is a third of the screen and never
 scrolls; the object keeps the rest. What you press sits in a footer that stays
 put while the rest scrolls.
 
-**On a screen wider than 1180 px there is no sheet at all.** Three heights are
+**On a screen wider than 1180 px with a mouse there is no sheet at all.** A
+tablet gets the sheet however wide it is: the walls are built for a pointer.
+ Three heights are
 an answer to a phone; on a desk the answer is that they disappear. Two fixed
 walls stand instead, and the object lives between them. The left wall is what
 you put in, in the order you do it: the file, the size, what to measure it
@@ -114,13 +116,14 @@ localStorage because a mesh is megabytes and localStorage is five. A link
 always beats the remembered session — a link is somebody telling you what to
 look at.
 
-The camera frames whatever is on screen, the reference included, and it frames
-it into the band the control sheet leaves free rather than the whole window.
+The camera frames whatever is on screen into the band the control sheet leaves
+free, rather than into the whole window.
 
 Every number next to a slider is a **field**: a slider is good at hunting and
 bad at hitting, so type `240` when you want 240. Keys, on a desktop: `F` finds
-settings and `⇧F` steps back, `1` `2` `3` switch views, `Z` undoes, `O` opens
-the panel, `L` the cut list, `A` the sheets, and `Esc` closes whatever is open.
+settings and `⇧F` steps back, `1` `2` `3` switch views, `Z` undoes, `L` opens
+the cut list, `A` the sheets, and `Esc` closes whatever is open. `O` opens the
+control sheet, which only exists on the phone surface.
 
 ## Three tools, on the bench
 
@@ -199,11 +202,18 @@ backwards to anyone used to black-is-cut; it is the way round that comes out
 right without touching the layer order. The panel prints the legend next to
 the export buttons.
 
-Two colours and no more — a sheet outline or a header is just another layer to
-remember to switch off, and one somebody eventually forgets. Which sheet a file
-is comes from its **name**. Nothing is filled; a fill tells the machine to burn
-the whole face. The DXF has real layers (`KUTT`, `GRAVER`), with `GRAVER`
-declared first for the same reason.
+Two colours and no more — in an SVG a sheet outline or a header is just another
+layer to remember to switch off, and one somebody eventually forgets. Which
+sheet an SVG is comes from its **name**. Nothing is filled; a fill tells the
+machine to burn the whole face.
+
+**The DXF is the other way round, on purpose.** It has real named layers
+(`KUTT`, `GRAVER`, with `GRAVER` declared first), and it keeps every sheet in
+one drawing, stacked 200 mm apart in Y. So it does draw a rectangle round each
+sheet and an `ARK i/n` header above it — both on `GRAVER`, which is also where
+the part addresses are, so they cannot be switched off separately. The header
+sits outside the material; if you run `GRAVER` with the sheet lined up under
+the origin, the beam passes over the bed there.
 
 `ARK` gives **one file per sheet** — a single SVG when it fits on one sheet, a
 ZIP of `…-ark-1av3.svg` and friends when it does not.
@@ -211,7 +221,9 @@ ZIP of `…-ark-1av3.svg` and friends when it does not.
 **Cut the fit-test coupon first.** `klaring` and `snitt` are two guesses that
 multiply in every joint; get it wrong by 0.05 mm and sixty joints either need a
 hammer or fall apart, and you only find out once the whole sheet is cut. The
-coupon is a 70 × 30 mm plate with seven slots, each 0.05 mm wider than the last
+coupon is sized from the plate — seven slots wide and about four thicknesses
+deep, so 107 × 34 mm in 3 mm stock and 212 × 46 mm in 6 mm — each slot 0.05 mm
+wider than the last
 and engraved with its value. Cut it in the sheet you are about to use, push an
 offcut of that same sheet into each slot, and set `klaring` to the one that goes
 in under thumb pressure. Twenty seconds of laser time, and it settles kerf and

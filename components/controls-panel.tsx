@@ -83,7 +83,6 @@ export function ControlsPanel(props: {
   metrics: Metrics | null
   rules: Rule[]
   view: View
-  /** kva kjent ting som står ved sida av objektet, eller «av» */
   /** profilane som bilete (SVG-tekst), generert automatisk av arbeidaren */
   syn: string | null
   hiDetail: boolean
