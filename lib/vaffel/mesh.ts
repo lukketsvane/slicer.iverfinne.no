@@ -280,16 +280,36 @@ export function contourLines(g: Grid): { lines: Float32Array; heavy: Float32Arra
   let x = 0
   for (const r of g.ribs) {
     const dst = r.axis === "x" ? bold : thin
-    let w = 0
-    for (const o of r.outlines) for (const q of o) w = Math.max(w, Math.abs(q[0]))
+    // BREIDDA TIL PROFILEN, IKKJE DEN LENGSTE ARMEN HANS.
+    //
+    // Rada gjekk fram med to gonger største |t| pluss ei luke, medan kvar
+    // profil vart teikna sentrert. Ein profil som ligg skeivt — og det
+    // gjer alle som ikkje er symmetriske kring ribba — rekk då lenger til
+    // den eine sida enn steget tek høgd for, og den neste vert teikna oppå
+    // han: 41,7 mm gjennom kvarandre på ein firbeint, og 31 mm daud luft
+    // ein annan stad i den same rada.
+    //
+    // Venstrekanten og høgrekanten, som `profileSvg` har gjort heile
+    // tida for den plata dette skal likne på.
+    let lo = Infinity
+    let hi = -Infinity
+    for (const o of r.outlines) {
+      for (const q of o) {
+        if (q[0] < lo) lo = q[0]
+        if (q[0] > hi) hi = q[0]
+      }
+    }
+    // Ei ribbe som ikkje råka nettet har ingen profil, og skal ikkje
+    // leggje att ei tom luke i rada heller.
+    if (!Number.isFinite(lo)) continue
     for (const ring of [...r.outlines, ...r.holes]) {
       for (let i = 0; i < ring.length; i++) {
         const a = ring[i]
         const b = ring[(i + 1) % ring.length]
-        seg(dst, [x + a[0], 0, a[1]], [x + b[0], 0, b[1]])
+        seg(dst, [x - lo + a[0], 0, a[1]], [x - lo + b[0], 0, b[1]])
       }
     }
-    x += 2 * w + GAP
+    x += hi - lo + GAP
   }
   // sentrer rekkja, elles står ho og dreg kameraet med seg
   const shift = -x / 2

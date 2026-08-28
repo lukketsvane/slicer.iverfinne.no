@@ -202,11 +202,34 @@ type Board = {
   /** høgste sette celle pluss éin, per kolonne */
   top: Int32Array
   used: number
+  /**
+   * Former denne plata alt har sagt nei til.
+   *
+   * Ei plate får berre MEIR gods; ho vert aldri tømd. So eit nei kan
+   * aldri verte eit ja, og då er det ingen grunn til å spørje to gonger.
+   * Utan dette skanna kvar del kvar einaste plate på nytt: ei kule med
+   * 32 ribber kvar veg vart 64 delar på 40 plater, og pakkinga tok 930 ms
+   * — nesten halve tida i eit drag, av ein funksjon som seier om seg
+   * sjølv at han går på titals millisekund av di platetalet skal fylgje
+   * skyvaren.
+   *
+   * Dette hoppar berre over arbeid som ville svart nei. Kvar del hamnar
+   * på nøyaktig same plata som før.
+   */
+  nei: Set<string>
 }
 
 const board = (w: number, h: number): Board => {
   const words = (w + 31) >> 5
-  return { w, h, words, bits: new Uint32Array(words * h), top: new Int32Array(w), used: 0 }
+  return {
+    w,
+    h,
+    words,
+    bits: new Uint32Array(words * h),
+    top: new Int32Array(w),
+    used: 0,
+    nei: new Set(),
+  }
 }
 
 /** er nokon bit sett i [a, b) på denne rada? */
@@ -366,7 +389,7 @@ export function pack(
   // Størst fyrst. Ein liten del finn alltid ein lomme; ein stor gjer det
   // berre medan plata framleis er open.
   const order = pieces
-    .map((p, i) => ({ i, f: formOf(p) }))
+    .map((p, i) => ({ i, key: p.key, f: formOf(p) }))
     .sort((a, b) => b.f.cells - a.f.cells)
 
   /** lågaste ledige plass for denne forma på denne plata, over alle fire
@@ -392,13 +415,15 @@ export function pack(
   }
 
   const boards: Board[] = []
-  for (const { i, f } of order) {
+  for (const { i, key, f } of order) {
     let put: { s: number; rot: 0 | 1 | 2 | 3; px: number; py: number } | null = null
     // Fyrste plate som tek han. Det held dei fyrste platene fulle, og det
     // er dei ein faktisk skjer ut fyrst.
     for (let s = 0; s < boards.length && !put; s++) {
+      if (boards[s].nei.has(key)) continue
       const best = seek(boards[s], f)
       if (best) put = { s, ...best }
+      else boards[s].nei.add(key)
     }
     if (!put) {
       // Ei ny plate. Får han ikkje plass på ei TOM plate heller, er han
