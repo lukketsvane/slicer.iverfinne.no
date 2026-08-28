@@ -864,7 +864,7 @@ export function Studio() {
         >
           <span
             className="fade-inn text-center text-[10px] uppercase tracking-[0.2em]"
-            style={{ color: "var(--ink)", opacity: 0.4 }}
+            style={{ color: "var(--ink)", opacity: 0.6 }}
           >
             {hint === "gest" ? "to fingrar: klyp, vri, dra" : "slepp ei fil kvar som helst"}
           </span>
@@ -897,6 +897,7 @@ export function Studio() {
           busy={busy}
           feil={feil}
           hentar={hentar}
+          melding={melding}
           tunar={tunar}
           liste={liste}
           paa={finnStad ? finnStad.nth : null}

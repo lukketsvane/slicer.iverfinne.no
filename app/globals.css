@@ -36,6 +36,54 @@ html {
   }
 }
 
+/*
+ * DEMPA TEKST, OG KOR DEMPA HO KAN VERE.
+ *
+ * Flata lever av at det meste er stille: einingar, etikettar og
+ * overskrifter skal stå attende so tala kan stå fram. Men ein tekst som er
+ * dempa er framleis ein tekst nokon skal lese, og under eit visst punkt er
+ * han ikkje dempa lenger — han er borte.
+ *
+ * Blekket er #141414 på kvitt papir. Skal ti pikslar halde kravet på 4,5:1,
+ * kan gjennomsikta ikkje gå under 0,58. Difor 0,6, og difor eitt tal og
+ * ikkje femten: det stod 0,30, 0,35, 0,40, 0,45, 0,50 og 0,55 kring i
+ * grensesnittet, og alle seks las dårlegare enn kravet. Skiljet mellom dei
+ * bar ingenting som storleiken, sperringa og plasseringa ikkje bar frå før.
+ *
+ * Skiljeteikn, avslegne knappar og reine dekorasjonar står utanfor: dei er
+ * ikkje tekst nokon skal lese.
+ */
+.dim {
+  opacity: 0.6;
+}
+
+/*
+ * EI LISTE SOM HELD FRAM NEDANFOR KANTEN, SKAL SEIE DET.
+ *
+ * Veggane står fast og rullar ikkje — det er heile grunnen til at dei er
+ * veggar og ikkje eit ark med tre høgder. Men på ein låg skjerm er det
+ * ikkje plass til alle skyvarane likevel, og då rullar lista. Ho gjorde det
+ * heilt stille: siste skyvaren var kappa på midten, og ingenting sa at det
+ * var meir under.
+ *
+ * Skuggen kjem og går av seg sjølv, utan ei einaste line JavaScript. To av
+ * gradientane er festa til INNHALDET (`local`) og har papirfargen; dei to
+ * andre er festa til RAMMA (`scroll`) og er skuggen. Står lista øvst, ligg
+ * papiret oppå den øvre skuggen og gøymer han; rullar du, glir papiret vekk
+ * og skuggen kjem fram. Er det ingenting å rulle, ligg begge papirlappane
+ * over begge skuggane, og du ser ingen.
+ */
+.rull {
+  overflow-y: auto;
+  background:
+    linear-gradient(var(--paper) 40%, transparent) top / 100% 16px no-repeat local,
+    linear-gradient(transparent, var(--paper) 60%) bottom / 100% 16px no-repeat local,
+    linear-gradient(color-mix(in srgb, var(--ink) 24%, transparent), transparent)
+      top / 100% 10px no-repeat scroll,
+    linear-gradient(transparent, color-mix(in srgb, var(--ink) 24%, transparent))
+      bottom / 100% 10px no-repeat scroll;
+}
+
 /* Skyvaren. Ei line og ein prikk — ingenting anna, fordi alt anna ville
    konkurrere med objektet om merksemda. */
 .pslider {

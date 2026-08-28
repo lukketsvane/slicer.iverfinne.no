@@ -70,7 +70,7 @@ export const VEGG = { venstre: 272, hogre: 312, topp: 44 }
 const BLOKK = "border-t pt-2.5 mt-2.5"
 /** plata står saman med materialet og tjukna, ikkje nedst i veggen */
 const PLATE = ["arkB", "arkH"]
-const OVERSKRIFT = "pb-1 text-[10px] uppercase leading-none tracking-[0.24em] opacity-35"
+const OVERSKRIFT = "dim pb-1 text-[10px] uppercase leading-none tracking-[0.24em]"
 
 /**
  * SVARET FRÅ FINN, SOM EI LISTE.
@@ -115,11 +115,11 @@ function Svarlista({
   }
   return (
     <div
-      className="min-h-0 flex-1 overflow-y-auto"
+      className="rull min-h-0 flex-1"
       style={{ opacity: gjeld ? 1 : 0.35, transition: "opacity 160ms ease" }}
       onPointerLeave={() => over(null)}
     >
-      <div className="flex text-[9px] uppercase tracking-[0.14em] opacity-30">
+      <div className="dim flex text-[9px] uppercase tracking-[0.14em]">
         <span className="w-5" />
         <span className="flex-1">ribber</span>
         <span className="w-9 text-right">delar</span>
@@ -139,7 +139,7 @@ function Svarlista({
               : { color: "var(--ink)" }
           }
         >
-          <span className="w-5 pl-1 text-left opacity-45">{i + 1}</span>
+          <span className="dim w-5 pl-1 text-left">{i + 1}</span>
           <span className="flex-1 text-left">
             {k.ribbX}×{k.ribbY}
           </span>
@@ -222,8 +222,8 @@ function Storleik({
             }
           }}
         />
-        <span className="text-[11px] opacity-45">mm</span>
-        <span className="tab ml-auto text-[10px] opacity-40">
+        <span className="dim text-[11px]">mm</span>
+        <span className="dim tab ml-auto text-[10px]">
           {metrics
             ? `${n0(metrics.envX)}×${n0(metrics.envY)}×${n0(metrics.envZ)}`
             : ""}
@@ -254,6 +254,8 @@ export function Benk(props: {
   busy: boolean
   feil: string | null
   hentar: boolean
+  /** eit ord attende på noko som elles ikkje synest — sjå `share` i studio */
+  melding: string | null
   tunar: { gjort: number; av: number } | null
   liste: readonly Kandidat[]
   /** kva rad i lista som står, eller null */
@@ -284,6 +286,7 @@ export function Benk(props: {
     busy,
     feil,
     hentar,
+    melding,
     tunar,
     liste,
     paa,
@@ -399,9 +402,12 @@ export function Benk(props: {
           <span className="shrink-0 opacity-70">{IcoImport}</span>
           <span className="min-w-0 flex-1 truncate text-left">{kjelde}</span>
         </button>
-        {(feil || hentar) && (
-          <span className="tab truncate text-[11px]" style={{ color: feil ? "var(--warn)" : undefined, opacity: feil ? 1 : 0.4 }}>
-            {feil ?? "les fila …"}
+        {(feil || melding || hentar) && (
+          <span
+            className="tab truncate text-[11px]"
+            style={{ color: feil ? "var(--warn)" : undefined, opacity: feil ? 1 : melding ? 0.7 : 0.4 }}
+          >
+            {feil ?? melding ?? "les fila …"}
           </span>
         )}
         <a
@@ -566,7 +572,7 @@ export function Benk(props: {
         </div>
 
         {/* SKYVEVEGGEN. Alle saman, alltid. */}
-        <div className={BLOKK + " min-h-0 flex-1 overflow-y-auto"} style={HAIR}>
+        <div className={BLOKK + " rull min-h-0 flex-1"} style={HAIR}>
           {VAFFEL.groups.map((g) => {
             // Storleiken og plata står alt framme. Ei gruppe som er tom
             // etter det, er ei overskrift over ingenting.
@@ -589,7 +595,7 @@ export function Benk(props: {
           })}
           {/* Tastane står nedst i veggen, etter alt anna. Den som har rulla
               heilt ned er den som kjem att. */}
-          <p className="pt-3 text-[9px] leading-relaxed tracking-[0.1em] opacity-30">
+          <p className="dim pt-3 text-[9px] leading-relaxed tracking-[0.1em]">
             {TASTAR + TAST_BENK}
           </p>
         </div>
@@ -607,7 +613,7 @@ export function Benk(props: {
           style={{ opacity: busy ? 0.45 : 1 }}
         >
           {tal.length === 0 ? (
-            <span className="opacity-40">snittar …</span>
+            <span className="dim">snittar …</span>
           ) : (
             tal.map((h) => (
               <span
@@ -637,7 +643,7 @@ export function Benk(props: {
                 key={row.label}
                 className="flex items-baseline justify-between gap-2 py-[1px] text-[10px] leading-4"
               >
-                <dt className="shrink-0 truncate opacity-45">{row.label}</dt>
+                <dt className="dim shrink-0 truncate">{row.label}</dt>
                 <dd
                   className="tab truncate text-right"
                   style={{
@@ -647,7 +653,7 @@ export function Benk(props: {
                   }}
                 >
                   {row.value}
-                  {row.unit && <span className="pl-0.5 opacity-45">{row.unit}</span>}
+                  {row.unit && <span className="dim pl-0.5">{row.unit}</span>}
                 </dd>
               </div>
             )
@@ -657,7 +663,7 @@ export function Benk(props: {
         {/* REGLANE. Alle tolv, ikkje berre dei som ryk: ein mjuk regel
             finst nettopp for at du skal sjå marginen FØR han ryk. Den som
             ryk og har eit råd, ber rådet med seg i same lina. */}
-        <div className={BLOKK + " min-h-0 shrink overflow-y-auto"} style={HAIR}>
+        <div className={BLOKK + " rull min-h-0 shrink"} style={HAIR}>
           {rules.map((r) => (
             <div
               key={r.id}
@@ -665,7 +671,10 @@ export function Benk(props: {
               className="flex items-center justify-between gap-2 py-[1px] text-[10px] leading-4"
               style={{
                 color: !r.ok && r.hard ? "var(--warn)" : undefined,
-                opacity: r.ok ? 0.35 : 1,
+                // Ein regel som held står attende, men han skal framleis
+                // kunne lesast: heile grunnen til at alle tolv står her er
+                // at du skal sjå marginen FØR han ryk. Sjå `.dim`.
+                opacity: r.ok ? 0.6 : 1,
               }}
             >
               <span className="truncate tracking-[0.04em]">{r.label}</span>
@@ -725,7 +734,7 @@ export function Benk(props: {
           <div className="flex items-center gap-3 pt-2 text-[10px] uppercase tracking-[0.14em]">
             <span
               className="flex items-center gap-3"
-              style={{ color: "var(--ink)", opacity: 0.55 }}
+              style={{ color: "var(--ink)", opacity: 0.6 }}
               title="svart er C00 i LightBurn og køyrer fyrst, difor graverer det"
             >
               {[
