@@ -333,7 +333,12 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     hard: false,
     ok: m.util >= 0.35 || m.sheets <= 1,
     value: `${nn(m.util * 100)} %`,
-    why: "Meir enn to tredelar av plata går i søppelbøtta. Prøv ei anna plate, eller færre og større delar. Pakkinga her legg delane etter omrisset og ikkje etter konturen, so ei ribbe med ei stor opning i tel som full.",
+    // Teksten sa at pakkinga legg delane etter boksen kring dei, og at ei
+    // ribbe med ei stor opning difor tel som full. Ho gjer det motsette:
+    // ho rasteriserer kvart omriss med hòla i, og legg gjerne tre små
+    // ribber inn i tomrommet under ein boge. Ein regel som forklarar seg
+    // sjølv feil er verre enn ein som teier.
+    why: "Meir enn to tredelar av plata går i søppelbøtta. Prøv ei anna plate, eller færre og større delar. Pakkinga fylgjer omrisset og reknar hòla i ein del som ledig plass, so det som står att er luft ho ikkje fann nokon del til.",
   })
 
   return out
