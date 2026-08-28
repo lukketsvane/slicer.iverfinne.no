@@ -19,6 +19,7 @@
  */
 import { VAFFEL } from "../lib/vaffel/engine"
 import { DEFAULT_PARAMS, PARAM_RANGES, type Params } from "../lib/vaffel/params"
+import { parseMesh } from "../lib/io"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
 import type { ExportKind, Metrics, ParamBag } from "../lib/core"
@@ -239,9 +240,62 @@ function sjekk(namn: string, p: Params, vis = false) {
 }
 
 // =============================================================================
+// FILER SOM IKKJE ER FILER
+// =============================================================================
+/**
+ * Ei fil kjem utanfrå, og ho kan seie kva som helst om seg sjølv.
+ *
+ * PLY-hovudet skriv kor mange rader kroppen har, og talet vart lese rett
+ * inn som lykkjegrense. Ei fil på to hundre byte med «element foo 1e18»
+ * sette arbeidaren til å telje til ein trillion: sida stod på «les fila …»
+ * for alltid, og einaste vegen ut var å laste henne på nytt.
+ *
+ * Kravet er ikkje at fila skal lesast. Det er at reiskapen skal KOME
+ * ATTENDE — anten med eit nett eller med eit ord om at han ikkje kunne
+ * lese henne. Går ein av desse i lykkje att, stoggar heile prøvebenken her,
+ * og det er òg eit svar.
+ */
+console.log("filer som ikkje er filer")
+{
+  const tekst = new TextEncoder()
+  const bygg = (hovud: string, hale = 0) => {
+    const h = tekst.encode(hovud)
+    const b = new Uint8Array(h.length + hale)
+    b.set(h, 0)
+    return b.buffer.slice(0) as ArrayBuffer
+  }
+  const FILER: [string, string, ArrayBuffer][] = [
+    ["ply: element 1e18", "vond.ply", bygg("ply\nformat binary_little_endian 1.0\nelement foo 1e18\nproperty float bar\nend_header\n", 100)],
+    ["ply: milliard toppunkt", "vond.ply", bygg("ply\nformat binary_little_endian 1.0\nelement vertex 1000000000\nproperty float x\nproperty float y\nproperty float z\nend_header\n", 100)],
+    ["ply: tekst, milliard", "vond.ply", bygg("ply\nformat ascii 1.0\nelement vertex 1000000000\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n")],
+    ["ply: negativt tal", "vond.ply", bygg("ply\nformat ascii 1.0\nelement vertex -5\nproperty float x\nend_header\n")],
+    ["ply: utan hovudslutt", "vond.ply", bygg("ply\nformat ascii 1.0\nelement vertex 3\n")],
+    ["stl: berre hovudet", "vond.stl", bygg("", 84)],
+    ["stl: lyg om talet", "vond.stl", (() => { const b = new Uint8Array(84); new DataView(b.buffer).setUint32(80, 1e6, true); return b.buffer.slice(0) as ArrayBuffer })()],
+    ["obj: berre søppel", "vond.obj", bygg("f 1 2 3\nf 9 9 9\nv nei nei nei\n")],
+    ["glb: for kort", "vond.glb", bygg("glTF", 4)],
+    ["tomt", "vond.stl", bygg("")],
+  ]
+  for (const [namn, filnamn, buf] of FILER) {
+    saker++
+    const t0 = Date.now()
+    let svar: string
+    try {
+      const m = parseMesh(filnamn, buf)
+      svar = `${m.tris} trekantar`
+    } catch (e) {
+      svar = `sa frå: ${(e as Error).message.slice(0, 46)}`
+    }
+    const brukt = Date.now() - t0
+    if (brukt > 1000) feil(namn, `tok ${brukt} ms på ${buf.byteLength} byte`)
+    console.log(`  ${namn.padEnd(24)} ${String(buf.byteLength).padStart(5)} B → ${svar} (${brukt} ms)`)
+  }
+}
+
+// =============================================================================
 // KØYRINGA
 // =============================================================================
-console.log("nett som ikkje er nett")
+console.log("\nnett som ikkje er nett")
 for (const [namn] of NETT) {
   sjekk(namn.padEnd(20), { ...DEFAULT_PARAMS, kjelde: `v-${namn}` }, true)
 }
