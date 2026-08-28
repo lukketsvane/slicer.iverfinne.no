@@ -106,6 +106,47 @@ function graveringaLiggInne(namn: string, svg: string) {
 }
 
 /**
+ * ALT SOM ER TEIKNA, SKAL LIGGJE INNANFOR RAMMA.
+ *
+ * `viewBox` er teikninga sitt eige mål på seg sjølv, og millimetermålet
+ * ved sida er lovnaden om at ho kan skrivast ut 1:1. Ligg ein bane utanfor
+ * ramma, er begge to feil: ein nettlesar klipper banen bort, og eit
+ * laserprogram som les dokumentstorleiken får ei plate som er mindre enn
+ * det som står i henne.
+ *
+ * Kompensasjonen er staden det skjer. Ho skuvar kvart omriss ein halv
+ * snittbreidd utover, og ei ramme rekna på den nominelle forma veks ikkje
+ * med. På kuttarket merkast det ikkje — delane ligg inne på plata med luft
+ * rundt — men passprøva ER omrisset sitt, og på seks tidels snitt stod
+ * ytterkanten hennar tre tidelar utanfor si eiga ramme.
+ */
+function innanforRamma(namn: string, svg: string) {
+  const vb = svg.match(/viewBox="([^"]+)"/)?.[1].split(/\s+/).map(Number)
+  if (!vb || vb.length !== 4 || vb.some((v) => !Number.isFinite(v))) {
+    return feil(namn, "inga brukande viewBox")
+  }
+  // Millimetermålet skal vera det same talet som ramma. Er dei ikkje like,
+  // er ikkje teikninga 1:1, same kva ho seier.
+  const mm = svg.match(/width="([\d.-]+)mm" height="([\d.-]+)mm"/)
+  if (!mm) return feil(namn, "inkje millimetermål")
+  if (Math.abs(+mm[1] - vb[2]) > 0.011 || Math.abs(+mm[2] - vb[3]) > 0.011) {
+    return feil(namn, `${mm[1]}×${mm[2]} mm, men ramma er ${vb[2]}×${vb[3]}`)
+  }
+  let ute = 0
+  let verst = 0
+  for (const m of svg.matchAll(/<path d="([^"]+)"/g)) {
+    for (const q of pathPts(m[1])) {
+      const d = Math.max(vb[0] - q[0], vb[1] - q[1], q[0] - (vb[0] + vb[2]), q[1] - (vb[1] + vb[3]))
+      if (d > 1e-9) {
+        ute++
+        verst = Math.max(verst, d)
+      }
+    }
+  }
+  if (ute) feil(namn, `${ute} punkt ligg opptil ${verst.toFixed(2)} mm utanfor ramma`)
+}
+
+/**
  * Kva veg vindinga går i akkurat denne fila.
  *
  * Kuttarket speglar Y i ei gruppe og let hjørna stå; profilarket bakar
@@ -283,6 +324,7 @@ function arkSteg(namn: string, p: Params): Steg[][] {
   const kerf = kerfOf(p)
   return ns.sheets.map((_, i) => {
     const svg = sheetSvg(ns, i, kerf)
+    innanforRamma(`${namn} · ark ${i + 1}`, svg)
     graveringaLiggInne(`${namn} · ark ${i + 1}`, svg)
     return svgSteg(`${namn} · ark ${i + 1}`, svg)
   })
@@ -370,10 +412,9 @@ for (const [namn, p] of saker) {
   const bag = p as unknown as ParamBag
   const ark = arkSteg(namn, p)
   ark.forEach((steg, i, all) => sjekkSteg(`${namn} · ark ${i + 1}/${all.length}`, steg))
-  sjekkSteg(
-    `${namn} · profilar`,
-    svgSteg(`${namn} · profilar`, VAFFEL.exportFile(bag, "svg").text ?? ""),
-  )
+  const prof = VAFFEL.exportFile(bag, "svg").text ?? ""
+  innanforRamma(`${namn} · profilar`, prof)
+  sjekkSteg(`${namn} · profilar`, svgSteg(`${namn} · profilar`, prof))
   const dxf = dxfPerArk(`${namn} · dxf`, VAFFEL.exportFile(bag, "dxf").text ?? "", p.arkH)
   dxf.forEach((steg, i, all) => sjekkSteg(`${namn} · dxf ${i + 1}/${all.length}`, steg))
   inventar(namn, p, ark, dxf)
@@ -507,6 +548,7 @@ const proveSaker: [string, Partial<Params>][] = [
 for (const [namn, over] of proveSaker) {
   const pp = { ...DEFAULT_PARAMS, ...over }
   const svg = VAFFEL.exportFile(pp as unknown as ParamBag, "prove").text ?? ""
+  innanforRamma(namn, svg)
   graveringaLiggInne(namn, svg)
   kupongMaal(namn, svg, pp.tjukn, kerfOf(pp))
 }
