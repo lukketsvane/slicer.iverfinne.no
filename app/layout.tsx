@@ -26,6 +26,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "nn_NO",
   },
+  twitter: { card: "summary_large_image", title: TITLE, description: NOTE },
   applicationName: TITLE,
   appleWebApp: { capable: true, statusBarStyle: "default", title: TITLE },
 }
