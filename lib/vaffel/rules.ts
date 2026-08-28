@@ -87,7 +87,10 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
   const snittFiks = (): Fiks | undefined => {
     if (p.snitt < m.slotW) return undefined
     const ny = Math.max(0.05, snapp(m.slotW * 0.5, 0.05))
-    return ny < p.snitt ? { ord: `prøv ${mm1(ny)}`, set: { snitt: ny } } : undefined
+    // `mm2` og ikkje `mm1`: rådet landar på skyvaren sitt eige 0,05-steg,
+    // og éin desimal skreiv 1,55 som «1,6». Kontrakten er at talet på
+    // knappen er talet knappen set.
+    return ny < p.snitt ? { ord: `prøv ${mm2(ny)}`, set: { snitt: ny } } : undefined
   }
 
   const opningFiks = (): Fiks | undefined => {
@@ -98,6 +101,14 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     const ny = ribberFor(p.ribbY, g.gapY, p.tjukn, 3.2)
     if (nx >= p.ribbX && ny >= p.ribbY) return undefined
     const sett = { ribbX: Math.min(nx, p.ribbX), ribbY: Math.min(ny, p.ribbY) }
+    // Færre ribber er rekna på ei jamn stigning, og ein kropp er ikkje
+    // jamn. På ein torus i ti millimeter tok «prøv 7×7» ribbene så langt
+    // frå kvarandre at dei ikkje lenger møttest i gods: null ledd, null
+    // delar, og to nye harde brot for å ordne ei opning som var for
+    // trong. Ei opning ein kan få fingeren i er ikkje verd eit objekt som
+    // ikkje finst.
+    const { g: g2, pl: pl2 } = makePlan({ ...p, ...sett }, DETAIL.mid)
+    if (!g2.joints || !pl2.parts.length) return undefined
     return { ord: `prøv ${sett.ribbX}×${sett.ribbY}`, set: sett }
   }
 
@@ -165,20 +176,48 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
 
   // --- 4 gods att i leddet (hard) ---------------------------------------------
   const minGods = Math.max(2, p.tjukn)
+
+  /**
+   * «DEL I MIDTEN» — MEN BERRE OM HAN FAKTISK DELER.
+   *
+   * Det tynnaste godset står på den sida av leddet delinga gjev minst
+   * til, so halvt om halvt gjev dei to sidene like mykje. Det er det
+   * einaste svaret reiskapen kan rekne seg fram til her, og det var det
+   * han sa — utan å rekne etter.
+   *
+   * `ledd` flyttar ikkje berre sporbotnen. Han avgjer OM leddet i det
+   * heile vert lagt: rommet må halde på begge sider av sporet, i den
+   * høgda sporet står i, og den høgda er `ledd`. Målt på ein torus i ti
+   * millimeter tok knappen godset frå 4,3 mm til ingenting, delane frå
+   * fire til null, og éin broten hard regel til tre. Du sat att med
+   * ingenting å skjere og ingen knapp å trykkje på.
+   *
+   * Difor vert han rekna før han vert tilbydd. Ein plan til er ikkje
+   * gratis, men han vert berre rekna når regelen alt er broten — og
+   * `makePlan` hugsar han, so sjølve trykket kostar ingenting. Søket
+   * sender inn sin eigen plan og ser aldri på knappen, so det betaler
+   * ingenting her.
+   */
+  const godsFiks = (): Fiks | undefined => {
+    if (m.narrow >= minGods || Math.abs(p.ledd - 0.5) <= 0.01) return undefined
+    const { g: g2 } = makePlan({ ...p, ledd: 0.5 }, DETAIL.mid)
+    // Eit råd som tek ledda med seg er ikkje eit råd.
+    if (!g2.joints || g2.joints < g.joints) return undefined
+    const narrow = g2.ribs.reduce(
+      (s, r) => (r.slots.length ? Math.min(s, r.narrow) : s),
+      Infinity,
+    )
+    return narrow >= minGods ? { ord: "del i midten", set: { ledd: 0.5 } } : undefined
+  }
+
   add({
     id: "gods",
     label: "gods i leddet",
     hard: true,
     ok: m.narrow >= minGods,
     value: mm1(m.narrow),
-    why: `Sporet et halve overlappet, og det som er att må bera resten av ribba. Under éi platetjukn (${mm1(minGods)}) knekk finéren i sporbotnen når du pressar delane saman. Flytt leddelinga, eller sett ribbene der nettet er tjukkare.`,
-    // Det tynnaste godset står på den sida av leddet delinga gjev minst
-    // til. Halvt om halvt gjev dei to sidene like mykje, og er difor det
-    // einaste svaret reiskapen kan rekne seg fram til her.
-    fiks:
-      m.narrow < minGods && Math.abs(p.ledd - 0.5) > 0.01
-        ? { ord: "del i midten", set: { ledd: 0.5 } }
-        : undefined,
+    why: `Sporet et halve overlappet, og det som er att må bera resten av ribba. Under ${mm1(minGods)} knekk finéren i sporbotnen når du pressar delane saman. Flytt leddelinga, eller sett ribbene der nettet er tjukkare.`,
+    fiks: godsFiks(),
   })
 
   // --- 5 delane får plass på plata (hard) -------------------------------------
@@ -221,7 +260,9 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     label: "snittbreidd",
     hard: false,
     ok: p.snitt > 0,
-    value: p.snitt > 0 ? `${mm1(p.snitt)} ${SNITTVEGAR[p.snittveg] ?? ""}`.trim() : "null",
+    // Snittbreidda bur på eit 0,05-band, som klaringa: éin desimal gjer
+    // fire skyvarsteg til to tal, og 0,05 og 0,15 les begge som «0,1».
+    value: p.snitt > 0 ? `${mm2(p.snitt)} ${SNITTVEGAR[p.snittveg] ?? ""}`.trim() : "null",
     why: "Stråla har breidd, og kutten et henne ut av delen. Er snittbreidda null, kompenserer korkje fila eller maskina for henne: kvart spor kjem ut ei snittbreidd for vidt og kvar tapp ei snittbreidd for tynn. Passprøva måler henne og klaringa i eitt.",
     // To tidelar er ein vanleg laser i tynn MDF. Det er eit utgangspunkt
     // og ikkje eit mål: passprøva er der for å byte det ut med ditt eige.
@@ -244,7 +285,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     label: "snittet mot sporet",
     hard: true,
     ok: p.snitt < m.slotW,
-    value: `${mm1(p.snitt)} mot ${mm1(m.slotW)}`,
+    value: `${mm2(p.snitt)} mot ${mm2(m.slotW)}`,
     why: "Snittbreidda vert kompensert ved å skuve omrisset utover, og sporet vert teikna like mykje smalare. Er snittet like breitt som sporet, er det teikna sporet borte, og konturen brettar seg over seg sjølv. Anten står snittbreidda for høgt, eller so er plata for tynn til det verktøyet.",
     // Halve sporet, ikkje heile: brettinga byrjar eit stykke før grensa,
     // so eit råd som legg seg inntil henne er eit råd som ikkje held.

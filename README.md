@@ -231,6 +231,7 @@ be made or can't be assembled; **soft** is a choice worth knowing about.
 - parts fit on the sheet you actually have
 - press fit is in a workable band (soft)
 - somebody takes the kerf (soft)
+- the kerf does not eat the slot it is compensating for
 - ribs are far enough apart to get a finger between them (soft)
 - the mesh is closed (soft)
 - resolution wasn't simplified away (soft)
