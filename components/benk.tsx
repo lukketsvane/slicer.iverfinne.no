@@ -15,6 +15,7 @@ import {
 import { FORMAT } from "@/lib/io"
 import { VAFFEL } from "@/lib/vaffel/engine"
 import type { Kandidat } from "@/lib/vaffel/tune"
+import { VERKTY, type VerktyId } from "./verkty"
 import {
   CHIP,
   EXPORTS,
@@ -277,6 +278,9 @@ export function Benk(props: {
   onSynSvar: (i: number | null) => void
   onShare: () => void
   onFile: (f: File) => void
+  /** kva verkty som står ope i skuffa over lerretet, om noko */
+  verkty: VerktyId | null
+  onVerkty: (id: VerktyId) => void
 }): JSX.Element {
   const {
     params,
@@ -306,6 +310,8 @@ export function Benk(props: {
     onSynSvar,
     onShare,
     onFile,
+    verkty,
+    onVerkty,
   } = props
   const pick = useRef<HTMLInputElement | null>(null)
 
@@ -413,11 +419,27 @@ export function Benk(props: {
             {feil ?? melding ?? "les fila …"}
           </span>
         )}
+        {/* VERKTYA. Dei står i topplina av di dei ikkje høyrer til nokon av
+            veggane: dei legg seg over lerretet mellom dei. */}
+        <span className="ml-auto flex items-center gap-1.5">
+          {VERKTY.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              title={v.hint}
+              onClick={() => onVerkty(v.id)}
+              className={CHIP_B + " min-h-[26px] px-2.5 uppercase tracking-[0.1em]"}
+              style={chipStyle(verkty === v.id)}
+            >
+              {v.ord}
+            </button>
+          ))}
+        </span>
         <a
           href="https://iverfinne.no"
           target="_blank"
           rel="noopener noreferrer"
-          className="ml-auto text-[11px] tracking-wide opacity-60 hover:opacity-100"
+          className="text-[11px] tracking-wide opacity-60 hover:opacity-100"
           style={{ color: "var(--ink)" }}
         >
           iverfinne.no
