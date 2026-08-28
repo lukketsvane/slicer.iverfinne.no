@@ -130,8 +130,29 @@ export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "material"
  * bygg vert rekna ein gong for mykje — ikkje at det står att eit svar frå
  * eit anna punkt i parameterrommet.
  */
-const BERRE_UTTAK = ["snitt", "snittveg", "fart"] as const
+/**
+ * Det som berre er FILA: korleis kuttet vert skrive, ikkje kva som vert
+ * skore. Kven som kompenserer for snittet, og kor fort maskina går.
+ */
+const BERRE_FIL = ["snittveg", "fart"] as const
 const BERRE_ARK = ["arkB", "arkH", "material"] as const
+/**
+ * SNITTET STOD HER, OG DET HØYRDE IKKJE HEIME.
+ *
+ * Snittbreidda rører ikkje rutenettet: ribbene står der dei står same kor
+ * brei stråla er. Men ho rører PAKKINGA — luka mellom delane er
+ * `max(4, 2·snitt + 2)`, av di to kutt som ligg inntil kvarandre et kvar
+ * si halve snittbreidd av godset imellom.
+ *
+ * Med snittet ute av plannøkkelen fekk ein ny snittbreidd servert den
+ * gamle pakkinga: målt på ein kube i 420 mm med åtte ribber kvar veg gjekk
+ * luka frå 4 til 14 mm utan at platetalet eller utnyttinga rørte seg — og
+ * uttaket la delane like tett som før. Det er nett den kollisjonen luka
+ * finst for å hindre.
+ *
+ * Difor: ute av rutenettnøkkelen, men INNE i plannøkkelen.
+ */
+const UTANFOR_NETTET = ["snitt", ...BERRE_FIL] as const
 
 /**
  * Kva eit hugsa RUTENETT har lov til å vita om.
@@ -148,7 +169,7 @@ const BERRE_ARK = ["arkB", "arkH", "material"] as const
  */
 export type NettParams = Omit<
   Params,
-  (typeof BERRE_UTTAK)[number] | (typeof BERRE_ARK)[number]
+  (typeof UTANFOR_NETTET)[number] | (typeof BERRE_ARK)[number]
 >
 
 const nokkel = (p: ParamBag, keys: readonly string[], cells: number) =>
@@ -159,14 +180,14 @@ const utan = (drop: readonly string[]) => {
   return ALLE_KEYS.filter((k) => !s.has(k))
 }
 
-/** planen: ribber, delar og pakking. Alt utanom det som berre er uttak. */
+/** planen: ribber, delar og PAKKING. Alt utanom det som berre er fila. */
 export const planKey = (p: ParamBag, cells: number) =>
-  nokkel(p, utan(BERRE_UTTAK), cells)
+  nokkel(p, utan(BERRE_FIL), cells)
 
 /** rutenettet: som planen, men plata og materialet rører det ikkje. Han
  *  vert hugsa per kropp, so kroppsparametrane ligg alt i kroppen. */
 export const gridKey = (p: ParamBag, cells: number) =>
-  nokkel(p, utan([...BERRE_UTTAK, ...BERRE_ARK]), cells)
+  nokkel(p, utan([...UTANFOR_NETTET, ...BERRE_ARK]), cells)
 
 /**
  * Standarden er ein kube i tre millimeter MDF, på ei plate på 800 × 600.

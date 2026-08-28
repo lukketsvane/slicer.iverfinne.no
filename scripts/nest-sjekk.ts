@@ -401,6 +401,26 @@ sjekk("breitt snitt", {
   storleik: 400, arkB: 1200, arkH: 900,
 })
 
+/**
+ * TO PLANAR SOM BERRE SKIL SEG I SNITTET.
+ *
+ * Kvar sak over står på sitt eige punkt i parameterrommet, so ingen av dei
+ * spør nokon gong om det same objektet TO gonger med ulik snittbreidd — og
+ * det var nett det som gjekk gale: snittet stod ikkje i plannøkkelen, so
+ * den andre spørjinga fekk servert pakkinga frå den fyrste. Luka gjekk frå
+ * 4 til 14 mm utan at ei einaste plate flytta seg, og uttaket la delane
+ * like tett som før.
+ *
+ * Same objekt, same plate, same ribber. Berre snittet. Rekkjefylgja er
+ * poenget: den smale fyrst, so den breie må hente ei ny pakking.
+ */
+sjekk("same objekt, smalt snitt", {
+  ...DEFAULT_PARAMS, kjelde: "kule", storleik: 420, ribbX: 8, ribbY: 8, snitt: 0.2,
+})
+sjekk("same objekt, breitt snitt", {
+  ...DEFAULT_PARAMS, kjelde: "kule", storleik: 420, ribbX: 8, ribbY: 8, snitt: 6,
+})
+
 pakkarenSjolv()
 
 console.log(brot ? `\n${brot} PAKKINGAR ER BROTNE` : "\nalle pakkingar held")
