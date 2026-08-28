@@ -341,7 +341,7 @@ export function SliderRow({
       >
         {r.label}
         {bi && (
-          <span className="tab block pt-px text-[9px] normal-case tracking-[0.02em] opacity-40">
+          <span className="dim tab block pt-px text-[9px] normal-case tracking-[0.02em]">
             {bi}
           </span>
         )}
@@ -388,7 +388,7 @@ export function SliderRow({
               }
             }}
           />
-          {r.unit && <span className="shrink-0 pl-0.5 opacity-45">{r.unit}</span>}
+          {r.unit && <span className="dim shrink-0 pl-0.5">{r.unit}</span>}
         </span>
       )}
     </div>

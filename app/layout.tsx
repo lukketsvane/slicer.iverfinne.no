@@ -31,12 +31,20 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, statusBarStyle: "default", title: TITLE },
 }
 
+/**
+ * Sida kan forstørrast.
+ *
+ * Ho var låst med `maximum-scale=1`, av di klypet er ein gest reiskapen
+ * bruker sjølv — og eit klyp som forstørrar sida i staden for objektet er
+ * eit klyp som gjer feil ting. Men lerretet har `touch-action: none` og tek
+ * fingrane sine sjølv; låsen gjaldt difor berre resten av sida, der ingen
+ * gest konkurrerer og der den minste teksten er ti pikslar. Den som treng
+ * å forstørre for å lese, skal få lov.
+ */
 export const viewport: Viewport = {
   colorScheme: "light",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
   themeColor: "#ffffff",
 }

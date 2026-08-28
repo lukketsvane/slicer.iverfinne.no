@@ -62,7 +62,10 @@ walls stand instead, and the object lives between them. The left wall is what
 you put in, in the order you do it: the file, the size, what to measure it
 against, the button that finds the grid, the plate, and then every slider. The
 right wall is what comes out: the numbers, the twelve rules, the profiles, the
-files. Nothing opens and nothing scrolls away.
+files. Nothing opens, and on a tall enough screen nothing scrolls either. On a
+short one the wall runs out of room and the list scrolls after all — and then
+it says so, with a shade at the edge it is running past. A wall that scrolls in
+silence is a slider you never learn is there.
 
 The camera knows about the walls. It frames the object into the rectangle
 between them (`camera.setViewOffset`, not a moved target — moving the target

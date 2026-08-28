@@ -354,9 +354,9 @@ export function ControlsPanel(props: {
                 // Tala som står er frå det objektet du hadde FØR. Å la dei
                 // stå medan ei ny fil vert tolka er å seie noko om eit
                 // objekt som ikkje er der.
-                <span className="opacity-40">les fila …</span>
+                <span className="dim">les fila …</span>
               ) : headline.length === 0 ? (
-                <span className="opacity-40">snittar …</span>
+                <span className="dim">snittar …</span>
               ) : (
                 headline.map((h, i) => (
                   <span key={h.key}>
@@ -461,7 +461,7 @@ export function ControlsPanel(props: {
             >
               {IcoHogre}
             </button>
-            <span className="tab truncate pl-1" style={{ opacity: 0.55 }}>
+            <span className="dim tab truncate pl-1">
               {finnStad.nth + 1} av {finnStad.tal}
               {/* Ribbetalet står som to skyvarar i skyveveggen. Der er
                   halen ei avskrift av det du står og dreg i. */}
@@ -654,7 +654,7 @@ export function ControlsPanel(props: {
                         key={row.label}
                         className="flex items-baseline justify-between gap-2 py-[2px] text-[11px] leading-4"
                       >
-                        <dt className="shrink-0 truncate opacity-50">{row.label}</dt>
+                        <dt className="dim shrink-0 truncate">{row.label}</dt>
                         <dd
                           className="tab truncate text-right"
                           style={{
@@ -669,7 +669,7 @@ export function ControlsPanel(props: {
                           }}
                         >
                           {row.value}
-                          {row.unit && <span className="pl-1 opacity-45">{row.unit}</span>}
+                          {row.unit && <span className="dim pl-1">{row.unit}</span>}
                         </dd>
                       </div>
                     )
@@ -681,7 +681,7 @@ export function ControlsPanel(props: {
                     dreg den andre. Storleiken og tjukna står alt framme. */}
                 {VAFFEL.groups.map((g) => (
                   <div key={g.id} className="pt-3">
-                    <h3 className="pb-0.5 text-[10px] uppercase leading-none tracking-[0.24em] opacity-35">
+                    <h3 className="dim pb-0.5 text-[10px] uppercase leading-none tracking-[0.24em]">
                       {g.label}
                     </h3>
                     {g.keys.filter((k) => !FRAMME.has(k)).map((k) => (
@@ -700,7 +700,7 @@ export function ControlsPanel(props: {
                     opna heile veggen er den som kjem att, og det er han som
                     har bruk for dei. */}
                 {isDesktop && (
-                  <p className="pt-4 text-[10px] leading-relaxed tracking-[0.1em] opacity-30">
+                  <p className="dim pt-4 text-[10px] leading-relaxed tracking-[0.1em]">
                     {TASTAR + TAST_ARK}
                   </p>
                 )}
@@ -760,7 +760,7 @@ export function ControlsPanel(props: {
             <div className="flex items-center gap-3 py-1 text-[10px] uppercase tracking-[0.14em]">
               <span
                 className="flex items-center gap-3"
-                style={{ color: "var(--ink)", opacity: 0.55 }}
+                style={{ color: "var(--ink)", opacity: 0.6 }}
                 title="svart er C00 i LightBurn og køyrer fyrst, difor graverer det"
               >
                 {[
