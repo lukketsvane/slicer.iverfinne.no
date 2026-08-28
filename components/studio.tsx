@@ -271,6 +271,41 @@ export function Studio() {
   useEffect(() => {
     const w = new Worker(new URL("../lib/worker.ts", import.meta.url), { type: "module" })
     worker.current = w
+    /**
+     * EIN NY ARBEIDAR ER EIN TOM PORT.
+     *
+     * Siste-vinn-porten hugsar at det står eit bygg i lufta. Vert
+     * arbeidaren bytt ut medan det står der, kjem svaret aldri, og porten
+     * står open for alltid: sida melder «snittar …» til nokon lastar
+     * henne på nytt.
+     *
+     * Det er ikkje eit tenkt tilfelle. React monterer alt to gonger i
+     * utvikling, og opprydninga i denne effekten avsluttar den fyrste
+     * arbeidaren midt i det fyrste bygget — so `pnpm dev` synte «snittar
+     * …» og aldri noko meir.
+     */
+    inFlight.current = false
+    pending.current = null
+    /**
+     * OG EIN ARBEIDAR SOM DØYR SKAL SEIE DET.
+     *
+     * `onmessage` er den einaste vegen porten vert opna att, so ein
+     * arbeidar som ikkje lastar — eit syntaksbrot i ei fil han dreg inn,
+     * ein feil MIME-type, minnet som tok slutt — låser reiskapen utan eit
+     * ord nokon stad. Det er den same stille døden som Turbopack gjev, og
+     * han har fortent den same vakta.
+     */
+    w.onerror = () => {
+      inFlight.current = false
+      pending.current = null
+      setBusy(false)
+      setHentar(false)
+      setFeil("motoren stogga. last sida på nytt")
+    }
+    w.onmessageerror = () => {
+      inFlight.current = false
+      pump()
+    }
     w.onmessage = (e: MessageEvent<Res>) => {
       const r = e.data
       if (r.kind === "build") {
@@ -325,6 +360,14 @@ export function Studio() {
         return
       }
       if (r.kind === "feil") {
+        // Eit uttak som kasta gjev inga fil. Utan denne greina fall han
+        // ned i bygg-greina, som med vilje teier — og då er eit trykk på
+        // ein uttaksknapp eit trykk der det ikkje skjer nokon ting.
+        if (r.kva === "export") {
+          setFeil("uttaket slo feil")
+          setBusy(false)
+          return
+        }
         if (r.kva === "import") {
           setFeil(r.kvifor ?? "las ikkje fila")
           setHentar(false)
