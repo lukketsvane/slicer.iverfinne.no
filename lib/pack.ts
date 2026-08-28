@@ -80,7 +80,26 @@ type Raw = { w: number; h: number; a: Uint8Array }
  * til venstre for seg, og er ute. Det er heile grunnen til at ein mindre
  * del kan hamne inne i opninga på ein større.
  */
-function rasterise(rings: Ring[], ox: number, oy: number, res: number, w: number, h: number): Raw {
+function rasterise(
+  rings: Ring[],
+  ox: number,
+  oy: number,
+  res: number,
+  w: number,
+  h: number,
+  /**
+   * Krev at HEILE cella ligg inne, og ikkje berre senteret hennar.
+   *
+   * Pakkaren vil ha senteret: masken hans vert utvida med klaringa etterpå,
+   * og ei celle som halvvegs er inne er halvvegs oppteken. Adressa vil ha
+   * det motsette. Ei ribbe er ein kam, og eit spor er tre millimeter —
+   * smalare der konturen skjer det på skrå. Eit senter kvar andre
+   * millimeter hoppar over eit slikt spor av og til, rasteret fyller tvers
+   * over det, og «det feitaste punktet på delen» hamnar midt på ein
+   * sporvegg. Ei celle som ikkje er heil, er ikkje gods.
+   */
+  heil = false,
+): Raw {
   const a = new Uint8Array(w * h)
   const xs: number[] = []
   for (let j = 0; j < h; j++) {
@@ -99,9 +118,13 @@ function rasterise(rings: Ring[], ox: number, oy: number, res: number, w: number
     if (xs.length < 2) continue
     xs.sort((u, v) => u - v)
     for (let k = 0; k + 1 < xs.length; k += 2) {
-      // celler med SENTERET innanfor stykket
-      const i0 = Math.max(0, Math.ceil((xs[k] - ox) / res - 0.5))
-      const i1 = Math.min(w - 1, Math.floor((xs[k + 1] - ox) / res - 0.5))
+      // celle `i` spenner [ox + i·res, ox + (i+1)·res]
+      const i0 = heil
+        ? Math.max(0, Math.ceil((xs[k] - ox) / res))
+        : Math.max(0, Math.ceil((xs[k] - ox) / res - 0.5))
+      const i1 = heil
+        ? Math.min(w - 1, Math.floor((xs[k + 1] - ox) / res) - 1)
+        : Math.min(w - 1, Math.floor((xs[k + 1] - ox) / res - 0.5))
       for (let i = i0; i <= i1; i++) a[j * w + i] = 1
     }
   }
@@ -522,7 +545,7 @@ export function anchor(rings: Ring[], res = 2): { p: Pt; room: number; wide: num
   const h = Math.max(1, Math.ceil((bb.y1 - bb.y0) / res) + 1)
   const mid: Pt = [(bb.x1 - bb.x0) / 2, (bb.y1 - bb.y0) / 2]
   if (w * h > 4e6) return { p: mid, room: 0, wide: 0 }
-  const arr = rasterise(rings, bb.x0, bb.y0, res, w, h).a
+  const arr = rasterise(rings, bb.x0, bb.y0, res, w, h, true).a
   const dp = new Int32Array(w * h)
   let best = 0
   let bi = 0
@@ -546,18 +569,49 @@ export function anchor(rings: Ring[], res = 2): { p: Pt; room: number; wide: num
   // kvadratet endar i (bi, bj) og er `best` celler breitt
   const ci = Math.round(bi - best / 2 + 0.5)
   const cj = Math.round(bj - best / 2 + 0.5)
+
+  // EI CELLE ER EIT PUNKT, IKKJE EIT AREAL.
+  //
+  // Rasteret merkjer ei celle når SENTERET hennar ligg inne. Ei rekkje på
+  // `n` slike celler lovar difor berre strekninga frå det fyrste senteret
+  // til det siste — `(n − 1)` celler — og ikkje `n`. Halvcella i kvar ende
+  // kan vera kva som helst.
+  //
+  // Kvadratet vart likevel meldt som `best · res`, ei heil celle for
+  // stort. På ein del med rette kantar tok margane i `fitSize` det att; på
+  // ein del som smalnar gjorde dei ikkje det, og adressa kryssa si eiga
+  // kuttline. Ei kjegle med tretten ribber la ho ein millimeter utanfor.
+  const rom = Math.max(0, best - 1) * res
+
+  // OG EI RAD SEIER INGENTING OM RADA OVER.
+  //
   // Ein tekst er tre gonger så brei som han er høg, so kvadratet åleine er
-  // ein for streng målestokk: der det er plass til ein bokstav i høgda, er
-  // det som regel plass til fleire på tvers. Difor vert stykket gjennom
-  // senterrada målt òg — og teksten sentrert i kvadratet, so han held seg
-  // innanfor uansett kva veg stykket strekkjer seg.
-  let a = ci
-  let b = ci
-  while (a > 0 && arr[cj * w + a - 1]) a--
-  while (b < w - 1 && arr[cj * w + b + 1]) b++
+  // ein for streng målestokk på tvers: der det er plass til ein bokstav i
+  // høgda, er det som regel plass til fleire ved sida av kvarandre. Difor
+  // vert stykket gjennom delen målt òg.
+  //
+  // Men det vart målt gjennom SENTERRADA, og so brukt til å setje ein
+  // tekst som har høgd. På ei ribbe som smalnar er rada over kortare enn
+  // senterrada, og toppen av sifra stod utanfor. Difor det SMALASTE
+  // stykket gjennom dei radene kvadratet dekkjer: teksten er lågare enn
+  // kvadratet, so han kan ikkje nå ut av det bandet.
+  const halvBest = Math.floor(Math.max(0, best - 1) / 2)
+  let halv = Infinity
+  for (let j = Math.max(0, cj - halvBest); j <= Math.min(h - 1, cj + halvBest); j++) {
+    if (!arr[j * w + ci]) {
+      halv = 0
+      break
+    }
+    let a = ci
+    let b = ci
+    while (a > 0 && arr[j * w + a - 1]) a--
+    while (b < w - 1 && arr[j * w + b + 1]) b++
+    halv = Math.min(halv, ci - a, b - ci)
+  }
+
   return {
     p: [(ci + 0.5) * res, (cj + 0.5) * res],
-    room: best * res,
-    wide: 2 * Math.min(ci - a, b - ci) * res,
+    room: rom,
+    wide: 2 * (Number.isFinite(halv) ? halv : 0) * res,
   }
 }

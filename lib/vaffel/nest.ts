@@ -12,8 +12,9 @@
  * det tomrommet. Det er skilnaden mellom å telje boksar og å telje form,
  * og på eit krumt objekt er han fort ei heil plate.
  */
-import { bbox, type Pt } from "../core"
+import { bbox, inRing, type Pt } from "../core"
 import { anchor, pack, apply, type Slot } from "../pack"
+import { fitSize, strokesAt } from "../stroke"
 import type { Part } from "./parts"
 
 export type Placed = {
@@ -71,14 +72,24 @@ export function nest(
     // vassrett på plata, uansett kva veg delen ligg.
     const snudd = slot.rot === 1 || slot.rot === 3
     const eige = bbox(part.outline)
+    // Prøva står i delen sitt EIGE rom: der er teksten vassrett, og der
+    // ligg omrisset som skal halde han. Ei kvartsving flyttar begge to
+    // like mykje.
+    const paa = apply(slot.m, [a.p[0] + eige.x0, a.p[1] + eige.y0])
+    const rom = prøvd(
+      part.from,
+      {
+        outline: part.outline.map((q) => apply(slot.m, q)),
+        holes: part.holes.map((h) => h.map((q) => apply(slot.m, q))),
+      },
+      paa,
+      a.room,
+      snudd ? a.room : a.wide,
+    )
     sheets[slot.sheet].placed.push({
       part,
       slot,
-      label: {
-        p: apply(slot.m, [a.p[0] + eige.x0, a.p[1] + eige.y0]),
-        room: a.room,
-        wide: snudd ? a.room : a.wide,
-      },
+      label: { p: paa, room: rom.room, wide: rom.wide },
     })
   }
   out.used.forEach((u, i) => {
@@ -104,6 +115,72 @@ export function nest(
     util: usedArea > 0 ? area / usedArea : 0,
     spilt: out.spilt.length,
   }
+}
+
+/**
+ * ANKERET ER EIT FORSLAG, IKKJE EIT LØFTE.
+ *
+ * `anchor` leitar i eit raster på to millimeter. Ei ribbe er ein kam: han
+ * er full av SPOR, og eit spor er tre millimeter breitt — smalare der
+ * konturen skjer det på skrå. Eit raster som prøver kvar andre millimeter
+ * treffer eit slikt spor som oftast, og av og til ikkje: då fyller det
+ * tvers over sporet, finn eit «heilt» kvadrat på fire og åtti millimeter
+ * som spenner over tre spor, og legg adressa midt på ein sporvegg.
+ *
+ * Ho stod ein millimeter utanfor kuttlina. På skjermen ser arket likt ut;
+ * i maskina brenner du talet ned i bordet eller på nabodelen, og det er
+ * fyrst når plata ligg framfor deg at du ser det.
+ *
+ * Difor vert forslaget PRØVD, med den teksten som faktisk skal stå der og
+ * i den storleiken han faktisk får. Held det ikkje, krympar rommet til det
+ * held — eller til det ikkje er noko att, og då er delen for liten til å
+ * merkjast. Å la vera er alltid betre enn å brenne utanfor.
+ *
+ * Prøva er eksakt: han spør polygonet, ikkje rasteret.
+ */
+const STEG_MM = 0.4
+
+/** ligg heile teksten i godset — utanfor kvart hòl og innanfor omrisset? */
+function tekstenLiggInne(tekst: string, r: Ringar, p: Pt, size: number): boolean {
+  const inne = (q: Pt) => inRing(r.outline, q) && !r.holes.some((h) => inRing(h, q))
+  for (const line of strokesAt(tekst, p[0], p[1], size)) {
+    for (let i = 0; i < line.length; i++) {
+      if (!inne(line[i])) return false
+      if (i === 0) continue
+      // Eit strek mellom to punkt som begge er inne, kan framleis krysse
+      // eit spor. Spora er tre millimeter; prøvepunkt kvar 0,4 er tett
+      // nok til at ingen av dei kan hoppe over eitt.
+      const a = line[i - 1]
+      const b = line[i]
+      const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / STEG_MM)
+      for (let k = 1; k < n; k++) {
+        const t = k / n
+        if (!inne([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])) return false
+      }
+    }
+  }
+  return true
+}
+
+type Ringar = { outline: Pt[]; holes: Pt[][] }
+
+/**
+ * Rommet ankeret lova, krympa til det som faktisk er der.
+ *
+ * Prøva står PÅ PLATA og ikkje i delen sitt eige rom. Teksten er alltid
+ * vassrett på plata, so på ein del som ligg på tvers går han den andre
+ * vegen gjennom delen enn han ville gjort før svingen — og eit svar rekna
+ * i delen sitt rom ville vore eit svar på eit anna spørsmål.
+ */
+function prøvd(tekst: string, r: Ringar, p: Pt, room: number, wide: number) {
+  for (let k = 0; k < 10; k++) {
+    const size = fitSize(tekst, room, wide)
+    if (!size) break
+    if (tekstenLiggInne(tekst, r, p, size)) return { room, wide }
+    room *= 0.8
+    wide *= 0.8
+  }
+  return { room: 0, wide: 0 }
 }
 
 /** delen sine konturar der han faktisk ligg på plata */
