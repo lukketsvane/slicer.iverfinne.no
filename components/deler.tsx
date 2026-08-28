@@ -3,6 +3,8 @@
 import { useCallback, useRef, useState, type CSSProperties } from "react"
 import {
   TJUKNER,
+  feltTal,
+  lesTal,
   nn,
   type ExportKind,
   type Metrics,
@@ -107,21 +109,13 @@ export const tjukn = (v: number) => nn(v, Number.isInteger(v) ? 0 : 1)
 export const n0 = (v: number) => nn(v, 0)
 export const n1 = (v: number) => nn(v, 1)
 
-export const decimals = (step: number) => (step >= 1 ? 0 : step >= 0.1 ? 1 : step >= 0.01 ? 2 : 3)
 /**
- * Eit tal inn i eit band.
- *
- * Klemminga er ikkje pynt. Ein skyvar kan ikkje gå utanfor bandet sitt, men
- * talfeltet ved sida av kan: der kan nokon skrive 9999 i storleiken, og
- * ingenting anna i reiskapen stoggar det.
+ * Klemminga, lesinga og skrivinga av eit tal bur i `lib/core.ts`, saman med
+ * `Range` sjølv. Dei er reglar om eit band og ikkje om ein knapp, og dei
+ * stod her i ein kopi som alt hadde drive frå originalen. Dei vert
+ * eksporterte vidare her so kvar komponent framleis har dei ein stad.
  */
-export const snap = (v: number, r: Range) => {
-  if (!Number.isFinite(v)) return r.min
-  const c = Math.min(r.max, Math.max(r.min, v))
-  return r.int ? Math.round(c) : +c.toFixed(4)
-}
-/** «1,5» er eit tal for eit menneske og NaN for Number() */
-export const lesTal = (raw: string) => Number(String(raw).replace(",", ".").replace(/\s+/g, ""))
+export { decimals, feltTal, lesTal, snap } from "../lib/core"
 export const num = (p: ParamBag, k: string, fallback: number) =>
   typeof p[k] === "number" ? (p[k] as number) : fallback
 
@@ -334,7 +328,7 @@ export function SliderRow({
   // skal stå til høgre — «hundebein» seier kva det er; «1» seier ingenting.
   const shown = r.names
     ? (r.names[Math.round(value)] ?? String(value))
-    : value.toFixed(decimals(r.step)).replace(".", ",")
+    : feltTal(value, r.step).replace(".", ",")
   /** det som står i feltet medan det er teke; null når det ikkje er teke */
   const [utkast, setUtkast] = useState<string | null>(null)
 
@@ -343,7 +337,10 @@ export function SliderRow({
     const v = lesTal(utkast)
     setUtkast(null)
     // Tull i feltet er ikkje ei endring. Talet som stod, står.
-    if (Number.isFinite(v)) onChange(k, String(v))
+    if (!Number.isFinite(v)) return
+    // Å ta feltet og sleppe det er heller ikkje ei endring.
+    if (v === value) return
+    onChange(k, String(v))
   }
 
   return (
