@@ -217,8 +217,26 @@ export function couponSvg(
   // Omrisset sist: graveringa skal stå i plata før noko vert skore laust.
   body.push(`<path d="${ring(offsetPoly(o, kerf / 2))}" ${kutt(w)}/>`)
 
+  /**
+   * RAMMA MÅ VEKSE MED KOMPENSASJONEN.
+   *
+   * Cellerekninga over gjev den NOMINELLE plata. Kompensasjonen skuvar
+   * omrisset ein halv snittbreidd utover heile vegen, so banen i fila er
+   * ei snittbreidd større enn det talet — og ramma stod på det nominelle.
+   * Ytterkanten låg utanfor teikninga si eiga ramme: ein nettlesar klipper
+   * henne bort, og eit program som les dokumentstorleiken får ei plate som
+   * er mindre enn banen inni henne. På eit snitt på seks tidelar var det
+   * tre tidelar på kvar side.
+   *
+   * Teikninga er 1:1 i millimeter, og då må millimetermålet vera målet på
+   * det som faktisk står der.
+   */
+  const k = kerf / 2
+
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${f(W)}mm" height="${f(H)}mm" viewBox="0 0 ${f(W)} ${f(H)}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${f(W + 2 * k)}mm" ` +
+      `height="${f(H + 2 * k)}mm" ` +
+      `viewBox="${f(-k)} ${f(-k)} ${f(W + 2 * k)} ${f(H + 2 * k)}">`,
     `<g transform="translate(0,${f(H)}) scale(1,-1)">`,
     ...body,
     `</g>`,
