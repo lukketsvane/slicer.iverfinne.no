@@ -76,10 +76,64 @@ export type Group = { id: string; label: string; keys: readonly string[] }
  *  som er namn — materialet og kjelda. */
 export type ParamBag = Record<string, number | string>
 
+/**
+ * EIT TAL INN I EIT BAND — REGELEN, EIN STAD.
+ *
+ * Ein skyvar kan ikkje gå utanfor bandet sitt, men eit talfelt kan, og ei
+ * URL-hash kan kva som helst. Difor vert kvart tal klemt inn i sitt eige
+ * band før det får røre noko.
+ *
+ * Fire desimalar er taket. Det er ikkje pynt: eit flyttal etter ei klemming
+ * ber gjerne på 0,30000000000000004, og eit slikt tal i ein memo-nøkkel er
+ * ein nøkkel som aldri treffer seg sjølv.
+ *
+ * `clamp1` gjev NaN når talet ikkje er eit tal — den som les ei lenkje vil
+ * VITE at feltet var tull, so han kan la det gamle stå. `snap` gjev botnen
+ * i staden, av di eit felt i grensesnittet må ende opp med ein verdi. Same
+ * regel, to svar på det eine spørsmålet dei er usamde om. Dei stod som to
+ * kopiar i kvar sin fil, og ein kopi som er nesten lik er ein kopi som
+ * driv.
+ */
 const clamp1 = (v: number, r: Range) => {
   if (!Number.isFinite(v)) return NaN
   const c = Math.min(r.max, Math.max(r.min, v))
   return r.int ? Math.round(c) : +c.toFixed(4)
+}
+
+export const snap = (v: number, r: Range) => {
+  const c = clamp1(v, r)
+  return Number.isFinite(c) ? c : r.min
+}
+
+/** «1,5» er eit tal for eit menneske og NaN for Number() */
+export const lesTal = (raw: string) => Number(String(raw).replace(",", ".").replace(/\s+/g, ""))
+
+/** kor mange desimalar steget til ein skyvar treng */
+export const decimals = (step: number) => (step >= 1 ? 0 : step >= 0.1 ? 1 : step >= 0.01 ? 2 : 3)
+
+/**
+ * TALET SLIK DET ER, IKKJE SLIK SKYVAREN VILLE SKRIVE DET.
+ *
+ * Steget er skyvaren si oppløysing, ikkje verdien si. Talfeltet finst nett
+ * for å koma forbi steget: den som har målt plata si til 2,87 med
+ * skyvelære skal kunne skrive 2,87, av di klaringa i kvart einaste spor
+ * kjem av det talet — og passprøva er laga for å måle til ein tjuedels
+ * millimeter.
+ *
+ * Men feltet skreiv talet med STEGET si oppløysing. 2,87 stod som «2,9»
+ * medan motoren rekna med 2,87, og oppsettet i verktykassa skreiv 2.87 —
+ * to visningar av det same talet som ikkje var samde.
+ *
+ * Og verre: feltet legg det som STÅR der inn i utkastet når det vert teke.
+ * Eit klikk i feltet og eit klikk ut att las difor «2,9» og skreiv 2,9. Ei
+ * måling gjekk tapt av å bli sedd på.
+ *
+ * So steget er eit MINSTE tal desimalar og ikkje eit største. Fire er
+ * taket, av di klemminga ikkje held fleire.
+ */
+export const feltTal = (v: number, step: number) => {
+  for (let d = decimals(step); d < 4; d++) if (+v.toFixed(d) === v) return v.toFixed(d)
+  return v.toFixed(4)
 }
 
 /**

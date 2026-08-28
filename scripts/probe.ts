@@ -12,7 +12,8 @@ import { put } from "../lib/sources"
 import { meshToStl } from "../lib/vaffel/export-stl"
 import { makeSoup } from "../lib/soup"
 import { glb } from "./glbfil"
-import { klokke, type ParamBag } from "../lib/core"
+import { feltTal, klokke, lesTal, snap, type ParamBag } from "../lib/core"
+import { PARAM_RANGES } from "../lib/vaffel/params"
 
 const nn = (v: number, d = 1) => v.toFixed(d)
 
@@ -275,6 +276,53 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
         `Z-opp gav ${r.m.parts}/${r.m.joints}/${r.m.envZ.toFixed(1)}`,
     )
   }
+}
+
+// =============================================================================
+// FELTET SKAL SYNE DET MOTOREN REKNAR MED
+// =============================================================================
+/**
+ * Talfeltet finst for å koma forbi steget til skyvaren: den som har målt
+ * plata si til 2,87 skal kunne skrive 2,87, av di klaringa i kvart einaste
+ * spor kjem av det talet.
+ *
+ * Men feltet skreiv talet med STEGET si oppløysing, og la det som stod der
+ * inn i utkastet når det vart teke. Eit klikk i feltet og eit klikk ut att
+ * las difor «2,9» og skreiv 2,9. Målinga gjekk tapt av å bli sedd på, og
+ * ingenting sa frå: oppsettet i verktykassa synte framleis 2.87.
+ *
+ * Runden nedanfor er akkurat den handlinga — klemme, skrive ut, lese
+ * attende, klemme — og han skal ende der han byrja. For KVART band, og for
+ * verdiar som med vilje ligg mellom to steg.
+ */
+{
+  let sett = 0
+  const runde = (k: string, v: number) => {
+    const r = PARAM_RANGES[k]
+    const lagra = snap(v, r)
+    const attende = snap(lesTal(feltTal(lagra, r.step).replace(".", ",")), r)
+    sett++
+    if (attende !== lagra) {
+      bryt(`feltet: ${k} = ${lagra} vert ${attende} av å bli sedd på`)
+    }
+  }
+  for (const k of Object.keys(PARAM_RANGES)) {
+    const r = PARAM_RANGES[k]
+    // Endane, midten, og fire punkt som med vilje ikkje ligg på eit steg.
+    const mid = (r.min + r.max) / 2
+    for (const v of [
+      r.min,
+      r.max,
+      mid,
+      mid + r.step / 3,
+      mid - r.step / 7,
+      r.min + r.step * 1.5,
+      r.max - r.step / 2.5,
+    ]) {
+      runde(k, v)
+    }
+  }
+  console.log(`\n=== talfeltet ===\n  ${sett} verdiar over ${Object.keys(PARAM_RANGES).length} band`)
 }
 
 console.log(brot ? `\n${brot} påstandar held ikkje` : "\nalle påstandar held")

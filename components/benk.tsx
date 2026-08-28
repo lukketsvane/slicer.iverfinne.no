@@ -34,6 +34,7 @@ import {
   TAST_BENK,
   VIEWS,
   chipStyle,
+  feltTal,
   lesTal,
   n0,
   n1,
@@ -186,7 +187,11 @@ function Storleik({
           className="mono talfelt w-[110px] rounded-[2px] bg-transparent text-[32px] leading-none tracking-[-0.01em]"
           // Peikaren seier kva talet er: noko du dreg i.
           style={{ color: "var(--ink)", cursor: "ew-resize" }}
-          value={utkast ?? String(Math.round(verdi))}
+          // Det som STÅR, ikkje ei avrunding av det. Storleiken kan bera
+          // ein halv millimeter — ei lenkje, ei prosjektfil eller
+          // talfeltet i panelet kan setje 247,5 — og `Math.round` gjorde
+          // henne om til 248 så snart nokon såg på feltet.
+          value={utkast ?? feltTal(verdi, r.step).replace(".", ",")}
           inputMode="decimal"
           aria-label="storleik, tal"
           onPointerDown={(e) => {
@@ -220,11 +225,14 @@ function Storleik({
             if (d?.rort) e.preventDefault()
             else e.currentTarget.select()
           }}
-          onFocus={() => setUtkast(String(Math.round(verdi)))}
+          onFocus={() => setUtkast(feltTal(verdi, r.step).replace(".", ","))}
           onChange={(e) => setUtkast(e.target.value)}
           onBlur={() => {
-            if (utkast !== null && Number.isFinite(lesTal(utkast))) sett(lesTal(utkast))
+            const v = utkast === null ? NaN : lesTal(utkast)
             setUtkast(null)
+            // Tull er ikkje ei endring, og å ta feltet og sleppe det er
+            // det heller ikkje.
+            if (Number.isFinite(v) && v !== verdi) sett(v)
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur()
