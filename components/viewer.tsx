@@ -127,6 +127,8 @@ export const Viewer = memo(function Viewer({
   onVend,
   onLight,
   onGest,
+  peikt,
+  onPeik,
 }: {
   data: BuildRes | null
   view: View
@@ -140,6 +142,9 @@ export const Viewer = memo(function Viewer({
   onVend: (grader: number) => void
   onLight: (dxPx: number, dyPx: number) => void
   onGest: (kva: GestKva) => void
+  /** kva line i kuttlista som står fram i objektet, eller −1 */
+  peikt: number
+  onPeik: (i: number) => void
 }) {
   const bg = "#ffffff"
   const shadow = hiDetail ? 4096 : 2048
@@ -221,6 +226,8 @@ export const Viewer = memo(function Viewer({
             data={data}
             view={view}
             material={material}
+            peikt={peikt}
+            onPeik={onPeik}
             onFit={handleFit}
           />
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>

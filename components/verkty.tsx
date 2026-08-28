@@ -96,6 +96,12 @@ function Kuttliste(props: {
 }) {
   const { liste, peikt, onPeik, onOrd } = props
   const [sortert, setSortert] = useState<{ id: string; ned: boolean }>({ id: "adr", ned: false })
+  /** Ein del du trykte på i objektet kan stå kvar som helst i lista — og
+   *  ei line du ikkje ser er ikkje eit svar. */
+  const peiktRad = useRef<HTMLTableRowElement | null>(null)
+  useEffect(() => {
+    peiktRad.current?.scrollIntoView({ block: "nearest" })
+  }, [peikt])
 
   const rader = useMemo(() => {
     const k = KOLONNAR.find((q) => q.id === sortert.id) ?? KOLONNAR[0]
@@ -159,6 +165,7 @@ function Kuttliste(props: {
             {rader.map((k, i) => (
               <tr
                 key={k.adr + i}
+                ref={peikt === k.adr ? peiktRad : undefined}
                 onMouseEnter={() => onPeik(k.adr)}
                 onMouseLeave={() => onPeik(null)}
                 style={{
@@ -376,7 +383,7 @@ export function Verkty(props: {
   keys: readonly string[]
   clamp: (o: unknown, prev: ParamBag) => ParamBag
   peikt: string | null
-  rute: { venstre: number; hogre: number; topp: number }
+  rute: { venstre: number; hogre: number; høgd: number }
   onArk: (i: number) => void
   onPeik: (adr: string | null) => void
   onChange: (p: ParamBag) => void
@@ -388,12 +395,20 @@ export function Verkty(props: {
   return (
     <section
       aria-label="verkty"
-      className="benk fixed z-20 flex flex-col border-l border-r"
+      className="benk fixed z-20 flex flex-col border-l border-r border-t"
+      /**
+       * NEDST, OG IKKJE OVER HEILE LERRETET.
+       *
+       * Ei liste som peikar på eit stykke i objektet er verdlaus om ho
+       * ligg oppå objektet. Skuffa tek nedre halvdel, og kameraet rammar
+       * inn i det som er att — den same mekanismen arket på telefonen
+       * bruker, og han står alt i `rute`.
+       */
       style={{
         left: rute.venstre,
         right: rute.hogre,
-        top: rute.topp,
         bottom: 0,
+        height: rute.høgd,
         background: "var(--paper)",
         borderColor: "var(--rule)",
       }}

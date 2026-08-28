@@ -34,7 +34,12 @@ const FRAME = 2.2
  * merkt det der han bygde trekanten. Skiljet er heile grunnen til at ein
  * vaffel ser ut som finér og ikkje som plast: flata er høvla, kanten er rå.
  */
-function makeWood(color: string, rough: number, uKorn: { value: number }) {
+function makeWood(
+  color: string,
+  rough: number,
+  uKorn: { value: number },
+  uPeikt: { value: number },
+) {
   const m = new THREE.MeshPhysicalMaterial({
     color,
     roughness: rough,
@@ -47,19 +52,20 @@ function makeWood(color: string, rough: number, uKorn: { value: number }) {
   })
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uKorn = uKorn
+    sh.uniforms.uPeikt = uPeikt
     sh.vertexShader = sh.vertexShader
       .replace(
         "#include <common>",
-        "#include <common>\nattribute float aKant;\nvarying vec3 vObj;\nvarying vec3 vNrmO;\nvarying float vKant;",
+        "#include <common>\nattribute float aKant;\nattribute float aDel;\nvarying vec3 vObj;\nvarying vec3 vNrmO;\nvarying float vKant;\nvarying float vDel;",
       )
       .replace(
         "#include <begin_vertex>",
-        "#include <begin_vertex>\nvObj = position;\nvNrmO = normal;\nvKant = aKant;",
+        "#include <begin_vertex>\nvObj = position;\nvNrmO = normal;\nvKant = aKant;\nvDel = aDel;",
       )
     sh.fragmentShader = sh.fragmentShader
       .replace(
         "#include <common>",
-        "#include <common>\nvarying vec3 vObj;\nvarying vec3 vNrmO;\nvarying float vKant;\nuniform float uKorn;\nfloat gKorn;",
+        "#include <common>\nvarying vec3 vObj;\nvarying vec3 vNrmO;\nvarying float vKant;\nvarying float vDel;\nuniform float uKorn;\nuniform float uPeikt;\nfloat gKorn;",
       )
       .replace(
         "#include <color_fragment>",
@@ -82,6 +88,15 @@ function makeWood(color: string, rough: number, uKorn: { value: number }) {
           "  diffuseColor.rgb *= 1.0 + ved;",
           // rå kant er eit hakk lysare og gulare enn den høvla flata
           "  diffuseColor.rgb *= mix(vec3(1.0), vec3(1.05, 1.03, 0.97), vKant * uKorn);",
+          // DET STYKKET PEIKAREN STÅR PÅ.
+          //
+          // Ikkje ein annan farge — den same plata, lyfta. Ein del som
+          // skifter farge er ein del du ikkje kan samanlikne med naboen
+          // lenger, og heile grunnen til å peike på han er å sjå kvar han
+          // står mellom dei andre.
+          "  if (uPeikt > -0.5 && abs(vDel - uPeikt) < 0.5) {",
+          "    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.42, 0.12), 0.55);",
+          "  }",
           "}",
         ].join("\n"),
       )
@@ -103,15 +118,23 @@ export function ObjectMesh({
   data,
   view,
   material,
+  peikt,
+  onPeik,
   onFit,
 }: {
   data: BuildRes | null
   view: View
   material: string
+  /** kva line i kuttlista som står fram, eller −1 */
+  peikt: number
+  onPeik: (i: number) => void
   onFit: (f: { r: number; w: number; h: number; cy: number }) => void
 }) {
   const invalidate = useThree((s) => s.invalidate)
   const uKorn = useRef({ value: 1 })
+  const uPeikt = useRef({ value: -1 })
+  /** kvar peikaren gjekk ned, so eit drag ikkje vert lese som eit trykk */
+  const ned = useRef<{ x: number; y: number } | null>(null)
   const geom = useRef<THREE.BufferGeometry | null>(null)
   const thin = useRef<THREE.BufferGeometry | null>(null)
   const bold = useRef<THREE.BufferGeometry | null>(null)
@@ -128,6 +151,10 @@ export function ObjectMesh({
       const nv = data.positions.length / 3
       const kant = data.kant.length === nv ? data.kant : new Float32Array(nv)
       g.setAttribute("aKant", new THREE.BufferAttribute(kant, 1))
+      // Kva line i kuttlista kvart hjørne høyrer til. Berre «lag» har det;
+      // dei andre lesemåtane er ikkje delar, og då er svaret −1.
+      const del = data.del.length === nv ? data.del : new Float32Array(nv).fill(-1)
+      g.setAttribute("aDel", new THREE.BufferAttribute(del, 1))
       // Kula kjem frå min/maks motoren alt har rekna — å skanne kvart
       // hjørne ein gong til her ville kosta ein full gjennomgang av nettet
       // per bygg, på hovudtråden, for eit tal vi alt har.
@@ -194,10 +221,14 @@ export function ObjectMesh({
   const mat = (material in MATERIALS ? material : "finer") as Material
   const rough = view === "lag" ? 0.92 : 0.78
   const surf = useMemo(
-    () => makeWood(MATERIALS[mat].hex, rough, uKorn.current),
+    () => makeWood(MATERIALS[mat].hex, rough, uKorn.current, uPeikt.current),
     [mat, rough],
   )
   useEffect(() => () => surf.dispose(), [surf])
+  useEffect(() => {
+    uPeikt.current.value = peikt
+    invalidate()
+  }, [peikt, invalidate])
   useEffect(() => {
     // Akryl har ikkje ved. Å teikne åringar på ei plexiplate er å lyge om
     // materialet, og materialet er halve grunnen til at ein ser på biletet.
@@ -223,7 +254,38 @@ export function ObjectMesh({
           </lineSegments>
         </>
       ) : (
-        <mesh geometry={built.g} castShadow receiveShadow material={surf} />
+        <mesh
+          geometry={built.g}
+          castShadow
+          receiveShadow
+          material={surf}
+          onPointerDown={(e) => {
+            ned.current = { x: e.clientX, y: e.clientY }
+          }}
+          onClick={(e) => {
+            /**
+             * EIT TRYKK PÅ EIN DEL, OG IKKJE EIT DRAG SOM ENDA PÅ HAN.
+             *
+             * Orbiten byrjar på det same `pointerdown`, so kvar einaste
+             * dreiing sluttar med eit klikk på det stykket peikaren
+             * tilfeldigvis stogga over. Fire piksler er skiljet mellom å
+             * peike og å snu.
+             */
+            const d = ned.current
+            ned.current = null
+            if (view !== "lag" || !d) return
+            // Dobbelttrykk TYDER «ramme inn på nytt». Det skal ikkje òg
+            // tyde «vel denne delen».
+            if (e.detail > 1) return
+            if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return
+            const a = e.face?.a
+            if (a === undefined) return
+            const attr = built.g.getAttribute("aDel") as THREE.BufferAttribute | null
+            const i = attr ? attr.getX(a) : -1
+            e.stopPropagation()
+            onPeik(i >= 0 ? i : -1)
+          }}
+        />
       )}
     </group>
   )

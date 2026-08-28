@@ -318,6 +318,16 @@ export type BuildOut = {
    * tommelfingerregel ville farga henne feil.
    */
   kant: Float32Array<ArrayBufferLike>
+  /**
+   * Kva line i kuttlista kvart hjørne høyrer til, eller −1.
+   *
+   * Berre «lag» har dette: der ER kvar flate ein del du kan halde i handa.
+   * Merket vert sett der trekanten vert bygd, og det er den einaste vegen
+   * frå ein piksel på skjermen til ei line i lista — å gjette ut frå kvar
+   * peikaren står i rommet ville vore ei ny rekning som kunne svare noko
+   * anna enn snittinga.
+   */
+  del: Float32Array<ArrayBufferLike>
 }
 
 export type ExportOut = {

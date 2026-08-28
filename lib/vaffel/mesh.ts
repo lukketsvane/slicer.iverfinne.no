@@ -15,9 +15,16 @@ import { inRing, type Pt, type Vec3 } from "../core"
 import type { Kropp } from "./kropp"
 import type { Grid, Rib } from "./ribs"
 
-/** kant: 0 = plateflate, 1 = kutt gjennom plata */
-export type Soup = { pos: number[]; nrm: number[]; kan: number[]; k: number }
-export const newSoup = (): Soup => ({ pos: [], nrm: [], kan: [], k: 1 })
+/**
+ * kant: 0 = plateflate, 1 = kutt gjennom plata
+ * del:  kva stykke i kuttlista trekanten høyrer til, eller −1
+ *
+ * Begge er merke motoren set der han byggjer trekanten, og som fylgjer
+ * han heilt fram til skjermkortet. Kanten avgjer korleis flata vert
+ * teikna; delen avgjer kva du peikar på når du peikar på henne.
+ */
+export type Soup = { pos: number[]; nrm: number[]; kan: number[]; k: number; del: number[]; d: number }
+export const newSoup = (): Soup => ({ pos: [], nrm: [], kan: [], k: 1, del: [], d: -1 })
 
 export function tri(s: Soup, a: Vec3, b: Vec3, c: Vec3, n?: Vec3) {
   let nx: number
@@ -42,12 +49,19 @@ export function tri(s: Soup, a: Vec3, b: Vec3, c: Vec3, n?: Vec3) {
   s.pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2])
   for (let i = 0; i < 3; i++) s.nrm.push(nx, ny, nz)
   s.kan.push(s.k, s.k, s.k)
+  s.del.push(s.d, s.d, s.d)
 }
 
 export function soupToMesh(s: Soup) {
   const positions = new Float32Array(s.pos)
   const normals = new Float32Array(s.nrm)
-  return { positions, normals, kant: new Float32Array(s.kan), ...boxOf(positions) }
+  return {
+    positions,
+    normals,
+    kant: new Float32Array(s.kan),
+    del: new Float32Array(s.del),
+    ...boxOf(positions),
+  }
 }
 
 export function boxOf(positions: Float32Array) {
@@ -214,7 +228,7 @@ export function flateMesh(k: Kropp) {
  * planet og innoverpeikande i det andre. Difor snur Y-familien vindinga.
  * Utan det er halve objektet eit hòl med negativt volum.
  */
-export function ribSolid(s: Soup, r: Rib, t: number) {
+export function ribSolid(s: Soup, r: Rib, t: number, del0 = -1) {
   const h = t / 2
   const isX = r.axis === "x"
   const put = (q: Pt, off: number): Vec3 =>
@@ -224,7 +238,12 @@ export function ribSolid(s: Soup, r: Rib, t: number) {
   const T = (a: Vec3, b: Vec3, c: Vec3, n?: Vec3) =>
     isX ? tri(s, a, b, c, n) : tri(s, c, b, a, n)
 
-  for (const o of r.outlines) {
+  for (let oi = 0; oi < r.outlines.length; oi++) {
+    const o = r.outlines[oi]
+    // Same rekkjefylgje som `buildParts` går omrissa i, og han hoppar ikkje
+    // over noko. Difor er dette det same stykket som line nummer `del0+oi`
+    // i kuttlista — utan at nokon av dei to treng vita om den andre.
+    s.d = del0 < 0 ? -1 : del0 + oi
     const mine = r.holes.filter((hole) => inRing(o, hole[0]))
     const merged = mine.length ? bridge(o, mine) : o
     s.k = 0 // platesidene
@@ -264,7 +283,11 @@ export function ribSolid(s: Soup, r: Rib, t: number) {
  *  omsluttar det, og ei delt ribbe har fleire å velje mellom. */
 export function lagMesh(g: Grid) {
   const s = newSoup()
-  for (const r of g.ribs) ribSolid(s, r, g.p.tjukn)
+  let del = 0
+  for (const r of g.ribs) {
+    ribSolid(s, r, g.p.tjukn, del)
+    del += r.outlines.length
+  }
   return soupToMesh(s)
 }
 

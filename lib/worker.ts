@@ -51,6 +51,7 @@ export type BuildRes = {
   min: Vec3
   max: Vec3
   kant: Float32Array<ArrayBufferLike>
+  del: Float32Array<ArrayBufferLike>
   lines: Float32Array<ArrayBufferLike>
   heavy: Float32Array<ArrayBufferLike>
 }
@@ -121,7 +122,7 @@ function build(req: BuildReq) {
   // gong: same buffer to gonger i lista er ein DataCloneError, og han tek
   // heile meldinga med seg.
   const transfer: Transferable[] = []
-  for (const a of [out.positions, out.normals, out.kant, out.lines, out.heavy]) {
+  for (const a of [out.positions, out.normals, out.kant, out.del, out.lines, out.heavy]) {
     if (a.byteLength && !transfer.includes(a.buffer)) transfer.push(a.buffer)
   }
   return { res, transfer }
