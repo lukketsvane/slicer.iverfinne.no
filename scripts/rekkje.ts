@@ -266,6 +266,15 @@ const saker: [string, Params][] = [
   ["kule", { ...DEFAULT_PARAMS, kjelde: "kule" }],
   ["torus ståande", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90 }],
   ["torus, små ark", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, arkB: 300, arkH: 200 }],
+  // ADRESSA MOT SPORVEGGEN.
+  //
+  // Ribbene her er kammar med lange, tette rader av spor, og dei er store
+  // nok til at adressa vert sett i full storleik. Det er den kombinasjonen
+  // som fekk teksten utanfor kuttlina: rasteret som leitar etter det
+  // feitaste punktet på delen hoppa over eit spor, fylte tvers over det,
+  // og la adressa midt på veggen mellom to spor. Ein millimeter utanfor,
+  // og heilt usynleg på skjermen.
+  ["torus, tett og stort", { ...DEFAULT_PARAMS, kjelde: "torus", ribbX: 13, ribbY: 13, storleik: 560 }],
 ]
 
 /** kuttfila er éi fil per plate, so kvar plate vert prøvd for seg */
