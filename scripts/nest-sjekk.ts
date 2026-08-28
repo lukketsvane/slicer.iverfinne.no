@@ -19,6 +19,43 @@ import { makePlan, nestGap } from "../lib/vaffel/plan"
 import { DETAIL } from "../lib/vaffel/ribs"
 import { placedRings } from "../lib/vaffel/nest"
 import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
+
+/**
+ * AVSTANDEN MELLOM TO OMRISS, MÅLT SOM AVSTANDEN MELLOM TO OMRISS.
+ *
+ * Ho vart målt hjørne mot hjørne. Eit hjørne som ligg inntil ei lang, rett
+ * side er då usynleg: vakta las ei plate der to kompenserte kutt gjekk i
+ * kvarandre og skreiv «ok». På kube 500 i 12 mm med 3,5 mm snitt gav
+ * hjørne-mot-hjørne 1,06 mm gods der det verkelege talet var −0,55.
+ *
+ * Punkt mot LINESTYKKE, båe vegar, er den same rekninga med ei projeksjon
+ * inni — og det er den einaste som svarar på spørsmålet.
+ */
+const punktTilLine = (p: Pt, a: Pt, b: Pt) => {
+  const vx = b[0] - a[0]
+  const vy = b[1] - a[1]
+  const L = vx * vx + vy * vy
+  let t = L ? ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / L : 0
+  t = Math.max(0, Math.min(1, t))
+  return Math.hypot(p[0] - (a[0] + t * vx), p[1] - (a[1] + t * vy))
+}
+
+const ringAvstand = (A: readonly Pt[], B: readonly Pt[]) => {
+  let d = Infinity
+  for (let i = 0; i < A.length; i++) {
+    for (let j = 0; j < B.length; j++) {
+      const b0 = B[j]
+      const b1 = B[(j + 1) % B.length]
+      const a0 = A[i]
+      const a1 = A[(i + 1) % A.length]
+      const u = punktTilLine(a0, b0, b1)
+      if (u < d) d = u
+      const v = punktTilLine(b0, a0, a1)
+      if (v < d) d = v
+    }
+  }
+  return d
+}
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
 
@@ -194,12 +231,8 @@ function sjekk(namn: string, p: Params) {
           ba2.y0 <= bb3.y1 + gap * 3 &&
           bb3.y0 <= ba2.y1 + gap * 3
         ) {
-          for (const u of komp[a]) {
-            for (const v of komp[c]) {
-              const d = Math.hypot(u[0] - v[0], u[1] - v[1]) - p.snitt
-              if (d < gods) gods = d
-            }
-          }
+          const d = ringAvstand(komp[a], komp[c]) - p.snitt
+          if (d < gods) gods = d
         }
         const ra = placedRings(sheet.placed[a]).outline
         const rb = placedRings(sheet.placed[c]).outline
@@ -207,12 +240,8 @@ function sjekk(namn: string, p: Params) {
         const bb2 = bbox(rb)
         if (ba.x0 > bb2.x1 + gap * 3 || bb2.x0 > ba.x1 + gap * 3) continue
         if (ba.y0 > bb2.y1 + gap * 3 || bb2.y0 > ba.y1 + gap * 3) continue
-        for (const u of ra) {
-          for (const v of rb) {
-            const d = Math.hypot(u[0] - v[0], u[1] - v[1])
-            if (d < naer) naer = d
-          }
-        }
+        const dn = ringAvstand(ra, rb)
+        if (dn < naer) naer = dn
       }
     }
   }
@@ -248,7 +277,11 @@ function sjekk(namn: string, p: Params) {
     utanfor === 0 &&
     lagd + ns.spilt === pl.parts.length &&
     feilmerkt === 0 &&
-    (!Number.isFinite(gods) || gods >= 1)
+    (!Number.isFinite(gods) || gods >= 1) &&
+    // Luka er ein LOVNAD, ikkje ei opplysning. Ho stod berre skriven ut.
+    // Ein tjuandedels millimeter slingring: rasteret landar på luka på
+    // hundredelen, og ei flyttalsrekning skal ikkje vera eit brot.
+    (!Number.isFinite(naer) || naer >= gap - 0.05)
   if (!ok) brot++
   console.log(
     `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ` +
@@ -346,6 +379,16 @@ sjekk("kule 7x7", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 7, ribbY: 7 })
 sjekk("egg 8x8", { ...DEFAULT_PARAMS, kjelde: "egg", ribbX: 8, ribbY: 8 })
 sjekk("torus staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9 })
 sjekk("kule stor plate", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 10, ribbY: 10, arkB: 2500, arkH: 1250 })
+// PLATENE MELLOM DEI TO GOLVA.
+//
+// Oppløysinga vert vald som `max(luke/3, plata/620, 1)`. Er plata stor nok
+// til å dra res forbi ein tredels luke, men ikkje forbi HEILE luka, fell
+// utvidinga til éi celle og den verkelege avstanden til res. Med ei luke
+// på fire millimeter er det plater mellom 827 og 2480 mm — altso dei
+// fleste store laserbord, og heile finérplata på 2440. Prøvene over låg
+// tilfeldigvis på kvar si side av det vindauget: 800 under, 2500 over.
+sjekk("kule 1600x1000", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 12, ribbY: 12, storleik: 400, arkB: 1600, arkH: 1000 })
+sjekk("kube finerplate", { ...DEFAULT_PARAMS, storleik: 700, ribbX: 10, ribbY: 10, arkB: 2440, arkH: 1220 })
 sjekk("egg i 6 mm", { ...DEFAULT_PARAMS, kjelde: "egg", tjukn: 6, ribbX: 7, ribbY: 7 })
 // Ein kam: tre like tindar under ein rygg. Kvar tverribbe vert delt i tre
 // stykke med NØYAKTIG same form, som ligg tre ulike stader. Det er den
