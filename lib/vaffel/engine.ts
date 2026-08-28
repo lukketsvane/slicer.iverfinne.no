@@ -91,7 +91,7 @@ const asP = (p: ParamBag) => p as unknown as Params
  * ho på òg, vert kvart spor ei snittbreidd for vidt og rutenettet held
  * seg ikkje sjølv.
  */
-const kerfOf = (p: Params) => (p.snittveg ? 0 : p.snitt)
+export const kerfOf = (p: Params) => (p.snittveg ? 0 : p.snitt)
 
 /** Ein ny tom buffer kvar gong. Ein delt tom Float32Array vert kopla frå
  *  fyrste gong han vert send gjennom postMessage, og då er alle seinare

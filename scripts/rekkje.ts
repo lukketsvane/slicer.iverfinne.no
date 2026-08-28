@@ -16,7 +16,7 @@
  *   npx tsx scripts/rekkje.ts
  */
 import { inRing, shoelace, type ParamBag, type Pt } from "../lib/core"
-import { VAFFEL } from "../lib/vaffel/engine"
+import { kerfOf, VAFFEL } from "../lib/vaffel/engine"
 import { makePlan } from "../lib/vaffel/plan"
 import { DETAIL } from "../lib/vaffel/ribs"
 import { sheetSvg } from "../lib/vaffel/export-svg"
@@ -148,19 +148,49 @@ function sjekkSteg(namn: string, steg: Steg[]) {
 // =============================================================================
 // DXF
 // =============================================================================
+/**
+ * TO LAG, OG INGENTING ANNA — OG BERRE STREKAR.
+ *
+ * SVG-sida nektar ein tredje farge og alt som er fylt: ein farge er ei
+ * operasjon i laserprogrammet, so eit lag til er eitt nokon må hugse å slå
+ * av og eitt nokon ein dag gløymer, og ei fylling ber maskina brenne heile
+ * flata.
+ *
+ * DXF-sida hadde ingen slik regel. Ho las «GRAVER» som gravering og ALT
+ * ANNA som kutt — so eit lag som dukka opp, eller eit lag som skreiv seg
+ * feil, vart stille om til eit kutt gjennom plata. Og ho såg berre etter
+ * POLYLINE: ein SOLID eller ein HATCH — det er DXF-en sitt ord for ei
+ * fylling — var usynleg for henne heilt fram til maskina.
+ *
+ * Difor kvitlister: laga skal vera GRAVER og KUTT, og entitetane i
+ * ENTITIES skal vera POLYLINE, VERTEX og SEQEND.
+ */
+const DXF_LAG = new Set(["GRAVER", "KUTT"])
+const DXF_ENT = new Set(["POLYLINE", "VERTEX", "SEQEND"])
+
 /** entitetane i ei R12-fil, i den orden dei står: lag og areal */
-function dxfSteg(dxf: string): Steg[] {
+function dxfSteg(namn: string, dxf: string): Steg[] {
   const t = dxf.split(/\r\n/)
   const out: Steg[] = []
   let lag = ""
   let pts: Pt[] | null = null
   let x = 0
-  for (let i = 0; i < t.length; i++) {
+  let iEnt = false
+  const framandeLag = new Set<string>()
+  const framandeEnt = new Set<string>()
+  // Ei DXF-fil er strengt par av gruppekode og verdi. Ein «0» på ein
+  // VERDI-plass er ikkje ein entitetsstart — det er eit tal som er null —
+  // so pariteten må haldast, elles les ein koordinatar som entitetsnamn.
+  for (let i = 0; i < t.length - 1; i += 2) {
     if (t[i] !== "0") continue
     const kind = t[i + 1]
+    if (kind === "SECTION") iEnt = t[i + 3] === "ENTITIES"
+    else if (kind === "ENDSEC" || kind === "EOF") iEnt = false
+    else if (iEnt && !DXF_ENT.has(kind)) framandeEnt.add(kind)
     if (kind === "POLYLINE") {
       if (pts) out.push(steg(lag, pts))
       lag = t[i + 3] === undefined ? "" : t[i + 3]
+      if (!DXF_LAG.has(lag)) framandeLag.add(lag)
       pts = []
     } else if (kind === "VERTEX" && pts) {
       for (let j = i; j < i + 14; j++) {
@@ -173,6 +203,8 @@ function dxfSteg(dxf: string): Steg[] {
     }
   }
   if (pts) out.push(steg(lag, pts))
+  if (framandeLag.size) feil(namn, `framande lag: ${[...framandeLag].join(", ")}`)
+  if (framandeEnt.size) feil(namn, `framande entitetar: ${[...framandeEnt].join(", ")}`)
   return out
 }
 
@@ -239,7 +271,7 @@ const saker: [string, Params][] = [
 /** kuttfila er éi fil per plate, so kvar plate vert prøvd for seg */
 function arkSteg(namn: string, p: Params): Steg[][] {
   const { ns } = makePlan(p, DETAIL.mid)
-  const kerf = p.snittveg ? 0 : p.snitt
+  const kerf = kerfOf(p)
   return ns.sheets.map((_, i) => {
     const svg = sheetSvg(ns, i, kerf)
     graveringaLiggInne(`${namn} · ark ${i + 1}`, svg)
@@ -252,10 +284,10 @@ function arkSteg(namn: string, p: Params): Steg[][] {
  * imellom. Rekkjefylgda gjeld INNANFOR ei plate: at ramma til plate to
  * kjem etter kutta i plate ein er ikkje eit brot, det er neste plate.
  */
-function dxfPerArk(dxf: string, arkH: number): Steg[][] {
+function dxfPerArk(namn: string, dxf: string, arkH: number): Steg[][] {
   const pitch = arkH + SHEET_GAP
   const band: Steg[][] = []
-  for (const q of dxfSteg(dxf)) {
+  for (const q of dxfSteg(namn, dxf)) {
     const i = Math.max(0, Math.floor(q.y / pitch))
     ;(band[i] ??= []).push(q)
   }
@@ -333,7 +365,7 @@ for (const [namn, p] of saker) {
     `${namn} · profilar`,
     svgSteg(`${namn} · profilar`, VAFFEL.exportFile(bag, "svg").text ?? ""),
   )
-  const dxf = dxfPerArk(VAFFEL.exportFile(bag, "dxf").text ?? "", p.arkH)
+  const dxf = dxfPerArk(`${namn} · dxf`, VAFFEL.exportFile(bag, "dxf").text ?? "", p.arkH)
   dxf.forEach((steg, i, all) => sjekkSteg(`${namn} · dxf ${i + 1}/${all.length}`, steg))
   inventar(namn, p, ark, dxf)
 }
@@ -467,7 +499,7 @@ for (const [namn, over] of proveSaker) {
   const pp = { ...DEFAULT_PARAMS, ...over }
   const svg = VAFFEL.exportFile(pp as unknown as ParamBag, "prove").text ?? ""
   graveringaLiggInne(namn, svg)
-  kupongMaal(namn, svg, pp.tjukn, pp.snittveg ? 0 : pp.snitt)
+  kupongMaal(namn, svg, pp.tjukn, kerfOf(pp))
 }
 
 // =============================================================================

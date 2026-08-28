@@ -14,7 +14,7 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
-import { VAFFEL } from "../lib/vaffel/engine"
+import { kerfOf, VAFFEL } from "../lib/vaffel/engine"
 import { sheetSvg } from "../lib/vaffel/export-svg"
 import { makePlan } from "../lib/vaffel/plan"
 import { DETAIL } from "../lib/vaffel/ribs"
@@ -71,7 +71,11 @@ const main = async () => {
     ns.sheets.forEach((_, i) => {
       filer.push({
         namn: `ark-${namn}-${i + 1}av${ns.sheets.length}`,
-        svg: sheetSvg(ns, i, p.snitt),
+        // Den SAME kompensasjonen som uttaket. Skriptet fotograferer
+        // «uttaka slik brukaren får dei», og står `snittveg` på maskina,
+        // ber ikkje fila kompensasjonen — teikninga her gjorde det
+        // likevel, og synte eit ark ingen får.
+        svg: sheetSvg(ns, i, kerfOf(p)),
       })
     })
     filer.push({ namn: `prove-${namn}`, svg: couponOf(bag) })
