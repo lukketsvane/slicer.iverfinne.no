@@ -258,17 +258,29 @@ export function GestureParams({
       e.stopPropagation()
       // Hjulet har ingen start og ingen slutt, so gesten er «hakk som kjem
       // tett»: totalen står til det har vore stille i eit halvt sekund.
-      onGest?.("storleik")
+      //
+      // Og gesten skal MELDE SEG ÉIN GONG. `onGest("storleik")` låser
+      // grunnstoda klypet vert målt frå, og han vart meldt på kvart
+      // einaste hakk: grunnstoda flytta seg til den storleiken hjulet
+      // nettopp hadde laga, medan totalen heldt fram med å vekse frå éin.
+      // Kvart hakk gonga seg sjølv, og eit par sekund på styreflata slo
+      // storleiken i taket på tolv hundre millimeter same kor lite du dreg.
+      if (!hjulGaar) {
+        hjulGaar = true
+        onGest?.("storleik")
+      }
       hjulTotal *= Math.exp(-e.deltaY * 0.01)
       onSkala(hjulTotal)
       window.clearTimeout(hjulTimer)
       hjulTimer = window.setTimeout(() => {
         onGest?.(null)
         hjulTotal = 1
+        hjulGaar = false
       }, 500)
     }
     let hjulTimer = 0
     let hjulTotal = 1
+    let hjulGaar = false
 
     el.addEventListener("pointerdown", down)
     el.addEventListener("wheel", hjul, { passive: false, capture: true })
