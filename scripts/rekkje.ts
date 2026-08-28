@@ -302,5 +302,37 @@ if (iMaskina !== nominell) feil("snitt i maskina", "fila kompenserer likevel")
 else if (iFila === nominell) feil("snitt i fila", "fila kompenserer ikkje")
 else console.log("  ok   snittveg                 fila kompenserer berre når ho skal")
 
+/**
+ * OG HAN SKAL KOMPENSERE RETT VEG.
+ *
+ * Prøven over spør berre om fila er ei ANNA fil. Snu forteiknet på
+ * kompensasjonen, og ho er framleis ei anna fil — men kvar einaste del
+ * kjem ut ei heil snittbreidd for lita, kvart spor for smalt, og
+ * rutenettet held seg ikkje sjølv. Det er ein feil du finn med sekstifire
+ * skorne delar framfor deg.
+ *
+ * Retninga er gjeven: omrisset skal skuvast UT og hòla INN, so stråla et
+ * seg inn til den nominelle lina frå begge sider. Arealet med forteikn
+ * fangar begge: eit omriss som veks gjev meir positivt, eit hòl som
+ * krympar gjev mindre negativt. Summen må opp.
+ */
+const summer = (p: Partial<Params>) =>
+  arkSteg("snittveg", { ...DEFAULT_PARAMS, ...p })
+    .flat()
+    .reduce((a, q) => a + q.areal, 0)
+
+const sumNominell = summer({ snitt: 0 })
+const sumIFila = summer({ snitt: 0.6, snittveg: 0 })
+if (!(sumIFila > sumNominell + 1)) {
+  feil(
+    "snittretning",
+    `kompensasjonen går feil veg: ${sumNominell.toFixed(0)} → ${sumIFila.toFixed(0)} mm²`,
+  )
+} else {
+  console.log(
+    `  ok   snittretninga            omrisset veks utover (${sumNominell.toFixed(0)} → ${sumIFila.toFixed(0)} mm²)`,
+  )
+}
+
 console.log(brot ? `\n${brot} brot` : "\ningen brot")
 process.exit(brot ? 1 : 0)
