@@ -156,8 +156,23 @@ function sjekk(namn: string, p: Params) {
       // Og gods på BEGGE sider, ein halv millimeter utanfor veggen. Utan
       // det er ikkje dette eit spor — det er enden av ribba, eller ei
       // kløft som alt var der.
+      //
+      // Talet vart rekna og skrive, og so kasta: det stod i lina, men
+      // ikkje i `ok`. Ei ribbe kunne mist skuldra på kvart einaste spor
+      // og skriptet ville framleis sagt at alle ledd står. Eit spor utan
+      // skulder er eit spor som ikkje held noko — den kryssande ribba sig
+      // rett gjennom — og det er nett det harnesset er her for.
       const ut = q.w / 2 + 0.5
-      if (!gods(r, [q.t - ut, z]) || !gods(r, [q.t + ut, z])) uteneskulder++
+      if (!gods(r, [q.t - ut, z]) || !gods(r, [q.t + ut, z])) {
+        uteneskulder++
+        if (uteneskulder <= 3) {
+          console.log(
+            `      ${r.axis}${r.k} t=${q.t.toFixed(1)} z=${z.toFixed(1)}: ` +
+              `ingen skulder ${ut.toFixed(1)} mm ut på ` +
+              `${!gods(r, [q.t - ut, z]) ? "venstre" : "høgre"} sida`,
+          )
+        }
+      }
     }
   }
 
@@ -179,7 +194,7 @@ function sjekk(namn: string, p: Params) {
 
   const vol = volumAvvik(g)
 
-  const ok = tapt === 0 && nabo === 0 && godsOk && vol.tal === 0
+  const ok = tapt === 0 && uteneskulder === 0 && nabo === 0 && godsOk && vol.tal === 0
   if (!ok) brot++
   console.log(
     `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ` +

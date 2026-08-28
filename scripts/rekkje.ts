@@ -262,23 +262,213 @@ function dxfPerArk(dxf: string, arkH: number): Steg[][] {
   return band.filter(Boolean)
 }
 
+// =============================================================================
+// INVENTAR
+// =============================================================================
+/**
+ * KVAR DEL, OG KVART HÒL, SKAL VERE I FILA.
+ *
+ * Alt over spør om filene er RETTE: rett orden, rett farge, rett veg på
+ * kompensasjonen. Ingenting spør om dei er HEILE. Ei kuttfil som manglar
+ * ei ribbe er ei feilfri fil etter alle prøvene over — ho har to fargar,
+ * graveringa fyrst og omrisset sist — heilt til plata er skoren og
+ * fireogseksti ledd skal setjast saman med treogseksti delar.
+ *
+ * Eit hòl som fell bort er verre enn ein del som fell bort, av di du ikkje
+ * ser det. Plata kjem ut av maskina med rett tal delar; det er fyrst når
+ * ribbe elleve ikkje vil gå ned over ribbe fem at det kjem fram at sporet
+ * aldri vart skore.
+ *
+ * Fasiten er nestinga: kvar del på ei plate krev nøyaktig éi omrissbane og
+ * éi bane per hòl. Og nestinga sjølv vert målt mot delelista ho fekk — ein
+ * pakkar som mistar ein del utan å telje han som spilt, ville elles hatt
+ * fasiten på si side.
+ *
+ * SVG og DXF vert prøvde kvar for seg mot den same fasiten. Dei er to
+ * uavhengige skrivarar over den same nestinga, so ein skilnad mellom dei
+ * er ein av dei som tek feil.
+ */
+function inventar(namn: string, p: Params, svg: Steg[][], dxf: Steg[][]) {
+  const før = brot
+  const { pl, ns } = makePlan(p, DETAIL.mid)
+
+  // Pakkinga skal gjere greie for kvar einaste del ho fekk: han ligg på ei
+  // plate, eller han er talt som spilt. Det er ingen tredje stad.
+  const lagde = ns.sheets.reduce((n, s) => n + s.placed.length, 0)
+  if (lagde + ns.spilt !== pl.parts.length) {
+    feil(namn, `pakkinga: ${pl.parts.length} delar inn, ${lagde} lagde + ${ns.spilt} spilte ut`)
+  }
+
+  const venta = ns.sheets.map((s) => s.placed.reduce((n, q) => n + 1 + q.part.holes.length, 0))
+  const talde = (steg: Steg[][]) => steg.map((q) => q.filter((r) => !r.grav).length)
+
+  for (const [fil, fekk] of [
+    ["svg", talde(svg)],
+    ["dxf", talde(dxf)],
+  ] as [string, number[]][]) {
+    if (fekk.length !== venta.length) {
+      feil(`${namn} · ${fil}`, `${venta.length} plater i nestinga, ${fekk.length} i fila`)
+      continue
+    }
+    venta.forEach((v, i) => {
+      if (fekk[i] !== v) {
+        feil(`${namn} · ${fil} ark ${i + 1}`, `${v} kuttbaner venta, ${fekk[i]} skrivne`)
+      }
+    })
+  }
+
+  if (brot === før) {
+    console.log(
+      `  ok   ${(namn + " · inventar").padEnd(24)} ${pl.parts.length} delar, ` +
+        `${venta.reduce((a, b) => a + b, 0)} kuttbaner på ${ns.sheets.length} plater`,
+    )
+  }
+}
+
 for (const [namn, p] of saker) {
   const bag = p as unknown as ParamBag
-  arkSteg(namn, p).forEach((steg, i, all) =>
-    sjekkSteg(`${namn} · ark ${i + 1}/${all.length}`, steg),
-  )
+  const ark = arkSteg(namn, p)
+  ark.forEach((steg, i, all) => sjekkSteg(`${namn} · ark ${i + 1}/${all.length}`, steg))
   sjekkSteg(
     `${namn} · profilar`,
     svgSteg(`${namn} · profilar`, VAFFEL.exportFile(bag, "svg").text ?? ""),
   )
-  dxfPerArk(VAFFEL.exportFile(bag, "dxf").text ?? "", p.arkH).forEach((steg, i, all) =>
-    sjekkSteg(`${namn} · dxf ${i + 1}/${all.length}`, steg),
-  )
+  const dxf = dxfPerArk(VAFFEL.exportFile(bag, "dxf").text ?? "", p.arkH)
+  dxf.forEach((steg, i, all) => sjekkSteg(`${namn} · dxf ${i + 1}/${all.length}`, steg))
+  inventar(namn, p, ark, dxf)
 }
 
 const kupong = VAFFEL.exportFile(DEFAULT_PARAMS as unknown as ParamBag, "prove").text ?? ""
 graveringaLiggInne("passprøve", kupong)
 sjekkSteg("passprøve", svgSteg("passprøve", kupong))
+
+// =============================================================================
+// PASSPRØVA SKAL MÅLAST
+// =============================================================================
+/**
+ * SJU SPOR, OG DET ER BREIDDA PÅ DEI SOM ER HEILE POENGET.
+ *
+ * Passprøva er kalibreringa til heile byggjet. Du skjer henne, skyv eit
+ * avkapp av den same plata ned i kvart spor, finn det som går inn med
+ * tommelkraft, og les talet under. Det talet vert `klaring`, og klaringa
+ * går inn i kvart einaste av dei fireogseksti ledda.
+ *
+ * Er sporet under «15» eigentleg 0,20 breitt, kalibrerer du mot ei løgn.
+ * Kvar einaste tapp vert fem hundredelar for laus, heile stabelen sig, og
+ * du finn det ikkje att i noko — du har jo MÅLT.
+ *
+ * Prøvene over ser på prøva som ei kuttfil: rett orden, to fargar, ingen
+ * gravering utanfor. Ingen av dei bryr seg om kor breie spora er. Ei prøve
+ * med sju like spor ville gått rett gjennom heile skriptet.
+ *
+ * Difor vert breidda MÅLT, i fila, slik ein maskin ville lese henne.
+ *
+ * FERDIG breidd, ikkje breidda i fila. Spora er hakk i omrisset, og
+ * omrisset er skuve ein halv snittbreidd ut — so i fila er kvart spor ei
+ * heil snittbreidd for smalt, og stråla et det opp att. Det er summen som
+ * skal stemme, og det er summen tommelen kjenner.
+ *
+ * Toleransen er ein hundredel: fila ber to desimalar, so eit hjørne kan
+ * runde av ein halv hundredel kvar veg. Stega er fem hundredelar frå
+ * kvarandre og tommelen kjenner ikkje ein hundredel, so det er langt nok
+ * unna til å ikkje tyde noko — men det er grunnen til at talet ikkje er
+ * null.
+ */
+const KLARINGAR = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
+
+/** dei to endane av kvart spor, målte i golvet på hakket */
+function sporIKupong(svg: string) {
+  const baner = [...svg.matchAll(/<path d="([^"]+)"([^>]*)>/g)].map((m) => ({
+    grav: GRAV_FARGE.test(m[2]),
+    p: pathPts(m[1]),
+  }))
+  const kutt = baner.find((b) => !b.grav)
+  if (!kutt) return null
+  // Tre y-nivå i omrisset: botnen, golvet i spora, og overkanten der spora
+  // opnar seg. Golvet er det midtre, og det er der hakka kan målast.
+  const niv = [...new Set(kutt.p.map((q) => +q[1].toFixed(3)))].sort((a, b) => a - b)
+  if (niv.length !== 3) return null
+  const golv = kutt.p
+    .filter((q) => Math.abs(q[1] - niv[1]) < 0.001)
+    .map((q) => q[0])
+    .sort((a, b) => a - b)
+  const spor: [number, number][] = []
+  for (let i = 0; i + 1 < golv.length; i += 2) spor.push([golv[i], golv[i + 1]])
+  return { spor, golvY: niv[1], grav: baner.filter((b) => b.grav) }
+}
+
+/**
+ * OG TALET SKAL STÅ UNDER SITT EIGE SPOR.
+ *
+ * Sju rette spor med talrekkja forskjøve eitt hakk er den verste av alle
+ * feila her: prøva er heilt rett, ho er berre feilmerkt, og du les 0,15
+ * der du skulle lese 0,20. Talrekkja er den graveringa som ligg nærast
+ * spora — under golvet i dei og over dei to bilinene — og kvart tal skal
+ * ha tyngdepunktet sitt innanfor sitt eige spor.
+ */
+function kupongMaal(namn: string, svg: string, tjukn: number, kerf: number) {
+  const k = sporIKupong(svg)
+  if (!k) return feil(namn, "fann ikkje omrisset med tre y-nivå")
+  if (k.spor.length !== KLARINGAR.length) {
+    return feil(namn, `${KLARINGAR.length} spor venta, ${k.spor.length} i fila`)
+  }
+
+  for (let i = 0; i < KLARINGAR.length; i++) {
+    const ferdig = k.spor[i][1] - k.spor[i][0] + kerf
+    const skal = tjukn + KLARINGAR[i]
+    if (Math.abs(ferdig - skal) > 0.011) {
+      return feil(namn, `spor ${i + 1}: ${ferdig.toFixed(3)} mm ferdig, ${skal.toFixed(2)} venta`)
+    }
+  }
+
+  // Digitala i eitt tal står nærare kvarandre enn to tal gjer. Halve
+  // avstanden mellom to spor skil dei to utan å vite kor stor skrifta er.
+  const midt = (s: [number, number]) => (s[0] + s[1]) / 2
+  const stig = midt(k.spor[1]) - midt(k.spor[0])
+  const xs = k.grav
+    .filter((b) => b.p.reduce((a, q) => a + q[1], 0) / b.p.length > k.golvY * 0.6)
+    .map((b) => b.p.reduce((a, q) => a + q[0], 0) / b.p.length)
+    .sort((a, b) => a - b)
+  const klynge: number[][] = []
+  for (const x of xs) {
+    const sist = klynge[klynge.length - 1]
+    if (sist && x - sist[sist.length - 1] < stig / 2) sist.push(x)
+    else klynge.push([x])
+  }
+  if (klynge.length !== KLARINGAR.length) {
+    return feil(namn, `${KLARINGAR.length} tal venta under spora, ${klynge.length} funne`)
+  }
+  for (let i = 0; i < klynge.length; i++) {
+    const c = klynge[i].reduce((a, b) => a + b, 0) / klynge[i].length
+    if (c <= k.spor[i][0] || c >= k.spor[i][1]) {
+      return feil(namn, `tal ${i + 1} står ikkje under spor ${i + 1}`)
+    }
+  }
+
+  console.log(
+    `  ok   ${namn.padEnd(24)} ${k.spor.length} spor ` +
+      `${(k.spor[0][1] - k.spor[0][0] + kerf).toFixed(2)}–` +
+      `${(k.spor[6][1] - k.spor[6][0] + kerf).toFixed(2)} mm, kvart tal under sitt eige`,
+  )
+}
+
+// Tynt og tjukt, med og utan kompensasjon i fila. Cella, djupna og
+// skuldra skalerer alle med tjukna, so ei prøve som stemmer på tre mm er
+// ikkje eit svar for ei på tolv.
+const proveSaker: [string, Partial<Params>][] = [
+  ["passprøve 3 mm", {}],
+  ["passprøve 3 mm, maskina", { snittveg: 1 }],
+  ["passprøve 1,5 mm", { tjukn: 1.5, snitt: 0.1 }],
+  ["passprøve 6 mm", { tjukn: 6, snitt: 0.4 }],
+  ["passprøve 12 mm", { tjukn: 12, snitt: 0.5 }],
+  ["passprøve utan snitt", { snitt: 0 }],
+]
+for (const [namn, over] of proveSaker) {
+  const pp = { ...DEFAULT_PARAMS, ...over }
+  const svg = VAFFEL.exportFile(pp as unknown as ParamBag, "prove").text ?? ""
+  graveringaLiggInne(namn, svg)
+  kupongMaal(namn, svg, pp.tjukn, pp.snittveg ? 0 : pp.snitt)
+}
 
 // =============================================================================
 // SNITTET SKAL TAKAST NØYAKTIG EIN GONG
