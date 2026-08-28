@@ -705,6 +705,30 @@ for (const [namn, over] of [
         feil(namn, `«${f.name}» er ikkje eit heilt SVG-dokument`)
       }
     }
+    /**
+     * OG FIL NUMMER k SKAL VERA PLATE NUMMER k.
+     *
+     * Overskrifta her lovar at «innhaldet vert samanlikna med det som gjekk
+     * inn». Det gjorde det ikkje: kvar fil vart prøvd for seg, som eit heilt
+     * SVG med banar i. Seks like kopiar av plate ein hadde gått rett
+     * gjennom — og den som skjer plate fire av seks ut av kopi nummer fire
+     * skjer plate ein om att, med adressene til plate ein gravert på.
+     */
+    if (filer.length !== ark) feil(namn, `${ark} plater, ${filer.length} filer i pakka`)
+    for (let i = 0; i < Math.min(filer.length, ark); i++) {
+      const fasit = VAFFEL.arkSyn({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag, i).svg
+      if (filer[i].text !== fasit) {
+        // kva plate ER det, om det ikkje er den rette?
+        let er = -1
+        for (let k = 0; k < ark; k++) {
+          if (filer[i].text === VAFFEL.arkSyn({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag, k).svg) er = k
+        }
+        feil(
+          namn,
+          `fil ${i + 1} er ${er >= 0 ? `plate ${er + 1}` : "ikkje nokon av platene"}, ikkje plate ${i + 1}`,
+        )
+      }
+    }
     console.log(`  ${namn.padEnd(14)} ${filer.length} filer, ${o.data.byteLength} B: ${filer.map((f) => f.name).join(", ")}`)
   } catch (e) {
     feil(namn, `pakka let seg ikkje lesa: ${(e as Error).message}`)

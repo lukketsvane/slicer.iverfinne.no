@@ -16,6 +16,22 @@ import { klokke, type ParamBag } from "../lib/core"
 
 const nn = (v: number, d = 1) => v.toFixed(d)
 
+/**
+ * TRE PÅSTANDAR, OG EIN UTGANGSKODE.
+ *
+ * Prøvebenken skreiv `!!` framfor kvar påstand som ikkje heldt, og
+ * avslutta med null uansett. Ein grøn `pnpm probe` tydde difor berre at
+ * skriptet kom til enden — ikkje at ein kube har seks og tretti ledd, at
+ * eit vrengd nett gjev det same som eit rettvendt, eller at ein GLB og det
+ * same nettet Z-opp gjev det same objektet. Tre påstandar som ingen
+ * maskin las.
+ */
+let brot = 0
+const bryt = (kva: string) => {
+  brot++
+  console.log(`  !! ${kva}`)
+}
+
 function report(name: string, p: Params) {
   const t0 = Date.now()
   const bag = p as unknown as ParamBag
@@ -79,8 +95,8 @@ function report(name: string, p: Params) {
 // --- 1 standarden: kuben --------------------------------------------------
 const kube = report("kube, standard", DEFAULT_PARAMS)
 if (kube.m.joints !== DEFAULT_PARAMS.ribbX * DEFAULT_PARAMS.ribbY) {
-  console.log(
-    `  !! venta ${DEFAULT_PARAMS.ribbX * DEFAULT_PARAMS.ribbY} ledd på ein kube`,
+  bryt(
+    `venta ${DEFAULT_PARAMS.ribbX * DEFAULT_PARAMS.ribbY} ledd på ein kube, fekk ${kube.m.joints}`,
   )
 }
 
@@ -200,8 +216,8 @@ const b = report("torus, rettvend (fasit)", {
   ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9,
 })
 if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
-  console.log(
-    `  !! eit vrengd nett gav ${a.m.parts}/${a.m.joints} der det rettvende gav ` +
+  bryt(
+    `eit vrengd nett gav ${a.m.parts}/${a.m.joints} der det rettvende gav ` +
       `${b.m.parts}/${b.m.joints}`,
   )
 }
@@ -252,10 +268,14 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
     g.m.joints === r.m.joints &&
     Math.abs(g.m.envZ - r.m.envZ) < 0.5 &&
     Math.abs(g.m.cutLen - r.m.cutLen) < 1
-  console.log(
-    likt
-      ? "  GLB og Z-opp gjev same objekt"
-      : `  !! GLB gav ${g.m.parts}/${g.m.joints}/${g.m.envZ.toFixed(1)}, ` +
+  if (likt) console.log("  GLB og Z-opp gjev same objekt")
+  else {
+    bryt(
+      `GLB gav ${g.m.parts}/${g.m.joints}/${g.m.envZ.toFixed(1)}, ` +
         `Z-opp gav ${r.m.parts}/${r.m.joints}/${r.m.envZ.toFixed(1)}`,
-  )
+    )
+  }
 }
+
+console.log(brot ? `\n${brot} påstandar held ikkje` : "\nalle påstandar held")
+process.exit(brot ? 1 : 0)
