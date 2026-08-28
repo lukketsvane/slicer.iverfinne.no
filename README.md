@@ -34,8 +34,8 @@ correction in the metrics, and it is why the panel fits on a phone.
 ## Use it
 
 1. **Drop a file** anywhere on the page — `.glb`, `.gltf`, `.stl` (binary or
-   ASCII), `.obj`, `.ply` (ASCII or binary). Up to 220 MB. Or start from the
-   built-in cube.
+   ASCII), `.obj`, `.ply` (ASCII or binary), or a `.zip` saved by **LAGRE**.
+   Up to 220 MB. Or start from the built-in cube.
 2. **Set the size** — pinch the object, or drag the number. The height in
    millimetres is the one number the rest of the tool is measured against.
 3. **Press find settings.** It slices a dozen rib grids for real and ranks
@@ -103,13 +103,52 @@ that resizes an auto-framed object is otherwise invisible.
 
 The URL carries every setting except the mesh itself.
 
+**Three ways to keep an afternoon's work.** The link carries every setting and
+no mesh, because a URL cannot carry a hundred megabytes. **LAGRE** gives you a
+project file that carries both — drop it back anywhere on the page and you are
+where you left off; the harness saves, reopens and compares the DXF character
+by character, because a save that comes back with a different object is worse
+than no save. And the browser remembers by itself: settings a second after they
+stop moving, the mesh once when it arrives, in IndexedDB rather than
+localStorage because a mesh is megabytes and localStorage is five. A link
+always beats the remembered session — a link is somebody telling you what to
+look at.
+
 The camera frames whatever is on screen, the reference included, and it frames
 it into the band the control sheet leaves free rather than the whole window.
 
 Every number next to a slider is a **field**: a slider is good at hunting and
 bad at hitting, so type `240` when you want 240. Keys, on a desktop: `F` finds
 settings and `⇧F` steps back, `1` `2` `3` switch views, `Z` undoes, `O` opens
-the panel.
+the panel, `L` the cut list, `A` the sheets, and `Esc` closes whatever is open.
+
+## Three tools, on the bench
+
+The walls are what you set and what you read. The third thing is what you
+**look up** — and it doesn't fit in a wall three hundred pixels wide. A drawer
+takes the lower half of the canvas, one tool at a time, and the camera reframes
+the object into what's left.
+
+**The cut list** is the panel's `12 delar · 12 · 2 unike` written out: every
+part with the address engraved on it, its shape id, size, area, cut length,
+joints and which sheet it lands on. Sort on any column; copy the lot as CSV. A
+part with no joints is red — it hangs in nothing.
+
+**Click a rib in the object and the list opens on that line.** Hover a line and
+that part stands out in the object — not a different colour, the same plate
+lifted, because the reason to point at it is to see where it sits among the
+others. The engine marks every triangle with the cut-list line it was built
+from, the same way it already marks face from cut edge, so the answer comes
+from the slicing rather than from a second guess at it.
+
+**The sheets**, one at a time, drawn large enough to read the addresses, with
+how much of each became part. It is not a picture of the file — it *is* the
+file, the same SVG the export writes.
+
+**The settings, as text.** A slider is good at hunting and bad at hitting, and
+a field takes one number at a time; this takes them all. Select, copy, paste
+into a message, get them back, paste them here. Out-of-band numbers are pulled
+into range by the engine's own clamp, and the line below says which moved.
 
 ## Find settings
 
@@ -145,6 +184,8 @@ is not progress.
 | **SVG** | every rib profile side by side, 1:1 |
 | **ARK** | one file per nested sheet, 1:1 — zipped when there is more than one |
 | **PRØVE** | fit-test coupon: seven slots, each 0.05 mm wider than the last |
+| **ALT** | the whole job in one download: all of the above, plus the cut list as CSV and the settings as JSON |
+| **LAGRE** | a project file — the settings and the mesh you dropped in, together |
 
 In the SVG files, **colour is the operation, and the colour carries the
 order**: `#000000` engrave, `#0000FF` cut.
@@ -329,9 +370,11 @@ pnpm panel   # the controls in a real browser: both surfaces, gestures, keys
 | `lib/contour.ts` | marching squares |
 | `lib/pack.ts` | nesting |
 | `lib/stroke.ts` | single-stroke font |
-| `lib/zip.ts` | fifty lines of ZIP, so one export is one download |
+| `lib/zip.ts` | ZIP, both ways: one export is one download, one project file is one drop |
+| `lib/lagring.ts` | what the browser remembers between visits |
 | `lib/vaffel/` | body, ribs, joints, parts, metrics, rules, exports |
 | `lib/worker.ts` | the engine in its own thread |
+| `components/verkty.tsx` | the three tools on the bench |
 
 ## Limits
 
