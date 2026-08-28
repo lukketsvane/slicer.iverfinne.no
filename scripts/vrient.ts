@@ -240,6 +240,49 @@ function sjekk(namn: string, p: Params, vis = false) {
 }
 
 // =============================================================================
+// SAME GEOMETRI, SAME SVAR
+// =============================================================================
+/**
+ * REKKJEFYLGDA I FILA ER IKKJE EIN OPPLYSNING OM FORMA.
+ *
+ * Strålen tel skal: han går gjennom nettet, legg til for kvar flate som
+ * vender mot han og trekkjer frå for kvar som vender vekk, og det som er
+ * over null er gods. Eit skal som sluttar nett der det neste byrjar — ein
+ * kropp på bein, to klossar oppå kvarandre, ein skann sydd av to delar —
+ * gjev ei utgang og ei inngang på NØYAKTIG same koordinaten, og då avgjer
+ * sorteringa kva som kjem fyrst.
+ *
+ * To like klossar som deler planet z = 100 gav [[0,100],[100,200]] med den
+ * nedre fyrst i fila og [[0,200]] med den øvre fyrst. Same geometri, to
+ * svar — og eit skøytepunkt som er to køyrar er eit spor til, lagt der det
+ * ikkje er noka opning.
+ */
+console.log("same geometri, same svar")
+{
+  const kloss = (out: number[], w: number, d: number, h: number, ox: number, oy: number, oz: number) => {
+    const q: [number, number, number][] = [
+      [ox, oy, oz], [ox + w, oy, oz], [ox + w, oy + d, oz], [ox, oy + d, oz],
+      [ox, oy, oz + h], [ox + w, oy, oz + h], [ox + w, oy + d, oz + h], [ox, oy + d, oz + h]]
+    const f = [[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[1,2,6],[1,6,5],[2,3,7],[2,7,6],[3,0,4],[3,4,7]]
+    for (const [a, b, c] of f) out.push(...q[a], ...q[b], ...q[c])
+  }
+  const ned: number[] = []; kloss(ned, 100, 100, 100, 0, 0, 0); kloss(ned, 100, 100, 100, 0, 0, 100)
+  const opp: number[] = []; kloss(opp, 100, 100, 100, 0, 0, 100); kloss(opp, 100, 100, 100, 0, 0, 0)
+  put("v-skøyt-ned", "skøyt-ned", makeSoup(new Float32Array(ned)))
+  put("v-skøyt-opp", "skøyt-opp", makeSoup(new Float32Array(opp)))
+  saker++
+  const tal = (kjelde: string) => {
+    const m = VAFFEL.measure({ ...DEFAULT_PARAMS, kjelde } as unknown as ParamBag)
+    return `${m.parts} delar · ${m.joints} ledd · ${m.cutLen.toFixed(1)} mm kutt · ${m.envZ.toFixed(1)} mm høg`
+  }
+  const a = tal("v-skøyt-ned")
+  const b = tal("v-skøyt-opp")
+  if (a !== b) feil("skøytte klossar", `${a}  mot  ${b}`)
+  console.log(`  to klossar som deler eit plan: ${a}`)
+  console.log(`  same to, motsett rekkjefylgje:  ${b}`)
+}
+
+// =============================================================================
 // FILER SOM IKKJE ER FILER
 // =============================================================================
 /**
