@@ -1285,10 +1285,16 @@ export function Studio() {
         objektet står like stort på skjermen, av di kameraet rammar det inn
         av seg sjølv. Talet er heile tilbakemeldinga, og det står berre so
         lenge fingrane er nede.
+
+        HØGRE HJØRNE, ØVERST. Det stod midt oppe i det frie bandet, og der
+        stod lesemåtane frå før: «−100°» la seg tvers over «kontur». Talet
+        og knappane deler den same lina no, men kvar sin ende av henne, og
+        dei kan ikkje møtast — tre korte ord til venstre, eit kort tal til
+        høgre. Same innrykk som brikkene har, so dei står i lodd.
       */}
       {gestTekst && (
         <div
-          className="pointer-events-none absolute flex justify-center"
+          className="pointer-events-none absolute flex justify-end px-4"
           style={fritt}
           aria-hidden="true"
         >
