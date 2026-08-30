@@ -70,10 +70,6 @@ const rolig = (page: Page) =>
     { timeout: 60000 },
   )
 
-/** «2 av 13 · 7×6 ribber» */
-const stadLine = (page: Page) =>
-  page.locator("section[aria-label='kontrollar'] [aria-live='polite']")
-
 /** ei kule med nok trekantar til at tolkinga tek meir enn eit augeblink */
 function kuleStl(r: number, seg: number): Buffer {
   const pos: number[] = []
@@ -429,45 +425,38 @@ async function main() {
   const steg = (await page.evaluate("window.LOGG")) as string[]
   ok("framdrifta rører seg medan søket går", steg.length >= 4, `${steg.length} steg synte seg`)
 
-  const forste = await stadLine(page).innerText()
-  const m1 = forste.match(/(\d+) av (\d+) · (\d+)×(\d+)/i)
-  ok("lina seier kvar i lista vi står", !!m1, forste.replace(/\s+/g, " "))
-  if (!m1) {
-    await browser.close()
-    process.exit(1)
-  }
-  ok("fyrste trykket set det beste svaret", m1[1] === "1", `${m1[1]} av ${m1[2]}`)
-
-  // Lina er ikkje ei avskrift av seg sjølv: ribbetalet ho seier skal vera
-  // det ribbetalet som faktisk står.
+  /**
+   * KVA SVARET VART, LESE AV LENKJA.
+   *
+   * Rada «1 av 12 · 10×22 ribber» stod her og vart lesen med ein
+   * `aria-live`-veljar. Ho er borte frå telefonen: ho kosta ei rad av eit
+   * ark med tak på 45 %, og det ho fortalde er det knappen sjølv gjer.
+   *
+   * Sjølve steget er uendra, og det er DET som må prøvast. URL-en ber
+   * ribbetalet som faktisk er sett, so han seier alt rada sa — utan å
+   * krevje at rada finst. Heile den rangerte lista står framleis på
+   * benken, og `benken()` prøver henne der.
+   */
   let p = await lenkja(page)
-  ok(
-    "ribbetalet i lina er det som er sett",
-    String(p.ribbX) === m1[3] && String(p.ribbY) === m1[4],
-    `lina ${m1[3]}×${m1[4]}, sett ${p.ribbX}×${p.ribbY}`,
-  )
+  const fyrste = `${p.ribbX}×${p.ribbY}`
+  ok("fyrste trykket set eit svar", Number(p.ribbX) > 0 && Number(p.ribbY) > 0, fyrste)
 
   // --- NESTE OG FØRRE ------------------------------------------------------
-  await page.getByLabel("neste svar").click()
+  // Tastane, ikkje pilene: pilene budde i rada som er borte. `steg(±1)` er
+  // den same funksjonen dei kalla.
+  await page.keyboard.press("f")
   await rolig(page)
-  const andre = (await stadLine(page).innerText()).match(/(\d+) av (\d+) · (\d+)×(\d+)/i)!
-  ok("neste går eitt steg ned", andre[1] === "2", `${andre[1]} av ${andre[2]}`)
   p = await lenkja(page)
-  ok(
-    "og set det svaret han seier",
-    String(p.ribbX) === andre[3] && String(p.ribbY) === andre[4],
-    `${andre[3]}×${andre[4]}`,
-  )
+  const andre = `${p.ribbX}×${p.ribbY}`
+  ok("neste går eitt steg ned i lista", andre !== fyrste, `${fyrste} → ${andre}`)
 
-  await page.getByLabel("førre svar").click()
+  await page.keyboard.press("Shift+f")
   await rolig(page)
-  const attende = (await stadLine(page).innerText()).match(/(\d+) av (\d+) · (\d+)×(\d+)/i)!
-  ok("førre går eitt steg attende", attende[1] === "1", `${attende[1]} av ${attende[2]}`)
   p = await lenkja(page)
   ok(
-    "og er attende på det same svaret",
-    attende[3] === m1[3] && attende[4] === m1[4] && String(p.ribbX) === m1[3],
-    `${attende[3]}×${attende[4]} mot ${m1[3]}×${m1[4]}`,
+    "førre er attende på det same svaret",
+    `${p.ribbX}×${p.ribbY}` === fyrste,
+    `${andre} → ${p.ribbX}×${p.ribbY}`,
   )
 
   // --- LISTA GJELD BERRE DET SPØRSMÅLET HO SVARTE PÅ -----------------------
@@ -477,7 +466,17 @@ async function main() {
   await rolig(page)
   p = await lenkja(page)
   ok("talfeltet set talet", p.storleik === 240, `storleik ${p.storleik}`)
-  ok("og lista er borte når spørsmålet er eit anna", (await stadLine(page).count()) === 0)
+  // Ei liste som svarte på ein annan storleik er ikkje ei liste lenger:
+  // «førre svar» har ingen stad å gå, og skal la ribbetalet stå.
+  const forStorleik = `${p.ribbX}×${p.ribbY}`
+  await page.keyboard.press("Shift+f")
+  await rolig(page)
+  p = await lenkja(page)
+  ok(
+    "og lista gjeld ikkje når spørsmålet er eit anna",
+    `${p.ribbX}×${p.ribbY}` === forStorleik,
+    `${forStorleik} → ${p.ribbX}×${p.ribbY}`,
+  )
 
   // --- TALFELTET KLEMMER ---------------------------------------------------
   await page.getByLabel("storleik, tal", { exact: true }).fill("99999")
@@ -575,6 +574,49 @@ async function main() {
       return el ? el.scrollWidth - el.clientWidth : -1
     })()`)
     ok(`tala står heile på ${breidd} px`, kappa === 0, `${kappa} px kappa`)
+  }
+
+  // --- TAKET ---------------------------------------------------------------
+  /**
+   * INGEN TILSTAND FÅR DEKKJE MEIR ENN DETTE.
+   *
+   * Arket er ein meny over eit objekt, og eit objekt du ikkje ser er ein
+   * reiskap som ikkje seier deg noko. Det fulle steget las 621 px av 844
+   * — sytti prosent — av di taket låg på RULLEKASSA og ikkje på arket:
+   * grep, hovudline, svarline og fot står utanfor kassa og tel like fullt.
+   *
+   * Taket ligg på arket no (sjå `maxHeight` i controls-panel), og då er
+   * dette den prøva som held det der. Utan henne driv det attende ei rad
+   * om gongen, og kvar rad ser rimeleg ut åleine.
+   */
+  const TAK = 45
+  const dekninga = () =>
+    page.evaluate(`(function(){
+      var s = document.querySelector("section[aria-label='kontrollar']")
+      if (!s) return -1
+      var r = s.getBoundingClientRect()
+      return Math.round((window.innerHeight - r.top) / window.innerHeight * 1000) / 10
+    })()`) as Promise<number>
+  // MÅLMASKINA STÅR FYRST: iPhone 16e er 1170×2532 på tre gonger, som er
+  // 390×844 i CSS. Dei to andre er ein mindre Android og ein gamal SE —
+  // ei rad som får plass på 390 og ikkje på 320 er ei rad som bryt.
+  for (const [breidd, hogd] of [
+    [390, 844],
+    [360, 780],
+    [320, 700],
+  ]) {
+    await page.setViewportSize({ width: breidd, height: hogd })
+    await page.waitForTimeout(300)
+    // Arket står halvope her; knappen tek det til det fulle og attende.
+    for (const [steg, vidare] of [
+      ["halvope", "alle parametrar"],
+      ["heilope", "færre kontrollar"],
+    ]) {
+      const d = await dekninga()
+      ok(`${steg} dekkjer under ${TAK} % på ${breidd}×${hogd}`, d > 0 && d <= TAK, `${d} %`)
+      await page.getByLabel(vidare).click()
+      await page.waitForTimeout(350)
+    }
   }
   await page.setViewportSize({ width: 1000, height: 900 })
 
