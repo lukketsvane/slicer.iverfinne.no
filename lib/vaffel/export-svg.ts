@@ -39,7 +39,10 @@ import { placedRings, type Nesting } from "./nest"
 import type { Grid } from "./ribs"
 
 const f = (v: number) => (Math.abs(v) < 1e-4 ? "0" : v.toFixed(2))
-const ring = (pts: Pt[]) =>
+/** Ein lukka bane. Eksportert av di plateSYNET teiknar dei same banene som
+ *  plateFILA, og to serialiserarar av det same er to som kan drive frå
+ *  kvarandre. */
+export const ring = (pts: Pt[]) =>
   pts.map((q, i) => `${i ? "L" : "M"}${f(q[0])},${f(q[1])}`).join(" ") + "Z"
 const open = (pts: Pt[]) =>
   pts.map((q, i) => `${i ? "L" : "M"}${f(q[0])},${f(q[1])}`).join(" ")

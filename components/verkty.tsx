@@ -224,8 +224,31 @@ function Kuttliste(props: {
 // =============================================================================
 // PLATENE
 // =============================================================================
-function Plater(props: { ark: ArkSyn | null; onArk: (i: number) => void }) {
-  const { ark, onArk } = props
+/**
+ * PLATA ER IKKJE EIT BILETE LENGER.
+ *
+ * Ho var ein `<img>` med heile arket bakt inn i seg som ein SVG-streng. Eit
+ * bilete er nøyaktig like mykje verdt som fila det er teikna av: du ser at
+ * ein del ligg feil, og du kan ikkje ta i han. Ingen av dei tinga nokon vil
+ * gjere med ein einskild del — peike på han, fylgje han til objektet, låse
+ * han, dra han — kan gjerast inni ein `<img>`.
+ *
+ * No er kvar del sitt eige element med adressa si på seg. Banene er DEI
+ * SAME som fila skriv, med den same snittkompensasjonen, i dei same
+ * koordinatane; `translate(0,H) scale(1,-1)` er den same snuinga
+ * `sheetSvg` gjer, av di geometrien står med y opp og SVG med y ned.
+ *
+ * ADRESSA BIND DEI TRE SAMAN. Objektet, kuttlista og plata kjenner alle
+ * den same delen som «X3a», so peikaren over ei rad lyser opp ribba i
+ * modellen OG delen på plata, kvar veg du kjem frå.
+ */
+function Plater(props: {
+  ark: ArkSyn | null
+  onArk: (i: number) => void
+  peikt: string | null
+  onPeik: (adr: string | null) => void
+}) {
+  const { ark, onArk, peikt, onPeik } = props
   if (!ark || !ark.tal) {
     return <p className="dim p-4 text-[11px]">ingenting er lagt ut på ei plate enno.</p>
   }
@@ -248,14 +271,69 @@ function Plater(props: { ark: ArkSyn | null; onArk: (i: number) => void }) {
           {ark.delar} delar · {nn(ark.util * 100, 0)} % utnytting
         </span>
       </div>
-      {/* Same teikninga som fila. Kvit botn, av di plata er kvit — og av di
-          det er slik ho ser ut i eit laserpanel. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`data:image/svg+xml;utf8,${encodeURIComponent(ark.svg)}`}
-        alt={`plate ${ark.i + 1} av ${ark.tal}`}
-        className="min-h-0 w-full flex-1 object-contain p-3"
-      />
+      <div className="min-h-0 flex-1 p-3">
+        <svg
+          viewBox={`0 0 ${ark.arkB} ${ark.arkH}`}
+          className="h-full w-full"
+          role="img"
+          aria-label={`plate ${ark.i + 1} av ${ark.tal}, ${ark.delar} delar`}
+          onPointerLeave={() => onPeik(null)}
+        >
+          {/* plata sjølv: ei ramme, so du ser kor kanten går */}
+          <rect
+            x={0}
+            y={0}
+            width={ark.arkB}
+            height={ark.arkH}
+            vectorEffect="non-scaling-stroke"
+            style={{ fill: "none", stroke: "var(--rule)" }}
+          />
+          <g transform={`translate(0,${ark.arkH}) scale(1,-1)`}>
+            {ark.plasser.map((d) => {
+              const paa = peikt === d.adr
+              return (
+                <g
+                  key={d.adr}
+                  onPointerEnter={() => onPeik(d.adr)}
+                  onClick={() => onPeik(paa ? null : d.adr)}
+                  style={{ cursor: "pointer" }}
+                >
+                  {/* Fyllet er treffeflata. Ein del er eit omriss med hòl i,
+                      og eit omriss er nokre få pikslar strek: peikaren måtte
+                      treffe sjølve streken for at noko skulle skje. Med
+                      `evenodd` er hòla hòl i treffeflata òg — du kan peike
+                      gjennom eit spor på delen under. */}
+                  <path
+                    d={[d.ut, ...d.inn].join(" ")}
+                    fillRule="evenodd"
+                    style={{
+                      fill: paa
+                        ? "color-mix(in srgb, var(--ink) 12%, transparent)"
+                        : "transparent",
+                    }}
+                  />
+                  <path
+                    d={d.ut}
+                    strokeWidth={paa ? 2 : 1}
+                    vectorEffect="non-scaling-stroke"
+                    style={{ fill: "none", stroke: "var(--ink)" }}
+                  />
+                  {d.inn.map((h, j) => (
+                    <path
+                      key={j}
+                      d={h}
+                      strokeWidth={paa ? 2 : 1}
+                      vectorEffect="non-scaling-stroke"
+                      style={{ fill: "none", stroke: "var(--ink)" }}
+                    />
+                  ))}
+                  <title>{d.adr}</title>
+                </g>
+              )
+            })}
+          </g>
+        </svg>
+      </div>
     </>
   )
 }
@@ -441,7 +519,14 @@ export function Verkty(props: {
           onOrd={props.onOrd}
         />
       )}
-      {open === "ark" && <Plater ark={props.ark} onArk={props.onArk} />}
+      {open === "ark" && (
+        <Plater
+          ark={props.ark}
+          onArk={props.onArk}
+          peikt={props.peikt}
+          onPeik={props.onPeik}
+        />
+      )}
       {open === "oppsett" && (
         <Oppsett
           params={props.params}

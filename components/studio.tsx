@@ -183,10 +183,25 @@ export function Studio() {
    * ruta minus dei to veggane og topplina. Kameraet treng ikkje vita kva
    * for eit av dei det er.
    */
-  /** kor høg verktyskuffa er når ho står open, i CSS-pikslar */
+  /**
+   * KOR HØG VERKTYSKUFFA ER, I CSS-PIKSLAR.
+   *
+   * Ei liste og ein tekst vil ha LINER, og fleire liner er berre fleire
+   * liner. Ei plate vil ha ei FLATE: ho har eit sideforhold, og ho vert
+   * teikna so stor som det trongaste av dei to måla tillet. I ei skuff på
+   * ein tredel av ruta stod ei plate på åtte hundre gonger seks hundre som
+   * to hundre og nitti pikslar brei, med fem hundre pikslar tomt papir på
+   * kvar side — teikninga var høgdebunden, og all breidda i skuffa gjekk
+   * til ingenting. Plata får difor meir av ruta enn dei to andre.
+   */
   const verktyH = useMemo(
-    () => Math.round(Math.min(460, Math.max(240, vindu.h * 0.36))),
-    [vindu.h],
+    () =>
+      Math.round(
+        verkty === "ark"
+          ? Math.min(620, Math.max(320, vindu.h * 0.52))
+          : Math.min(460, Math.max(240, vindu.h * 0.36)),
+      ),
+    [vindu.h, verkty],
   )
   const rute: Rute = useMemo(
     () =>
@@ -343,7 +358,13 @@ export function Studio() {
         return
       }
       if (r.kind === "ark") {
-        setArk({ i: r.i, tal: r.tal, svg: r.svg, delar: r.delar, util: r.util })
+        // `kind` og `id` høyrer til meldinga og ikkje til plata; resten er
+        // plata. Ei handskriven liste her hadde alt gløymt eit felt ein
+        // gong, og gløymer det neste når det kjem eit til.
+        const { kind, id, ...plata } = r
+        void kind
+        void id
+        setArk(plata)
         return
       }
       if (r.kind === "syn") {
@@ -476,8 +497,21 @@ export function Studio() {
     (i: number) => {
       const adr = i >= 0 ? (kuttliste[i]?.adr ?? null) : null
       setPeikt(adr)
-      // Eit trykk på ein del er eit spørsmål om han. Svaret står i lista.
-      if (adr) setVerkty("liste")
+      /**
+       * SVARET STÅR DER DU STÅR.
+       *
+       * Eit trykk på ein del er eit spørsmål om han, og det sende deg
+       * ALLTID til kuttlista. Det var rett so lenge plata var eit bilete:
+       * det fanst ingenting å peike på der, so lista var det einaste
+       * svaret som fanst.
+       *
+       * No har plata delane sine kvar for seg. Står du i henne og trykkjer
+       * på ei ribbe i objektet, er svaret delen som lyser opp på plata —
+       * og å rykkje deg over i lista er å ta frå deg det du spurde om.
+       * Difor: er eit verkty alt ope, svarar DET. Er ingen open, er lista
+       * svaret som før.
+       */
+      if (adr) setVerkty((v) => v ?? "liste")
     },
     [kuttliste],
   )
