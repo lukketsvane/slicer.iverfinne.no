@@ -76,6 +76,31 @@ export function GestureParams({
    */
   const DAUD = 8
   const NOK = 1.25
+  /**
+   * KOR MYKJE VRI SOM SKAL TIL FØR EIN VRI ER EIN VRI. Radianar.
+   *
+   * Vridinga vert vegen mot dei andre som ein BOGE — vinkelen gonga med
+   * radien fingrane hadde då dei landa. Det er rett eining, men det gjer
+   * vridinga til den einaste kandidaten som veks med kor langt frå
+   * kvarandre fingrane står. To fingrar 180 px frå kvarandre har radius
+   * 90, og då er seks grader utilsikta rull ein boge på ti pikslar —
+   * over daudsona, og større enn dei fyrste pikslane av eit drag.
+   *
+   * Målt: eit drag oppover på 40 px med 6° rull medan handa sette seg
+   * vart lese som ein vri. Og gesten vert namngjeven ÉIN gong, so heile
+   * draget etterpå gjorde ingen ting. Det var ikkje mogleg å skru
+   * ribbetalet med to fingrar utan å halde handa heilt roleg.
+   *
+   * Femten grader skil: utilsikta rull ligg under ti, ein vri du MEINER
+   * er tjue og oppover. Under terskelen er vridinga ikkje ein dårleg
+   * kandidat — ho er ingen kandidat, so ho står heller ikkje i vegen for
+   * dei tre andre.
+   *
+   * Terskelen kostar ingen ting i utslag: når vridinga fyrst vinn, tek ho
+   * med seg det ho alt har samla (sjå `vridd` nedanfor). Han avgjer NÅR
+   * objektet byrjar å snu, ikkje KOR MYKJE det snur.
+   */
+  const VRI_MIN = 0.26
   const controls = useThree((s) => s.controls) as {
     enabled: boolean
     target?: THREE.Vector3
@@ -214,12 +239,36 @@ export function GestureParams({
          * målestokken seg under gesten, og eit klyp som opnar seg gjer
          * vridinga større av seg sjølv.
          */
-        const A = Math.abs(sumVri) * (anker.d / 2)
+        // Under VRI_MIN er vridinga ingen kandidat i det heile. Ho er
+        // sett til null og ikkje berre diskvalifisert: står ho att som
+        // det største talet, vinn ingen, og eit drag med litt rull i seg
+        // vert liggjande og vente på ein gest som aldri får namn.
+        const A = Math.abs(sumVri) > VRI_MIN ? Math.abs(sumVri) * (anker.d / 2) : 0
         const D = Math.abs(c.d - anker.d)
         const X = Math.abs(c.cx - anker.cx)
         const Y = Math.abs(c.cy - anker.cy)
         const M = Math.max(A, D, X, Y)
-        if (M < DAUD) return
+        if (M < DAUD) {
+          /**
+           * `last` ER FØRRE HENDING, OGSÅ MEDAN GESTEN ER NAMNLAUS.
+           *
+           * Denne greina gjekk ut att utan å flytte han. Neste hending
+           * målte då vinkelen sin frå ei hending som låg fleire steg
+           * attende, og `sumVri` la den same vridinga saman om att og om
+           * att: ein sum av delsummar i staden for ein sum av steg.
+           *
+           * Målt: seks grader utilsikta rull las 17,9 grader — tre gonger
+           * for mykje, og det veks med kor mange hendingar som går før
+           * gesten får namn. Bogen voks med det, og vridinga vann over
+           * eit drag som knapt hadde byrja. Det er difor det vart «altfor
+           * lett å vri» og uråd å skru ribbetalet.
+           *
+           * `dx` og `dy` er alt lesne ovanfor, so dei tek ikkje skade av
+           * at han vert flytt her.
+           */
+          last = c
+          return
+        }
         // Den som leier må leie KLÅRT. Gjer ingen det, held vi fram med å
         // samle: to kandidatar som står likt no, står sjeldan likt om ti
         // hendingar til. Men ikkje i det uendelege — er fingrane komne
@@ -235,7 +284,18 @@ export function GestureParams({
         // Nullpunktet er der gesten VART til, ikkje der fingrane landa:
         // daudsona skal ikkje telje med i totalen.
         start = { d: c.d, a: c.a }
-        vridd = 0
+        /**
+         * VRIDINGA TEK MED SEG DET HO ALT HAR SAMLA.
+         *
+         * Daudsona skal ikkje telje for klypet — der er nullpunktet der
+         * gesten vart til. For vridinga er det motsett: terskelen hennar
+         * er femten grader, og å kaste dei ville gjere ein vri på fyrti
+         * til ein på tjuefem. Du gjorde gesten; du skal få han.
+         *
+         * `- dv` av di dette hendinga sitt bidrag alt ligg i `sumVri`, og
+         * linja som følgjer legg det til ein gong til.
+         */
+        vridd = mode === "vri" ? sumVri - dv : 0
         // Den fyrste fingeren rakk å snu synet litt før den andre landa.
         // Den rotasjonen høyrer ikkje til gesten, so han vert lagd attende.
         restore()

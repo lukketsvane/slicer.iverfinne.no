@@ -215,7 +215,12 @@ async function gestane(browser: Browser) {
   await gest(pkt(140, 0), (t) => pkt(140, (t * 40 * Math.PI) / 180))
   p = await lenkja(page)
   const dv = Number(p.rotZ) - vend0
-  ok("vri med klokka vender objektet med klokka", dv < -25 && dv > -55, `${vend0}° → ${p.rotZ}°`)
+  // Fyrti grader inn skal gje fyrti grader ut. Bandet var −25 til −55 og
+  // dekte over at gesten gav 53: `sumVri` la den same vridinga saman om
+  // att for kvar hending som gjekk før gesten fekk namn (sjå `last = c` i
+  // daudsona). Ein vri som gjev ein tredel for mykje er ikkje ein vri du
+  // kan sikte med.
+  ok("vri med klokka vender objektet like mykje", dv < -35 && dv > -45, `${vend0}° → ${p.rotZ}°`)
 
   // --- DRAG: RIBBETALET ----------------------------------------------------
   const ribb0 = Number(p.ribbY)
@@ -229,6 +234,39 @@ async function gestane(browser: Browser) {
   // Klassifikatoren vel ÉIN gest. Eit drag som òg skalerer tyder at
   // terskelen mellom dei to er for laus.
   ok("og lét storleiken stå", Number(p.storleik) === stor0, `${stor0} → ${p.storleik} mm`)
+
+  // --- DRAG MED RULL I HANDA -----------------------------------------------
+  /**
+   * EI HAND SOM DREG, RULLAR LITT.
+   *
+   * Draget over er reint: begge fingrane går rett opp, null grader vri.
+   * Slik dreg ingen. Ei hand som set to fingrar på glaset og dreg oppover
+   * rullar nokre grader medan ho set seg, og vridinga vert vegen som ein
+   * BOGE — vinkelen gonga med halve fingeravstanden. Med fingrane 180 px
+   * frå kvarandre er seks grader ti pikslar boge, meir enn dei fyrste
+   * pikslane av draget, og gesten vart namngjeven «vri». Éin gong, for
+   * heile draget: resten av rørsla gjorde ingen ting.
+   *
+   * Difor eit lite drag — eit par ribber, ikkje heile bandet — med rullen
+   * fremst, der han er verst.
+   */
+  const ribb1 = Number(p.ribbY)
+  const vend1 = Number(p.rotZ)
+  await gest(pkt(90, 0), (t) => {
+    const rull = (Math.min(1, t / 0.3) * 8 * Math.PI) / 180
+    const drag = 60 * Math.max(0, (t - 0.15) / 0.85)
+    return [
+      { x: midt.x - 90 * Math.cos(rull), y: midt.y - 90 * Math.sin(rull) - drag, id: 1 },
+      { x: midt.x + 90 * Math.cos(rull), y: midt.y + 90 * Math.sin(rull) - drag, id: 2 },
+    ]
+  })
+  p = await lenkja(page)
+  ok(
+    "eit drag med åtte grader rull i seg er framleis eit drag",
+    Number(p.ribbY) !== ribb1,
+    `${ribb1} → ${p.ribbY} ribber`,
+  )
+  ok("og vender ikkje objektet", Number(p.rotZ) === vend1, `${vend1}° → ${p.rotZ}°`)
 
   await page.close()
 }
