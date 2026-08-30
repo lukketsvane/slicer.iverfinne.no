@@ -32,6 +32,7 @@ import {
   SliderRow,
   TASTAR,
   TAST_BENK,
+  Tavla,
   VIEWS,
   chipStyle,
   feltTal,
@@ -43,6 +44,7 @@ import {
   stengd,
   tableRows,
   tjukn,
+  utanRad,
 } from "./deler"
 
 /**
@@ -380,7 +382,9 @@ export function Benk(props: {
   for (const r of rules) if (!r.ok) (r.hard ? broken.hard : broken.soft).add(r.id)
   const isHard = (ids: readonly string[]) => ids.some((id) => broken.hard.has(id))
   const isSoft = (ids: readonly string[]) => ids.some((id) => broken.soft.has(id))
-  const rows = tableRows(metrics)
+  const rows = tableRows(metrics, rules)
+  /** dei brotne reglane som ikkje har ei rad i tavla å farge */
+  const laus = utanRad(rules)
 
   const setParam = (k: string, raw: string) =>
     onChange({ ...params, [k]: snap(lesTal(raw), VAFFEL.ranges[k]) })
@@ -427,8 +431,13 @@ export function Benk(props: {
           transition: "opacity 160ms ease",
         }}
       >
+        {/* NAMNET, ÉIN GONG.
+            Det stod «slicer.iverfinne» her og «iverfinne.no» i den andre
+            enden av den same lina: den same adressa to gonger, og den eine
+            av dei kappa på midten. Reiskapen heiter slicerman — i tittelen,
+            i manifestet, i pakka — og lenkja er til han som laga han. */}
         <span className="mono text-[11px] tracking-[0.06em]" style={{ color: "var(--ink)" }}>
-          slicer.iverfinne
+          slicerman
         </span>
         <span aria-hidden="true" className="h-4 w-px" style={{ background: "var(--rule)" }} />
         <button
@@ -580,8 +589,11 @@ export function Benk(props: {
 
         {/* PLATA. Materialet er tettleiken massen vert rekna av; tjukna er
             plata du har liggjande. */}
+        {/* Materialet og tjukna er to sett, og dei stod på ei rad som ikkje
+            heldt dei: fem tjukner braut som «2 2,5» og «3 4 6», og eit sett
+            som er delt på to liner les som to sett. Ei rad kvar. */}
         <div className={BLOKK} style={HAIR}>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex items-center gap-1.5 pb-1.5">
             {(Object.keys(MATERIALS) as Material[]).map((mk) => (
               <button
                 key={mk}
@@ -590,7 +602,7 @@ export function Benk(props: {
                 aria-label={`materiale: ${MATERIALS[mk].label}`}
                 title={MATERIALS[mk].label}
                 onClick={() => onChange({ ...params, material: mk })}
-                className="h-6 w-6 rounded-full border transition active:scale-90"
+                className="h-6 w-6 shrink-0 rounded-full border transition active:scale-90"
                 style={{
                   backgroundColor: MATERIALS[mk].hex,
                   borderColor: params.material === mk ? "var(--ink)" : "var(--rule)",
@@ -598,7 +610,8 @@ export function Benk(props: {
                 }}
               />
             ))}
-            <span aria-hidden="true" className="mx-0.5 h-4 w-px" style={{ background: "var(--rule)" }} />
+          </div>
+          <div className="flex items-center gap-1.5">
             {TJUKNER.map((t) => (
               <button
                 key={t}
@@ -606,7 +619,7 @@ export function Benk(props: {
                 aria-pressed={params.tjukn === t}
                 title={`${tjukn(t)} mm plate`}
                 onClick={() => onChange({ ...params, tjukn: t })}
-                className={CHIP_B + " px-2"}
+                className={CHIP_B + " flex-1 px-0"}
                 style={chipStyle(params.tjukn === t)}
               >
                 {tjukn(t)}
@@ -686,82 +699,90 @@ export function Benk(props: {
           )}
         </div>
 
-        {/* TAVLA. Tolv tal, alltid, i to spalter. */}
-        <dl
-          className={BLOKK + " grid grid-cols-2 gap-x-4"}
-          style={{ ...HAIR, opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
-        >
-          {rows.map((row) => {
-            const hard = row.rules !== undefined && isHard(row.rules)
-            const soft = row.rules !== undefined && isSoft(row.rules)
-            return (
+        {/*
+          TAVLA, SOM ER REGLANE.
+
+          Ho var to lister. Tavla las «ledd · 36» og reglane las «ribbene
+          grip · 36 ledd»; tavla las «utnytting · 68 %» og reglane las
+          «utnytting · 68 %», ordrett. Ti av tolv tal stod to gonger i den
+          same veggen, og dei to lista kunne stå ulikt om det same objektet:
+          rada var svart medan regelen over henne var raud.
+
+          No er det éi line per avlesing. Dommen er fargen på henne,
+          grunngjevinga ligg i lina, og rådet står som ein knapp i henne.
+          Marginen — heile grunnen til at dei mjuke reglane stod framme før
+          dei ryk — er sjølve talet, og det stod her heile tida.
+        */}
+        <Tavla
+          rows={rows}
+          busy={busy}
+          params={params}
+          onChange={onChange}
+          tett
+          className={BLOKK}
+        />
+
+        {/* Dei to reglane tavla ikkje kan seie: klaringa og snittbreidda er
+            skyvarar i den andre veggen og ikkje målingar av objektet. Dei
+            har inga rad å farge, so dei står her — og berre når dei ryk. */}
+        {laus.length > 0 && (
+          <div className={BLOKK} style={HAIR}>
+            {laus.map((r) => (
               <div
-                key={row.label}
-                className="flex items-baseline justify-between gap-2 py-[1px] text-[10px] leading-4"
+                key={r.id}
+                title={r.why}
+                className="flex items-center justify-between gap-2 py-[1px] text-[10px] leading-4"
+                style={{ color: r.hard ? "var(--warn)" : undefined }}
               >
-                <dt className="dim shrink-0 truncate">{row.label}</dt>
-                <dd
-                  className="mono truncate text-right"
-                  style={{
-                    color: hard ? "var(--warn)" : undefined,
-                    textDecoration: soft ? "underline dotted" : undefined,
-                    textUnderlineOffset: 3,
-                  }}
-                >
-                  {row.value}
-                  {row.unit && <span className="dim pl-0.5">{row.unit}</span>}
-                </dd>
-              </div>
-            )
-          })}
-        </dl>
-
-        {/* REGLANE. Alle tolv, ikkje berre dei som ryk: ein mjuk regel
-            finst nettopp for at du skal sjå marginen FØR han ryk. Den som
-            ryk og har eit råd, ber rådet med seg i same lina. */}
-        <div className={BLOKK + " rull min-h-0 shrink"} style={HAIR}>
-          {rules.map((r) => (
-            <div
-              key={r.id}
-              title={r.why}
-              className="flex items-center justify-between gap-2 py-[1px] text-[10px] leading-4"
-              style={{
-                color: !r.ok && r.hard ? "var(--warn)" : undefined,
-                // Ein regel som held står attende, men han skal framleis
-                // kunne lesast: heile grunnen til at alle tolv står her er
-                // at du skal sjå marginen FØR han ryk. Sjå `.dim`.
-                opacity: r.ok ? 0.6 : 1,
-              }}
-            >
-              <span className="truncate tracking-[0.04em]">{r.label}</span>
-              <span className="flex shrink-0 items-center gap-1.5">
-                <span
-                  className="mono"
-                  style={{
-                    textDecoration: !r.ok && !r.hard ? "underline dotted" : undefined,
-                    textUnderlineOffset: 3,
-                  }}
-                >
-                  {r.value}
+                <span className="truncate tracking-[0.04em]">{r.label}</span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <span
+                    className="mono"
+                    style={{
+                      textDecoration: r.hard ? undefined : "underline dotted",
+                      textUnderlineOffset: 3,
+                    }}
+                  >
+                    {r.value}
+                  </span>
+                  <Fiksen rule={r} params={params} onChange={onChange} />
                 </span>
-                <Fiksen rule={r} params={params} onChange={onChange} />
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* PROFILANE, slik dei ligg på plata. Dei og uttaka held saman
-            nedst: det er der du sluttar, og lufta over dei er lufta reglane
-            ikkje trong. */}
-        {syn && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={`data:image/svg+xml;utf8,${encodeURIComponent(syn)}`}
-            alt="alle profilane, slik dei ligg på plata"
-            className={BLOKK + " mt-auto max-h-28 w-full object-contain"}
-            style={{ ...HAIR, opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
-          />
+              </div>
+            ))}
+          </div>
         )}
+
+        {/*
+          PROFILANE ARVAR LUFTA.
+
+          Dei låg på hundre og tolv pikslar, nedpressa under ei regelliste
+          som sa dei same tolv tala som tavla over henne. Den lista er
+          borte, og lufta ho stod i vart ståande tom mellom tavla og uttaka
+          — fire hundre pikslar kvit vegg.
+
+          Teikninga tek henne. Ho er det einaste i veggen som vinn på å vera
+          stor: tolv profilar på hundre pikslar er tolv strekar, og på fire
+          hundre er dei tolv delar du kjenner att. Ho krympar sjølv når
+          skjermen er låg, av di ho er det einaste her som TÅLER det —
+          tavla, reglane og uttaka er tekst og knappar.
+        */}
+        {/* Blokka står jamvel om teikninga ikkje er komen: ho er det som
+            held uttaka nede i veggen, og ei fot som spring opp og ned i det
+            fyrste svaret kjem er ei fot som flyttar seg under fingeren. */}
+        <div
+          className={"flex min-h-0 flex-1 items-center justify-center" + (syn ? " " + BLOKK : "")}
+          style={syn ? HAIR : undefined}
+        >
+          {syn && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={`data:image/svg+xml;utf8,${encodeURIComponent(syn)}`}
+              alt="alle profilane, slik dei ligg på plata"
+              className="max-h-full w-full object-contain"
+              style={{ opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
+            />
+          )}
+        </div>
 
         {/* UTTAKA. Nedst, av di det er der du sluttar. */}
         <div className={BLOKK} style={HAIR}>

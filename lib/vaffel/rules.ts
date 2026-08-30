@@ -131,6 +131,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
   // --- 1 ribbene grip (hard) --------------------------------------------------
   add({
     id: "grip",
+    rad: "ledd",
     label: "ribbene grip",
     hard: true,
     ok: m.joints > 0,
@@ -142,6 +143,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
   // --- 2 delane finst (hard) --------------------------------------------------
   add({
     id: "delar",
+    rad: "delar",
     label: "delar å skjere",
     hard: true,
     ok: m.parts > 0,
@@ -160,6 +162,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
    */
   add({
     id: "lause",
+    rad: "lause",
     label: p.lause ? "kasta stykke" : "delar utan ledd",
     hard: !p.lause,
     ok: p.lause ? g.kasta === 0 : pl.lause === 0,
@@ -215,6 +218,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
 
   add({
     id: "gods",
+    rad: "gods",
     label: "gods i leddet",
     hard: true,
     ok: m.narrow >= minGods,
@@ -226,6 +230,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
   // --- 5 delane får plass på plata (hard) -------------------------------------
   add({
     id: "plate",
+    rad: "ark",
     label: "delane får plass",
     hard: true,
     ok: ns.spilt === 0,
@@ -285,6 +290,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
    */
   add({
     id: "snittspor",
+    rad: "spor",
     label: "snittet mot sporet",
     hard: true,
     ok: p.snitt < m.slotW,
@@ -298,6 +304,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
   // --- 9 opninga mellom ribbene (mjuk) ----------------------------------------
   add({
     id: "opning",
+    rad: "opning",
     label: "opning mellom ribber",
     hard: false,
     ok: m.minGap >= 3,
@@ -309,6 +316,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
   // --- 10 lukka nett (mjuk) ---------------------------------------------------
   add({
     id: "lukka",
+    rad: "kantar",
     label: "lukka nett",
     hard: false,
     ok: m.openEdges === 0,
@@ -319,6 +327,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
   // --- 11 oppløysinga (mjuk) --------------------------------------------------
   add({
     id: "nett",
+    rad: "nett",
     label: "nettoppløysing",
     hard: false,
     // Ein kube ER tolv trekantar, og det er ikkje for grovt — det er
@@ -332,6 +341,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
   // --- 12 utnyttinga (mjuk) ---------------------------------------------------
   add({
     id: "utnytting",
+    rad: "utnytting",
     label: "utnytting",
     hard: false,
     ok: m.util >= 0.35 || m.sheets <= 1,

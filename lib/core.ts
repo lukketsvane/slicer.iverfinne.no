@@ -291,6 +291,21 @@ export type Rule = {
   hard: boolean
   value: string
   why: string
+  /**
+   * KVA AVLESING HAN DØMER.
+   *
+   * Ein regel er ikkje eit tal for seg sjølv: han er ein dom over eit tal
+   * som står i tavla frå før. «ribbene grip · 36 ledd» og rada «ledd · 36»
+   * er den same avlesinga, skriven to gonger, og den eine av dei stod raud
+   * medan den andre stod svart om det same objektet.
+   *
+   * Difor peikar regelen på rada si, og tavla har ÉI line per tal: verdien
+   * frå målinga, farga av regelen som dømer henne, med grunngjevinga og
+   * rådet i den same lina. Dei to reglane som ikkje har noko å peike på —
+   * klaringa og snittbreidda — les av ein skyvar og ikkje av geometrien, og
+   * dei syner seg berre når dei ryk.
+   */
+  rad?: string
   /** kva som rettar han, om noko av det reiskapen rår over gjer det */
   fiks?: Fiks
 }

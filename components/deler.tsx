@@ -267,39 +267,135 @@ export function Ring({ del }: { del: number }) {
   )
 }
 
-/** Reglane som eig kvart tal. Ei rad som ikkje veit kva regel som gjeld
- *  henne, står svart medan uttaket ikkje let seg skjere. */
+/** Reglane som eig kvart tal i HOVUDLINA. Ho har tre tal og reiskapen har
+ *  tolv reglar, so her er kartet mange-til-ein; tavla under har eitt. */
 export const R_DELAR = ["delar", "grip", "lause"]
 export const R_GODS = ["gods", "spor"]
 export const R_ARK = ["plate", "utnytting"]
-export const R_NETT = ["nett", "lukka"]
-export const R_OPNING = ["opning"]
 
-export type TableRow = { label: string; value: string; unit: string; rules?: readonly string[] }
+export type TableRow = {
+  id: string
+  label: string
+  value: string
+  unit: string
+  /** regelen som dømer denne avlesinga, om nokon gjer det */
+  rule?: Rule
+}
 
-export function tableRows(m: Metrics | null): TableRow[] {
-  const by: Record<string, readonly string[]> = {
-    delar: R_DELAR,
-    ledd: R_DELAR,
-    lause: R_DELAR,
-    ark: R_ARK,
-    utnytting: R_ARK,
-    gods: R_GODS,
-    spor: R_GODS,
-    opning: R_OPNING,
-    nett: R_NETT,
-    kantar: R_NETT,
-  }
+/**
+ * TAVLA OG REGLANE ER DEN SAME LISTA.
+ *
+ * Dei stod som to. Tavla las «ledd · 36», «opning · 22,0 mm», «utnytting ·
+ * 68 %»; reglane las «ribbene grip · 36 ledd», «opning mellom ribber · 22,0
+ * mm», «utnytting · 68 %». Ti av tolv tal stod to gonger på den same
+ * skjermen, og eitt av dei — utnyttinga — stod to gonger med den same
+ * etiketten òg.
+ *
+ * No peikar regelen på rada si (`Rule.rad`), og rada ber dommen: fargen,
+ * grunngjevinga og rådet. Att står to reglar utan rad — klaringa og
+ * snittbreidda — og dei les av ein skyvar og ikkje av geometrien.
+ */
+export function tableRows(m: Metrics | null, rules: readonly Rule[] = []): TableRow[] {
+  const eig = new Map<string, Rule>()
+  for (const r of rules) if (r.rad) eig.set(r.rad, r)
   // Tom tavle og full tavle er den SAME lista. Ho stod ein gong to stader,
   // og dei to dreiv frå kvarandre: tretten rader tom og femten full, og
   // eit ord som bytte seg i det fyrste svaret kom.
   const rader = m ? m.list : RADER.map((r) => ({ ...r, text: DASH }))
   return rader.map((q) => ({
+    id: q.id,
     label: q.label,
     value: q.text,
     unit: q.unit,
-    rules: by[q.id],
+    rule: eig.get(q.id),
   }))
+}
+
+/** Dei reglane tavla ikkje kan seie: dei dømer ein skyvar og ikkje ei
+ *  måling, so dei har inga rad å farge og syner seg berre når dei ryk. */
+export const utanRad = (rules: readonly Rule[]) => rules.filter((r) => !r.rad && !r.ok)
+
+/**
+ * TAVLA.
+ *
+ * Tolv avlesingar i to spalter, like på begge flatene. Ei rad som ryk seier
+ * det med regelen sitt eige tal — «15 utanfor», «0,20 mot 3,15» — av di
+ * målinga åleine ikkje er feilen: «1 ark» er ikkje ei forklaring på at
+ * femten delar ikkje fekk plass. Held regelen, står målinga.
+ */
+export function Tavla({
+  rows,
+  busy,
+  params,
+  onChange,
+  tett,
+  className,
+}: {
+  rows: readonly TableRow[]
+  busy: boolean
+  params: ParamBag
+  onChange: (p: ParamBag) => void
+  /** benken les tettare enn telefonen: han er eit instrument */
+  tett?: boolean
+  className?: string
+}) {
+  return (
+    <dl
+      className={
+        `grid grid-cols-2 ${tett ? "gap-x-4 text-[10px]" : "gap-x-6 text-[11px]"} ` +
+        (className ?? "")
+      }
+      // `className` kan bera ein topprand (sjå BLOKK på benken); ho skal
+      // teiknast i hårstreken og ikkje i blekket.
+      style={{ ...HAIR, opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
+    >
+      {rows.map((row) => {
+        const r = row.rule
+        const brote = !!r && !r.ok
+        const hard = brote && r.hard
+        const soft = brote && !r.hard
+        return (
+          <div
+            key={row.id}
+            title={r?.why}
+            // EI RAD SOM RYK FÅR HEILE LINA.
+            // Ho ber to ting til: regelen sitt eige tal, som er lengre enn
+            // målinga («12 utanfor» mot «1»), og knappen som rettar han.
+            // I ei halv spalte vart det «1… [prøv 190 mm]» — sjølve feilen
+            // kappa vekk til fordel for vegen ut av han.
+            className={
+              `flex items-baseline justify-between gap-2 leading-4 ${tett ? "py-[1px]" : "py-[2px]"}` +
+              (brote ? " col-span-2" : "")
+            }
+          >
+            <dt className="dim shrink-0 truncate">{row.label}</dt>
+            <dd
+              className="tab flex min-w-0 items-baseline justify-end gap-1.5 text-right"
+              style={{ color: hard ? "var(--warn)" : undefined }}
+            >
+              <span
+                className="truncate"
+                style={{
+                  // eit mjukt brot er eit val og ikkje ein feil: det skal
+                  // merkast, men ikkje rope
+                  textDecoration: soft ? "underline dotted" : undefined,
+                  textDecorationColor: soft
+                    ? "color-mix(in srgb, var(--ink) 45%, transparent)"
+                    : undefined,
+                  textUnderlineOffset: 3,
+                }}
+              >
+                {brote ? r.value : row.value}
+                {/* regelen sitt tal ber si eiga eining; målinga sin står ved sida av */}
+                {!brote && row.unit && <span className="dim pl-1">{row.unit}</span>}
+              </span>
+              {r && <Fiksen rule={r} params={params} onChange={onChange} />}
+            </dd>
+          </div>
+        )
+      })}
+    </dl>
+  )
 }
 
 /**

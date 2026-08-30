@@ -1011,11 +1011,16 @@ export function Studio() {
       </div>
 
       {/* Eitt ord og ei lenkje. Alt anna sida har å seie, seier objektet.
-          På benken bur dei i topplina hans i staden. */}
+          På benken bur dei i topplina hans i staden.
+
+          Ordet var «slicer.iverfinne» — halve adressa du alt står på — og
+          lenkja ved sida av var «iverfinne.no». Den same adressa to gonger,
+          på den einaste lina sida har. Namnet er slicerman; lenkja er han
+          som laga han. */}
       {!benk && (
       <header className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-5 pt-[calc(env(safe-area-inset-top)+16px)]">
         <div className="tab text-[11px] tracking-[0.14em]" style={{ color: "var(--ink)" }}>
-          slicer.iverfinne
+          slicerman
         </div>
         <a
           href="https://iverfinne.no"
