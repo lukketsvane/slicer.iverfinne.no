@@ -410,11 +410,25 @@ export function Studio() {
         if (finn.current) finn.current.alle = r.alle
         setListe(r.alle)
         if (!r.alle.length) {
-          // Eit søk utan svar er ikkje eit søk som feila: det er eit nett
-          // som ikkje kan verte ein vaffel i den plata. Det skal STÅ, elles
-          // ser knappen ut som han ikkje verkar.
+          /**
+           * EIT SØK UTAN SVAR SEIER BERRE «INGEN».
+           *
+           * Det stod «fann ingen innstillingar som held», i raudt, i
+           * hovudlina, til nokon rørte ein skyvar. Fem ord, og fire av dei
+           * var alt på skjermen: knappen heiter «finn innstillingar», so
+           * «fann ingen innstillingar» er kommandoen lesen attende med eit
+           * nei framfor; og «som held» er ordet frå reglane, som står i
+           * tavla i raudt med kvar sin knapp som rettar dei. Setninga sa
+           * det tavla sa, utan vegen ut som tavla har.
+           *
+           * Att står den eine tingen berre søket veit: at det gjekk
+           * gjennom rutenetta og ingen av dei kom gjennom. Det er ei
+           * MELDING og ikkje ein feil — det seier kommentaren over sjølv,
+           * og so gjekk han til `setFeil` likevel: raud, og ståande til
+           * neste bygg rydda henne. Ei melding går av seg sjølv.
+           */
           setStad(null)
-          setFeil("fann ingen innstillingar som held")
+          setMelding("ingen rutenett held")
           return
         }
         setParams((q) => VAFFEL.pick(q, r.alle, 0))
@@ -939,9 +953,19 @@ export function Studio() {
     return () => window.clearTimeout(t)
   }, [params, mounted])
 
+  /**
+   * Kor lenge eit ord attende står.
+   *
+   * To og eit halvt sekund heldt for «lenkja er kopiert» — det er eit
+   * kvitteringsord, og du ser på fingeren din når det kjem. Det held ikkje
+   * for svaret på eit søk: søket sjølv tek eit par sekund, og eit par
+   * sekund er nett lang nok tid til å sjå ein annan veg. Kjem du attende
+   * til ei line som alt har gått, ser knappen ut som han ikkje gjorde noko
+   * — som er nett det lina fanst for å hindre.
+   */
   useEffect(() => {
     if (!melding) return
-    const t = window.setTimeout(() => setMelding(null), 2400)
+    const t = window.setTimeout(() => setMelding(null), 4000)
     return () => window.clearTimeout(t)
   }, [melding])
 
