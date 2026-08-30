@@ -51,9 +51,18 @@ export function stengd(x: ExportKind, m: Metrics | null): string {
   // prosjektfila ber oppsettet og nettet: ho skal kunne lagrast midt i eit
   // arbeid som ikkje held ein einaste regel enno.
   if (x === "prove" || x === "prosjekt" || !m) return ""
-  if (m.parts === 0) return "ingen delar å skjere. sjå reglane"
+  // Knappen seier kva FILA ville vorte, og ikkje eit ord om kvifor.
+  //
+  // Han sa «ingen delar å skjere. sjå reglane» — der «delar å skjere» er
+  // etiketten på regelen ordrett, og «sjå reglane» peika på ei liste som
+  // ikkje finst lenger: reglane ER tavla no. Den andre sa «større plate,
+  // eller mindre objekt», som er `why`-teksten til plateregelen skriven om
+  // — og den regelen står i tavla i raudt med ein knapp som reknar ut
+  // talet for deg. Eit råd i ein tooltip er eit dårlegare råd enn ein
+  // knapp som gjer det.
+  if (m.parts === 0) return "ville vorte ei tom fil: ingen delar"
   if ((x === "ark" || x === "dxf" || x === "alt") && m.sheets === 0) {
-    return "ingen del fekk plass på plata. større plate, eller mindre objekt"
+    return "ville vorte ei tom fil: ingen del fekk plass på plata"
   }
   return ""
 }
