@@ -136,6 +136,10 @@ const main = async () => {
   if (!benk) {
     await page.getByRole("button", { name: "vis kontrollane" }).click()
     await page.waitForTimeout(400)
+    // Uttaka bur i det FULLE steget: det halve er midten av jobben, og
+    // uttaket er slutten av han.
+    await page.getByRole("button", { name: "alle parametrar" }).click()
+    await page.waitForTimeout(400)
   }
   for (const [chip, vent] of [
     ["passprøve", /^passprove-.*\.svg$/],
