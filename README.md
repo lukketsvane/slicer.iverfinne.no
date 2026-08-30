@@ -56,6 +56,23 @@ line, the controls, everything. Half open is a third of the screen and never
 scrolls; the object keeps the rest. What you press sits in a footer that stays
 put while the rest scrolls.
 
+Half open carries **the middle of the job** and nothing else: the file, the
+three numbers, find settings, the size, the plate thickness, and any **hard**
+break with the button that fixes it. A hard break is a stop; a soft one is a
+choice, and a choice does not need a line of its own on a phone — the headline
+dots the numbers a soft rule touches, and the board in the full step says what
+and why. Everything that is not the middle of the job lives one tap down:
+material (thickness is the plate you own, material is mass and surface), the
+board, every slider, and the whole output stage — seven export buttons and the
+colour legend, which are the *end* of the job, not the middle of it. That is
+the difference between a sheet at half the screen and one at a quarter.
+
+**The view chips sit on the canvas on both surfaces.** `flate` `lag` `kontur`
+are a glance at what you are looking at rather than a setting you dial, so they
+belong next to the object. On the bench they always did; on the phone they used
+to cost a row of the sheet and now cost nothing, because that corner of the
+canvas is empty anyway.
+
 **On a screen wider than 1180 px with a mouse there is no sheet at all.** A
 tablet gets the sheet however wide it is: the walls are built for a pointer.
  Three heights are

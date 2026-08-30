@@ -19,7 +19,6 @@ import {
   type ParamBag,
   type Range,
   type Rule,
-  type View,
 } from "@/lib/core"
 import { FORMAT } from "@/lib/io"
 import { VAFFEL } from "@/lib/vaffel/engine"
@@ -46,7 +45,6 @@ import {
   TASTAR,
   TAST_ARK,
   Tavla,
-  VIEWS,
   chipStyle,
   lesTal,
   n0,
@@ -84,10 +82,8 @@ export function ControlsPanel(props: {
   kjelde: string
   metrics: Metrics | null
   rules: Rule[]
-  view: View
   /** profilane som bilete (SVG-tekst), generert automatisk av arbeidaren */
   syn: string | null
-  hiDetail: boolean
   isDesktop: boolean
   busy: boolean
   feil: string | null
@@ -106,10 +102,8 @@ export function ControlsPanel(props: {
   onHogd: (px: number) => void
   onMode: (m: PanelMode) => void
   onChange: (p: ParamBag) => void
-  onView: (v: View) => void
   onReset: () => void
   onAngre: () => void
-  onToggleDetail: () => void
   onExport: (kind: ExportKind) => void
   onFinn: () => void
   onFinnAtt: () => void
@@ -121,9 +115,7 @@ export function ControlsPanel(props: {
     kjelde,
     metrics,
     rules,
-    view,
     syn,
-    hiDetail,
     isDesktop,
     busy,
     feil,
@@ -136,10 +128,8 @@ export function ControlsPanel(props: {
     onHogd,
     onMode,
     onChange,
-    onView,
     onReset,
     onAngre,
-    onToggleDetail,
     onExport,
     onFinn,
     onFinnAtt,
@@ -229,12 +219,21 @@ export function ControlsPanel(props: {
   /**
    * Kva av dei brotne som skal flaggast over tavla.
    *
-   * I det halve steget står ikkje tavla, so alle må stå her. I det fulle
-   * står ho rett under, og der ber kvar rad regelen sin sjølv: ei line til
-   * over henne er det same talet ein gong til, med eit anna ord framfor.
+   * I det fulle steget står tavla rett under, og der ber kvar rad regelen
+   * sin sjølv: ei line til over henne er det same talet ein gong til, med
+   * eit anna ord framfor. Att står dei to utan ei rad å farge.
+   *
+   * I DET HALVE STEGET BERRE DEI HARDE.
+   *
+   * Eit hardt brot tyder at delane ikkje let seg lage eller ikkje let seg
+   * setje saman: det er ikkje ei opplysning, det er ein stopp, og han ber
+   * knappen som løyser seg sjølv. Eit mjukt brot er eit VAL — «306 opne
+   * kantar», «4 kasta» — og eit val treng ikkje ei line kvar på ein
+   * telefon der arket alt tok halve ruta. Hovudlina stiplar dei tala eit
+   * mjukt brot gjeld, og tavla i det fulle steget seier kva og kvifor.
    */
   const flagg = useMemo(
-    () => (mode === "full" ? utanRad(rules) : failed),
+    () => (mode === "full" ? utanRad(rules) : failed.filter((r) => r.hard)),
     [mode, rules, failed],
   )
   const isHard = (ids: readonly string[]) => ids.some((id) => broken.hard.has(id))
@@ -543,7 +542,14 @@ export function ControlsPanel(props: {
 
                 Materialet er ikkje ein farge — han er tettleiken massen vert
                 rekna av, og han er det som avgjer om åringane skal teiknast
-                i det heile. */}
+                i det heile.
+
+                OG DIFOR STÅR HAN I DET FULLE STEGET.
+                Tjukna er plata du har liggjande, og ho avgjer kvart einaste
+                spor; materialet avgjer massen og korleis flata vert teikna.
+                Det fyrste er eit mål, det andre er stort sett eit utsjånad —
+                og massen han reknar står i tavla, som òg berre finst der. */}
+            {mode === "full" && (
             <div className="flex items-center gap-1.5 pt-1">
               {(Object.keys(MATERIALS) as Material[]).map((mk) => (
                 <button
@@ -562,6 +568,7 @@ export function ControlsPanel(props: {
                 />
               ))}
             </div>
+            )}
             {/* Tjukna er den eine inngangen som ikkje er ein smak: ho er
                 plata du har liggjande. Skyvaren er fri, men desse er dei
                 ein faktisk får kjøpt. */}
@@ -581,39 +588,9 @@ export function ControlsPanel(props: {
               ))}
             </div>
 
-            {/* Lesemåtane står SIST. Dei er eit blikk på lerretet og ikkje
-                eit steg i arbeidet: du slepper ei fil, set storleiken,
-                trykkjer finn. Rekkjefylgda i arket skal vera rekkjefylgda i
-                jobben, og det som berre er ein måte å sjå på, kan stå
-                nedst. Tre ord held; kva dei tyder ligg i title. */}
-            <div className="flex flex-wrap items-center gap-1.5 py-1">
-              {VIEWS.map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  title={`${v.hint} (${v.tast})`}
-                  aria-pressed={view === v.id}
-                  onClick={() => onView(v.id)}
-                  className={CHIP}
-                  style={chipStyle(view === v.id)}
-                >
-                  {v.label}
-                </button>
-              ))}
-              {isDesktop && (
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={hiDetail}
-                  onClick={onToggleDetail}
-                  title="finare rute i profilane; tyngre å rekne"
-                  className={CHIP + " ml-auto"}
-                  style={chipStyle(hiDetail)}
-                >
-                  fint nett
-                </button>
-              )}
-            </div>
+            {/* LESEMÅTANE LIGG PÅ LERRETET NO, ikkje i arket. Dei er eit
+                blikk på det ein ser og ikkje eit steg i arbeidet, og på
+                benken har dei alltid lege der. Sjå studio.tsx. */}
 
             {/* Reglane som ryk: éi line kvar, grunngjevinga i title. Panelet
                 seier KVA som er gale; KVIFOR ligg eit fingertrykk unna, og
@@ -726,10 +703,19 @@ export function ControlsPanel(props: {
           steget rulla dei ut av syne: den einaste vegen attende til det
           halve steget låg under folden i eit ark som var femten skyvarar
           langt. Det ein TRYKKJER på skal ikkje rulle.
+
+          OG UTTAKA STÅR I DET FULLE STEGET.
+          Sju uttaksknappar og fargeforklaringa tok hundre og tjue pikslar
+          av eit ark som skulle vera ein tredel av ein telefon og var
+          halvparten. Uttaket er SLUTTEN av jobben — du slepper ei fil,
+          set storleiken, trykkjer finn, ser på det — og det halve steget
+          er midten. Fire ikon står att: angre, attende, del, og vegen inn
+          i det fulle, som er den einaste knappen her som må stå.
         */}
         {open && (
           <div className="px-3 pb-2">
             {/* uttaka */}
+            {mode === "full" && (
             <div className="flex flex-wrap items-center gap-1.5 py-1">
               {EXPORTS.map((x) => {
                 const stopp = stengd(x.id, metrics)
@@ -752,16 +738,21 @@ export function ControlsPanel(props: {
                 )
               })}
             </div>
+            )}
 
             {/*
-              KVA FARGANE TYDER, og dei tre verktøya, på SAME line.
+              KVA FARGANE TYDER, og dei fire ikona, på SAME line.
               Forklaringa er to ord, og ho sparar den einaste feilen som
               kostar ei heil plate: å setje kutteffekt på graveringslaget.
               Svart er fyrste laget i LightBurn, og fyrste laget køyrer
-              fyrst, so graveringa MÅ liggje der. To ord treng ikkje ei rad
-              åleine, og på ein telefon braut verktøya til ei tredje rad.
+              fyrst, so graveringa MÅ liggje der.
+
+              Ho fylgjer uttaka ned i det fulle steget: ei forklaring på ei
+              fil ingen har lasta ned enno er to ord om ingenting, og dei
+              to orda stod på ei rad i eit ark som alt var for høgt.
             */}
             <div className="flex items-center gap-3 py-1 text-[10px] uppercase tracking-[0.14em]">
+              {mode === "full" && (
               <span
                 className="flex items-center gap-3"
                 style={{ color: "var(--ink)", opacity: 0.6 }}
@@ -781,6 +772,7 @@ export function ControlsPanel(props: {
                   </span>
                 ))}
               </span>
+              )}
               <div className="ml-auto flex shrink-0 items-center gap-1.5">
                 <button
                   type="button"
