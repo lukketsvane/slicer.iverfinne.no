@@ -216,18 +216,26 @@ export function ControlsPanel(props: {
    * sin sjølv: ei line til over henne er det same talet ein gong til, med
    * eit anna ord framfor. Att står dei to utan ei rad å farge.
    *
-   * I DET HALVE STEGET BERRE DEI HARDE.
+   * I DET HALVE STEGET INGEN.
    *
-   * Eit hardt brot tyder at delane ikkje let seg lage eller ikkje let seg
-   * setje saman: det er ikkje ei opplysning, det er ein stopp, og han ber
-   * knappen som løyser seg sjølv. Eit mjukt brot er eit VAL — «306 opne
-   * kantar», «4 kasta» — og eit val treng ikkje ei line kvar på ein
-   * telefon der arket alt tok halve ruta. Hovudlina stiplar dei tala eit
-   * mjukt brot gjeld, og tavla i det fulle steget seier kva og kvifor.
+   * Fyrst gjekk dei mjuke ned — «306 opne kantar» er eit val og ikkje ein
+   * stopp. Att stod dei harde, som «bryt · gods i leddet», og dei kosta ei
+   * line kvar av eit ark med tak på 45 %.
+   *
+   * Dei er ikkje borte, dei har flytt dit dei høyrer heime. HOVUDLINA
+   * SEIER DET ALT: eit hardt brot fargar det talet regelen gjeld raudt, og
+   * dei tre tala står øvst i arket i alle tre stega. Eit raudt tal er heile
+   * meldinga «noko ryk her»; kva og kvifor er ei setning, og ei setning
+   * høyrer til der det er plass til henne.
+   *
+   * Og RÅDET fylgjer med ned: tavla i det fulle steget ber kvar rad sin
+   * eigen regel med knappen i seg, og uttaka — som er det ein broten regel
+   * kan stengje — står i det same steget. Vegen ut av ei blindgate og det
+   * ho stengjer, på same skjerm.
    */
   const flagg = useMemo(
-    () => (mode === "full" ? utanRad(rules) : failed.filter((r) => r.hard)),
-    [mode, rules, failed],
+    () => (mode === "full" ? utanRad(rules) : []),
+    [mode, rules],
   )
   const isHard = (ids: readonly string[]) => ids.some((id) => broken.hard.has(id))
   const isSoft = (ids: readonly string[]) => ids.some((id) => broken.soft.has(id))
