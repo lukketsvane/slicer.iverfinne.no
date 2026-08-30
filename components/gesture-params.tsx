@@ -64,6 +64,18 @@ export function GestureParams({
   onGest?: (kva: GestKva) => void
 }) {
   const gl = useThree((s) => s.gl)
+  /**
+   * Kor langt fingrane må ha kome før gesten får namn, i pikslar, og kor
+   * mykje den som leier må leie med.
+   *
+   * Åtte pikslar, og det er ei STREKNING fingrane skal ha gått — ikkje eit
+   * rykk dei skal ha gjort i éi hending. Målt med skjelvande fingrar (±6
+   * px dirr på avstanden medan dei vrir seg fyrti grader) held åtte like
+   * godt som tolv, og eit lågare tak gjev meir av gesten attende: det som
+   * går med i daudsona er gest du har gjort og ikkje fått.
+   */
+  const DAUD = 8
+  const NOK = 1.25
   const controls = useThree((s) => s.controls) as {
     enabled: boolean
     target?: THREE.Vector3
@@ -81,6 +93,24 @@ export function GestureParams({
     let start = { d: 0, a: 0 }
     /** summen av vridinga, so ho kan gå forbi eit halvt omdreiing */
     let vridd = 0
+    /**
+     * DER DEN ANDRE FINGEREN LANDA, OG ALT SIDAN.
+     *
+     * Klassifiseringa las FIRE DELTA MELLOM TO HENDINGAR. Ei hending er
+     * ein hundredels sekund, og på ein hundredels sekund flyttar ein
+     * finger som vrir seg roleg éin eller to pikslar — aldri dei seks som
+     * skulle til. Ein roleg, tydeleg vri kom difor aldri gjennom
+     * daudsona; det som kom gjennom var eit rykk, og eit rykk er like
+     * gjerne støy som meining. Difor «av og til».
+     *
+     * No vert alle fire målte SIDAN ANKERET. Støy sprikjer og går i null
+     * over tjue hendingar; meining hopar seg opp. Og vinkelen vert lagd
+     * saman heile vegen — ikkje berre etter at gesten har fått namn — so
+     * han overlever at fingrane kryssar ±180°.
+     */
+    let anker = { cx: 0, cy: 0, d: 0, a: 0 }
+    /** vinkelen lagd saman sidan ankeret, radianar */
+    let sumVri = 0
     let snap: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null
     // dobbelttrykket: to korte, stillestandande trykk nær kvarandre i tid
     // og rom — same terskel som iOS sjølv brukar på kartet
@@ -142,6 +172,8 @@ export function GestureParams({
       if (pts.size === 2 && mode !== "light") {
         mode = "none"
         last = measure2()
+        anker = last
+        sumVri = 0
         if (controls) controls.enabled = false
       }
       if (pts.size === 3) {
@@ -168,25 +200,41 @@ export function GestureParams({
       const c = measure2()
       const dx = c.cx - last.cx
       const dy = c.cy - last.cy
-      const dd = c.d - last.d
       const dv = vinkel(c.a, last.a)
-      // Vridinga målt i pikslar: bogen kvar finger har gått.
-      const boge = dv * (c.d / 2)
+      // Vinkelen vert lagd saman heile vegen, òg medan gesten er namnlaus:
+      // det er han klassifiseringa les.
+      sumVri += dv
       if (mode === "none") {
-        // Gesten vert klassifisert ÉIN gong, etter ei daudsone, og alle
-        // fire kandidatane står i same eining.
-        const A = Math.abs(boge)
-        const D = Math.abs(dd)
-        const X = Math.abs(dx)
-        const Y = Math.abs(dy)
-        if (A > 6 && A > 1.3 * Math.max(D, X, Y)) mode = "vri"
-        else if (D > 6 && D > 1.2 * Math.max(X, Y, A)) mode = "klyp"
-        else if (Y > 6 && Y > 1.3 * Math.max(X, D, A)) mode = "v"
-        else if (X > 6 && X > 1.3 * Math.max(Y, D, A)) mode = "h"
+        /**
+         * GESTEN FÅR NAMN ÉIN GONG, PÅ TOTALANE.
+         *
+         * Alle fire står i same eininga — pikslar. Vridinga vert rekna om
+         * til bogen kvar finger har gått, og radien er den fingrane hadde
+         * DÅ DEI LANDA: vert han lesen av avstanden akkurat no, endrar
+         * målestokken seg under gesten, og eit klyp som opnar seg gjer
+         * vridinga større av seg sjølv.
+         */
+        const A = Math.abs(sumVri) * (anker.d / 2)
+        const D = Math.abs(c.d - anker.d)
+        const X = Math.abs(c.cx - anker.cx)
+        const Y = Math.abs(c.cy - anker.cy)
+        const M = Math.max(A, D, X, Y)
+        if (M < DAUD) return
+        // Den som leier må leie KLÅRT. Gjer ingen det, held vi fram med å
+        // samle: to kandidatar som står likt no, står sjeldan likt om ti
+        // hendingar til. Men ikkje i det uendelege — er fingrane komne
+        // tre daudsoner utan at nokon har vunne, gjer dei fleire ting på
+        // ein gong, og då er den største det næraste eit svar som finst.
+        const klaar = (v: number, ...andre: number[]) =>
+          v === M && (v > NOK * Math.max(...andre) || M > 3 * DAUD)
+        if (klaar(A, D, X, Y)) mode = "vri"
+        else if (klaar(D, A, X, Y)) mode = "klyp"
+        else if (klaar(Y, A, D, X)) mode = "v"
+        else if (klaar(X, A, D, Y)) mode = "h"
         else return
         // Nullpunktet er der gesten VART til, ikkje der fingrane landa:
         // daudsona skal ikkje telje med i totalen.
-        start = { d: last.d, a: last.a }
+        start = { d: c.d, a: c.a }
         vridd = 0
         // Den fyrste fingeren rakk å snu synet litt før den andre landa.
         // Den rotasjonen høyrer ikkje til gesten, so han vert lagd attende.
