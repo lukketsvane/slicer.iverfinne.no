@@ -45,6 +45,7 @@ import {
   SliderRow,
   TASTAR,
   TAST_ARK,
+  Tavla,
   VIEWS,
   chipStyle,
   lesTal,
@@ -56,6 +57,7 @@ import {
   stengd,
   tableRows,
   tjukn,
+  utanRad,
 } from "./deler"
 
 /**
@@ -224,10 +226,21 @@ export function ControlsPanel(props: {
     return { hard, soft }
   }, [rules])
   const failed = useMemo(() => rules.filter((r) => !r.ok), [rules])
+  /**
+   * Kva av dei brotne som skal flaggast over tavla.
+   *
+   * I det halve steget står ikkje tavla, so alle må stå her. I det fulle
+   * står ho rett under, og der ber kvar rad regelen sin sjølv: ei line til
+   * over henne er det same talet ein gong til, med eit anna ord framfor.
+   */
+  const flagg = useMemo(
+    () => (mode === "full" ? utanRad(rules) : failed),
+    [mode, rules, failed],
+  )
   const isHard = (ids: readonly string[]) => ids.some((id) => broken.hard.has(id))
   const isSoft = (ids: readonly string[]) => ids.some((id) => broken.soft.has(id))
 
-  const rows = useMemo(() => tableRows(metrics), [metrics])
+  const rows = useMemo(() => tableRows(metrics, rules), [metrics, rules])
 
   const setParam = useCallback(
     (k: string, raw: string) => onChange({ ...params, [k]: snap(lesTal(raw), VAFFEL.ranges[k]) }),
@@ -291,22 +304,52 @@ export function ControlsPanel(props: {
           }}
           style={{ touchAction: "none" }}
         >
+          {/*
+            GREPET, OG FILNAMNET.
+
+            Namnet stod i hovudlina som ei pille på ein tredel av breidda,
+            og på ein telefon vart det «DRAGON_…»: eit namn kappa so kort at
+            ikonet ved sida av sa meir enn bokstavane. Her er det plass til
+            heile. Lina finst berre når arket er ope, og ho var tom før —
+            eit grep på ni pikslar midt i tolv pikslar luft.
+
+            Namnet fyrst, grepet nesten midt på: eit grep som står NØYAKTIG
+            i midten kostar like mykje breidd på den tomme sida som namnet
+            får på si, og då er vi attende til «DRAGON_…».
+          */}
           {open && (
-            <div className="flex justify-center pt-1.5" aria-hidden="true">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_2rem] items-center gap-2 px-3 pt-2">
+              <button
+                type="button"
+                onClick={() => pick.current?.click()}
+                title={`hent eit nett: ${FORMAT.join(" ")}`}
+                className="hit dim -mx-1 min-w-0 truncate rounded px-1 text-left text-[10px] uppercase tracking-[0.16em]"
+                style={{ color: "var(--ink)" }}
+              >
+                {kjelde}
+              </button>
               <div
+                aria-hidden="true"
                 className="h-1 w-9 rounded-full"
                 style={{ background: "color-mix(in srgb, var(--ink) 22%, transparent)" }}
               />
+              <span />
             </div>
           )}
 
           {/*
-            TALA KAPPAST IKKJE.
-            På ein smal telefon er det ikkje plass til kjelda, tre tal og
-            tre knappar på ei line, og det som gav etter var tala: «12 delar
-            · 17,…». Dei er heile grunnen til at lina finst. So på smale
-            skjermar fell dei ned på si eiga line i staden, og får henne
-            heil. Over fire hundre pikslar står alt som før.
+            HOVUDLINA HAR EIN ENKE.
+
+            Kjelda, tre tal, ein prikk og to knappar fekk ikkje plass på ei
+            line på ein telefon, og det som datt ned var det SISTE elementet
+            — knappen som opnar arket — heilt åleine på ei rad med tre
+            hundre pikslar tomrom etter seg. Ei rad for éin knapp.
+
+            No er kjelda eit ikon på storleik med dei andre to knappane
+            (namnet står i grepslina over når arket er ope, og objektet
+            sjølv seier resten), og dei tre tinga til høgre er EIN blokk.
+            Bryt lina på ein smal telefon, bryt heile blokka og legg seg til
+            høgre under tala — aldri ein knapp for seg sjølv.
           */}
           <div className="flex flex-wrap items-center gap-1.5 p-2.5">
             {/* Kjelda. Han er ikkje ein nedtrekk med tre demofigurar — han er
@@ -315,13 +358,12 @@ export function ControlsPanel(props: {
             <button
               type="button"
               onClick={() => pick.current?.click()}
-              title={`hent eit nett: ${FORMAT.join(" ")}`}
-              aria-label="hent eit nett"
-              className="hit flex h-9 min-w-0 max-w-[34%] shrink items-center gap-1.5 rounded-full border pl-2.5 pr-3 text-[11px] uppercase tracking-[0.14em] transition active:scale-95 sm:max-w-[42%]"
+              title={`${kjelde} — hent eit nett: ${FORMAT.join(" ")}`}
+              aria-label={`hent eit nett. no: ${kjelde}`}
+              className={ICON_BTN}
               style={{ ...HAIR, color: "var(--ink)" }}
             >
-              <span className="shrink-0 opacity-70">{IcoImport}</span>
-              <span className="min-w-0 flex-1 truncate text-left">{kjelde}</span>
+              {IcoImport}
             </button>
 
             {/* Tala er ikkje berre til å lese: eit trykk på dei opnar arket
@@ -336,14 +378,9 @@ export function ControlsPanel(props: {
                   : "trykk for kontrollane"
               }
               aria-label="delar, kuttlengd og ark"
-              className={
-                // Tala krympar ikkje. Kjeldepilla gjer det, og ho har eit
-                // ikon som seier kva ho er sjølv om namnet vert kappa;
-                // tala har ingenting å gje. Vert det for trongt likevel,
-                // bryt rada (flex-wrap over) og tala får ei line for seg.
-                "tab min-w-0 shrink-0 truncate pl-1 text-left text-[11px] tracking-[0.06em] " +
-                "max-[379px]:order-last max-[379px]:w-full max-[379px]:flex-none max-[379px]:pt-2"
-              }
+              // Tala krympar ikkje og dei kappast ikkje: dei er heile
+              // grunnen til at lina finst.
+              className="tab shrink-0 pl-1 text-left text-[11px] tracking-[0.06em]"
             >
               {feil ? (
                 <span style={{ color: "var(--warn)" }}>{feil}</span>
@@ -375,52 +412,44 @@ export function ControlsPanel(props: {
               )}
             </button>
 
-            {/* prikken har fast plass, så lina står i ro medan motoren reknar */}
-            <span
-              aria-hidden="true"
-              className="ml-auto block h-[5px] w-[5px] shrink-0 rounded-full"
-              style={{
-                background: "var(--ink)",
-                opacity: busy && !tunar ? 0.8 : 0.12,
-                transition: "opacity 200ms ease",
-              }}
-            />
-
-            <button
-              type="button"
-              onClick={onFinn}
-              disabled={busy}
-              aria-label="finn innstillingar"
-              title="(F) reknar gjennom eit titals rutenett og set det beste. trykk igjen for det neste."
-              className={ICON_BTN + " disabled:opacity-100"}
-              style={{ background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }}
-            >
-              {IcoFinn}
-              {tunar && <Ring del={tunar.av ? tunar.gjort / tunar.av : 0} />}
-            </button>
-            <button
-              type="button"
-              onClick={() => onMode(open ? "lukka" : "halv")}
-              aria-label={open ? "gøym kontrollane" : "vis kontrollane"}
-              aria-expanded={open}
-              title={open ? "gøym kontrollane (O)" : "vis kontrollane (O)"}
-              className={ICON_BTN}
-              style={{ ...HAIR, color: "var(--ink)" }}
-            >
-              {open ? IcoDown : IcoSliders}
-            </button>
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              {/* prikken har fast plass, så lina står i ro medan motoren reknar */}
+              <span
+                aria-hidden="true"
+                className="block h-[5px] w-[5px] shrink-0 rounded-full"
+                style={{
+                  background: "var(--ink)",
+                  opacity: busy && !tunar ? 0.8 : 0.12,
+                  transition: "opacity 200ms ease",
+                }}
+              />
+              <button
+                type="button"
+                onClick={onFinn}
+                disabled={busy}
+                aria-label="finn innstillingar"
+                title="(F) reknar gjennom eit titals rutenett og set det beste. trykk igjen for det neste."
+                className={ICON_BTN + " disabled:opacity-100"}
+                style={{ background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }}
+              >
+                {IcoFinn}
+                {tunar && <Ring del={tunar.av ? tunar.gjort / tunar.av : 0} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => onMode(open ? "lukka" : "halv")}
+                aria-label={open ? "gøym kontrollane" : "vis kontrollane"}
+                aria-expanded={open}
+                title={open ? "gøym kontrollane (O)" : "vis kontrollane (O)"}
+                className={ICON_BTN}
+                style={{ ...HAIR, color: "var(--ink)" }}
+              >
+                {open ? IcoDown : IcoSliders}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/*
-          KVAR I SVARLISTA VI STÅR.
-          Knappen reknar ei rangert liste og set det beste. Utan denne lina
-          er andre trykk eit hopp utan retning: du veit ikkje at det finst
-          tolv til, du veit ikkje kva du står på, og du kjem deg ikkje
-          attende til det du nettopp hadde. Lina finst berre so lenge lista
-          svarar på det spørsmålet som står — rører du storleiken eller
-          plata, er ho borte.
-        */}
         {/*
           KVAR I SVARLISTA VI STÅR.
           Knappen reknar ei rangert liste og set det beste. Utan denne lina
@@ -506,10 +535,16 @@ export function ControlsPanel(props: {
               }
             />
 
-            {/* materialet og plata i EI rad. Materialet er ikkje ein farge —
-                han er tettleiken massen vert rekna av, og han er det som
-                avgjer om åringane skal teiknast i det heile. */}
-            <div className="flex flex-wrap items-center gap-1.5 py-1">
+            {/* Materialet og plata. Dei stod på EI rad som ikkje heldt dei:
+                fire fargar, ein skiljestrek og fem tjukner er breiare enn
+                ein telefon, og den femte tjukna datt ned åleine på ei rad
+                for seg. Eit sett med fem som er brote i fire og éin les som
+                to sett. Ei rad kvar, og tjuknene deler rada likt.
+
+                Materialet er ikkje ein farge — han er tettleiken massen vert
+                rekna av, og han er det som avgjer om åringane skal teiknast
+                i det heile. */}
+            <div className="flex items-center gap-1.5 pt-1">
               {(Object.keys(MATERIALS) as Material[]).map((mk) => (
                 <button
                   key={mk}
@@ -518,7 +553,7 @@ export function ControlsPanel(props: {
                   aria-label={`materiale: ${MATERIALS[mk].label}`}
                   title={MATERIALS[mk].label}
                   onClick={() => onChange({ ...params, material: mk })}
-                  className="h-6 w-6 rounded-full border transition active:scale-90"
+                  className="h-6 w-6 shrink-0 rounded-full border transition active:scale-90"
                   style={{
                     backgroundColor: MATERIALS[mk].hex,
                     borderColor: params.material === mk ? "var(--ink)" : "var(--rule)",
@@ -526,14 +561,11 @@ export function ControlsPanel(props: {
                   }}
                 />
               ))}
-              <span
-                aria-hidden="true"
-                className="mx-1 h-4 w-px"
-                style={{ background: "var(--rule)" }}
-              />
-              {/* Tjukna er den eine inngangen som ikkje er ein smak: ho er
-                  plata du har liggjande. Skyvaren er fri, men desse er dei
-                  ein faktisk får kjøpt. */}
+            </div>
+            {/* Tjukna er den eine inngangen som ikkje er ein smak: ho er
+                plata du har liggjande. Skyvaren er fri, men desse er dei
+                ein faktisk får kjøpt. */}
+            <div className="flex items-center gap-1.5 py-1">
               {TJUKNER.map((t) => (
                 <button
                   key={t}
@@ -541,7 +573,7 @@ export function ControlsPanel(props: {
                   aria-pressed={params.tjukn === t}
                   title={`${tjukn(t)} mm plate`}
                   onClick={() => onChange({ ...params, tjukn: t })}
-                  className={CHIP + " px-2"}
+                  className={CHIP + " flex-1 px-0"}
                   style={chipStyle(params.tjukn === t)}
                 >
                   {tjukn(t)}
@@ -583,12 +615,17 @@ export function ControlsPanel(props: {
               )}
             </div>
 
-            {/* reglane som ryk: éi line kvar, grunngjevinga i title. Panelet
+            {/* Reglane som ryk: éi line kvar, grunngjevinga i title. Panelet
                 seier KVA som er gale; KVIFOR ligg eit fingertrykk unna, og
-                rettinga står i lina som eit tal du kan trykkje på. */}
-            {failed.length > 0 && (
+                rettinga står i lina som eit tal du kan trykkje på.
+
+                I det fulle steget står tavla rett under, og der ber kvar
+                rad regelen sin sjølv — raud, med rådet i lina. Då er det
+                berre dei to reglane utan ei rad å farge som treng stå her:
+                klaringa og snittbreidda er skyvarar og ikkje målingar. */}
+            {flagg.length > 0 && (
               <ul className="space-y-1 py-1">
-                {failed.map((r) => (
+                {flagg.map((r) => (
                   <li
                     key={r.id}
                     title={r.why}
@@ -602,10 +639,7 @@ export function ControlsPanel(props: {
                       {r.hard ? "bryt" : "merk"} · {r.label}
                     </span>
                     <span className="flex shrink-0 items-center gap-2">
-                      {/* Talet står i tavla under når heile veggen er open,
-                          og er alt farga raudt der. Her oppe er lina eit
-                          flagg. Knappen står uansett: han er vegen ut. */}
-                      {mode !== "full" && <span className="tab">{r.value}</span>}
+                      <span className="tab">{r.value}</span>
                       <Fiksen rule={r} params={params} onChange={onChange} />
                     </span>
                   </li>
@@ -640,40 +674,18 @@ export function ControlsPanel(props: {
               <>
                 {/* To spalter. Kvar rad brukte under ein tredel av breidda
                     og betalte for resten i høgd: tretten rader vart tolv
-                    tomme midtfelt og to hundre og seksti piksel. */}
-                <dl
-                  className="mt-3 grid grid-cols-2 gap-x-6"
-                  style={{ opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
-                >
-                  {rows.map((row) => {
-                    const hard = row.rules !== undefined && isHard(row.rules)
-                    const soft = row.rules !== undefined && isSoft(row.rules)
-                    return (
-                      <div
-                        key={row.label}
-                        className="flex items-baseline justify-between gap-2 py-[2px] text-[11px] leading-4"
-                      >
-                        <dt className="dim shrink-0 truncate">{row.label}</dt>
-                        <dd
-                          className="tab truncate text-right"
-                          style={{
-                            color: hard ? "var(--warn)" : undefined,
-                            // eit mjukt brot er eit val og ikkje ein feil:
-                            // det skal merkast, men ikkje rope
-                            textDecoration: soft ? "underline dotted" : undefined,
-                            textDecorationColor: soft
-                              ? "color-mix(in srgb, var(--ink) 45%, transparent)"
-                              : undefined,
-                            textUnderlineOffset: 3,
-                          }}
-                        >
-                          {row.value}
-                          {row.unit && <span className="dim pl-1">{row.unit}</span>}
-                        </dd>
-                      </div>
-                    )
-                  })}
-                </dl>
+                    tomme midtfelt og to hundre og seksti piksel.
+
+                    Same tavla som på benken, og kvar rad ber regelen sin:
+                    lista over «bryt · delane får plass» stod over henne og
+                    sa det same talet ein gong til. */}
+                <Tavla
+                  rows={rows}
+                  busy={busy}
+                  params={params}
+                  onChange={onChange}
+                  className="mt-3"
+                />
 
                 {/* Same skyvar to gonger på same skjerm er ikkje to
                     skyvarar: det er ein som ser ut til å ikkje verke når du
@@ -717,13 +729,6 @@ export function ControlsPanel(props: {
         */}
         {open && (
           <div className="px-3 pb-2">
-            {/*
-              KVA FARGANE TYDER, der uttaka står.
-              Han er to ord, og han sparar den einaste feilen som kostar
-              ei heil plate: å setje kutteffekt på graveringslaget. Svart
-              er fyrste laget i LightBurn, og fyrste laget køyrer fyrst,
-              so graveringa MÅ liggje der.
-            */}
             {/* uttaka */}
             <div className="flex flex-wrap items-center gap-1.5 py-1">
               {EXPORTS.map((x) => {
