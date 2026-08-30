@@ -378,7 +378,16 @@ export type DetailKey = "lav" | "mid" | "hog"
  *   kontur  dei flate kuttprofilane, lagde ved sida av kvarandre */
 export type View = "flate" | "lag" | "kontur"
 
-export type ExportKind = "stl" | "dxf" | "svg" | "ark" | "prove" | "alt" | "prosjekt"
+export type ExportKind =
+  | "stl"
+  | "dxf"
+  | "svg"
+  | "ark"
+  /** platene som bilete. Rasterisert på hovudtråden, sjå `pngAvArk`. */
+  | "png"
+  | "prove"
+  | "alt"
+  | "prosjekt"
 
 /**
  * Kuttlista som tekst, til rekneark og til innkjøpslista.

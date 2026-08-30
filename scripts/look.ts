@@ -144,6 +144,10 @@ const main = async () => {
   for (const [chip, vent] of [
     ["passprøve", /^passprove-.*\.svg$/],
     ["ark", /\.svg$|\.zip$/],
+    // PNG-en er den eine som IKKJE vert laga i arbeidaren: han vert
+    // rasterisert på hovudtråden gjennom eit lerret. Går det gale der,
+    // feilar ingen ting — du får berre ei blank rute — so fila må lesast.
+    ["png", /-ark\.png$|-ark-png\.zip$/],
     ["dxf", /\.dxf$/],
     ["svg", /profilar\.svg$/],
   ] as [string, RegExp][]) {
