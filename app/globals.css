@@ -32,6 +32,29 @@ html {
     background: var(--paper);
     color: var(--ink);
     font-family: var(--font-sans);
+    /*
+     * EIN REISKAP ER IKKJE EIN TEKST.
+     *
+     * Eit langt trykk på ein knapp i iOS Safari merkjer ordet i han og
+     * sprett opp «Kopier · Oversett · Lær … · Les opp». Halve arket vart
+     * blått, og den einaste vegen ut var å trykkje ein annan stad. Ingen
+     * av dei fire tinga menyen tilbyr gjev meining på ein uttaksknapp.
+     *
+     * Ein finger som kviler på ein knapp gjer det av di han er i ferd
+     * med å trykkje, eller av di han dreg arket — begge er gestar, ikkje
+     * lesing.
+     */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  /* Det som FAKTISK er tekst, er framleis tekst: talfelta og oppsettet
+     skal kunne merkjast, kopierast og limast i. */
+  input,
+  textarea,
+  [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
   }
   /* Alle tal i grensesnittet er måltal. Dei skal stå i kolonne. */
   .tab {
