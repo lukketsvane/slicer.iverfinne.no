@@ -13,6 +13,7 @@ import { ControlsPanel, type PanelMode } from "./controls-panel"
 import type { GestKva, NudgeAxis } from "./gesture-params"
 import type { Rute } from "@/lib/ramme"
 import { Benk, VEGG } from "./benk"
+import { CHIP, VIEWS, chipStyle } from "./deler"
 
 /** kor mange piksel to-fingers-rulling må dra for å sveipe eit heilt band */
 const NUDGE_RANGE_PX = 420
@@ -1093,6 +1094,52 @@ export function Studio() {
       )}
 
       {/*
+        LESEMÅTANE LIGG OPPÅ LERRETET, PÅ BEGGE FLATENE.
+
+        På benken har dei alltid gjort det: dei er eit blikk på det du ser
+        og ikkje ein parameter du stiller, og då høyrer dei til objektet og
+        ikkje til veggen. På telefonen stod dei nedst i arket og kosta ei
+        rad av eit ark som alt tok halve ruta. Her kostar dei ingen ting:
+        lerretet er tomt i det hjørnet uansett.
+
+        `fritt` byrjar på 52 px, so dei ligg i overkanten av det bandet
+        kameraet rammar objektet inn i — same staden som på benken.
+      */}
+      {!benk && (
+        <div
+          className="pointer-events-auto absolute z-10 flex items-center gap-1.5 px-4"
+          style={{ left: 0, top: 52 }}
+        >
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              title={`${v.hint} (${v.tast})`}
+              aria-pressed={view === v.id}
+              onClick={() => setView(v.id)}
+              className={CHIP}
+              style={{ ...chipStyle(view === v.id), background: view === v.id ? "var(--ink)" : "var(--paper)" }}
+            >
+              {v.label}
+            </button>
+          ))}
+          {isDesktop && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={hiDetail}
+              onClick={() => setHiDetail((d) => !d)}
+              title="finare rute i profilane; tyngre å rekne"
+              className={CHIP}
+              style={{ ...chipStyle(hiDetail), background: hiDetail ? "var(--ink)" : "var(--paper)" }}
+            >
+              fint nett
+            </button>
+          )}
+        </div>
+      )}
+
+      {/*
         KVA FINGRANE GJER, I TAL.
         Ein gest utan tal er ein gest du ikkje kan sikte med: du klyper og
         objektet står like stort på skjermen, av di kameraet rammar det inn
@@ -1208,9 +1255,7 @@ export function Studio() {
         kjelde={kjeldeNamn}
         metrics={metrics}
         rules={rules}
-        view={view}
         syn={syn?.svg ?? null}
-        hiDetail={hiDetail}
         isDesktop={isDesktop}
         busy={busy}
         feil={feil}
@@ -1226,10 +1271,8 @@ export function Studio() {
           setMode(m)
         }}
         onChange={endre}
-        onView={setView}
         onReset={() => endre({ ...VAFFEL.defaults, kjelde: params.kjelde })}
         onAngre={angre}
-        onToggleDetail={() => setHiDetail((d) => !d)}
         onExport={doExport}
         onFinn={() => steg(1)}
         onFinnAtt={() => steg(-1)}

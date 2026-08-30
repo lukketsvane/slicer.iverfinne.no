@@ -202,11 +202,13 @@ function Kuttliste(props: {
           </tbody>
         </table>
       </div>
+      {/* SUMMEN STOD ALT I VEGGEN.
+          Foten las «12 delar · 2 former · 17,9 m kutt». «12 delar» og
+          «17,9 m kutt» står ordrett i høgre vegg, som ikkje kan lukkast og
+          som er open på den same skjermen; «2 former» er det andre talet i
+          tavla si rad «delar · unike». Tre tal, alle tre ein gong til, ein
+          halv skjerm frå originalen. Att står vegen ut av lista. */}
       <div className="flex items-center gap-3 border-t px-3 py-2 text-[10px]" style={HAIR}>
-        <span className="mono">
-          {liste.length} delar · {former.size} former ·{" "}
-          {nn(liste.reduce((a, k) => a + k.cutLen, 0) / 1000, 1)} m kutt
-        </span>
         <button
           type="button"
           className={CHIP_B + " ml-auto uppercase tracking-[0.1em]"}
@@ -423,7 +425,10 @@ function Oppsett(props: {
         }}
       />
       <div className="flex items-center gap-3 border-t px-3 py-2 text-[10px]" style={HAIR}>
-        <span className="dim mono min-w-0 flex-1 truncate">{ord || "eitt namn og eitt tal per line"}</span>
+        {/* Berre meldinga om kva som vart sett. Det stod «eitt namn og eitt
+            tal per line» her til nokon trykte — ei skildring av forma på
+            kvar einaste line i feltet rett over, som alt står skriven ut. */}
+        <span className="dim mono min-w-0 flex-1 truncate">{ord}</span>
         <button
           type="button"
           className={CHIP_B + " uppercase tracking-[0.1em]"}
@@ -492,14 +497,22 @@ export function Verkty(props: {
       }}
     >
       {/* Ei line, ikkje ei fanerad: knappane som byter verkty står alt i
-          topplina, og den same rada to stader er to stader å leite. */}
+          topplina, og den same rada to stader er to stader å leite.
+
+          HINTEN STOD HER OG SA DET SKUFFA VISTE.
+          «Kvar del, med adresse, mål og plate» stod over ein tabell med
+          «adresse», «mål mm» og «plate» som kolonneoverskrifter; «kvar
+          plate slik ho ligg» stod over ei teikning av ei plate; «alle
+          innstillingane som tekst» stod over ein tekst med alle
+          innstillingane i. Ei bilettekst som les opp biletet under seg er
+          ikkje ei opplysning. Ho står framleis i tooltipen på knappen som
+          opnar skuffa — der ho svarar på noko du ENNO ikkje ser. */}
       <div
         className="flex items-baseline gap-3 border-b px-3 py-2 text-[10px] uppercase tracking-[0.14em]"
         style={HAIR}
       >
-        <span className="mono">{VERKTY.find((v) => v.id === open)?.ord}</span>
-        <span className="dim min-w-0 flex-1 truncate normal-case tracking-normal">
-          {VERKTY.find((v) => v.id === open)?.hint}
+        <span className="mono min-w-0 flex-1 truncate">
+          {VERKTY.find((v) => v.id === open)?.ord}
         </span>
         <button
           type="button"
