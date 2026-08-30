@@ -11,7 +11,7 @@
  * ein skrue eller ei oppspenning i heile stabelen. Rutenettet held seg
  * sjølv, og det er heile poenget.
  */
-import { bbox, kuttCsv } from "../core"
+import { bbox, kuttCsv, offsetPoly } from "../core"
 import type {
   BuildOut,
   DetailKey,
@@ -34,10 +34,11 @@ import { contourLines, flateMesh, lagMesh } from "./mesh"
 import { measure } from "./metrics"
 import { checkRules } from "./rules"
 import { makePlan } from "./plan"
+import { placedRings } from "./nest"
 import type { Part } from "./parts"
 import { meshToStl } from "./export-stl"
 import { partsToDxf } from "./export-dxf"
-import { couponSvg, profileSvg, sheetSvg } from "./export-svg"
+import { couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
 import { bruk, tune, tuneSteg, type Kandidat } from "./tune"
 import { zip } from "../zip"
 import {
@@ -318,7 +319,11 @@ export const VAFFEL: EngineDef = {
     const p = asP(bag)
     const { ns } = makePlan(p, DETAIL.mid)
     const tal = ns.sheets.length
-    if (i < 0 || i >= tal) return { i, tal, svg: "", delar: 0, util: 0 }
+    if (i < 0 || i >= tal) {
+      // Ingen plate: plata sitt eige mål står likevel, so ramma kan
+      // teiknast tom i staden for å kollapse til ingenting.
+      return { i, tal, svg: "", delar: 0, util: 0, plasser: [], arkB: ns.sheetW, arkH: ns.sheetH }
+    }
     const sheet = ns.sheets[i]
     const flate = sheet.placed.reduce((a, q) => a + q.part.area, 0)
     // SAME REKNESTYKKET SOM I TAVLA.
@@ -328,11 +333,29 @@ export const VAFFEL: EngineDef = {
     // er svinn, han ligg der og ventar på neste jobb. Rekna på heile plata
     // gav 53 % der tavla sa 68, og to tal om det same er verre enn eitt.
     const skore = sheet.used * ns.sheetW
+    const kerf = kerfOf(p)
     return {
       i,
       tal,
       // Same teikninga som fila. Ikkje ei framsyning AV fila — fila.
-      svg: sheetSvg(ns, i, kerfOf(p)),
+      svg: sheetSvg(ns, i, kerf),
+      // Og dei same delane ein gong til, kvar for seg, so skjermen kan
+      // peike på dei. Sjå `Delplass`: like baner, like koordinat, same
+      // snittkompensasjon — det er den eine teikninga, delt opp.
+      plasser: sheet.placed.map((q) => {
+        const r = placedRings(q)
+        const ut = offsetPoly(r.outline, kerf / 2)
+        const bb = bbox(ut)
+        return {
+          adr: q.part.from,
+          id: q.part.id,
+          ut: ring(ut),
+          inn: r.holes.map((h) => ring(offsetPoly(h, -kerf / 2))),
+          boks: { x: bb.x0, y: bb.y0, w: bb.x1 - bb.x0, h: bb.y1 - bb.y0 },
+        }
+      }),
+      arkB: ns.sheetW,
+      arkH: ns.sheetH,
       delar: sheet.placed.length,
       util: skore > 0 ? flate / skore : 0,
     }

@@ -266,6 +266,33 @@ export type Kutt = {
   ark: number
 }
 
+/**
+ * EIN DEL SLIK HAN LIGG PÅ PLATA, SOM NOKO DU KAN PEIKE PÅ.
+ *
+ * Plata var eit BILETE — ein SVG-streng i ein `<img>`. Eit bilete er
+ * nøyaktig like mykje verdt som fila det er teikna av, og ikkje meir: du
+ * kan sjå at ein del ligg feil, og du kan ikkje ta i han. Alt som skal
+ * gjerast med ein einskild del — peike på han, låse han, dra han, telje
+ * han to gonger — treng at delen finst som noko for seg sjølv.
+ *
+ * Banene er DEI SAME som kuttfila skriv, med den same snittkompensasjonen,
+ * i dei same koordinatane (millimeter, y opp). Det er heile poenget: det
+ * du ser på skjermen er ikkje ei framsyning av plata, det ER plata.
+ */
+export type Delplass = {
+  /** adressa som vert gravert — «X3a». Same nøkkelen som kuttlista og
+   *  objektet brukar, so ein del kan fylgjast mellom dei tre. */
+  adr: string
+  /** forma. To plassar med same id er den same delen om att. */
+  id: string
+  /** omrisset, som ein SVG-bane */
+  ut: string
+  /** hòla, kvart som si eiga bane */
+  inn: string[]
+  /** boksen kring han, til å ramme inn den som er peikt på */
+  boks: { x: number; y: number; w: number; h: number }
+}
+
 /** Ei plate slik ho ligg, til skjermen: teikninga og dei to tala som høyrer
  *  til henne. `tal` er kor mange plater det er i alt. */
 export type ArkSyn = {
@@ -274,6 +301,11 @@ export type ArkSyn = {
   svg: string
   delar: number
   util: number
+  /** dei same delane, kvar for seg. Sjå `Delplass`. */
+  plasser: Delplass[]
+  /** plata sjølv, i millimeter */
+  arkB: number
+  arkH: number
 }
 
 // =============================================================================
