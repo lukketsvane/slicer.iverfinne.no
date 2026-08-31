@@ -103,13 +103,28 @@ const EMPTY = () => new Float32Array(0)
 const num = (v: number) => String(+v.toFixed(2)).replace(".", "p")
 
 /** filnamn utan mellomrom, utan aksentar og med kjelda i seg */
-const stem = (p: Params) =>
-  ("vaffel-" + srcLabel(p.kjelde))
+/**
+ * Same stamme til PNG-en som til SVG-en.
+ *
+ * PNG-uttaket vert rasterisert på hovudtråden — ein arbeidar har ingen
+ * `Image` å tolke SVG med i Safari — og då må namnet lagast der òg. Eit
+ * namn som vert skrive to stader er to namn.
+ *
+ * Ho tek ETIKETTEN og ikkje kjelde-id-en. Registeret over kjelder bur i
+ * arbeidaren, so `srcLabel` på hovudtråden gjev berre id-en attende: den
+ * fyrste utgåva skreiv `vaffel-fc2gw-ark.png` ved sida av
+ * `vaffel-prove-ark.svg` — den same plata, to namn. Prøvebenken fanga
+ * det.
+ */
+export const filnamnStamme = (label: string) =>
+  ("vaffel-" + label)
     .replace(/\.[a-z0-9]+$/i, "")
     .replace(/[^\w.-]+/g, "-")
     .replace(/-+/g, "-")
     .toLowerCase()
     .slice(0, 48)
+
+const stem = (p: Params) => filnamnStamme(srcLabel(p.kjelde))
 
 export const VAFFEL: EngineDef = {
   id: "vaffel",
