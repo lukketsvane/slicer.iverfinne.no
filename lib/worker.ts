@@ -35,8 +35,10 @@ export type BuildReq = {
 }
 export type ExportReq = { kind: "export"; id: number; params: ParamBag; what: ExportKind }
 export type ImportReq = { kind: "import"; id: number; name: string; buf: ArrayBuffer }
-/** «finn gode innstillingar»: snittar eit titals punkt og rangerer dei */
-export type TuneReq = { kind: "tune"; id: number; params: ParamBag }
+/** «finn gode innstillingar»: snittar eit titals punkt og rangerer dei.
+ *  `djup` er det lange trykket — heile ribbetavla rekna gjennom på ei
+ *  måling av kroppen, og berre dei beste av dei snitta. */
+export type TuneReq = { kind: "tune"; id: number; params: ParamBag; djup?: boolean }
 /** «syn meg plate nummer i» — teikninga kjem attende, ikkje ei fil */
 export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number }
 export type Req = BuildReq | ExportReq | ImportReq | TuneReq | ArkReq
@@ -220,7 +222,7 @@ self.onmessage = (e: MessageEvent<Req>) => {
       // Turen innom køen kostar eit par millisekund per kandidat, og han
       // gjev meir enn framdrifta attende: eit bygg som kjem medan søket
       // går, slepp til imellom i staden for å stå og vente på heile.
-      const it = VAFFEL.tuneSteg(req.params)
+      const it = VAFFEL.tuneSteg(req.params, req.djup)
       const mitt = ++tuneKøyr
       const steg = () => {
         // Eit nytt søk gjer det gamle uinteressant. Utan denne ville to

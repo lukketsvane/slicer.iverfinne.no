@@ -44,6 +44,7 @@ import {
   stengd,
   tableRows,
   tjukn,
+  useLangtrykk,
   utanRad,
 } from "./deler"
 
@@ -114,6 +115,16 @@ function Svarlista({
   const timer = useRef(0)
   useEffect(() => () => window.clearTimeout(timer.current), [])
   if (!liste.length) return null
+  /**
+   * FORMKOLONNEN STÅR BERRE NÅR HO HAR NOKO Å SEIE.
+   *
+   * Truskapen — kor mykje av forma ribbene ber — er det djupsøket rangerer
+   * på, og det raske søket reknar han ikkje: å måle kroppen kostar meir enn
+   * det raske søket har råd til å bruke på noko det ikkje ser på uansett.
+   * So han står på null der, og ein kolonne med tolv nullar i seier ikkje
+   * at talet er null; han seier at nokon gløymde å rekne det.
+   */
+  const formkol = liste.some((k) => k.troskap > 0)
   const over = (i: number | null) => {
     if (!syn) return
     window.clearTimeout(timer.current)
@@ -134,12 +145,22 @@ function Svarlista({
       style={{ opacity: gjeld ? 1 : 0.35, transition: "opacity 160ms ease" }}
       onPointerLeave={() => over(null)}
     >
+      {/* Overskriftene er breiare enn tala under dei — «delar» er fem
+          teikn, talet er to — so det er DEI som set kor smal ein kolonne
+          kan vera, og «formdelar» utan mellomrom er to overskrifter som
+          begge fyller kolonnen sin nøyaktig.
+          Å gjere kolonnen breiare hjelper ikkje: tala står til HØGRE, so
+          luka mellom to kolonnar er slarken i den VENSTRE av dei og ikkje
+          i den høgre. Det er innrykket som lagar henne, og det må stå både
+          i overskrifta og i rada, elles står talet og namnet på det ikkje
+          lenger i lodd. */}
       <div className="dim flex text-[9px] uppercase tracking-[0.14em]" aria-hidden>
         <span className="w-5" />
         <span className="flex-1">ribber</span>
+        {formkol && <span className="w-10 pr-2 text-right">form</span>}
         <span className="w-9 text-right">delar</span>
         <span className="w-7 text-right">ark</span>
-        <span className="w-9 text-right">ledd</span>
+        <span className="w-9 pr-1 text-right">ledd</span>
       </div>
       {liste.map((k, i) => (
         <button
@@ -151,8 +172,9 @@ function Svarlista({
           // er kolonnane borte, og overskrifta står ein heilt annan stad —
           // difor står talet og namnet på det saman her.
           aria-label={
-            `svar ${i + 1}: ${k.ribbX}×${k.ribbY} ribber, ${k.parts} delar, ` +
-            `${k.sheets} ark, ${k.joints} ledd`
+            `svar ${i + 1}: ${k.ribbX}×${k.ribbY} ribber, ` +
+            (formkol ? `${Math.round(k.troskap * 100)} prosent av forma, ` : "") +
+            `${k.parts} delar, ${k.sheets} ark, ${k.joints} ledd`
           }
           className="hit mono flex w-full items-baseline rounded-[2px] py-[2px] text-[10px]"
           style={
@@ -165,6 +187,7 @@ function Svarlista({
           <span className="flex-1 text-left">
             {k.ribbX}×{k.ribbY}
           </span>
+          {formkol && <span className="w-10 pr-2 text-right">{Math.round(k.troskap * 100)}%</span>}
           <span className="w-9 text-right">{k.parts}</span>
           <span className="w-7 text-right">{k.sheets}</span>
           <span className="w-9 pr-1 text-right">{k.joints}</span>
@@ -307,6 +330,8 @@ export function Benk(props: {
   onToggleDetail: () => void
   onExport: (kind: ExportKind) => void
   onFinn: () => void
+  /** eit langt trykk på den same knappen: djupsøket */
+  onFinnDjup: () => void
   onVelSvar: (i: number) => void
   onSynSvar: (i: number | null) => void
   onShare: () => void
@@ -339,6 +364,7 @@ export function Benk(props: {
     onToggleDetail,
     onExport,
     onFinn,
+    onFinnDjup,
     onVelSvar,
     onSynSvar,
     onShare,
@@ -346,6 +372,7 @@ export function Benk(props: {
     verkty,
     onVerkty,
   } = props
+  const langtrykk = useLangtrykk(onFinn, onFinnDjup)
   const pick = useRef<HTMLInputElement | null>(null)
 
   /**
@@ -551,10 +578,13 @@ export function Benk(props: {
         <div className={BLOKK} style={HAIR}>
           <button
             type="button"
-            onClick={onFinn}
+            {...langtrykk}
             disabled={busy}
             aria-label="finn innstillingar"
-            title="(F) reknar gjennom eit titals rutenett og set det beste"
+            title={
+              "(F) reknar gjennom eit titals rutenett og set det beste\n" +
+              "hald han nede (D) for djupsøket: heile ribbetavla, rangert på kor mykje av forma ribbene ber og kor mange plater ho tek"
+            }
             className="hit relative flex h-9 w-full items-center justify-center gap-2 rounded-[2px] text-[11px] uppercase tracking-[0.14em] transition active:scale-[0.99] disabled:opacity-100"
             style={{ background: "var(--ink)", color: "var(--paper)" }}
           >
