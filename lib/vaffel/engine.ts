@@ -352,6 +352,7 @@ export const VAFFEL: EngineDef = {
           ut: ring(ut),
           inn: r.holes.map((h) => ring(offsetPoly(h, -kerf / 2))),
           boks: { x: bb.x0, y: bb.y0, w: bb.x1 - bb.x0, h: bb.y1 - bb.y0 },
+          plass: { sheet: q.slot.sheet, rot: q.slot.rot, x: q.slot.sx, y: q.slot.sy },
         }
       }),
       arkB: ns.sheetW,

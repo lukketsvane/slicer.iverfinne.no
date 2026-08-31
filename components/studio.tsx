@@ -9,11 +9,21 @@ import {
   useState,
   type CSSProperties,
 } from "react"
-import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rule, View } from "@/lib/core"
+import type {
+  ArkSyn,
+  Delplass,
+  DetailKey,
+  ExportKind,
+  Kutt,
+  Metrics,
+  ParamBag,
+  Rule,
+  View,
+} from "@/lib/core"
 import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { VAFFEL } from "@/lib/vaffel/engine"
-import { lesLaas, plasser, skrivLaas } from "@/lib/vaffel/params"
+import { lesFest, lesLaas, plasser, skrivFest, skrivLaas } from "@/lib/vaffel/params"
 import type { BuildRes, MaalRes, Req, Res, SynRes } from "@/lib/worker"
 import { Verkty, type VerktyId } from "./verkty"
 import type { Kandidat } from "@/lib/vaffel/tune"
@@ -126,7 +136,15 @@ export function Studio() {
    * han handlar om, og ein meny i den andre enden av skjermen krev at du
    * hugsar kva du peika på medan du fer dit.
    */
-  const [delVerkty, setDelVerkty] = useState<{ adr: string; x: number; y: number } | null>(null)
+  const [delVerkty, setDelVerkty] = useState<{
+    adr: string
+    x: number
+    y: number
+    /** står han på ei plate, er DETTE kvar. Då er handlingane feste og
+     *  ikkje ribbehandlingane: ein del på ei plate har ingen naboribbe å
+     *  kopiere seg til. */
+    plass?: Delplass["plass"]
+  } | null>(null)
   const delVerktyRef = useRef<HTMLDivElement | null>(null)
   const [busy, setBusy] = useState(true)
   const [mounted, setMounted] = useState(false)
@@ -697,6 +715,28 @@ export function Studio() {
     },
     [ribbaTil, medLaas],
   )
+
+  /** står denne delen fast på plata? */
+  const erFesta = useCallback(
+    (adr: string) => lesFest(String(params.fest ?? "")).has(adr),
+    [params.fest],
+  )
+
+  /**
+   * FEST, ELLER SLEPP.
+   *
+   * «Der han står» er ikkje ei rekning: `plass` er talet pakkinga sjølv
+   * gav frå seg, og det går rett attende inn hit.
+   */
+  const vipFest = useCallback((adr: string, plass: Delplass["plass"]) => {
+    setHint(null)
+    setParams((cur) => {
+      const m = lesFest(String(cur.fest ?? ""))
+      if (m.has(adr)) m.delete(adr)
+      else m.set(adr, plass)
+      return { ...cur, fest: skrivFest(m) }
+    })
+  }, [])
 
   /** eit langt trykk på ein del opnar verktyet der fingeren står */
   const langtrykk = useCallback(
@@ -1392,35 +1432,45 @@ export function Studio() {
             <span className="tab px-1.5 text-[11px]" style={{ color: "var(--ink)" }}>
               {delVerkty.adr}
             </span>
-            {(
-              [
-                {
-                  ord: erLaast(delVerkty.adr) ? "slepp" : "lås",
-                  paa: erLaast(delVerkty.adr),
-                  gjer: vipLaas,
-                  kva: erLaast(delVerkty.adr)
-                    ? "slepp ribba fri: ho fordeler seg med dei andre att"
-                    : "lås ribba her: ho står stille når du dreg ribbeskyvaren",
-                },
-                {
-                  ord: "kopier",
-                  paa: false,
-                  gjer: kopierRibbe,
-                  kva: "ei ribbe til, midt imellom denne og naboen. Begge vert låste.",
-                },
-                {
-                  ord: "spegl",
-                  paa: false,
-                  gjer: speglRibbe,
-                  kva: "den same ribba på hi sida av midten",
-                },
-                {
-                  ord: "slett",
-                  paa: false,
-                  gjer: slettRibbe,
-                  kva: "denne ribba vekk. Dei andre vert låste der dei står, so stabelen ligg i fred.",
-                },
-              ] as const
+            {(delVerkty.plass
+              ? [
+                  {
+                    ord: erFesta(delVerkty.adr) ? "slepp" : "fest",
+                    paa: erFesta(delVerkty.adr),
+                    gjer: () => vipFest(delVerkty.adr, delVerkty.plass!),
+                    kva: erFesta(delVerkty.adr)
+                      ? "slepp delen: pakkinga legg han der ho vil att"
+                      : "sett delen fast der han ligg: han vert lagd ned fyrst, og resten pakkar seg kring han",
+                  },
+                ]
+              : [
+                  {
+                    ord: erLaast(delVerkty.adr) ? "slepp" : "lås",
+                    paa: erLaast(delVerkty.adr),
+                    gjer: () => vipLaas(delVerkty.adr),
+                    kva: erLaast(delVerkty.adr)
+                      ? "slepp ribba fri: ho fordeler seg med dei andre att"
+                      : "lås ribba her: ho står stille når du dreg ribbeskyvaren",
+                  },
+                  {
+                    ord: "kopier",
+                    paa: false,
+                    gjer: () => kopierRibbe(delVerkty.adr),
+                    kva: "ei ribbe til, midt imellom denne og naboen. Begge vert låste.",
+                  },
+                  {
+                    ord: "spegl",
+                    paa: false,
+                    gjer: () => speglRibbe(delVerkty.adr),
+                    kva: "den same ribba på hi sida av midten",
+                  },
+                  {
+                    ord: "slett",
+                    paa: false,
+                    gjer: () => slettRibbe(delVerkty.adr),
+                    kva: "denne ribba vekk. Dei andre vert låste der dei står, so stabelen ligg i fred.",
+                  },
+                ]
             ).map((v) => (
               <button
                 key={v.ord}
@@ -1429,7 +1479,7 @@ export function Studio() {
                 style={chipStyle(v.paa)}
                 title={v.kva}
                 onClick={() => {
-                  v.gjer(delVerkty.adr)
+                  v.gjer()
                   setDelVerkty(null)
                 }}
               >
@@ -1517,6 +1567,7 @@ export function Studio() {
           rute={{ venstre: VEGG.venstre, hogre: VEGG.hogre, høgd: verktyH }}
           onArk={askArk}
           onPeik={setPeikt}
+          onLangtrykk={(adr, plass, x, y) => setDelVerkty({ adr, plass, x, y })}
           onChange={endre}
           onClose={() => setVerkty(null)}
           onOrd={(t) => {
