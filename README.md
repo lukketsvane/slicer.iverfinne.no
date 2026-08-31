@@ -195,6 +195,43 @@ messages flushed only when it finally does, so twelve progress reports would
 land in the same instant as the answer. A ring that jumps from nothing to done
 is not progress.
 
+### Hold the button: the deep search
+
+A press asks what is usually sensible. **Holding** the button (or pressing `d`)
+asks what *this shape* needs: the grid that carries the most of your form on
+the fewest sheets. It reads every rib count from 2×2 to 32×32 — about a
+thousand grids — and then slices only the best of them for real.
+
+It can afford a thousand because it stops guessing and **measures the body
+once**. One vertical ray per column of a 128×128 raster over the floor gives
+the volume, the cross-section profile A(x), and A(y) in a single sweep, for
+less than the cost of one slicing. A rib at x = a is a *sample* of A at a, and
+the waffle's claim about your object is the step function that holds that
+sample to the next cell. The area between that claim and the real A is the part
+of the shape that is not there — a number, in millimetres squared, read off the
+geometry. That is the `form` column on the bench.
+
+It behaves the way a measurement should and a guess would not. A cube is 100 %
+at *every* rib count, because its profile is constant and one sample tells you
+everything — a cube with two ribs really is a cube. A sphere climbs smoothly.
+A standing torus scores differently along x than along y, which is why the deep
+search picks lopsided grids there and the plain search, which chooses on rib
+*spacing*, never can. And on a body with legs it is **not monotonic**: three
+ribs can score worse than two, because the third plane landed between the legs
+instead of on them. No heuristic over rib counts can see that.
+
+Ranking uses the same weights in both stages — estimates in the wide one,
+measurements in the narrow one, because a prefilter that ranks on something
+other than what finally decides will sieve out the winner before anyone looks
+at it. Fidelity is weighted heaviest, sheets much more steeply than in the
+plain search, and parts are a *price* rather than a bell: fidelity saturates,
+so without a price on the work the search only stops when it needs another
+sheet — on a torus that bought four percent more shape for fifty more parts.
+
+What comes back is a front, not a point: the best grid on one sheet, the best
+on two, the best on three. That list is worth more than the winner. *On one
+sheet it looks like this; on two, like this.*
+
 ## Output
 
 | | |
@@ -383,6 +420,7 @@ pnpm ledd    # asks the cut profiles whether every joint the panel counted is re
 pnpm raad    # breaks each rule, presses the fix it offers, and checks it worked
 pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps
+pnpm djup    # the deep search: does the profile measure shape, and are the answers real
 pnpm tung    # a million triangles in, and how long that takes
 pnpm ark     # cut sheets as images
 pnpm look    # screenshots of the page, and any console errors
@@ -402,6 +440,7 @@ pnpm panel   # the controls in a real browser: both surfaces, gestures, keys
 | `lib/zip.ts` | ZIP, both ways: one export is one download, one project file is one drop |
 | `lib/lagring.ts` | what the browser remembers between visits |
 | `lib/vaffel/` | body, ribs, joints, parts, metrics, rules, exports |
+| `lib/vaffel/profil.ts` | the body measured once: volume and cross-section profile, and how much of a shape a set of rib planes carries |
 | `lib/worker.ts` | the engine in its own thread |
 | `components/verkty.tsx` | the three tools on the bench |
 

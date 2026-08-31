@@ -203,7 +203,7 @@ export function Studio() {
    * Ein REF og ikkje ein tilstand: to trykk kan lande i same runden, og
    * eit steg som vert rekna av ein gamal kopi går same steget to gonger.
    */
-  const finn = useRef<{ base: string; alle: Kandidat[]; nth: number } | null>(null)
+  const finn = useRef<{ base: string; alle: Kandidat[]; nth: number; djup: boolean } | null>(null)
   /** det same, men til SKJERMEN: kvar i lista vi står, og kva som kom ut */
   const [stad, setStad] = useState<
     { nth: number; tal: number; ribbX: number; ribbY: number; base: string } | null
@@ -1028,12 +1028,20 @@ export function Studio() {
    * Bakover går berre i ei liste som alt finst. Har du flytta på noko han
    * ikkje rører imens, er lista eit svar på eit anna spørsmål, og han
    * reknar på nytt.
+   *
+   * `djup` er DET LANGE TRYKKET. Det er ikkje eit steg til i den same
+   * lista, det er ei anna liste: heile ribbetavla rekna gjennom på ei
+   * måling av kroppen, rangert på kor mykje av forma ho ber og kor mange
+   * plater ho tek. Difor reknar eit langt trykk PÅ NYTT sjølv om det ligg
+   * ei grunn liste her — ho er eit svar på eit anna spørsmål — medan eit
+   * langt trykk på ei liste som alt er djup berre bladar vidare, som eit
+   * kort.
    */
-  const steg = useCallback((dir: 1 | -1) => {
+  const steg = useCallback((dir: 1 | -1, djup = false) => {
     if (tunarRef.current) return
     const base = tuneBase(naa.current)
     const cur = finn.current
-    if (cur && cur.base === base && cur.alle.length) {
+    if (cur && cur.base === base && cur.alle.length && (cur.djup || !djup)) {
       const i = (((cur.nth + dir) % cur.alle.length) + cur.alle.length) % cur.alle.length
       cur.nth = i
       setStad({ nth: i, tal: cur.alle.length, ribbX: cur.alle[i].ribbX, ribbY: cur.alle[i].ribbY, base })
@@ -1046,11 +1054,11 @@ export function Studio() {
     setBusy(true)
     tunarRef.current = true
     setTunar({ gjort: 0, av: 0 })
-    finn.current = { base, alle: [], nth: 0 }
+    finn.current = { base, alle: [], nth: 0, djup }
     // Utanom porten, som uttaka: eit klikk er ikkje ein straum, og eit
     // søk som stod i kø bak eit bygg ville kome fram etter at brukaren
     // hadde gjeve opp.
-    const msg: Req = { kind: "tune", id: ++reqId.current, params: naa.current }
+    const msg: Req = { kind: "tune", id: ++reqId.current, params: naa.current, djup }
     worker.current?.postMessage(msg)
   }, [])
 
@@ -1325,6 +1333,13 @@ export function Studio() {
       if (k === "f") {
         e.preventDefault()
         steg(e.shiftKey ? -1 : 1)
+        return
+      }
+      // Djupsøket har eit langt trykk på knappen, og eit langt trykk er
+      // ingen veg for den som ikkje har ein peikar. Difor ein tast òg.
+      if (k === "d") {
+        e.preventDefault()
+        steg(1, true)
         return
       }
       // Vending frå tastaturet: styreflata sender aldri ei vriding til
@@ -1740,6 +1755,7 @@ export function Studio() {
           onToggleDetail={() => setHiDetail((d) => !d)}
           onExport={doExport}
           onFinn={() => steg(1)}
+          onFinnDjup={() => steg(1, true)}
           onVelSvar={velSvar}
           onSynSvar={synSvar}
           onShare={share}
@@ -1773,6 +1789,7 @@ export function Studio() {
         onAngre={angre}
         onExport={doExport}
         onFinn={() => steg(1)}
+        onFinnDjup={() => steg(1, true)}
         onFinnAtt={() => steg(-1)}
         onShare={share}
         onFile={(f) => void takeFile(f)}

@@ -70,11 +70,16 @@ export type EngineDef = {
   liste(p: ParamBag): Kutt[]
   /** éi plate slik ho ligg, som SVG — den same teikninga uttaket gjev */
   arkSyn(p: ParamBag, i: number): ArkSyn
-  /** gode innstillingar for det nettet og den storleiken som står, sorterte */
-  tune(p: ParamBag): Kandidat[]
+  /** gode innstillingar for det nettet og den storleiken som står, sorterte.
+   *  `djup` er det lange trykket: heile ribbetavla rekna gjennom på ei
+   *  måling av kroppen, og dei beste av dei snitta for alvor. */
+  tune(p: ParamBag, djup?: boolean): Kandidat[]
   /** det same søket, men eitt steg om gongen: den som driv han kan sleppe
    *  tråden imellom, og då kjem framdrifta fram medan ho gjeld */
-  tuneSteg(p: ParamBag): Generator<{ gjort: number; av: number }, Kandidat[], void>
+  tuneSteg(
+    p: ParamBag,
+    djup?: boolean,
+  ): Generator<{ gjort: number; av: number }, Kandidat[], void>
   /** det n-te svaret frå ei liste som alt er rekna */
   pick(p: ParamBag, alle: Kandidat[], nth: number): ParamBag
   /** profilane som bilete til panelet — same teikning som SVG-uttaket,
@@ -186,8 +191,8 @@ export const VAFFEL: EngineDef = {
   },
 
   measure: (bag) => measure(asP(bag)),
-  tune: (bag) => tune(asP(bag)),
-  tuneSteg: (bag) => tuneSteg(asP(bag)),
+  tune: (bag, djup) => tune(asP(bag), djup),
+  tuneSteg: (bag, djup) => tuneSteg(asP(bag), djup),
   pick: (bag, alle, nth) => bruk(asP(bag), alle, nth) as unknown as ParamBag,
   rules: (bag, m) => checkRules(asP(bag), m),
 

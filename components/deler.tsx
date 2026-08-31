@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState, type CSSProperties } from "react"
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react"
 import {
   TJUKNER,
   feltTal,
@@ -97,7 +97,56 @@ export const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[]
 /** Kva tastane gjer. Dei står i kvar sin tooltip òg, men ei samla line er
  *  den einaste staden nokon kan finne dei UTAN å vite at dei finst. */
 export const TASTAR =
-  "f finn · ⇧f førre · 1 2 3 lesemåte · , . vend · z angre · ctrl+hjul storleik"
+  "f finn · d djupsøk · ⇧f førre · 1 2 3 lesemåte · , . vend · z angre · ctrl+hjul storleik"
+
+/**
+ * EIT LANGT TRYKK PÅ EIN KNAPP.
+ *
+ * Ein knapp har eitt trykk. Vil du ha to ting ut av han, må det andre vera
+ * eit trykk som VARER — og då er det tre ting som må stemme:
+ *
+ *   fingeren står stille  eit drag er ikkje eit trykk. Seks pikslar er
+ *                         det same skiljet delane bruker.
+ *   det korte fyrer ikkje det lange fyrer medan fingeren enno står nede,
+ *                         og `click` kjem når han slepper. Utan flagget
+ *                         gjer eit langt trykk BÅE tinga.
+ *   tastaturet kjem fram  `click` frå ein tast har ingen `pointerdown`
+ *                         framfor seg, so flagget står av og det korte
+ *                         fyrer. Det er rett: eit langt trykk finst ikkje
+ *                         på eit tastatur, og den vegen står i `TASTAR`.
+ */
+export function useLangtrykk(kort: () => void, langt: () => void, ms = 450) {
+  const ned = useRef<{ x: number; y: number } | null>(null)
+  const timer = useRef(0)
+  const brukt = useRef(false)
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+  const stopp = useCallback(() => window.clearTimeout(timer.current), [])
+  return {
+    onPointerDown: (e: { clientX: number; clientY: number }) => {
+      ned.current = { x: e.clientX, y: e.clientY }
+      brukt.current = false
+      window.clearTimeout(timer.current)
+      timer.current = window.setTimeout(() => {
+        brukt.current = true
+        langt()
+      }, ms)
+    },
+    onPointerMove: (e: { clientX: number; clientY: number }) => {
+      const d = ned.current
+      if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) stopp()
+    },
+    onPointerUp: stopp,
+    onPointerLeave: stopp,
+    onPointerCancel: stopp,
+    onClick: () => {
+      if (brukt.current) {
+        brukt.current = false
+        return
+      }
+      kort()
+    },
+  }
+}
 /** det som berre finst på den eine flata */
 export const TAST_ARK = " · o panel"
 export const TAST_BENK = " · mellomrom berre objektet"

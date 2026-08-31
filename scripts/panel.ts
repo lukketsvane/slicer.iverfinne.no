@@ -419,6 +419,53 @@ async function benken(browser: Browser, feil: string[]) {
     `${p.ribbX}×${p.ribbY}`,
   )
 
+  // --- EIT LANGT TRYKK ER DJUPSØKET ----------------------------------------
+  /**
+   * TO TING UT AV ÉIN KNAPP.
+   *
+   * Eit langt trykk skal gje ei anna liste, og det korte skal IKKJE fyre
+   * med. Ei rekning på tolv grunne kandidatar som kjem etter djupsøket
+   * ville sett det beste svaret hans til side utan at nokon såg det.
+   *
+   * Det som skil dei to listene er formkolonnen: truskapen er det
+   * djupsøket rangerer på, og det raske reknar han ikkje. Kjem han fram,
+   * kom lista frå djupsøket — og det er ein skilnad ein kan LESE, ikkje
+   * ein ein må tru på.
+   */
+  const harForm = () =>
+    page
+      .locator("aside[aria-label='innstillingar'] [aria-label='svar']")
+      .innerText()
+      .then((t) => /\bform\b/i.test(t))
+
+  ok("det korte trykket gjev inga formkolonne", !(await harForm()))
+
+  const kb = (await page.getByLabel("finn innstillingar").boundingBox())!
+  await page.mouse.move(kb.x + kb.width / 2, kb.y + kb.height / 2)
+  await page.mouse.down()
+  await page.waitForTimeout(700)
+  await page.mouse.up()
+  await rolig(page)
+
+  ok("eit langt trykk gjev djupsøket", await harForm())
+  const djupe = await rader.count()
+  ok("og ei liste å bla i", djupe > 0, `${djupe} rader`)
+
+  // Kvar rad ber eit formtal, og eit formtal er ein prosent mellom null og
+  // hundre. Ein kolonne med «NaN%» i ser rett ut på avstand.
+  const tal = (await page.locator("aside[aria-label='innstillingar'] [aria-label='svar'] button").first().innerText())
+    .match(/(\d+)%/)
+  ok("og eit formtal som er eit tal", !!tal && Number(tal[1]) > 0 && Number(tal[1]) <= 100, tal?.[0])
+
+  // Og det som står er det som er sett: eit langt trykk skal binde svaret
+  // sitt, ikkje berre rekne det ut.
+  p = await lenkja(page)
+  ok(
+    "og det fyrste djupe svaret er sett",
+    (await raden(0)).includes(`${p.ribbX}×${p.ribbY}`),
+    `${p.ribbX}×${p.ribbY}`,
+  )
+
   // --- MELLOMROM: BERRE OBJEKTET -------------------------------------------
   await page.locator("body").click({ position: { x: 660, y: 500 } })
   await page.keyboard.down("Space")

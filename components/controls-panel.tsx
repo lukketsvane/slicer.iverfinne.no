@@ -47,6 +47,7 @@ import {
   Tavla,
   chipStyle,
   lesTal,
+  useLangtrykk,
   n0,
   n1,
   FRAMME,
@@ -106,6 +107,8 @@ export function ControlsPanel(props: {
   onAngre: () => void
   onExport: (kind: ExportKind) => void
   onFinn: () => void
+  /** eit langt trykk på den same knappen: djupsøket */
+  onFinnDjup: () => void
   onFinnAtt: () => void
   onShare: () => void
   onFile: (f: File) => void
@@ -132,10 +135,12 @@ export function ControlsPanel(props: {
     onAngre,
     onExport,
     onFinn,
+    onFinnDjup,
     onFinnAtt,
     onShare,
     onFile,
   } = props
+  const langtrykk = useLangtrykk(onFinn, onFinnDjup)
 
   // lukka → halv (lesemåtar, materiale, delane, eksport) → full (skyveveggen)
   const open = mode !== "lukka"
@@ -477,10 +482,13 @@ export function ControlsPanel(props: {
               />
               <button
                 type="button"
-                onClick={onFinn}
+                {...langtrykk}
                 disabled={busy}
                 aria-label="finn innstillingar"
-                title="(F) reknar gjennom eit titals rutenett og set det beste. trykk igjen for det neste."
+                title={
+                  "(F) reknar gjennom eit titals rutenett og set det beste. trykk igjen for det neste.\n" +
+                  "hald han nede (D) for djupsøket: heile ribbetavla, rangert på kor mykje av forma ribbene ber og kor mange plater ho tek."
+                }
                 className={ICON_BTN + " disabled:opacity-100"}
                 style={{ background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }}
               >
