@@ -43,6 +43,24 @@ export type Params = {
   arkH: number
 
   material: string
+
+  /**
+   * LÅSTE RIBBER, SOM EIN STRENG.
+   *
+   * «x:0.125,0.375;y:0.5» — kvar låst ribbe som ein BRØKDEL av spennet og
+   * ikkje som millimeter. Brøken overlever at objektet vert skalert: låser
+   * du ribba midt på ein hund og dreg storleiken frå 80 til 300 mm, står
+   * ho framleis midt på hunden. Millimeter ville stått stille medan hunden
+   * voks frå dei.
+   *
+   * Ein STRENG i parameterposen, og ikkje ein tilstand ved sida av. Alt
+   * reiskapen alt kan med parametrar gjeld då òg låsane, utan ei einaste
+   * ny line: angre er ein parameterpose, lenkja er ein parameterpose,
+   * prosjektfila og økta er parameterposar, og nøklane som hugsar
+   * mellombygg er bygde av dei. Ein tilstand ved sida av måtte hatt alle
+   * seks på nytt, og kvar av dei er ein stad han kunne kome i utakt.
+   */
+  laas: string
 }
 
 /**
@@ -116,7 +134,49 @@ export const GROUPS: readonly Group[] = [
 export const PARAM_KEYS = GROUPS.flatMap((g) => g.keys)
 
 /** alt eit uttak er ein funksjon av, tal og namn */
-export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "material"]
+export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "material", "laas"]
+
+/**
+ * LÅSANE: LESING, SKRIVING OG REINSING.
+ *
+ * `laas` kjem frå ei lenkje, og ei lenkje er skriven av kven som helst.
+ * Difor er lesinga den einaste vegen inn: ho tek imot kva som helst og
+ * gjev alltid ei gyldig liste — feil akse, tal utanfor bandet, NaN og
+ * tusen oppføringar fell alle på golvet i staden for å nå geometrien.
+ */
+export type Laas = { x: number[]; y: number[] }
+
+/** Fleire enn dette er ikkje ein lås, det er ei lenkje som prøver seg. */
+const LAAS_TAK = 64
+
+export function lesLaas(s: unknown): Laas {
+  const ut: Laas = { x: [], y: [] }
+  if (typeof s !== "string" || !s) return ut
+  for (const bit of s.split(";")) {
+    const m = /^([xy]):(.*)$/.exec(bit)
+    if (!m) continue
+    const akse = m[1] as "x" | "y"
+    for (const del of m[2].split(",")) {
+      if (ut[akse].length >= LAAS_TAK) break
+      const v = Number(del)
+      // Kanten tel ikkje: ei ribbe på 0 eller 1 er ei ribbe med null
+      // breidd, og ho ville stå i kuttlista utan å bera noko.
+      if (!Number.isFinite(v) || v <= 0 || v >= 1) continue
+      ut[akse].push(+v.toFixed(4))
+    }
+    ut[akse] = [...new Set(ut[akse])].sort((a, b) => a - b)
+  }
+  return ut
+}
+
+export const skrivLaas = (l: Laas): string =>
+  (["x", "y"] as const)
+    .filter((a) => l[a].length)
+    .map((a) => `${a}:${l[a].join(",")}`)
+    .join(";")
+
+/** ein streng inn, den same lista ut i normalform */
+export const reinLaas = (s: unknown) => skrivLaas(lesLaas(s))
 
 /**
  * NØKLANE EIT MELLOMBYGG KAN HUGSAST PÅ.
@@ -227,11 +287,20 @@ export const DEFAULT_PARAMS: Params = {
   arkH: 600,
 
   material: "mdf",
+  laas: "",
 }
 
 /** kva to fingrar på lerretet skrur på */
 export const NUDGE_PARAMS = { vertical: "ribbY", horizontal: "ribbX" }
 
 export function clampParams(o: unknown, prev: Params): Params {
-  return clampBag(o, prev, PARAM_RANGES, PARAM_KEYS)
+  const ut = clampBag(o, prev, PARAM_RANGES, PARAM_KEYS)
+  // `clampBag` kjenner tal, materialet og kjelda. Låsane er vaffelen sine
+  // eigne — `lib/core.ts` veit ikkje kva ei ribbe er, og skal ikkje lære
+  // det for å sleppe ein streng gjennom.
+  if (o && typeof o === "object") {
+    const raw = (o as Record<string, unknown>).laas
+    if (typeof raw === "string") ut.laas = reinLaas(raw)
+  }
+  return ut
 }
