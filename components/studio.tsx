@@ -1,6 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react"
 import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rule, View } from "@/lib/core"
 import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
@@ -119,6 +127,7 @@ export function Studio() {
    * hugsar kva du peika på medan du fer dit.
    */
   const [delVerkty, setDelVerkty] = useState<{ adr: string; x: number; y: number } | null>(null)
+  const delVerktyRef = useRef<HTMLDivElement | null>(null)
   const [busy, setBusy] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [feil, setFeil] = useState<string | null>(null)
@@ -529,51 +538,164 @@ export function Studio() {
   /**
    * FRÅ EI ADRESSE TIL EI RIBBE.
    *
-   * Adressa som står gravert er «X3» — akse og NUMMER, frå éin. Låsen er
-   * ein brøkdel av spennet, og brøken finn vi ved å spørje `plasser` om
-   * det same som rutenettet spør han om. Same funksjonen, same svaret:
-   * hovudtråden reknar ikkje geometri, han slår opp i henne.
+   * Adressa som står gravert er «X3» — akse og NUMMER, frå éin. Resten er
+   * eit oppslag: `plasser` svarar på nøyaktig det same rutenettet spør han
+   * om, so hovudtråden reknar ikkje geometri, han slår opp i henne.
+   *
+   * INDEKSEN OG IKKJE BERRE BRØKEN. Ein fri ribbe står på 0,0833333…, og
+   * brøken vi låser er den avrunda 0,0833. Dei to er ikkje det same talet,
+   * so eit `indexOf` på brøken finn ingen ting — og «kopier» ville ikkje
+   * funne naboen sin. Plassen i lista er eintydig; brøken er han ikkje.
    */
-  const ribbaTil = useCallback((adr: string) => {
-    const m = /^([XY])(\d+)/.exec(adr)
-    if (!m) return null
-    const akse = m[1].toLowerCase() as "x" | "y"
-    const p = naa.current
-    const tal = Number(p[akse === "x" ? "ribbX" : "ribbY"]) || 1
-    const alle = plasser(tal, lesLaas(String(p.laas ?? ""))[akse])
-    const t = alle[Number(m[2]) - 1]
-    return t === undefined ? null : { akse, t: +t.toFixed(4) }
-  }, [])
+  const ribbene = useCallback(
+    (akse: "x" | "y", p: ParamBag) =>
+      plasser(Number(p[akse === "x" ? "ribbX" : "ribbY"]) || 1, lesLaas(String(p.laas ?? ""))[akse]),
+    [],
+  )
+
+  const ribbaTil = useCallback(
+    (adr: string, p: ParamBag = naa.current) => {
+      const m = /^([XY])(\d+)/.exec(adr)
+      if (!m) return null
+      const akse = m[1].toLowerCase() as "x" | "y"
+      const alle = ribbene(akse, p)
+      const i = Number(m[2]) - 1
+      return alle[i] === undefined
+        ? null
+        : { akse, i, alle, t: +alle[i].toFixed(4), nokkel: akse === "x" ? "ribbX" : "ribbY" }
+    },
+    [ribbene],
+  )
 
   /** står denne ribba fast? */
   const erLaast = useCallback(
     (adr: string) => {
-      const q = ribbaTil(adr)
+      const q = ribbaTil(adr, params)
       return !!q && lesLaas(String(params.laas ?? ""))[q.akse].includes(q.t)
     },
-    [params.laas, ribbaTil],
+    [params, ribbaTil],
   )
+
+  /**
+   * EI NY LÅSELISTE FOR EI AKSE.
+   *
+   * Kanten fell ut: ei ribbe på 0 eller 1 er ei ribbe med null breidd.
+   * Dublettar fell ut. Resten står sortert, so strengen er den same same
+   * kva rekkjefylgje han vart bygd i.
+   */
+  const medLaas = useCallback(
+    (cur: ParamBag, akse: "x" | "y", f: (l: number[]) => number[]) => {
+      const l = lesLaas(String(cur.laas ?? ""))
+      l[akse] = [...new Set(f(l[akse]).map((t) => +t.toFixed(4)))]
+        .filter((t) => t > 0 && t < 1)
+        .sort((a, b) => a - b)
+      return skrivLaas(l)
+    },
+    [],
+  )
+
+  const RIBB_MAX = 32
 
   /**
    * LÅS, ELLER SLEPP.
    *
-   * Han går gjennom `setParams` som alt anna: låsen legg seg i
-   * angrestabelen, i lenkja og i prosjektfila utan ei einaste line til.
+   * Alle fire handlingane går gjennom `setParams` som alt anna: dei legg
+   * seg i angrestabelen, i lenkja og i prosjektfila utan ei line til.
    */
   const vipLaas = useCallback(
     (adr: string) => {
-      const q = ribbaTil(adr)
-      if (!q) return
       setHint(null)
       setParams((cur) => {
-        const l = lesLaas(String(cur.laas ?? ""))
-        l[q.akse] = l[q.akse].includes(q.t)
-          ? l[q.akse].filter((v) => v !== q.t)
-          : [...l[q.akse], q.t].sort((a, b) => a - b)
-        return { ...cur, laas: skrivLaas(l) }
+        const q = ribbaTil(adr, cur)
+        if (!q) return cur
+        return {
+          ...cur,
+          laas: medLaas(cur, q.akse, (l) =>
+            l.includes(q.t) ? l.filter((v) => v !== q.t) : [...l, q.t],
+          ),
+        }
       })
     },
-    [ribbaTil],
+    [ribbaTil, medLaas],
+  )
+
+  /**
+   * KOPIER: EI RIBBE TIL, MIDT IMELLOM DENNE OG NABOEN.
+   *
+   * Ho vert LÅST med det same, og den ho vart kopiert frå òg. Elles ville
+   * dei to vore frie plassar som fordelte seg på nytt i same augeblinken
+   * talet gjekk opp, og kopien hamna ein annan stad enn der du bad om
+   * henne.
+   */
+  const kopierRibbe = useCallback(
+    (adr: string) => {
+      setHint(null)
+      setParams((cur) => {
+        const q = ribbaTil(adr, cur)
+        if (!q || q.alle.length >= RIBB_MAX) return cur
+        const hogre = q.alle[q.i + 1]
+        const venstre = q.alle[q.i - 1]
+        // Midt imellom naboen. Er det ingen nabo på den sida, går ho like
+        // langt ut som ho har til kanten.
+        const ny =
+          hogre !== undefined
+            ? (q.alle[q.i] + hogre) / 2
+            : venstre !== undefined
+              ? (q.alle[q.i] + venstre) / 2
+              : q.alle[q.i] / 2
+        return {
+          ...cur,
+          [q.nokkel]: q.alle.length + 1,
+          laas: medLaas(cur, q.akse, (l) => [...l, q.t, ny]),
+        }
+      })
+    },
+    [ribbaTil, medLaas],
+  )
+
+  /** SPEGL: den same ribba på hi sida av midten. */
+  const speglRibbe = useCallback(
+    (adr: string) => {
+      setHint(null)
+      setParams((cur) => {
+        const q = ribbaTil(adr, cur)
+        if (!q || q.alle.length >= RIBB_MAX) return cur
+        const spegla = +(1 - q.alle[q.i]).toFixed(4)
+        // Står det alt ei ribbe der, er spegelbiletet alt på plass.
+        if (q.alle.some((t) => Math.abs(t - spegla) < 0.005)) return cur
+        return {
+          ...cur,
+          [q.nokkel]: q.alle.length + 1,
+          laas: medLaas(cur, q.akse, (l) => [...l, q.t, spegla]),
+        }
+      })
+    },
+    [ribbaTil, medLaas],
+  )
+
+  /**
+   * SLETT: denne ribba vekk, og dei andre står der dei står.
+   *
+   * Ein fri ribbe kan ikkje fjernast for seg sjølv — han finst berre som
+   * «ein av seks jamne», og eit lågare tal ville flytta alle saman. Difor
+   * vert dei andre LÅSTE der dei står i det same steget. Det er den einaste
+   * lesinga av «slett denne» som lèt resten av stabelen vera i fred.
+   */
+  const slettRibbe = useCallback(
+    (adr: string) => {
+      setHint(null)
+      setParams((cur) => {
+        const q = ribbaTil(adr, cur)
+        if (!q || q.alle.length <= 1) return cur
+        const att = q.alle.filter((_, j) => j !== q.i)
+        return {
+          ...cur,
+          [q.nokkel]: att.length,
+          laas: medLaas(cur, q.akse, () => att),
+        }
+      })
+    },
+    [ribbaTil, medLaas],
   )
 
   /** eit langt trykk på ein del opnar verktyet der fingeren står */
@@ -586,6 +708,22 @@ export function Studio() {
     },
     [kuttliste],
   )
+
+  /**
+   * VERKTYET SKAL FÅ PLASS PÅ SKJERMEN.
+   *
+   * Han stod klemt mot fingeren med eit gjetta tal for kor brei han er, og
+   * det talet var sett då han hadde to knappar. Med fire vart «slett»
+   * ståande utanfor ruta. Breidda er noko nettlesaren VEIT — ho kjem an på
+   * skrifta, orda og språket — so ho vert målt i staden for rekna, og
+   * verktyet vert dregen inn frå kanten han er på veg ut av.
+   */
+  useLayoutEffect(() => {
+    const el = delVerktyRef.current
+    if (!el || !delVerkty) return
+    const w = el.offsetWidth
+    el.style.left = `${Math.min(Math.max(12, delVerkty.x - w / 2), Math.max(12, vindu.w - w - 12))}px`
+  }, [delVerkty, vindu.w])
 
   const detail: DetailKey = hiDetail && isDesktop ? "hog" : isDesktop ? "mid" : "lav"
 
@@ -1233,12 +1371,18 @@ export function Studio() {
             aria-hidden="true"
           />
           <div
-            className="fixed z-40 flex items-center gap-1.5 rounded-full border px-1.5 py-1.5"
+            ref={delVerktyRef}
+            // Fire handlingar og ei adresse er breiare enn ein smal telefon,
+            // og då hjelper det ikkje å skuve han inn frå kanten: han må få
+            // BRYTE. Ei pille som brekk til to rader er ikkje ei pille, so
+            // hjørna er runde og ikkje halvsirklar.
+            className="fixed z-40 flex max-w-[calc(100vw-24px)] flex-wrap items-center gap-1.5 rounded-3xl border px-1.5 py-1.5"
             role="dialog"
             aria-label={`ribbe ${delVerkty.adr}`}
             style={{
-              // Han skal ikkje hamne utanfor ruta på ein del heilt i kanten.
-              left: Math.min(Math.max(12, delVerkty.x - 70), Math.max(12, vindu.w - 172)),
+              // Ei startgjetting; `useLayoutEffect` over måler og rettar
+              // henne før noko vert teikna.
+              left: Math.max(12, delVerkty.x - 150),
               top: Math.max(12, delVerkty.y - 64),
               background: "var(--paper)",
               borderColor: "var(--rule)",
@@ -1248,22 +1392,50 @@ export function Studio() {
             <span className="tab px-1.5 text-[11px]" style={{ color: "var(--ink)" }}>
               {delVerkty.adr}
             </span>
-            <button
-              type="button"
-              className={CHIP}
-              style={chipStyle(erLaast(delVerkty.adr))}
-              onClick={() => {
-                vipLaas(delVerkty.adr)
-                setDelVerkty(null)
-              }}
-              title={
-                erLaast(delVerkty.adr)
-                  ? "slepp ribba fri: ho fordeler seg med dei andre att"
-                  : "lås ribba her: ho står stille når du dreg ribbeskyvaren"
-              }
-            >
-              {erLaast(delVerkty.adr) ? "slepp" : "lås"}
-            </button>
+            {(
+              [
+                {
+                  ord: erLaast(delVerkty.adr) ? "slepp" : "lås",
+                  paa: erLaast(delVerkty.adr),
+                  gjer: vipLaas,
+                  kva: erLaast(delVerkty.adr)
+                    ? "slepp ribba fri: ho fordeler seg med dei andre att"
+                    : "lås ribba her: ho står stille når du dreg ribbeskyvaren",
+                },
+                {
+                  ord: "kopier",
+                  paa: false,
+                  gjer: kopierRibbe,
+                  kva: "ei ribbe til, midt imellom denne og naboen. Begge vert låste.",
+                },
+                {
+                  ord: "spegl",
+                  paa: false,
+                  gjer: speglRibbe,
+                  kva: "den same ribba på hi sida av midten",
+                },
+                {
+                  ord: "slett",
+                  paa: false,
+                  gjer: slettRibbe,
+                  kva: "denne ribba vekk. Dei andre vert låste der dei står, so stabelen ligg i fred.",
+                },
+              ] as const
+            ).map((v) => (
+              <button
+                key={v.ord}
+                type="button"
+                className={CHIP}
+                style={chipStyle(v.paa)}
+                title={v.kva}
+                onClick={() => {
+                  v.gjer(delVerkty.adr)
+                  setDelVerkty(null)
+                }}
+              >
+                {v.ord}
+              </button>
+            ))}
           </div>
         </>
       )}
