@@ -5,6 +5,7 @@ import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rule, View
 import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { VAFFEL } from "@/lib/vaffel/engine"
+import { lesLaas, plasser, skrivLaas } from "@/lib/vaffel/params"
 import type { BuildRes, MaalRes, Req, Res, SynRes } from "@/lib/worker"
 import { Verkty, type VerktyId } from "./verkty"
 import type { Kandidat } from "@/lib/vaffel/tune"
@@ -110,6 +111,14 @@ export function Studio() {
   const [ark, setArk] = useState<ArkSyn | null>(null)
   /** adressa peikaren står på, i lista eller i objektet */
   const [peikt, setPeikt] = useState<string | null>(null)
+  /**
+   * DELEVERKTYET: eit langt trykk på ein del, og kva det gjeld.
+   *
+   * Han står der fingeren står og ikkje i ein vegg: det du held på er det
+   * han handlar om, og ein meny i den andre enden av skjermen krev at du
+   * hugsar kva du peika på medan du fer dit.
+   */
+  const [delVerkty, setDelVerkty] = useState<{ adr: string; x: number; y: number } | null>(null)
   const [busy, setBusy] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [feil, setFeil] = useState<string | null>(null)
@@ -513,6 +522,67 @@ export function Studio() {
        * svaret som før.
        */
       if (adr) setVerkty((v) => v ?? "liste")
+    },
+    [kuttliste],
+  )
+
+  /**
+   * FRÅ EI ADRESSE TIL EI RIBBE.
+   *
+   * Adressa som står gravert er «X3» — akse og NUMMER, frå éin. Låsen er
+   * ein brøkdel av spennet, og brøken finn vi ved å spørje `plasser` om
+   * det same som rutenettet spør han om. Same funksjonen, same svaret:
+   * hovudtråden reknar ikkje geometri, han slår opp i henne.
+   */
+  const ribbaTil = useCallback((adr: string) => {
+    const m = /^([XY])(\d+)/.exec(adr)
+    if (!m) return null
+    const akse = m[1].toLowerCase() as "x" | "y"
+    const p = naa.current
+    const tal = Number(p[akse === "x" ? "ribbX" : "ribbY"]) || 1
+    const alle = plasser(tal, lesLaas(String(p.laas ?? ""))[akse])
+    const t = alle[Number(m[2]) - 1]
+    return t === undefined ? null : { akse, t: +t.toFixed(4) }
+  }, [])
+
+  /** står denne ribba fast? */
+  const erLaast = useCallback(
+    (adr: string) => {
+      const q = ribbaTil(adr)
+      return !!q && lesLaas(String(params.laas ?? ""))[q.akse].includes(q.t)
+    },
+    [params.laas, ribbaTil],
+  )
+
+  /**
+   * LÅS, ELLER SLEPP.
+   *
+   * Han går gjennom `setParams` som alt anna: låsen legg seg i
+   * angrestabelen, i lenkja og i prosjektfila utan ei einaste line til.
+   */
+  const vipLaas = useCallback(
+    (adr: string) => {
+      const q = ribbaTil(adr)
+      if (!q) return
+      setHint(null)
+      setParams((cur) => {
+        const l = lesLaas(String(cur.laas ?? ""))
+        l[q.akse] = l[q.akse].includes(q.t)
+          ? l[q.akse].filter((v) => v !== q.t)
+          : [...l[q.akse], q.t].sort((a, b) => a - b)
+        return { ...cur, laas: skrivLaas(l) }
+      })
+    },
+    [ribbaTil],
+  )
+
+  /** eit langt trykk på ein del opnar verktyet der fingeren står */
+  const langtrykk = useCallback(
+    (i: number, x: number, y: number) => {
+      const adr = i >= 0 ? (kuttliste[i]?.adr ?? null) : null
+      if (!adr) return
+      setPeikt(adr)
+      setDelVerkty({ adr, x, y })
     },
     [kuttliste],
   )
@@ -1065,6 +1135,7 @@ export function Studio() {
             onGest={taGest}
             peikt={peiktIdx}
             onPeik={peikDel}
+            onLangtrykk={langtrykk}
           />
         )}
       </div>
@@ -1137,6 +1208,64 @@ export function Studio() {
             </button>
           )}
         </div>
+      )}
+
+      {/*
+        DELEVERKTYET.
+
+        Eit langt trykk på ei ribbe opnar han, og han står DER FINGEREN
+        STÅR. Ein meny i ein vegg krev at du hugsar kva du peika på medan
+        du fer bort til han; denne står på det du held.
+
+        Éin ting kan han i dag: låse ribba. Ei låst ribbe rikkar seg ikkje
+        når du dreg ribbeskyvaren — dei frie fordeler seg kring henne — og
+        det er det som gjer at ein stabel kan byggjast for hand i staden
+        for å veljast blant seks jamne.
+      */}
+      {delVerkty && (
+        <>
+          {/* Eit trykk utanfor lèt att. Han ligg UNDER verktyet og over alt
+              anna, so det fyrste trykket lukkar i staden for å gjere to
+              ting på ein gong. */}
+          <div
+            className="fixed inset-0 z-30"
+            onPointerDown={() => setDelVerkty(null)}
+            aria-hidden="true"
+          />
+          <div
+            className="fixed z-40 flex items-center gap-1.5 rounded-full border px-1.5 py-1.5"
+            role="dialog"
+            aria-label={`ribbe ${delVerkty.adr}`}
+            style={{
+              // Han skal ikkje hamne utanfor ruta på ein del heilt i kanten.
+              left: Math.min(Math.max(12, delVerkty.x - 70), Math.max(12, vindu.w - 172)),
+              top: Math.max(12, delVerkty.y - 64),
+              background: "var(--paper)",
+              borderColor: "var(--rule)",
+              boxShadow: "0 6px 24px color-mix(in srgb, var(--ink) 14%, transparent)",
+            }}
+          >
+            <span className="tab px-1.5 text-[11px]" style={{ color: "var(--ink)" }}>
+              {delVerkty.adr}
+            </span>
+            <button
+              type="button"
+              className={CHIP}
+              style={chipStyle(erLaast(delVerkty.adr))}
+              onClick={() => {
+                vipLaas(delVerkty.adr)
+                setDelVerkty(null)
+              }}
+              title={
+                erLaast(delVerkty.adr)
+                  ? "slepp ribba fri: ho fordeler seg med dei andre att"
+                  : "lås ribba her: ho står stille når du dreg ribbeskyvaren"
+              }
+            >
+              {erLaast(delVerkty.adr) ? "slepp" : "lås"}
+            </button>
+          </div>
+        </>
       )}
 
       {/*

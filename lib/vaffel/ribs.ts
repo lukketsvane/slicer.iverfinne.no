@@ -31,57 +31,12 @@ import { bbox, inRing, MIN_AREA, perimeter, type ParamBag, type Pt } from "../co
 import { contour, simplify } from "../contour"
 import type { Span } from "../mesh/solid"
 import type { Kropp } from "./kropp"
-import { lesLaas, gridKey, type NettParams, type Params } from "./params"
+import { lesLaas, plasser, gridKey, type NettParams, type Params } from "./params"
 
 /** ruter langs den lengste sida av objektet, per detaljnivå */
 export const DETAIL = { lav: 90, mid: 150, hog: 240 } as const
 
-/** Fleire ribber enn skyvaren sitt eige tak har reiskapen aldri lova å
- *  handtere, og ei låseliste er ikkje ein veg utanom det. */
-const RIBB_TAK = 32
-
-/**
- * KVAR RIBBENE STÅR, SOM BRØKDELAR AV SPENNET.
- *
- * Ribbene var eit TAL: seks ribber tydde seks jamt fordelte plan, rekna av
- * `vidd / ribbX`. Eit tal har ingen ribber i seg — det finst ingenting å
- * peike på, låse eller flytte — og difor kunne ingen byggje ein stabel for
- * hand. No er dei ei LISTE, og talet er berre kor mange av dei som er frie.
- *
- * Ei låst ribbe tek den jamne plassen ho ligg nærast, og dei frie fordeler
- * seg kring henne. Det er skilnaden på ein lås og ei handskriven liste:
- * skyvaren held fram med å tyde noko. Dreg du han frå seks til ti, kjem det
- * fire nye ribber imellom dei du har låst — dei låste rikkar seg ikkje, og
- * du treng ikkje plassere dei ni andre for hand for å få lov til å halde på
- * den eine.
- *
- * Er ingen ting låst, er svaret nøyaktig den jamne fordelinga som stod her
- * før: (i + ½) / n, den same rekninga, det same objektet.
- */
-export function plasser(tal: number, laast: readonly number[]): number[] {
-  const n = Math.max(1, Math.round(tal))
-  const jamt = Array.from({ length: n }, (_, i) => (i + 0.5) / n)
-  const fast = laast.slice(0, RIBB_TAK)
-  if (!fast.length) return jamt
-
-  const teken = new Array<boolean>(n).fill(false)
-  for (const t of fast) {
-    let best = -1
-    let av = Infinity
-    for (let i = 0; i < n; i++) {
-      if (teken[i]) continue
-      const d = Math.abs(jamt[i] - t)
-      if (d < av) {
-        av = d
-        best = i
-      }
-    }
-    if (best >= 0) teken[best] = true
-  }
-  const ut = [...fast]
-  for (let i = 0; i < n; i++) if (!teken[i]) ut.push(jamt[i])
-  return [...new Set(ut)].sort((a, b) => a - b).slice(0, RIBB_TAK)
-}
+export type DetailStep = (typeof DETAIL)[keyof typeof DETAIL]
 
 /**
  * Minste avstanden mellom to naboribber.
@@ -96,7 +51,6 @@ function luft(v: readonly number[], vidd: number): number {
   for (let i = 1; i < v.length; i++) m = Math.min(m, v[i] - v[i - 1])
   return m
 }
-export type DetailStep = (typeof DETAIL)[keyof typeof DETAIL]
 
 export type Slot = {
   /** senter langs ribba, mm */

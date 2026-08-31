@@ -129,6 +129,7 @@ export const Viewer = memo(function Viewer({
   onGest,
   peikt,
   onPeik,
+  onLangtrykk,
 }: {
   data: BuildRes | null
   view: View
@@ -145,6 +146,7 @@ export const Viewer = memo(function Viewer({
   /** kva line i kuttlista som står fram i objektet, eller −1 */
   peikt: number
   onPeik: (i: number) => void
+  onLangtrykk: (i: number, x: number, y: number) => void
 }) {
   const bg = "#ffffff"
   const shadow = hiDetail ? 4096 : 2048
@@ -228,6 +230,7 @@ export const Viewer = memo(function Viewer({
             material={material}
             peikt={peikt}
             onPeik={onPeik}
+            onLangtrykk={onLangtrykk}
             onFit={handleFit}
           />
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>

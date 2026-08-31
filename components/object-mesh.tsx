@@ -120,6 +120,7 @@ export function ObjectMesh({
   material,
   peikt,
   onPeik,
+  onLangtrykk,
   onFit,
 }: {
   data: BuildRes | null
@@ -128,6 +129,8 @@ export function ObjectMesh({
   /** kva line i kuttlista som står fram, eller −1 */
   peikt: number
   onPeik: (i: number) => void
+  /** eit langt trykk på ein del: kva line, og kvar fingeren står */
+  onLangtrykk: (i: number, x: number, y: number) => void
   onFit: (f: { r: number; w: number; h: number; cy: number }) => void
 }) {
   const invalidate = useThree((s) => s.invalidate)
@@ -135,6 +138,8 @@ export function ObjectMesh({
   const uPeikt = useRef({ value: -1 })
   /** kvar peikaren gjekk ned, so eit drag ikkje vert lese som eit trykk */
   const ned = useRef<{ x: number; y: number } | null>(null)
+  /** klokka som gjer eit trykk som VARER om til eit langt trykk */
+  const lang = useRef(0)
   const geom = useRef<THREE.BufferGeometry | null>(null)
   const thin = useRef<THREE.BufferGeometry | null>(null)
   const bold = useRef<THREE.BufferGeometry | null>(null)
@@ -261,7 +266,40 @@ export function ObjectMesh({
           material={surf}
           onPointerDown={(e) => {
             ned.current = { x: e.clientX, y: e.clientY }
+            /**
+             * EIT TRYKK SOM VARER ER EIT ANNA TRYKK.
+             *
+             * Delen er alt peika på med eit kort trykk; det lange er det
+             * som opnar verktyet over han. Kva del det gjeld vert lese HER
+             * og ikkje når klokka ringjer: fingeren kan ha runde av forma
+             * i mellomtida, og då ville verktyet opna seg over ein annan
+             * del enn den som vart halden.
+             */
+            window.clearTimeout(lang.current)
+            if (view !== "lag") return
+            const a = e.face?.a
+            if (a === undefined) return
+            const attr = built.g.getAttribute("aDel") as THREE.BufferAttribute | null
+            const i = attr ? attr.getX(a) : -1
+            if (i < 0) return
+            const { clientX: x, clientY: y } = e
+            lang.current = window.setTimeout(() => {
+              // Har fingeren gått, er det eit drag og ikkje eit trykk.
+              const d = ned.current
+              if (!d || Math.hypot(d.x - x, d.y - y) > 6) return
+              // Og trykket er brukt opp: `onClick` skal ikkje OGSÅ fyre.
+              ned.current = null
+              onLangtrykk(i, x, y)
+            }, 450)
           }}
+          onPointerMove={(e) => {
+            const d = ned.current
+            if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) {
+              window.clearTimeout(lang.current)
+            }
+          }}
+          onPointerUp={() => window.clearTimeout(lang.current)}
+          onPointerCancel={() => window.clearTimeout(lang.current)}
           onClick={(e) => {
             /**
              * EIT TRYKK PÅ EIN DEL, OG IKKJE EIT DRAG SOM ENDA PÅ HAN.
