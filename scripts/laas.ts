@@ -9,8 +9,14 @@
  * tal med eit band kring seg — han er ein streng, han kjem frå ei lenkje,
  * og ei lenkje er skriven av kven som helst.
  */
-import { plasser } from "../lib/vaffel/ribs"
-import { lesLaas, reinLaas, skrivLaas, clampParams, DEFAULT_PARAMS } from "../lib/vaffel/params"
+import {
+  plasser,
+  lesLaas,
+  reinLaas,
+  skrivLaas,
+  clampParams,
+  DEFAULT_PARAMS,
+} from "../lib/vaffel/params"
 
 const p3 = (v: readonly number[]) => v.map((t) => t.toFixed(3)).join(" ")
 let feil = 0
