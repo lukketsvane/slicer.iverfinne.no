@@ -71,6 +71,14 @@ const rolig = (page: Page) =>
   )
 
 /** «2 av 13 · 7×6 ribber» */
+/** Opnar kontrollarket om det ikkje alt er ope. Knappen byter namn når han
+ *  er open, so eit blindt klikk nummer to ventar på ein knapp som ikkje
+ *  finst. */
+const opnePanelet = async (page: Page) => {
+  const knapp = page.getByLabel("vis kontrollane")
+  if (await knapp.count()) await knapp.click()
+}
+
 const stadLine = (page: Page) =>
   page.locator("section[aria-label='kontrollar'] [aria-live='polite']")
 
@@ -183,11 +191,35 @@ async function gestane(browser: Browser) {
   const send = (type: string, touchPoints: Pt[]) =>
     cdp.send("Input.dispatchTouchEvent", { type, touchPoints } as never)
 
+  /**
+   * FINGRANE DIRRAR.
+   *
+   * Gestane stod her med reine tal: to punkt som flytta seg nøyaktig dit
+   * dei skulle, hending etter hending. Ein skjerm gjev ikkje det. Han gjev
+   * eit par pikslar støy på kvar finger for seg, og den støyen er både
+   * avstand og vinkel — akkurat dei to tinga klassifikatoren skil eit klyp
+   * og ei vriding frå eit drag på.
+   *
+   * Utan dirret prøvde denne bolken den eine saka som aldri kjem inn frå
+   * ein ekte skjerm, og sa «ok». Med dirret feila ho annakvar gong: eit
+   * drag på to hundre og tjue pikslar vart kalla ei vriding, og ribbetalet
+   * rørte seg ikkje. Det var det brukaren såg.
+   *
+   * Tre pikslar kvar veg, uavhengig per finger. Det er på den rause sida av
+   * det ein kapasitiv skjerm gjev, og det er meininga: gestane skal halde
+   * med marg.
+   */
+  const dirr = () => (Math.random() - 0.5) * 6
+  const skjelv = ([a, b]: [Pt, Pt]): [Pt, Pt] => [
+    { ...a, x: a.x + dirr(), y: a.y + dirr() },
+    { ...b, x: b.x + dirr(), y: b.y + dirr() },
+  ]
+
   /** to fingrar frå ei stode til ei anna, i tjue steg */
   const gest = async (fra: [Pt, Pt], til: (t: number) => [Pt, Pt]) => {
-    await send("touchStart", fra)
+    await send("touchStart", skjelv(fra))
     for (let i = 1; i <= 20; i++) {
-      await send("touchMove", til(i / 20))
+      await send("touchMove", skjelv(til(i / 20)))
       await page.waitForTimeout(16)
     }
     await send("touchEnd", [])
@@ -233,6 +265,18 @@ async function gestane(browser: Browser) {
   // Klassifikatoren vel ÉIN gest. Eit drag som òg skalerer tyder at
   // terskelen mellom dei to er for laus.
   ok("og lét storleiken stå", Number(p.storleik) === stor0, `${stor0} → ${p.storleik} mm`)
+
+  // Og den andre vegen. Dei to aksane er kvar sin parameter og kvar sin
+  // gren i klassifikatoren, so den eine seier ingen ting om den andre.
+  const langs0 = Number(p.ribbX)
+  const vend1 = Number(p.rotZ)
+  await gest(pkt(90, 0), (t) => [
+    { x: midt.x - 90 + 220 * t, y: midt.y, id: 1 },
+    { x: midt.x + 90 + 220 * t, y: midt.y, id: 2 },
+  ])
+  p = await lenkja(page)
+  ok("drag til høgre gjev fleire ribber langs x", Number(p.ribbX) > langs0, `${langs0} → ${p.ribbX}`)
+  ok("og lét vendinga stå", Number(p.rotZ) === vend1, `${vend1}° → ${p.rotZ}°`)
 
   await page.close()
 }
@@ -429,6 +473,18 @@ async function main() {
   const steg = (await page.evaluate("window.LOGG")) as string[]
   ok("framdrifta rører seg medan søket går", steg.length >= 4, `${steg.length} steg synte seg`)
 
+  /**
+   * LINA BUR I KONTROLLANE.
+   *
+   * «1 av 12 · 9×7 ribber» stod under hovudlina i det lukka arket og gjorde
+   * det to liner høgt — ei rad med tal over eit objekt som er heile grunnen
+   * til at arket er lukka. Ho høyrer til kontrollane, so ho står i
+   * kontrollane, og då må dei opnast for å lesast. Knappen er framleis
+   * vegen vidare i lista; det er berre vegen ATTENDE som bur her inne.
+   */
+  await opnePanelet(page)
+  await rolig(page)
+
   const forste = await stadLine(page).innerText()
   const m1 = forste.match(/(\d+) av (\d+) · (\d+)×(\d+)/i)
   ok("lina seier kvar i lista vi står", !!m1, forste.replace(/\s+/g, " "))
@@ -471,7 +527,7 @@ async function main() {
   )
 
   // --- LISTA GJELD BERRE DET SPØRSMÅLET HO SVARTE PÅ -----------------------
-  await page.getByLabel("vis kontrollane").click()
+  await opnePanelet(page)
   await page.getByLabel("storleik, tal", { exact: true }).fill("240")
   await page.keyboard.press("Enter")
   await rolig(page)
@@ -558,9 +614,29 @@ async function main() {
     !/les fila/i.test(les[les.length - 1] ?? ""),
     les[les.length - 1],
   )
+  /**
+   * NAMNET STÅR, MEN IKKJE PÅ KNAPPEN.
+   *
+   * Kjeldeknappen bar filnamnet i hovudlina, og på ein telefon vart det
+   * «DRAGON_…»: kappa so kort at ikonet ved sida sa meir enn bokstavane —
+   * og han pressa den siste knappen i lina ned på ei rad for seg sjølv. No
+   * er han eit ikon, og namnet står heilt i grepslina når arket er ope.
+   *
+   * Lukka står det framleis i det TILGJENGELEGE namnet, som er det ein
+   * skjermlesar får, og det er det denne prøva ser på. Ho las teksten i
+   * knappen, og den er tom no.
+   */
   ok(
     "kjelda er fila",
-    (await page.getByLabel("hent eit nett").innerText()).toLowerCase().includes("kule"),
+    ((await page.getByLabel("hent eit nett").getAttribute("aria-label")) ?? "")
+      .toLowerCase()
+      .includes("kule"),
+  )
+  await opnePanelet(page)
+  await rolig(page)
+  ok(
+    "og namnet står heilt når arket er ope",
+    (await page.locator("section[aria-label='kontrollar'] button", { hasText: /kule/i }).count()) > 0,
   )
 
   // --- PÅ EIN SMAL TELEFON -------------------------------------------------
