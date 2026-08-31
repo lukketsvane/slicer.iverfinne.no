@@ -460,8 +460,17 @@ export function ControlsPanel(props: {
           Medan søket går står det ingenting her. Ringen kring knappen ER
           framdrifta, og eit tal som seier det same ein gong til er ei line
           som spring opp og gjer arket høgare midt i det du ventar.
+
+          OG BERRE NÅR ARKET ER OPE. Lukka er arket éi line — kjelda, tre
+          tal og to knappar — og objektet eig resten av skjermen. Denne lina
+          sprang opp under henne i det du trykte på knappen og gjorde det
+          lukka arket to liner høgt: ei rad med «1 av 10 · 9×7 ribber» over
+          eit objekt som er heile grunnen til at arket er lukka.
+          Sjølve knappen er framleis vegen vidare — kvart trykk er neste
+          svar — so lukka mistar du berre vegen ATTENDE, og han står her i
+          det du opnar arket.
         */}
-        {finnStad && (
+        {finnStad && open && (
           <div
             className="flex items-center gap-1.5 px-2.5 pb-2 text-[10px] uppercase tracking-[0.14em]"
             aria-live="polite"
