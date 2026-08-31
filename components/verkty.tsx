@@ -20,7 +20,7 @@
  * seie noko anna enn kuttfila.
  */
 import { useEffect, useMemo, useRef, useState, type JSX } from "react"
-import type { ArkSyn, Kutt, ParamBag, Range } from "@/lib/core"
+import type { ArkSyn, Delplass, Kutt, ParamBag, Range } from "@/lib/core"
 import { nn } from "@/lib/core"
 import { CHIP, chipStyle } from "./deler"
 
@@ -249,8 +249,13 @@ function Plater(props: {
   onArk: (i: number) => void
   peikt: string | null
   onPeik: (adr: string | null) => void
+  onLangtrykk: (adr: string, plass: Delplass["plass"], x: number, y: number) => void
 }) {
-  const { ark, onArk, peikt, onPeik } = props
+  const { ark, onArk, peikt, onPeik, onLangtrykk } = props
+  /** eit trykk som VARER opnar verktyet over delen — same handa som på
+   *  ribbene i objektet, og same terskelen */
+  const langt = useRef(0)
+  const ned = useRef<{ x: number; y: number } | null>(null)
   if (!ark || !ark.tal) {
     return <p className="dim p-4 text-[11px]">ingenting er lagt ut på ei plate enno.</p>
   }
@@ -297,7 +302,31 @@ function Plater(props: {
                 <g
                   key={d.adr}
                   onPointerEnter={() => onPeik(d.adr)}
-                  onClick={() => onPeik(paa ? null : d.adr)}
+                  onPointerDown={(e) => {
+                    const x = e.clientX
+                    const y = e.clientY
+                    ned.current = { x, y }
+                    window.clearTimeout(langt.current)
+                    langt.current = window.setTimeout(() => {
+                      const q = ned.current
+                      if (!q || Math.hypot(q.x - x, q.y - y) > 6) return
+                      // Trykket er brukt opp: `onClick` skal ikkje òg fyre.
+                      ned.current = null
+                      onLangtrykk(d.adr, d.plass, x, y)
+                    }, 450)
+                  }}
+                  onPointerMove={(e) => {
+                    const q = ned.current
+                    if (q && Math.hypot(e.clientX - q.x, e.clientY - q.y) > 6) {
+                      window.clearTimeout(langt.current)
+                    }
+                  }}
+                  onPointerUp={() => window.clearTimeout(langt.current)}
+                  onClick={() => {
+                    if (ned.current === null) return
+                    ned.current = null
+                    onPeik(paa ? null : d.adr)
+                  }}
                   style={{ cursor: "pointer" }}
                 >
                   {/* Fyllet er treffeflata. Ein del er eit omriss med hòl i,
@@ -469,6 +498,7 @@ export function Verkty(props: {
   rute: { venstre: number; hogre: number; høgd: number }
   onArk: (i: number) => void
   onPeik: (adr: string | null) => void
+  onLangtrykk: (adr: string, plass: Delplass["plass"], x: number, y: number) => void
   onChange: (p: ParamBag) => void
   onClose: () => void
   onOrd: (s: string) => void
@@ -538,6 +568,7 @@ export function Verkty(props: {
           onArk={props.onArk}
           peikt={props.peikt}
           onPeik={props.onPeik}
+          onLangtrykk={props.onLangtrykk}
         />
       )}
       {open === "oppsett" && (

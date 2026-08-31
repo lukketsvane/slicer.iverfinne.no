@@ -49,6 +49,16 @@ export type Slot = {
   rot: 0 | 1 | 2 | 3
   /** affint på delen sine eigne koordinat: [a b e | c d f] */
   m: [number, number, number, number, number, number]
+  /**
+   * Hjørnet av masken på plata, i millimeter.
+   *
+   * Det SAME rommet `Fest` reknar i, og difor det einaste talet som kan
+   * sendast rett attende hit og gje same plasseringa. Det let seg rekne ut
+   * av `m` òg — men berre ved å snu affinen for kvar av dei fire
+   * kvartsvingane, og ei omrekning skriven to gonger er to omrekningar.
+   */
+  sx: number
+  sy: number
 }
 
 export type Packing = {
@@ -558,6 +568,8 @@ export function pack(
           px * res,
           py * res,
         ),
+        sx: px * res,
+        sy: py * res,
       })
       staar.add(i)
     }
@@ -603,6 +615,8 @@ export function pack(
         put.px * res,
         put.py * res,
       ),
+      sx: put.px * res,
+      sy: put.py * res,
     })
   }
 

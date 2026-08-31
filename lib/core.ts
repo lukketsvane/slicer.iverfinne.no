@@ -291,6 +291,12 @@ export type Delplass = {
   inn: string[]
   /** boksen kring han, til å ramme inn den som er peikt på */
   boks: { x: number; y: number; w: number; h: number }
+  /**
+   * Kvar pakkinga la han: plate, kvartsving og hjørnet av masken i
+   * millimeter. Det er nøyaktig det ein FEST er, so «sett han fast der han
+   * står» er å sende dette talet attende utan å rekne på det.
+   */
+  plass: { sheet: number; rot: 0 | 1 | 2 | 3; x: number; y: number }
 }
 
 /** Ei plate slik ho ligg, til skjermen: teikninga og dei to tala som høyrer
