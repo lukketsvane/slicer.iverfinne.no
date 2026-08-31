@@ -17,7 +17,7 @@ import { makeKropp, type Kropp } from "./kropp"
 import { buildGrid, type Grid } from "./ribs"
 import { buildParts, type PartList } from "./parts"
 import { nest, type Nesting } from "./nest"
-import { planKey, type Params } from "./params"
+import { lesFest, planKey, type Params } from "./params"
 
 export type Plan = { k: Kropp; g: Grid; pl: PartList; ns: Nesting }
 
@@ -42,6 +42,6 @@ export function makePlan(p: Params, cells: number): Plan {
     const k = makeKropp(p)
     const g = buildGrid(k, p, cells)
     const pl = buildParts(g, p)
-    return { k, g, pl, ns: nest(pl.parts, p.arkB, p.arkH, nestGap(p)) }
+    return { k, g, pl, ns: nest(pl.parts, p.arkB, p.arkH, nestGap(p), lesFest(p.fest)) }
   })
 }
