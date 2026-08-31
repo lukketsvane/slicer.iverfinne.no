@@ -131,8 +131,24 @@ export const PARAM_RANGES: Record<string, Range> = {
   forenkl: { min: 0, max: 2, step: 0.05, label: "toleranse", unit: "mm" },
   hol: { min: 0, max: 80, step: 1, label: "minste hòl", unit: "mm" },
 
-  ribbX: { min: 1, max: 32, step: 1, label: "langs x", int: true },
-  ribbY: { min: 1, max: 32, step: 1, label: "langs y", int: true },
+  /**
+   * EI RIBBE ER INGEN VAFFEL.
+   *
+   * Skyvaren gjekk til 1, og med to fingrar på lerretet var 1×1 berre eit
+   * kort drag unna. Det som kom ut var to plater som kryssa kvarandre —
+   * på ein kube ser det ut som eit kors, og på ein kropp med bein og
+   * hovud vert kvart plan sagt opp i eit dusin øyer som ikkje kryssar
+   * nokon ting og difor heng i ingenting. Reiskapen sa rett tal og skreiv
+   * skjerbare filer, men det låg ikkje ein vaffel i den eska.
+   *
+   * To er det minste talet som gjev ei RUTE i den leia: eit rutenett
+   * treng to liner for å ha ei rute imellom. Motoren toler framleis 1 —
+   * `plasser` botnar på det, og leddvakta prøver det — men det er ikkje
+   * lenger noko du kan dra deg ned i, korkje med skyvaren, med fingrane
+   * eller med ei lenkje.
+   */
+  ribbX: { min: 2, max: 32, step: 1, label: "langs x", int: true },
+  ribbY: { min: 2, max: 32, step: 1, label: "langs y", int: true },
   tjukn: { min: 1, max: 25, step: 0.1, label: "tjukn", unit: "mm" },
   lause: { min: 0, max: 1, step: 1, label: "lause", int: true, names: LAUSE },
 

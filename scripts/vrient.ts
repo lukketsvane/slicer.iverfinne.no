@@ -538,6 +538,11 @@ const SØPPEL: unknown[] = [
   { storleik: Infinity },
   { storleik: -Infinity },
   { ribbX: 1e9 },
+  // Botnen på ribbene er to. Ei lenkje som ber 1 — eller 0, eller eit
+  // negativt tal — skal kome ut på to og ikkje på det ho bad om: sløyfa
+  // under les kvart band og ville teke det.
+  { ribbX: 1, ribbY: 1 },
+  { ribbX: 0, ribbY: -5 },
   { tjukn: "tjukk" },
   { kjelde: "../../etc/passwd" },
   { kjelde: "x".repeat(400) },

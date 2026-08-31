@@ -278,6 +278,30 @@ async function gestane(browser: Browser) {
   ok("drag til høgre gjev fleire ribber langs x", Number(p.ribbX) > langs0, `${langs0} → ${p.ribbX}`)
   ok("og lét vendinga stå", Number(p.rotZ) === vend1, `${vend1}° → ${p.rotZ}°`)
 
+  // --- DRAG NEDOVER: BOTNEN HELD -------------------------------------------
+  // Draget den andre vegen er langt nok til å køyre båe tala under null om
+  // ingen tok imot. Botnen er to, og han er to av di ei einaste ribbe kvar
+  // veg ikkje er eit rutenett: det er to plater som kryssar, og på ein
+  // kropp med bein og hovud eit dusin øyer som ikkje heng i noko.
+  for (const [namn, veg] of [
+    ["ned", (t: number) => [
+      { x: midt.x - 90, y: midt.y + 700 * t, id: 1 },
+      { x: midt.x + 90, y: midt.y + 700 * t, id: 2 },
+    ]],
+    ["til venstre", (t: number) => [
+      { x: midt.x - 90 - 700 * t, y: midt.y, id: 1 },
+      { x: midt.x + 90 - 700 * t, y: midt.y, id: 2 },
+    ]],
+  ] as const) {
+    await gest(pkt(90, 0), veg as (t: number) => [Pt, Pt])
+    p = await lenkja(page)
+    ok(
+      `eit langt drag ${namn} stoggar på to ribber`,
+      Number(p.ribbX) >= 2 && Number(p.ribbY) >= 2,
+      `${p.ribbX}×${p.ribbY}`,
+    )
+  }
+
   await page.close()
 }
 
