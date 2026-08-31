@@ -10,6 +10,7 @@
  * henne. Det einaste som er eit val, er kvar i overlappet delinga ligg.
  */
 import { clampBag, type Group, type ParamBag, type Range } from "../core"
+import type { Fest } from "../pack"
 
 export type Params = {
   /** kva nett som vert snitta: «kube», eller namnet på ei importert fil */
@@ -61,6 +62,20 @@ export type Params = {
    * seks på nytt, og kvar av dei er ein stad han kunne kome i utakt.
    */
   laas: string
+
+  /**
+   * FESTE DELAR: KVAR EIN DEL STÅR PÅ PLATA, NÅR HANDA HAR SAGT DET.
+   *
+   * «X1:0,0,12.5,340» — adresse, plate, kvartsving, og hjørnet i
+   * millimeter. Pakkinga legg delane der ho vil, og det er rett heilt til
+   * nokon har ei meining; ein festa del vert lagd ned FØR dei andre, og
+   * resten pakkar seg kring han.
+   *
+   * Adressa og ikkje plassen i lista: ei ribbe til eller ein ribbe færre
+   * flyttar kvar einaste indeks, og eit feste som peika på indeks fire
+   * ville fylgt med til ein annan del. «X1» er «X1» so lenge ribba finst.
+   */
+  fest: string
 }
 
 /**
@@ -134,7 +149,7 @@ export const GROUPS: readonly Group[] = [
 export const PARAM_KEYS = GROUPS.flatMap((g) => g.keys)
 
 /** alt eit uttak er ein funksjon av, tal og namn */
-export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "material", "laas"]
+export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "material", "laas", "fest"]
 
 /**
  * LÅSANE: LESING, SKRIVING OG REINSING.
@@ -177,6 +192,45 @@ export const skrivLaas = (l: Laas): string =>
 
 /** ein streng inn, den same lista ut i normalform */
 export const reinLaas = (s: unknown) => skrivLaas(lesLaas(s))
+
+/** Fleire feste enn dette er ikkje ei plate, det er ei lenkje som prøver seg. */
+const FEST_TAK = 128
+/** Ingen plate er større enn dette, so ingen del står lenger ute heller. */
+const FEST_MM = 5000
+
+/**
+ * FESTA DELAR, LESE UT AV EIN STRENG.
+ *
+ * «X1:0,0,12.5,340;Y3a:1,2,100,50» — adresse, plate, kvartsving, hjørne.
+ * Same vegen inn som låsane: alt som ikkje er eit gyldig feste fell på
+ * golvet i staden for å nå pakkinga.
+ */
+export function lesFest(s: unknown): Map<string, Fest> {
+  const ut = new Map<string, Fest>()
+  if (typeof s !== "string" || !s) return ut
+  for (const bit of s.split(";")) {
+    if (ut.size >= FEST_TAK) break
+    const m = /^([XY]\d{1,3}[a-z]{0,3}):(-?[\d.]+),(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)$/.exec(bit)
+    if (!m) continue
+    const sheet = Number(m[2])
+    const rot = Number(m[3])
+    const x = Number(m[4])
+    const y = Number(m[5])
+    if (!Number.isInteger(sheet) || sheet < 0 || sheet > 255) continue
+    if (!Number.isInteger(rot) || rot < 0 || rot > 3) continue
+    if (![x, y].every((v) => Number.isFinite(v) && v >= 0 && v <= FEST_MM)) continue
+    ut.set(m[1], { sheet, rot: rot as 0 | 1 | 2 | 3, x: +x.toFixed(2), y: +y.toFixed(2) })
+  }
+  return ut
+}
+
+export const skrivFest = (m: ReadonlyMap<string, Fest>): string =>
+  [...m.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], "nn", { numeric: true }))
+    .map(([adr, f]) => `${adr}:${f.sheet},${f.rot},${f.x},${f.y}`)
+    .join(";")
+
+export const reinFest = (s: unknown) => skrivFest(lesFest(s))
 
 /** Fleire ribber enn skyvaren sitt eige tak har reiskapen aldri lova å
  *  handtere, og ei låseliste er ikkje ein veg utanom det. */
@@ -259,7 +313,7 @@ const BERRE_ARK = ["arkB", "arkH", "material"] as const
  *
  * Difor: ute av rutenettnøkkelen, men INNE i plannøkkelen.
  */
-const UTANFOR_NETTET = ["snitt", ...BERRE_FIL] as const
+const UTANFOR_NETTET = ["snitt", "fest", ...BERRE_FIL] as const
 
 /**
  * Kva eit hugsa RUTENETT har lov til å vita om.
@@ -335,6 +389,7 @@ export const DEFAULT_PARAMS: Params = {
 
   material: "mdf",
   laas: "",
+  fest: "",
 }
 
 /** kva to fingrar på lerretet skrur på */
@@ -346,8 +401,9 @@ export function clampParams(o: unknown, prev: Params): Params {
   // eigne — `lib/core.ts` veit ikkje kva ei ribbe er, og skal ikkje lære
   // det for å sleppe ein streng gjennom.
   if (o && typeof o === "object") {
-    const raw = (o as Record<string, unknown>).laas
-    if (typeof raw === "string") ut.laas = reinLaas(raw)
+    const rec = o as Record<string, unknown>
+    if (typeof rec.laas === "string") ut.laas = reinLaas(rec.laas)
+    if (typeof rec.fest === "string") ut.fest = reinFest(rec.fest)
   }
   return ut
 }

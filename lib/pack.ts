@@ -30,6 +30,19 @@ export type Ring = Pt[]
 /** ring 0 er ytterkanten; resten er hòl, og hòl er LEDIG plass */
 export type Piece = { key: string; rings: Ring[] }
 
+/**
+ * EIN DEL SOM STÅR FAST.
+ *
+ * Pakkinga legg delane der ho vil, og det er rett heilt til nokon har ei
+ * meining. Er ein del FESTA, vert han lagd ned der han står før nokon
+ * annan får plass, og resten pakkar seg kring han.
+ *
+ * `x` og `y` er hjørnet av masken i millimeter — det same rommet
+ * pakkinga sjølv reknar i, so eit feste er ei avlesing ho har gjeve frå
+ * seg og ikkje ei omrekning nokon har gjort på vegen.
+ */
+export type Fest = { sheet: number; rot: 0 | 1 | 2 | 3; x: number; y: number }
+
 export type Slot = {
   piece: number
   sheet: number
@@ -401,6 +414,8 @@ export function pack(
   sheetW: number,
   sheetH: number,
   gap: number,
+  /** delar som står fast, etter plassen sin i `pieces` */
+  fest?: ReadonlyMap<number, Fest>,
 ): Packing {
   const slots: Slot[] = []
   const spilt: number[] = []
@@ -498,7 +513,58 @@ export function pack(
   }
 
   const boards: Board[] = []
+  /** plater nok til at plate nummer `n` finst */
+  const platerTil = (n: number) => {
+    while (boards.length <= n) boards.push(board(SW, SH))
+  }
+
+  /**
+   * DEI FASTE FYRST, OG SO RESTEN KRING DEI.
+   *
+   * Rekkjefylgja er heile mekanismen. Eit feste er ikkje ei rekning
+   * pakkinga gjer — det er ei celle som alt er teken når ho byrjar, og
+   * resten av lykkja under er ordrett den same som før. Ho ser eit merkt
+   * felt og går utanom, slik ho alltid har gått utanom det ho sjølv har
+   * lagt ned.
+   *
+   * To feste kan overlappe kvarandre. Det er handa som har gjort det, og
+   * pakkinga skal ikkje overprøve henne — ho held berre orden på sitt
+   * eige.
+   */
+  const staar = new Set<number>()
+  if (fest?.size) {
+    for (const { i, f } of order) {
+      const ft = fest.get(i)
+      if (!ft) continue
+      if (!Number.isInteger(ft.sheet) || ft.sheet < 0 || ft.sheet > 255) continue
+      platerTil(ft.sheet)
+      const b = boards[ft.sheet]
+      const m = f.masks[ft.rot]
+      // Ein del som er større enn plata kan ikkje festast på henne. Han
+      // fell ned i den vanlege lykkja, som alt veit kva ho skal seie om
+      // slike.
+      if (m.w > b.w || m.h > b.h) continue
+      const px = Math.max(0, Math.min(b.w - m.w, Math.round(ft.x / res)))
+      const py = Math.max(0, Math.min(b.h - m.h, Math.round(ft.y / res)))
+      stamp(b, m, px, py)
+      const bb = bbox(pieces[i].rings[0])
+      slots.push({
+        piece: i,
+        sheet: ft.sheet,
+        rot: ft.rot,
+        m: affine(
+          { ...f, ox: bb.x0 - k * res, oy: bb.y0 - k * res },
+          ft.rot,
+          px * res,
+          py * res,
+        ),
+      })
+      staar.add(i)
+    }
+  }
+
   for (const { i, key, f } of order) {
+    if (staar.has(i)) continue
     let put: { s: number; rot: 0 | 1 | 2 | 3; px: number; py: number } | null = null
     // Fyrste plate som tek han. Det held dei fyrste platene fulle, og det
     // er dei ein faktisk skjer ut fyrst.

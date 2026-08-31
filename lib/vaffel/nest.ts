@@ -13,7 +13,7 @@
  * og på eit krumt objekt er han fort ei heil plate.
  */
 import { bbox, inRing, type Pt } from "../core"
-import { anchor, pack, apply, type Slot } from "../pack"
+import { anchor, pack, apply, type Fest, type Slot } from "../pack"
 import { fitSize, strokesAt } from "../stroke"
 import type { Part } from "./parts"
 
@@ -39,12 +39,25 @@ export function nest(
   sheetW: number,
   sheetH: number,
   gap: number,
+  /** delar handa har sett fast, etter ADRESSA si — «X3a» */
+  fest?: ReadonlyMap<string, Fest>,
 ): Nesting {
   if (!parts.length) {
     return { sheets: [], sheetW, sheetH, util: 0, spilt: 0 }
   }
   const pieces = parts.map((p) => ({ key: p.id, rings: [p.outline, ...p.holes] }))
-  const out = pack(pieces, sheetW, sheetH, gap)
+  // Frå adresse til plass i lista. Pakkinga kjenner delane som tal, og
+  // handa kjenner dei som «X3a»; her møtest dei to. Ei adresse som ikkje
+  // finst lenger — ribba er sletta — fell ut av seg sjølv.
+  let fast: Map<number, Fest> | undefined
+  if (fest?.size) {
+    fast = new Map()
+    parts.forEach((q, i) => {
+      const f = fest.get(q.from)
+      if (f) fast!.set(i, f)
+    })
+  }
+  const out = pack(pieces, sheetW, sheetH, gap, fast)
 
   // Merket høyrer til FORMA og ikkje til den einskilde delen: to like
   // ribber har det på same staden I SEG SJØLVE, og då vert det rekna éin

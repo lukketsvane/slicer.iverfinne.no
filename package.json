@@ -15,7 +15,7 @@
     "rekkje": "tsx scripts/rekkje.ts",
     "vrient": "tsx scripts/vrient.ts",
     "ledd": "tsx scripts/ledd.ts",
-    "laas": "tsx scripts/laas.ts",
+    "hand": "tsx scripts/hand.ts",
     "raad": "tsx scripts/raad.ts",
     "ark": "tsx scripts/ark.ts",
     "glb": "tsx scripts/glb-sjekk.ts"
