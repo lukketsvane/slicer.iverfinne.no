@@ -1148,7 +1148,17 @@ export function Studio() {
       */}
       {gestTekst && (
         <div
-          className="pointer-events-none absolute flex justify-center"
+          /**
+           * TALET STÅR TIL HØGRE, IKKJE MIDT PÅ.
+           *
+           * Lesemåtane ligg til venstre i den same lina, og eit tal midt på
+           * ei line som byrjar til venstre står ingen stad: det ser ut som
+           * det datt dit. I hjørnet til høgre er lina heil — brikkene i den
+           * eine enden, talet i den andre — og på benken kjem det på kjøpet
+           * at talet ikkje lenger legg seg oppå objektet, som står midt i
+           * det same bandet.
+           */
+          className="pointer-events-none absolute flex justify-end px-4"
           style={fritt}
           aria-hidden="true"
         >
