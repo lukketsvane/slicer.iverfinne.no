@@ -31,10 +31,71 @@ import { bbox, inRing, MIN_AREA, perimeter, type ParamBag, type Pt } from "../co
 import { contour, simplify } from "../contour"
 import type { Span } from "../mesh/solid"
 import type { Kropp } from "./kropp"
-import { gridKey, type NettParams, type Params } from "./params"
+import { lesLaas, gridKey, type NettParams, type Params } from "./params"
 
 /** ruter langs den lengste sida av objektet, per detaljnivå */
 export const DETAIL = { lav: 90, mid: 150, hog: 240 } as const
+
+/** Fleire ribber enn skyvaren sitt eige tak har reiskapen aldri lova å
+ *  handtere, og ei låseliste er ikkje ein veg utanom det. */
+const RIBB_TAK = 32
+
+/**
+ * KVAR RIBBENE STÅR, SOM BRØKDELAR AV SPENNET.
+ *
+ * Ribbene var eit TAL: seks ribber tydde seks jamt fordelte plan, rekna av
+ * `vidd / ribbX`. Eit tal har ingen ribber i seg — det finst ingenting å
+ * peike på, låse eller flytte — og difor kunne ingen byggje ein stabel for
+ * hand. No er dei ei LISTE, og talet er berre kor mange av dei som er frie.
+ *
+ * Ei låst ribbe tek den jamne plassen ho ligg nærast, og dei frie fordeler
+ * seg kring henne. Det er skilnaden på ein lås og ei handskriven liste:
+ * skyvaren held fram med å tyde noko. Dreg du han frå seks til ti, kjem det
+ * fire nye ribber imellom dei du har låst — dei låste rikkar seg ikkje, og
+ * du treng ikkje plassere dei ni andre for hand for å få lov til å halde på
+ * den eine.
+ *
+ * Er ingen ting låst, er svaret nøyaktig den jamne fordelinga som stod her
+ * før: (i + ½) / n, den same rekninga, det same objektet.
+ */
+export function plasser(tal: number, laast: readonly number[]): number[] {
+  const n = Math.max(1, Math.round(tal))
+  const jamt = Array.from({ length: n }, (_, i) => (i + 0.5) / n)
+  const fast = laast.slice(0, RIBB_TAK)
+  if (!fast.length) return jamt
+
+  const teken = new Array<boolean>(n).fill(false)
+  for (const t of fast) {
+    let best = -1
+    let av = Infinity
+    for (let i = 0; i < n; i++) {
+      if (teken[i]) continue
+      const d = Math.abs(jamt[i] - t)
+      if (d < av) {
+        av = d
+        best = i
+      }
+    }
+    if (best >= 0) teken[best] = true
+  }
+  const ut = [...fast]
+  for (let i = 0; i < n; i++) if (!teken[i]) ut.push(jamt[i])
+  return [...new Set(ut)].sort((a, b) => a - b).slice(0, RIBB_TAK)
+}
+
+/**
+ * Minste avstanden mellom to naboribber.
+ *
+ * Éi ribbe har ingen nabo og difor inga luke: då er heile spennet svaret,
+ * som er det same som den gamle rekninga gav, og regelen som ser på luka
+ * har ingenting å klage på.
+ */
+function luft(v: readonly number[], vidd: number): number {
+  if (v.length < 2) return vidd
+  let m = Infinity
+  for (let i = 1; i < v.length; i++) m = Math.min(m, v[i] - v[i - 1])
+  return m
+}
 export type DetailStep = (typeof DETAIL)[keyof typeof DETAIL]
 
 export type Slot = {
@@ -120,8 +181,6 @@ export type Grid = {
   kasta: number
   xs: number[]
   ys: number[]
-  pitchX: number
-  pitchY: number
   gapX: number
   gapY: number
   slotW: number
@@ -262,12 +321,11 @@ function buildGridRaw(k: Kropp, p: Params, cells: number): Grid {
   // Ribbene står i CELLESENTER og ikkje på cellekantar. Ei ribbe på kanten
   // av omrisset er ei ribbe med null breidd: ho ville telje som ein del,
   // stå i kuttlista og ikkje bera noko.
-  const pitchX = (s.max[0] - s.min[0]) / p.ribbX
-  const pitchY = (s.max[1] - s.min[1]) / p.ribbY
-  const xs: number[] = []
-  const ys: number[] = []
-  for (let i = 0; i < p.ribbX; i++) xs.push(s.min[0] + (i + 0.5) * pitchX)
-  for (let j = 0; j < p.ribbY; j++) ys.push(s.min[1] + (j + 0.5) * pitchY)
+  const laas = lesLaas(p.laas)
+  const viddX = s.max[0] - s.min[0]
+  const viddY = s.max[1] - s.min[1]
+  const xs = plasser(p.ribbX, laas.x).map((t) => s.min[0] + t * viddX)
+  const ys = plasser(p.ribbY, laas.y).map((t) => s.min[1] + t * viddY)
 
   // Same søyle vert spurd om att og om att: éin gong per kryss frå kvar
   // familie, og éin gong til av kvart spor si skuldermåling. Strålen er
@@ -528,10 +586,17 @@ function buildGridRaw(k: Kropp, p: Params, cells: number): Grid {
     kasta,
     xs,
     ys,
-    pitchX,
-    pitchY,
-    gapX: pitchX - p.tjukn,
-    gapY: pitchY - p.tjukn,
+    // LUKA ER MÅLT MELLOM NABOAR, IKKJE REKNA AV EIT SNITT.
+    //
+    // Ho var `vidd / ribbX - tjukn` — spennet delt på talet. Det er den
+    // same luka overalt berre so lenge ribbene står jamt, og det gjer dei
+    // ikkje lenger når du har låst ei av dei. Ei snittluke ville meldt
+    // fire millimeter der to ribber faktisk stod ein halv frå kvarandre,
+    // og det er nett den kollisjonen regelen finst for å fange.
+    //
+    // Står ribbene jamt, gjev dei to reknestykka nøyaktig same talet.
+    gapX: luft(xs, viddX) - p.tjukn,
+    gapY: luft(ys, viddY) - p.tjukn,
     slotW,
   }
 }
