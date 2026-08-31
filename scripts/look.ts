@@ -144,6 +144,10 @@ const main = async () => {
   for (const [chip, vent] of [
     ["passprøve", /^passprove-.*\.svg$/],
     ["ark", /\.svg$|\.zip$/],
+    // PNG-en er den eine som IKKJE vert laga i arbeidaren: han vert
+    // rasterisert på hovudtråden gjennom eit lerret. Går det gale der,
+    // feilar ingen ting — du får berre ei blank rute — so fila må lesast.
+    ["png", /-ark\.png$|-ark-png\.zip$/],
     ["dxf", /\.dxf$/],
     ["svg", /profilar\.svg$/],
   ] as [string, RegExp][]) {
@@ -180,9 +184,13 @@ const main = async () => {
       await ferdig()
       // Arket ligg att når det er lukka, og ein regel du ikkje ser har
       // ingen knapp. Hovudlina er vegen inn: ho er raud, og eit trykk på
-      // henne opnar det halve steget der reglane står.
+      // henne opnar arket. Rådet står i tavla i det FULLE steget, saman
+      // med uttaka regelen stengjer — so det er to trykk på ein telefon,
+      // og begge to må finnast.
       if (w < 1180) {
         await page.locator("button[aria-expanded]").first().click()
+        await page.waitForTimeout(700)
+        await page.getByRole("button", { name: "alle parametrar" }).click()
         await page.waitForTimeout(700)
       }
       await page.waitForTimeout(900)

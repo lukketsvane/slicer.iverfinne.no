@@ -22,9 +22,10 @@ import type {
 } from "@/lib/core"
 import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
-import { VAFFEL } from "@/lib/vaffel/engine"
+import { zip } from "@/lib/zip"
+import { VAFFEL, filnamnStamme } from "@/lib/vaffel/engine"
 import { lesFest, lesLaas, plasser, skrivFest, skrivLaas } from "@/lib/vaffel/params"
-import type { BuildRes, MaalRes, Req, Res, SynRes } from "@/lib/worker"
+import type { ArkRes, BuildRes, MaalRes, Req, Res, SynRes } from "@/lib/worker"
 import { Verkty, type VerktyId } from "./verkty"
 import type { Kandidat } from "@/lib/vaffel/tune"
 import { Viewer, type LightDir } from "./viewer"
@@ -36,6 +37,46 @@ import { CHIP, VIEWS, chipStyle } from "./deler"
 
 /** kor mange piksel to-fingers-rulling må dra for å sveipe eit heilt band */
 const NUDGE_RANGE_PX = 420
+
+/** ei ferdig fil ut til brukaren, same kvar ho vart laga */
+function lastNed(blob: Blob, namn: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = namn
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 4000)
+}
+
+/**
+ * SVG → PNG, gjennom lerretet.
+ *
+ * Biletet vert lagt på KVITT fyrst. Ein PNG utan botn er gjennomsiktig,
+ * og ei kuttfil med svarte strekar på ingenting ser tom ut i alt som
+ * viser gjennomsikt som svart — som er dei fleste meldingsappar.
+ *
+ * `decode()` og ikkje `onload`: ein `Image` som har lasta er ikkje
+ * nødvendigvis ferdig tolka, og eit `drawImage` på ein utolka SVG gjev ei
+ * blank rute utan at noko feilar.
+ */
+async function tilPng(svg: string, w: number, h: number): Promise<Uint8Array> {
+  const im = new Image()
+  im.width = w
+  im.height = h
+  im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg)
+  await im.decode()
+  const c = document.createElement("canvas")
+  c.width = w
+  c.height = h
+  const x = c.getContext("2d")
+  if (!x) throw new Error("ikkje noko lerret")
+  x.fillStyle = "#ffffff"
+  x.fillRect(0, 0, w, h)
+  x.drawImage(im, 0, 0, w, h)
+  const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/png"))
+  if (!blob) throw new Error("tom png")
+  return new Uint8Array(await blob.arrayBuffer())
+}
 
 /** alt «finn innstillingar» IKKJE rører: endrar noko av dette seg, er eit
  *  hugsa svar eit svar på eit anna spørsmål */
@@ -208,6 +249,10 @@ export function Studio() {
   const [arkH, setArkH] = useState(0)
   /** id → filnamn, for pilla. Nettet sjølv bur i arbeidaren. */
   const [namn, setNamn] = useState<Record<string, string>>({})
+  /** kjelda, og namnet ho går under. Dei står HER av di PNG-uttaket
+   *  namngjev filene sine etter dei, og det er definert lenger nede. */
+  const kjelde = String(params.kjelde ?? KUBE)
+  const kjeldeNamn = kjelde === KUBE ? "kube" : (namn[kjelde] ?? "nett")
   const isDesktop = useIsDesktop()
   const benk = useBenk()
   const vindu = useVindu()
@@ -395,6 +440,15 @@ export function Studio() {
         return
       }
       if (r.kind === "ark") {
+        // PNG-uttaket ber om kvar plate etter tur og ventar på henne. Dei
+        // platene skal IKKJE bytast inn i skuffa undervegs: du står og ser
+        // på plate to, og uttaket ville bladd deg gjennom heile bunken.
+        const vent = arkVent.current.get(r.id)
+        if (vent) {
+          arkVent.current.delete(r.id)
+          vent(r)
+          return
+        }
         // `kind` og `id` høyrer til meldinga og ikkje til plata; resten er
         // plata. Ei handskriven liste her hadde alt gløymt eit felt ein
         // gong, og gløymer det neste når det kjem eit til.
@@ -1060,12 +1114,100 @@ export function Studio() {
     [askArk],
   )
 
-  const doExport = useCallback((what: ExportKind) => {
-    setBusy(true)
-    // utanom porten: eit klikk, ikkje ein straum — og svaret slepp porten fri
-    const msg: Req = { kind: "export", id: ++reqId.current, params: naa.current, what }
+  /**
+   * PLATENE SOM BILETE.
+   *
+   * SVG og DXF er til maskina. Ein PNG er til alt det andre: å sende plata
+   * i ei melding, leggje henne i ei bestilling, henge henne på veggen ved
+   * laseren. Det er filtypen alle kan opne og ingen treng eit program for.
+   *
+   * HO VERT RASTERISERT HER OG IKKJE I ARBEIDAREN. Det bryt ikkje regelen
+   * om at hovudtråden berre teiknar — det ER teikning. Ein arbeidar har
+   * ingen `Image` å tolke SVG med, og `createImageBitmap` på ein SVG-blob
+   * er ikkje noko Safari gjer. Geometrien er framleis arbeidaren sin:
+   * `ArkSyn.svg` er den SAME strengen SVG-uttaket skriv, med den same
+   * snittkompensasjonen.
+   */
+  const arkVent = useRef(new Map<number, (r: ArkRes) => void>())
+  const hentArk = useCallback((i: number) => {
+    const id = ++reqId.current
+    const svar = new Promise<ArkRes>((ok, nei) => {
+      arkVent.current.set(id, ok)
+      // Ein arbeidar som døyr midt i skal ikkje la uttaket stå og vente
+      // for alltid; `onerror` ryddar ikkje i denne kartoteket.
+      window.setTimeout(() => {
+        if (!arkVent.current.delete(id)) return
+        nei(new Error("plata kom ikkje"))
+      }, 20000)
+    })
+    const msg: Req = { kind: "ark", id, params: naa.current, sheet: i }
     worker.current?.postMessage(msg)
+    return svar
   }, [])
+
+  /**
+   * Kor stort biletet vert.
+   *
+   * SVG-en står i millimeter. Fire pikslar per millimeter er hundre dpi —
+   * nok til å lese adressa gravert på ein del — men ei plate på 800×600
+   * vert då 3200×2400, og fire slike i minnet på ein telefon er der
+   * fanen døyr. Difor eit tak på lengste kanten òg.
+   */
+  const pngAvArk = useCallback(async () => {
+    const n = Math.max(0, tal?.metrics.sheets ?? 0)
+    if (!n) return
+    setBusy(true)
+    try {
+      const filer: { name: string; data: Uint8Array }[] = []
+      const stamme = filnamnStamme(kjeldeNamn)
+      for (let i = 0; i < n; i++) {
+        const a = await hentArk(i)
+        const mm = Math.max(a.arkB, a.arkH, 1)
+        const pxmm = Math.min(4, 2400 / mm)
+        const w = Math.max(1, Math.round(a.arkB * pxmm))
+        const h = Math.max(1, Math.round(a.arkH * pxmm))
+        // Storleiken vert skriven inn i sjølve SVG-en so nettlesaren
+        // rasteriserer HAN i den storleiken. Skalerer ein i staden eit
+        // ferdig rasterisert bilete opp, får ein ei uskarp plate.
+        const kilde = a.svg.replace(
+          /^<svg([^>]*?)\swidth="[^"]*"\sheight="[^"]*"/,
+          `<svg$1 width="${w}" height="${h}"`,
+        )
+        filer.push({
+          name: n <= 1 ? `${stamme}-ark.png` : `${stamme}-ark-${i + 1}av${n}.png`,
+          data: await tilPng(kilde, w, h),
+        })
+      }
+      if (filer.length === 1) {
+        lastNed(new Blob([filer[0].data as BlobPart], { type: "image/png" }), filer[0].name)
+      } else {
+        lastNed(
+          new Blob([zip(filer) as BlobPart], { type: "application/zip" }),
+          `${stamme}-ark-png.zip`,
+        )
+      }
+    } catch {
+      setFeil("fekk ikkje teikne platene")
+    } finally {
+      setBusy(false)
+    }
+  }, [tal, hentArk, kjeldeNamn])
+
+  const doExport = useCallback(
+    (what: ExportKind) => {
+      // PNG-en går ikkje gjennom arbeidaren: han vert teikna her. Sjå
+      // `pngAvArk`.
+      if (what === "png") {
+        void pngAvArk()
+        return
+      }
+      setBusy(true)
+      // utanom porten: eit klikk, ikkje ein straum — og svaret slepp porten fri
+      const msg: Req = { kind: "export", id: ++reqId.current, params: naa.current, what }
+      worker.current?.postMessage(msg)
+    },
+    [pngAvArk],
+  )
 
   /**
    * DEL.
@@ -1276,8 +1418,6 @@ export function Studio() {
           ? `${les("rotZ")}°`
           : null
 
-  const kjelde = String(params.kjelde ?? KUBE)
-  const kjeldeNamn = kjelde === KUBE ? "kube" : (namn[kjelde] ?? "nett")
 
   /**
    * Står svaret framleis?
@@ -1496,19 +1636,15 @@ export function Studio() {
         objektet står like stort på skjermen, av di kameraet rammar det inn
         av seg sjølv. Talet er heile tilbakemeldinga, og det står berre so
         lenge fingrane er nede.
+
+        HØGRE HJØRNE, ØVERST. Det stod midt oppe i det frie bandet, og der
+        stod lesemåtane frå før: «−100°» la seg tvers over «kontur». Talet
+        og knappane deler den same lina no, men kvar sin ende av henne, og
+        dei kan ikkje møtast — tre korte ord til venstre, eit kort tal til
+        høgre. Same innrykk som brikkene har, so dei står i lodd.
       */}
       {gestTekst && (
         <div
-          /**
-           * TALET STÅR TIL HØGRE, IKKJE MIDT PÅ.
-           *
-           * Lesemåtane ligg til venstre i den same lina, og eit tal midt på
-           * ei line som byrjar til venstre står ingen stad: det ser ut som
-           * det datt dit. I hjørnet til høgre er lina heil — brikkene i den
-           * eine enden, talet i den andre — og på benken kjem det på kjøpet
-           * at talet ikkje lenger legg seg oppå objektet, som står midt i
-           * det same bandet.
-           */
           className="pointer-events-none absolute flex justify-end px-4"
           style={fritt}
           aria-hidden="true"

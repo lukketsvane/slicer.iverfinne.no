@@ -70,7 +70,6 @@ const rolig = (page: Page) =>
     { timeout: 60000 },
   )
 
-/** «2 av 13 · 7×6 ribber» */
 /** Opnar kontrollarket om det ikkje alt er ope. Knappen byter namn når han
  *  er open, so eit blindt klikk nummer to ventar på ein knapp som ikkje
  *  finst. */
@@ -79,6 +78,7 @@ const opnePanelet = async (page: Page) => {
   if (await knapp.count()) await knapp.click()
 }
 
+/** «1 av 12 · 9×7 ribber» — ho bur i kontrollane, so dei må vera opne */
 const stadLine = (page: Page) =>
   page.locator("section[aria-label='kontrollar'] [aria-live='polite']")
 
@@ -251,7 +251,12 @@ async function gestane(browser: Browser) {
   await gest(pkt(140, 0), (t) => pkt(140, (t * 40 * Math.PI) / 180))
   p = await lenkja(page)
   const dv = Number(p.rotZ) - vend0
-  ok("vri med klokka vender objektet med klokka", dv < -25 && dv > -55, `${vend0}° → ${p.rotZ}°`)
+  // Fyrti grader inn skal gje fyrti grader ut. Bandet var −25 til −55 og
+  // dekte over at gesten gav 53: `sumVri` la den same vridinga saman om
+  // att for kvar hending som gjekk før gesten fekk namn (sjå `last = c` i
+  // daudsona). Ein vri som gjev ein tredel for mykje er ikkje ein vri du
+  // kan sikte med.
+  ok("vri med klokka vender objektet like mykje", dv < -35 && dv > -45, `${vend0}° → ${p.rotZ}°`)
 
   // --- DRAG: RIBBETALET ----------------------------------------------------
   const ribb0 = Number(p.ribbY)
@@ -301,6 +306,39 @@ async function gestane(browser: Browser) {
       `${p.ribbX}×${p.ribbY}`,
     )
   }
+
+  // --- DRAG MED RULL I HANDA -----------------------------------------------
+  /**
+   * EI HAND SOM DREG, RULLAR LITT.
+   *
+   * Draget over er reint: begge fingrane går rett opp, null grader vri.
+   * Slik dreg ingen. Ei hand som set to fingrar på glaset og dreg oppover
+   * rullar nokre grader medan ho set seg, og vridinga vert vegen som ein
+   * BOGE — vinkelen gonga med halve fingeravstanden. Med fingrane 180 px
+   * frå kvarandre er seks grader ti pikslar boge, meir enn dei fyrste
+   * pikslane av draget, og gesten vart namngjeven «vri». Éin gong, for
+   * heile draget: resten av rørsla gjorde ingen ting.
+   *
+   * Difor eit lite drag — eit par ribber, ikkje heile bandet — med rullen
+   * fremst, der han er verst.
+   */
+  const ribb1 = Number(p.ribbY)
+  const vend2 = Number(p.rotZ)
+  await gest(pkt(90, 0), (t) => {
+    const rull = (Math.min(1, t / 0.3) * 8 * Math.PI) / 180
+    const drag = 60 * Math.max(0, (t - 0.15) / 0.85)
+    return [
+      { x: midt.x - 90 * Math.cos(rull), y: midt.y - 90 * Math.sin(rull) - drag, id: 1 },
+      { x: midt.x + 90 * Math.cos(rull), y: midt.y + 90 * Math.sin(rull) - drag, id: 2 },
+    ]
+  })
+  p = await lenkja(page)
+  ok(
+    "eit drag med åtte grader rull i seg er framleis eit drag",
+    Number(p.ribbY) !== ribb1,
+    `${ribb1} → ${p.ribbY} ribber`,
+  )
+  ok("og vender ikkje objektet", Number(p.rotZ) === vend2, `${vend2}° → ${p.rotZ}°`)
 
   await page.close()
 }
@@ -498,56 +536,52 @@ async function main() {
   ok("framdrifta rører seg medan søket går", steg.length >= 4, `${steg.length} steg synte seg`)
 
   /**
-   * LINA BUR I KONTROLLANE.
+   * KVA SVARET VART, LESE AV LENKJA — OG SO AV LINA.
    *
-   * «1 av 12 · 9×7 ribber» stod under hovudlina i det lukka arket og gjorde
-   * det to liner høgt — ei rad med tal over eit objekt som er heile grunnen
-   * til at arket er lukka. Ho høyrer til kontrollane, so ho står i
-   * kontrollane, og då må dei opnast for å lesast. Knappen er framleis
-   * vegen vidare i lista; det er berre vegen ATTENDE som bur her inne.
+   * Steget vert prøvd mot URL-en og ikkje mot rada. URL-en ber ribbetalet
+   * som faktisk er sett, so han seier alt rada sa, og han seier det utan å
+   * krevje at rada finst: rada er kontrollane sitt eige rekneskap, og eit
+   * rekneskap er ikkje eit vitne på seg sjølv.
+   *
+   * SO VERT RADA LESEN LIKEVEL, og mot den same URL-en. Ho finst — ho bur i
+   * kontrollane, so dei må opnast for at ho skal kunne lesast — og ei rad
+   * som finst kan lyge. Det er den eine feilen ho har: å seie «1 av 12 ·
+   * 9×7» medan ribbene som står er frå eit anna svar.
    */
   await opnePanelet(page)
   await rolig(page)
-
-  const forste = await stadLine(page).innerText()
-  const m1 = forste.match(/(\d+) av (\d+) · (\d+)×(\d+)/i)
-  ok("lina seier kvar i lista vi står", !!m1, forste.replace(/\s+/g, " "))
-  if (!m1) {
-    await browser.close()
-    process.exit(1)
-  }
-  ok("fyrste trykket set det beste svaret", m1[1] === "1", `${m1[1]} av ${m1[2]}`)
-
-  // Lina er ikkje ei avskrift av seg sjølv: ribbetalet ho seier skal vera
-  // det ribbetalet som faktisk står.
   let p = await lenkja(page)
-  ok(
-    "ribbetalet i lina er det som er sett",
-    String(p.ribbX) === m1[3] && String(p.ribbY) === m1[4],
-    `lina ${m1[3]}×${m1[4]}, sett ${p.ribbX}×${p.ribbY}`,
-  )
+  const fyrste = `${p.ribbX}×${p.ribbY}`
+  ok("fyrste trykket set eit svar", Number(p.ribbX) > 0 && Number(p.ribbY) > 0, fyrste)
+
+  const rada = await stadLine(page).innerText()
+  const m1 = rada.match(/(\d+) av (\d+) · (\d+)×(\d+)/i)
+  ok("lina seier kvar i lista vi står", !!m1, rada.replace(/\s+/g, " "))
+  if (m1) {
+    ok("og ho står på det fyrste svaret", m1[1] === "1", `${m1[1]} av ${m1[2]}`)
+    ok(
+      "og ribbetalet ho seier er det som faktisk står",
+      `${m1[3]}×${m1[4]}` === fyrste,
+      `lina ${m1[3]}×${m1[4]}, sett ${fyrste}`,
+    )
+  }
 
   // --- NESTE OG FØRRE ------------------------------------------------------
-  await page.getByLabel("neste svar").click()
+  // Tastane, ikkje pilene: pilene budde i rada som er borte. `steg(±1)` er
+  // den same funksjonen dei kalla.
+  await page.keyboard.press("f")
   await rolig(page)
-  const andre = (await stadLine(page).innerText()).match(/(\d+) av (\d+) · (\d+)×(\d+)/i)!
-  ok("neste går eitt steg ned", andre[1] === "2", `${andre[1]} av ${andre[2]}`)
   p = await lenkja(page)
-  ok(
-    "og set det svaret han seier",
-    String(p.ribbX) === andre[3] && String(p.ribbY) === andre[4],
-    `${andre[3]}×${andre[4]}`,
-  )
+  const andre = `${p.ribbX}×${p.ribbY}`
+  ok("neste går eitt steg ned i lista", andre !== fyrste, `${fyrste} → ${andre}`)
 
-  await page.getByLabel("førre svar").click()
+  await page.keyboard.press("Shift+f")
   await rolig(page)
-  const attende = (await stadLine(page).innerText()).match(/(\d+) av (\d+) · (\d+)×(\d+)/i)!
-  ok("førre går eitt steg attende", attende[1] === "1", `${attende[1]} av ${attende[2]}`)
   p = await lenkja(page)
   ok(
-    "og er attende på det same svaret",
-    attende[3] === m1[3] && attende[4] === m1[4] && String(p.ribbX) === m1[3],
-    `${attende[3]}×${attende[4]} mot ${m1[3]}×${m1[4]}`,
+    "førre er attende på det same svaret",
+    `${p.ribbX}×${p.ribbY}` === fyrste,
+    `${andre} → ${p.ribbX}×${p.ribbY}`,
   )
 
   // --- LISTA GJELD BERRE DET SPØRSMÅLET HO SVARTE PÅ -----------------------
@@ -557,7 +591,17 @@ async function main() {
   await rolig(page)
   p = await lenkja(page)
   ok("talfeltet set talet", p.storleik === 240, `storleik ${p.storleik}`)
-  ok("og lista er borte når spørsmålet er eit anna", (await stadLine(page).count()) === 0)
+  // Ei liste som svarte på ein annan storleik er ikkje ei liste lenger:
+  // «førre svar» har ingen stad å gå, og skal la ribbetalet stå.
+  const forStorleik = `${p.ribbX}×${p.ribbY}`
+  await page.keyboard.press("Shift+f")
+  await rolig(page)
+  p = await lenkja(page)
+  ok(
+    "og lista gjeld ikkje når spørsmålet er eit anna",
+    `${p.ribbX}×${p.ribbY}` === forStorleik,
+    `${forStorleik} → ${p.ribbX}×${p.ribbY}`,
+  )
 
   // --- TALFELTET KLEMMER ---------------------------------------------------
   await page.getByLabel("storleik, tal", { exact: true }).fill("99999")
@@ -675,6 +719,49 @@ async function main() {
       return el ? el.scrollWidth - el.clientWidth : -1
     })()`)
     ok(`tala står heile på ${breidd} px`, kappa === 0, `${kappa} px kappa`)
+  }
+
+  // --- TAKET ---------------------------------------------------------------
+  /**
+   * INGEN TILSTAND FÅR DEKKJE MEIR ENN DETTE.
+   *
+   * Arket er ein meny over eit objekt, og eit objekt du ikkje ser er ein
+   * reiskap som ikkje seier deg noko. Det fulle steget las 621 px av 844
+   * — sytti prosent — av di taket låg på RULLEKASSA og ikkje på arket:
+   * grep, hovudline, svarline og fot står utanfor kassa og tel like fullt.
+   *
+   * Taket ligg på arket no (sjå `maxHeight` i controls-panel), og då er
+   * dette den prøva som held det der. Utan henne driv det attende ei rad
+   * om gongen, og kvar rad ser rimeleg ut åleine.
+   */
+  const TAK = 45
+  const dekninga = () =>
+    page.evaluate(`(function(){
+      var s = document.querySelector("section[aria-label='kontrollar']")
+      if (!s) return -1
+      var r = s.getBoundingClientRect()
+      return Math.round((window.innerHeight - r.top) / window.innerHeight * 1000) / 10
+    })()`) as Promise<number>
+  // MÅLMASKINA STÅR FYRST: iPhone 16e er 1170×2532 på tre gonger, som er
+  // 390×844 i CSS. Dei to andre er ein mindre Android og ein gamal SE —
+  // ei rad som får plass på 390 og ikkje på 320 er ei rad som bryt.
+  for (const [breidd, hogd] of [
+    [390, 844],
+    [360, 780],
+    [320, 700],
+  ]) {
+    await page.setViewportSize({ width: breidd, height: hogd })
+    await page.waitForTimeout(300)
+    // Arket står halvope her; knappen tek det til det fulle og attende.
+    for (const [steg, vidare] of [
+      ["halvope", "alle parametrar"],
+      ["heilope", "færre kontrollar"],
+    ]) {
+      const d = await dekninga()
+      ok(`${steg} dekkjer under ${TAK} % på ${breidd}×${hogd}`, d > 0 && d <= TAK, `${d} %`)
+      await page.getByLabel(vidare).click()
+      await page.waitForTimeout(350)
+    }
   }
   await page.setViewportSize({ width: 1000, height: 900 })
 

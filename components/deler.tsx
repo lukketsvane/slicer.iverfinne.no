@@ -61,7 +61,7 @@ export function stengd(x: ExportKind, m: Metrics | null): string {
   // talet for deg. Eit råd i ein tooltip er eit dårlegare råd enn ein
   // knapp som gjer det.
   if (m.parts === 0) return "ville vorte ei tom fil: ingen delar"
-  if ((x === "ark" || x === "dxf" || x === "alt") && m.sheets === 0) {
+  if ((x === "ark" || x === "png" || x === "dxf" || x === "alt") && m.sheets === 0) {
     return "ville vorte ei tom fil: ingen del fekk plass på plata"
   }
   return ""
@@ -72,6 +72,11 @@ export const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[]
   { id: "dxf", label: "dxf", hint: "alle delane nesta på plate, med snittkompensasjon" },
   { id: "svg", label: "svg", hint: "alle profilane ved sida av kvarandre, i 1:1" },
   { id: "ark", label: "ark", hint: "platene slik dei er pakka, ei fil per plate" },
+  {
+    id: "png",
+    label: "png",
+    hint: "dei same platene som bilete. til meldingar, bestillingar og veggen ved laseren — ikkje til maskina",
+  },
   {
     id: "prove",
     label: "passprøve",

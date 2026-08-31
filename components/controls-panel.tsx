@@ -94,7 +94,7 @@ export function ControlsPanel(props: {
   mode: PanelMode
   /** kor langt søket er kome, eller null når det ikkje går noko søk */
   tunar: { gjort: number; av: number } | null
-  /** kvar i svarlista vi står, eller null når lista ikkje gjeld lenger */
+  /** kvar i svarlista vi står, eller null når ho ikkje gjeld lenger */
   finnStad: { nth: number; tal: number; ribbX: number; ribbY: number } | null
   kanAngre: boolean
   /** kor høgt arket er, i pikslar. Kameraet stiller objektet inn i det som
@@ -223,23 +223,44 @@ export function ControlsPanel(props: {
    * sin sjølv: ei line til over henne er det same talet ein gong til, med
    * eit anna ord framfor. Att står dei to utan ei rad å farge.
    *
-   * I DET HALVE STEGET BERRE DEI HARDE.
+   * I DET HALVE STEGET INGEN.
    *
-   * Eit hardt brot tyder at delane ikkje let seg lage eller ikkje let seg
-   * setje saman: det er ikkje ei opplysning, det er ein stopp, og han ber
-   * knappen som løyser seg sjølv. Eit mjukt brot er eit VAL — «306 opne
-   * kantar», «4 kasta» — og eit val treng ikkje ei line kvar på ein
-   * telefon der arket alt tok halve ruta. Hovudlina stiplar dei tala eit
-   * mjukt brot gjeld, og tavla i det fulle steget seier kva og kvifor.
+   * Fyrst gjekk dei mjuke ned — «306 opne kantar» er eit val og ikkje ein
+   * stopp. Att stod dei harde, som «bryt · gods i leddet», og dei kosta ei
+   * line kvar av eit ark med tak på 45 %.
+   *
+   * Dei er ikkje borte, dei har flytt dit dei høyrer heime. HOVUDLINA
+   * SEIER DET ALT: eit hardt brot fargar det talet regelen gjeld raudt, og
+   * dei tre tala står øvst i arket i alle tre stega. Eit raudt tal er heile
+   * meldinga «noko ryk her»; kva og kvifor er ei setning, og ei setning
+   * høyrer til der det er plass til henne.
+   *
+   * Og RÅDET fylgjer med ned: tavla i det fulle steget ber kvar rad sin
+   * eigen regel med knappen i seg, og uttaka — som er det ein broten regel
+   * kan stengje — står i det same steget. Vegen ut av ei blindgate og det
+   * ho stengjer, på same skjerm.
    */
   const flagg = useMemo(
-    () => (mode === "full" ? utanRad(rules) : failed.filter((r) => r.hard)),
-    [mode, rules, failed],
+    () => (mode === "full" ? utanRad(rules) : []),
+    [mode, rules],
   )
   const isHard = (ids: readonly string[]) => ids.some((id) => broken.hard.has(id))
   const isSoft = (ids: readonly string[]) => ids.some((id) => broken.soft.has(id))
 
   const rows = useMemo(() => tableRows(metrics, rules), [metrics, rules])
+
+  /**
+   * Tjukna som står, og den neste i ringen.
+   *
+   * Skyvaren i det fulle steget er fri, so tjukna treng ikkje vera ei av
+   * dei fem. Står ho utanfor — sju millimeter finér, sett med skyvaren
+   * eller med ei lenkje — finn `indexOf` ingen ting, og ringen byrjar på
+   * den fyrste standardplata i staden for å stå fast. Knappen seier alltid
+   * kva som ER sett; det er berre kva som kjem NESTE som rundar av.
+   */
+  const naaTjukn = num(params, "tjukn", TJUKNER[0])
+  const staarPaa = (TJUKNER as readonly number[]).indexOf(naaTjukn)
+  const nesteTjukn = TJUKNER[(staarPaa + 1) % TJUKNER.length]
 
   const setParam = useCallback(
     (k: string, raw: string) => onChange({ ...params, [k]: snap(lesTal(raw), VAFFEL.ranges[k]) }),
@@ -264,11 +285,40 @@ export function ControlsPanel(props: {
         aria-busy={busy}
         // Breiare enn ein telefon der det er plass: dei same knappane på
         // færre liner er eit lågare ark, og eit lågare ark er meir objekt.
-        className="pointer-events-auto w-full max-w-md rounded-3xl border sm:max-w-xl"
+        className="pointer-events-auto flex w-full max-w-md flex-col rounded-3xl border sm:max-w-xl"
         style={{
           ...HAIR,
           background: "var(--paper)",
           color: "var(--ink)",
+          /**
+           * TAKET. INGEN TILSTAND FÅR GÅ OVER DET.
+           *
+           * Taket låg på rullekassa og ikkje på arket: `max-h-46vh` på
+           * kassa pluss grep, hovudline, svarline og fot er sytti prosent
+           * av ein telefon, og det fulle steget las 621 px av 844. Eit tak
+           * på ein av fire delar er ikkje eit tak.
+           *
+           * Her ligg det på ARKET, og kassa er den einaste som kan gje
+           * etter (`min-h-0` under). Då spelar det inga rolle kor høg
+           * foten vert eller kor mange liner hovudet får: summen står.
+           *
+           * `dvh` og ikkje `vh`: på ein telefon er `vh` ruta slik ho er
+           * UTAN adresselina, so eit ark som er målt i `vh` legg seg under
+           * henne så snart ho er framme. Kameraet fylgjer med — arket
+           * melder høgda si sjølv — og ResizeObserveren rundar til
+           * førti-piksels trinn, so ei adresseline som glir opp og ned
+           * rammar ikkje scena på nytt for kvar piksel.
+           */
+          /**
+           * Trygdesona tel med. Arket ligg i ein boks med
+           * `pb-[calc(env(safe-area-inset-bottom)+12px)]`, og den
+           * botnmargen dekkjer ruta like mykje som arket sjølv gjer. På
+           * ein iPhone 16e er heimestreken 34 px: eit tak på reine 43dvh
+           * ville lese 43 % i nettlesaren og 48 % i handa.
+           *
+           * Trekk difor frå det same som ligg under, so SUMMEN er taket.
+           */
+          maxHeight: "calc(43dvh - env(safe-area-inset-bottom) - 12px)",
           transform: pull ? `translateY(${pull}px)` : undefined,
           transition: dragging.current ? undefined : "transform 180ms ease",
         }}
@@ -301,6 +351,9 @@ export function ControlsPanel(props: {
               e.stopPropagation()
             }
           }}
+          // Under taket er det RULLEKASSA som gjev etter, aldri hovudet:
+          // det er her fingeren tek i arket for å byte steg.
+          className="shrink-0"
           style={{ touchAction: "none" }}
         >
           {/*
@@ -450,12 +503,7 @@ export function ControlsPanel(props: {
         </div>
 
         {/*
-          KVAR I SVARLISTA VI STÅR.
-          Knappen reknar ei rangert liste og set det beste. Utan denne lina
-          er andre trykk eit hopp utan retning: du veit ikkje at det finst
-          tolv til, ikkje kvar du står, og du kjem deg ikkje attende til det
-          du nettopp hadde. Lina finst berre so lenge lista svarar på det
-          spørsmålet som står; rører du storleiken eller plata, er ho borte.
+          KVAR I SVARLISTA VI STOD.
 
           Medan søket går står det ingenting her. Ringen kring knappen ER
           framdrifta, og eit tal som seier det same ein gong til er ei line
@@ -469,6 +517,15 @@ export function ControlsPanel(props: {
           Sjølve knappen er framleis vegen vidare — kvart trykk er neste
           svar — so lukka mistar du berre vegen ATTENDE, og han står her i
           det du opnar arket.
+
+          Ho vart teken heilt bort ein gong, med den grunngjevinga at ho
+          kosta 32 px av eit ark med eit tak på 43 %. Det er den same
+          kostnaden `open` tek: lukka er ho borte, og lukka var det einaste
+          arket ho var for stor for. Det som ikkje kjem attende av seg
+          sjølv er VEGEN ATTENDE — ⇧F er ingen veg på ein telefon, der det
+          ikkje er noko tastatur — og med djupsøket er ho meir verd enn
+          før: svara skil seg no i kor mange plater dei tek, og då er «1 av
+          8» kva du står i og ikkje berre bokføring.
         */}
         {finnStad && open && (
           <div
@@ -516,12 +573,11 @@ export function ControlsPanel(props: {
           no, og det er innhaldet i det som avgjer kva som får plass der.
         */}
         {open && (
-          <div
-            className={
-              "overflow-y-auto overscroll-contain px-3 pb-1 " +
-              (mode === "full" ? "max-h-[46vh]" : "max-h-[26vh]")
-            }
-          >
+          // `min-h-0`: utan han nektar ei rullekasse å verte lågare enn
+          // det ho har i seg, og då er taket på arket eit tak ingen held.
+          // Ho veks ikkje av seg sjølv (`flex-grow` er null), so det halve
+          // steget er framleis so høgt som innhaldet og ikkje meir.
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-1">
             {/* STORLEIKEN STÅR FRAMME.
                 Han er steg to for kvar einaste brukar: du slepper ei fil
                 inn, og so bestemmer du kor stort det skal vera. Å måtte
@@ -543,58 +599,52 @@ export function ControlsPanel(props: {
               }
             />
 
-            {/* Materialet og plata. Dei stod på EI rad som ikkje heldt dei:
-                fire fargar, ein skiljestrek og fem tjukner er breiare enn
-                ein telefon, og den femte tjukna datt ned åleine på ei rad
-                for seg. Eit sett med fem som er brote i fire og éin les som
-                to sett. Ei rad kvar, og tjuknene deler rada likt.
+            {/*
+              PLATA, PÅ EI RAD.
 
-                Materialet er ikkje ein farge — han er tettleiken massen vert
-                rekna av, og han er det som avgjer om åringane skal teiknast
-                i det heile.
+              Materialet er ikkje ein farge — han er tettleiken massen vert
+              rekna av, og han er det som avgjer om åringane skal teiknast i
+              det heile. Han står i det fulle steget: tjukna er eit MÅL som
+              set kvart einaste spor, materialet er tettleik og utsjånad, og
+              massen han reknar står i tavla, som òg berre finst der.
 
-                OG DIFOR STÅR HAN I DET FULLE STEGET.
-                Tjukna er plata du har liggjande, og ho avgjer kvart einaste
-                spor; materialet avgjer massen og korleis flata vert teikna.
-                Det fyrste er eit mål, det andre er stort sett eit utsjånad —
-                og massen han reknar står i tavla, som òg berre finst der. */}
-            {mode === "full" && (
-            <div className="flex items-center gap-1.5 pt-1">
-              {(Object.keys(MATERIALS) as Material[]).map((mk) => (
-                <button
-                  key={mk}
-                  type="button"
-                  aria-pressed={params.material === mk}
-                  aria-label={`materiale: ${MATERIALS[mk].label}`}
-                  title={MATERIALS[mk].label}
-                  onClick={() => onChange({ ...params, material: mk })}
-                  className="h-6 w-6 shrink-0 rounded-full border transition active:scale-90"
-                  style={{
-                    backgroundColor: MATERIALS[mk].hex,
-                    borderColor: params.material === mk ? "var(--ink)" : "var(--rule)",
-                    boxShadow: params.material === mk ? "0 0 0 1px var(--ink)" : undefined,
-                  }}
-                />
-              ))}
-            </div>
-            )}
-            {/* Tjukna er den eine inngangen som ikkje er ein smak: ho er
-                plata du har liggjande. Skyvaren er fri, men desse er dei
-                ein faktisk får kjøpt. */}
+              TJUKNA ER EIN KNAPP SOM GÅR RUNDT.
+              Ho stod som fem brikker — 2 · 2,5 · 3 · 4 · 6 — over heile
+              breidda. Fem knappar der fire alltid er feil, og du treffer
+              den eine du vil ha på fyrste forsøk uansett kva som står. No
+              er det éin knapp som seier kva plate du har og går til den
+              neste kvar gong du trykkjer. Fem trykk tek deg heilt rundt;
+              skyvaren i det fulle steget står att for dei som har sju
+              millimeter finér liggjande.
+            */}
             <div className="flex items-center gap-1.5 py-1">
-              {TJUKNER.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  aria-pressed={params.tjukn === t}
-                  title={`${tjukn(t)} mm plate`}
-                  onClick={() => onChange({ ...params, tjukn: t })}
-                  className={CHIP + " flex-1 px-0"}
-                  style={chipStyle(params.tjukn === t)}
-                >
-                  {tjukn(t)}
-                </button>
-              ))}
+              {mode === "full" &&
+                (Object.keys(MATERIALS) as Material[]).map((mk) => (
+                  <button
+                    key={mk}
+                    type="button"
+                    aria-pressed={params.material === mk}
+                    aria-label={`materiale: ${MATERIALS[mk].label}`}
+                    title={MATERIALS[mk].label}
+                    onClick={() => onChange({ ...params, material: mk })}
+                    className="h-6 w-6 shrink-0 rounded-full border transition active:scale-90"
+                    style={{
+                      backgroundColor: MATERIALS[mk].hex,
+                      borderColor: params.material === mk ? "var(--ink)" : "var(--rule)",
+                      boxShadow: params.material === mk ? "0 0 0 1px var(--ink)" : undefined,
+                    }}
+                  />
+                ))}
+              <button
+                type="button"
+                aria-label={`plate: ${tjukn(naaTjukn)} mm. trykk for den neste`}
+                title="plata du har liggjande. trykk for den neste"
+                onClick={() => onChange({ ...params, tjukn: nesteTjukn })}
+                className={CHIP + " tab"}
+                style={chipStyle(false)}
+              >
+                {tjukn(naaTjukn)} mm
+              </button>
             </div>
 
             {/* LESEMÅTANE LIGG PÅ LERRETET NO, ikkje i arket. Dei er eit
@@ -722,7 +772,7 @@ export function ControlsPanel(props: {
           i det fulle, som er den einaste knappen her som må stå.
         */}
         {open && (
-          <div className="px-3 pb-2">
+          <div className="shrink-0 px-3 pb-2">
             {/* uttaka */}
             {mode === "full" && (
             <div className="flex flex-wrap items-center gap-1.5 py-1">
