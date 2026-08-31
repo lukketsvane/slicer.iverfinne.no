@@ -260,6 +260,9 @@ function maal(p: Params, plan: ReturnType<typeof makePlan>) {
     util: ns.util,
     cutLen: pl.cutLen,
     cutTime: p.fart > 0 ? pl.cutLen / p.fart : 0,
+    // Søket rangerer ikkje på nodar, so han vert ikkje talt her: det er
+    // ei summering over kvar einaste ring, gonga med eit titals kandidatar.
+    nodes: 0,
     narrow: Number.isFinite(narrow) ? narrow : 0,
     minGap: Math.min(g.gapX, g.gapY),
     slotW: g.slotW,

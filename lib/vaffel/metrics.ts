@@ -60,6 +60,7 @@ export const RADER: readonly { id: string; label: string; unit: string }[] = [
   { id: "gods", label: "minste gods", unit: "mm" },
   { id: "opning", label: "opning", unit: "mm" },
   { id: "spor", label: "sporbreidd", unit: "mm" },
+  { id: "nodar", label: "nodar", unit: "" },
   { id: "nett", label: "trekantar", unit: "" },
   { id: "kantar", label: "opne kantar", unit: "" },
 ]
@@ -99,6 +100,13 @@ export function measure(p: Params): Metrics {
     // er gjetta oppå eit tal som er gjetta er ikkje eit overslag lenger.
     cutTime: p.fart > 0 ? pl.cutLen / p.fart : 0,
 
+    // Kvar ring i kuttfila, lagd saman. Ein node er eit punkt maskina må
+    // ta stilling til, so dette er tala forenklinga handlar om.
+    nodes: pl.parts.reduce(
+      (n, q) => n + q.outline.length + q.holes.reduce((h, r) => h + r.length, 0),
+      0,
+    ),
+
     narrow: Number.isFinite(narrow) ? narrow : 0,
     minGap: Math.min(g.gapX, g.gapY),
     slotW: g.slotW,
@@ -125,6 +133,7 @@ export function measure(p: Params): Metrics {
   add("gods", m.narrow, nn(m.narrow, 1))
   add("opning", m.minGap, nn(m.minGap, 1))
   add("spor", m.slotW, nn(m.slotW, 2))
+  add("nodar", m.nodes, nn(m.nodes))
   add("nett", m.tris, `${nn(m.tris)} av ${nn(m.srcTris)}`)
   add("kantar", m.openEdges, nn(m.openEdges))
 

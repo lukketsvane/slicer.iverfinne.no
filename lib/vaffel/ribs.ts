@@ -426,15 +426,43 @@ function buildGridRaw(k: Kropp, p: Params, cells: number): Grid {
 
   let kasta = 0
 
+  /**
+   * KOR LANGT KUTTET FÅR VIKE FRÅ PROFILEN.
+   *
+   * Konturen kjem av ei rute, og ei rute gjev punkt på kvar einaste
+   * rutekant — hundrevis av dei på ei ribbe, dei fleste på ei rett line.
+   * `min(0.25, step/8)` tok berre dei som låg heilt på lina: ein åttedels
+   * rutesteg er under ei snittbreidd, so det var ei opprydding og ikkje
+   * eit val.
+   *
+   * `forenkl` er valet. Han er eit GOLV over den gamle rekninga og ikkje
+   * ein erstatning for henne: står han på null, er profilen nøyaktig den
+   * same som før, og kvar millimeter du gjev han er ein millimeter kuttet
+   * får vike. Det er ei avveging mellom nodar og truskap, og begge tala
+   * står i tavla medan du dreg.
+   */
+  const tol = Math.max(Math.min(0.25, step / 8), p.forenkl)
+  /** taket for småhòl, som areal: eit hòl er ein ring, og ringen er rund */
+  const minHol = Math.PI * (p.hol / 2) ** 2
+
   const mk = (axis: "x" | "y", kk: number, pos: number, slots: Slot[]): Rib => {
     const loops = profileOf(k, p, axis, pos, slots, step)
     let outlines: Pt[][] = []
     let holes: Pt[][] = []
     for (const l of loops) {
-      const q = simplify(l.pts, Math.min(0.25, step / 8)) as Pt[]
+      const q = simplify(l.pts, tol) as Pt[]
       if (q.length < 3) continue
       if (l.area > 0) outlines.push(q)
-      else holes.push(q)
+      // Eit hòl som er mindre enn taket kostar meir å skjere enn det er
+      // verdt: laseren må stogge, senke seg, køyre ein liten ring og lyfte
+      // att, og det som fell ut er ein flis.
+      //
+      // TAKET ER EIT TVERRMÅL og ikkje eit areal. «Hòl under fire
+      // millimeter» er noko ein kan sjå for seg med to fingrar; «hòl under
+      // tolv kvadratmillimeter» er det same talet, og ingen veit kor stort
+      // det er. Arealet er det som vert samanlikna, so tverrmålet vert gjort
+      // om her — éin gong, og ikkje i hovudet til den som dreg.
+      else if (Math.abs(l.area) >= minHol) holes.push(q)
     }
 
     /**
