@@ -222,6 +222,10 @@ export type Metrics = {
   cutLen: number // samla kuttlengd, mm — laseren si eiga tid
   cutTime: number // kuttetid, sekund: kuttlengda delt på kuttfarta
 
+  /** punkt i kuttbanen, alle delar. Det er dette forenklinga kostar og
+   *  sparar: ein node er eit punkt maskina må ta stilling til. */
+  nodes: number
+
   narrow: number // smalaste gods som er att i eit ledd, mm
   minGap: number // minste opning mellom to naboribber, mm
   slotW: number // sporbreidd, mm

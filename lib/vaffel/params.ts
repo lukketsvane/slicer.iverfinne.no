@@ -26,6 +26,12 @@ export type Params = {
   glatt: number // glattingsrunder — Taubin, volumet står
   trekant: number // tak på tal trekantar, tusen
 
+  // --- FORENKLING ---------------------------------------------------------
+  /** kor langt kuttet får vike frå den sanne profilen, mm */
+  forenkl: number
+  /** minste hòl som er verdt å skjere, som TVERRMÅL i mm */
+  hol: number
+
   // --- RIBBER ------------------------------------------------------------
   ribbX: number // ribber på tvers av X
   ribbY: number // ribber på tvers av Y
@@ -122,6 +128,9 @@ export const PARAM_RANGES: Record<string, Range> = {
   glatt: { min: 0, max: 24, step: 1, label: "glatting", int: true },
   trekant: { min: 0.5, max: 60, step: 0.5, label: "tak", unit: "k" },
 
+  forenkl: { min: 0, max: 2, step: 0.05, label: "toleranse", unit: "mm" },
+  hol: { min: 0, max: 80, step: 1, label: "minste hòl", unit: "mm" },
+
   ribbX: { min: 1, max: 32, step: 1, label: "langs x", int: true },
   ribbY: { min: 1, max: 32, step: 1, label: "langs y", int: true },
   tjukn: { min: 1, max: 25, step: 0.1, label: "tjukn", unit: "mm" },
@@ -141,6 +150,7 @@ export const GROUPS: readonly Group[] = [
   { id: "form", label: "form", keys: ["storleik", "rotX", "rotY", "rotZ"] },
   { id: "nett", label: "nett", keys: ["glatt", "trekant"] },
   { id: "ribber", label: "ribber", keys: ["ribbX", "ribbY", "tjukn", "lause"] },
+  { id: "forenkling", label: "forenkling", keys: ["forenkl", "hol"] },
   { id: "ledd", label: "ledd", keys: ["klaring", "ledd"] },
   { id: "kutt", label: "kutt", keys: ["snitt", "snittveg", "fart"] },
   { id: "plate", label: "plate", keys: ["arkB", "arkH"] },
@@ -372,6 +382,9 @@ export const DEFAULT_PARAMS: Params = {
 
   glatt: 0,
   trekant: 20,
+
+  forenkl: 0,
+  hol: 0,
 
   ribbX: 6,
   ribbY: 6,
