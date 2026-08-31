@@ -362,12 +362,39 @@ export function GestureParams({
     let hjulTotal = 1
     let hjulGaar = false
 
+    /**
+     * iOS GJEV FRÅ SEG VASSRETTE SVEIP TIL SEG SJØLV.
+     *
+     * Eit vassrett drag med to fingrar er ein NAVIGASJONSGEST i Safari —
+     * fram og attende i historikka — og systemet tek han før sida ser
+     * han. Difor verka draget oppover og ikkje draget til sida: loddrett
+     * er rulling, og rulling er alt stogga av `touch-action: none` og
+     * `overscroll-behavior`. Vassrett er navigasjon, og han stoggar
+     * korkje den eine eller den andre. Du såg det på skjermen: den grå
+     * pila som kom fram i kanten var systemet som tok gesten.
+     *
+     * Det einaste som tek han attende er `preventDefault` på ei
+     * touchmove som IKKJE er passiv. Vår `pointermove` er passiv — ho
+     * er det for at rullinga skal vera jamn — og ei passiv lyttar kan
+     * per definisjon ikkje avlyse noko.
+     *
+     * Berre med to fingrar eller fleire. Éin finger er orbiten, og han
+     * skal framleis oppføre seg som ein vanleg finger på eit lerret.
+     */
+    const taTouchen = (e: TouchEvent) => {
+      if (e.touches.length >= 2) e.preventDefault()
+    }
+    el.addEventListener("touchstart", taTouchen, { passive: false })
+    el.addEventListener("touchmove", taTouchen, { passive: false })
+
     el.addEventListener("pointerdown", down)
     el.addEventListener("wheel", hjul, { passive: false, capture: true })
     window.addEventListener("pointermove", move, { passive: true })
     window.addEventListener("pointerup", up)
     window.addEventListener("pointercancel", up)
     return () => {
+      el.removeEventListener("touchstart", taTouchen)
+      el.removeEventListener("touchmove", taTouchen)
       el.removeEventListener("pointerdown", down)
       el.removeEventListener("wheel", hjul, { capture: true } as EventListenerOptions)
       window.removeEventListener("pointermove", move)
