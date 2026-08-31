@@ -111,6 +111,9 @@ export function GestureParams({
     let anker = { cx: 0, cy: 0, d: 0, a: 0 }
     /** vinkelen lagd saman sidan ankeret, radianar */
     let sumVri = 0
+    /** kven som leier, og kor mange hendingar han har leidd */
+    let leiar: "klyp" | "vri" | "v" | "h" | null = null
+    let iRad = 0
     let snap: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null
     // dobbelttrykket: to korte, stillestandande trykk nær kvarandre i tid
     // og rom — same terskel som iOS sjølv brukar på kartet
@@ -174,6 +177,8 @@ export function GestureParams({
         last = measure2()
         anker = last
         sumVri = 0
+        leiar = null
+        iRad = 0
         if (controls) controls.enabled = false
       }
       if (pts.size === 3) {
@@ -225,13 +230,40 @@ export function GestureParams({
         // hendingar til. Men ikkje i det uendelege — er fingrane komne
         // tre daudsoner utan at nokon har vunne, gjer dei fleire ting på
         // ein gong, og då er den største det næraste eit svar som finst.
-        const klaar = (v: number, ...andre: number[]) =>
-          v === M && (v > NOK * Math.max(...andre) || M > 3 * DAUD)
-        if (klaar(A, D, X, Y)) mode = "vri"
-        else if (klaar(D, A, X, Y)) mode = "klyp"
-        else if (klaar(Y, A, D, X)) mode = "v"
-        else if (klaar(X, A, D, Y)) mode = "h"
-        else return
+        /**
+         * DEN SOM LEIER MÅ LEIE MED EI HEIL DAUDSONE, OG I FLEIRE BILETE.
+         *
+         * Eit forhold åleine held ikkje. Støyen er BUNDEN — fingrane dirrar
+         * eit par pikslar same kor langt du dreg — medan draget VEKS, og
+         * tidleg i draget er dei to like store. Vinkelen er verst: han vert
+         * rekna om til bogelengd med halve fingeravstanden som radius, so
+         * to grader vippe mellom fingrar hundre og ti pikslar frå kvarandre
+         * er to pikslar før draget har flytta seg i det heile.
+         *
+         * Målt: eit drag på to hundre og tjue pikslar med dirrande fingrar
+         * vart kalla ei VRIDING omtrent annakvar gong, og ribbetalet rørte
+         * seg ikkje. Ikkje alltid — annakvar gong. Difor «av og til».
+         *
+         * So leiaren må slå nummer to både med eit forhold OG med ei heil
+         * daudsone i pikslar. Eit dirr på to pikslar kan ikkje låne seg
+         * åtte; eit drag har dei etter tre bilete. Og han må halde leiinga
+         * i tre bilete på rad, so eit einsleg uheldig bilete ikkje avgjer
+         * noko.
+         *
+         * Ti bilete på rad tek han uansett. Ein gest som gjer to ting
+         * jamstort skal ikkje verte verande namnlaus for alltid.
+         */
+        const storst: "klyp" | "vri" | "v" | "h" =
+          A === M ? "vri" : D === M ? "klyp" : Y === M ? "v" : "h"
+        if (storst !== leiar) {
+          leiar = storst
+          iRad = 0
+        }
+        iRad++
+        const nest = Math.max(...[A, D, X, Y].filter((v) => v !== M), 0)
+        const klaart = M > NOK * nest && M - nest >= DAUD
+        if (!(klaart && iRad >= 3) && iRad < 10) return
+        mode = leiar
         // Nullpunktet er der gesten VART til, ikkje der fingrane landa:
         // daudsona skal ikkje telje med i totalen.
         start = { d: c.d, a: c.a }
