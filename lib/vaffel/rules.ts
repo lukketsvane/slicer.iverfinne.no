@@ -18,7 +18,7 @@ import { bbox, nn, type Fiks, type Metrics, type Rule } from "../core"
 import { DETAIL } from "./ribs"
 import { fitRoom } from "../pack"
 import { makePlan, nestGap, type Plan } from "./plan"
-import { SNITTVEGAR, type Params } from "./params"
+import { PARAM_RANGES, SNITTVEGAR, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
 /** klaringa bur mellom 0,05 og 0,35: éin desimal gjer heile bandet til
@@ -35,9 +35,12 @@ const snapp = (v: number, steg: number) => Math.round(v / steg) * steg
  * opninga er stigninga minus ei platetjukn. Vil du ha opninga G, treng du
  * spenn / (G + tjukn) ribber — og spennet står alt i den opninga du har:
  * det er (gap + tjukn) × talet du står med.
+ *
+ * Botnen er to og ikkje ein: eitt tal skyvaren ikkje kan stille inn er
+ * eit råd som lyg. Knappen ville sagt «prøv 1×1» og gjeve deg 2×2.
  */
 const ribberFor = (n: number, gap: number, tjukn: number, mål: number) =>
-  Math.max(1, Math.floor((n * (gap + tjukn)) / (mål + tjukn)))
+  Math.max(PARAM_RANGES.ribbX.min, Math.floor((n * (gap + tjukn)) / (mål + tjukn)))
 
 /**
  * `plan` kan sendast inn av den som alt har rekna han.
