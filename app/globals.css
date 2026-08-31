@@ -33,6 +33,36 @@ html {
     color: var(--ink);
     font-family: var(--font-sans);
   }
+  /*
+   * INGEN MERKING, OG INGA LUPE.
+   *
+   * Eit langt trykk på ein knapp er eit langt trykk på ein knapp. På iOS
+   * var det ei merking: filnamnet vart blått, to handtak sprang opp, og
+   * over dei ein meny med «Kopier» og «Slå opp» — midt i eit ark du heldt
+   * på å dra i. Ingen ting av det finst i eit program; det finst i eit
+   * dokument, og flata her er ikkje eit dokument. Ho er knappar, tal og
+   * eit objekt.
+   *
+   * `touch-callout` er den som tek menyen og lupa; `user-select` tek
+   * merkinga. Begge trengst — den eine utan den andre gjev anten ei blå
+   * merking utan meny eller ein meny over noko som ikkje er merkt.
+   *
+   * MEN DER TEKSTEN ER SJØLVE INNHALDET, står han att. Oppsettet er ein
+   * tekst du skal kunne merke og lime, og talfelta må kunne merkast for å
+   * skrivast i — `select()` på eit felt som ikkje let seg merke gjer
+   * ingen ting, og då må du viske ut siffer for siffer.
+   */
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  input,
+  textarea {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
   /* Alle tal i grensesnittet er måltal. Dei skal stå i kolonne. */
   .tab {
     font-variant-numeric: tabular-nums;
