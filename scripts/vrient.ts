@@ -596,8 +596,8 @@ const RØRER: Rørt[] = [
   { k: "ribbY", v: 9, les: (m) => m.parts },
   { k: "storleik", v: 300, les: (m) => m.envX },
   { k: "klaring", v: 0.4, les: (m) => m.slotW },
-  // Mindre plate, ikkje større: standarden er 800 x 600, og kuben får
-  // plass på ei plate uansett kor mykje større ho vert.
+  // Mindre plate, ikkje større: standarden er 600 x 400, og kuben får
+  // plass på like mange plater uansett kor mykje større ho vert.
   { k: "arkB", v: 300, les: (m) => m.sheets },
   { k: "arkH", v: 300, les: (m) => m.sheets },
   { k: "fart", v: 60, les: (m) => m.cutTime },
