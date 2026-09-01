@@ -21,7 +21,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type JSX } from "react"
 import type { ArkSyn, Delplass, Kutt, ParamBag, Range } from "@/lib/core"
-import { nn } from "@/lib/core"
+import { kuttCsv, nn } from "@/lib/core"
 import { CHIP, TalDrag, chipStyle } from "./deler"
 
 export type VerktyId = "liste" | "ark" | "stabel" | "oppsett"
@@ -149,24 +149,6 @@ const KOLONNAR: Kolonne[] = [
     sorter: (k) => k.ark,
   },
 ]
-
-/** Semikolon og ikkje komma: tala er norske og har komma i seg. */
-const csv = (liste: readonly Kutt[]) =>
-  [
-    "adresse;form;breidd;hogd;flate_cm2;kutt_mm;ledd;plate",
-    ...liste.map((k) =>
-      [
-        k.adr,
-        k.id,
-        nn(k.w, 2),
-        nn(k.h, 2),
-        nn(k.area / 100, 2),
-        nn(k.cutLen, 1),
-        String(k.joints),
-        k.ark ? String(k.ark) : "",
-      ].join(";"),
-    ),
-  ].join("\n")
 
 function Kuttliste(props: {
   liste: readonly Kutt[]
@@ -342,7 +324,7 @@ function Kuttliste(props: {
           type="button"
           className={CHIP_B + " ml-auto uppercase tracking-[0.1em]"}
           style={chipStyle(false)}
-          onClick={() => onOrd(csv(rader))}
+          onClick={() => onOrd(kuttCsv(rader))}
           title="det du ser på utklippstavla, med semikolon mellom felta"
         >
           kopier csv
