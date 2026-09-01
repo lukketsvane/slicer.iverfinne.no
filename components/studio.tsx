@@ -45,8 +45,37 @@ import { CHIP, VIEWS, chipStyle } from "./deler"
 /** kor mange piksel to-fingers-rulling må dra for å sveipe eit heilt band */
 const NUDGE_RANGE_PX = 420
 
-/** ei ferdig fil ut til brukaren, same kvar ho vart laga */
-function lastNed(blob: Blob, namn: string) {
+/**
+ * EI FERDIG FIL UT TIL BRUKAREN, same kvar ho vart laga.
+ *
+ * På ein telefon er nedlastingsmappa ein dårleg stad for ei kuttfil: ho
+ * skal til maskina som står ved laseren. Delingsarket kan AirDroppe henne
+ * dit, leggje henne i Filer eller sende henne i ei melding, so der det
+ * finst fingrar og eit delingsark som tek filer, får arket fila. Ein
+ * skjerm med peikar lastar ned som før: der er nedlastingsmappa nett der
+ * LightBurn leitar.
+ *
+ * Seier nokon nei i arket, er det eit svar. Går det gale på annan vis —
+ * aktiveringa gjekk ut medan arbeidaren rekna, eller filtypen vart
+ * avvist — ligg nedlastinga der som vegen attende.
+ */
+async function lastNed(blob: Blob, namn: string) {
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean }
+  if (
+    matchMedia("(pointer: coarse)").matches &&
+    typeof nav.share === "function" &&
+    typeof nav.canShare === "function"
+  ) {
+    const fil = new File([blob], namn, { type: blob.type })
+    if (nav.canShare({ files: [fil] })) {
+      try {
+        await nav.share({ files: [fil] })
+        return
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return
+      }
+    }
+  }
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
@@ -637,12 +666,7 @@ export function Studio() {
       const blob = r.text
         ? new Blob([r.text], { type: r.mime })
         : new Blob([r.data as ArrayBuffer], { type: r.mime })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = r.name
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(url), 4000)
+      void lastNed(blob, r.name)
       setBusy(false)
     }
     return () => {
