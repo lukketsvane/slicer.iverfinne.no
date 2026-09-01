@@ -101,6 +101,7 @@ pnpm ledd     # every joint the panel counted, found again in the cut profiles
 pnpm raad     # breaks each rule, presses the fix it offers, checks it worked
 pnpm glb      # writes GLB files with known geometry and reads them back
 pnpm pakk     # redraws every sheet and counts cells — catches overlaps
+pnpm hand     # låste ribber: å røre éi skal la dei andre stå
 pnpm djup     # the deep search: the profile measures shape, the answers are real
 pnpm tung     # a million triangles in, and how long that takes
 pnpm ark      # cut sheets as images

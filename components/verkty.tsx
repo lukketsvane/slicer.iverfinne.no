@@ -22,15 +22,42 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from "react"
 import type { ArkSyn, Delplass, Kutt, ParamBag, Range } from "@/lib/core"
 import { nn } from "@/lib/core"
-import { CHIP, chipStyle } from "./deler"
+import { CHIP, TalDrag, chipStyle } from "./deler"
 
-export type VerktyId = "liste" | "ark" | "oppsett"
+export type VerktyId = "liste" | "ark" | "stabel" | "oppsett"
 
 export const VERKTY: { id: VerktyId; ord: string; hint: string }[] = [
   { id: "liste", ord: "kuttliste", hint: "kvar del, med adresse, mål og plate" },
   { id: "ark", ord: "plater", hint: "kvar plate slik ho ligg" },
+  {
+    id: "stabel",
+    ord: "stabelen",
+    hint: "kvar ribbe for seg: kvar ho står, om ho står fast, og om ho skal vera med",
+  },
   { id: "oppsett", ord: "oppsett", hint: "alle innstillingane som tekst" },
 ]
+
+/**
+ * EI RIBBE SLIK STABELEN SER HENNE.
+ *
+ * Ho er ikkje ein del. Ei ribbe kan vera delt i fleire stykke — eit dyr med
+ * fire bein gjev ei tverribbe i fire — og alle fire står i det SAME planet.
+ * Stabelen redigerer planet, og det er kuttlista som tel stykka.
+ */
+export type Ribba = {
+  /** «X3» — planet, utan bokstaven stykket har */
+  adr: string
+  akse: "x" | "y"
+  /** kvar ho står, mm langs sin eigen akse */
+  mm: number
+  /** kva ho kan flyttast mellom utan å stå i naboen, mm */
+  lo: number
+  hi: number
+  laast: boolean
+  /** kor mange stykke ho vart, og kor mange ledd dei har til saman */
+  stykke: number
+  ledd: number
+}
 
 const HAIR = { borderColor: "var(--rule)" }
 const CHIP_B = CHIP.replace("rounded-full", "rounded-[2px]")
@@ -370,6 +397,176 @@ function Plater(props: {
 }
 
 // =============================================================================
+// STABELEN
+// =============================================================================
+/**
+ * KVAR RIBBE FOR SEG.
+ *
+ * Ribbene var eit TAL. Skyvaren sa seks, og seks jamt fordelte plan kom ut
+ * — det er eit godt utgangspunkt og det er ikkje eit verkty. Du kunne ikkje
+ * flytte ei ribbe til der leddet skulle sitje, ikkje ta bort den eine som
+ * skar gjennom auget, ikkje setje to tett i hop der godset var tynt.
+ *
+ * Så vart dei ei LISTE, og eit langt trykk på ei ribbe i objektet gav deg
+ * fire ting å gjere med henne. Det var eitt steg og halvparten av eit
+ * verkty: du såg éi ribbe om gongen, og du måtte finne henne i modellen
+ * fyrst. Ein stabel er ikkje noko du ser éi ribbe om gongen.
+ *
+ * Her står han heil. Kvar rad er eitt plan, med talet som seier kvar det
+ * står — eit tal du kan dra i og skrive i — og handlingane ved sida av.
+ *
+ * LÅSEN ER PREMISSET FOR HEILE TABELLEN. Ein fri ribbe har ingen eigen
+ * plass: han er «den fjerde av seks jamne», og den plassen er ei rekning på
+ * talet. Difor låser kvar einaste redigering heile stabelen fyrst, og
+ * difor er «lås alle» steget frå eit rutenett reiskapen fann til ein stabel
+ * du eig. Etterpå legg skyvaren til nye ribber i staden for å skuve dei du
+ * har.
+ */
+function Stabelen(props: {
+  ribber: readonly Ribba[]
+  peikt: string | null
+  onPeik: (adr: string | null) => void
+  onFlytt: (adr: string, mm: number) => void
+  onLaas: (adr: string) => void
+  onKopier: (adr: string) => void
+  onSpegl: (adr: string) => void
+  onSlett: (adr: string) => void
+  onAkse: (akse: "x" | "y", paa: boolean) => void
+}) {
+  const { ribber, peikt, onPeik, onFlytt, onLaas, onKopier, onSpegl, onSlett, onAkse } = props
+  if (!ribber.length) {
+    return <p className="dim p-4 text-[11px]">ingen ribber råka kroppen.</p>
+  }
+  return (
+    <div className="grid min-h-0 flex-1 grid-cols-2 gap-px" style={{ background: "var(--rule)" }}>
+      {(["x", "y"] as const).map((akse) => {
+        const mine = ribber.filter((r) => r.akse === akse)
+        const alleLaaste = mine.length > 0 && mine.every((r) => r.laast)
+        return (
+          <div key={akse} className="flex min-h-0 flex-col" style={{ background: "var(--paper)" }}>
+            <div
+              className="flex items-center gap-1.5 border-b px-3 py-2 text-[10px] uppercase tracking-[0.14em]"
+              style={HAIR}
+            >
+              <span className="mono">langs {akse}</span>
+              <span className="dim mono">{mine.length}</span>
+              {/* Éin knapp og ikkje to. «Lås alle» og «slepp alle» er den
+                  same brytaren sedd frå kvar si side, og ein stabel utan
+                  låsar ER den jamne fordelinga — «fordel jamt» ville vore
+                  eit tredje namn på det same. */}
+              <button
+                type="button"
+                className={CHIP_B + " ml-auto uppercase tracking-[0.1em]"}
+                style={chipStyle(alleLaaste)}
+                onClick={() => onAkse(akse, !alleLaaste)}
+                title={
+                  alleLaaste
+                    ? "slepp alle: ribbene fordeler seg jamt att, og skyvaren rår over dei"
+                    : "lås alle der dei står: skyvaren legg til nye i staden for å skuve desse"
+                }
+              >
+                {alleLaaste ? "slepp alle" : "lås alle"}
+              </button>
+            </div>
+            {/* «1·6» utan overskrift er to tal ingen kan lese. Dei står her
+                av di dei er den eine åtvaringa ein stabel kan gje: eit plan
+                som vart fire øyer utan eit einaste ledd er fire lause
+                plater i eska, og det ser du ikkje på modellen. */}
+            <div className="dim flex items-center gap-1 px-2 pt-1 text-[9px] uppercase tracking-[0.14em]">
+              <span className="w-8 shrink-0" />
+              <span className="w-[62px] shrink-0 text-right">stad mm</span>
+              <span className="ml-auto shrink-0 pr-1">stykke·ledd</span>
+            </div>
+            <div className="rull min-h-0 flex-1">
+              {mine.map((r) => {
+                const paa = peikt !== null && peikt.startsWith(r.adr)
+                return (
+                  <div
+                    key={r.adr}
+                    className="mono flex items-center gap-1 px-2 py-[3px] text-[11px]"
+                    onPointerEnter={() => onPeik(r.adr)}
+                    style={{
+                      background: paa
+                        ? "color-mix(in srgb, var(--ink) 8%, transparent)"
+                        : undefined,
+                    }}
+                  >
+                    <span className="dim w-8 shrink-0">{r.adr}</span>
+                    {/* Bandet er NABOANE. Feltet stoggar der ribba stoggar,
+                        so eit drag mot naboen fortel kvar han står i staden
+                        for å la deg køyre forbi han og få talet klemt
+                        attende av motoren etterpå. */}
+                    <TalDrag
+                      verdi={r.mm}
+                      r={{ min: r.lo, max: r.hi, step: 0.5, label: "stad", unit: "mm" }}
+                      etikett={`${r.adr}, stad`}
+                      className="talfelt w-[62px] shrink-0 rounded-[2px] bg-transparent text-right"
+                      style={{ color: "var(--ink)" }}
+                      onSet={(v) => onFlytt(r.adr, v)}
+                    />
+                    <span className="dim shrink-0 text-[9px]">mm</span>
+                    {/* Stykke og ledd er dei to tala som seier om planet
+                        gjer noko: eit plan som vart fire øyer utan eit
+                        einaste ledd er fire lause plater i eska. */}
+                    <span
+                      className="dim ml-auto shrink-0 pr-1 text-[9px]"
+                      title={`${r.stykke} stykke, ${r.ledd} ledd`}
+                      style={{ color: r.ledd === 0 ? "var(--warn)" : undefined }}
+                    >
+                      {r.stykke}·{r.ledd}
+                    </span>
+                    {[
+                      {
+                        ord: "lås",
+                        paa: r.laast,
+                        gjer: () => onLaas(r.adr),
+                        kva: r.laast
+                          ? "slepp ribba fri: ho fordeler seg med dei andre att"
+                          : "lås ribba her: ho står stille når du dreg ribbeskyvaren",
+                      },
+                      {
+                        ord: "+",
+                        paa: false,
+                        gjer: () => onKopier(r.adr),
+                        kva: "ei ribbe til, midt imellom denne og naboen. Begge vert låste.",
+                      },
+                      {
+                        ord: "⇄",
+                        paa: false,
+                        gjer: () => onSpegl(r.adr),
+                        kva: "den same ribba på hi sida av midten",
+                      },
+                      {
+                        ord: "×",
+                        paa: false,
+                        gjer: () => onSlett(r.adr),
+                        kva: "denne ribba vekk. Dei andre vert låste der dei står.",
+                      },
+                    ].map((v) => (
+                      <button
+                        key={v.ord}
+                        type="button"
+                        className="hit shrink-0 rounded-[2px] border px-1.5 text-[10px] leading-[18px] transition active:scale-95"
+                        style={chipStyle(v.paa)}
+                        title={v.kva}
+                        aria-label={`${r.adr}: ${v.ord}`}
+                        onClick={v.gjer}
+                      >
+                        {v.ord}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// =============================================================================
 // OPPSETTET
 // =============================================================================
 /**
@@ -495,11 +692,18 @@ export function Verkty(props: {
   keys: readonly string[]
   clamp: (o: unknown, prev: ParamBag) => ParamBag
   peikt: string | null
+  ribber: readonly Ribba[]
   rute: { venstre: number; hogre: number; høgd: number }
   onArk: (i: number) => void
   onPeik: (adr: string | null) => void
   onLangtrykk: (adr: string, plass: Delplass["plass"], x: number, y: number) => void
   onChange: (p: ParamBag) => void
+  onFlytt: (adr: string, mm: number) => void
+  onLaas: (adr: string) => void
+  onKopier: (adr: string) => void
+  onSpegl: (adr: string) => void
+  onSlett: (adr: string) => void
+  onAkse: (akse: "x" | "y", paa: boolean) => void
   onClose: () => void
   onOrd: (s: string) => void
 }): JSX.Element | null {
@@ -569,6 +773,19 @@ export function Verkty(props: {
           peikt={props.peikt}
           onPeik={props.onPeik}
           onLangtrykk={props.onLangtrykk}
+        />
+      )}
+      {open === "stabel" && (
+        <Stabelen
+          ribber={props.ribber}
+          peikt={props.peikt}
+          onPeik={props.onPeik}
+          onFlytt={props.onFlytt}
+          onLaas={props.onLaas}
+          onKopier={props.onKopier}
+          onSpegl={props.onSpegl}
+          onSlett={props.onSlett}
+          onAkse={props.onAkse}
         />
       )}
       {open === "oppsett" && (

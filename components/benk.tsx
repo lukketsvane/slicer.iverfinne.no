@@ -31,6 +31,7 @@ import {
   R_GODS,
   SliderRow,
   TASTAR,
+  TalDrag,
   TAST_BENK,
   Tavla,
   VIEWS,
@@ -215,72 +216,17 @@ function Storleik({
 }) {
   const r = VAFFEL.ranges.storleik
   const verdi = num(params, "storleik", r.min)
-  const [utkast, setUtkast] = useState<string | null>(null)
-  const dra = useRef<{ x: number; fra: number; rort: boolean } | null>(null)
-
-  const sett = (v: number) => onChange({ ...params, storleik: snap(v, r) })
 
   return (
     <div>
       <div className="flex items-baseline gap-1">
-        <input
+        <TalDrag
+          verdi={verdi}
+          r={r}
+          etikett="storleik, tal"
           className="mono talfelt w-[110px] rounded-[2px] bg-transparent text-[32px] leading-none tracking-[-0.01em]"
-          // Peikaren seier kva talet er: noko du dreg i.
-          style={{ color: "var(--ink)", cursor: "ew-resize" }}
-          // Det som STÅR, ikkje ei avrunding av det. Storleiken kan bera
-          // ein halv millimeter — ei lenkje, ei prosjektfil eller
-          // talfeltet i panelet kan setje 247,5 — og `Math.round` gjorde
-          // henne om til 248 så snart nokon såg på feltet.
-          value={utkast ?? feltTal(verdi, r.step).replace(".", ",")}
-          inputMode="decimal"
-          aria-label="storleik, tal"
-          onPointerDown={(e) => {
-            if (e.pointerType === "touch") return
-            dra.current = { x: e.clientX, fra: verdi, rort: false }
-            e.currentTarget.setPointerCapture(e.pointerId)
-          }}
-          onPointerMove={(e) => {
-            const d = dra.current
-            if (!d) return
-            const dx = e.clientX - d.x
-            if (!d.rort && Math.abs(dx) < 3) return
-            d.rort = true
-            // UTKASTET SKAL VEKK NÅR DRAGET BYRJAR.
-            //
-            // `onFocus` fyrer på det same peikartrykket som draget og
-            // legg talet slik det stod FØR draget i utkastet. Feltet syner
-            // utkastet når det finst, so talet fraus medan objektet vaks —
-            // og `onBlur` skreiv det gamle talet attende. Heile draget
-            // vart rulla attende i det du klikka ein annan stad.
-            setUtkast(null)
-            // Fire pikslar per steg: fint nok til å treffe, grovt nok til
-            // at heile bandet ligg i ei armlengd.
-            sett(d.fra + Math.round(dx / 4) * r.step * (e.shiftKey ? 0.2 : 1))
-          }}
-          onPointerUp={(e) => {
-            const d = dra.current
-            dra.current = null
-            // Eit drag er ikkje eit klikk: har talet rørt seg, skal feltet
-            // ikkje òg opne seg for skriving.
-            if (d?.rort) e.preventDefault()
-            else e.currentTarget.select()
-          }}
-          onFocus={() => setUtkast(feltTal(verdi, r.step).replace(".", ","))}
-          onChange={(e) => setUtkast(e.target.value)}
-          onBlur={() => {
-            const v = utkast === null ? NaN : lesTal(utkast)
-            setUtkast(null)
-            // Tull er ikkje ei endring, og å ta feltet og sleppe det er
-            // det heller ikkje.
-            if (Number.isFinite(v) && v !== verdi) sett(v)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur()
-            else if (e.key === "Escape") {
-              setUtkast(null)
-              e.currentTarget.blur()
-            }
-          }}
+          style={{ color: "var(--ink)" }}
+          onSet={(v) => onChange({ ...params, storleik: v })}
         />
         <span className="dim text-[11px]">mm</span>
         <span className="dim mono ml-auto text-[10px]">
@@ -297,7 +243,7 @@ function Storleik({
         step={r.step}
         value={verdi}
         aria-label="storleik"
-        onChange={(e) => sett(Number(e.target.value))}
+        onChange={(e) => onChange({ ...params, storleik: snap(Number(e.target.value), r) })}
       />
     </div>
   )

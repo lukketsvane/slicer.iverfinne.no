@@ -311,7 +311,26 @@ export function GestureParams({
         iRad++
         const nest = Math.max(...[A, D, X, Y].filter((v) => v !== M), 0)
         const klaart = M > NOK * nest && M - nest >= DAUD
-        if (!(klaart && iRad >= 3) && iRad < 10) return
+        if (!(klaart && iRad >= 3) && iRad < 10) {
+          /**
+           * OG HER MED. Same feilen som i daudsona, éi grein lenger nede.
+           *
+           * Denne greina ventar på at leiaren skal halde i tre bilete, og
+           * ho gjekk ut att utan å flytte `last`. Kvar hending medan ho
+           * ventar måler difor vinkelen sin frå ei hending fleire steg
+           * attende, og `sumVri` legg den same vridinga saman om att: ein
+           * sum av delsummar i staden for ein sum av steg.
+           *
+           * Han syner ikkje som ein gest som ikkje verkar — vridinga vart
+           * namngjeven, ho vart berre for STOR, og med eit tal som varierte
+           * med kor mange bilete ventinga tok. Målt i panelvakta: fyrti
+           * grader inn gav 40, 43, 44, 45 og 49 grader ut på fem køyringar.
+           * Det er ikkje ei vriding du kan sikte med, og det er ikkje noko
+           * eit band i ei prøve skulle dekt over.
+           */
+          last = c
+          return
+        }
         mode = leiar
         // Nullpunktet er der gesten VART til, ikkje der fingrane landa:
         // daudsona skal ikkje telje med i totalen.

@@ -138,14 +138,16 @@ free, rather than into the whole window.
 
 Every number next to a slider is a **field**: a slider is good at hunting and
 bad at hitting, so type `240` when you want 240. Keys, on a desktop: `F` finds
-settings and `⇧F` steps back, `1` `2` `3` switch views, `Z` undoes, `L` opens
-the cut list, `A` the sheets, and `Esc` closes whatever is open. `O` opens the
-control sheet, which only exists on the phone surface.
+settings and `⇧F` steps back, `D` runs the deep search, `1` `2` `3` switch
+views, `←` `→` nudge the rib you are pointing at, `Z` undoes, `L` opens the cut
+list, `A` the sheets, `S` the stack, and `Esc` closes whatever is open. `O`
+opens the control sheet, which only exists on the phone surface.
 
-## Three tools, on the bench
+## Four tools, on the bench
 
-The walls are what you set and what you read. The third thing is what you
-**look up** — and it doesn't fit in a wall three hundred pixels wide. A drawer
+The walls are what you set and what you read. The rest is what you **look up**
+and what you **edit by hand** — and neither fits in a wall three hundred pixels
+wide. A drawer
 takes the lower half of the canvas, one tool at a time, and the camera reframes
 the object into what's left.
 
@@ -165,10 +167,55 @@ from the slicing rather than from a second guess at it.
 how much of each became part. It is not a picture of the file — it *is* the
 file, the same SVG the export writes.
 
+**The stack.** Every rib, on both axes, one row each: where it stands in
+millimetres, whether it is fixed, and what it became — `4·0` in red is a plane
+that broke into four islands and holds none of them. Drag the number or type
+it. Duplicate, mirror, delete. Lock all on an axis and the rib slider stops
+pushing what you have and starts adding between it. See **Building by hand**
+below.
+
 **The settings, as text.** A slider is good at hunting and bad at hitting, and
 a field takes one number at a time; this takes them all. Select, copy, paste
 into a message, get them back, paste them here. Out-of-band numbers are pulled
 into range by the engine's own clamp, and the line below says which moved.
+
+## Building by hand
+
+The rib count is a slider, and a slider is a good place to start and a bad
+place to stop. `6` means six evenly spaced planes; it does not mean *these*
+six. Moving one to where the joint should sit, taking out the one that cuts
+through an eye, putting two close together where the material is thin — none of
+that is a number.
+
+**A lock is a fraction of the span, and that is the whole mechanism.** Ribs are
+a *list*, not a count: locked ones hold their exact fraction and the free ones
+distribute around them, so the slider keeps meaning something. Drag it from six
+to ten with four locked and four new planes appear *between* them.
+
+A fraction and not a millimetre, deliberately: resize the object and a locked
+rib stays where it is **on the body**, not where it was on the bench. The stack
+shows millimetres because nobody builds in fractions — measured from the near
+edge of the body, derived from the straight line `pos = min + t · vidd` fitted
+to the positions the cut list reports. Not from `envX`: that is the *finished*
+object's extent, which shrinks to where material actually stands, and on a
+shape that doesn't fill its box the two differ. A line fitted to the wrong span
+looks right and is wrong in every row.
+
+**Every edit locks the whole stack first.** This is not caution, it is the only
+reading that works. A free rib has no position of its own — it is "the fourth
+of six evenly spaced", and that position is a function of the count. Ask to
+move it without writing the stack down and the fraction it lands on claims the
+nearest even slot, the others redistribute into what's left, and a rib moves
+that you never touched. `pnpm hand` holds exactly this case: moving X2 from
+0,25 to 0,35 unlocked leaves X2 where it was and deletes X3.
+
+Neighbours bound the move, and the bound is physical: two rib planes closer
+than one plate thickness are two plates standing inside each other. The field
+stops there rather than refusing — a slider that stops against a wall tells you
+where the wall is.
+
+Arrow keys nudge whatever you are pointing at, from the model, the cut list,
+the sheet or the stack. Shift for ten times the step.
 
 ## Find settings
 
@@ -420,6 +467,7 @@ pnpm ledd    # asks the cut profiles whether every joint the panel counted is re
 pnpm raad    # breaks each rule, presses the fix it offers, and checks it worked
 pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps
+pnpm hand    # locked ribs and pinned parts: moving one leaves the others where they are
 pnpm djup    # the deep search: does the profile measure shape, and are the answers real
 pnpm tung    # a million triangles in, and how long that takes
 pnpm ark     # cut sheets as images

@@ -331,6 +331,7 @@ export const VAFFEL: EngineDef = {
         cutLen: q.cutLen,
         joints: q.joints,
         ark: ark.get(q) ?? 0,
+        pos: q.pos,
       }
     })
   },

@@ -268,6 +268,18 @@ export type Kutt = {
   joints: number
   /** kva plate han ligg på, frå 1. Null tyder at han ikkje fekk plass. */
   ark: number
+  /**
+   * KVAR HAN HØYRER HEIME, mm.
+   *
+   * Kuttlista sa kva du skal skjere og kor stort. Ho sa ikkje kvar det
+   * skal stå — og det er det siste spørsmålet du har att når delane
+   * ligg skorne på bordet. Talet er planet stykket sitt eige er ein del
+   * av, målt langs den aksen det står vinkelrett på.
+   *
+   * To stykke av den same ribba deler det: «X3a» og «X3b» er to øyer i
+   * det same planet, og planet står éin stad.
+   */
+  pos: number
 }
 
 /**
