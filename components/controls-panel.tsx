@@ -21,6 +21,7 @@ import {
   type Rule,
 } from "@/lib/core"
 import { FORMAT } from "@/lib/io"
+import type { VerktyId } from "./verkty"
 import { VAFFEL } from "@/lib/vaffel/engine"
 import {
   CHIP,
@@ -36,6 +37,7 @@ import {
   IcoReset,
   IcoShare,
   IcoSliders,
+  IcoStabel,
   IcoVenstre,
   Ring,
   R_ARK,
@@ -46,6 +48,7 @@ import {
   TAST_ARK,
   Tavla,
   chipStyle,
+  laasteBi,
   lesTal,
   useLangtrykk,
   n0,
@@ -112,6 +115,9 @@ export function ControlsPanel(props: {
   onFinnAtt: () => void
   onShare: () => void
   onFile: (f: File) => void
+  /** kva verkty som står ope i skuffa, om noko — og vegen inn i han */
+  verkty: VerktyId | null
+  onVerkty: (id: VerktyId) => void
 }): JSX.Element {
   const {
     params,
@@ -139,6 +145,8 @@ export function ControlsPanel(props: {
     onFinnAtt,
     onShare,
     onFile,
+    verkty,
+    onVerkty,
   } = props
   const langtrykk = useLangtrykk(onFinn, onFinnDjup)
 
@@ -745,6 +753,7 @@ export function ControlsPanel(props: {
                         k={k}
                         r={VAFFEL.ranges[k]}
                         value={num(params, k, VAFFEL.ranges[k].min)}
+                        bi={laasteBi(params, k)}
                         onChange={setParam}
                       />
                     ))}
@@ -818,7 +827,21 @@ export function ControlsPanel(props: {
               fil ingen har lasta ned enno er to ord om ingenting, og dei
               to orda stod på ei rad i eit ark som alt var for høgt.
             */}
-            <div className="flex items-center gap-3 py-1 text-[10px] uppercase tracking-[0.14em]">
+            {/*
+              RADA BRYT NÅR HO MÅ.
+
+              Fargeteiknforklaringa til venstre og fem knappar til høgre
+              treng 359 px. Ei rute på 320 gjev rada 270, og då stod dei to
+              siste knappane utanfor skjermen — ikkje kappa, ikkje
+              rullbare, berre borte. Målt: «færre kontrollar» låg på
+              342..384 i ei rute som sluttar på 320.
+
+              Han var trong før den femte knappen kom og gjekk over med
+              han. `shrink-0` på knappegruppa er difor ikkje nok: ho skal
+              ikkje krympe, ho skal FLYTTE seg ned når det ikkje er plass,
+              og `ml-auto` held henne til høgre på den lina ho hamnar på.
+            */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 py-1 text-[10px] uppercase tracking-[0.14em]">
               {mode === "full" && (
               <span
                 className="flex items-center gap-3"
@@ -871,6 +894,31 @@ export function ControlsPanel(props: {
                   style={chipStyle(false)}
                 >
                   {IcoShare}
+                </button>
+                {/*
+                  VEGEN INN I STABELEN, PÅ EIN TELEFON.
+
+                  Skuffa har fire verkty, og på benken står dei som fire
+                  ord i topplina. Her er det ikkje plass til fire ord, og
+                  det er heller ikkje fire som treng ein veg: kuttlista og
+                  platene opnar seg av seg sjølve når du peikar på noko,
+                  og oppsettet er ei avskrift. Stabelen er den einaste av
+                  dei du GJER noko i — og han hadde ingen dør på ein
+                  telefon i det heile.
+
+                  Vel du han, står dei tre andre eitt ord unna i topplina
+                  til skuffa. Éin knapp, og heile skuffa er open.
+                */}
+                <button
+                  type="button"
+                  aria-expanded={verkty === "stabel"}
+                  aria-label={verkty === "stabel" ? "lat att stabelen" : "opne stabelen"}
+                  title="kvar ribbe for seg: kvar ho står, om ho står fast, og om ho skal vera med"
+                  onClick={() => onVerkty("stabel")}
+                  className={CHIP}
+                  style={chipStyle(verkty === "stabel")}
+                >
+                  {IcoStabel}
                 </button>
                 {/*
                   VEGEN INN I SKYVEVEGGEN.

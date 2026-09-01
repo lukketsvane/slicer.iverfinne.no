@@ -15,6 +15,7 @@ import {
   type View,
 } from "@/lib/core"
 import { RADER } from "@/lib/vaffel/metrics"
+import { lesLaas } from "@/lib/vaffel/params"
 import { VAFFEL } from "@/lib/vaffel/engine"
 
 /**
@@ -164,6 +165,28 @@ export const TAST_BENK = " · l a s verkty · mellomrom berre objektet"
  * ikkje ei forenkling, det er ein reiskap som gjer mindre.
  */
 export const FRAMME = new Set(["storleik"])
+
+/**
+ * KVIFOR RIBBESKYVAREN IKKJE VIL NEDOVER.
+ *
+ * Ein lås vinn over talet — det er heile poenget med han, og det er
+ * dokumentert i `plasser`. Fylgja er at ein stabel med seks låste ribber
+ * står på seks kva enn skyvaren seier: dreg du han til to, skjer det
+ * ingen ting, og det er ingen ting på skjermen som seier kvifor.
+ *
+ * Det var ein krok så lenge det å låse var noko ein gjorde med éi ribbe om
+ * gongen. Med stabelen er «lås alle» det fyrste grepet, og då er ein daud
+ * skyvar det fyrste den som byggjer møter.
+ *
+ * So talet står under etiketten, der `bi` alt syner mål som høyrer til ein
+ * skyvar. Ingen ny rad, og ingen ny regel — berre den eine opplysninga som
+ * gjer ein skyvar som ikkje rører seg til ein skyvar du forstår.
+ */
+export function laasteBi(params: ParamBag, k: string): string | undefined {
+  if (k !== "ribbX" && k !== "ribbY") return undefined
+  const n = lesLaas(params.laas)[k === "ribbX" ? "x" : "y"].length
+  return n ? `${n} låste` : undefined
+}
 
 export const DASH = "–"
 /** Plata er 2, 2,5 eller 3 mm. Rundar ein av desimalen, står det to
@@ -349,6 +372,20 @@ export const IcoFinn = (
 export const IcoSliders = (
   <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
     <path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4" />
+  </svg>
+)
+/**
+ * STABELEN: tre plan over kvarandre, sedde på skrå.
+ *
+ * Ikkje eit hengelås. Låsen er noko du GJER i stabelen og ikkje det
+ * stabelen er — og eit hengelås på ein knapp som opnar eit vindauge les
+ * som «her er det stengt».
+ */
+export const IcoStabel = (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
+    <path d="m12 3 9 4.5-9 4.5-9-4.5L12 3Z" />
+    <path d="m3 12 9 4.5 9-4.5" />
+    <path d="m3 16.5 9 4.5 9-4.5" />
   </svg>
 )
 export const IcoDown = (

@@ -37,6 +37,7 @@ import {
   VIEWS,
   chipStyle,
   feltTal,
+  laasteBi,
   lesTal,
   n0,
   n1,
@@ -632,6 +633,7 @@ export function Benk(props: {
                     k={k}
                     r={VAFFEL.ranges[k]}
                     value={num(params, k, VAFFEL.ranges[k].min)}
+                    bi={laasteBi(params, k)}
                     onChange={setParam}
                   />
                 ))}

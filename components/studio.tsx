@@ -94,6 +94,10 @@ const tuneBase = (p: ParamBag) =>
   // spørsmål som ikkje vart stilt.
   [p.kjelde, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant, p.tjukn,
    p.klaring, p.snitt, p.arkB, p.arkH, p.lause].join("|")
+/** kor høgt det LUKKA kontrollarket er, med botnmargen sin. Skuffa står
+ *  over det på ein telefon, so hovudlina er synleg medan du redigerer. */
+const LUKKA_ARK = 84
+
 /** ei fil på meir enn dette er ikkje ein modell, det er eit uhell */
 const MAX_FIL = 220 * 1024 * 1024
 /** kor mange steg attende du kjem. Fleire enn dette er ikkje ei angring,
@@ -283,14 +287,28 @@ export function Studio() {
    * kvar side — teikninga var høgdebunden, og all breidda i skuffa gjekk
    * til ingenting. Plata får difor meir av ruta enn dei to andre.
    */
+  /**
+   * KOR HØG SKUFFA ER — OG PÅ EIN TELEFON ER ho nesten alt.
+   *
+   * På benken er ho ei skuff: ho tek nedre halvdel, objektet står over, og
+   * du les lista MEDAN du ser på det ho peikar på. Det er heile grunnen til
+   * at ho ikkje er eit vindauge.
+   *
+   * På ein telefon finst ikkje det valet. Ei skuff på ein tredel av ein
+   * telefon er tolv ribber du må rulle i eit hol, over eit objekt som er
+   * for lite til å peike på. So der er ho ei SIDE: ho tek alt over den
+   * lukka kontrollina, og du er anten i objektet eller i verktyet.
+   */
   const verktyH = useMemo(
     () =>
       Math.round(
-        verkty === "ark"
-          ? Math.min(620, Math.max(320, vindu.h * 0.52))
-          : Math.min(460, Math.max(240, vindu.h * 0.36)),
+        !benk
+          ? Math.max(240, vindu.h - 128 - LUKKA_ARK)
+          : verkty === "ark"
+            ? Math.min(620, Math.max(320, vindu.h * 0.52))
+            : Math.min(460, Math.max(240, vindu.h * 0.36)),
       ),
-    [vindu.h, verkty],
+    [benk, vindu.h, verkty],
   )
   const rute: Rute = useMemo(
     () =>
@@ -311,6 +329,9 @@ export function Studio() {
 
   const worker = useRef<Worker | null>(null)
   const reqId = useRef(0)
+  /** importar som ber eit nett som HØYRER til oppsettet som alt står. Sjå
+   *  `kjelde`-greina: alle andre importar reinsar låsane og festa. */
+  const attende = useRef(new Set<number>())
   const shown = useRef(0)
   /** dei parametrane som står NO, lesbare frå ei stabil lukking */
   const naa = useRef(params)
@@ -359,6 +380,11 @@ export function Studio() {
             name: v.filnamn ?? "nett.stl",
             buf: v.nett,
           }
+          // Dette nettet HØYRER til oppsettet som nettopp vart sett. Det er
+          // den same importen som alltid — arbeidaren veit ingen skilnad —
+          // men svaret skal ikkje reinse låsane, av di dei er skrivne for
+          // nettopp dette nettet. Sjå `kjelde`-greina.
+          attende.current.add(msg.id)
           worker.current?.postMessage(msg, [v.nett])
         })
         return
@@ -471,7 +497,33 @@ export function Studio() {
       }
       if (r.kind === "kjelde") {
         setNamn((m) => ({ ...m, [r.src.id]: r.src.label }))
-        setParams((p) => ({ ...p, kjelde: r.src.id }))
+        /**
+         * EIT NYTT NETT TEK LÅSANE OG FESTA MED SEG UT.
+         *
+         * Båe er svar om DEN KROPPEN DU HADDE, og han er borte.
+         *
+         * Ein lås er ein brøkdel av spennet til kroppen. Seks brøkar
+         * skrivne for ein hest tyder seks heilt andre plan i ein stol, og
+         * dei står der utan at noko på skjermen seier kvifor: du slepper
+         * inn ei fil, trykkjer finn, og får eit rutenett som ikkje er det
+         * jamne — av di det ligg gamle tal i det.
+         *
+         * Eit feste er ei adresse på ei plate. «X1» finst i kvart einaste
+         * objekt, so festet råkar alltid noko — berre aldri den delen det
+         * var meint for. Pakkinga klemmer han inn på plata og legg han
+         * der, og det er eit stykke som ligg ein tilfeldig stad av ein
+         * grunn ingen kan sjå.
+         *
+         * TO IMPORTAR SOM IKKJE ER NYE NETT går fri. Prosjektfila går ei
+         * anna grein heilt — der vart nettet og oppsettet lagra I LAG. Den
+         * hugsa økta går derimot GJENNOM denne: ho set oppsettet og sender
+         * so nettet inn den vanlege vegen, og det nettet er nettopp det
+         * låsane vart skrivne for. `attende` er dei importane.
+         */
+        const eiga = attende.current.delete(r.id)
+        setParams((p) =>
+          eiga ? { ...p, kjelde: r.src.id } : { ...p, kjelde: r.src.id, laas: "", fest: "" },
+        )
         setFeil(null)
         setHentar(false)
         // Nettet er inne. No er det fingrane som gjeld, og dei syner seg
@@ -1321,9 +1373,17 @@ export function Studio() {
   const opneVerkty = useCallback(
     (id: VerktyId) => {
       setVerkty((v) => (v === id ? null : id))
+      // PÅ EIN TELEFON ER DEI TO NEDST BEGGE TO.
+      //
+      // Kontrollarket og skuffa deler den same kanten, og eit halvope ark
+      // under ei skuff som tek resten er to ting som slåst om den same
+      // plassen. Arket går difor til lukka — éi line — og du er anten i
+      // kontrollane eller i verktyet. På benken bur dei i kvar sin kant og
+      // treng ikkje vite om kvarandre.
+      if (!benk) setMode("lukka")
       if (id === "ark") askArk(0)
     },
-    [askArk],
+    [askArk, benk],
   )
 
   /**
@@ -1944,7 +2004,14 @@ export function Studio() {
         </div>
       )}
 
-      {benk && (
+      {/*
+        SKUFFA STÅR PÅ BÅE FLATENE NO.
+        Ho var `benk &&`, og då fanst korkje kuttlista, platene, stabelen
+        eller oppsettet på ein telefon. Det var ikkje eit val — det var at
+        ho vart bygd for to veggar og aldri flytt. Kva ho MÅLER er ulikt på
+        dei to flatene (sjå `verktyH`); kva ho ER, er det same.
+      */}
+      {(verkty !== null || benk) && (
         <Verkty
           open={verkty}
           liste={kuttliste}
@@ -1955,7 +2022,16 @@ export function Studio() {
           clamp={(o, prev) => VAFFEL.clamp(o, prev)}
           peikt={peikt}
           ribber={stabelen}
-          rute={{ venstre: VEGG.venstre, hogre: VEGG.hogre, høgd: verktyH }}
+          /* Veggane er benken sine. På ein telefon finst dei ikkje, og
+             skuffa som fekk dei stod inne i eit rektangel som ikkje er
+             der: to hundre og sytti pikslar frå venstre kant, halve
+             breidda utanfor skjermen. */
+          rute={{
+            venstre: benk ? VEGG.venstre : 0,
+            hogre: benk ? VEGG.hogre : 0,
+            høgd: verktyH,
+            botn: benk ? 0 : LUKKA_ARK,
+          }}
           onArk={askArk}
           onPeik={setPeikt}
           onLangtrykk={(adr, plass, x, y) => setDelVerkty({ adr, plass, x, y })}
@@ -2039,6 +2115,8 @@ export function Studio() {
         onFinnAtt={() => steg(-1)}
         onShare={share}
         onFile={(f) => void takeFile(f)}
+        verkty={verkty}
+        onVerkty={opneVerkty}
       />
       )}
     </main>

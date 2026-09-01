@@ -143,13 +143,20 @@ views, `←` `→` nudge the rib you are pointing at, `Z` undoes, `L` opens the 
 list, `A` the sheets, `S` the stack, and `Esc` closes whatever is open. `O`
 opens the control sheet, which only exists on the phone surface.
 
-## Four tools, on the bench
+## Four tools
 
 The walls are what you set and what you read. The rest is what you **look up**
 and what you **edit by hand** — and neither fits in a wall three hundred pixels
-wide. A drawer
-takes the lower half of the canvas, one tool at a time, and the camera reframes
-the object into what's left.
+wide. A drawer holds them, one tool at a time.
+
+On the bench it takes the lower half of the canvas and the camera reframes the
+object into what's left, so you read a list *while* looking at what it points
+at. On a phone that choice doesn't exist — a drawer at a third of a phone is
+twelve ribs in a peephole over an object too small to point at — so there it is
+a page: everything above the closed control line, which stays visible, so you
+move a rib and watch the part and sheet counts answer. The stack has its own
+icon in the sheet's footer; the other three are a word away in the drawer's
+title bar.
 
 **The cut list** is the panel's `12 delar · 12 · 2 unike` written out: every
 part with the address engraved on it, its shape id, size, area, cut length,
@@ -200,6 +207,15 @@ to the positions the cut list reports. Not from `envX`: that is the *finished*
 object's extent, which shrinks to where material actually stands, and on a
 shape that doesn't fill its box the two differ. A line fitted to the wrong span
 looks right and is wrong in every row.
+
+Once anything is locked, the rib slider says how many are (`4 låste` under the
+label). It has to: a lock beats the count, so a stack of six locked ribs stays
+at six whatever the slider reads, and a slider that does nothing with no reason
+given is worse than no slider. Dropping in a **new mesh clears the locks and
+the pins** — both are answers about the body you had, and six fractions written
+for a horse mean six entirely different planes in a chair. A project file is
+different and takes a different path: there the mesh and the settings were
+saved together.
 
 **Every edit locks the whole stack first.** This is not caution, it is the only
 reading that works. A free rib has no position of its own — it is "the fourth
