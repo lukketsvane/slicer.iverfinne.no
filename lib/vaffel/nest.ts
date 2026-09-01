@@ -32,6 +32,8 @@ export type Nesting = {
   util: number
   /** delar som ikkje fekk plass på ei tom plate heller */
   spilt: number
+  /** festa delar handa har sett i kvarandre — sjå `Packing.kross` */
+  kross: number
 }
 
 export function nest(
@@ -43,7 +45,7 @@ export function nest(
   fest?: ReadonlyMap<string, Fest>,
 ): Nesting {
   if (!parts.length) {
-    return { sheets: [], sheetW, sheetH, util: 0, spilt: 0 }
+    return { sheets: [], sheetW, sheetH, util: 0, spilt: 0, kross: 0 }
   }
   const pieces = parts.map((p) => ({ key: p.id, rings: [p.outline, ...p.holes] }))
   // Frå adresse til plass i lista. Pakkinga kjenner delane som tal, og
@@ -127,6 +129,7 @@ export function nest(
     sheetH,
     util: usedArea > 0 ? area / usedArea : 0,
     spilt: out.spilt.length,
+    kross: out.kross,
   }
 }
 

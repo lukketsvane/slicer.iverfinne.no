@@ -231,14 +231,30 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
   })
 
   // --- 5 delane får plass på plata (hard) -------------------------------------
+  /**
+   * To brot i éi rad, av di dei er det same spørsmålet: kan alt på denne
+   * plata skjerast? Ein del utanfor plata kan ikkje. Og to FESTA delar som
+   * handa har sett i kvarandre kan heller ikkje — to kutt som går i
+   * kvarandre er to delar som er øydelagde. Pakkinga overprøver ikkje
+   * handa, so det er regelen som seier det, og plata som syner kvar.
+   *
+   * Ingen knapp på den vegen: rådet er å ta i delen att, og det er ikkje
+   * eit tal.
+   */
   add({
     id: "plate",
     rad: "ark",
     label: "delane får plass",
     hard: true,
-    ok: ns.spilt === 0,
-    value: ns.spilt ? `${nn(ns.spilt)} utanfor` : `${nn(ns.sheets.length)} ark`,
-    why: `Ein del er større enn plata. Anten mindre objekt, fleire ribber (kvar ribbe vert mindre), eller ei større plate enn ${nn(p.arkB)} × ${nn(p.arkH)} mm.`,
+    ok: ns.spilt === 0 && ns.kross === 0,
+    value: ns.spilt
+      ? `${nn(ns.spilt)} utanfor`
+      : ns.kross
+        ? `${nn(ns.kross)} i kvarandre`
+        : `${nn(ns.sheets.length)} ark`,
+    why: ns.kross
+      ? "Ein festa del ligg i ein annan festa del, og to kutt som går i kvarandre gjev to stykke skrap. Dra den eine vekk, eller slepp han so pakkinga får leggje han."
+      : `Ein del er større enn plata. Anten mindre objekt, fleire ribber (kvar ribbe vert mindre), eller ei større plate enn ${nn(p.arkB)} × ${nn(p.arkH)} mm.`,
     fiks: plateFiks(),
   })
 

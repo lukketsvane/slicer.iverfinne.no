@@ -414,11 +414,16 @@ sjekk("breitt snitt", {
  * Same objekt, same plate, same ribber. Berre snittet. Rekkjefylgja er
  * poenget: den smale fyrst, so den breie må hente ei ny pakking.
  */
+// Plata står eksplisitt: på standardplata på 600 × 400 er ei kule på 420
+// for stor, og ei prøve der halvparten av delane ligg utanfor prøver
+// spilt og ikkje snittet.
 sjekk("same objekt, smalt snitt", {
   ...DEFAULT_PARAMS, kjelde: "kule", storleik: 420, ribbX: 8, ribbY: 8, snitt: 0.2,
+  arkB: 800, arkH: 600,
 })
 sjekk("same objekt, breitt snitt", {
   ...DEFAULT_PARAMS, kjelde: "kule", storleik: 420, ribbX: 8, ribbY: 8, snitt: 6,
+  arkB: 800, arkH: 600,
 })
 
 pakkarenSjolv()
