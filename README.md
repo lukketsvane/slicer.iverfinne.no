@@ -78,8 +78,9 @@ other three are a word away in the drawer's title bar.
   building it is those six you are working on, not the twenty.
 - **Sheets** — one at a time, large enough to read the addresses. Not a picture
   of the file; it *is* the file. **Drag a part** and it stays where you drop
-  it; the rest repacks around it. **Hold a part** to pin or release it and to
-  turn it a quarter at a time about its centre. Pinned parts are shaded. Two
+  it; the rest repacks around it. **Hold a part** to pin or release it, to
+  turn it a quarter at a time about its centre, or to send it to the next or
+  previous sheet — the drawer follows it. Pinned parts are shaded. Two
   pinned parts you have put inside each other are drawn red, and the sheet
   rule says no until you move one.
 - **Stack** — every rib on both axes: where it stands in mm, whether it is
