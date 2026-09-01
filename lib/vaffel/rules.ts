@@ -18,7 +18,7 @@ import { bbox, nn, type Fiks, type Metrics, type Rule } from "../core"
 import { DETAIL } from "./ribs"
 import { fitRoom } from "../pack"
 import { makePlan, nestGap, type Plan } from "./plan"
-import { PARAM_RANGES, SNITTVEGAR, type Params } from "./params"
+import { PARAM_RANGES, SNITTVEGAR, lesFest, skrivFest, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
 /** klaringa bur mellom 0,05 og 0,35: éin desimal gjer heile bandet til
@@ -68,6 +68,15 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
    * avrunding.
    */
   const plateFiks = (): Fiks | undefined => {
+    // To feste i kvarandre: rådet er å sleppe dei som ligg i nokon, og
+    // ikkje alle. Pakkinga legg dei der ho vil att, og dei andre festa
+    // står. Regelen veit nøyaktig kva delar det gjeld — det er dei som
+    // ber merket.
+    if (ns.spilt === 0 && ns.kross > 0) {
+      const m = lesFest(p.fest)
+      for (const s of ns.sheets) for (const q of s.placed) if (q.slot.kross) m.delete(q.part.from)
+      return { ord: "slepp dei", set: { fest: skrivFest(m) } }
+    }
     if (ns.spilt === 0) return undefined
     // Rommet er pakkinga si eiga rekning og ikkje ei gjetting her: ho
     // reserverer meir enn ei luke, og «plata minus luka» gav eit råd som
@@ -238,8 +247,8 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
    * kvarandre er to delar som er øydelagde. Pakkinga overprøver ikkje
    * handa, so det er regelen som seier det, og plata som syner kvar.
    *
-   * Ingen knapp på den vegen: rådet er å ta i delen att, og det er ikkje
-   * eit tal.
+   * Rådet på den vegen er å sleppe nett dei delane som ligg i nokon; sjå
+   * `plateFiks`. Det er ikkje eit tal, og `Fiks` tek ein streng for det.
    */
   add({
     id: "plate",
@@ -253,7 +262,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
         ? `${nn(ns.kross)} i kvarandre`
         : `${nn(ns.sheets.length)} ark`,
     why: ns.kross
-      ? "Ein festa del ligg i ein annan festa del, og to kutt som går i kvarandre gjev to stykke skrap. Dra den eine vekk, eller slepp han so pakkinga får leggje han."
+      ? "Ein festa del ligg i ein annan festa del, og to kutt som går i kvarandre gjev to stykke skrap. Dra den eine vekk, eller slepp han so pakkinga får leggje han. Knappen slepper dei som ligg i nokon."
       : `Ein del er større enn plata. Anten mindre objekt, fleire ribber (kvar ribbe vert mindre), eller ei større plate enn ${nn(p.arkB)} × ${nn(p.arkH)} mm.`,
     fiks: plateFiks(),
   })
