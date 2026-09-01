@@ -73,11 +73,25 @@ type Kolonne = {
   les: (k: Kutt) => string
   /** kva han vert sortert på */
   sorter: (k: Kutt) => number | string
+  /**
+   * FELL BORT PÅ EIN TELEFON.
+   *
+   * Sju kolonnar er ein tabell for ein skjerm. På 390 px braut «74,5 ×
+   * 129,8» over to liner i kvar einaste rad, og tjue rader vart tjue
+   * doble.
+   *
+   * Fire står att, og det er dei fire du treng med lista i handa ved
+   * maskina: kva delen heiter, kor stor han er, om han heng i noko, og kva
+   * plate han ligg på. Forma, arealet og kuttlengda er analyse — dei
+   * svarar på kor mange oppspenningar og kor lang tid, og det er
+   * spørsmål du stiller på ein benk.
+   */
+  smal?: boolean
 }
 
 const KOLONNAR: Kolonne[] = [
   { id: "adr", ord: "adresse", les: (k) => k.adr, sorter: (k) => k.adr },
-  { id: "id", ord: "form", les: (k) => k.id, sorter: (k) => k.id },
+  { id: "id", ord: "form", les: (k) => k.id, sorter: (k) => k.id, smal: true },
   {
     id: "mal",
     ord: "mål mm",
@@ -85,8 +99,22 @@ const KOLONNAR: Kolonne[] = [
     les: (k) => `${nn(k.w, 1)} × ${nn(k.h, 1)}`,
     sorter: (k) => Math.max(k.w, k.h),
   },
-  { id: "flate", ord: "cm²", tal: true, les: (k) => nn(k.area / 100, 1), sorter: (k) => k.area },
-  { id: "kutt", ord: "kutt mm", tal: true, les: (k) => nn(k.cutLen, 0), sorter: (k) => k.cutLen },
+  {
+    id: "flate",
+    ord: "cm²",
+    tal: true,
+    les: (k) => nn(k.area / 100, 1),
+    sorter: (k) => k.area,
+    smal: true,
+  },
+  {
+    id: "kutt",
+    ord: "kutt mm",
+    tal: true,
+    les: (k) => nn(k.cutLen, 0),
+    sorter: (k) => k.cutLen,
+    smal: true,
+  },
   { id: "ledd", ord: "ledd", tal: true, les: (k) => nn(k.joints, 0), sorter: (k) => k.joints },
   {
     id: "ark",
@@ -117,12 +145,37 @@ const csv = (liste: readonly Kutt[]) =>
 
 function Kuttliste(props: {
   liste: readonly Kutt[]
+  /** adressene til ribbene som står fast — «X1», «Y3». Sjå `mine`. */
+  laaste: ReadonlySet<string>
   peikt: string | null
   onPeik: (adr: string | null) => void
   onOrd: (s: string) => void
 }) {
-  const { liste, peikt, onPeik, onOrd } = props
+  const { liste, laaste, peikt, onPeik, onOrd } = props
   const [sortert, setSortert] = useState<{ id: string; ned: boolean }>({ id: "adr", ned: false })
+  /**
+   * DINE, ELLER ALLE.
+   *
+   * Ei kuttliste er heile jobben, og heile jobben er tjue rader. Medan du
+   * BYGGJER er det ikkje tjue du held på med — det er dei seks du har låst,
+   * kopiert eller flytt, og dei ligg spreidde mellom fjorten du ikkje har
+   * teke i.
+   *
+   * So har du låst noko, står dine fyrst. Ikkje som ei gøymsle: brikka
+   * seier «6 av 20», og talet i hovudlina er framleis heile jobben. Har du
+   * ikkje låst noko, er det ingen ting å skilje ut, og då står alle — eit
+   * filter som gjev ei tom liste er eit filter som har teke frå deg lista.
+   *
+   * `null` er den regelen; eit trykk er ditt eige val, og det står.
+   */
+  const [valt, setValt] = useState<boolean | null>(null)
+  const mine = valt ?? laaste.size > 0
+  /** kva rad høyrer til ei låst ribbe? «X1a» høyrer til «X1». */
+  const ribba = (adr: string) => /^[XY]\d+/.exec(adr)?.[0] ?? adr
+  const synt = useMemo(
+    () => (mine ? liste.filter((k) => laaste.has(ribba(k.adr))) : liste),
+    [liste, laaste, mine],
+  )
   /** Ein del du trykte på i objektet kan stå kvar som helst i lista — og
    *  ei line du ikkje ser er ikkje eit svar. */
   const peiktRad = useRef<HTMLTableRowElement | null>(null)
@@ -132,7 +185,7 @@ function Kuttliste(props: {
 
   const rader = useMemo(() => {
     const k = KOLONNAR.find((q) => q.id === sortert.id) ?? KOLONNAR[0]
-    const ut = [...liste].sort((a, b) => {
+    const ut = [...synt].sort((a, b) => {
       const x = k.sorter(a)
       const y = k.sorter(b)
       // Adresser er «X10» og «X9», og då er det talet i dei som gjeld.
@@ -143,7 +196,7 @@ function Kuttliste(props: {
       return sortert.ned ? -d : d
     })
     return ut
-  }, [liste, sortert])
+  }, [synt, sortert])
 
   /** kor mange gonger kvar form går att — det er oppspenningane */
   const former = useMemo(() => {
@@ -168,7 +221,8 @@ function Kuttliste(props: {
                   scope="col"
                   className={
                     "border-b px-2 py-1.5 text-[10px] font-normal uppercase tracking-[0.1em] " +
-                    (k.tal ? "text-right" : "text-left")
+                    (k.tal ? "text-right " : "text-left ") +
+                    (k.smal ? "hidden sm:table-cell" : "")
                   }
                   style={HAIR}
                 >
@@ -205,7 +259,11 @@ function Kuttliste(props: {
                 {KOLONNAR.map((q) => (
                   <td
                     key={q.id}
-                    className={"px-2 py-[3px] " + (q.tal ? "text-right" : "text-left")}
+                    className={
+                      "px-2 py-[3px] " +
+                      (q.tal ? "text-right " : "text-left ") +
+                      (q.smal ? "hidden sm:table-cell" : "")
+                    }
                     style={{
                       // Ein del utan ledd heng ikkje i noko. Det er den eine
                       // opplysninga i denne tabellen som er ei åtvaring.
@@ -236,12 +294,31 @@ function Kuttliste(props: {
           tavla si rad «delar · unike». Tre tal, alle tre ein gong til, ein
           halv skjerm frå originalen. Att står vegen ut av lista. */}
       <div className="flex items-center gap-3 border-t px-3 py-2 text-[10px]" style={HAIR}>
+        {/* Brikka står berre når det finst noko å skilje ut, og ho seier
+            forholdet. Eit filter som ikkje seier kor mykje det tok bort er
+            ei liste som lyg om kor stor jobben er. */}
+        {laaste.size > 0 && (
+          <button
+            type="button"
+            className={CHIP_B + " uppercase tracking-[0.1em]"}
+            style={chipStyle(mine)}
+            aria-pressed={mine}
+            onClick={() => setValt(!mine)}
+            title={
+              mine
+                ? "syn alle delane, òg dei du ikkje har teke i"
+                : "syn berre dei ribbene du har låst, kopiert eller flytt"
+            }
+          >
+            mine {rader.length} av {liste.length}
+          </button>
+        )}
         <button
           type="button"
           className={CHIP_B + " ml-auto uppercase tracking-[0.1em]"}
           style={chipStyle(false)}
-          onClick={() => onOrd(csv(liste))}
-          title="heile lista på utklippstavla, med semikolon mellom felta"
+          onClick={() => onOrd(csv(rader))}
+          title="det du ser på utklippstavla, med semikolon mellom felta"
         >
           kopier csv
         </button>
@@ -701,10 +778,15 @@ export function Verkty(props: {
   clamp: (o: unknown, prev: ParamBag) => ParamBag
   peikt: string | null
   ribber: readonly Ribba[]
-  rute: { venstre: number; hogre: number; høgd: number; botn?: number }
+  rute: { venstre: number; hogre: number; høgd: number; botn?: number; fast?: boolean }
+  /** kor høg skuffa faktisk vart, i pikslar. Kameraet rammar objektet inn i
+   *  det som er att — same mekanismen kontrollarket alt bruker. */
+  onHogd?: (px: number) => void
   onArk: (i: number) => void
   onPeik: (adr: string | null) => void
   onLangtrykk: (adr: string, plass: Delplass["plass"], x: number, y: number) => void
+  /** byt kva verkty som står ope — topplina i skuffa, på ein telefon */
+  onBytt: (id: VerktyId) => void
   onChange: (p: ParamBag) => void
   onFlytt: (adr: string, mm: number) => void
   onLaas: (adr: string) => void
@@ -716,9 +798,44 @@ export function Verkty(props: {
   onOrd: (s: string) => void
 }): JSX.Element | null {
   const { open, rute } = props
+  /**
+   * SKUFFA ER SÅ HØG SOM INNHALDET, IKKJE SÅ HØG SOM HO FÅR LOV TIL.
+   *
+   * Ho hadde ei fast høgd, og på ein telefon var den høgda heile sida. Ei
+   * kuttliste med tre rader i stod difor med tre rader og tusen pikslar
+   * kvitt papir under seg, over eit objekt som var pressa opp i eit band
+   * det ikkje trong.
+   *
+   * No måler ho seg sjølv og seier frå, og kameraet rammar inn i det som
+   * er att — nøyaktig det kontrollarket har gjort heile tida. Grovkorna av
+   * den same grunnen som der: kvart tal herifrå er ei full innramming, og
+   * ei liste som veks med ei rad skal ikkje rykke kameraet.
+   *
+   * PLATA ER UNNATEKEN. Ho er ei TEIKNING som fyller det ho får, so ei
+   * høgd som fylgjer innhaldet og eit innhald som fylgjer høgda er ei
+   * likning utan svar. Ho får den faste høgda si.
+   */
+  const boks = useRef<HTMLElement | null>(null)
+  const { onHogd } = props
+  useEffect(() => {
+    const el = boks.current
+    if (!el || !onHogd) return
+    const meld = () => onHogd(Math.round(el.getBoundingClientRect().height / 40) * 40)
+    const ro = new ResizeObserver(meld)
+    ro.observe(el)
+    meld()
+    return () => ro.disconnect()
+  }, [onHogd, open])
+  /** kva ribber som står fast — utleidd av stabelen, so kuttlista og
+   *  stabelen kan aldri vera usamde om kva som er låst */
+  const laaste = useMemo(
+    () => new Set(props.ribber.filter((r) => r.laast).map((r) => r.adr)),
+    [props.ribber],
+  )
   if (!open) return null
   return (
     <section
+      ref={boks}
       aria-label="verkty"
       className="benk fixed z-20 flex flex-col border-l border-r border-t"
       /**
@@ -737,7 +854,10 @@ export function Verkty(props: {
            du flyttar ei ribbe og ser delane og platene svare. Ei skuff som
            dekkjer svaret er ei skuff du må lukke for å sjå kva du gjorde. */
         bottom: rute.botn ?? 0,
-        height: rute.høgd,
+        // Ei teikning fyller det ho får; ei liste er så høg som ho er.
+        height: rute.fast ? rute.høgd : undefined,
+        minHeight: rute.fast ? undefined : Math.min(rute.høgd, 180),
+        maxHeight: rute.høgd,
         background: "var(--paper)",
         borderColor: "var(--rule)",
       }}
@@ -757,7 +877,31 @@ export function Verkty(props: {
         className="flex items-baseline gap-3 border-b px-3 py-2 text-[10px] uppercase tracking-[0.14em]"
         style={HAIR}
       >
-        <span className="mono min-w-0 flex-1 truncate">
+        {/*
+          NAMNET PÅ BENKEN, HEILE RADA PÅ EIN TELEFON.
+
+          Benken har dei fire orda i topplina si over lerretet, og den same
+          rada to stader er to stader å leite. Ein telefon har inga toppline
+          — so der stod skuffa med eitt ord og ein «lat att», og du kom
+          berre dit knappen du trykte tok deg. Ut att og inn ein annan veg
+          var einaste vegen mellom to verkty.
+        */}
+        <span className="mono min-w-0 flex-1 truncate sm:hidden">
+          {VERKTY.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              className="hit px-1 first:pl-0"
+              style={{ opacity: v.id === open ? 1 : 0.4 }}
+              aria-current={v.id === open}
+              onClick={() => props.onBytt(v.id)}
+              title={v.hint}
+            >
+              {v.ord}
+            </button>
+          ))}
+        </span>
+        <span className="mono hidden min-w-0 flex-1 truncate sm:block">
           {VERKTY.find((v) => v.id === open)?.ord}
         </span>
         <button
@@ -773,6 +917,7 @@ export function Verkty(props: {
       {open === "liste" && (
         <Kuttliste
           liste={props.liste}
+          laaste={laaste}
           peikt={props.peikt}
           onPeik={props.onPeik}
           onOrd={props.onOrd}

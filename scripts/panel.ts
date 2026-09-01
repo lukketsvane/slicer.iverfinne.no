@@ -168,6 +168,50 @@ function innramminga() {
 }
 
 /**
+ * TYNGDEPUNKTET TIL DET SOM ER TEIKNA.
+ *
+ * Ein gest på eit lerret har ikkje eitt einaste vitne i DOM-en: ingen
+ * knapp, ingen tekst, ingen parameter. Det einaste som svarar er BILETET,
+ * so det vert lese — kvar blekket ligg, og kor mykje det er av det.
+ *
+ * Ei dreiing og ei flytting skil seg tydeleg der. Ei flytting skuvar heile
+ * teikninga same veg som fingeren og lét mengda blekk stå; ei dreiing
+ * flyttar tyngdepunktet lite og endrar FORMA, so mengda går opp eller ned.
+ *
+ * PNG-en vert dekoda av nettlesaren sjølv. Å lese pikslar rett ut av eit
+ * WebGL-lerret gjev svart: bufferet er sleppt når ramma er komponert, og
+ * `frameloop="demand"` teiknar han ikkje på nytt for oss.
+ */
+async function blekket(page: Page) {
+  const buf = await page.screenshot({ clip: { x: 120, y: 120, width: 660, height: 520 } })
+  return page.evaluate(async (b64: string) => {
+    const im = new Image()
+    im.src = "data:image/png;base64," + b64
+    await im.decode()
+    const g = document.createElement("canvas")
+    g.width = im.width
+    g.height = im.height
+    const cx = g.getContext("2d")!
+    cx.drawImage(im, 0, 0)
+    const d = cx.getImageData(0, 0, g.width, g.height).data
+    let sx = 0
+    let sy = 0
+    let n = 0
+    for (let y = 0; y < g.height; y++) {
+      for (let x = 0; x < g.width; x++) {
+        const i = (y * g.width + x) * 4
+        if (d[i] < 170 && d[i + 1] < 170) {
+          sx += x
+          sy += y
+          n++
+        }
+      }
+    }
+    return n ? { x: Math.round(sx / n), y: Math.round(sy / n), n } : { x: 0, y: 0, n: 0 }
+  }, buf.toString("base64"))
+}
+
+/**
  * FINGRANE.
  *
  * Gestane er det einaste i reiskapen ingen annan prøve kjem nær: dei har
@@ -353,6 +397,77 @@ async function gestane(browser: Browser) {
   )
   ok("og vender ikkje objektet", Number(p.rotZ) === vend2, `${vend2}° → ${p.rotZ}°`)
 
+  await page.close()
+}
+
+/**
+ * LERRETET: KONTUREN ER EI TEIKNING, DEI ANDRE ER EIT ROM.
+ *
+ * Eitt drag, to heilt ulike svar, og ingen av dei står i DOM-en. I `lag`
+ * skal draget SNU objektet; i `kontur` skal det FLYTTE teikninga, av di ein
+ * kontur er dei flate kuttprofilane sedde rett ovanfrå og det einaste ein
+ * gjer med ei teikning er å dra henne dit ein vil sjå.
+ *
+ * Skilnaden er målt i blekket. Ei flytting skuvar tyngdepunktet like langt
+ * som fingeren og lét mengda stå; ei dreiing flyttar det lite og endrar
+ * mengda, av di forma vert ei anna.
+ */
+async function lerretet(browser: Browser, feil: string[]) {
+  const page = await browser.newPage({ viewport: { width: 900, height: 800 } })
+  page.on("pageerror", (e) => feil.push(String(e)))
+  await page.goto(URL, { waitUntil: "networkidle" })
+  await rolig(page)
+
+  const dra = async (dx: number, dy: number) => {
+    await page.mouse.move(450, 380)
+    await page.mouse.down()
+    for (let i = 1; i <= 14; i++) {
+      await page.mouse.move(450 + (dx * i) / 14, 380 + (dy * i) / 14)
+      await page.waitForTimeout(20)
+    }
+    await page.mouse.up()
+    await page.waitForTimeout(500)
+  }
+
+  await page.keyboard.press("2")
+  await rolig(page)
+  await page.waitForTimeout(600)
+  const lag0 = await blekket(page)
+  await dra(150, 0)
+  const lag1 = await blekket(page)
+  ok(
+    "eit drag i lag snur objektet i staden for å flytte det",
+    Math.abs(lag1.x - lag0.x) < 60 && Math.abs(lag1.n - lag0.n) > lag0.n * 0.01,
+    `flytta ${lag1.x - lag0.x} px, blekket ${lag0.n} → ${lag1.n}`,
+  )
+
+  await page.keyboard.press("3")
+  await rolig(page)
+  await page.waitForTimeout(700)
+  const k0 = await blekket(page)
+  await dra(150, 100)
+  const k1 = await blekket(page)
+  ok(
+    "eit drag i konturen flyttar teikninga",
+    k1.x - k0.x > 70 && k1.y - k0.y > 40,
+    `flytta ${k1.x - k0.x}, ${k1.y - k0.y} px av 150, 100`,
+  )
+  ok(
+    "og teikninga er den same — det var ei flytting, ikkje ei dreiing",
+    Math.abs(k1.n - k0.n) < k0.n * 0.2,
+    `blekket ${k0.n} → ${k1.n}`,
+  )
+
+  // Dobbelttrykket er vegen heim for den som har panorert seg bort. Det er
+  // ein av gestane konturen BEHELD, og difor verdt å prøve nett her.
+  await page.mouse.dblclick(450, 380)
+  await page.waitForTimeout(1000)
+  const k2 = await blekket(page)
+  ok(
+    "og dobbelttrykket tek deg heim att",
+    Math.abs(k2.x - k0.x) < 25 && Math.abs(k2.y - k0.y) < 25,
+    `${k1.x},${k1.y} → ${k2.x},${k2.y} mot ${k0.x},${k0.y}`,
+  )
   await page.close()
 }
 
@@ -1027,9 +1142,94 @@ async function main() {
     !!lina && !!boks && lina.y >= boks.y + boks.height - 1,
     lina && boks ? `skuffa endar ${(boks.y + boks.height).toFixed(0)}, lina ${lina.y.toFixed(0)}` : "",
   )
+  // --- SKUFFA BYTER VERKTY, OG KUTTLISTA ER EI ANNA LISTE HER ------------
+  /**
+   * FIRE ORD I TOPPLINA, av di ein telefon ikkje har den topplina benken
+   * har. Utan dei kom du berre dit knappen du trykte tok deg.
+   */
+  for (const ord of ["kuttliste", "plater", "stabelen", "oppsett"]) {
+    const kn = skuffa.locator("button", { hasText: new RegExp(`^${ord}$`, "i") })
+    ok(`skuffa byter til ${ord}`, (await kn.count()) === 1)
+  }
+
+  /**
+   * SJU KOLONNAR ER EIN TABELL FOR EIN SKJERM.
+   *
+   * På 390 px braut «74,5 × 129,8» over to liner i kvar einaste rad. Fire
+   * står att, og det er dei fire du treng med lista i handa: kva delen
+   * heiter, kor stor han er, om han heng i noko, og kva plate han ligg på.
+   */
+  await skuffa.locator("button", { hasText: /^kuttliste$/i }).first().click()
+  await rolig(page)
+  const kolonnar = () =>
+    page.evaluate(`(function(){
+      var ut = []
+      document.querySelectorAll("section[aria-label='verkty'] thead th").forEach(function(e){
+        if (getComputedStyle(e).display !== "none") ut.push(e.textContent.replace(/[\u2191\u2193]/g, "").trim())
+      })
+      return ut
+    })()`) as Promise<string[]>
+  const rad390 = await kolonnar()
+  ok("kuttlista har fire kolonnar på 390 px", rad390.length === 4, rad390.join(" · "))
+
+  /**
+   * OG DEI DU HAR TEKE I STÅR FYRST.
+   *
+   * Ei kuttliste er heile jobben. Medan du byggjer er det ikkje heile
+   * jobben du held på med — det er dei du har låst, og dei ligg spreidde
+   * mellom alle dei andre. Filteret er ikkje ei gøymsle: brikka seier
+   * forholdet, og talet i hovudlina er framleis heile jobben.
+   */
+  const teljRader = () => skuffa.locator("tbody tr").count()
+  const alle390 = await teljRader()
+  ok(
+    "utan låsar står alle radene, og inga brikke",
+    alle390 > 0 &&
+      (await skuffa.locator("button", { hasText: /^mine /i }).count()) === 0,
+    `${alle390} rader`,
+  )
+
+  await skuffa.locator("button", { hasText: /^stabelen$/i }).first().click()
+  await rolig(page)
+  for (const a of ["X1", "X3"]) {
+    await skuffa.getByLabel(`${a}: lås`).click()
+    await rolig(page)
+  }
+  await skuffa.locator("button", { hasText: /^kuttliste$/i }).first().click()
+  await rolig(page)
+  const mine390 = await teljRader()
+  const adr390 = await skuffa.locator("tbody tr td:first-child").allInnerTexts()
+  const brikka = await skuffa.locator("button", { hasText: /^mine /i }).first().innerText()
+  ok(
+    "med låsar står berre dine",
+    mine390 < alle390 && mine390 > 0,
+    `${adr390.join(" ")} — ${mine390} av ${alle390}`,
+  )
+  ok("og brikka seier forholdet", /\d+\s+av\s+\d+/i.test(brikka), brikka)
+
+  /**
+   * OG SKUFFA ER SÅ HØG SOM LISTA, IKKJE SÅ HØG SOM HO FÅR LOV TIL.
+   *
+   * Ei kuttliste med tre rader i stod med tusen pikslar kvitt papir under
+   * seg, over eit objekt som var pressa opp i eit band det ikkje trong.
+   * Det kvite er ikkje ein feil som kastar — det er berre plass ingen får.
+   */
+  const skuffH = async () => (await skuffa.boundingBox())?.height ?? 0
+  const kort = await skuffH()
+  await skuffa.locator("button", { hasText: /^mine /i }).first().click()
+  await rolig(page)
+  await page.waitForTimeout(500)
+  const lang = await skuffH()
+  ok(
+    "skuffa er så høg som lista er lang",
+    kort > 0 && lang > kort + 40,
+    `${mine390} rader ${kort.toFixed(0)} px, ${alle390} rader ${lang.toFixed(0)} px`,
+  )
+
   await page.setViewportSize({ width: 1000, height: 900 })
 
   await gestane(browser)
+  await lerretet(browser, feil)
   await benken(browser, feil)
 
   ok("ingen feil i konsollen", feil.length === 0, feil.slice(0, 2).join(" | "))

@@ -241,6 +241,22 @@ export const Viewer = memo(function Viewer({
       </Suspense>
 
       <FitCamera fit={fit} rute={rute} flat={view === "kontur"} reframe={reframe} />
+      {/*
+        KONTURVISINGA ER EI TEIKNING, OG EI TEIKNING SKAL EIN KUNNE FLYTTE
+        PÅ.
+
+        Dei to andre visingane er eit objekt i eit rom: ein finger snur
+        synet, to fingrar stiller parametrane. Konturen er ikkje eit rom.
+        Han er dei flate kuttprofilane sedde rett ovanfrå, og alt du vil
+        gjere med ei teikning er å dra henne dit du vil sjå og zoome inn på
+        ein detalj. Å SNU henne er å sjå eit ark på skrå; å dra to fingrar
+        over henne for å skru ribbetalet er å endre teikninga medan du
+        prøver å navigere i henne.
+
+        So i konturen: ein finger dreg, klypet zoomar, og ingen ting snur.
+        Parametergestane er av — dei står att i `flate` og `lag`, der det
+        finst eit objekt å stille på.
+      */}
       <GestureParams
         onNudge={onNudge}
         onSkala={onSkala}
@@ -248,10 +264,27 @@ export const Viewer = memo(function Viewer({
         onLight={onLight}
         onDoubleTap={handleDoubleTap}
         onGest={onGest}
+        flat={view === "kontur"}
       />
       <OrbitControls
         target={[0, 0.35, 0]}
-        enablePan={false}
+        enablePan={view === "kontur"}
+        enableRotate={view !== "kontur"}
+        screenSpacePanning
+        // Med rotasjonen av er venstre knapp og éin finger ledige, og då
+        // må dei seiast: OrbitControls bind dei til ROTATE av seg sjølv,
+        // og ein rotasjon som er slegen av er ein finger som ikkje gjer
+        // noko i det heile.
+        mouseButtons={
+          view === "kontur"
+            ? { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }
+            : undefined
+        }
+        touches={
+          view === "kontur"
+            ? { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN }
+            : undefined
+        }
         enableZoom
         minDistance={2.4}
         maxDistance={18}
