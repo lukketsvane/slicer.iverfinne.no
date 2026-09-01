@@ -657,6 +657,30 @@ async function benken(browser: Browser, feil: string[]) {
   ok("og arket er ope att", !(await ark.isDisabled()))
   ok("og rådet er borte når regelen står", (await page.getByLabel(/^fiks delane får plass/).count()) === 0)
 
+  // --- EIT NYTT NETT TEK LÅSANE MED SEG UT ---------------------------------
+  /**
+   * Låsane er brøkdelar av spennet til DEN KROPPEN DU HADDE. Slepper du inn
+   * ei anna fil, tyder dei same brøkane heilt andre plan — og ingen ting på
+   * skjermen seier at det ligg gamle tal i det nye objektet.
+   *
+   * Prøva står sist i bolken av di ho byter ut objektet: alt etter henne
+   * ville handla om ei kule i staden for ein kube.
+   */
+  await page.keyboard.press("s")
+  await rolig(page)
+  await stabel.locator("button", { hasText: /^(lås alle|slepp alle)$/ }).first().click()
+  await rolig(page)
+  p = await lenkja(page)
+  ok("lås alle før importen", String(p.laas).includes("x:"), String(p.laas).slice(0, 40))
+
+  const mappe2 = mkdtempSync(join(tmpdir(), "slicerman-"))
+  const fil2 = join(mappe2, "ei-anna-kule.stl")
+  writeFileSync(fil2, kuleStl(50, 40))
+  await page.setInputFiles("input[type=file]", fil2)
+  await rolig(page)
+  p = await lenkja(page)
+  ok("og eit nytt nett tek dei med seg ut", p.laas === "" && p.fest === "", `laas «${p.laas}»`)
+
   await page.close()
 }
 
@@ -932,10 +956,77 @@ async function main() {
     ]) {
       const d = await dekninga()
       ok(`${steg} dekkjer under ${TAK} % på ${breidd}×${hogd}`, d > 0 && d <= TAK, `${d} %`)
+      /**
+       * OG INGEN KNAPP UTANFOR SKJERMEN.
+       *
+       * Høgda var målt og breidda var det ikkje. Ei rad med fem knappar og
+       * ei teiknforklaring treng 359 px; ei rute på 320 gjev rada 270, og
+       * dei to siste knappane låg på 342..384 — ikkje kappa, ikkje
+       * rullbare, berre utanfor. Ingenting feilar: knappen finst i DOM-en,
+       * `getByLabel` finn han, og eit klikk ventar til det gjev opp.
+       *
+       * Det gjekk gale i det ein femte knapp kom i rada, og rada var trong
+       * frå før. Difor står prøva her og ikkje på den eine knappen.
+       */
+      const ute = (await page.evaluate(`(function(){
+        var W = window.innerWidth
+        var ut = []
+        document.querySelectorAll("section[aria-label='kontrollar'] button").forEach(function(e){
+          var r = e.getBoundingClientRect()
+          if (!r.width) return
+          if (r.right > W + 0.5 || r.left < -0.5) ut.push((e.getAttribute("aria-label")||e.textContent||"?").trim())
+        })
+        return ut
+      })()`)) as string[]
+      ok(`${steg} held kvar knapp innanfor ${breidd} px`, ute.length === 0, ute.join(" | "))
       await page.getByLabel(vidare).click()
       await page.waitForTimeout(350)
     }
   }
+  await page.setViewportSize({ width: 1000, height: 900 })
+
+  // --- STABELEN FINST PÅ TELEFONEN OG -------------------------------------
+  /**
+   * SKUFFA VAR `benk &&`, og då fanst korkje kuttlista, platene, stabelen
+   * eller oppsettet på ein telefon. Stabelen er den av dei fire du GJER noko
+   * i, og han hadde ingen dør der i det heile: heile handa var ein reiskap
+   * du berre kunne nå frå ein skjerm over 1180 px.
+   *
+   * Tre ting må halde, og alle tre er ting som ikkje kastar når dei ryk:
+   * knappen finst, skuffa opnar seg der ho skal — ho fekk benkeveggane sine
+   * og stod to hundre og sytti pikslar frå venstre kant med halve breidda
+   * utanfor skjermen — og ho lèt hovudlina stå, so du ser delane og platene
+   * svare medan du redigerer.
+   */
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.waitForTimeout(300)
+  await opnePanelet(page)
+  const stabelKnapp = page.getByLabel("opne stabelen")
+  ok("telefonen har ein veg inn i stabelen", (await stabelKnapp.count()) === 1)
+  await stabelKnapp.click()
+  await rolig(page)
+  await page.waitForTimeout(300)
+
+  const skuffa = page.locator("section[aria-label='verkty']")
+  const boks = await skuffa.boundingBox()
+  ok(
+    "og skuffa står innanfor skjermen",
+    !!boks && boks.x >= 0 && boks.x + boks.width <= 391,
+    boks ? `x ${boks.x.toFixed(0)}, breidd ${boks.width.toFixed(0)}` : "inga skuff",
+  )
+  const rader390 = await skuffa.getByLabel(/^X\d+, stad$/).count()
+  ok("og han syner ribbene", rader390 >= 2, `${rader390} rader`)
+
+  // Hovudlina skal stå UNDER skuffa og ikkje bak henne: du flyttar ei ribbe
+  // og ser talet svare. Ei skuff som dekkjer svaret må lukkast for å lesast.
+  const lina = await page
+    .locator("section[aria-label='kontrollar'] button[aria-label='delar, kuttlengd og ark']")
+    .boundingBox()
+  ok(
+    "og hovudlina står under henne, ikkje bak",
+    !!lina && !!boks && lina.y >= boks.y + boks.height - 1,
+    lina && boks ? `skuffa endar ${(boks.y + boks.height).toFixed(0)}, lina ${lina.y.toFixed(0)}` : "",
+  )
   await page.setViewportSize({ width: 1000, height: 900 })
 
   await gestane(browser)

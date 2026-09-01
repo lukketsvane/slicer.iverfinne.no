@@ -438,7 +438,15 @@ function Stabelen(props: {
     return <p className="dim p-4 text-[11px]">ingen ribber råka kroppen.</p>
   }
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-2 gap-px" style={{ background: "var(--rule)" }}>
+    <div
+      /* To kolonnar er to aksar ved sida av kvarandre, og det krev ei
+         breidd. Ei rad her er ei adresse, eit talfelt, ei eining, to tal
+         og fire knappar; delt i to på ein telefon er kvar av dei under to
+         hundre pikslar, og då er rada broten før nokon har sett henne.
+         Under 640 px står aksane difor over kvarandre. */
+      className="grid min-h-0 flex-1 grid-cols-1 gap-px sm:grid-cols-2"
+      style={{ background: "var(--rule)" }}
+    >
       {(["x", "y"] as const).map((akse) => {
         const mine = ribber.filter((r) => r.akse === akse)
         const alleLaaste = mine.length > 0 && mine.every((r) => r.laast)
@@ -693,7 +701,7 @@ export function Verkty(props: {
   clamp: (o: unknown, prev: ParamBag) => ParamBag
   peikt: string | null
   ribber: readonly Ribba[]
-  rute: { venstre: number; hogre: number; høgd: number }
+  rute: { venstre: number; hogre: number; høgd: number; botn?: number }
   onArk: (i: number) => void
   onPeik: (adr: string | null) => void
   onLangtrykk: (adr: string, plass: Delplass["plass"], x: number, y: number) => void
@@ -724,7 +732,11 @@ export function Verkty(props: {
       style={{
         left: rute.venstre,
         right: rute.hogre,
-        bottom: 0,
+        /* På benken står ho på nedre kant. På ein telefon står ho OVER den
+           lukka kontrollina, so dei tre tala er synlege medan du redigerer:
+           du flyttar ei ribbe og ser delane og platene svare. Ei skuff som
+           dekkjer svaret er ei skuff du må lukke for å sjå kva du gjorde. */
+        bottom: rute.botn ?? 0,
         height: rute.høgd,
         background: "var(--paper)",
         borderColor: "var(--rule)",
