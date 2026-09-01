@@ -579,6 +579,11 @@ async function plata(browser: Browser, feil: string[]) {
   await rolig(page)
   await page.waitForTimeout(700)
   ok("og førre plate tek han attende", plateAv(await festet(), kven) === 0 && (await paaSkjermen()) === 1, await festet())
+
+  // Vegen attende, éin gong for alle: to feste står, ein knapp tek dei.
+  await skuffa.locator("button", { hasText: /^slepp alle$/ }).click()
+  await rolig(page)
+  ok("slepp alle tek alle festa", (await festet()) === "" && (await skuffa.locator("button", { hasText: /^slepp alle$/ }).count()) === 0)
   await page.close()
 }
 

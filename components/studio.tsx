@@ -2205,6 +2205,7 @@ export function Studio() {
           onLangtrykk={(adr, x, y) => setDelVerkty({ adr, plate: true, x, y })}
           onAvbryt={() => setDelVerkty(null)}
           onFlyttDel={flyttDel}
+          onSleppAlle={() => endre({ ...params, fest: "" })}
           onChange={endre}
           onFlytt={flyttRibbe}
           onLaas={vipLaas}

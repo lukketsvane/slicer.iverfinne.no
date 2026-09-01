@@ -369,8 +369,10 @@ function Plater(props: {
   onAvbryt: () => void
   /** eit drag er over: delen skal stå fast HER, i millimeter på plata */
   onFlytt: (adr: string, plass: Delplass["plass"]) => void
+  /** alle festa slepte: pakkinga rår over heile plata att */
+  onSleppAlle: () => void
 }) {
-  const { ark, onArk, peikt, festa, onPeik, onLangtrykk, onAvbryt, onFlytt } = props
+  const { ark, onArk, peikt, festa, onPeik, onLangtrykk, onAvbryt, onFlytt, onSleppAlle } = props
   /**
    * TRE TING EIN FINGER KAN GJERE MED EIN DEL, OG DEI SKIL SEG PÅ TID OG
    * VEG.
@@ -458,6 +460,21 @@ function Plater(props: {
           {ark.delar} delar · {nn(ark.util * 100, 0)} % utnytting
           {faste > 0 && ` · ${faste} faste`}
         </span>
+        {/* Vegen attende, éin gong for alle. Kvart feste kan sleppast for
+            seg i verktyet, og angre tek dei eitt om gongen; den som har
+            prøvd seg fram med fem og vil ha pakkinga att, skal ikkje måtte
+            gjere det fem gonger. */}
+        {festa.size > 0 && (
+          <button
+            type="button"
+            className={CHIP_B + " uppercase tracking-[0.1em]"}
+            style={chipStyle(false)}
+            onClick={onSleppAlle}
+            title="slepp alle festa delar, på alle platene: pakkinga legg dei der ho vil att"
+          >
+            slepp alle
+          </button>
+        )}
         {/* Det eine plata kan seie som regelen òg seier: to festa delar
             handa har sett i kvarandre. Her står det ved sida av delane
             det gjeld, som er raude. */}
@@ -948,6 +965,8 @@ export function Verkty(props: {
   onAvbryt: () => void
   /** ein del er dregen til ein ny stad på plata, og skal stå fast der */
   onFlyttDel: (adr: string, plass: Delplass["plass"]) => void
+  /** alle festa delar slepte */
+  onSleppAlle: () => void
   /** byt kva verkty som står ope — topplina i skuffa, på ein telefon */
   onBytt: (id: VerktyId) => void
   onChange: (p: ParamBag) => void
@@ -1096,6 +1115,7 @@ export function Verkty(props: {
           onLangtrykk={props.onLangtrykk}
           onAvbryt={props.onAvbryt}
           onFlytt={props.onFlyttDel}
+          onSleppAlle={props.onSleppAlle}
         />
       )}
       {open === "stabel" && (
