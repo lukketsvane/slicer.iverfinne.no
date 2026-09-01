@@ -62,6 +62,31 @@ export type Ribba = {
 const HAIR = { borderColor: "var(--rule)" }
 const CHIP_B = CHIP.replace("rounded-full", "rounded-[2px]")
 
+/**
+ * KOR LENGE EIT TRYKK MÅ VARE FOR Å VERA LANGT. Same terskel som på
+ * ribbene i objektet.
+ *
+ * Klokka som seier det er ein `setTimeout`, og han ser ikkje fingeren. Står
+ * hovudtråden stille — objektet teiknar ei ramme med skuggar etter at delen
+ * lyste opp, og på ein telefon med eit tungt nett er det ei ramme på fleire
+ * hundre millisekund — ligg rørslene fingeren har gjort i kø bak henne. Når
+ * tråden slepp, kjem klokka fyrst, og so rørslene: verktyet opnar seg over
+ * ein del som er halvvegs dregen. Målt i ein nettlesar utan skjermkort: den
+ * fyrste rørsla vart lesen 556 ms etter trykket, og ho var gjord etter 35.
+ *
+ * Hendingane ber si eiga klokke, og ho stod ikkje stille. Ei rørsle eller
+ * eit slepp som HENDE før terskelen, og likevel kom fram etter at det lange
+ * trykket hadde fyrt, seier at det lange trykket var ei feillesing: då vert
+ * det teke attende, og trykket er eit drag eller eit trykk att.
+ */
+const LANGT_MS = 450
+const feillese = (t: { tid: number; brukt: boolean; lang: boolean }, no: number) => {
+  if (!t.lang || no - t.tid >= LANGT_MS) return false
+  t.lang = false
+  t.brukt = false
+  return true
+}
+
 // =============================================================================
 // KUTTLISTA
 // =============================================================================
@@ -352,17 +377,86 @@ function Plater(props: {
   ark: ArkSyn | null
   onArk: (i: number) => void
   peikt: string | null
+  /** adressene til delane som står fast — dei er teikna med fyll, so du
+   *  ser kva du eig og kva pakkinga eig */
+  festa: ReadonlySet<string>
   onPeik: (adr: string | null) => void
-  onLangtrykk: (adr: string, plass: Delplass["plass"], x: number, y: number) => void
+  onLangtrykk: (adr: string, x: number, y: number) => void
+  /** det lange trykket var ei feillesing — sjå `LANGT_MS` — og verktyet
+   *  det opna skal att */
+  onAvbryt: () => void
+  /** eit drag er over: delen skal stå fast HER, i millimeter på plata */
+  onFlytt: (adr: string, plass: Delplass["plass"]) => void
 }) {
-  const { ark, onArk, peikt, onPeik, onLangtrykk } = props
-  /** eit trykk som VARER opnar verktyet over delen — same handa som på
-   *  ribbene i objektet, og same terskelen */
+  const { ark, onArk, peikt, festa, onPeik, onLangtrykk, onAvbryt, onFlytt } = props
+  /**
+   * TRE TING EIN FINGER KAN GJERE MED EIN DEL, OG DEI SKIL SEG PÅ TID OG
+   * VEG.
+   *
+   *   eit trykk        peikar på han — lyser han opp her og i objektet
+   *   eit trykk som    opnar verktyet over han: fest, slepp, snu. Same
+   *   VARER            handa som på ribbene i objektet, same terskelen.
+   *   eit drag         FLYTTAR han. Han fylgjer fingeren i millimeter på
+   *                    plata, og der du slepper han, står han fast: eit
+   *                    feste er nøyaktig det pakkinga gjev frå seg som
+   *                    plassering, so det som vert skrive er hjørnet han
+   *                    stod i pluss det fingeren gjekk.
+   *
+   * Seks pikslar skil trykket frå draget, som elles i reiskapen; det lange
+   * trykket ryk i det fingeren går. Peikaren vert TEKEN av delen i det han
+   * går ned (`setPointerCapture`), so draget held fram om fingeren glid
+   * utanfor han — ein finger dekkjer ein del på 40 mm på ein telefon, og
+   * han er sjeldan der du trur.
+   */
+  const trykk = useRef<{
+    adr: string
+    x: number
+    y: number
+    /** når fingeren gjekk ned, på hendinga si eiga klokke */
+    tid: number
+    plass: Delplass["plass"]
+    boks: Delplass["boks"]
+    /** trykket er brukt opp — av det lange, eller av eit drag */
+    brukt: boolean
+    /** og det var det lange som brukte det */
+    lang: boolean
+  } | null>(null)
   const langt = useRef(0)
-  const ned = useRef<{ x: number; y: number } | null>(null)
+  /**
+   * SPØKELSET.
+   *
+   * Under draget vert delen teikna der fingeren har han, og ikkje der
+   * pakkinga har han. Slepper du, står han att der du sleppte han — òg dei
+   * par hundre millisekunda det tek før motoren har pakka om og plata kjem
+   * attende med han på den nye staden. Utan det spratt han attende til den
+   * gamle staden og so fram til den nye, og eit sprett er det same som
+   * «det tok ikkje».
+   *
+   * Han vert rydda når ei ny plate kjem, ikkje på ei klokke: det er plata
+   * som veit når ho har teke han att.
+   */
+  const [dra, setDra] = useState<{ adr: string; dx: number; dy: number } | null>(null)
+  const draRef = useRef(dra)
+  const flata = useRef<SVGGElement | null>(null)
+  useEffect(() => {
+    draRef.current = null
+    setDra(null)
+  }, [ark])
+
+  /** frå skjermpikslar til millimeter på plata, y opp — gjennom den same
+   *  spegelen teikninga sjølv ligg i, so tala er dei plata reknar i */
+  const mm = (cx: number, cy: number): [number, number] | null => {
+    const ctm = flata.current?.getScreenCTM()
+    if (!ctm) return null
+    const p = new DOMPoint(cx, cy).matrixTransform(ctm.inverse())
+    return [p.x, p.y]
+  }
+
   if (!ark || !ark.tal) {
     return <p className="dim p-4 text-[11px]">ingenting er lagt ut på ei plate enno.</p>
   }
+  const faste = ark.plasser.filter((d) => festa.has(d.adr)).length
+  const kryss = ark.plasser.filter((d) => d.kross).length
   return (
     <>
       <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-2" style={HAIR}>
@@ -380,7 +474,23 @@ function Plater(props: {
         ))}
         <span className="dim mono ml-auto text-[10px]">
           {ark.delar} delar · {nn(ark.util * 100, 0)} % utnytting
+          {faste > 0 && ` · ${faste} faste`}
         </span>
+        {/* Det eine plata kan seie som regelen òg seier: to festa delar
+            handa har sett i kvarandre. Her står det ved sida av delane
+            det gjeld, som er raude. */}
+        {kryss > 0 && (
+          <span className="mono text-[10px]" style={{ color: "var(--warn)" }}>
+            {kryss} i kvarandre
+          </span>
+        )}
+        {/* Gestane syner seg ikkje sjølve. Lina står til du har festa
+            noko — då har du funne dei. */}
+        {festa.size === 0 && (
+          <span className="dim basis-full text-[10px] tracking-[0.04em]">
+            dra ein del for å flytte han · hald for å feste og snu
+          </span>
+        )}
       </div>
       <div className="min-h-0 flex-1 p-3">
         <svg
@@ -389,6 +499,10 @@ function Plater(props: {
           role="img"
           aria-label={`plate ${ark.i + 1} av ${ark.tal}, ${ark.delar} delar`}
           onPointerLeave={() => onPeik(null)}
+          // Fingeren på ein del skal dra DELEN og ikkje sida. Utan denne
+          // tek iOS draget som ei rulling og sender `pointercancel` etter
+          // nokre pikslar.
+          style={{ touchAction: "none" }}
         >
           {/* plata sjølv: ei ramme, so du ser kor kanten går */}
           <rect
@@ -399,70 +513,131 @@ function Plater(props: {
             vectorEffect="non-scaling-stroke"
             style={{ fill: "none", stroke: "var(--rule)" }}
           />
-          <g transform={`translate(0,${ark.arkH}) scale(1,-1)`}>
+          <g ref={flata} transform={`translate(0,${ark.arkH}) scale(1,-1)`}>
             {ark.plasser.map((d) => {
               const paa = peikt === d.adr
+              const fast = festa.has(d.adr)
+              const q = dra?.adr === d.adr ? dra : null
               return (
                 <g
                   key={d.adr}
+                  transform={q ? `translate(${q.dx} ${q.dy})` : undefined}
                   onPointerEnter={() => onPeik(d.adr)}
                   onPointerDown={(e) => {
+                    // ein andre finger er ikkje eit trykk på ein del
+                    if (!e.isPrimary) return
                     const x = e.clientX
                     const y = e.clientY
-                    ned.current = { x, y }
+                    trykk.current = {
+                      adr: d.adr, x, y, tid: e.timeStamp,
+                      plass: d.plass, boks: d.boks, brukt: false, lang: false,
+                    }
+                    e.currentTarget.setPointerCapture(e.pointerId)
                     window.clearTimeout(langt.current)
                     langt.current = window.setTimeout(() => {
-                      const q = ned.current
-                      if (!q || Math.hypot(q.x - x, q.y - y) > 6) return
-                      // Trykket er brukt opp: `onClick` skal ikkje òg fyre.
-                      ned.current = null
-                      onLangtrykk(d.adr, d.plass, x, y)
-                    }, 450)
+                      const t = trykk.current
+                      if (!t || t.brukt || t.adr !== d.adr) return
+                      // Trykket er brukt opp: korkje `onClick` eller
+                      // draget skal òg fyre.
+                      t.brukt = true
+                      t.lang = true
+                      onLangtrykk(d.adr, x, y)
+                    }, LANGT_MS)
                   }}
                   onPointerMove={(e) => {
-                    const q = ned.current
-                    if (q && Math.hypot(e.clientX - q.x, e.clientY - q.y) > 6) {
-                      window.clearTimeout(langt.current)
-                    }
+                    const t = trykk.current
+                    if (!t) return
+                    if (feillese(t, e.timeStamp)) onAvbryt()
+                    if (t.brukt) return
+                    if (!draRef.current && Math.hypot(e.clientX - t.x, e.clientY - t.y) <= 6) return
+                    window.clearTimeout(langt.current)
+                    const a = mm(t.x, t.y)
+                    const b = mm(e.clientX, e.clientY)
+                    if (!a || !b) return
+                    const ny = { adr: t.adr, dx: b[0] - a[0], dy: b[1] - a[1] }
+                    draRef.current = ny
+                    setDra(ny)
                   }}
-                  onPointerUp={() => window.clearTimeout(langt.current)}
+                  onPointerUp={(e) => {
+                    window.clearTimeout(langt.current)
+                    const t = trykk.current
+                    const q2 = draRef.current
+                    if (t && feillese(t, e.timeStamp)) onAvbryt()
+                    if (!t || t.brukt || !q2) return
+                    t.brukt = true
+                    /**
+                     * INNANFOR PLATA. Pakkinga klemmer eit feste inn på
+                     * plata sjølv, men ho gjer det i celler, og eit feste
+                     * som står skrive langt utanfor er eit tal som lyg om
+                     * kvar delen er. Masken er boksen pluss margen kring
+                     * han — margen er avstanden frå hjørnet pakkinga gav
+                     * til boksen ho teikna — so kanten er der masken
+                     * stoggar, ikkje der omrisset gjer det.
+                     */
+                    const marg = Math.max(0, t.boks.x - t.plass.x)
+                    const W = t.boks.w + 2 * marg
+                    const H = t.boks.h + 2 * marg
+                    const klem = (v: number, tak: number) => Math.min(Math.max(0, v), Math.max(0, tak))
+                    onFlytt(t.adr, {
+                      sheet: ark.i,
+                      rot: t.plass.rot,
+                      x: klem(t.plass.x + q2.dx, ark.arkB - W),
+                      y: klem(t.plass.y + q2.dy, ark.arkH - H),
+                    })
+                  }}
+                  onPointerCancel={() => {
+                    window.clearTimeout(langt.current)
+                    trykk.current = null
+                    draRef.current = null
+                    setDra(null)
+                  }}
                   onClick={() => {
-                    if (ned.current === null) return
-                    ned.current = null
+                    const t = trykk.current
+                    trykk.current = null
+                    if (!t || t.brukt) return
                     onPeik(paa ? null : d.adr)
                   }}
-                  style={{ cursor: "pointer" }}
+                  style={{ cursor: q ? "grabbing" : "grab" }}
                 >
                   {/* Fyllet er treffeflata. Ein del er eit omriss med hòl i,
                       og eit omriss er nokre få pikslar strek: peikaren måtte
                       treffe sjølve streken for at noko skulle skje. Med
                       `evenodd` er hòla hòl i treffeflata òg — du kan peike
-                      gjennom eit spor på delen under. */}
+                      gjennom eit spor på delen under.
+
+                      Og fyllet er MERKET: ein festa del er skuggelagd, so
+                      du ser kva som er ditt og kva som er pakkinga sitt. */}
                   <path
                     d={[d.ut, ...d.inn].join(" ")}
                     fillRule="evenodd"
                     style={{
                       fill: paa
-                        ? "color-mix(in srgb, var(--ink) 12%, transparent)"
-                        : "transparent",
+                        ? "color-mix(in srgb, var(--ink) 14%, transparent)"
+                        : fast
+                          ? "color-mix(in srgb, var(--ink) 9%, transparent)"
+                          : "transparent",
                     }}
                   />
                   <path
                     d={d.ut}
-                    strokeWidth={paa ? 2 : 1}
+                    strokeWidth={paa || q ? 2 : 1}
                     vectorEffect="non-scaling-stroke"
-                    style={{ fill: "none", stroke: "var(--ink)" }}
+                    style={{ fill: "none", stroke: d.kross ? "var(--warn)" : "var(--ink)" }}
                   />
                   {d.inn.map((h, j) => (
                     <path
                       key={j}
                       d={h}
-                      strokeWidth={paa ? 2 : 1}
+                      strokeWidth={paa || q ? 2 : 1}
                       vectorEffect="non-scaling-stroke"
-                      style={{ fill: "none", stroke: "var(--ink)" }}
+                      style={{ fill: "none", stroke: d.kross ? "var(--warn)" : "var(--ink)" }}
                     />
                   ))}
-                  <title>{d.adr}</title>
+                  <title>
+                    {d.adr}
+                    {fast ? " · fast" : ""}
+                    {d.kross ? " · ligg i ein annan" : ""}
+                  </title>
                 </g>
               )
             })}
@@ -784,7 +959,13 @@ export function Verkty(props: {
   onHogd?: (px: number) => void
   onArk: (i: number) => void
   onPeik: (adr: string | null) => void
-  onLangtrykk: (adr: string, plass: Delplass["plass"], x: number, y: number) => void
+  /** delane som står fast på plata, etter adresse */
+  festa: ReadonlySet<string>
+  onLangtrykk: (adr: string, x: number, y: number) => void
+  /** eit langt trykk på plata som viste seg å vera eit drag: lat verktyet att */
+  onAvbryt: () => void
+  /** ein del er dregen til ein ny stad på plata, og skal stå fast der */
+  onFlyttDel: (adr: string, plass: Delplass["plass"]) => void
   /** byt kva verkty som står ope — topplina i skuffa, på ein telefon */
   onBytt: (id: VerktyId) => void
   onChange: (p: ParamBag) => void
@@ -928,8 +1109,11 @@ export function Verkty(props: {
           ark={props.ark}
           onArk={props.onArk}
           peikt={props.peikt}
+          festa={props.festa}
           onPeik={props.onPeik}
           onLangtrykk={props.onLangtrykk}
+          onAvbryt={props.onAvbryt}
+          onFlytt={props.onFlyttDel}
         />
       )}
       {open === "stabel" && (

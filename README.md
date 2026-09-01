@@ -18,8 +18,9 @@ One construction type: **waffle** — interlocking ribs in two directions. X-rib
 get slots opening upward, Y-ribs slots opening downward, so you lay the X family
 on the bench and lower the Y family into it. That is the whole assembly.
 
-It opens on **3 mm MDF on an 800 × 600 mm bed**. Change the thickness to the
-sheet in your hand and the bed to your machine; the link carries both.
+It opens on **3 mm MDF on a 600 × 400 mm bed** — the common "6040" CO2
+laser, the smallest bed anyone calls a workshop machine. Change the thickness
+to the sheet in your hand and the bed to your machine; the link carries both.
 
 **It is a laser tool.** No cutter diameter and no dogbones, because a beam has
 no radius.
@@ -76,7 +77,11 @@ other three are a word away in the drawer's title bar.
   copied or moved — with a chip reading `mine 6 av 20`, because while you are
   building it is those six you are working on, not the twenty.
 - **Sheets** — one at a time, large enough to read the addresses. Not a picture
-  of the file; it *is* the file.
+  of the file; it *is* the file. **Drag a part** and it stays where you drop
+  it; the rest repacks around it. **Hold a part** to pin or release it and to
+  turn it a quarter at a time about its centre. Pinned parts are shaded. Two
+  pinned parts you have put inside each other are drawn red, and the sheet
+  rule says no until you move one.
 - **Stack** — every rib on both axes: where it stands in mm, whether it is
   fixed, what it became. See below.
 - **Settings, as text** — select, copy, paste back.
@@ -276,7 +281,9 @@ are the documentation.
   `.glb`.
 - A globally inverted mesh is fixed automatically; *inconsistently* wound
   triangles are a real defect and need repairing elsewhere.
-- Nesting is deterministic bottom-left-fill with four rotations.
+- Nesting is deterministic: bottom-left-fill with four rotations, then up to
+  three more passes (lowest-top placement, lightly perturbed order) within a
+  fixed work budget, keeping the best. Fewer sheets would need a real search.
 - Kerf compensation offsets along the angle bisector; tighter corners than the
   kerf are approximate, erring safe.
 - One construction type so far. `lib/core.ts` is written so a second costs a
