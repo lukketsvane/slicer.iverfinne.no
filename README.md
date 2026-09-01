@@ -47,6 +47,11 @@ on the right. The camera frames the object into whatever rectangle is left over.
 rib counts. Three fingers move the light, double-tap reframes, one finger
 orbits.
 
+**The contour view is a drawing, so it is a canvas**: one finger drags it,
+pinch zooms, nothing turns. The parameter gestures are off there — changing the
+drawing while you are navigating it is not what two fingers are for on a flat
+page — and double-tap still takes you home.
+
 Keys: `F` find settings, `⇧F` back, `D` deep search, `1` `2` `3` views, `←` `→`
 nudge the rib you point at, `Z` undo, `L` cut list, `A` sheets, `S` stack, `O`
 control sheet, `Esc` close.
@@ -57,14 +62,19 @@ are where you left off. And the browser remembers by itself, in IndexedDB.
 
 ## Four tools
 
-A drawer, one tool at a time. On the bench it takes the lower half of the
-canvas, so you read a list *while* looking at what it points at. On a phone it
-is a page above the closed control line — which stays visible, so you move a rib
-and watch the counts answer.
+A drawer, one tool at a time, as tall as its contents and no taller — a list of
+three rows is three rows and the object keeps the rest. On the bench it sits in
+the lower half so you read a list *while* looking at what it points at. On a
+phone the closed control line stays visible below it, so you move a rib and
+watch the counts answer. The stack has its own icon in the sheet's footer; the
+other three are a word away in the drawer's title bar.
 
-- **Cut list** — every part with its engraved address, shape id, size, cut
-  length, joints and sheet. Click a rib in the object and the list opens on that
-  line. A part with no joints is red.
+- **Cut list** — every part with its engraved address, size, joints and sheet,
+  plus shape id, area and cut length where there is room for them. Click a rib
+  in the object and the list opens on that line. A part with no joints is red.
+  Once anything is locked it shows **yours** first — the ribs you locked,
+  copied or moved — with a chip reading `mine 6 av 20`, because while you are
+  building it is those six you are working on, not the twenty.
 - **Sheets** — one at a time, large enough to read the addresses. Not a picture
   of the file; it *is* the file.
 - **Stack** — every rib on both axes: where it stands in mm, whether it is

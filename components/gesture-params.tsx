@@ -44,6 +44,7 @@ export function GestureParams({
   onVend,
   onLight,
   onDoubleTap,
+  flat,
   onGest,
 }: {
   onNudge: (axis: NudgeAxis, deltaPx: number) => void
@@ -60,6 +61,21 @@ export function GestureParams({
   onVend?: (graderFraaStart: number) => void
   onLight?: (dxPx: number, dyPx: number) => void
   onDoubleTap?: () => void
+  /**
+   * KONTURVISINGA ER EI TEIKNING, IKKJE EIT OBJEKT.
+   *
+   * Dei to fingrane stiller parametrane: klyp for storleik, vri for
+   * vending, drag for ribbetal. Det er gestar på eit OBJEKT. Konturen er
+   * dei flate kuttprofilane sedde rett ovanfrå, og der er to fingrar det
+   * ein reiskap med eit lerret alltid har brukt dei til: flytte og zoome.
+   * Å skru ribbetalet medan du prøver å navigere er å endre teikninga du
+   * held på å lese.
+   *
+   * Berre DEI gestane. Dobbelttrykket tek deg framleis heim — det er nett
+   * det ein som har panorert seg bort treng — og tre fingrar flyttar
+   * lyset.
+   */
+  flat?: boolean
   /** kva gesten held på med, eller null når ingen finger er nede */
   onGest?: (kva: GestKva) => void
 }) {
@@ -197,7 +213,7 @@ export function GestureParams({
           target: controls?.target?.clone() ?? new THREE.Vector3(0, 0.35, 0),
         }
       }
-      if (pts.size === 2 && mode !== "light") {
+      if (pts.size === 2 && mode !== "light" && !flat) {
         mode = "none"
         last = measure2()
         anker = last
@@ -226,7 +242,7 @@ export function GestureParams({
         last = { cx: c.x, cy: c.y, d: 0, a: 0 }
         return
       }
-      if (pts.size !== 2) return
+      if (pts.size !== 2 || flat) return
       const c = measure2()
       const dx = c.cx - last.cx
       const dy = c.cy - last.cy
@@ -482,7 +498,7 @@ export function GestureParams({
       window.clearTimeout(hjulTimer)
       if (controls) controls.enabled = true
     }
-  }, [gl, controls, camera, invalidate, onNudge, onSkala, onVend, onLight, onDoubleTap, onGest])
+  }, [gl, controls, camera, invalidate, onNudge, onSkala, onVend, onLight, onDoubleTap, onGest, flat])
 
   return null
 }

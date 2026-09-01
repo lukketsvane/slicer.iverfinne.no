@@ -175,6 +175,8 @@ export function Studio() {
    * Éin om gongen: to opne verkty er to ting som kjempar om det same auget.
    */
   const [verkty, setVerkty] = useState<VerktyId | null>(null)
+  /** kor høg skuffa faktisk vart. 0 til ho har målt seg sjølv. */
+  const [verktyMaalt, setVerktyMaalt] = useState(0)
   /** kuttlista, slik ho står no. Ho kjem med måltala. */
   const [kuttliste, setKuttliste] = useState<Kutt[]>([])
   /** den plata skuffa syner, og teikninga hennar */
@@ -321,10 +323,23 @@ export function Studio() {
             topp: VEGG.topp,
             // Ei open skuff er ei mindre rute, og kameraet rammar inn i
             // det som er att — same mekanismen som arket på telefonen.
-            botn: verkty ? verktyH : 0,
+            // KOR HØG SKUFFA FAKTISK VART, og ikkje kor høg ho fekk lov
+            // til å verte. Ei kuttliste med tre rader i tok heile taket
+            // sitt, og objektet vart pressa opp i eit band det ikkje
+            // trong. Skuffa måler seg sjølv; sjå `onHogd` i verkty.tsx.
+            botn: verkty ? Math.min(verktyH, verktyMaalt || verktyH) : 0,
           }
-        : { W: vindu.w, H: vindu.h, venstre: 0, hogre: 0, topp: 0, botn: arkH },
-    [benk, vindu, arkH, verkty, verktyH],
+        : {
+            W: vindu.w,
+            H: vindu.h,
+            venstre: 0,
+            hogre: 0,
+            topp: 0,
+            // På telefonen ligg skuffa OVER det lukka arket, so ho tek
+            // over som det som dekkjer nedre kant.
+            botn: verkty ? LUKKA_ARK + Math.min(verktyH, verktyMaalt || verktyH) : arkH,
+          },
+    [benk, vindu, arkH, verkty, verktyH, verktyMaalt],
   )
 
   const worker = useRef<Worker | null>(null)
@@ -2031,7 +2046,11 @@ export function Studio() {
             hogre: benk ? VEGG.hogre : 0,
             høgd: verktyH,
             botn: benk ? 0 : LUKKA_ARK,
+            // Plata er ei teikning og fyller det ho får; dei tre andre er
+            // lister og er så høge som dei er.
+            fast: verkty === "ark",
           }}
+          onHogd={setVerktyMaalt}
           onArk={askArk}
           onPeik={setPeikt}
           onLangtrykk={(adr, plass, x, y) => setDelVerkty({ adr, plass, x, y })}
@@ -2042,6 +2061,7 @@ export function Studio() {
           onSpegl={speglRibbe}
           onSlett={slettRibbe}
           onAkse={laasAkse}
+          onBytt={opneVerkty}
           onClose={() => setVerkty(null)}
           onOrd={(t) => {
             void navigator.clipboard
