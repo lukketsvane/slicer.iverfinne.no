@@ -584,6 +584,31 @@ async function plata(browser: Browser, feil: string[]) {
   await skuffa.locator("button", { hasText: /^slepp alle$/ }).click()
   await rolig(page)
   ok("slepp alle tek alle festa", (await festet()) === "" && (await skuffa.locator("button", { hasText: /^slepp alle$/ }).count()) === 0)
+
+  // --- KLYPET --------------------------------------------------------------------
+  /**
+   * Ei plate på 600 mm er 366 pikslar brei på ein telefon. To fingrar
+   * klyp henne nærare, éin finger på bert bord dreg utsnittet, og eit
+   * dobbelttrykk syner heile plata att.
+   */
+  const viewBox = () => svg.getAttribute("viewBox")
+  const heile = await viewBox()
+  const sb = (await svg.boundingBox())!
+  const c = { x: sb.x + sb.width / 2, y: sb.y + sb.height / 2 }
+  await send("touchStart", [{ x: c.x - 40, y: c.y, id: 1 }, { x: c.x + 40, y: c.y, id: 2 }])
+  for (let i = 1; i <= 8; i++) {
+    await send("touchMove", [{ x: c.x - 40 - 12 * i, y: c.y, id: 1 }, { x: c.x + 40 + 12 * i, y: c.y, id: 2 }])
+    await page.waitForTimeout(30)
+  }
+  await send("touchEnd", [])
+  await page.waitForTimeout(300)
+  const naert = await viewBox()
+  const breidd = (v: string | null) => Number((v ?? "").split(" ")[2])
+  ok("eit klyp zoomar plata", !!naert && breidd(naert) < breidd(heile) * 0.6, `${heile} → ${naert}`)
+  ok("og delane står framleis på henne", (await delar.count()) > 0)
+  await svg.dblclick({ position: { x: 8, y: 8 } })
+  await page.waitForTimeout(300)
+  ok("dobbelttrykket syner heile plata att", (await viewBox()) === heile, String(await viewBox()))
   await page.close()
 }
 

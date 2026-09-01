@@ -427,6 +427,31 @@ function Plater(props: {
     setDra(null)
   }, [ark])
 
+  /**
+   * UTSNITTET.
+   *
+   * Ei plate på 600 mm teikna 366 pikslar brei gjev delar på fyrti pikslar,
+   * og ein finger dekkjer heile delen. So plata kan zoomast: to fingrar
+   * klyp, éin finger på bert bord dreg utsnittet når det er zooma inn, og
+   * eit dobbelttrykk syner heile plata att — same handa som konturen har.
+   *
+   * Utsnittet er `viewBox`, i platekoordinatar. Det har alltid same
+   * sideforhold som ruta teikninga står i, so éin millimeter er like mange
+   * pikslar kvar veg og det finst ingen tom kant å rekne med: frå skjerm til
+   * plate er berre hjørnet pluss avstanden delt på pikslar per millimeter.
+   * `null` er heile plata, midtstilt.
+   */
+  type Syn = { x: number; y: number; w: number; h: number }
+  const [syn, setSyn] = useState<Syn | null>(null)
+  const synRef = useRef<Syn | null>(null)
+  synRef.current = syn
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  /** fingrane som er nede på plata, etter peikar-id */
+  const fingrar = useRef(new Map<number, { x: number; y: number }>())
+  const klyp = useRef<{ v: Syn; ppm: number; a: { x: number; y: number }; b: { x: number; y: number } } | null>(null)
+  const pan = useRef<{ id: number; v: Syn; ppm: number; p: { x: number; y: number } } | null>(null)
+  useEffect(() => setSyn(null), [ark?.arkB, ark?.arkH])
+
   /** frå skjermpikslar til millimeter på plata, y opp — gjennom den same
    *  spegelen teikninga sjølv ligg i, so tala er dei plata reknar i */
   const mm = (cx: number, cy: number): [number, number] | null => {
@@ -438,6 +463,33 @@ function Plater(props: {
 
   if (!ark || !ark.tal) {
     return <p className="dim p-4 text-[11px]">ingenting er lagt ut på ei plate enno.</p>
+  }
+  const { arkB, arkH } = ark
+  /** heile plata, midtstilt i ruta, med ruta sitt sideforhold */
+  const heile = (r: DOMRect): Syn => {
+    const ppm = Math.min(r.width / arkB, r.height / arkH)
+    const w = r.width / ppm
+    const h = r.height / ppm
+    return { x: (arkB - w) / 2, y: (arkH - h) / 2, w, h }
+  }
+  /** ruta, utsnittet som gjeld og pikslar per millimeter */
+  const stoda = () => {
+    const r = svgRef.current!.getBoundingClientRect()
+    const v = synRef.current ?? heile(r)
+    return { r, v, ppm: r.width / v.w }
+  }
+  /** utsnittet får ikkje gå lenger ut enn at halve ruta framleis er plate */
+  const inne = (v: Syn): Syn => ({
+    ...v,
+    x: Math.min(Math.max(v.x, -v.w / 2), arkB - v.w / 2),
+    y: Math.min(Math.max(v.y, -v.h / 2), arkH - v.h / 2),
+  })
+  /** ein finger til er slutten på det som var i gang på ein del */
+  const sleppDelen = () => {
+    window.clearTimeout(langt.current)
+    trykk.current = null
+    draRef.current = null
+    setDra(null)
   }
   const faste = ark.plasser.filter((d) => festa.has(d.adr)).length
   const kryss = ark.plasser.filter((d) => d.kross).length
@@ -487,13 +539,14 @@ function Plater(props: {
             noko — då har du funne dei. */}
         {festa.size === 0 && (
           <span className="dim basis-full text-[10px] tracking-[0.04em]">
-            dra ein del for å flytte han · hald for å feste og snu
+            dra ein del for å flytte han · hald for å feste og snu · klyp for å sjå nærare
           </span>
         )}
       </div>
       <div className="min-h-0 flex-1 p-3">
         <svg
-          viewBox={`0 0 ${ark.arkB} ${ark.arkH}`}
+          ref={svgRef}
+          viewBox={syn ? `${syn.x} ${syn.y} ${syn.w} ${syn.h}` : `0 0 ${arkB} ${arkH}`}
           className="h-full w-full"
           role="img"
           aria-label={`plate ${ark.i + 1} av ${ark.tal}, ${ark.delar} delar`}
@@ -502,6 +555,83 @@ function Plater(props: {
           // tek iOS draget som ei rulling og sender `pointercancel` etter
           // nokre pikslar.
           style={{ touchAction: "none" }}
+          onPointerDown={(e) => {
+            fingrar.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+            const paaDel = !!(e.target as Element).closest("g[data-del]")
+            if (fingrar.current.size === 2) {
+              // To fingrar er eit klyp, same kvar dei landa. Delen som
+              // var teken, vert sleppt der han stod.
+              sleppDelen()
+              pan.current = null
+              const [a, b] = [...fingrar.current.values()]
+              const { v, ppm } = stoda()
+              klyp.current = { v, ppm, a: { ...a }, b: { ...b } }
+              e.currentTarget.setPointerCapture(e.pointerId)
+              return
+            }
+            // Éin finger på bert bord dreg utsnittet — men berre når det
+            // er noko å dra: heile plata står stille.
+            if (fingrar.current.size === 1 && !paaDel && synRef.current) {
+              const { v, ppm } = stoda()
+              pan.current = { id: e.pointerId, v, ppm, p: { x: e.clientX, y: e.clientY } }
+              e.currentTarget.setPointerCapture(e.pointerId)
+            }
+          }}
+          onPointerMove={(e) => {
+            if (!fingrar.current.has(e.pointerId)) return
+            fingrar.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+            const k = klyp.current
+            if (k && fingrar.current.size >= 2) {
+              const [a1, b1] = [...fingrar.current.values()]
+              const d0 = Math.hypot(k.a.x - k.b.x, k.a.y - k.b.y) || 1
+              const d1 = Math.hypot(a1.x - b1.x, a1.y - b1.y) || 1
+              const { r } = stoda()
+              const passa = heile(r)
+              const ppmHeile = r.width / passa.w
+              // Mellom heile plata og ti gonger nærare. Under heile plata
+              // er det ikkje eit utsnitt lenger, det er ei mindre teikning.
+              const ppm1 = Math.min(ppmHeile * 10, Math.max(ppmHeile, k.ppm * (d1 / d0)))
+              if (ppm1 <= ppmHeile * 1.01) {
+                setSyn(null)
+                return
+              }
+              // Punktet midt mellom fingrane skal stå stille på plata.
+              const m0 = { x: (k.a.x + k.b.x) / 2, y: (k.a.y + k.b.y) / 2 }
+              const m1 = { x: (a1.x + b1.x) / 2, y: (a1.y + b1.y) / 2 }
+              const M = { x: k.v.x + (m0.x - r.left) / k.ppm, y: k.v.y + (m0.y - r.top) / k.ppm }
+              setSyn(
+                inne({
+                  x: M.x - (m1.x - r.left) / ppm1,
+                  y: M.y - (m1.y - r.top) / ppm1,
+                  w: r.width / ppm1,
+                  h: r.height / ppm1,
+                }),
+              )
+              return
+            }
+            const q = pan.current
+            if (q && q.id === e.pointerId) {
+              setSyn(
+                inne({
+                  ...q.v,
+                  x: q.v.x - (e.clientX - q.p.x) / q.ppm,
+                  y: q.v.y - (e.clientY - q.p.y) / q.ppm,
+                }),
+              )
+            }
+          }}
+          onPointerUp={(e) => {
+            fingrar.current.delete(e.pointerId)
+            if (fingrar.current.size < 2) klyp.current = null
+            if (pan.current?.id === e.pointerId) pan.current = null
+          }}
+          onPointerCancel={(e) => {
+            fingrar.current.delete(e.pointerId)
+            if (fingrar.current.size < 2) klyp.current = null
+            if (pan.current?.id === e.pointerId) pan.current = null
+          }}
+          // Dobbelttrykket TYDER «heile plata», som i objektet.
+          onDoubleClick={() => setSyn(null)}
         >
           {/* plata sjølv: ei ramme, so du ser kor kanten går */}
           <rect
@@ -520,6 +650,7 @@ function Plater(props: {
               return (
                 <g
                   key={d.adr}
+                  data-del={d.adr}
                   transform={q ? `translate(${q.dx} ${q.dy})` : undefined}
                   onPointerEnter={() => onPeik(d.adr)}
                   onPointerDown={(e) => {
