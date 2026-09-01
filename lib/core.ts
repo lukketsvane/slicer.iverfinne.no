@@ -391,8 +391,9 @@ export type Rule = {
 export type Fiks = {
   /** det som står på knappen: «prøv 420 mm» */
   ord: string
-  /** parametrane som skal endrast */
-  set: Record<string, number>
+  /** parametrane som skal endrast. Tal for skyvarane; ein streng for dei
+   *  få parametrane som er lister — festa, som eit råd kan sleppe. */
+  set: Record<string, number | string>
 }
 
 // =============================================================================

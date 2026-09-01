@@ -173,6 +173,17 @@ prov("så vidt for stort", "plate", {
   arkH: 297,
 })
 
+// --- to feste i kvarandre --------------------------------------------------
+// Handa sette to delar i kvarandre. Rådet slepper nett dei, og lèt det
+// tredje festet stå.
+{
+  const p = { ...DEFAULT_PARAMS, fest: "X1:0,0,10,10;X2:0,0,20,20;X3:0,0,300,200" }
+  prov("to feste i kvarandre", "plate", p)
+  const r = finn(p, "plate")
+  const etter = r?.fiks ? String(r.fiks.set.fest) : "?"
+  ok("og det tredje festet står", etter.includes("X3:") && !etter.includes("X2:"), etter)
+}
+
 // --- opning mellom ribbene -------------------------------------------------
 // Tettleiken er rekna på ei jamn stigning over eit ujamnt legeme, so her
 // er to runder tillatne: fyrste rådet skal ta deg mesteparten av vegen.
@@ -293,7 +304,10 @@ prov("ingen ribber møtest", "grip", {
       const bede = { ...p, ...r.fiks.set } as unknown as ParamBag
       const fekk = VAFFEL.clamp(bede, p as unknown as ParamBag)
       for (const k of Object.keys(r.fiks.set)) {
-        if (Math.abs((fekk[k] as number) - r.fiks.set[k]) > 1e-9) {
+        // Eit tal skal stå innanfor bandet; ein streng skal stå som han er.
+        const v = r.fiks.set[k]
+        const ulik = typeof v === "number" ? Math.abs((fekk[k] as number) - v) > 1e-9 : fekk[k] !== v
+        if (ulik) {
           alleLovlege = false
           sett.push(`${r.id}: ${k} ${r.fiks.set[k]} → ${String(fekk[k])}`)
         }
