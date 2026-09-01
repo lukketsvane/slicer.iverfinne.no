@@ -677,31 +677,12 @@ export function pack(
     const staar = new Set<number>()
     let kross = 0
     if (fest?.size) {
-      /**
-       * PLATENUMMERA VERT PAKKA TETT.
-       *
-       * Eit feste ber nummeret på den plata delen stod på DÅ han vart
-       * festa. Vert jobben mindre etterpå — færre ribber, mindre objekt —
-       * treng resten kanskje berre éi plate, og ein del festa på plate
-       * fire ville ha gjeve fire plater der to av dei var tomme: tomme
-       * filer i uttaket, og eit platetal som lyg. So nummera vert lesne
-       * som ei REKKJEFYLGJE og ikkje som adresser: den lågaste plata med
-       * eit feste på vert plate éin, den neste plate to. To feste på same
-       * nummer hamnar framleis på same plata.
-       */
-      const nummer = [...new Set(
-        [...fest.values()]
-          .map((ft) => ft.sheet)
-          .filter((n) => Number.isInteger(n) && n >= 0 && n <= 255),
-      )].sort((a, b) => a - b)
-      const plateAv = new Map(nummer.map((n, i) => [n, i]))
       for (const { i, f } of order) {
         const ft = fest.get(i)
         if (!ft) continue
-        const plate = plateAv.get(ft.sheet)
-        if (plate === undefined) continue
-        platerTil(plate)
-        const b = boards[plate]
+        if (!Number.isInteger(ft.sheet) || ft.sheet < 0 || ft.sheet > 255) continue
+        platerTil(ft.sheet)
+        const b = boards[ft.sheet]
         const m = f.masks[ft.rot]
         // Ein del som er større enn plata kan ikkje festast på henne. Han
         // fell ned i den vanlege lykkja, som alt veit kva ho skal seie om
@@ -717,7 +698,7 @@ export function pack(
         const bb = bbox(pieces[i].rings[0])
         slots.push({
           piece: i,
-          sheet: plate,
+          sheet: ft.sheet,
           rot: ft.rot,
           m: affine(
             { ...f, ox: bb.x0 - k * res, oy: bb.y0 - k * res },
@@ -776,6 +757,28 @@ export function pack(
         sx: put.px * res,
         sy: put.py * res,
       })
+    }
+    /**
+     * TOMME PLATER FELL BORT.
+     *
+     * Eit feste ber nummeret på den plata delen stod på DÅ han vart festa.
+     * Vert jobben mindre etterpå — færre ribber, mindre objekt — treng
+     * resten kanskje berre éi plate, og ein del festa på plate fire gav
+     * fire plater der to var tomme: tomme filer i uttaket, og eit platetal
+     * som laug. Dei tomme går ut, og dei som er att vert talde om att.
+     *
+     * Ikkje pakka tettare enn det: delen står på SI plate, ikkje på den
+     * fyrste. Eit feste er «her», og «her» er òg kva plate. Det er òg det
+     * som gjer at «neste plate» i verktyet tyder noko for ein einsleg del.
+     */
+    const att: number[] = []
+    boards.forEach((b, n) => {
+      if (b.used > 0) att.push(n)
+    })
+    if (att.length < boards.length) {
+      const ny = new Map(att.map((n, i) => [n, i]))
+      for (const sl of slots) sl.sheet = ny.get(sl.sheet) ?? sl.sheet
+      return { slots, boards: att.map((n) => boards[n]), spilt, kross }
     }
     return { slots, boards, spilt, kross }
   }

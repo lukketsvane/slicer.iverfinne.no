@@ -294,12 +294,16 @@ sjekk("og den frie tredje går utanom", iKvarandre.slots.length === 3 && med.kro
  * EIT FESTE PÅ EI PLATE SOM IKKJE TRENGST LENGER.
  *
  * Delen vart festa på plate fire då jobben var stor. No er han liten, og
- * resten får plass på éi. Nummeret er ei rekkjefylgje og ikkje ei
- * adresse: han hamnar på den fyrste plata, og ingen tom plate vert laga.
- * To feste med same nummer held saman.
+ * resten får plass på éi. Dei tomme platene imellom fell bort, delen
+ * står att på si eiga — plate to no — og ingen fil er tom. To feste med
+ * same nummer held saman.
  */
 const langtUte = pack(bitar, 400, 400, 4, new Map<number, Fest>([[0, { sheet: 3, rot: 0, x: 50, y: 50 }]]))
-sjekk("eit feste på plate 4 lagar ikkje tomme plater", langtUte.sheets === 1 && langtUte.used.every((u) => u > 0), `${langtUte.sheets} plater`)
+sjekk(
+  "eit feste på plate 4 lagar ikkje tomme plater",
+  langtUte.sheets === 2 && langtUte.used.every((u) => u > 0) && langtUte.slots.find((q) => q.piece === 0)?.sheet === 1,
+  `${langtUte.sheets} plater · festa på ${langtUte.slots.find((q) => q.piece === 0)?.sheet}`,
+)
 const toUte = pack(bitar, 400, 400, 4, new Map<number, Fest>([
   [0, { sheet: 3, rot: 0, x: 0, y: 0 }],
   [1, { sheet: 3, rot: 0, x: 250, y: 250 }],
