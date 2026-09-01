@@ -194,10 +194,17 @@ export function Studio() {
     adr: string
     x: number
     y: number
-    /** står han på ei plate, er DETTE kvar. Då er handlingane feste og
-     *  ikkje ribbehandlingane: ein del på ei plate har ingen naboribbe å
-     *  kopiere seg til. */
-    plass?: Delplass["plass"]
+    /**
+     * Han vart opna PÅ PLATA. Då er handlingane feste og snu, og ikkje
+     * ribbehandlingane: ein del på ei plate har ingen naboribbe å kopiere
+     * seg til.
+     *
+     * Berre eit ja, og ikkje plasseringa sjølv: ho stod her som ein kopi
+     * teken i det trykket kom, og eit «snu» etter eit «snu» las den gamle.
+     * Kvar delen står NO, veit festa i parametrane og plata — sjå
+     * `plassAv`.
+     */
+    plate?: boolean
   } | null>(null)
   const delVerktyRef = useRef<HTMLDivElement | null>(null)
   const [busy, setBusy] = useState(true)
@@ -1041,27 +1048,110 @@ export function Studio() {
     return ut
   }, [params, skala, ribbene, kuttliste])
 
-  /** står denne delen fast på plata? */
-  const erFesta = useCallback(
-    (adr: string) => lesFest(String(params.fest ?? "")).has(adr),
+  /** delane som står fast på plata, etter adresse */
+  const festa = useMemo(
+    () => new Set(lesFest(String(params.fest ?? "")).keys()),
     [params.fest],
+  )
+
+  /**
+   * KVAR EIN DEL STÅR NO.
+   *
+   * To kjelder, og den eine går føre. Står delen fast, er festet i
+   * parametrane sanninga — det er skrive i det du trykte, og plata som
+   * ligg framme kan vera frå før trykket. Står han fri, er det plata som
+   * veit: pakkinga la han der, og talet er det ho sjølv gav frå seg.
+   */
+  const plassAv = useCallback(
+    (adr: string, cur: ParamBag) =>
+      lesFest(String(cur.fest ?? "")).get(adr) ??
+      ark?.plasser.find((d) => d.adr === adr)?.plass,
+    [ark],
   )
 
   /**
    * FEST, ELLER SLEPP.
    *
-   * «Der han står» er ikkje ei rekning: `plass` er talet pakkinga sjølv
-   * gav frå seg, og det går rett attende inn hit.
+   * «Der han står» er ikkje ei rekning: plasseringa er talet pakkinga
+   * sjølv gav frå seg, og det går rett attende inn hit.
    */
-  const vipFest = useCallback((adr: string, plass: Delplass["plass"]) => {
+  const vipFest = useCallback(
+    (adr: string) => {
+      setHint(null)
+      setParams((cur) => {
+        const m = lesFest(String(cur.fest ?? ""))
+        if (m.has(adr)) m.delete(adr)
+        else {
+          const pl = plassAv(adr, cur)
+          if (!pl) return cur
+          m.set(adr, pl)
+        }
+        return { ...cur, fest: skrivFest(m) }
+      })
+    },
+    [plassAv],
+  )
+
+  /**
+   * FLYTT: delen står fast der fingeren sleppte han.
+   *
+   * Plata har alt rekna talet — hjørnet han stod i, pluss det fingeren
+   * gjekk, klemt inn på plata. Her vert det berre skrive. Eit drag er òg
+   * eit feste: ein del som er flytt for hand og so pakka om att av
+   * maskina er ein del som ikkje vart flytt.
+   */
+  const flyttDel = useCallback((adr: string, plass: Delplass["plass"]) => {
     setHint(null)
     setParams((cur) => {
       const m = lesFest(String(cur.fest ?? ""))
-      if (m.has(adr)) m.delete(adr)
-      else m.set(adr, plass)
+      m.set(adr, { ...plass, x: +plass.x.toFixed(2), y: +plass.y.toFixed(2) })
       return { ...cur, fest: skrivFest(m) }
     })
   }, [])
+
+  /**
+   * SNU: ein kvart sving, kring midten av delen.
+   *
+   * Pakkinga kjenner fire svingar og ikkje fleire, og ho snur kring
+   * HJØRNET av masken. Ein del som snur kring hjørnet sitt hoppar; ein som
+   * snur kring midten står. So midten vert halden: masken er boksen pluss
+   * margen kring han, og etter svingen har han bytt breidd og høgd, so det
+   * nye hjørnet er midten minus dei bytte halvmåla.
+   *
+   * Margen er lesen av plata sjølv — avstanden frå hjørnet pakkinga gav
+   * til boksen ho teikna — og ikkje rekna om att her. Boksen er ei celle
+   * for smal på kvar side av rasteret sitt, og midten hans ei halv celle
+   * for langt inne; dei to feila et kvarandre opp i det nye hjørnet.
+   *
+   * Plata må ha teke att det siste festet fyrst: har ho ikkje det, står
+   * boksen i den gamle svingen og breidd og høgd er bytte om. Då ventar
+   * trykket til neste plate. Delen vert festa av svingen, som av draget.
+   */
+  const snuDel = useCallback(
+    (adr: string) => {
+      setHint(null)
+      setParams((cur) => {
+        const d = ark?.plasser.find((q) => q.adr === adr)
+        if (!d) return cur
+        const m = lesFest(String(cur.fest ?? ""))
+        const no = m.get(adr) ?? d.plass
+        if (no.rot !== d.plass.rot) return cur
+        const marg = Math.max(0, d.boks.x - d.plass.x)
+        const W = d.boks.w + 2 * marg
+        const H = d.boks.h + 2 * marg
+        const cx = d.plass.x + W / 2
+        const cy = d.plass.y + H / 2
+        m.set(adr, {
+          sheet: d.plass.sheet,
+          rot: ((no.rot + 1) % 4) as 0 | 1 | 2 | 3,
+          x: +Math.max(0, cx - H / 2).toFixed(2),
+          y: +Math.max(0, cy - W / 2).toFixed(2),
+        })
+        return { ...cur, fest: skrivFest(m) }
+      })
+    },
+    [ark],
+  )
 
   /** eit langt trykk på ein del opnar verktyet der fingeren står */
   const langtrykk = useCallback(
@@ -1852,10 +1942,13 @@ export function Studio() {
         STÅR. Ein meny i ein vegg krev at du hugsar kva du peika på medan
         du fer bort til han; denne står på det du held.
 
-        Éin ting kan han i dag: låse ribba. Ei låst ribbe rikkar seg ikkje
-        når du dreg ribbeskyvaren — dei frie fordeler seg kring henne — og
-        det er det som gjer at ein stabel kan byggjast for hand i staden
-        for å veljast blant seks jamne.
+        På ei ribbe i objektet: lås, kopier, spegl, slett. Ei låst ribbe
+        rikkar seg ikkje når du dreg ribbeskyvaren — dei frie fordeler seg
+        kring henne — og det er det som gjer at ein stabel kan byggjast for
+        hand i staden for å veljast blant seks jamne.
+
+        På ein del på plata: fest eller slepp, og snu. Flyttinga har ingen
+        knapp — ho er draget på sjølve delen.
       */}
       {delVerkty && (
         <>
@@ -1875,7 +1968,7 @@ export function Studio() {
             // hjørna er runde og ikkje halvsirklar.
             className="fixed z-40 flex max-w-[calc(100vw-24px)] flex-wrap items-center gap-1.5 rounded-3xl border px-1.5 py-1.5"
             role="dialog"
-            aria-label={`ribbe ${delVerkty.adr}`}
+            aria-label={`${delVerkty.plate ? "del" : "ribbe"} ${delVerkty.adr}`}
             style={{
               // Ei startgjetting; `useLayoutEffect` over måler og rettar
               // henne før noko vert teikna.
@@ -1889,15 +1982,23 @@ export function Studio() {
             <span className="tab px-1.5 text-[11px]" style={{ color: "var(--ink)" }}>
               {delVerkty.adr}
             </span>
-            {(delVerkty.plass
+            {(delVerkty.plate
               ? [
                   {
-                    ord: erFesta(delVerkty.adr) ? "slepp" : "fest",
-                    paa: erFesta(delVerkty.adr),
-                    gjer: () => vipFest(delVerkty.adr, delVerkty.plass!),
-                    kva: erFesta(delVerkty.adr)
+                    ord: festa.has(delVerkty.adr) ? "slepp" : "fest",
+                    paa: festa.has(delVerkty.adr),
+                    gjer: () => vipFest(delVerkty.adr),
+                    kva: festa.has(delVerkty.adr)
                       ? "slepp delen: pakkinga legg han der ho vil att"
                       : "sett delen fast der han ligg: han vert lagd ned fyrst, og resten pakkar seg kring han",
+                  },
+                  {
+                    ord: "snu",
+                    paa: false,
+                    gjer: () => snuDel(delVerkty.adr),
+                    kva: "ein kvart sving mot klokka, kring midten. Delen vert festa der han står.",
+                    /** verktyet står: fire svingar er tre trykk til */
+                    blir: true,
                   },
                 ]
               : [
@@ -1937,7 +2038,7 @@ export function Studio() {
                 title={v.kva}
                 onClick={() => {
                   v.gjer()
-                  setDelVerkty(null)
+                  if (!("blir" in v && v.blir)) setDelVerkty(null)
                   /**
                    * Å LÅSE EI RIBBE ER Å BYRJE Å BYGGJE FOR HAND.
                    *
@@ -1949,7 +2050,7 @@ export function Studio() {
                    * svarar DET, og er ingen open, opnar vi det som svarar
                    * på det du nettopp gjorde.
                    */
-                  if (!delVerkty.plass) setVerkty((t) => t ?? "stabel")
+                  if (!delVerkty.plate) setVerkty((t) => t ?? "stabel")
                 }}
               >
                 {v.ord}
@@ -2053,7 +2154,10 @@ export function Studio() {
           onHogd={setVerktyMaalt}
           onArk={askArk}
           onPeik={setPeikt}
-          onLangtrykk={(adr, plass, x, y) => setDelVerkty({ adr, plass, x, y })}
+          festa={festa}
+          onLangtrykk={(adr, x, y) => setDelVerkty({ adr, plate: true, x, y })}
+          onAvbryt={() => setDelVerkty(null)}
+          onFlyttDel={flyttDel}
           onChange={endre}
           onFlytt={flyttRibbe}
           onLaas={vipLaas}

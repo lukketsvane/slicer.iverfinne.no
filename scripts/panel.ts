@@ -15,6 +15,8 @@
  *     er eit svar på
  *   · talfeltet tek imot 9999 og set eit objekt ingen plate kan bera
  *   · angre går eitt steg for langt, eller eitt for kort
+ *   · eit drag på ein del på plata festar han ein annan stad enn der
+ *     fingeren sleppte han, eller opnar verktyet i staden for å dra
  *
  * Difor vert dei prøvde her, i ein ekte nettlesar, mot det som faktisk
  * står i lenkja — lenkja ber alle parametrane, so ho er den einaste
@@ -397,6 +399,149 @@ async function gestane(browser: Browser) {
   )
   ok("og vender ikkje objektet", Number(p.rotZ) === vend2, `${vend2}° → ${p.rotZ}°`)
 
+  await page.close()
+}
+
+/**
+ * PLATA PÅ EIN TELEFON: DRA EIN DEL, HALD HAN, SNU HAN.
+ *
+ * Kvar del på plata er sitt eige element, og ein finger kan gjere tre ting
+ * med han: eit trykk peikar, eit trykk som varer opnar verktyet, og eit drag
+ * FLYTTAR han — der fingeren slepper, står han fast. Ingen av dei tre står
+ * i DOM-en som anna enn resultatet sitt, so dei vert prøvde med ekte
+ * trykkpunkt gjennom nettlesaren sin eigen inngang, og svaret vert lese av
+ * lenkja: `fest` er adressa, plata, svingen og hjørnet.
+ *
+ * Den eine feilen som ikkje kastar: klokka som gjer eit trykk langt ser
+ * ikkje fingeren. Står hovudtråden stille etter at delen lyste opp — og i
+ * ein nettlesar utan skjermkort gjer han det i eit halvt sekund — kjem
+ * klokka før rørslene, og verktyet opnar seg over eit drag. Sjå `LANGT_MS`
+ * i verkty.tsx. Difor er dette nett det miljøet prøva må halde i.
+ */
+async function plata(browser: Browser, feil: string[]) {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+    deviceScaleFactor: 3,
+  })
+  page.on("pageerror", (e) => feil.push(String(e)))
+  page.on("console", (m) => {
+    if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) feil.push(m.text())
+  })
+  await page.goto(URL, { waitUntil: "networkidle" })
+  await rolig(page)
+  await opnePanelet(page)
+  await page.getByLabel("opne stabelen").click()
+  await rolig(page)
+  const skuffa = page.locator("section[aria-label='verkty']")
+  await skuffa.locator("button", { hasText: /^plater$/i }).first().click()
+  await rolig(page)
+  await page.waitForTimeout(600)
+
+  const svg = skuffa.locator("svg[role=img]")
+  const delar = svg.locator("g > g")
+  ok("plata har delar på seg", (await delar.count()) > 0, `${await delar.count()} delar`)
+
+  /** midten av delen med denne adressa, i skjermpikslar. Tittelen ber
+   *  adressa fyrst, og «· fast» etter når han står fast. */
+  const midt = async (adr: string) => {
+    const g = svg
+      .locator("g > g", { has: page.locator("title", { hasText: new RegExp(`^${adr}( |$)`) }) })
+      .first()
+    const b = (await g.boundingBox())!
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+  }
+  const adr = ((await delar.first().locator("title").textContent()) ?? "").trim().split(" ")[0]
+  const fyrst = await midt(adr)
+
+  const cdp = await page.context().newCDPSession(page)
+  type Pt = { x: number; y: number; id: number }
+  const send = (type: string, touchPoints: Pt[]) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints } as never)
+  /** ein finger frå ein stad til ein annan, i tolv steg */
+  const dra = async (fra: { x: number; y: number }, til: { x: number; y: number }) => {
+    await send("touchStart", [{ x: fra.x, y: fra.y, id: 1 }])
+    for (let i = 1; i <= 12; i++) {
+      await send("touchMove", [
+        { x: fra.x + ((til.x - fra.x) * i) / 12, y: fra.y + ((til.y - fra.y) * i) / 12, id: 1 },
+      ])
+      await page.waitForTimeout(30)
+    }
+    await send("touchEnd", [])
+    await rolig(page)
+    await page.waitForTimeout(500)
+  }
+  const festet = async () => String((await lenkja(page)).fest)
+
+  // --- DRAGET FESTAR ---------------------------------------------------------
+  ok("ingen feste før nokon har dregen", (await festet()) === "")
+  const mål = { x: Math.min(370, fyrst.x + 90), y: fyrst.y - 60 }
+  await dra(fyrst, mål)
+  const f1 = await festet()
+  ok("eit drag festar delen", f1.startsWith(adr + ":"), f1)
+  const etter = await midt(adr)
+  ok(
+    "og delen ligg der fingeren sleppte han",
+    Math.abs(etter.x - mål.x) < 30 && Math.abs(etter.y - mål.y) < 30,
+    `${fyrst.x.toFixed(0)},${fyrst.y.toFixed(0)} → ${etter.x.toFixed(0)},${etter.y.toFixed(0)}, mål ${mål.x.toFixed(0)},${mål.y.toFixed(0)}`,
+  )
+
+  // --- HALD: SLEPP OG SNU -------------------------------------------------------
+  await send("touchStart", [{ x: etter.x, y: etter.y, id: 1 }])
+  await page.waitForTimeout(700)
+  await send("touchEnd", [])
+  await page.waitForTimeout(300)
+  const meny = page.getByRole("dialog", { name: `del ${adr}` })
+  ok("eit langt trykk opnar verktyet over delen", (await meny.count()) === 1)
+  ok("og delen står som fast der", (await meny.locator("button", { hasText: /^slepp$/ }).count()) === 1)
+  const rotAv = (f: string) => Number(f.split(";").find((q) => q.startsWith(adr + ":"))?.split(":")[1].split(",")[1])
+  const rot0 = rotAv(f1)
+  await meny.locator("button", { hasText: /^snu$/ }).click()
+  await rolig(page)
+  const rot1 = rotAv(await festet())
+  ok("snu tek ein kvart sving", rot1 === (rot0 + 1) % 4, `${rot0} → ${rot1}`)
+  ok("og verktyet står att, so neste sving er eitt trykk", (await meny.count()) === 1)
+  await page.waitForTimeout(400)
+  await meny.locator("button", { hasText: /^snu$/ }).click()
+  await rolig(page)
+  ok("og ein til", rotAv(await festet()) === (rot0 + 2) % 4)
+  await page.waitForTimeout(400)
+  const snudd = await midt(adr)
+  ok(
+    "delen snur kring midten sin",
+    Math.abs(snudd.x - etter.x) < 25 && Math.abs(snudd.y - etter.y) < 25,
+    `${etter.x.toFixed(0)},${etter.y.toFixed(0)} → ${snudd.x.toFixed(0)},${snudd.y.toFixed(0)}`,
+  )
+  await meny.locator("button", { hasText: /^slepp$/ }).click()
+  await rolig(page)
+  ok("slepp tek festet bort", (await festet()) === "")
+
+  // --- TO FESTE I KVARANDRE ----------------------------------------------------
+  /**
+   * Pakkinga overprøver ikkje handa: dreg du ein del inn i ein annan festa
+   * del, ligg dei i kvarandre. Men plata skal SEIE det — raud del, og eit
+   * tal i hovudet på henne — og regelen om plata skal ryke.
+   */
+  const a = await midt(adr)
+  await dra(a, { x: Math.min(370, a.x + 90), y: a.y - 60 })
+  const andre = ((await delar.nth(1).locator("title").textContent()) ?? "").trim().split(" ")[0]
+  const b = await midt(andre)
+  const inn = await midt(adr)
+  await dra(b, inn)
+  const f3 = await festet()
+  ok("to delar dregne står begge fast", f3.split(";").length === 2, f3)
+  ok(
+    "og plata seier at dei ligg i kvarandre",
+    /\d+ i kvarandre/.test(await skuffa.innerText()),
+    (await skuffa.innerText()).replace(/\s+/g, " ").slice(0, 80),
+  )
+  const raude = await page.evaluate(() =>
+    [...document.querySelectorAll("section[aria-label='verkty'] svg g > g > path")].filter(
+      (q) => getComputedStyle(q).stroke === "rgb(185, 28, 28)",
+    ).length,
+  )
+  ok("og teiknar den som ligg i den andre raud", raude > 0, `${raude} raude baner`)
   await page.close()
 }
 
@@ -1229,6 +1374,7 @@ async function main() {
   await page.setViewportSize({ width: 1000, height: 900 })
 
   await gestane(browser)
+  await plata(browser, feil)
   await lerretet(browser, feil)
   await benken(browser, feil)
 
