@@ -542,6 +542,43 @@ async function plata(browser: Browser, feil: string[]) {
     ).length,
   )
   ok("og teiknar den som ligg i den andre raud", raude > 0, `${raude} raude baner`)
+
+  // --- TIL NESTE PLATE ---------------------------------------------------------
+  /**
+   * Draget flyttar innanfor plata. Ein del som skal AV henne tek vegen
+   * gjennom verktyet: «neste plate» festar han på plata etter — ei ny om
+   * det er den siste — og skuffa fylgjer han dit. Her tek det òg dei to ut
+   * av kvarandre.
+   */
+  const plateAv = (f: string, a: string) =>
+    Number((f.split(";").find((q) => q.startsWith(a + ":")) ?? "").split(":")[1]?.split(",")[0])
+  // Dei to ligg i kvarandre, so trykket landar på den som er teikna sist.
+  // Kven det vart, seier verktyet sjølv.
+  const her = await midt(andre)
+  await send("touchStart", [{ x: her.x, y: her.y, id: 1 }])
+  await page.waitForTimeout(700)
+  await send("touchEnd", [])
+  await page.waitForTimeout(300)
+  const meny2 = page.getByRole("dialog")
+  ok("verktyet opnar seg over ein festa del", (await meny2.count()) === 1)
+  const kven = ((await meny2.getAttribute("aria-label")) ?? "").replace(/^del /, "")
+  await meny2.locator("button", { hasText: /^neste plate$/ }).click()
+  await rolig(page)
+  await page.waitForTimeout(700)
+  const f4 = await festet()
+  ok("neste plate festar delen på plata etter", plateAv(f4, kven) === 1, `${kven} · ${f4}`)
+  const paaSkjermen = () => svg.locator("title", { hasText: new RegExp(`^${kven}( |$)`) }).count()
+  ok("og skuffa fylgjer han dit", (await paaSkjermen()) === 1)
+  ok("og dei ligg ikkje i kvarandre lenger", !/i kvarandre/.test(await skuffa.innerText()))
+  const der = await midt(kven)
+  await send("touchStart", [{ x: der.x, y: der.y, id: 1 }])
+  await page.waitForTimeout(700)
+  await send("touchEnd", [])
+  await page.waitForTimeout(300)
+  await page.getByRole("dialog", { name: `del ${kven}` }).locator("button", { hasText: /^førre plate$/ }).click()
+  await rolig(page)
+  await page.waitForTimeout(700)
+  ok("og førre plate tek han attende", plateAv(await festet(), kven) === 0 && (await paaSkjermen()) === 1, await festet())
   await page.close()
 }
 

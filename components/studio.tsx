@@ -1474,6 +1474,34 @@ export function Studio() {
     worker.current?.postMessage(msg)
   }, [])
 
+  /**
+   * TIL EI ANNA PLATE.
+   *
+   * Draget flyttar innanfor plata, og plata er den einaste skuffa syner.
+   * Ein del som skal AV ei full plate treng difor ein annan veg: eitt
+   * steg fram eller attende i bunken. Nummeret er plata sitt eige — det
+   * pakkinga gav frå seg — og eitt steg forbi den siste er ei ny plate.
+   * Han vert festa av flyttinga, som av draget, og skuffa fylgjer han:
+   * ein del som forsvinn frå skjermen er ein del som vart borte.
+   */
+  const bytPlate = useCallback(
+    (adr: string, steg: 1 | -1) => {
+      setHint(null)
+      const d = ark?.plasser.find((q) => q.adr === adr)
+      if (!d) return
+      const til = d.plass.sheet + steg
+      if (til < 0) return
+      setParams((cur) => {
+        const m = lesFest(String(cur.fest ?? ""))
+        const no = m.get(adr) ?? d.plass
+        m.set(adr, { ...no, sheet: til })
+        return { ...cur, fest: skrivFest(m) }
+      })
+      askArk(til)
+    },
+    [ark, askArk],
+  )
+
   /** Opnar eit verkty, eller lèt det att om det alt stod ope. */
   const opneVerkty = useCallback(
     (id: VerktyId) => {
@@ -1999,6 +2027,25 @@ export function Studio() {
                     kva: "ein kvart sving mot klokka, kring midten. Delen vert festa der han står.",
                     /** verktyet står: fire svingar er tre trykk til */
                     blir: true,
+                  },
+                  // Fram og attende i bunken. «Førre» finst berre når det
+                  // er ei plate før; «neste» alltid — forbi den siste er
+                  // ei ny plate.
+                  ...((ark?.plasser.find((q) => q.adr === delVerkty.adr)?.plass.sheet ?? 0) > 0
+                    ? [
+                        {
+                          ord: "førre plate",
+                          paa: false,
+                          gjer: () => bytPlate(delVerkty.adr, -1),
+                          kva: "flytt delen til plata før. Han vert festa der, og skuffa fylgjer han.",
+                        },
+                      ]
+                    : []),
+                  {
+                    ord: "neste plate",
+                    paa: false,
+                    gjer: () => bytPlate(delVerkty.adr, 1),
+                    kva: "flytt delen til neste plate — ei ny om dette er den siste. Han vert festa der, og skuffa fylgjer han.",
                   },
                 ]
               : [
