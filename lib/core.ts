@@ -313,6 +313,12 @@ export type Delplass = {
    * står» er å sende dette talet attende utan å rekne på det.
    */
   plass: { sheet: number; rot: 0 | 1 | 2 | 3; x: number; y: number }
+  /**
+   * Han ligg i ein annan festa del. Berre handa kan få til det — pakkinga
+   * går aldri i nokon sjølv — og då skal plata syne det der det skjedde,
+   * og ikkje berre seie det i ei regel.
+   */
+  kross?: boolean
 }
 
 /** Ei plate slik ho ligg, til skjermen: teikninga og dei to tala som høyrer

@@ -14,10 +14,11 @@
  *
  * Skilnaden på denne og svgnest er at svgnest legg ein genetisk algoritme
  * oppå: han prøver tusen rekkjefylgjer og held den beste. Det er betre, og
- * det tek minutt. Denne køyrer éin gong, deterministisk, på titals
+ * det tek minutt. Denne prøver ei handfull, deterministisk, på titals
  * millisekund — og han må det, av di talet på plater står i panelet og
  * skal fylgje skyvaren medan du dreg i han. Eit tal som kjem eit minutt for
- * seint er ikkje eit tal, det er ei melding.
+ * seint er ikkje eit tal, det er ei melding. Sjå `STRATEGIAR` for kva dei
+ * få passasjane er, og kva dei får lov til å koste.
  *
  * KLARINGA ligg i rasteret og ikkje i søket: kvar del vert utvida med
  * halve luka på alle kantar før han vert lagd. Då kan to delar liggje
@@ -59,6 +60,13 @@ export type Slot = {
    */
   sx: number
   sy: number
+  /**
+   * Ein FESTA del som vart lagd ned i gods som alt låg der — altso i ein
+   * annan festa del. Pakkinga går aldri sjølv i nokon; det er berre handa
+   * som kan setje to delar i kvarandre, og då skal plata seie det. Sjå
+   * `kross` i `Packing`.
+   */
+  kross?: boolean
 }
 
 export type Packing = {
@@ -68,6 +76,16 @@ export type Packing = {
   used: number[]
   /** delar som ikkje fekk plass på ei tom plate heller */
   spilt: number[]
+  /**
+   * Festa delar som ligg i kvarandre.
+   *
+   * Pakkinga overprøver ikkje handa: eit feste vert lagt der det står, òg
+   * når det står i eit anna. Men to kutt som går i kvarandre er to delar
+   * som er øydelagde, og ei fil som ser fin ut på skjermen og gjev skrap på
+   * bordet er den verste fila som finst. So det vert talt, og regelen om
+   * plata seier nei.
+   */
+  kross: number
 }
 
 export const apply = (m: Slot["m"], p: Pt): Pt => [
@@ -311,6 +329,7 @@ function setBits(bits: Uint32Array, base: number, a: number, b: number) {
 function fits(b: Board, m: Mask, px: number, py: number): boolean {
   for (let r = 0; r < m.h; r++) {
     const base = (py + r) * b.words
+    arbeid += (m.start[r + 1] - m.start[r]) >> 1
     for (let s = m.start[r]; s < m.start[r + 1]; s += 2) {
       if (anySet(b.bits, base, px + m.span[s], px + m.span[s + 1])) return false
     }
@@ -342,6 +361,7 @@ function stamp(b: Board, m: Mask, px: number, py: number) {
  */
 function lowest(b: Board, m: Mask, px: number, step: number): number {
   let ySky = 0
+  arbeid += m.w
   for (let c = 0; c < m.w; c++) {
     if (m.bot[c] < 0) continue
     const t = b.top[px + c] - m.bot[c]
@@ -419,6 +439,99 @@ export function fitRoom(
   }
 }
 
+/**
+ * KVA SOM ER EI PLASSERING, OG KVA SOM ER EI GOD.
+ *
+ * Kvar del vert lagd på det lågaste ledige punktet han finn, og «lågast»
+ * kan målast på to måtar:
+ *
+ *   botn   lågaste NEDRE kant, og so lengst til venstre. Det er
+ *          bottom-left-fill slik han alltid har lege her.
+ *   topp   lågaste ØVRE kant, og so lengst til venstre. Ein del som er
+ *          høg og smal legg seg heller ned enn opp, og skylina vert
+ *          flatare: neste rad finn eit golv i staden for ei trapp. På ein
+ *          vendt kube gjekk siste plata frå 840 til 556 mm av det eine
+ *          ordet.
+ *
+ * `bryt` er ein snarveg botnen har hatt heile tida: står den fyrste
+ * kvartsvingen alt på golvet, prøver han ikkje dei tre andre. Ho er ikkje
+ * rett — ein annan sving kunne stått på golvet lenger til venstre — men
+ * det er slik den fyrste passasjen alltid har lagt, og den fyrste passasjen
+ * skal leggje NØYAKTIG som før. Sjå `STRATEGIAR`.
+ */
+type Poeng = "botn" | "topp"
+type Strategi = {
+  /** 0 er største fyrst; eit anna tal er frøet til støyen — sjå `ordna` */
+  fro: number
+  poeng: Poeng
+  bryt?: boolean
+}
+
+/**
+ * FLEIRE PASSASJAR, OG DEN BESTE STÅR.
+ *
+ * Ein grådig pakkar legg kvar del der ho passar best akkurat då, og angrar
+ * aldri. Det er billeg, og det er ofte nokre prosent frå det ei anna
+ * rekkjefylgje hadde gjeve: to mellomstore delar som fyller ei rad FØR den
+ * store kjem, i staden for etter. svgnest løyser det med ein genetisk
+ * algoritme over tusen rekkjefylgjer, og tek minutt.
+ *
+ * Her er det ei handfull. Den fyrste passasjen er den gamle, ordrett, so
+ * inga plate kan verte verre enn ho var. So kjem toppregelen på den same
+ * rekkjefylgja, og so den same regelen på rekkjefylgjer der storleiken har
+ * fått litt støy på seg: like store delar byter plass, og det er nett det
+ * som lèt ei rad fyllast annleis. Støyen er DETERMINISTISK — same frø, same
+ * rekkje, same plate kvar gong, på kvar maskin.
+ *
+ * Det beste svaret er det med færrast plater, og med like mange, det som
+ * let mest att av den siste: resten av henne er ikkje svinn, han ligg der
+ * og ventar på neste jobb, og eit reint stykke er meir verdt enn eit
+ * frynsa.
+ *
+ * Målt over fire og tjue objekt mot den eine passasjen: elleve vart betre
+ * og ingen verre. Siste plata på ein vendt kube gjekk frå 840 til 556 mm,
+ * på eit egg med åtte og fyrti ribber frå 344 til 208, på ei kule med sju
+ * frå 131 til 84. Platetalet stod stille på alle — det er grensa for det
+ * ein handfull grådige passasjar kan; ei plate mindre krev tusen.
+ *
+ * Fire og ikkje tolv. Med tolv frø prøvde vann kvart av dei nokre få
+ * objekt med nokre få millimeter, og ingen av dei skilde seg ut: det er
+ * støyen som gjer nytta, ikkje frøet. To held, og resten er tid.
+ */
+const STRATEGIAR: readonly Strategi[] = [
+  { fro: 0, poeng: "botn", bryt: true },
+  { fro: 0, poeng: "topp" },
+  { fro: 1, poeng: "topp" },
+  { fro: 2, poeng: "topp" },
+]
+
+/**
+ * KOR MANGE PASSASJAR TIL, ETTER KVA DEN FYRSTE KOSTA.
+ *
+ * Platetalet står i panelet og skal fylgje skyvaren, og søket pakkar
+ * tretten kandidatar på rad. Ein pakkar som tek fire gonger so lang tid er
+ * fire gonger for sein der. So den fyrste passasjen TEL arbeidet sitt —
+ * kolonnar sedde og spenn prøvde, eit tal som er det same på kvar maskin —
+ * og dei neste får det som er att av eit fast budsjett: ein liten jobb får
+ * alle tre, ein stor får ingen. Målt: ei pakking som tok 35 ms tek 135, ei
+ * som tok 430 tek 440. Søket, som pakkar tretten gonger, tok ein tredel
+ * lenger på det verste objektet og ein sjettedel på kuben.
+ */
+const BUDSJETT = 12_000_000
+let arbeid = 0
+
+/**
+ * Støy med frø. Ein liten kongruensgenerator er nok: ho skal ikkje vera
+ * tilfeldig, ho skal vera den SAME kvar gong, og ulik for kvart frø.
+ */
+function stoy(fro: number): () => number {
+  let x = (fro * 747796405 + 2891336453) | 0
+  return () => {
+    x = (Math.imul(x, 1103515245) + 12345) | 0
+    return (x >>> 8) / 16777216
+  }
+}
+
 export function pack(
   pieces: readonly Piece[],
   sheetW: number,
@@ -427,9 +540,7 @@ export function pack(
   /** delar som står fast, etter plassen sin i `pieces` */
   fest?: ReadonlyMap<number, Fest>,
 ): Packing {
-  const slots: Slot[] = []
-  const spilt: number[] = []
-  if (!pieces.length) return { slots, sheets: 0, used: [], spilt }
+  if (!pieces.length) return { slots: [], sheets: 0, used: [], spilt: [], kross: 0 }
 
   // Oppløysinga vert vald av KLARINGA og ikkje av plata.
   //
@@ -461,7 +572,8 @@ export function pack(
   const SH = Math.floor(sheetH / res)
 
   // Like delar er like: eit kuttark med femti ribber har ofte ti former.
-  // Rasteret vert laga éin gong per FORM, ikkje éin gong per del.
+  // Rasteret vert laga éin gong per FORM, ikkje éin gong per del — og éin
+  // gong for alle passasjane.
   //
   // Men RASTERET er det einaste som er felles. Forma hugsar òg kvar det
   // fyrste stykket med den nøkkelen låg, og den koordinaten høyrer til
@@ -493,138 +605,184 @@ export function pack(
     forms.set(p.key, f)
     return f
   }
+  const alle = pieces.map((p, i) => ({ i, key: p.key, f: formOf(p) }))
 
-  // Størst fyrst. Ein liten del finn alltid ein lomme; ein stor gjer det
-  // berre medan plata framleis er open.
-  const order = pieces
-    .map((p, i) => ({ i, key: p.key, f: formOf(p) }))
-    .sort((a, b) => b.f.cells - a.f.cells)
+  /**
+   * REKKJEFYLGJA. Størst fyrst: ein liten del finn alltid ei lomme; ein
+   * stor gjer det berre medan plata framleis er open.
+   *
+   * Med eit frø får storleiken støy på seg, opp til ein tredel. Det er nok
+   * til at to delar som er om lag like store byter plass, og for lite til
+   * at ein liten del går føre ein stor: det er dei jamstore som kan fylle
+   * ei rad annleis, ikkje dei ulike.
+   */
+  const ordna = (fro: number) => {
+    if (!fro) return [...alle].sort((a, b) => b.f.cells - a.f.cells || a.i - b.i)
+    const rnd = stoy(fro)
+    const vekt = alle.map((q) => ({ q, v: q.f.cells * (1 + 0.35 * rnd()) }))
+    return vekt.sort((a, b) => b.v - a.v || a.q.i - b.q.i).map((z) => z.q)
+  }
 
   /** lågaste ledige plass for denne forma på denne plata, over alle fire
-   *  kvartsvingane */
-  const seek = (b: Board, f: Form) => {
-    let best: { rot: 0 | 1 | 2 | 3; px: number; py: number } | null = null
+   *  kvartsvingane, målt slik strategien seier */
+  const seek = (b: Board, f: Form, s: Strategi) => {
+    let best: { rot: 0 | 1 | 2 | 3; px: number; py: number; sc: number } | null = null
     for (let r = 0; r < 4; r++) {
       const m = f.masks[r]
       if (m.w > b.w || m.h > b.h) continue
       for (let px = 0; px + m.w <= b.w; px += step) {
         const py = lowest(b, m, px, step)
         if (py < 0) continue
-        if (!best || py < best.py || (py === best.py && px < best.px)) {
-          best = { rot: r as 0 | 1 | 2 | 3, px, py }
-        }
+        // Éin sum og ikkje to tal: `px` er alltid mindre enn breidda, so
+        // han skil berre der kanten er den same.
+        const sc = (s.poeng === "topp" ? py + m.h : py) * b.w + px
+        if (!best || sc < best.sc) best = { rot: r as 0 | 1 | 2 | 3, px, py, sc }
+        // Golvet er det lågaste som finst for denne svingen, og px veks:
+        // ingenting lenger til høgre kan slå det.
         if (py === 0) break
       }
       // botnen til venstre er det beste som finst; er han teken, er det
-      // ingen grunn til å prøve dei tre andre svingane
-      if (best && best.py === 0) break
+      // ingen grunn til å prøve dei tre andre svingane — slik han alltid
+      // har gjort. Sjå `bryt`.
+      if (s.bryt && best && best.py === 0) break
     }
     return best
   }
 
-  const boards: Board[] = []
-  /** plater nok til at plate nummer `n` finst */
-  const platerTil = (n: number) => {
-    while (boards.length <= n) boards.push(board(SW, SH))
-  }
+  type Passasje = { slots: Slot[]; boards: Board[]; spilt: number[]; kross: number }
 
-  /**
-   * DEI FASTE FYRST, OG SO RESTEN KRING DEI.
-   *
-   * Rekkjefylgja er heile mekanismen. Eit feste er ikkje ei rekning
-   * pakkinga gjer — det er ei celle som alt er teken når ho byrjar, og
-   * resten av lykkja under er ordrett den same som før. Ho ser eit merkt
-   * felt og går utanom, slik ho alltid har gått utanom det ho sjølv har
-   * lagt ned.
-   *
-   * To feste kan overlappe kvarandre. Det er handa som har gjort det, og
-   * pakkinga skal ikkje overprøve henne — ho held berre orden på sitt
-   * eige.
-   */
-  const staar = new Set<number>()
-  if (fest?.size) {
-    for (const { i, f } of order) {
-      const ft = fest.get(i)
-      if (!ft) continue
-      if (!Number.isInteger(ft.sheet) || ft.sheet < 0 || ft.sheet > 255) continue
-      platerTil(ft.sheet)
-      const b = boards[ft.sheet]
-      const m = f.masks[ft.rot]
-      // Ein del som er større enn plata kan ikkje festast på henne. Han
-      // fell ned i den vanlege lykkja, som alt veit kva ho skal seie om
-      // slike.
-      if (m.w > b.w || m.h > b.h) continue
-      const px = Math.max(0, Math.min(b.w - m.w, Math.round(ft.x / res)))
-      const py = Math.max(0, Math.min(b.h - m.h, Math.round(ft.y / res)))
-      stamp(b, m, px, py)
+  const legg = (s: Strategi): Passasje => {
+    const order = ordna(s.fro)
+    const slots: Slot[] = []
+    const spilt: number[] = []
+    const boards: Board[] = []
+    /** plater nok til at plate nummer `n` finst */
+    const platerTil = (n: number) => {
+      while (boards.length <= n) boards.push(board(SW, SH))
+    }
+
+    /**
+     * DEI FASTE FYRST, OG SO RESTEN KRING DEI.
+     *
+     * Rekkjefylgja er heile mekanismen. Eit feste er ikkje ei rekning
+     * pakkinga gjer — det er ei celle som alt er teken når ho byrjar, og
+     * resten av lykkja under er ordrett den same som før. Ho ser eit merkt
+     * felt og går utanom, slik ho alltid har gått utanom det ho sjølv har
+     * lagt ned.
+     *
+     * To feste kan overlappe kvarandre. Det er handa som har gjort det, og
+     * pakkinga skal ikkje overprøve henne — ho held berre orden på sitt
+     * eige, og seier frå: sjå `kross`.
+     */
+    const staar = new Set<number>()
+    let kross = 0
+    if (fest?.size) {
+      for (const { i, f } of order) {
+        const ft = fest.get(i)
+        if (!ft) continue
+        if (!Number.isInteger(ft.sheet) || ft.sheet < 0 || ft.sheet > 255) continue
+        platerTil(ft.sheet)
+        const b = boards[ft.sheet]
+        const m = f.masks[ft.rot]
+        // Ein del som er større enn plata kan ikkje festast på henne. Han
+        // fell ned i den vanlege lykkja, som alt veit kva ho skal seie om
+        // slike.
+        if (m.w > b.w || m.h > b.h) continue
+        const px = Math.max(0, Math.min(b.w - m.w, Math.round(ft.x / res)))
+        const py = Math.max(0, Math.min(b.h - m.h, Math.round(ft.y / res)))
+        // Ligg det alt gods der? Berre eit anna feste kan ha lagt det:
+        // dei frie kjem etterpå.
+        const iNokon = !fits(b, m, px, py)
+        if (iNokon) kross++
+        stamp(b, m, px, py)
+        const bb = bbox(pieces[i].rings[0])
+        slots.push({
+          piece: i,
+          sheet: ft.sheet,
+          rot: ft.rot,
+          m: affine(
+            { ...f, ox: bb.x0 - k * res, oy: bb.y0 - k * res },
+            ft.rot,
+            px * res,
+            py * res,
+          ),
+          sx: px * res,
+          sy: py * res,
+          ...(iNokon ? { kross: true } : {}),
+        })
+        staar.add(i)
+      }
+    }
+
+    for (const { i, key, f } of order) {
+      if (staar.has(i)) continue
+      let put: { s: number; rot: 0 | 1 | 2 | 3; px: number; py: number } | null = null
+      // Fyrste plate som tek han. Det held dei fyrste platene fulle, og det
+      // er dei ein faktisk skjer ut fyrst.
+      for (let n = 0; n < boards.length && !put; n++) {
+        if (boards[n].nei.has(key)) continue
+        const best = seek(boards[n], f, s)
+        if (best) put = { s: n, rot: best.rot, px: best.px, py: best.py }
+        else boards[n].nei.add(key)
+      }
+      if (!put) {
+        // Ei ny plate. Får han ikkje plass på ei TOM plate heller, er han
+        // større enn plata, og då er det plata som er feil.
+        if (f.masks.every((m) => m.w > SW || m.h > SH)) {
+          spilt.push(i)
+          continue
+        }
+        const b = board(SW, SH)
+        const best = seek(b, f, s)
+        if (!best) {
+          spilt.push(i)
+          continue
+        }
+        boards.push(b)
+        put = { s: boards.length - 1, rot: best.rot, px: best.px, py: best.py }
+      }
+      const m = f.masks[put.rot]
+      stamp(boards[put.s], m, put.px, put.py)
       const bb = bbox(pieces[i].rings[0])
       slots.push({
         piece: i,
-        sheet: ft.sheet,
-        rot: ft.rot,
+        sheet: put.s,
+        rot: put.rot,
         m: affine(
           { ...f, ox: bb.x0 - k * res, oy: bb.y0 - k * res },
-          ft.rot,
-          px * res,
-          py * res,
+          put.rot,
+          put.px * res,
+          put.py * res,
         ),
-        sx: px * res,
-        sy: py * res,
+        sx: put.px * res,
+        sy: put.py * res,
       })
-      staar.add(i)
     }
+    return { slots, boards, spilt, kross }
   }
 
-  for (const { i, key, f } of order) {
-    if (staar.has(i)) continue
-    let put: { s: number; rot: 0 | 1 | 2 | 3; px: number; py: number } | null = null
-    // Fyrste plate som tek han. Det held dei fyrste platene fulle, og det
-    // er dei ein faktisk skjer ut fyrst.
-    for (let s = 0; s < boards.length && !put; s++) {
-      if (boards[s].nei.has(key)) continue
-      const best = seek(boards[s], f)
-      if (best) put = { s, ...best }
-      else boards[s].nei.add(key)
-    }
-    if (!put) {
-      // Ei ny plate. Får han ikkje plass på ei TOM plate heller, er han
-      // større enn plata, og då er det plata som er feil.
-      if (f.masks.every((m) => m.w > SW || m.h > SH)) {
-        spilt.push(i)
-        continue
-      }
-      const b = board(SW, SH)
-      const best = seek(b, f)
-      if (!best) {
-        spilt.push(i)
-        continue
-      }
-      boards.push(b)
-      put = { s: boards.length - 1, ...best }
-    }
-    const m = f.masks[put.rot]
-    stamp(boards[put.s], m, put.px, put.py)
-    const bb = bbox(pieces[i].rings[0])
-    slots.push({
-      piece: i,
-      sheet: put.s,
-      rot: put.rot,
-      m: affine(
-        { ...f, ox: bb.x0 - k * res, oy: bb.y0 - k * res },
-        put.rot,
-        put.px * res,
-        put.py * res,
-      ),
-      sx: put.px * res,
-      sy: put.py * res,
-    })
+  /** færrast plater; med like mange, den som lét mest att av den siste */
+  const betre = (a: Passasje, b: Passasje) => {
+    if (a.boards.length !== b.boards.length) return a.boards.length < b.boards.length
+    const sist = (q: Passasje) => (q.boards.length ? q.boards[q.boards.length - 1].used : 0)
+    return sist(a) < sist(b)
+  }
+
+  // Den gamle fyrst, og ho tel kva ho kosta. Sjå `BUDSJETT`.
+  arbeid = 0
+  let best = legg(STRATEGIAR[0])
+  const fleire = Math.min(STRATEGIAR.length - 1, Math.floor(BUDSJETT / Math.max(1, arbeid)))
+  for (let n = 1; n <= fleire; n++) {
+    const p = legg(STRATEGIAR[n])
+    if (betre(p, best)) best = p
   }
 
   return {
-    slots,
-    sheets: boards.length,
-    used: boards.map((b) => b.used * res),
-    spilt,
+    slots: best.slots,
+    sheets: best.boards.length,
+    used: best.boards.map((b) => b.used * res),
+    spilt: best.spilt,
+    kross: best.kross,
   }
 }
 

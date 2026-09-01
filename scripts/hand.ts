@@ -268,5 +268,27 @@ for (let i = 0; i < 3; i++)
   }
 sjekk("med feste: ingen overlappar", kross === 0, `${kross} kryss`)
 
+/**
+ * TO FESTE I KVARANDRE.
+ *
+ * Pakkinga overprøver ikkje handa: set du to delar i kvarandre, ligg dei i
+ * kvarandre. Men ho skal SEIE det — to kutt som går i kvarandre er to
+ * stykke skrap — og det er `kross` som ber ordet frå pakkinga til regelen
+ * og til plata. Éin del vert talt: den som vart lagd ned i gods som alt
+ * låg der. Den fyrste låg på tomt bord.
+ */
+const iKvarandre = pack(bitar, 400, 400, 4, new Map<number, Fest>([
+  [0, { sheet: 0, rot: 0, x: 100, y: 100 }],
+  [1, { sheet: 0, rot: 0, x: 150, y: 120 }],
+]))
+sjekk("to feste i kvarandre vert talde", iKvarandre.kross === 1, `kross ${iKvarandre.kross}`)
+sjekk(
+  "og det er den andre som ber merket",
+  iKvarandre.slots.filter((q) => q.kross).length === 1 &&
+    !iKvarandre.slots.find((q) => q.piece === 0)?.kross,
+  iKvarandre.slots.map((q) => `${q.piece}${q.kross ? "!" : ""}`).join(" "),
+)
+sjekk("og den frie tredje går utanom", iKvarandre.slots.length === 3 && med.kross === 0, `kross utan ${med.kross}`)
+
 console.log(feil ? `\n${feil} FEIL` : "\nhanda held")
 process.exit(feil ? 1 : 0)
