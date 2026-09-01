@@ -19,7 +19,8 @@ import {
   DEFAULT_PARAMS,
 } from "../lib/vaffel/params"
 import { apply, pack, type Fest } from "../lib/pack"
-import { bbox, type Pt } from "../lib/core"
+import { VAFFEL } from "../lib/vaffel/engine"
+import { bbox, type ParamBag, type Pt } from "../lib/core"
 
 const p3 = (v: readonly number[]) => v.map((t) => t.toFixed(3)).join(" ")
 let feil = 0
@@ -74,6 +75,136 @@ sjekk("laas overlever ein annan endring", r.laas === "x:0.5", r.laas)
 // 7) fram og attende
 const l = lesLaas("x:0.125,0.375;y:0.5")
 sjekk("les → skriv er identitet", skrivLaas(l) === "x:0.125,0.375;y:0.5", skrivLaas(l))
+
+// =============================================================================
+// STABELEN: Å RØRE ÉI RIBBE SKAL LA DEI ANDRE STÅ
+// =============================================================================
+/**
+ * DETTE ER HEILE PÅSTANDEN STABELEDITOREN KVILER PÅ.
+ *
+ * Ein FRI ribbe har ingen eigen plass — han er «den fjerde av seks jamne»,
+ * og den plassen er ei rekning på talet. So «flytt X2» kan ikkje tyde noko
+ * før heile stabelen er skriven ned; gjer du det utan, krev brøken den nye
+ * ribba fekk ein av dei jamne plassane, og dei andre fordeler seg kring
+ * henne. Ei ribbe flytta seg, og fem andre gjorde det same.
+ *
+ * Verba i studioet låser difor stabelen fyrst. Her vert den rekninga prøvd
+ * for seg: `plasser` er den einaste fasiten på kvar ribbene står, og ho
+ * står i motoren.
+ */
+console.log("")
+{
+  const alle = plasser(6, [])
+  /** det studioet gjer: skriv ned heile stabelen, og byt ut éin */
+  const flytt = (i: number, t: number) => plasser(6, alle.map((v, j) => (j === i ? t : v)))
+
+  /**
+   * MÅLET ER 0,35 og ikkje eit tal til.
+   *
+   * X2 står på 0,25, og eit lite dytt kjem ingen veg her: låsen krev den
+   * jamne plassen ho ligg NÆRAST, so alt innanfor si eiga celle tek si
+   * eiga celle og dei andre står — same kva veg det vart rekna. Prøva må
+   * krysse ei cellegrense for å prøve noko: 0,35 ligg nærare 0,4167 enn
+   * 0,25, so ULÅST krev han plassen til X3 i staden for sin eigen.
+   */
+  const etter = flytt(1, 0.35)
+  sjekk(
+    "flytt X2 til 0,35: dei fem andre står stille",
+    etter.length === 6 && alle.every((v, j) => j === 1 || etter.includes(v)),
+    p3(etter),
+  )
+  sjekk("og X2 står der du sette henne", etter.includes(0.35), p3(etter))
+
+  // Same talet UTAN å låse fyrst: X2 står att der ho stod, og det er X3
+  // som er borte. Ei ribbe flytta seg, og det var ikkje den du tok i.
+  const utan = plasser(6, [0.35])
+  sjekk(
+    "utan å låse fyrst flyttar feil ribbe seg",
+    utan.includes(alle[1]) && !utan.includes(alle[2]),
+    p3(utan),
+  )
+
+  // Slett: talet går ned, og dei som står att står nøyaktig der dei stod.
+  const utanEin = alle.filter((_, j) => j !== 3)
+  const sletta = plasser(utanEin.length, utanEin)
+  sjekk(
+    "slett X4: dei fem andre står stille",
+    sletta.length === 5 && utanEin.every((v) => sletta.includes(v)),
+    p3(sletta),
+  )
+
+  // Lås alle, og dra så skyvaren opp: dei seks står, og dei nye kjem
+  // imellom. Det er heile skilnaden på ein stabel du eig og eit rutenett.
+  const opp = plasser(9, alle)
+  sjekk(
+    "lås alle, skyvaren til 9: dei seks står",
+    opp.length === 9 && alle.every((v) => opp.includes(v)),
+    p3(opp),
+  )
+}
+
+// =============================================================================
+// STABELEN I MILLIMETER
+// =============================================================================
+/**
+ * BRUA MELLOM BRØKEN OG BORDET.
+ *
+ * Låsen er ein BRØKDEL av spennet — det er rett, og det er ubrukeleg å
+ * redigere i. Stabelen syner millimeter, og han reknar dei ut av ei
+ * RETTLINE han passar til to ribber i kuttlista: `pos = min + t · vidd`.
+ *
+ * Den lina er ei påstand om motoren, og ho er lett å ta feil av. Snittinga
+ * fordeler ribbene over kroppen sitt eige spenn, ikkje over det ferdige
+ * objektet sitt ytremål, og dei to er ikkje det same talet. Vert lina
+ * passa til feil spenn, ser stabelen rett ut og kvart einaste tal i han er
+ * nokre millimeter feil — den verste sorten feil, av di han ikkje syner.
+ *
+ * So her vert ho prøvd mot fasiten: kvar ribbe si eiga plassering, slik
+ * kuttlista melder henne.
+ */
+console.log("")
+{
+  const bag = { ...DEFAULT_PARAMS, ribbX: 7, ribbY: 5 } as unknown as ParamBag
+  const liste = VAFFEL.liste(bag)
+  sjekk("kuttlista ber ei plassering per del", liste.every((k) => Number.isFinite(k.pos)))
+
+  for (const akse of ["x", "y"] as const) {
+    const alle = plasser(Number(bag[akse === "x" ? "ribbX" : "ribbY"]), [])
+    const stor = akse.toUpperCase()
+    /** det studioet gjer: to ribber med kjend plass gjev heile lina */
+    let a: { t: number; mm: number } | null = null
+    let b: { t: number; mm: number } | null = null
+    for (const k of liste) {
+      const m = new RegExp(`^${stor}(\\d+)`).exec(k.adr)
+      if (!m) continue
+      const t = alle[Number(m[1]) - 1]
+      if (t === undefined) continue
+      if (!a || t < a.t) a = { t, mm: k.pos }
+      if (!b || t > b.t) b = { t, mm: k.pos }
+    }
+    if (!a || !b) {
+      sjekk(`${akse}: to ribber å passe lina til`, false)
+      continue
+    }
+    const vidd = (b.mm - a.mm) / (b.t - a.t)
+    const min = a.mm - a.t * vidd
+
+    // Og so kvar einaste ribbe, og ikkje berre dei to lina vart passa til.
+    let verst = 0
+    for (const k of liste) {
+      const m = new RegExp(`^${stor}(\\d+)`).exec(k.adr)
+      if (!m) continue
+      const t = alle[Number(m[1]) - 1]
+      if (t === undefined) continue
+      verst = Math.max(verst, Math.abs(min + t * vidd - k.pos))
+    }
+    sjekk(
+      `${akse}: lina treffer kvar ribbe`,
+      verst < 0.01,
+      `verste avvik ${verst.toFixed(4)} mm, spenn ${vidd.toFixed(1)} mm`,
+    )
+  }
+}
 
 // =============================================================================
 // FESTA DELAR

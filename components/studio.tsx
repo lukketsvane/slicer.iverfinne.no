@@ -24,9 +24,16 @@ import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { zip } from "@/lib/zip"
 import { VAFFEL, filnamnStamme } from "@/lib/vaffel/engine"
-import { lesFest, lesLaas, plasser, skrivFest, skrivLaas } from "@/lib/vaffel/params"
+import {
+  PARAM_RANGES,
+  lesFest,
+  lesLaas,
+  plasser,
+  skrivFest,
+  skrivLaas,
+} from "@/lib/vaffel/params"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SynRes } from "@/lib/worker"
-import { Verkty, type VerktyId } from "./verkty"
+import { Verkty, type Ribba, type VerktyId } from "./verkty"
 import type { Kandidat } from "@/lib/vaffel/tune"
 import { Viewer, type LightDir } from "./viewer"
 import { ControlsPanel, type PanelMode } from "./controls-panel"
@@ -669,6 +676,26 @@ export function Studio() {
   const RIBB_MAX = 32
 
   /**
+   * Å RØRE ÉI RIBBE ER Å LÅSE DEI ANDRE.
+   *
+   * Ein FRI ribbe har ingen eigen plass. Han finst berre som «den fjerde
+   * av seks jamne», og den plassen er ei rekning på talet: går talet opp,
+   * flyttar han seg. Det er heile poenget med frie ribber, og det er
+   * grunnen til at ingen av dei kan rørast for seg sjølv.
+   *
+   * So det fyrste kvar redigering gjer, er å skrive ned kvar heile
+   * stabelen står. Etterpå er han eksplisitt, og då — og berre då — tyder
+   * «flytt denne» noko som ikkje òg flyttar dei andre.
+   *
+   * `slettRibbe` har alltid gjort dette; her står det éin stad, av di
+   * flytte, slette og kopiere alle treng det same.
+   */
+  const laasStabelen = useCallback(
+    (cur: ParamBag, akse: "x" | "y") => medLaas(cur, akse, () => ribbene(akse, cur)),
+    [medLaas, ribbene],
+  )
+
+  /**
    * LÅS, ELLER SLEPP.
    *
    * Alle fire handlingane går gjennom `setParams` som alt anna: dei legg
@@ -758,7 +785,7 @@ export function Studio() {
       setHint(null)
       setParams((cur) => {
         const q = ribbaTil(adr, cur)
-        if (!q || q.alle.length <= 1) return cur
+        if (!q || q.alle.length <= PARAM_RANGES.ribbX.min) return cur
         const att = q.alle.filter((_, j) => j !== q.i)
         return {
           ...cur,
@@ -769,6 +796,183 @@ export function Studio() {
     },
     [ribbaTil, medLaas],
   )
+
+  /**
+   * KOR BREIDT SPENNET RIBBENE ER FORDELTE OVER ER, I MILLIMETER.
+   *
+   * Ein lås er ein BRØKDEL av det spennet, og det er rett: dreg du
+   * storleiken, skal ribba bli verande der ho står PÅ KROPPEN og ikkje der
+   * ho står på bordet. Men ingen byggjer i brøkdelar, og ein stabeleditor
+   * som seier «0,4167» er ikkje ein reiskap, han er ei feilsøking.
+   *
+   * Spennet er ikkje `envX`. Det ytremålet er det FERDIGE objektet sitt, og
+   * det krympar inn til der det står gods; ribbene er fordelte over
+   * KROPPEN sitt eige spenn, og på ei form som ikkje fyller boksen sin er
+   * dei to ulike tal. Ei line passa til feil spenn ser rett ut og er nokre
+   * millimeter feil i kvar einaste rad.
+   *
+   * So det vert lese av fasiten. Kuttlista ber no kvar del si eiga
+   * plassering, og plasseringa er `min + t · vidd` — ei RETTLINE. To ribber
+   * med kjend plass gjev stigninga hennar, og alle dei andre ligg på henne,
+   * òg dei som ikkje råka kroppen og difor ikkje har ein einaste del.
+   *
+   * To ribber trengst. Er det berre éi — eller ingen — finst det inga line
+   * og ingen millimeter å syne. Botnen på skyvaren er to, so det er ein
+   * tilstand du berre kjem i medan ei fil vert lesen.
+   */
+  const skala = useMemo(() => {
+    const ut: Record<"x" | "y", { vidd: number } | null> = { x: null, y: null }
+    for (const akse of ["x", "y"] as const) {
+      const alle = ribbene(akse, params)
+      const stor = akse.toUpperCase()
+      /** fyrste og siste ribbe som HAR ein del, med brøken sin */
+      let a: { t: number; mm: number } | null = null
+      let b: { t: number; mm: number } | null = null
+      for (const k of kuttliste) {
+        const m = new RegExp(`^${stor}(\\d+)`).exec(k.adr)
+        if (!m) continue
+        const t = alle[Number(m[1]) - 1]
+        if (t === undefined) continue
+        if (!a || t < a.t) a = { t, mm: k.pos }
+        if (!b || t > b.t) b = { t, mm: k.pos }
+      }
+      if (!a || !b || Math.abs(b.t - a.t) < 1e-6) continue
+      ut[akse] = { vidd: (b.mm - a.mm) / (b.t - a.t) }
+    }
+    return ut
+  }, [kuttliste, params, ribbene])
+
+  /**
+   * FLYTT: sett ribba der du vil ha henne, i millimeter.
+   *
+   * Dette er verbet som mangla. Ein lås heldt ei ribbe i ro, og det er
+   * halve saka — «i ro» er ikkje det same som «her». Utan ein måte å
+   * SETJE plassen på, var det einaste nokon kunne byggje for hand det
+   * rutenettet reiskapen alt hadde gjeve dei, med nokre ribber fjerna.
+   *
+   * Han låser heile stabelen fyrst. Sjå `laasStabelen`: utan det ville ei
+   * flytt av ei fri ribbe fordelt dei andre på nytt, av di brøken ho fekk
+   * krev ein av dei jamne plassane og dei andre fyller resten.
+   *
+   * NABOANE SET GRENSA, og ho er fysisk: to ribbeplan nærare kvarandre enn
+   * ei platetjukn er to plater som står i kvarandre. Han stoggar der i
+   * staden for å avvise — ein skyvar som stoggar mot ein vegg fortel kvar
+   * veggen er, medan eit tal som ikkje tek berre ser ut som ein feil.
+   *
+   * Millimeteren er frå KANTEN av kroppen, den same lesinga stabelen syner.
+   * Sjå kommentaren der.
+   */
+  const flyttRibbe = useCallback(
+    (adr: string, mm: number) => {
+      setHint(null)
+      setParams((cur) => {
+        const q = ribbaTil(adr, cur)
+        const s = skala[q?.akse ?? "x"]
+        if (!q || !s || !Number.isFinite(mm) || Math.abs(s.vidd) < 1e-6) return cur
+        const t = mm / s.vidd
+        const luft = Math.abs((Number(cur.tjukn) || 3) / s.vidd)
+        const lo = (q.alle[q.i - 1] ?? -luft) + luft
+        const hi = (q.alle[q.i + 1] ?? 1 + luft) - luft
+        // Ei ribbe på 0 eller 1 er ei ribbe med null breidd, og `lesLaas`
+        // ville kasta henne på golvet. Er det ikkje plass mellom naboane,
+        // står ho der ho står.
+        const ny = +Math.min(Math.max(t, lo), hi).toFixed(4)
+        if (!Number.isFinite(ny) || ny <= 0 || ny >= 1) return cur
+        const att = q.alle.map((v, j) => (j === q.i ? ny : v))
+        return {
+          ...cur,
+          [q.nokkel]: att.length,
+          laas: medLaas(cur, q.akse, () => att),
+        }
+      })
+    },
+    [ribbaTil, medLaas, skala],
+  )
+
+  /**
+   * HEILE AKSEN: LÅS ALT, ELLER SLEPP ALT.
+   *
+   * «Lås alt» er steget frå eit rutenett reiskapen fann til ein stabel du
+   * eig: etterpå står kvar ribbe der ho står, og skyvaren legg nye til i
+   * staden for å skuve dei du har. «Slepp alt» er vegen attende, og han er
+   * det same som «fordel jamt» — ein stabel utan låsar ER den jamne
+   * fordelinga, og det er ikkje to funksjonar.
+   */
+  const laasAkse = useCallback(
+    (akse: "x" | "y", paa: boolean) => {
+      setHint(null)
+      setParams((cur) => ({
+        ...cur,
+        laas: paa ? laasStabelen(cur, akse) : medLaas(cur, akse, () => []),
+      }))
+    },
+    [laasStabelen, medLaas],
+  )
+
+  /**
+   * HEILE STABELEN, SLIK VERKTYET SER HAN.
+   *
+   * Éi rad per PLAN og ikkje per stykke. Kuttlista tel stykke — ei ribbe
+   * gjennom fire bein er fire liner der — og stabelen redigerer planet dei
+   * fire ligg i. Difor vert lista lagd opp av `plasser`, som er fasiten på
+   * kva plan som finst, og stykka vert talde opp mot henne.
+   *
+   * MILLIMETERANE ER FRÅ KANTEN AV KROPPEN, og ikkje frå origo.
+   *
+   * Modellen sine eigne koordinatar har null i midten — objektet står
+   * sentrert på golvet — so ei ribbe der kom ut som «−62,5 mm». Det er det
+   * sanne talet, og det er ikkje eit tal nokon byggjer etter: den som set
+   * ei ribbe seier «tolv og ein halv frå enden». Difor vert kanten null, og
+   * bandet er 0 til spennet. Brøken under er den same brøken som før — det
+   * er berre lesinga som byrjar ein annan stad.
+   *
+   * BANDET ER NABOANE, og det er rekna her og ikkje i feltet: to ribbeplan
+   * nærare kvarandre enn ei platetjukn er to plater som står i kvarandre.
+   * Feltet stoggar der, og `flyttRibbe` klemmer det same ein gong til — det
+   * eine er kva fingeren får lov til, det andre er kva ei lenkje får lov
+   * til.
+   */
+  const stabelen = useMemo((): Ribba[] => {
+    const laas = lesLaas(String(params.laas ?? ""))
+    const luft = Math.abs(Number(params.tjukn) || 3)
+    const ut: Ribba[] = []
+    for (const akse of ["x", "y"] as const) {
+      const s = skala[akse]
+      if (!s) continue
+      const alle = ribbene(akse, params)
+      const stor = akse.toUpperCase()
+      for (let i = 0; i < alle.length; i++) {
+        const adr = stor + (i + 1)
+        // Stykka som høyrer til dette planet. «X3» og ikkje «X30»: det er
+        // bokstaven eller enden som skil dei, aldri eit siffer til.
+        const mine = kuttliste.filter((k) => new RegExp(`^${adr}([a-z]*)$`).test(k.adr))
+        const mm = alle[i] * s.vidd
+        const lo = (i > 0 ? alle[i - 1] * s.vidd : 0) + luft
+        const hi = (i < alle.length - 1 ? alle[i + 1] * s.vidd : s.vidd) - luft
+        // EIN DESIMAL, som alt anna i millimeter her. Brøken vert lagra med
+        // fire desimalar, og fire desimalar av eit spenn på hundre og femti
+        // er ein hundredels millimeter: ei ribbe på 12,5 kom ut som 12,495
+        // og stod som «12,49» i feltet. Talet var rett og lesinga var ikkje
+        // det — og under ein tidels millimeter held korkje snittet eller
+        // klaringa noko som helst.
+        const av1 = (v: number) => +v.toFixed(1)
+        ut.push({
+          adr,
+          akse,
+          mm: av1(mm),
+          // Er det ikkje plass mellom naboane, er bandet det punktet ribba
+          // står i: eit felt med botn over tak tek ingenting, og då er det
+          // sletting og ikkje flytting som er svaret.
+          lo: av1(Math.min(lo, mm)),
+          hi: av1(Math.max(hi, mm)),
+          laast: laas[akse].includes(+alle[i].toFixed(4)),
+          stykke: mine.length,
+          ledd: mine.reduce((a, k) => a + k.joints, 0),
+        })
+      }
+    }
+    return ut
+  }, [params, skala, ribbene, kuttliste])
 
   /** står denne delen fast på plata? */
   const erFesta = useCallback(
@@ -1356,8 +1560,31 @@ export function Studio() {
         setHint(null)
         return
       }
+      /**
+       * PILENE SKYV RIBBA DU PEIKAR PÅ.
+       *
+       * Talfeltet i stabelen er godt til å treffe og tungt til å leite:
+       * for å prøve «litt lenger denne vegen» må du ta feltet, skrive, gå
+       * ut av det, sjå. Piltastane er den prøvinga — eitt steg om gongen,
+       * på det du alt peikar på, med auga i modellen i staden for i
+       * tabellen.
+       *
+       * Ho verkar kvar du enn peikar frå: modellen, kuttlista, plata eller
+       * stabelen. Alle fire set den same `peikt`, og adressa er den same
+       * adressa. Med shift går ho ti steg — det er skilnaden på å finkjenne
+       * og å flytte.
+       */
+      if (k === "arrowleft" || k === "arrowright") {
+        const r = peikt && stabelen.find((q) => peikt.startsWith(q.adr))
+        if (!r) return
+        e.preventDefault()
+        flyttRibbe(r.adr, r.mm + (k === "arrowright" ? 1 : -1) * (e.shiftKey ? 5 : 0.5))
+        setHint(null)
+        return
+      }
       if (k === "l") opneVerkty("liste")
       else if (k === "a") opneVerkty("ark")
+      else if (k === "s") opneVerkty("stabel")
       else if (k === "z") angre()
       else if (k === "1") setView("flate")
       else if (k === "2") setView("lag")
@@ -1369,7 +1596,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, steg, vendSteg, opneVerkty, verkty])
+  }, [angre, steg, vendSteg, opneVerkty, verkty, peikt, stabelen, flyttRibbe])
 
   // Står plateskuffa open og noko flyttar seg, skal teikninga fylgje med.
   // Ho ventar på at motoren er ferdig: `tal` er det siste svaret hans.
@@ -1636,6 +1863,18 @@ export function Studio() {
                 onClick={() => {
                   v.gjer()
                   setDelVerkty(null)
+                  /**
+                   * Å LÅSE EI RIBBE ER Å BYRJE Å BYGGJE FOR HAND.
+                   *
+                   * Menyen her tek éi ribbe om gongen, og du må finne
+                   * henne i modellen fyrst. Det er nok til å prøve; det er
+                   * ikkje nok til å byggje ein stabel. So det fyrste
+                   * grepet opnar staden der resten av dei står — den same
+                   * regelen peikinga alt fylgjer: er eit verkty ope,
+                   * svarar DET, og er ingen open, opnar vi det som svarar
+                   * på det du nettopp gjorde.
+                   */
+                  if (!delVerkty.plass) setVerkty((t) => t ?? "stabel")
                 }}
               >
                 {v.ord}
@@ -1715,11 +1954,18 @@ export function Studio() {
           keys={VAFFEL.keys}
           clamp={(o, prev) => VAFFEL.clamp(o, prev)}
           peikt={peikt}
+          ribber={stabelen}
           rute={{ venstre: VEGG.venstre, hogre: VEGG.hogre, høgd: verktyH }}
           onArk={askArk}
           onPeik={setPeikt}
           onLangtrykk={(adr, plass, x, y) => setDelVerkty({ adr, plass, x, y })}
           onChange={endre}
+          onFlytt={flyttRibbe}
+          onLaas={vipLaas}
+          onKopier={kopierRibbe}
+          onSpegl={speglRibbe}
+          onSlett={slettRibbe}
+          onAkse={laasAkse}
           onClose={() => setVerkty(null)}
           onOrd={(t) => {
             void navigator.clipboard

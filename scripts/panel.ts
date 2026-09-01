@@ -251,12 +251,25 @@ async function gestane(browser: Browser) {
   await gest(pkt(140, 0), (t) => pkt(140, (t * 40 * Math.PI) / 180))
   p = await lenkja(page)
   const dv = Number(p.rotZ) - vend0
-  // Fyrti grader inn skal gje fyrti grader ut. Bandet var −25 til −55 og
-  // dekte over at gesten gav 53: `sumVri` la den same vridinga saman om
-  // att for kvar hending som gjekk før gesten fekk namn (sjå `last = c` i
-  // daudsona). Ein vri som gjev ein tredel for mykje er ikkje ein vri du
-  // kan sikte med.
-  ok("vri med klokka vender objektet like mykje", dv < -35 && dv > -45, `${vend0}° → ${p.rotZ}°`)
+  /**
+   * FYRTI GRADER INN SKAL GJE FYRTI GRADER UT.
+   *
+   * Bandet var −25 til −55 og dekte over at gesten gav 53: `sumVri` la den
+   * same vridinga saman om att for kvar hending som gjekk før gesten fekk
+   * namn. Ein vri som gjev ein tredel for mykje er ikkje ein vri du kan
+   * sikte med.
+   *
+   * Så vart det stramma til −35..−45, og då kom det fram at HALVE feilen
+   * stod att: dei to greinene som går ut att før gesten har fått namn er
+   * daudsona OG ventinga på at leiaren skal halde i tre bilete, og berre
+   * den fyrste vart retta. Fem køyringar gav 40, 43, 44, 45 og 49 grader —
+   * talet voks med kor mange bilete ventinga tok. Eit tal som varierer med
+   * timing er ikkje eit tal.
+   *
+   * Med båe greinene retta: 39 og 40 på to køyringar. Bandet er ±4 no, og
+   * det ville teke både dei 53 og dei 49.
+   */
+  ok("vri med klokka vender objektet like mykje", dv <= -36 && dv >= -44, `${vend0}° → ${p.rotZ}°`)
 
   // --- DRAG: RIBBETALET ----------------------------------------------------
   const ribb0 = Number(p.ribbY)
@@ -418,6 +431,119 @@ async function benken(browser: Browser, feil: string[]) {
     `${p.ribbX}×${p.ribbY}` !== `${under.ribbX}×${under.ribbY}`,
     `${p.ribbX}×${p.ribbY}`,
   )
+
+  // --- STABELEN ------------------------------------------------------------
+  /**
+   * Å RØRE ÉI RIBBE SKAL LA DEI ANDRE STÅ.
+   *
+   * `pnpm hand` prøver den rekninga for seg, i motoren. Her vert han prøvd
+   * gjennom heile vegen: feltet, verbet, lenkja og attende ut i tabellen.
+   * Det er tre stader talet kan bli borte imellom, og ingen av dei feilar
+   * høgt — ei ribbe som ikkje flytta seg ser ut som ei ribbe du ikkje
+   * trykte hardt nok på.
+   */
+  await page.keyboard.press("s")
+  await rolig(page)
+  const stabel = page.locator("section[aria-label='verkty']")
+  const stader = () =>
+    stabel.evaluate((el) =>
+      [...el.querySelectorAll("input")]
+        .filter((q) => /^X\d+, stad$/.test(q.getAttribute("aria-label") ?? ""))
+        .map((q) => (q as HTMLInputElement).value),
+    )
+
+  /**
+   * «STÅR STILLE» ER PÅ EIN TIDELS MILLIMETER, og ikkje på teiknet.
+   *
+   * Ein lås er ein brøkdel av spennet, lagra med fire desimalar. Å låse
+   * stabelen kvantiserer difor kvar einaste ribbe, og på eit spenn på
+   * hundre og femti er det ein hundredels millimeter — nok til at ei ribbe
+   * som stod og las «117,9» les «117,8» etterpå.
+   *
+   * Det er ikkje ei ribbe som flytta seg. Det er den fjerde desimalen i
+   * brøken, og han er under snittbreidda på kvar einaste storleik skyvaren
+   * kan stille. Ei prøve som krev det same TEIKNET prøver avrundinga.
+   */
+  const mm = (s: string) => Number(s.replace(",", "."))
+  const same = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((v, i) => Math.abs(mm(v) - mm(b[i])) < 0.15)
+
+  const fyrsteStad = await stader()
+  ok("stabelen syner ei rad per ribbe", fyrsteStad.length >= 2, fyrsteStad.join(" "))
+
+  // Eit tal skrive i ei rad flyttar DEN ribba, og berre henne.
+  const rad = stabel.getByLabel("X2, stad")
+  await rad.click()
+  await rad.fill("30")
+  await rad.press("Enter")
+  await rolig(page)
+  const flytta = await stader()
+  ok("eit tal i ei rad flyttar den ribba", flytta[1] === "30,0", flytta.join(" "))
+  ok(
+    "og dei andre står stille",
+    same(
+      flytta.filter((_, i) => i !== 1),
+      fyrsteStad.filter((_, i) => i !== 1),
+    ),
+    flytta.join(" "),
+  )
+
+  // Å flytte ei ribbe er å låse stabelen: ei fri ribbe har ingen eigen
+  // plass å flytte seg frå.
+  p = await lenkja(page)
+  ok(
+    "og heile stabelen er låst etterpå",
+    String(p.laas).split("x:")[1]?.split(";")[0]?.split(",").length === fyrsteStad.length,
+    String(p.laas),
+  )
+
+  // Slett: talet går ned, og dei som står att står der dei stod.
+  await stabel.getByLabel("X1: ×").click()
+  await rolig(page)
+  const etterSlett = await stader()
+  p = await lenkja(page)
+  ok(
+    "slett tek ei ribbe ut av stabelen",
+    etterSlett.length === flytta.length - 1 && Number(p.ribbX) === etterSlett.length,
+    `${flytta.length} → ${etterSlett.length}, ribbX ${p.ribbX}`,
+  )
+  ok(
+    "og dei som står att står stille",
+    same(etterSlett, flytta.slice(1)),
+    etterSlett.join(" "),
+  )
+
+  // Piltastane skyv den ribba peikaren står på.
+  await stabel.getByLabel("X2, stad").hover()
+  const foerPil = await stader()
+  await page.keyboard.press("ArrowRight")
+  await rolig(page)
+  const etterPil = await stader()
+  ok(
+    "høgrepila skyv ribba du peikar på",
+    etterPil[1] !== foerPil[1],
+    `${foerPil[1]} → ${etterPil[1]}`,
+  )
+  ok(
+    "og berre henne",
+    same(
+      etterPil.filter((_, i) => i !== 1),
+      foerPil.filter((_, i) => i !== 1),
+    ),
+    etterPil.join(" "),
+  )
+
+  // «Lås alle» på den andre aksen: y skal få ei full låseliste.
+  await stabel.locator("button", { hasText: /^(lås alle|slepp alle)$/ }).nth(1).click()
+  await rolig(page)
+  p = await lenkja(page)
+  ok(
+    "lås alle skriv ned heile aksen",
+    String(p.laas).split("y:")[1]?.split(",").length === Number(p.ribbY),
+    String(p.laas).slice(0, 60),
+  )
+  await page.keyboard.press("s")
+  await rolig(page)
 
   // --- EIT LANGT TRYKK ER DJUPSØKET ----------------------------------------
   /**

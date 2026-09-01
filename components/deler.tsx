@@ -6,6 +6,7 @@ import {
   feltTal,
   lesTal,
   nn,
+  snap,
   type ExportKind,
   type Metrics,
   type ParamBag,
@@ -97,7 +98,7 @@ export const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[]
 /** Kva tastane gjer. Dei står i kvar sin tooltip òg, men ei samla line er
  *  den einaste staden nokon kan finne dei UTAN å vite at dei finst. */
 export const TASTAR =
-  "f finn · d djupsøk · ⇧f førre · 1 2 3 lesemåte · , . vend · z angre · ctrl+hjul storleik"
+  "f finn · d djupsøk · ⇧f førre · 1 2 3 lesemåte · , . vend · ← → flytt ribba · z angre · ctrl+hjul storleik"
 
 /**
  * EIT LANGT TRYKK PÅ EIN KNAPP.
@@ -149,7 +150,7 @@ export function useLangtrykk(kort: () => void, langt: () => void, ms = 450) {
 }
 /** det som berre finst på den eine flata */
 export const TAST_ARK = " · o panel"
-export const TAST_BENK = " · mellomrom berre objektet"
+export const TAST_BENK = " · l a s verkty · mellomrom berre objektet"
 
 /**
  * STORLEIKEN STÅR ALT FRAMME, SOM DEN SAME SKYVAREN.
@@ -179,6 +180,101 @@ export const n1 = (v: number) => nn(v, 1)
  * eksporterte vidare her so kvar komponent framleis har dei ein stad.
  */
 export { decimals, feltTal, lesTal, snap } from "../lib/core"
+
+/**
+ * EIT TAL DU KAN TA I.
+ *
+ * Ein skyvar er god til å leite og dårleg til å treffe; eit talfelt er
+ * motsett. Dette er begge: dreg du sidelengs i feltet, går talet; klikkar
+ * du, kan du skrive det.
+ *
+ * Han stod inne i storleiken og var den einaste av sitt slag. No er han to
+ * stader — storleiken og kvar rad i stabelen — og då kan han ikkje vera
+ * skriven to gonger. Det er ikkje eit spørsmål om liner: dei tre
+ * kommentarane nedanfor er kvar sin feil nokon har hatt, og ein kopi av
+ * denne koden er ein kopi som ikkje har hatt dei enno.
+ */
+export function TalDrag({
+  verdi,
+  r,
+  etikett,
+  className,
+  style,
+  onSet,
+}: {
+  verdi: number
+  /** bandet talet bur i. I stabelen er endane naboribbene, so kvar rad har
+   *  sitt eige band og feltet stoggar der ribba stoggar. */
+  r: Range
+  /** kva den som høyrer skjermen skal kalle feltet */
+  etikett: string
+  className?: string
+  style?: CSSProperties
+  onSet: (v: number) => void
+}) {
+  const [utkast, setUtkast] = useState<string | null>(null)
+  const dra = useRef<{ x: number; fra: number; rort: boolean } | null>(null)
+  return (
+    <input
+      className={className}
+      style={{ cursor: "ew-resize", ...style }}
+      // Det som STÅR, ikkje ei avrunding av det. Talet kan bera ein halv
+      // millimeter — ei lenkje, ei prosjektfil eller eit anna felt kan
+      // setje 247,5 — og `Math.round` gjorde henne om til 248 så snart
+      // nokon såg på feltet.
+      value={utkast ?? feltTal(verdi, r.step).replace(".", ",")}
+      inputMode="decimal"
+      aria-label={etikett}
+      onPointerDown={(e) => {
+        if (e.pointerType === "touch") return
+        dra.current = { x: e.clientX, fra: verdi, rort: false }
+        e.currentTarget.setPointerCapture(e.pointerId)
+      }}
+      onPointerMove={(e) => {
+        const d = dra.current
+        if (!d) return
+        const dx = e.clientX - d.x
+        if (!d.rort && Math.abs(dx) < 3) return
+        d.rort = true
+        // UTKASTET SKAL VEKK NÅR DRAGET BYRJAR.
+        //
+        // `onFocus` fyrer på det same peikartrykket som draget og legg
+        // talet slik det stod FØR draget i utkastet. Feltet syner utkastet
+        // når det finst, so talet fraus medan objektet vaks — og `onBlur`
+        // skreiv det gamle talet attende. Heile draget vart rulla attende
+        // i det du klikka ein annan stad.
+        setUtkast(null)
+        // Fire pikslar per steg: fint nok til å treffe, grovt nok til at
+        // heile bandet ligg i ei armlengd.
+        onSet(snap(d.fra + Math.round(dx / 4) * r.step * (e.shiftKey ? 0.2 : 1), r))
+      }}
+      onPointerUp={(e) => {
+        const d = dra.current
+        dra.current = null
+        // Eit drag er ikkje eit klikk: har talet rørt seg, skal feltet
+        // ikkje òg opne seg for skriving.
+        if (d?.rort) e.preventDefault()
+        else e.currentTarget.select()
+      }}
+      onFocus={() => setUtkast(feltTal(verdi, r.step).replace(".", ","))}
+      onChange={(e) => setUtkast(e.target.value)}
+      onBlur={() => {
+        const v = utkast === null ? NaN : lesTal(utkast)
+        setUtkast(null)
+        // Tull er ikkje ei endring, og å ta feltet og sleppe det er det
+        // heller ikkje.
+        if (Number.isFinite(v) && v !== verdi) onSet(snap(v, r))
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur()
+        else if (e.key === "Escape") {
+          setUtkast(null)
+          e.currentTarget.blur()
+        }
+      }}
+    />
+  )
+}
 export const num = (p: ParamBag, k: string, fallback: number) =>
   typeof p[k] === "number" ? (p[k] as number) : fallback
 

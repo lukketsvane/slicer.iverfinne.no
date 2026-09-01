@@ -23,7 +23,10 @@ export type Part = {
   from: string
   outline: Pt[]
   holes: Pt[][]
+  /** platetjukna stykket vert skore i, mm */
   t: number
+  /** kvar ribba stykket er ein del av står, mm langs sin eigen akse */
+  pos: number
   area: number
   mass: number
   cutLen: number
@@ -160,6 +163,7 @@ export function buildParts(g: Grid, p: Params): PartList {
         outline: o,
         holes: mine,
         t,
+        pos: r.pos,
         area,
         mass: (area * t * rho) / 1e9,
         cutLen: cut,
