@@ -377,7 +377,7 @@ export const gridKey = (p: ParamBag, cells: number) =>
   nokkel(p, utan([...UTANFOR_NETTET, ...BERRE_ARK]), cells)
 
 /**
- * Standarden er ein kube i tre millimeter MDF, på ei plate på 800 × 600.
+ * Standarden er ein kube i tre millimeter MDF, på ei plate på 600 × 400.
  *
  * Kuben er ikkje interessant. Han er det einaste objektet som ikkje gøymer
  * noko: seks ribber kvar veg gjev seks og tretti ledd, alle like, alle
@@ -385,8 +385,12 @@ export const gridKey = (p: ParamBag, cells: number) =>
  * gjer før du har lasta opp noko som helst.
  *
  * Resten er den maskina folk faktisk står ved. Tre millimeter MDF er det
- * som ligg i hylla på eit makerspace, og 800 × 600 er bordet på ein
- * vanleg CO2-laser. Set du inn dine eigne tal, står dei i lenkja.
+ * som ligg i hylla på eit makerspace, og 600 × 400 er bordet på den
+ * vanlege CO2-laseren — «6040» heiter han i katalogen, og det er den
+ * minste maskina nokon kallar ein verkstadlaser. Plata stod på 800 × 600,
+ * og det er ikkje eit bord nokon har: ho laug om platetalet for alle med
+ * ein mindre laser, og alle med ein større tapte ingenting på ei mindre
+ * standardplate. Set du inn dine eigne tal, står dei i lenkja.
  */
 export const DEFAULT_PARAMS: Params = {
   kjelde: "kube",
@@ -413,8 +417,8 @@ export const DEFAULT_PARAMS: Params = {
   snitt: 0.2,
   snittveg: 0,
   fart: 20,
-  arkB: 800,
-  arkH: 600,
+  arkB: 600,
+  arkH: 400,
 
   material: "mdf",
   laas: "",
