@@ -37,9 +37,14 @@ no radius.
    clears the planes: they were an answer about the body you had.
 2. **Set the size.** Drag the number, or take it from the sheet.
 3. **Sketch a plane.** One finger turns the object. The sketch plane is a line
-   across the screen — a knife seen edge-on. Two fingers: **pan** moves the
-   cut across the object, **twist** tilts it, **pinch** zooms. The plane swings
-   with the view and nothing is built from it.
+   across the screen — a knife seen edge-on — with a grab handle in the middle
+   and a rotation handle at the end: drag the one to move the cut across the
+   object, the other to tilt it. **Two fingers on the object** work as they
+   always did: spread to size, twist to turn, drag to move the cut. Switch on
+   **skisse** (or press `S`) and the same two fingers work on the plane
+   instead: drag moves it, twist tilts it, pinch zooms. Three fingers move the
+   light; double-tap reframes. The plane swings with the view and nothing is
+   built from it.
 4. **Press lås.** The sketch becomes a part: it gets a name, a profile, slots
    against every plane it crosses, a place in the assembly and a row in the
    list. Turn the object and lock again. The locked planes stay where you put
@@ -50,23 +55,31 @@ no radius.
    each broken rule carries the button that fixes it.
 7. **Export ARK** and open it in LightBurn.
 
-Every change is undoable, by the arrow in the panel or by `Z`.
+Every change is undoable and redoable: the two arrows at the top, or `Z` and
+`⇧Z`.
 
-## The phone is the tool
+## Two surfaces
 
 The iPhone 16e is the target device: one thumb, a 390-point screen, the object
-visible while you work. A sheet at the bottom with three heights: one line
-(lock, the live count, proposals), the middle (the plane list and the broken
-rules), everything (material, sliders, the table, exports, tools). Over 1180
-px with a mouse the same sheet is a column on the right; the camera frames the
-object into whatever rectangle is left over.
+visible while you work. A slim bar at the top carries the file you dropped in
+(tap it to pick another), the three views, undo and the link. A sheet at the
+bottom has three heights: one line (lock, the live count, proposals, export),
+the middle (size, the plane list, the broken rules with their fixes),
+everything (material and thickness, the sliders, the table, the tools).
 
-**With a part selected** (tap it in the object), two fingers edit *that* plane
-instead of the sketch: pan nudges it along its normal, twist re-angles it. Tap
-empty space to deselect; the row's `slett` removes the plane.
+**Over 1180 px with a mouse**, no sheet — the same controls as one column on
+the right, the top bar above the canvas, and the camera frames the object into
+whatever rectangle is left over.
 
-Keys: `L` lock, `⌫` remove the selected plane, `F` proposals, `Z` undo,
-`1` `2` `3` views, `Esc` close.
+**With a part selected** (tap it in the object), the handles and the two-finger
+drag edit *that* plane instead of the sketch: move it along its normal, re-angle
+it. Tap empty space to deselect; the row's `slett` removes the plane.
+
+**The contour view is a drawing, so it is a canvas**: one finger drags it,
+pinch zooms, nothing turns, and double-tap takes you home.
+
+Keys: `L` lock, `S` sketch mode, `⌫` remove the selected plane, `F` proposals,
+`D` deep search, `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 
 **Three ways to keep an afternoon's work.** The link carries every setting —
 planes included — and no mesh. **LAGRE** gives a project file carrying both.

@@ -179,7 +179,7 @@ export function Skuff(props: {
   const { open } = props
   if (!open) return null
   return (
-    <section aria-label="verkty" className="benk fixed z-20 flex flex-col border" style={{ ...props.rute, background: "var(--paper)", borderColor: "var(--rule)" }}>
+    <section aria-label="verkty" className="benk fixed z-40 flex flex-col border" style={{ ...props.rute, background: "var(--paper)", borderColor: "var(--rule)" }}>
       <div className="flex items-baseline gap-3 border-b px-3 py-2 text-[10px] uppercase tracking-[0.14em]" style={HAIR}>
         <span className="mono min-w-0 flex-1 truncate">
           {VERKTY.map((v) => (
