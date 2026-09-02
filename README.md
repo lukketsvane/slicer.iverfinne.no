@@ -71,9 +71,10 @@ one thumb, a 390-point screen, the object visible while you work. The page
 itself never zooms, scrolls or lets you select anything; every gesture belongs
 to the object. A slim bar at the top carries the file you dropped in
 (tap it to pick another), the three views, undo and the link. A sheet at the
-bottom has three heights: one line (lock, the live count, proposals, export),
-the middle (size, the plane list, the broken rules with their fixes),
-everything (material and thickness, the sliders, the table, the tools).
+bottom has three heights: one line (the live count, proposals, export), the
+middle (size and the plane list), everything (material and thickness, the
+sliders, the table with the rules and their fixes, the tools). The cut button
+and the sketch toggle float above it, under the right thumb.
 
 **Over 1180 px with a mouse**, no sheet — the same controls as one column on
 the right, the top bar above the canvas, and the camera frames the object into
