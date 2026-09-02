@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from "react"
 import { kuttCsv, nn, type ArkSyn, type Kutt, type ParamBag } from "@/lib/core"
 import { ALLE_KEYS, PARAM_RANGES } from "@/lib/params"
-import { CHIP, HAIR, chipStyle } from "./deler"
+import { CHIP, HAIR, ICON_BTN, IcoKopier, IcoLimInn, chipStyle } from "./deler"
 import { Plater } from "./plater"
 
 export type VerktyId = "kuttliste" | "ark" | "oppsett"
@@ -56,11 +56,11 @@ function Kuttliste({ liste, peikt, onPeik, onOrd }: {
     }
     return [...m.entries()]
   }, [liste])
-  if (!liste.length) return <p className="dim p-4 text-[11px]">ingen delar å skjere.</p>
+  if (!liste.length) return <p className="dim p-4 text-[11px]">ingen delar</p>
   const celle = (q: Kolonne) => (q.tal ? "text-right " : "text-left ") + (q.smal ? "hidden sm:table-cell" : "")
   return (
     <>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
         <table className="mono w-full border-collapse text-[11px]">
           <thead className="sticky top-0" style={{ background: "var(--paper)" }}>
             <tr>
@@ -99,8 +99,8 @@ function Kuttliste({ liste, peikt, onPeik, onOrd }: {
       </div>
       <div className="flex items-center gap-3 border-t px-3 py-2 text-[10px]" style={HAIR}>
         <span className="dim tab">{liste.length} delar · {former.size} former</span>
-        <button type="button" className={CHIP + " ml-auto uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onOrd(kuttCsv(liste))} title="lista på utklippstavla, med semikolon mellom felta">
-          kopier csv
+        <button type="button" className={CHIP + " ml-auto uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onOrd(kuttCsv(liste))} title="kopier kuttlista som csv, med semikolon mellom felta">
+          csv
         </button>
       </div>
     </>
@@ -109,49 +109,70 @@ function Kuttliste({ liste, peikt, onPeik, onOrd }: {
 const Fragmentet = ({ children }: { children: React.ReactNode }) => <>{children}</>
 
 // =============================================================================
-// OPPSETTET — alle innstillingane som tekst: merk, kopier, lim inn att
+// OPPSETTET — alle innstillingane som tekst: kopier ut, lim inn att
 // =============================================================================
+/**
+ * Teksten er LESING, ikkje eit felt. Eit felt som kan skrivast i tek fokus,
+ * og på ein iPhone er fokus eit tastatur over objektet og ei side som zoomar.
+ * Vegen inn er utklippstavla: «kopier» tek teksten med seg, «lim inn» les
+ * henne attende og set det som står der. Klemminga er motoren si eiga, og
+ * ingenting vert sett før du trykkjer.
+ */
 function Oppsett({ params, clamp, onChange }: {
   params: ParamBag
   clamp: (o: unknown, prev: ParamBag) => ParamBag
   onChange: (p: ParamBag) => void
 }) {
-  const skriv = (p: ParamBag) =>
-    ALLE_KEYS.filter((k) => k !== "kjelde")
-      .map((k) => {
-        const v = p[k]
-        const r = PARAM_RANGES[k]
-        return `${k.padEnd(10)} ${typeof v === "number" ? +v.toFixed(4) : String(v ?? "")}${r?.unit ? `  ${r.unit}` : ""}`
-      })
-      .join("\n")
-  const [tekst, setTekst] = useState(() => skriv(params))
+  const tekst = ALLE_KEYS.filter((k) => k !== "kjelde")
+    .map((k) => {
+      const v = params[k]
+      const r = PARAM_RANGES[k]
+      return `${k.padEnd(10)} ${typeof v === "number" ? +v.toFixed(4) : String(v ?? "")}${r?.unit ? `  ${r.unit}` : ""}`
+    })
+    .join("\n")
   const [ord, setOrd] = useState("")
-  const rørt = useRef(false)
-  useEffect(() => { if (!rørt.current) setTekst(skriv(params)) }, [params]) // eslint-disable-line react-hooks/exhaustive-deps
-  const set = () => {
-    // ingenting vert sett før du trykkjer. Klemminga er motoren si eiga.
-    const inn: Record<string, number | string> = {}
+  /** utan utklippstavle-API: eit mål å lime i, éin gong */
+  const [maal, setMaal] = useState(false)
+  const set = (inn: string) => {
+    const sett: Record<string, number | string> = {}
     const ukjend: string[] = []
-    for (const line of tekst.split("\n")) {
+    for (const line of inn.split("\n")) {
       const m = line.trim().match(/^([a-zA-Z]+)\s*[=:]?\s*(\S.*?)\s*$/)
       if (!m) continue
       if (!ALLE_KEYS.includes(m[1]) || m[1] === "kjelde") { ukjend.push(m[1]); continue }
       const v = m[2].replace(/\s+[a-z°/]+$/i, "")
-      inn[m[1]] = PARAM_RANGES[m[1]] ? Number(v.replace(",", ".")) : v
+      sett[m[1]] = PARAM_RANGES[m[1]] ? Number(v.replace(",", ".")) : v
     }
-    const ut = clamp(inn, params)
-    const flytta = Object.keys(inn).filter((k) => typeof inn[k] === "number" && Math.abs((ut[k] as number) - (inn[k] as number)) > 1e-9)
+    const ut = clamp(sett, params)
+    const flytta = Object.keys(sett).filter((k) => typeof sett[k] === "number" && Math.abs((ut[k] as number) - (sett[k] as number)) > 1e-9)
     onChange(ut)
-    rørt.current = false
-    setOrd([`${Object.keys(inn).length} sett`, flytta.length ? `klemt inn: ${flytta.join(", ")}` : "", ukjend.length ? `ukjend: ${ukjend.join(", ")}` : ""].filter(Boolean).join(" · "))
+    setOrd([`${Object.keys(sett).length} sett`, flytta.length ? `klemt ${flytta.join(" ")}` : "", ukjend.length ? `ukjend ${ukjend.join(" ")}` : ""].filter(Boolean).join(" · "))
+  }
+  const kopier = () => void navigator.clipboard?.writeText(tekst).then(() => setOrd("kopiert")).catch(() => setOrd("ikkje kopiert"))
+  const limInn = () => {
+    const les = navigator.clipboard?.readText
+    if (!les) return setMaal(true)
+    void navigator.clipboard.readText().then(set).catch(() => setOrd("ikkje lese"))
   }
   return (
     <>
-      <textarea className="mono min-h-0 flex-1 resize-none bg-transparent p-3 text-[12px] leading-relaxed outline-none" spellCheck={false} value={tekst} aria-label="alle innstillingane som tekst" onChange={(e) => { rørt.current = true; setTekst(e.target.value) }} />
-      <div className="flex items-center gap-3 border-t px-3 py-2 text-[10px]" style={HAIR}>
+      <textarea className="mono min-h-0 flex-1 resize-none overscroll-contain bg-transparent p-3 text-[12px] leading-relaxed outline-none" readOnly tabIndex={-1} spellCheck={false} value={tekst} aria-label="alle innstillingane som tekst" />
+      {maal && (
+        <textarea
+          className="mono border-t p-3 text-[16px]"
+          style={HAIR}
+          rows={2}
+          aria-label="lim inn oppsettet"
+          placeholder="lim inn"
+          autoFocus
+          onPaste={(e) => { e.preventDefault(); setMaal(false); set(e.clipboardData.getData("text")) }}
+          onBlur={() => setMaal(false)}
+        />
+      )}
+      <div className="flex items-center gap-2 border-t px-3 py-2 text-[10px]" style={HAIR}>
         <span className="dim mono min-w-0 flex-1 truncate">{ord}</span>
-        <button type="button" className={CHIP + " uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => { rørt.current = false; setTekst(skriv(params)); setOrd("") }}>attende</button>
-        <button type="button" className={CHIP + " uppercase tracking-[0.1em]"} style={chipStyle(true)} onClick={set}>set</button>
+        <button type="button" className={ICON_BTN} style={{ ...HAIR, color: "var(--ink)" }} aria-label="kopier" title="kopier oppsettet til utklippstavla" onClick={kopier}>{IcoKopier}</button>
+        <button type="button" className={ICON_BTN} style={{ ...HAIR, color: "var(--ink)" }} aria-label="lim inn" title="lim inn eit oppsett frå utklippstavla, og set det" onClick={limInn}>{IcoLimInn}</button>
       </div>
     </>
   )

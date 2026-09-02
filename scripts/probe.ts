@@ -17,6 +17,13 @@ import { PARAM_RANGES } from "../lib/params"
 import { rutenett, skrivPlan } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
+/**
+ * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
+ * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
+ * det same rutenettet standarden hadde før, og det same objektet.
+ */
+const GRUNN = { ...DEFAULT_PARAMS, plan: nett(6, 6) }
+
 
 const nn = (v: number, d = 1) => v.toFixed(d)
 
@@ -97,7 +104,7 @@ function report(name: string, p: Params) {
 }
 
 // --- 1 standarden: kuben --------------------------------------------------
-const kube = report("kube, standard", DEFAULT_PARAMS)
+const kube = report("kube, standard", GRUNN)
 if (kube.m.joints !== 36) {
   bryt(
     `venta 36 ledd på ein kube, fekk ${kube.m.joints}`,
@@ -106,18 +113,18 @@ if (kube.m.joints !== 36) {
 
 // --- 2 tettare rutenett og tjukkare plate ---------------------------------
 report("kube 400, 12x9 ribber i 6 mm", {
-  ...DEFAULT_PARAMS, storleik: 400, plan: nett(12, 9), tjukn: 6,
+  ...GRUNN, storleik: 400, plan: nett(12, 9), tjukn: 6,
   arkB: 1200, arkH: 900,
 })
 
 // --- 3 tjukk plate --------------------------------------------------------
 report("kube 300 i 9 mm", {
-  ...DEFAULT_PARAMS, storleik: 300, tjukn: 9, arkB: 1200, arkH: 900,
+  ...GRUNN, storleik: 300, tjukn: 9, arkB: 1200, arkH: 900,
 })
 
 // --- 4 vend og skaler -----------------------------------------------------
 report("kube, vend 30/20/10 og 700 mm", {
-  ...DEFAULT_PARAMS,
+  ...GRUNN,
   rotX: 30, rotY: 20, rotZ: 10, storleik: 700, tjukn: 6, arkB: 1200, arkH: 900,
 })
 
@@ -126,10 +133,10 @@ report("kube, vend 30/20/10 og 700 mm", {
 // strålane tel skal, so overlappet er gods. Skala vert ikkje sydd, og treng
 // ikkje det.
 {
-  const alle = ["kube", "kule", "sylinder", "kjegle", "torus"].map((id) => report(`primitiv: ${id}`, { ...DEFAULT_PARAMS, scene: `${id}@0,0,0/1/0` }))
+  const alle = ["kube", "kule", "sylinder", "kjegle", "torus"].map((id) => report(`primitiv: ${id}`, { ...GRUNN, scene: `${id}@0,0,0/1/0` }))
   if (alle.some((r) => r.m.parts === 0 || r.m.joints === 0 || r.m.openEdges > 0)) bryt("eit primitiv snittar ikkje til ein lukka kropp med ledd")
   const sett = report("scene: kube + kule oppå + sylinder på skrå", {
-    ...DEFAULT_PARAMS,
+    ...GRUNN,
     scene: "kube@0,0,0/1/0;kule@0,0,80/0.6/0;sylinder@40,0,0/0.5/30",
   })
   if (sett.m.openEdges > 0 || sett.m.joints === 0 || sett.m.envZ <= sett.m.envX) {
@@ -174,9 +181,9 @@ const stl = sphereStl(50, 48)
 const kule = parseMesh("kule.stl", stl)
 console.log(`\nles att STL: ${kule.tris} trekantar, boks ${kule.min} .. ${kule.max}`)
 put("kule", "kule.stl", kule)
-report("kule, importert STL", { ...DEFAULT_PARAMS, kjelde: "kule", plan: nett(7, 7), })
+report("kule, importert STL", { ...GRUNN, kjelde: "kule", plan: nett(7, 7), })
 report("kule, glatta og forenkla", {
-  ...DEFAULT_PARAMS,
+  ...GRUNN,
   kjelde: "kule",
   glatt: 6,
   trekant: 2,
@@ -207,7 +214,7 @@ function torusSoup(R: number, r: number, n: number, m: number) {
   return makeSoup(new Float32Array(pos))
 }
 put("torus", "torus", torusSoup(60, 22, 64, 32))
-report("torus, staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, plan: nett(9, 9), })
+report("torus, staaende", { ...GRUNN, kjelde: "torus", rotX: 90, plan: nett(9, 9), })
 
 // --- 7 eit nett som er snudd ut-inn ---------------------------------------
 // Ein eksport som gløymde å snu normalane er ei heilt vanleg fil, og
@@ -229,7 +236,7 @@ const vrengd = makeSoup(
 )
 put("vrengd", "vrengd", vrengd)
 const a = report("torus, snudd ut-inn", {
-  ...DEFAULT_PARAMS, kjelde: "vrengd", rotX: 90, plan: nett(9, 9),
+  ...GRUNN, kjelde: "vrengd", rotX: 90, plan: nett(9, 9),
 })
 const b = report("torus, rettvend (fasit)", {
   ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, plan: nett(9, 9),
@@ -280,8 +287,8 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   }
   put("rawkule", "kule.raw", makeSoup(zup))
 
-  const g = report("kule frå GLB", { ...DEFAULT_PARAMS, kjelde: "glbkule", plan: nett(7, 7), })
-  const r = report("same kule, Z-opp direkte", { ...DEFAULT_PARAMS, kjelde: "rawkule", plan: nett(7, 7), })
+  const g = report("kule frå GLB", { ...GRUNN, kjelde: "glbkule", plan: nett(7, 7), })
+  const r = report("same kule, Z-opp direkte", { ...GRUNN, kjelde: "rawkule", plan: nett(7, 7), })
   const likt =
     g.m.parts === r.m.parts &&
     g.m.joints === r.m.joints &&

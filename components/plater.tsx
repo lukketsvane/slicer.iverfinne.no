@@ -160,7 +160,7 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     return [p.x, p.y]
   }
 
-  if (!ark || !ark.tal) return <p className="dim p-4 text-[11px]">ingenting er lagt ut på ei plate enno.</p>
+  if (!ark || !ark.tal) return <p className="dim p-4 text-[11px]">ingen plater</p>
   const { arkB, arkH } = ark
   const heile = (r: DOMRect): Syn => {
     const ppm = Math.min(r.width / arkB, r.height / arkH)
@@ -249,21 +249,19 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
         {Array.from({ length: ark.tal }, (_, i) => (
           <button key={i} type="button" className={CHIP_B + " mono min-h-[26px] px-2.5"} style={chipStyle(i === ark.i)} onClick={() => onArk(i)} title={`plate ${i + 1} av ${ark.tal}`}>{i + 1}</button>
         ))}
-        <span className="dim mono ml-auto text-[10px]">{ark.delar} delar · {nn(ark.util * 100, 0)} % utnytting{faste > 0 && ` · ${faste} faste`}</span>
+        <span className="dim mono ml-auto min-w-0 truncate text-[10px]">{ark.delar} delar · {nn(ark.util * 100, 0)} %{faste > 0 && ` · ${faste} faste`}</span>
         {festa.size > 0 && (
-          <button type="button" className={CHIP_B + " uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onChange({ ...params, fest: "" })} title="slepp alle festa delar: pakkinga legg dei der ho vil att">slepp alle</button>
+          <button type="button" className={CHIP_B + " uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onChange({ ...params, fest: "" })} title="slepp alle festa delar: pakkinga legg dei der ho vil att">slepp</button>
         )}
-        {kryss > 0 && <span className="mono text-[10px]" style={{ color: "var(--warn)" }}>{kryss} i kvarandre</span>}
+        {kryss > 0 && <span className="mono text-[10px]" style={{ color: "var(--warn)" }}>{kryss} overlapp</span>}
         {dra && (() => {
           const d = ark.plasser.find((q) => q.adr === dra.adr)
           return d ? (
-            <span className="mono basis-full text-[10px]">{dra.adr} · x {nn(Math.max(0, d.plass.x + dra.dx), 0)} · y {nn(Math.max(0, d.plass.y + dra.dy), 0)} mm{dra.vri ? ` · ${nn(dra.vri, 0)}°` : ""}</span>
+            <span className="mono basis-full truncate text-[10px]">{dra.adr} · {nn(Math.max(0, d.plass.x + dra.dx), 0)} · {nn(Math.max(0, d.plass.y + dra.dy), 0)} mm{dra.vri ? ` · ${nn(dra.vri, 0)}°` : ""}</span>
           ) : null
         })()}
-        {!dra && vald ? (
-          <span className="dim basis-full text-[10px] tracking-[0.04em]">{vald.adr} · {nn(vald.boks.w, 0)} × {nn(vald.boks.h, 0)} mm · to fingrar dreg og snur han · trykk bert bord for å sleppe</span>
-        ) : festa.size === 0 && !dra && (
-          <span className="dim basis-full text-[10px] tracking-[0.04em]">dra ein del for å flytte han · hald for å feste og snu · klyp for å sjå nærare</span>
+        {!dra && vald && (
+          <span className="dim basis-full truncate text-[10px] tracking-[0.04em]">{vald.adr} · {nn(vald.boks.w, 0)} × {nn(vald.boks.h, 0)} mm</span>
         )}
       </div>
       <div className="min-h-0 flex-1 p-3">
@@ -457,15 +455,15 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
       {meny && (
         <>
           <div className="fixed inset-0 z-30" onPointerDown={() => setMeny(null)} aria-hidden="true" />
-          <div ref={menyRef} className="fixed z-40 flex max-w-[calc(100vw-24px)] flex-wrap items-center gap-1.5 rounded-3xl border px-1.5 py-1.5" role="dialog" aria-label={`del ${meny.adr}`} style={{ left: Math.max(12, meny.x - 150), top: Math.max(12, meny.y - 64), background: "var(--paper)", borderColor: "var(--rule)", boxShadow: "0 6px 24px color-mix(in srgb, var(--ink) 14%, transparent)" }}>
+          <div ref={menyRef} className="fixed z-40 flex max-w-[calc(100vw-24px)] flex-wrap items-center gap-1.5 rounded-3xl border px-1.5 py-1.5" role="dialog" aria-label={`del ${meny.adr}`} style={{ left: Math.max(12, meny.x - 150), top: Math.max(12, meny.y - 64), background: "var(--paper)", borderColor: "var(--rule)" }}>
             <span className="tab px-1.5 text-[11px]">{meny.adr}</span>
             {[
               { ord: festa.has(meny.adr) ? "slepp" : "fest", paa: festa.has(meny.adr), gjer: () => vipFest(meny.adr), att: true },
               { ord: "snu", paa: false, gjer: () => snuDel(meny.adr), att: false },
-              ...((plassAv(meny.adr)?.sheet ?? 0) > 0 ? [{ ord: "førre plate", paa: false, gjer: () => bytPlate(meny.adr, -1), att: true }] : []),
-              { ord: "neste plate", paa: false, gjer: () => bytPlate(meny.adr, 1), att: true },
+              ...((plassAv(meny.adr)?.sheet ?? 0) > 0 ? [{ ord: "førre", tit: "til plata før", paa: false, gjer: () => bytPlate(meny.adr, -1), att: true }] : []),
+              { ord: "neste", tit: "til neste plate — forbi den siste er ei ny", paa: false, gjer: () => bytPlate(meny.adr, 1), att: true },
             ].map((v) => (
-              <button key={v.ord} type="button" className={CHIP} style={chipStyle(v.paa)} onClick={() => { v.gjer(); if (v.att) setMeny(null) }}>{v.ord}</button>
+              <button key={v.ord} type="button" className={CHIP} style={chipStyle(v.paa)} title={"tit" in v ? v.tit : undefined} onClick={() => { v.gjer(); if (v.att) setMeny(null) }}>{v.ord}</button>
             ))}
           </div>
         </>

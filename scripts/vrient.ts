@@ -30,6 +30,13 @@ import type { ExportKind, Metrics, ParamBag } from "../lib/core"
 import { rutenett, skrivPlan } from "../lib/plan"
 const ruter = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
+/**
+ * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
+ * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
+ * det same rutenettet standarden hadde før, og det same objektet.
+ */
+const GRUNN = { ...DEFAULT_PARAMS, plan: ruter(6, 6) }
+
 let brot = 0
 let saker = 0
 const feil = (namn: string, kva: string) => {
@@ -627,7 +634,7 @@ const RØRER: Rørt[] = [
 
 console.log("\nkvar skyvar må røre noko")
 {
-  const grunn = { ...DEFAULT_PARAMS, kjelde: "kube" }
+  const grunn = { ...GRUNN, kjelde: "kube" }
   const les = (p: Params) => {
     const bag = p as unknown as ParamBag
     const m = MOTOR.measure(bag)

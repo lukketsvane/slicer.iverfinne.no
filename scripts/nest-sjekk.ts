@@ -61,6 +61,13 @@ import { put } from "../lib/sources"
 import { rutenett, skrivPlan } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
+/**
+ * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
+ * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
+ * det same rutenettet standarden hadde før, og det same objektet.
+ */
+const GRUNN = { ...DEFAULT_PARAMS, plan: nett(6, 6) }
+
 
 const RES = 0.6
 

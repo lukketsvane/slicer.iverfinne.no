@@ -27,6 +27,13 @@ import { put } from "../lib/sources"
 import { rutenett, skrivPlan } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
+/**
+ * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
+ * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
+ * det same rutenettet standarden hadde før, og det same objektet.
+ */
+const GRUNN = { ...DEFAULT_PARAMS, plan: nett(6, 6) }
+
 
 let brot = 0
 const ok = (namn: string, sant: boolean, kva = "") => {
@@ -177,7 +184,7 @@ prov("så vidt for stort", "plate", {
 // Handa sette to delar i kvarandre. Rådet slepper nett dei, og lèt det
 // tredje festet stå.
 {
-  const p = { ...DEFAULT_PARAMS, fest: "1:0,0,10,10;2:0,0,20,20;3:0,0,300,200" }
+  const p = { ...GRUNN, fest: "1:0,0,10,10;2:0,0,20,20;3:0,0,300,200" }
   prov("to feste i kvarandre", "plate", p)
   const r = finn(p, "plate")
   const etter = r?.fiks ? String(r.fiks.set.fest) : "?"
