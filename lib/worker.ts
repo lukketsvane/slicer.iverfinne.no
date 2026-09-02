@@ -12,6 +12,8 @@ import { parseMesh } from "./io"
 import { forget, put, type SourceInfo } from "./sources"
 import { unzip } from "./zip"
 import type { Kandidat } from "./forslag"
+import type { Plan } from "./plan"
+import type { SkisseSyn } from "./snitt"
 import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rule, Vec3, View } from "./core"
 
 export type BuildReq = { kind: "build"; id: number; params: ParamBag; detail: DetailKey; view: View }
@@ -24,7 +26,10 @@ export type TuneReq = { kind: "tune"; id: number; params: ParamBag; djup?: boole
 export type AvbrytReq = { kind: "avbryt"; id: number }
 /** «syn meg plate nummer i» — teikninga kjem attende, ikkje ei fil */
 export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number }
-export type Req = BuildReq | ExportReq | ImportReq | TuneReq | AvbrytReq | ArkReq
+/** «snitt skissa for meg»: profilen gjennom kroppen og kryssa mot dei låste
+ *  plana, medan du siktar. Ein straum av punkt; berre det siste tel. */
+export type SkisseReq = { kind: "skisse"; id: number; params: ParamBag; plan: Plan }
+export type Req = BuildReq | ExportReq | ImportReq | TuneReq | AvbrytReq | ArkReq | SkisseReq
 
 export type BuildRes = {
   kind: "build"
@@ -50,6 +55,7 @@ export type KjeldeRes = { kind: "kjelde"; id: number; src: SourceInfo }
 /** ei prosjektfil som er opna: nettet OG innstillingane som låg med det */
 export type ProsjektRes = { kind: "prosjekt"; id: number; src: SourceInfo | null; params: ParamBag }
 export type ArkRes = { kind: "ark"; id: number } & ArkSyn
+export type SkisseRes = { kind: "skisse"; id: number } & SkisseSyn
 export type TuneRes = { kind: "tune"; id: number; alle: Kandidat[] }
 /** kor langt søket er kome — MEDAN arbeidaren reknar, so ringen kan fyllast */
 export type TuneProgRes = { kind: "tunep"; id: number; gjort: number; av: number }
@@ -63,6 +69,7 @@ export type Res =
   | ExportRes
   | SynRes
   | ArkRes
+  | SkisseRes
   | ProsjektRes
   | KjeldeRes
   | TuneRes
@@ -180,6 +187,13 @@ self.onmessage = (e: MessageEvent<Req>) => {
         }
       }
       steg()
+      return
+    }
+
+    if (req.kind === "skisse") {
+      // Utanom porten, som plata: skissa skal svare medan bygget står i kø,
+      // og ei skisse som er gått ut på dato svarar hovudtråden ikkje på.
+      post({ kind: "skisse", id: req.id, ...MOTOR.skisse(req.params, req.plan) })
       return
     }
 

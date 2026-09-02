@@ -106,12 +106,12 @@ async function flate(namn: string, w: number, h: number) {
 
   // --- LÅS: skissa vert ein del, og talet i lina veks med eitt -------------
   const før = planTal(fyrst)
-  await page.getByRole("button", { name: "lås", exact: true }).click()
+  await page.getByRole("button", { name: "skjer", exact: true }).click()
   await ferdig(page)
   await page.waitForTimeout(400)
   const etter = planTal(await lina(page))
-  if (etter !== før + 1) brot(`${namn}: lås gav ${etter} plan, venta ${før + 1}`)
-  else console.log(`  lås: ${før} → ${etter} plan`)
+  if (etter !== før + 1) brot(`${namn}: skjer gav ${etter} plan, venta ${før + 1}`)
+  else console.log(`  skjer: ${før} → ${etter} plan`)
 
   // --- arket opnar seg, og lista er der -------------------------------------
   if (!benk) {
@@ -162,12 +162,12 @@ async function flate(namn: string, w: number, h: number) {
   await page.screenshot({ path: `${UT}/${namn}-5-import.png` })
 
   // --- og på det nye nettet kan du låse -------------------------------------
-  await page.getByRole("button", { name: "lås", exact: true }).click()
+  await page.getByRole("button", { name: "skjer", exact: true }).click()
   await ferdig(page)
   await page.waitForTimeout(400)
   const l2 = await lina(page)
-  if (planTal(l2) !== 1 || /\b0 delar/.test(l2)) brot(`${namn}: låsing på importert nett gav «${l2}»`)
-  else console.log(`  lås på egget: ${l2}`)
+  if (planTal(l2) !== 1 || /\b0 delar/.test(l2)) brot(`${namn}: skjering på importert nett gav «${l2}»`)
+  else console.log(`  skjer på egget: ${l2}`)
 
   // --- uttaka gjev filer med innhald ----------------------------------------
   for (const [chip, vent] of [

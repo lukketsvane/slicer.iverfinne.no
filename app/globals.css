@@ -172,8 +172,10 @@ textarea:focus {
 }
 
 /* HANDTAKA PÅ SNITTET. DOM over lerretet, skrivne av scena kvar teikning:
-   det runde flyttar, det vesle vrir, og ein tynn arm bind dei saman. Same
-   blått som skissa; oransje når det er eit låst plan som er valt. */
+   det runde flyttar og står i midten av snittet, det vesle vrir og står på
+   toppen av det, og ein tynn arm bind dei saman. Same blått som skissa;
+   oransje når det er eit låst plan som er valt. Råkar skissa ikkje kroppen
+   (`data-tom`), står berre flyttehandtaket att, dempa — det er vegen attende. */
 .handtak {
   position: absolute;
   inset: 0;
@@ -192,8 +194,8 @@ textarea:focus {
 .handtak [data-handtak] {
   pointer-events: auto;
   touch-action: none;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border: 0;
   padding: 0;
   border-radius: 9999px;
@@ -207,17 +209,25 @@ textarea:focus {
   cursor: grabbing;
 }
 .handtak [data-handtak] > svg {
-  width: 30px;
-  height: 30px;
-  padding: 7px;
+  width: 34px;
+  height: 34px;
+  padding: 8px;
   border-radius: 9999px;
   background: var(--snitt);
   box-shadow: 0 0 0 2px var(--paper), 0 2px 10px color-mix(in srgb, var(--ink) 25%, transparent);
 }
 .handtak [data-handtak="vri"] > svg {
-  width: 24px;
-  height: 24px;
-  padding: 5px;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+}
+.handtak[data-tom] [data-handtak="vri"],
+.handtak[data-tom] [data-arm],
+.handtak[data-tom] [data-merke] {
+  visibility: hidden;
+}
+.handtak[data-tom] [data-handtak="flytt"] {
+  opacity: 0.5;
 }
 .handtak [data-arm] {
   height: 1px;
@@ -226,15 +236,114 @@ textarea:focus {
   background: var(--snitt);
   opacity: 0.45;
 }
+/* lappen ved snittet: kva det er, ledda det ville fått, kvar det står. Raud
+   når det ikkje får eit einaste ledd mot plan som finst. Tikken er snappet:
+   ein kort strek når vinkelen eller plassen nett fall på plass. */
 .handtak [data-merke] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--snitt);
   white-space: nowrap;
 }
+.handtak [data-merke][data-varsel] {
+  color: var(--warn);
+}
+.handtak [data-tikk] {
+  display: none;
+  width: 2px;
+  height: 10px;
+  border-radius: 1px;
+  background: currentColor;
+}
+.handtak [data-merke][data-snapp] [data-tikk] {
+  display: block;
+}
 
-/* låsen pulserer ÉIN gong: fyrste gongen skissa råkar kroppen er det noko å låse */
+/* TOMMELSPALTA. Handlinga står der høgre tommelen alt er: nedst til høgre,
+   over arket. Skjer er 64 pikslar og svart; brytaren og slett står over han. */
+.tumme {
+  position: absolute;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.tumme .skjer {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 9999px;
+  border: 0;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--ink) 22%, transparent);
+  transition: transform 120ms ease, opacity 200ms ease;
+}
+.tumme .skjer:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.tumme .skjer:disabled {
+  opacity: 0.3;
+  box-shadow: none;
+}
+
+/* talet i lina tikkar når det endrar seg: eit nytt plan er eit nytt tal */
+.tikk {
+  display: inline-block;
+  animation: tikk 260ms ease-out 1;
+}
+@keyframes tikk {
+  from {
+    transform: translateY(-7px);
+    opacity: 0;
+  }
+}
+
+/* RETTLEIINGA, ÉIN GONG: tre steg midt i det frie bandet, borte på fyrste
+   trykk og aldri att. Ho ligg ikkje i vegen for fingeren. */
+.coach {
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.coach-kort {
+  display: flex;
+  gap: 22px;
+  padding: 14px 22px;
+  border-radius: 9999px;
+  border: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.coach-steg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.coach-steg b {
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+.coach-steg svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* skjer pulserer ÉIN gong: fyrste gongen skissa råkar kroppen er det noko å skjere */
 .puls {
   animation: puls 1.1s ease-out 1;
 }
@@ -284,7 +393,8 @@ textarea:focus {
 }
 @media (prefers-reduced-motion: reduce) {
   .fade-inn,
-  .puls {
+  .puls,
+  .tikk {
     animation: none;
   }
 }
