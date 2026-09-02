@@ -360,6 +360,14 @@ function stamp(b: Board, m: Mask, px: number, py: number) {
  * hente.
  */
 function lowest(b: Board, m: Mask, px: number, step: number): number {
+  // Grovt fyrst. Nesten kvar kolonne som vert spurd får nei — skylinja
+  // står for høgt for delen — og det neiet stod i to hundre oppslag. Eit
+  // knippe kolonnar med stort sprang gjev kvar si nedre grense for
+  // skylinja, so eit nei frå ei av dei er det same neiet, funne på åtte.
+  const hopp = Math.max(1, m.w >> 3)
+  for (let c = 0; c < m.w; c += hopp) {
+    if (m.bot[c] >= 0 && b.top[px + c] - m.bot[c] + m.h > b.h) return -1
+  }
   let ySky = 0
   arbeid += m.w
   for (let c = 0; c < m.w; c++) {
