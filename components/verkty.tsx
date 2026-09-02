@@ -80,6 +80,13 @@ const CHIP_B = CHIP.replace("rounded-full", "rounded-[2px]")
  * det teke attende, og trykket er eit drag eller eit trykk att.
  */
 const LANGT_MS = 450
+/** vinkelskilnad inn i (−π, π], so ei vriding som kryssar ±180° held fram */
+const vinkel = (ny: number, gml: number) => {
+  let v = ny - gml
+  while (v > Math.PI) v -= 2 * Math.PI
+  while (v <= -Math.PI) v += 2 * Math.PI
+  return v
+}
 const feillese = (t: { tid: number; brukt: boolean; lang: boolean }, no: number) => {
   if (!t.lang || no - t.tid >= LANGT_MS) return false
   t.lang = false
@@ -419,7 +426,7 @@ function Plater(props: {
    * Han vert rydda når ei ny plate kjem, ikkje på ei klokke: det er plata
    * som veit når ho har teke han att.
    */
-  const [dra, setDra] = useState<{ adr: string; dx: number; dy: number } | null>(null)
+  const [dra, setDra] = useState<{ adr: string; dx: number; dy: number; vri?: number } | null>(null)
   const draRef = useRef(dra)
   const flata = useRef<SVGGElement | null>(null)
   useEffect(() => {
@@ -450,6 +457,32 @@ function Plater(props: {
   const fingrar = useRef(new Map<number, { x: number; y: number }>())
   const klyp = useRef<{ v: Syn; ppm: number; a: { x: number; y: number }; b: { x: number; y: number } } | null>(null)
   const pan = useRef<{ id: number; v: Syn; ppm: number; p: { x: number; y: number } } | null>(null)
+  /**
+   * TO FINGRAR PÅ DEN VALDE DELEN.
+   *
+   * Ein finger dekkjer delen han flyttar, og ein kvart sving er eit trykk
+   * i ei meny. Med ein del peika på gjer to fingrar begge delar direkte:
+   * dei dreg han dit dei går, millimeter for millimeter i det utsnittet
+   * som gjeld — zoom inn, og same rørsla er ein mindre veg — og vrir dei,
+   * snur han: fritt medan fingrane held, og til nærmaste kvart sving når
+   * dei slepper, for det er dei fire svingane pakkinga kjenner. Fingrane
+   * treng ikkje stå på delen; dei kan stå på bert bord ved sida av, der
+   * dei ikkje dekkjer noko. Utan ein vald del er to fingrar eit klyp på
+   * plata, som før.
+   */
+  const grep = useRef<{
+    adr: string
+    plass: Delplass["plass"]
+    boks: Delplass["boks"]
+    /** midtpunktet mellom fingrane då dei landa, i skjermpikslar */
+    anker: { cx: number; cy: number }
+    /** vinkelen mellom fingrane sist, og vridinga lagd saman sidan ankeret */
+    sist: number
+    vri: number
+    ppm: number
+  } | null>(null)
+  /** eit trykk på plata som kan verte eit trykk på bert bord */
+  const tapp = useRef<{ id: number; x: number; y: number; paaDel: boolean; fleire: boolean } | null>(null)
   useEffect(() => setSyn(null), [ark?.arkB, ark?.arkH])
 
   /** frå skjermpikslar til millimeter på plata, y opp — gjennom den same
@@ -491,7 +524,44 @@ function Plater(props: {
     draRef.current = null
     setDra(null)
   }
+  /**
+   * Dei to fingrane slepper: delen skal stå fast der dei hadde han, i den
+   * næraste av dei fire svingane. Svingen går kring midten av masken, som
+   * `snu` i verktyet gjer det — boksen pluss margen, og etter ein odde
+   * sving er breidd og høgd bytte om. Spøkelset vert sett i den svingen han
+   * fekk, so han ikkje står skeivt dei hundre millisekunda til plata har
+   * pakka om.
+   */
+  const slepp = () => {
+    const g = grep.current
+    if (!g) return
+    grep.current = null
+    const q = draRef.current
+    if (!q || (!q.dx && !q.dy && !q.vri)) {
+      draRef.current = null
+      setDra(null)
+      return
+    }
+    const k = ((Math.round((q.vri ?? 0) / 90) % 4) + 4) % 4
+    const marg = Math.max(0, g.boks.x - g.plass.x)
+    const W = g.boks.w + 2 * marg
+    const H = g.boks.h + 2 * marg
+    const cx = g.plass.x + W / 2 + q.dx
+    const cy = g.plass.y + H / 2 + q.dy
+    const [w2, h2] = k % 2 ? [H, W] : [W, H]
+    const klem = (v: number, tak: number) => Math.min(Math.max(0, v), Math.max(0, tak))
+    const ny = { ...q, vri: k * 90 }
+    draRef.current = ny
+    setDra(ny)
+    onFlytt(g.adr, {
+      sheet: ark.i,
+      rot: ((g.plass.rot + k) % 4) as 0 | 1 | 2 | 3,
+      x: klem(cx - w2 / 2, arkB - w2),
+      y: klem(cy - h2 / 2, arkH - h2),
+    })
+  }
   const faste = ark.plasser.filter((d) => festa.has(d.adr)).length
+  const vald = peikt ? ark.plasser.find((d) => d.adr === peikt) : undefined
   const kryss = ark.plasser.filter((d) => d.kross).length
   return (
     <>
@@ -549,10 +619,17 @@ function Plater(props: {
         })()}
         {/* Gestane syner seg ikkje sjølve. Lina står til du har festa
             noko — då har du funne dei. */}
-        {festa.size === 0 && !dra && (
+        {!dra && vald ? (
           <span className="dim basis-full text-[10px] tracking-[0.04em]">
-            dra ein del for å flytte han · hald for å feste og snu · klyp for å sjå nærare
+            to fingrar dreg og snur {vald.adr} · trykk bert bord for å sleppe
           </span>
+        ) : (
+          festa.size === 0 &&
+          !dra && (
+            <span className="dim basis-full text-[10px] tracking-[0.04em]">
+              dra ein del for å flytte han · hald for å feste og snu · klyp for å sjå nærare
+            </span>
+          )
         )}
       </div>
       <div className="min-h-0 flex-1 p-3">
@@ -562,7 +639,12 @@ function Plater(props: {
           className="h-full w-full"
           role="img"
           aria-label={`plate ${ark.i + 1} av ${ark.tal}, ${ark.delar} delar`}
-          onPointerLeave={() => onPeik(null)}
+          // Musa som fer ut av plata peikar på ingenting. Fingeren som
+          // lyfter «fer ut» òg, og han skal IKKJE sleppe delen: eit val
+          // på ein telefon skal stå til du trykkjer på noko anna.
+          onPointerLeave={(e) => {
+            if (e.pointerType === "mouse") onPeik(null)
+          }}
           // Fingeren på ein del skal dra DELEN og ikkje sida. Utan denne
           // tek iOS draget som ei rulling og sender `pointercancel` etter
           // nokre pikslar.
@@ -570,14 +652,35 @@ function Plater(props: {
           onPointerDown={(e) => {
             fingrar.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
             const paaDel = !!(e.target as Element).closest("g[data-del]")
+            if (fingrar.current.size === 1) {
+              tapp.current = { id: e.pointerId, x: e.clientX, y: e.clientY, paaDel, fleire: false }
+            } else if (tapp.current) {
+              tapp.current.fleire = true
+            }
             if (fingrar.current.size === 2) {
-              // To fingrar er eit klyp, same kvar dei landa. Delen som
-              // var teken, vert sleppt der han stod.
+              // To fingrar, same kvar dei landa. Delen som var teken med
+              // éin finger, vert sleppt der han stod.
               sleppDelen()
               pan.current = null
               const [a, b] = [...fingrar.current.values()]
               const { v, ppm } = stoda()
-              klyp.current = { v, ppm, a: { ...a }, b: { ...b } }
+              // Er ein del vald på denne plata, er det HAN dei to fingrane
+              // rører — sjå `grep`. Elles er dei eit klyp på plata.
+              const vald = peikt ? ark.plasser.find((d) => d.adr === peikt) : undefined
+              if (vald) {
+                grep.current = {
+                  adr: vald.adr,
+                  plass: vald.plass,
+                  boks: vald.boks,
+                  anker: { cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 },
+                  sist: Math.atan2(b.y - a.y, b.x - a.x),
+                  vri: 0,
+                  ppm,
+                }
+                klyp.current = null
+              } else {
+                klyp.current = { v, ppm, a: { ...a }, b: { ...b } }
+              }
               e.currentTarget.setPointerCapture(e.pointerId)
               return
             }
@@ -592,6 +695,30 @@ function Plater(props: {
           onPointerMove={(e) => {
             if (!fingrar.current.has(e.pointerId)) return
             fingrar.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+            const g = grep.current
+            if (g && fingrar.current.size >= 2) {
+              const [a1, b1] = [...fingrar.current.values()]
+              const cx = (a1.x + b1.x) / 2
+              const cy = (a1.y + b1.y) / 2
+              const a = Math.atan2(b1.y - a1.y, b1.x - a1.x)
+              g.vri += vinkel(a, g.sist)
+              g.sist = a
+              // Seks pikslar skil eit drag frå ei skjelving, som elles; åtte
+              // grader skil ei vriding frå to fingrar som set seg. Skjermen
+              // har y ned og plata y opp, og med klokka på skjermen er mot
+              // klokka på plata — so begge byter forteikn.
+              const flytt = Math.hypot(cx - g.anker.cx, cy - g.anker.cy) > 6
+              const grader = (-g.vri * 180) / Math.PI
+              const ny = {
+                adr: g.adr,
+                dx: flytt ? (cx - g.anker.cx) / g.ppm : 0,
+                dy: flytt ? -(cy - g.anker.cy) / g.ppm : 0,
+                vri: Math.abs(grader) > 8 ? grader : 0,
+              }
+              draRef.current = ny
+              setDra(ny)
+              return
+            }
             const k = klyp.current
             if (k && fingrar.current.size >= 2) {
               const [a1, b1] = [...fingrar.current.values()]
@@ -634,13 +761,28 @@ function Plater(props: {
           }}
           onPointerUp={(e) => {
             fingrar.current.delete(e.pointerId)
-            if (fingrar.current.size < 2) klyp.current = null
+            if (fingrar.current.size < 2) {
+              klyp.current = null
+              slepp()
+            }
             if (pan.current?.id === e.pointerId) pan.current = null
+            const t = tapp.current
+            if (t && t.id === e.pointerId) {
+              tapp.current = null
+              // Eit trykk på bert bord — stillestandande, og åleine heile
+              // vegen — peikar på ingenting: delen som stod fram, går
+              // attende, her og i objektet.
+              if (!t.paaDel && !t.fleire && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 6) onPeik(null)
+            }
           }}
           onPointerCancel={(e) => {
             fingrar.current.delete(e.pointerId)
-            if (fingrar.current.size < 2) klyp.current = null
+            if (fingrar.current.size < 2) {
+              klyp.current = null
+              slepp()
+            }
             if (pan.current?.id === e.pointerId) pan.current = null
+            if (tapp.current?.id === e.pointerId) tapp.current = null
           }}
           // Dobbelttrykket TYDER «heile plata», som i objektet.
           onDoubleClick={() => setSyn(null)}
@@ -663,8 +805,19 @@ function Plater(props: {
                 <g
                   key={d.adr}
                   data-del={d.adr}
-                  transform={q ? `translate(${q.dx} ${q.dy})` : undefined}
-                  onPointerEnter={() => onPeik(d.adr)}
+                  data-paa={paa ? "" : undefined}
+                  transform={
+                    q
+                      ? `translate(${q.dx} ${q.dy})` +
+                        (q.vri ? ` rotate(${q.vri} ${d.boks.x + d.boks.w / 2} ${d.boks.y + d.boks.h / 2})` : "")
+                      : undefined
+                  }
+                  // Musa som fer over ein del peikar på han. Fingeren gjer
+                  // ikkje det: han vel med eit trykk, og to fingrar som fer
+                  // over andre delar undervegs skal ikkje byte valet.
+                  onPointerEnter={(e) => {
+                    if (e.pointerType === "mouse") onPeik(d.adr)
+                  }}
                   onPointerDown={(e) => {
                     // ein andre finger er ikkje eit trykk på ein del
                     if (!e.isPrimary) return

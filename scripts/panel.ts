@@ -614,6 +614,96 @@ async function plata(browser: Browser, feil: string[]) {
   await svg.dblclick({ position: { x: 8, y: 8 } })
   await page.waitForTimeout(300)
   ok("dobbelttrykket syner heile plata att", (await viewBox()) === heile, String(await viewBox()))
+
+  // --- EIT VAL, OG TO FINGRAR PÅ HAN ---------------------------------------------
+  /**
+   * Eit trykk på ein del vel han; eit trykk på bert bord — eller på bert
+   * lerret over modellen — slepper valet. Med ein del vald er to fingrar
+   * hans: dei dreg han dit dei går, og vrir dei ein kvart sving, snur han.
+   */
+  const valde = () => svg.locator("g[data-paa]").count()
+  const trykk = async (x: number, y: number) => {
+    await send("touchStart", [{ x, y, id: 1 }])
+    await page.waitForTimeout(80)
+    await send("touchEnd", [])
+    await page.waitForTimeout(400)
+  }
+  const p0 = await midt(adr)
+  await trykk(p0.x, p0.y)
+  ok("eit trykk på ein del vel han", (await valde()) === 1)
+  // Plata er pakka frå nedre venstre hjørne, so øvre høgre er bert bord.
+  const sb2 = (await svg.boundingBox())!
+  await trykk(sb2.x + sb2.width - 10, sb2.y + 10)
+  ok("eit trykk på bert bord slepper valet", (await valde()) === 0)
+  await trykk(p0.x, p0.y)
+  ok("og eit trykk på delen vel han att", (await valde()) === 1)
+
+  // To fingrar på delen, og dei går til høgre og opp — inn i det ledige.
+  /** kvar delen står, i millimeter på plata, lesen mot ramma. Hovudet på
+   *  plata veks når det fyrste festet kjem — «slepp alle» — og då flytter
+   *  heile teikninga seg nokre pikslar; millimeterane står. */
+  const ramme = async () => (await svg.locator("rect").first().boundingBox())!
+  const paaPlata = async (a: string) => {
+    const m = await midt(a)
+    const f = await ramme()
+    return { x: ((m.x - f.x) / f.width) * 600, y: ((f.y + f.height - m.y) / f.height) * 400, ppm: f.width / 600 }
+  }
+  const før2 = await paaPlata(adr)
+  const steg = { dx: 70, dy: -40 }
+  const m2 = await midt(adr)
+  const to = (i: number) => [
+    { x: m2.x - 25 + (steg.dx * i) / 10, y: m2.y + (steg.dy * i) / 10, id: 1 },
+    { x: m2.x + 25 + (steg.dx * i) / 10, y: m2.y + (steg.dy * i) / 10, id: 2 },
+  ]
+  await send("touchStart", to(0))
+  for (let i = 1; i <= 10; i++) {
+    await send("touchMove", to(i))
+    await page.waitForTimeout(30)
+  }
+  await send("touchEnd", [])
+  await rolig(page)
+  await page.waitForTimeout(500)
+  const etter2 = await paaPlata(adr)
+  const venta = { x: før2.x + steg.dx / før2.ppm, y: før2.y - steg.dy / før2.ppm }
+  ok(
+    "to fingrar dreg den valde delen dit dei går",
+    Math.abs(etter2.x - venta.x) < 8 && Math.abs(etter2.y - venta.y) < 8,
+    `${før2.x.toFixed(0)},${før2.y.toFixed(0)} → ${etter2.x.toFixed(0)},${etter2.y.toFixed(0)} mm (venta ${venta.x.toFixed(0)},${venta.y.toFixed(0)})`,
+  )
+  ok("og festar han der", (await festet()).startsWith(adr + ":"), await festet())
+  ok("og han står vald enno", (await valde()) === 1)
+
+  // Og vrir dei — ein kvart sirkel kring midten av delen — snur han.
+  const før3 = await midt(adr)
+  const sving0 = Number((await festet()).split(":")[1].split(",")[1])
+  const kring = (th: number) => [
+    { x: før3.x + 40 * Math.cos(th), y: før3.y + 40 * Math.sin(th), id: 1 },
+    { x: før3.x - 40 * Math.cos(th), y: før3.y - 40 * Math.sin(th), id: 2 },
+  ]
+  await send("touchStart", kring(0))
+  for (let i = 1; i <= 12; i++) {
+    await send("touchMove", kring(((Math.PI / 2) * i) / 12))
+    await page.waitForTimeout(30)
+  }
+  await send("touchEnd", [])
+  await rolig(page)
+  await page.waitForTimeout(500)
+  const sving1 = Number((await festet()).split(":")[1].split(",")[1])
+  const etter3 = await midt(adr)
+  ok("og vrir dei ein kvart sirkel, snur han ein kvart sving", (sving1 - sving0 + 4) % 4 === 1 || (sving1 - sving0 + 4) % 4 === 3, `${sving0} → ${sving1}`)
+  ok(
+    "kring midten sin",
+    Math.abs(etter3.x - før3.x) < 25 && Math.abs(etter3.y - før3.y) < 25,
+    `${før3.x.toFixed(0)},${før3.y.toFixed(0)} → ${etter3.x.toFixed(0)},${etter3.y.toFixed(0)}`,
+  )
+
+  // Eit trykk på bert lerret over modellen slepper valet òg.
+  // Lerretet står bak alt; det som er synleg av det på ein telefon med
+  // skuffa open, er stripa mellom lesemåteknappane og skuffa — og modellen
+  // er ramma inn midt i henne, so trykket går ved venstre kant.
+  const skuffTopp = (await skuffa.boundingBox())!.y
+  await trykk(30, skuffTopp - 30)
+  ok("eit trykk på bert lerret slepper valet", (await valde()) === 0)
   await page.close()
 }
 
