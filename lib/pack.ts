@@ -173,28 +173,27 @@ function rasterise(
 }
 
 /** Utvidinga: klaringa lagd inn i sjølve forma, so søket slepp å tenkje på
- *  henne. Kvadratisk kjerne, og han er separabel — to sveip i staden for
- *  eitt kvadratisk. */
+ *  henne. Kvadratisk kjerne: kvart stykke i ei rad vert `k` lengre i kvar
+ *  ende, og lagt i dei `k` radene over og under òg. Det er heile summen, og
+ *  eit stykke er eitt `fill` og ikkje ei celle om gongen — celle for celle
+ *  var utvidinga dyrare enn sjølve leitinga etter plass. */
 function dilate(r: Raw, k: number): Raw {
   if (k <= 0) return r
   const w = r.w + 2 * k
   const h = r.h + 2 * k
-  const mid = new Uint8Array(w * h)
-  for (let j = 0; j < r.h; j++) {
-    for (let i = 0; i < r.w; i++) {
-      if (!r.a[j * r.w + i]) continue
-      const row = (j + k) * w
-      for (let d = -k; d <= k; d++) mid[row + i + k + d] = 1
-    }
-  }
   const out = new Uint8Array(w * h)
-  for (let j = 0; j < h; j++) {
-    for (let i = 0; i < w; i++) {
-      if (!mid[j * w + i]) continue
-      for (let d = -k; d <= k; d++) {
-        const jj = j + d
-        if (jj >= 0 && jj < h) out[jj * w + i] = 1
+  for (let j = 0; j < r.h; j++) {
+    const rad = j * r.w
+    let i = 0
+    while (i < r.w) {
+      if (!r.a[rad + i]) {
+        i++
+        continue
       }
+      const a = i
+      while (i < r.w && r.a[rad + i]) i++
+      // stykket [a, i) vert [a, i + 2k) i kvar av radene j .. j + 2k
+      for (let jj = j; jj <= j + 2 * k; jj++) out.fill(1, jj * w + a, jj * w + i + 2 * k)
     }
   }
   return { w, h, a: out }
