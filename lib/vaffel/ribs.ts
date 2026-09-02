@@ -217,7 +217,12 @@ function profileOf(
     cols[i] = axis === "x" ? s.runs(2, pos, t) : s.runs(2, t, pos)
   }
 
+  // Spora står i same rekkjefylgje som slissene: etter t, stigande. Det
+  // er ikkje pynt — eit spor som dreg verdien under null stoggar lykkja,
+  // og kva verdi ho stoggar på avgjer kvar nullstaden vert lagd.
   const boxes = slots.map(boxOf)
+  let halv = 0
+  for (const q of boxes) if (q.half > halv) halv = q.half
   const g = new Float64Array((nt + 1) * (nz + 1))
   for (let j = 0; j <= nz; j++) {
     const z = z0 + j * dz
@@ -233,10 +238,28 @@ function profileOf(
       // millimeter frå flata.
       const mag = Math.min(Math.abs(dh), Math.abs(dv))
       let v = dh > 0 && dv > 0 ? mag : -mag
-      for (const q of boxes) {
-        if (v <= 0) break
-        const d = Math.max(Math.abs(t - q.t) - q.half, q.zlo - z, z - q.zhi)
-        if (d < v) v = d
+      if (v > 0 && boxes.length) {
+        // Berre spora som kan nå cella. Eit spor lenger unna i t enn
+        // kanten alt er, endrar ingenting — so dei til venstre for
+        // `t − v − halv` vert hoppa over, og ved det fyrste til høgre for
+        // `t + v + halv` stoggar lykkja. Dei imellom går i same
+        // rekkjefylgje som før. Ei ribbe med tolv spor spurde alle tolv
+        // i kvar av ti tusen celler; no spør ho eitt eller to.
+        const venstre = t - v - halv - 1e-9
+        let a = 0
+        let b = boxes.length
+        while (a < b) {
+          const m = (a + b) >> 1
+          if (boxes[m].t <= venstre) a = m + 1
+          else b = m
+        }
+        for (let n = a; n < boxes.length; n++) {
+          const q = boxes[n]
+          if (q.t - t - halv - 1e-9 >= v) break
+          const d = Math.max(Math.abs(t - q.t) - q.half, q.zlo - z, z - q.zhi)
+          if (d < v) v = d
+          if (v <= 0) break
+        }
       }
       g[j * (nt + 1) + i] = v
     }
