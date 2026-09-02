@@ -11,6 +11,7 @@ import { parseMesh } from "../lib/io"
 import { put } from "../lib/sources"
 import { meshToStl } from "../lib/export-stl"
 import { makeSoup } from "../lib/soup"
+import { unzip } from "../lib/zip"
 import { glb } from "./glbfil"
 import { feltTal, klokke, lesTal, snap, type ParamBag } from "../lib/core"
 import { PARAM_RANGES } from "../lib/params"
@@ -300,6 +301,54 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
       `GLB gav ${g.m.parts}/${g.m.joints}/${g.m.envZ.toFixed(1)}, ` +
         `Z-opp gav ${r.m.parts}/${r.m.joints}/${r.m.envZ.toFixed(1)}`,
     )
+  }
+}
+
+// --- 9 GLB og USDZ ut: same objektet, lese attende ------------------------
+/**
+ * Eit uttak ingen les attende er eit uttak ingen veit noko om. STL-en er
+ * millimeter og Z opp, GLB-en er meter og Y opp, og USDZ-en er millimeter
+ * og Y opp — tre skrivemåtar for det SAME objektet, og skil dei seg med
+ * meir enn tusendelen, er vendinga eller skalaen feil i ein av dei.
+ *
+ * USDZ er i tillegg ein ZIP med reglar: fyrste fila skal vera USD-en, og
+ * kvar fil skal byrje på ei adresse som går opp i 64.
+ */
+{
+  const bag = GRUNN as unknown as ParamBag
+  const stlUt = MOTOR.exportFile(bag, "stl")
+  const glbUt = MOTOR.exportFile(bag, "glb")
+  const usdzUt = MOTOR.exportFile(bag, "usdz")
+  const fasit = parseMesh("ut.stl", stlUt.data as ArrayBuffer)
+  const les = parseMesh("ut.glb", glbUt.data as ArrayBuffer)
+  console.log(`\n=== glb og usdz ===`)
+  console.log(`  glb       ${glbUt.name}, ${(glbUt.data as ArrayBuffer).byteLength} B, ${les.tris} trekantar`)
+  if (les.tris !== fasit.tris) bryt(`GLB har ${les.tris} trekantar der STL-en har ${fasit.tris}`)
+  const avvik = Math.max(
+    ...[0, 1, 2].map((a) => Math.max(Math.abs(les.min[a] * 1000 - fasit.min[a]), Math.abs(les.max[a] * 1000 - fasit.max[a]))),
+  )
+  if (avvik > 0.05) bryt(`GLB-boksen ligg ${nn(avvik, 3)} mm frå STL-boksen etter tusendelen`)
+  else console.log(`  glb       same boks som STL-en, på ${nn(avvik, 3)} mm nær`)
+
+  const bytar = new Uint8Array(usdzUt.data as ArrayBuffer)
+  const dv = new DataView(usdzUt.data as ArrayBuffer)
+  const start = 30 + dv.getUint16(26, true) + dv.getUint16(28, true)
+  if (start % 64 !== 0) bryt(`USDZ: fyrste fila byrjar på ${start}, som ikkje går opp i 64`)
+  const filer = unzip(usdzUt.data as ArrayBuffer)
+  if (filer.length !== 1 || !filer[0].name.endsWith(".usda")) {
+    bryt(`USDZ ber ${filer.map((f) => f.name).join(", ")} og ikkje éi usda`)
+  } else {
+    const usda = new TextDecoder().decode(filer[0].data)
+    const punkt = (usda.match(/point3f\[\] points = \[(.*)\]/)?.[1] ?? "").split("), (").length
+    console.log(`  usdz      ${usdzUt.name}, ${bytar.length} B, ${punkt} punkt, fyrste fila på ${start}`)
+    if (punkt !== fasit.tris * 3) bryt(`USDZ har ${punkt} punkt der nettet har ${fasit.tris * 3} hjørne`)
+    if (!/metersPerUnit = 0.001/.test(usda) || !/upAxis = "Y"/.test(usda)) bryt("USDZ manglar eininga eller opp-aksen")
+    // ekstenten er Y opp og i millimeter: høgda står i det andre talet
+    const ext = usda.match(/extent = \[\((.+?)\), \((.+?)\)\]/)
+    const hog = ext ? Number(ext[2].split(", ")[1]) - Number(ext[1].split(", ")[1]) : 0
+    if (Math.abs(hog - (fasit.max[2] - fasit.min[2])) > 0.05) {
+      bryt(`USDZ er ${nn(hog, 2)} mm høg der nettet er ${nn(fasit.max[2] - fasit.min[2], 2)} mm`)
+    }
   }
 }
 

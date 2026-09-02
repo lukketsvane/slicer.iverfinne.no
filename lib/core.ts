@@ -420,6 +420,10 @@ export type View = "flate" | "lag" | "kontur"
 
 export type ExportKind =
   | "stl"
+  /** same objektet som GLB — det formatet resten av verda opnar */
+  | "glb"
+  /** og som USDZ: montasjen på bordet framfor deg, gjennom delingsarket */
+  | "usdz"
   | "dxf"
   | "svg"
   | "ark"

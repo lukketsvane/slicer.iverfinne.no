@@ -284,20 +284,24 @@ function iStrek(s: Strek, S: number, q: Pt, tol: number): boolean {
   return (lx / hw) ** 2 + (ly / hh) ** 2 <= 1
 }
 
-function FitCamera({ fit, rute, flat, reframe }: { fit: Fit | null; rute: Rute; flat: boolean; reframe: number }) {
+/** kvar synet skal stå: eit tal som tel kvar gong nokon ber om det, og
+ *  retninga dei bad om — heimvinkelen når ingen har peika på ei side */
+export type Sikt = { n: number; dir: Vec3 | null }
+
+function FitCamera({ fit, rute, flat, sikt }: { fit: Fit | null; rute: Rute; flat: boolean; sikt: Sikt }) {
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
   const controls = useThree((s) => s.controls) as { target: THREE.Vector3; update?: () => void } | null
   const invalidate = useThree((s) => s.invalidate)
-  const sist = useRef({ r: 0, rute: "", reframe: 0, flat: null as boolean | null })
+  const sist = useRef({ r: 0, rute: "", n: 0, flat: null as boolean | null })
   const nokkel = `${rute.W}|${rute.H}|${rute.venstre}|${rute.hogre}|${rute.topp}|${rute.botn}`
   useEffect(() => {
     if (!fit || !controls) return
     const s = sist.current
-    // dobbelttrykk, eller byte mellom teikning og objekt: heim, uansett
-    const heim = s.reframe !== reframe || s.flat !== flat
+    // synskuben, eller byte mellom teikning og objekt: ramm inn, uansett
+    const heim = s.n !== sikt.n || s.flat !== flat
     if (heim) {
-      s.reframe = reframe
+      s.n = sikt.n
       s.flat = flat
       s.r = 0
     }
@@ -313,13 +317,13 @@ function FitCamera({ fit, rute, flat, reframe }: { fit: Fit | null; rute: Rute; 
     persp.aspect = r.fri.w / r.fri.h
     persp.setViewOffset(r.fri.w, r.fri.h, -r.fri.L, -r.fri.T, size.width, size.height)
     controls.target.set(0, r.y, 0)
-    const h = flat ? HEIM.flat : HEIM.rom
+    const h = sikt.dir ?? (flat ? HEIM.flat : HEIM.rom)
     const dir = heim ? new THREE.Vector3(...h) : camera.position.clone().sub(controls.target)
     if (dir.lengthSq() < 1e-6) dir.set(...h)
     camera.position.copy(controls.target).add(dir.setLength(r.dist))
     controls.update?.()
     invalidate()
-  }, [fit, nokkel, rute, reframe, controls, camera, invalidate, flat, size])
+  }, [fit, nokkel, rute, sikt, controls, camera, invalidate, flat, size])
   return null
 }
 
@@ -333,7 +337,6 @@ function FitCamera({ fit, rute, flat, reframe }: { fit: Fit | null; rute: Rute; 
  * svingar med synet; eit låst plan gjer det ikkje — det er heile skilnaden.
  *
  *   éin finger        snu synet (OrbitControls)
- *   dobbelttrykk      ramm inn på nytt, heim i standardvinkelen
  *   to fingrar, klyp  STORLEIKEN. Du dreg objektet stort og lite.
  *   to fingrar, vri   VEND. Objektet snur seg på bordet, og plana fylgjer
  *                     ikkje med: du ser med det same om ei anna vending
@@ -382,7 +385,7 @@ const SNAPP_PX = 4
 /** snittet i verda, til handtaka: midten av det største stykket, og punkta på ringane (tynna) */
 type SnittVerd = { midt: THREE.Vector3; punkt: THREE.Vector3[] }
 
-function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onDoubleTap, onSkala, onVend, onLys, onGest, onSkisse }: {
+function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onSkala, onVend, onLys, onGest, onSkisse }: {
   f: Ramma | null
   fri: ReturnType<typeof fritt>
   view: View
@@ -407,7 +410,6 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
   onStrek: (id: number, i: number, s: Strek) => void
   onSynStrek: (id: number, i: number, s: Strek) => void
   onPlan: (id: number, o: Vec3, n: Vec3) => void
-  onDoubleTap: () => void
   onSkala: (faktor: number) => void
   onVend: (grader: number) => void
   onLys: (dx: number, dy: number) => void
@@ -487,8 +489,8 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     return { x: ((p.x + 1) / 2) * size.width, y: ((1 - p.y) / 2) * size.height }
   }
 
-  const naa = useRef({ f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onDoubleTap, onSkala, onVend, onLys, onGest, onSkisse })
-  naa.current = { f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onDoubleTap, onSkala, onVend, onLys, onGest, onSkisse }
+  const naa = useRef({ f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onSkala, onVend, onLys, onGest, onSkisse })
+  naa.current = { f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onSkala, onVend, onLys, onGest, onSkisse }
 
   useFrame(() => {
     const g = gruppe.current
@@ -658,9 +660,8 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     let iRad = 0
     let snap: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null
     let tak: Tak | null = null
-    // dobbelttrykket: to korte, stillestandande trykk nær kvarandre i tid og rom
+    // trykket: kort, og stillestandande
     let tapDown = { x: 0, y: 0, t: 0, id: -1 }
-    let lastTap = { x: 0, y: 0, t: 0 }
 
     const restore = () => {
       if (!snap || !controls) return
@@ -1042,17 +1043,13 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     }
 
     const opp = (e: PointerEvent) => {
-      // dobbelttrykket, for mus og finger begge — FØR fingerbokhaldet, av di musa aldri står i pts
+      // trykket, for mus og finger begge — FØR fingerbokhaldet, av di musa aldri står i pts
       if (e.pointerId === tapDown.id) {
-        const now = performance.now()
-        if (now - tapDown.t < 260 && Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y) < 12) {
-          if (now - lastTap.t < 340 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 48) {
-            lastTap = { x: 0, y: 0, t: 0 }
-            naa.current.onDoubleTap()
-          } else {
-            lastTap = { x: e.clientX, y: e.clientY, t: now }
-            trykkStrek(e.clientX, e.clientY)
-          }
+        // EIT TRYKK ER EIT TRYKK. Det andre i eit dobbelttrykk ramma inn på
+        // nytt før, og ei ramme du ikkje bad om midt i ei sikting kastar
+        // vinkelen du stod og fann. Innramminga står i synskuben no.
+        if (performance.now() - tapDown.t < 260 && Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y) < 12) {
+          trykkStrek(e.clientX, e.clientY)
         }
         tapDown = { x: 0, y: 0, t: 0, id: -1 }
       }
@@ -1516,6 +1513,59 @@ function Konturen({ f, d }: { f: Ramma; d: BuildRes }) {
   )
 }
 
+/**
+ * SYNSKUBEN. Ei avlesing du kan trykkje på: kuben svingar med kameraet, so
+ * du ser kva veg du ser frå — og eit trykk opnar dei seks sidene som ord,
+ * parvis, motstykke ved motstykke.
+ *
+ * Sidene er IKKJE knappar på kuben sjølv, og det er ikkje ei forgløyming:
+ * ei side som vender på skrå er tretten pikslar høg på skjermen. Kuben er
+ * ÉIN knapp på seks og femti, og orda under han er trykkflater ein tommel
+ * finn. Ein synskube som krev ein muspeikar er ein synskube for ei anna
+ * maskin enn denne.
+ *
+ * Retningane er verda si: y er opp, og z peikar mot deg i heimvinkelen.
+ * Topp og botn står to hundredelar frå loddrett, so vendinga kring
+ * loddlina er eit tal og ikkje ei deling på null. Rekkjefylgja er den orda
+ * står i: topp og botn, framme og bak, venstre og høgre.
+ */
+const SIDER: readonly { id: string; ord: string; hint: string; css: string; dir: Vec3 }[] = [
+  { id: "topp", ord: "topp", hint: "ovanfrå", css: "rotateX(90deg) translateZ(28px)", dir: [0, 1, 0.02] },
+  { id: "botn", ord: "botn", hint: "nedanfrå", css: "rotateX(-90deg) translateZ(28px)", dir: [0, -1, 0.02] },
+  { id: "framme", ord: "framme", hint: "framanfrå", css: "translateZ(28px)", dir: [0, 0, 1] },
+  { id: "bak", ord: "bak", hint: "bakanfrå", css: "rotateY(180deg) translateZ(28px)", dir: [0, 0, -1] },
+  { id: "venstre", ord: "venstre", hint: "frå venstre", css: "rotateY(-90deg) translateZ(28px)", dir: [-1, 0, 0] },
+  { id: "hogre", ord: "høgre", hint: "frå høgre", css: "rotateY(90deg) translateZ(28px)", dir: [1, 0, 0] },
+]
+
+/**
+ * Kuben si vending, skriven kvar teikning slik handtaka vert det.
+ *
+ * Kameramatrisa snudd tek verda inn i kameraet sitt rom; CSS har y nedover,
+ * so ho vert spegla på begge sider (S·R·S med S = diag(1, −1, 1)) før ho
+ * vert skriven. Ingen animasjon og ingen overgang: kuben ER synet, og eit
+ * syn som kjem etterpå er ei løgn i to hundre millisekund.
+ */
+function Vendinga({ el }: { el: HTMLElement | null }) {
+  const camera = useThree((s) => s.camera)
+  const m = useRef(new THREE.Matrix4())
+  useFrame(() => {
+    if (!el) return
+    camera.updateMatrixWorld()
+    const e = m.current.copy(camera.matrixWorld).invert().elements
+    const c = (rad: number, kol: number) => e[kol * 4 + rad] * (rad === 1 ? -1 : 1) * (kol === 1 ? -1 : 1)
+    el.style.transform = `matrix3d(${c(0, 0)},${c(1, 0)},${c(2, 0)},0,${c(0, 1)},${c(1, 1)},${c(2, 1)},0,${c(0, 2)},${c(1, 2)},${c(2, 2)},0,0,0,0,1)`
+  })
+  return null
+}
+
+/** ramm inn att: objektet heilt, i heimvinkelen */
+const IkonHeim = (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+  </svg>
+)
+
 /** ikona i handtaka: fire piler for å flytte, ein boge for å vri */
 const IkonFlytt = (
   <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -1578,8 +1628,23 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
   const [live, setLive] = useState<Live | null>(null)
   const fk = useMemo(() => ramma(kontur), [kontur])
   const fri = useMemo(() => fritt(rute), [rute])
-  const [reframe, setReframe] = useState(0)
-  const dobbel = useCallback(() => setReframe((n) => n + 1), [])
+  const [sikt, setSikt] = useState<Sikt>({ n: 0, dir: null })
+  const [kube, setKube] = useState<HTMLSpanElement | null>(null)
+  /** sidene som ord, opne eller ikkje: eit trykk på kuben, eit trykk utanfor att */
+  const [sider, setSider] = useState(false)
+  const heim = useCallback(() => setSikt((s) => ({ n: s.n + 1, dir: null })), [])
+  useEffect(() => {
+    if (!sider) return
+    const ute = (e: PointerEvent) => { if (!(e.target as HTMLElement | null)?.closest?.(".synskube")) setSider(false) }
+    const tast = (e: KeyboardEvent) => { if (e.key === "Escape") setSider(false) }
+    window.addEventListener("pointerdown", ute)
+    window.addEventListener("keydown", tast)
+    return () => {
+      window.removeEventListener("pointerdown", ute)
+      window.removeEventListener("keydown", tast)
+    }
+  }, [sider])
+  const settSide = useCallback((dir: Vec3) => setSikt((s) => ({ n: s.n + 1, dir })), [])
   const [boks, setBoks] = useState<HTMLDivElement | null>(null)
   const [sein, setSein] = useState(false)
   // Éi styrbar hovudlyskjelde på ein fast kuppel, pluss fire svake fyll:
@@ -1624,10 +1689,13 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
             <shadowMaterial transparent opacity={0.24} />
           </mesh>
         </group>
-        <FitCamera fit={(flat ? fk : f)?.fit ?? null} rute={rute} flat={flat} reframe={reframe} />
+        <FitCamera fit={(flat ? fk : f)?.fit ?? null} rute={rute} flat={flat} sikt={sikt} />
+        <Vendinga el={kube} />
         <Demping onSein={setSein} />
-        <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onDoubleTap={dobbel} onSkala={onSkala} onVend={onVend} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} />
-        {/* konturen er ei teikning: éin finger dreg, klypet zoomar, ingenting snur */}
+        <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onSkala={onSkala} onVend={onVend} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} />
+        {/* Konturen er ei teikning: éin finger dreg, klypet zoomar, ingenting
+            snur. Kroppen snur heile vegen rundt — undersida er der ledda sit,
+            og eit syn du ikkje kjem til er ein kontroll som manglar. */}
         <OrbitControls
           target={[0, 0.35, 0]}
           enablePan={flat}
@@ -1641,11 +1709,58 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
           rotateSpeed={0.9}
           enableDamping={!sein}
           dampingFactor={0.12}
-          minPolarAngle={0.12}
-          maxPolarAngle={Math.PI / 2 + 0.3}
+          minPolarAngle={0.02}
+          maxPolarAngle={Math.PI - 0.02}
           makeDefault
         />
       </Canvas>
+      {/*
+        SYNSKUBEN, øvst til venstre i det frie bandet. Kuben svingar med
+        kameraet og seier kva veg du ser frå; ei side set synet. Under han
+        står innramminga — den som låg i dobbelttrykket før, der ho kom av
+        seg sjølv midt i ei sikting. Konturen er ei flat teikning og har
+        inga vending å syne: der står berre innramminga.
+      */}
+      <div className="synskube" style={{ left: rute.venstre + 16, top: rute.topp + 36 }}>
+        {!flat && (
+          <button
+            type="button"
+            className="bur"
+            data-kube=""
+            aria-expanded={sider}
+            aria-label="synet"
+            title="synet: kva veg du ser frå. trykk for dei seks sidene"
+            onClick={() => setSider((v) => !v)}
+          >
+            {/* Kuben inni knappen, og ikkje knappen sjølv: ei flate som står
+                på kant er null pikslar brei, og ein knapp som forsvinn i eit
+                sidesyn er ein knapp som ikkje finst. */}
+            <span className="vend" ref={setKube}>
+              {SIDER.map((q) => (
+                <span key={q.id} data-side={q.id} style={{ transform: q.css }} aria-hidden="true">{q.ord}</span>
+              ))}
+            </span>
+          </button>
+        )}
+        {sider && !flat && (
+          <div className="sider" data-sider="">
+            {SIDER.map((q) => (
+              <button
+                key={q.id}
+                type="button"
+                data-vel={q.id}
+                title={`sjå objektet ${q.hint}`}
+                onClick={() => { settSide(q.dir); setSider(false) }}
+              >
+                {q.ord}
+              </button>
+            ))}
+          </div>
+        )}
+        <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt" onClick={heim}>
+          {IkonHeim}
+        </button>
+      </div>
       {/*
         HANDTAKA ER DOM, IKKJE NETT. Eit handtak på 48 pikslar skal kunne
         takast med tommelen og finnast av ein som ikkje ser; ein trekant i

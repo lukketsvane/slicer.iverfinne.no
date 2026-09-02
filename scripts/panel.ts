@@ -445,6 +445,78 @@ async function telefon(browser: Browser) {
   sjekk("kuttlista har éi line per del, med plan og ledd", /ledd/i.test(kutt) && /\b1\b/.test(kutt), kutt.slice(0, 60))
   await page.keyboard.press("Escape")
 
+  // --- SYNSKUBEN, INNRAMMINGA OG DOBBELTTRYKKET -------------------------------
+  /**
+   * Kameraet står i lappen scena skriv kvar teikning (`data-kamera`), so
+   * her kan ein LESE kva synet gjer: at ei side set det, at innramminga tek
+   * det heim att — og at eit dobbelttrykk ikkje rører det. Det siste er
+   * heile poenget: innramminga skal kome av at du bad om henne.
+   */
+  await page.keyboard.press("Escape")
+  await roleg(page, 400)
+  const kamera = async (): Promise<[number, number, number]> => {
+    const s = (await page.locator(".handtak").getAttribute("data-kamera")) ?? "0,0,0"
+    return s.split(",").map(Number) as [number, number, number]
+  }
+  const kuben = page.locator("button[data-kube]")
+  sjekk("synskuben har seks sider", (await page.locator("[data-side]").count()) === 6)
+  const paaKuben = await page.evaluate(() => {
+    const b = document.querySelector("[data-kube]")?.getBoundingClientRect()
+    if (!b) return ""
+    const e = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
+    return e?.closest("[data-kube]") ? "kuben" : (e?.tagName ?? "")
+  })
+  sjekk("og kuben er det du treffer der han står", paaKuben === "kuben", paaKuben)
+  /** eit trykk på kuben, og so ordet: sidene er trykkflater, ikkje skrå flater */
+  const velSide = async (id: string) => {
+    await kuben.click()
+    await page.waitForTimeout(200)
+    await page.locator(`[data-vel=${id}]`).click()
+    await page.waitForTimeout(700)
+  }
+  await kuben.click()
+  await page.waitForTimeout(200)
+  sjekk("eit trykk opnar dei seks sidene som ord", (await page.locator("[data-sider] button").count()) === 6)
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(200)
+  sjekk("og escape lukkar dei att", (await page.locator("[data-sider]").count()) === 0)
+  await velSide("topp")
+  const topp = await kamera()
+  sjekk("«topp» set synet rett ovanfrå", topp[1] > Math.abs(topp[0]) && topp[1] > Math.abs(topp[2]), topp.map((c) => c.toFixed(2)).join(", "))
+  await velSide("venstre")
+  const venstre = await kamera()
+  sjekk("«venstre» set synet frå venstre", venstre[0] < -Math.abs(venstre[1]) && venstre[0] < -Math.abs(venstre[2]), venstre.map((c) => c.toFixed(2)).join(", "))
+  await velSide("botn")
+  const botn = await kamera()
+  sjekk("og «botn» kjem under objektet", botn[1] < 0, botn.map((c) => c.toFixed(2)).join(", "))
+  await page.locator("[data-heim]").click()
+  await page.waitForTimeout(700)
+  const heim = await kamera()
+  sjekk("innramminga tek synet heim att", heim[1] > 0 && heim[2] > Math.abs(heim[0]), heim.map((c) => c.toFixed(2)).join(", "))
+  // eit dobbelttrykk på objektet: to korte trykk, same staden
+  await page.touchscreen.tap(195, 380)
+  await page.waitForTimeout(90)
+  await page.touchscreen.tap(195, 380)
+  await page.waitForTimeout(900)
+  const kEtter = await kamera()
+  const kSprang = Math.hypot(kEtter[0] - heim[0], kEtter[1] - heim[1], kEtter[2] - heim[2])
+  sjekk("eit dobbelttrykk rammar IKKJE inn på nytt", kSprang < 1e-3, `${kSprang.toFixed(4)} frå der det stod`)
+
+  // --- KROPPEN ER EI LISTE: menyen legg til eit primitiv ----------------------
+  const kjelde = page.locator("button[data-kjelde]")
+  sjekk("kjelda står i toppen med namn", (await kjelde.isVisible()) && (await kjelde.innerText()).trim() === "kube")
+  await kjelde.click()
+  await page.waitForTimeout(250)
+  const meny2 = page.locator("[data-meny]")
+  sjekk("og opnar lista med dei fem primitiva og fila", (await meny2.count()) === 1 && (await meny2.getByRole("button").count()) === 6)
+  await meny2.getByRole("button", { name: "kule", exact: true }).click()
+  await vent(page, (p) => !!p.scene)
+  sjekk("ein kule vert lagd til kroppen", /kube@.*;kule@/.test(hash(page).scene ?? ""), (hash(page).scene ?? "").slice(0, 40))
+  sjekk("og brikka seier kor mange bitar han er", (await kjelde.innerText()).trim() === "kube +1")
+  await page.keyboard.press("z")
+  await vent(page, (p) => !p.scene)
+  sjekk("angre tek biten bort att", !hash(page).scene, `«${hash(page).scene ?? ""}»`)
+
   sjekk("ingen konsollfeil på telefonen", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
 }
@@ -680,7 +752,7 @@ async function flyt(browser: Browser) {
     await page.keyboard.press("Escape")
   }
   // og fila du la inn står i toppen, eitt trykk frå å byte
-  sjekk("kjelda står synleg med namn, eitt trykk frå å byte", (await page.locator("button[aria-label='hent eit nett'], button[title^='hent eit nett']").first().isVisible()))
+  sjekk("kjelda står synleg med namn, eitt trykk frå å byte", (await page.locator("button[data-kjelde]").first().isVisible()))
 
   sjekk("ingen konsollfeil i flyten", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await ctx.close()

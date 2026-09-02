@@ -32,12 +32,14 @@ no radius.
 
 ## Use it
 
-1. **Pick a body.** The pill at the top opens the sources: five primitives
+1. **Pick a body.** The pill at the top opens the body: five primitives
    (cube, sphere, cylinder, cone, torus) and your own files — `.glb`, `.gltf`,
-   `.stl`, `.obj`, `.ply`, up to 220 MB, or a `.zip` saved by **LAGRE**. Add
-   several and the body is all of them together: a sphere on a cube, a
-   cylinder into its side. Each piece has a place, a size and a turn. A new
-   body clears the planes: they were an answer about the body you had.
+   `.stl`, `.obj`, `.ply`, up to 220 MB, or a `.zip` saved by **LAGRE**. A
+   primitive is *added* beside what is already there, overlapping it, so the
+   body is all of them together — a sphere next to a cube, a cylinder into its
+   side; the pill then says `kube +2`. `tøm` goes back to the source alone,
+   and undo takes a piece off again. A file starts over, and a new body clears
+   the planes: they were an answer about the body you had.
 2. **Set the size.** Drag the number, or take it from the sheet.
 3. **Sketch a plane.** One finger turns the object. The sketch plane is a line
    across the screen — a knife seen edge-on — with a grab handle in the middle
@@ -46,8 +48,9 @@ no radius.
    always did: spread to size, twist to turn, drag to move the cut. Switch on
    **skisse** (or press `S`) and the same two fingers work on the plane
    instead: drag moves it, twist tilts it, pinch zooms. Three fingers move the
-   light; double-tap reframes. The plane swings with the view and nothing is
-   built from it.
+   light. The plane swings with the view and nothing is built from it — and a
+   double-tap does nothing, because a reframe you did not ask for throws away
+   the angle you were finding.
 4. **Press skjer** — the big button under your right thumb. The sketch shows
    the slice it would make while you aim: the section through the body, and
    marks where it would lock into planes you already cut, with the joint
@@ -69,12 +72,20 @@ Every change is undoable and redoable: the two arrows at the top, or `Z` and
 The iPhone 16e, saved to the home screen, is the target device — the only one:
 one thumb, a 390-point screen, the object visible while you work. The page
 itself never zooms, scrolls or lets you select anything; every gesture belongs
-to the object. A slim bar at the top carries the file you dropped in
-(tap it to pick another), the three views, undo and the link. A sheet at the
-bottom has three heights: one line (the live count, proposals, export), the
-middle (size and the plane list), everything (material and thickness, the
+to the object. A slim bar at the top carries the body you are working on
+(tap it for a primitive or another file), the three views, undo and the link.
+A sheet at the bottom has three heights: one line (the live count, proposals,
+export), the middle (size and the plane list), everything (material and thickness, the
 sliders, the table with the rules and their fixes, the tools). The cut button
 and the sketch toggle float above it, under the right thumb.
+
+**The view cube**, top left, turns with the camera: it says which way you are
+looking from, and one press opens the six sides as words — top and bottom,
+front and back, left and right — so a straight-on view is two presses and not
+a gesture you have to land. Under it is the reframe button, which fits the
+object back into the screen. (The sides are words and not the cube's own faces
+on purpose: a face seen at an angle is thirteen pixels tall, and this is a
+tool for a thumb.) The body turns the whole way round, underside included.
 
 **Over 1180 px with a mouse**, no sheet — the same controls as one column on
 the right, the top bar above the canvas, and the camera frames the object into
@@ -85,7 +96,7 @@ drag edit *that* plane instead of the sketch: move it along its normal, re-angle
 it. Tap empty space to deselect; the row's `slett` removes the plane.
 
 **The contour view is a drawing, so it is a canvas**: one finger drags it,
-pinch zooms, nothing turns, and double-tap takes you home.
+pinch zooms, nothing turns, and the reframe button takes you home.
 
 Keys: `L` cut, `S` sketch mode, `⌫` remove the selected plane, `F` proposals,
 `D` deep search, `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
@@ -173,6 +184,8 @@ press again to walk along the front. Take a proposal whole, or as a start.
 | | |
 |---|---|
 | **STL** | the assembled stack |
+| **GLB** | the same stack as glTF binary — metres, Y up, flat-shaded: Blender, Sketchfab, a browser |
+| **USDZ** | the same again for AR Quick Look: share it on an iPhone and the assembly stands on the table in front of you, at size |
 | **DXF** | R12 ASCII, mm, layers `KUTT` and `GRAVER`, kerf-compensated, all sheets in one drawing |
 | **SVG** | every profile side by side, 1:1 |
 | **ARK** | one file per nested sheet, 1:1 — zipped when there is more than one |
@@ -245,7 +258,7 @@ GLB / glTF / STL / OBJ / PLY
   ├── joints      where two planes share a line through material — slots cut
   │               in the field, oriented, widened by the angle between the planes
   ├── nest        parts packed by outline, holes counted as free space
-  └── STL · DXF · SVG · ARK
+  └── STL · GLB · USDZ · DXF · SVG · ARK
 ```
 
 **A mesh is a shell, not a solid.** Rays make it one: count which way each
@@ -336,6 +349,10 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
 ## Limits
 
 - Draco- and meshopt-compressed GLB cannot be read. Re-export without.
+- **GLB** and **USDZ** out carry the geometry and one colour, and nothing else:
+  no normals (both formats shade the flat parts from the faces themselves), no
+  textures, one mesh. The USDZ is ASCII USD in an uncompressed, 64-byte-aligned
+  archive, which is what the format asks for.
 - A `.gltf` pointing at a separate `.bin` cannot reach it from a browser. Use
   `.glb`.
 - A globally inverted mesh is fixed automatically; *inconsistently* wound
