@@ -28,7 +28,8 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary_large_image", title: TITLE, description: NOTE },
   applicationName: TITLE,
-  appleWebApp: { capable: true, statusBarStyle: "default", title: TITLE },
+  // gjennomsiktig statusline: topplina tek den tryggje sona sjølv (sjå toppline.tsx)
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: TITLE },
 }
 
 /**
