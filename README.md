@@ -79,13 +79,21 @@ export), the middle (size and the plane list), everything (material and thicknes
 sliders, the table with the rules and their fixes, the tools). The cut button
 and the sketch toggle float above it, under the right thumb.
 
-**The view cube**, top left, turns with the camera: it says which way you are
-looking from, and one press opens the six sides as words — top and bottom,
-front and back, left and right — so a straight-on view is two presses and not
-a gesture you have to land. Under it is the reframe button, which fits the
-object back into the screen. (The sides are words and not the cube's own faces
-on purpose: a face seen at an angle is thirteen pixels tall, and this is a
-tool for a thumb.) The body turns the whole way round, underside included.
+**The view cube**, top left, turns with the camera and is how you aim it —
+the same cube every CAD package has. Each side is a three-by-three grid:
+press the middle for that side, an edge cell for the 45° view between two
+sides, a corner for the isometric view between three. Twenty-six directions,
+each one where you can see it. Sides facing away are neither drawn nor hit, so
+only what you see can be picked. Under it is the reframe button, which fits
+the object back into the screen. The body turns the whole way round, underside
+included.
+
+This is the one control on the page that is not thumb-sized, and it is the
+exception that proves the rule: a cell on a side seen at an angle is thirteen
+pixels tall no matter how big the cube is, because it is a cube. The target
+*is* the picture — you point at the face you want — and a miss puts you on the
+neighbouring view, one press away. Everything else stays 36 px, and the panel
+harness still enforces that everywhere else.
 
 **Dark is black.** There is no toggle: the page takes the system's setting and
 inverts the four colours it is built from — paper becomes black, ink becomes

@@ -253,78 +253,67 @@ html {
   display: block;
 }
 
-/* SYNSKUBEN. Ei avlesing du kan trykkje på: seks sider med kvar sitt ord,
-   vende av kameraet kvar teikning (sjå `Vendinga`). Sidene som vender frå
-   deg er ikkje teikna, og då er dei heller ikkje å trykkje på. Under kuben
-   står innramminga. Flat som alt anna: hårstrek, papir, ingen skugge og
-   ingen overgang — det einaste som rører seg er vendinga, og ho ER synet. */
+/* SYNSKUBEN. Ein kube du orienterer med: han svingar med kameraet (sjå
+   `Vendinga`), og kvar side er delt i tre gonger tre — midten er sida,
+   kantcellene er kantane på kuben, hjørna er hjørna. Sidene som vender frå
+   deg er korkje teikna eller trefte. Nitti pikslar, so ei celle er tretti:
+   dette er den eine kontrollen på sida som ikkje er tommelstor, og han er
+   det av di målet ER biletet — du peikar på den flata du vil sjå.
+   Flat som alt anna: hårstrek, papir, ingen skugge og ingen overgang. */
 .synskube {
   position: absolute;
   z-index: 12;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  /* meir enn kuben kan stikke ut av boksen sin i eit hjørnesyn */
+  gap: 12px;
 }
+/* Boksen er større enn kuben, og det er ikkje luft: ein kube sedd frå eit
+   hjørne er ein sekskant som er halvanna gong så brei som sida hans, og
+   flatene stikk difor utanfor sitt eige kvadrat. Gjorde dei det utan at
+   noko var sett av til dei, låg dei over innramminga under — og trykket
+   ditt på henne gjekk til eit hjørne av kuben. Nitti gonger rota av to,
+   pluss det perspektivet legg på den nære sida: hundre og førti. */
 .synskube .bur {
-  width: 56px;
-  height: 56px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  perspective: 460px;
+  display: grid;
+  place-items: center;
+  width: 140px;
+  height: 140px;
+  perspective: 620px;
 }
 .synskube .vend {
-  display: block;
   position: relative;
-  width: 100%;
-  height: 100%;
+  width: 90px;
+  height: 90px;
   transform-style: preserve-3d;
 }
 .synskube [data-side] {
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  /* lufta mellom cellene ER rutenettet: hårstreka syner at kanten og
+     hjørnet er sine eigne mål, utan ein skugge eller ei ramme per celle */
+  gap: 1px;
   border: 1px solid var(--rule);
-  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  background: var(--rule);
+  backface-visibility: hidden;
+}
+.synskube [data-vel] {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
   color: var(--ink);
   font-size: 8px;
   line-height: 1;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  backface-visibility: hidden;
-}
-.synskube .bur[aria-expanded="true"] [data-side] {
-  background: var(--ink);
-  color: var(--paper);
-}
-/* sidene som ord, parvis: topp og botn, framme og bak, venstre og høgre */
-.synskube .sider {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  border: 1px solid var(--rule);
-  background: var(--paper);
-}
-.synskube .sider button {
-  min-width: 56px;
-  min-height: 36px;
-  padding: 0 8px;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  font-size: 9px;
-  line-height: 1;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.synskube .sider button:nth-child(odd) {
-  border-right: 1px solid var(--rule);
-}
-.synskube .sider button:nth-child(n + 3) {
-  border-top: 1px solid var(--rule);
-}
-.synskube .sider button:active {
+.synskube [data-vel]:active {
   background: var(--ink);
   color: var(--paper);
 }

@@ -1555,29 +1555,73 @@ function Konturen({ f, d, ink }: { f: Ramma; d: BuildRes; ink: string }) {
 }
 
 /**
- * SYNSKUBEN. Ei avlesing du kan trykkje på: kuben svingar med kameraet, so
- * du ser kva veg du ser frå — og eit trykk opnar dei seks sidene som ord,
- * parvis, motstykke ved motstykke.
+ * SYNSKUBEN. Ein kube du orienterer med, slik dei er i Blender og i kvar
+ * CAD-pakke som finst: han svingar med kameraet, og du trykkjer på den
+ * flata, den kanten eller det hjørnet du vil sjå frå.
  *
- * Sidene er IKKJE knappar på kuben sjølv, og det er ikkje ei forgløyming:
- * ei side som vender på skrå er tretten pikslar høg på skjermen. Kuben er
- * ÉIN knapp på seks og femti, og orda under han er trykkflater ein tommel
- * finn. Ein synskube som krev ein muspeikar er ein synskube for ei anna
- * maskin enn denne.
+ * Kvar side er delt i tre gonger tre. Midten er sida — framme, topp,
+ * høgre. Kantcellene er KANTANE på kuben: retninga er summen av dei to
+ * sidene som møtest der, so «topp + framme» er synet førti og fem grader
+ * ovanfrå. Hjørna er summen av tre. Seks og tjue retningar i alt, og dei
+ * står der du ser dei: du treffer det du peikar på, og bommar du, er du
+ * eitt trykk frå nabosynet.
+ *
+ * Sidene som vender frå deg vert korkje teikna eller trefte
+ * (`backface-visibility`), so berre det du ser kan veljast — og cellene på
+ * to sider som deler ein kant fell saman i den same retninga, som på ein
+ * ekte synskube.
  *
  * Retningane er verda si: y er opp, og z peikar mot deg i heimvinkelen.
- * Topp og botn står to hundredelar frå loddrett, so vendinga kring
- * loddlina er eit tal og ikkje ei deling på null. Rekkjefylgja er den orda
- * står i: topp og botn, framme og bak, venstre og høgre.
+ * Rett ovanfrå og rett nedanfrå står to hundredelar frå loddrett, so
+ * vendinga kring loddlina er eit tal og ikkje ei deling på null.
  */
-const SIDER: readonly { id: string; ord: string; hint: string; css: string; dir: Vec3 }[] = [
-  { id: "topp", ord: "topp", hint: "ovanfrå", css: "rotateX(90deg) translateZ(28px)", dir: [0, 1, 0.02] },
-  { id: "botn", ord: "botn", hint: "nedanfrå", css: "rotateX(-90deg) translateZ(28px)", dir: [0, -1, 0.02] },
-  { id: "framme", ord: "framme", hint: "framanfrå", css: "translateZ(28px)", dir: [0, 0, 1] },
-  { id: "bak", ord: "bak", hint: "bakanfrå", css: "rotateY(180deg) translateZ(28px)", dir: [0, 0, -1] },
-  { id: "venstre", ord: "venstre", hint: "frå venstre", css: "rotateY(-90deg) translateZ(28px)", dir: [-1, 0, 0] },
-  { id: "hogre", ord: "høgre", hint: "frå høgre", css: "rotateY(90deg) translateZ(28px)", dir: [1, 0, 0] },
+const HALV = 45
+
+/** ei side: normalen, og kva veg «høgre» og «ned» i CSS-ruta peikar i verda */
+type Side = { id: string; ord: string; css: string; n: Vec3; u: Vec3; d: Vec3 }
+const SIDER: readonly Side[] = [
+  { id: "topp", ord: "topp", css: `rotateX(90deg) translateZ(${HALV}px)`, n: [0, 1, 0], u: [1, 0, 0], d: [0, 0, 1] },
+  { id: "botn", ord: "botn", css: `rotateX(-90deg) translateZ(${HALV}px)`, n: [0, -1, 0], u: [1, 0, 0], d: [0, 0, -1] },
+  { id: "framme", ord: "framme", css: `translateZ(${HALV}px)`, n: [0, 0, 1], u: [1, 0, 0], d: [0, -1, 0] },
+  { id: "bak", ord: "bak", css: `rotateY(180deg) translateZ(${HALV}px)`, n: [0, 0, -1], u: [-1, 0, 0], d: [0, -1, 0] },
+  { id: "venstre", ord: "venstre", css: `rotateY(-90deg) translateZ(${HALV}px)`, n: [-1, 0, 0], u: [0, 0, 1], d: [0, -1, 0] },
+  { id: "hogre", ord: "høgre", css: `rotateY(90deg) translateZ(${HALV}px)`, n: [1, 0, 0], u: [0, 0, -1], d: [0, -1, 0] },
 ]
+/** kva side ei retning peikar på: nøkkelen han har, og ordet han heiter */
+const SIDA = (v: Vec3) => SIDER.find((q) => q.n[0] === v[0] && q.n[1] === v[1] && q.n[2] === v[2])
+const summer = (...v: Vec3[]): Vec3 => [0, 1, 2].map((a) => v.reduce((s, q) => s + q[a], 0)) as Vec3
+const skalert = (v: Vec3, k: number): Vec3 => [v[0] * k, v[1] * k, v[2] * k]
+
+/**
+ * Dei ni cellene på ei side, med retninga si.
+ *
+ * Rad 0 er øvst i sida si eiga rute, so forskyvinga er (i − 1) gonger
+ * «høgre» og (j − 1) gonger «ned». Ei celle rett ovanfrå eller nedanfrå
+ * ville stått loddrett; ho får den vesle helninga mot framsida i staden.
+ */
+function celler(s: Side) {
+  const ut: { vel: string; ord: string; namn: string; dir: Vec3; slag: "side" | "kant" | "hjorne" }[] = []
+  for (let j = 0; j < 3; j++) {
+    for (let i = 0; i < 3; i++) {
+      const dx = i - 1
+      const dy = j - 1
+      const tal = Math.abs(dx) + Math.abs(dy)
+      const dir = summer(s.n, skalert(s.u, dx), skalert(s.d, dy))
+      const med = [s, dx ? SIDA(skalert(s.u, dx)) : null, dy ? SIDA(skalert(s.d, dy)) : null].filter(Boolean) as Side[]
+      // ei celle rett langs loddlina har ingen vinkel kring henne
+      const rett: Vec3 = dir[0] === 0 && dir[2] === 0 ? [0, dir[1], 0.02] : dir
+      ut.push({
+        // nøkkelen er dei same sidene same kva for ei av dei cella står på
+        vel: med.map((q) => q.id).sort().join("-"),
+        ord: tal === 0 ? s.ord : "",
+        namn: med.map((q) => q.ord).join(" "),
+        dir: rett,
+        slag: tal === 0 ? "side" : tal === 1 ? "kant" : "hjorne",
+      })
+    }
+  }
+  return ut
+}
 
 /**
  * Kuben si vending, skriven kvar teikning slik handtaka vert det.
@@ -1670,21 +1714,8 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
   const fk = useMemo(() => ramma(kontur), [kontur])
   const fri = useMemo(() => fritt(rute), [rute])
   const [sikt, setSikt] = useState<Sikt>({ n: 0, dir: null })
-  const [kube, setKube] = useState<HTMLSpanElement | null>(null)
-  /** sidene som ord, opne eller ikkje: eit trykk på kuben, eit trykk utanfor att */
-  const [sider, setSider] = useState(false)
+  const [kube, setKube] = useState<HTMLDivElement | null>(null)
   const heim = useCallback(() => setSikt((s) => ({ n: s.n + 1, dir: null })), [])
-  useEffect(() => {
-    if (!sider) return
-    const ute = (e: PointerEvent) => { if (!(e.target as HTMLElement | null)?.closest?.(".synskube")) setSider(false) }
-    const tast = (e: KeyboardEvent) => { if (e.key === "Escape") setSider(false) }
-    window.addEventListener("pointerdown", ute)
-    window.addEventListener("keydown", tast)
-    return () => {
-      window.removeEventListener("pointerdown", ute)
-      window.removeEventListener("keydown", tast)
-    }
-  }, [sider])
   const settSide = useCallback((dir: Vec3) => setSikt((s) => ({ n: s.n + 1, dir })), [])
   const [boks, setBoks] = useState<HTMLDivElement | null>(null)
   const [sein, setSein] = useState(false)
@@ -1757,46 +1788,40 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
         />
       </Canvas>
       {/*
-        SYNSKUBEN, øvst til venstre i det frie bandet. Kuben svingar med
-        kameraet og seier kva veg du ser frå; ei side set synet. Under han
-        står innramminga — den som låg i dobbelttrykket før, der ho kom av
-        seg sjølv midt i ei sikting. Konturen er ei flat teikning og har
-        inga vending å syne: der står berre innramminga.
+        SYNSKUBEN, øvst til venstre i det frie bandet. Han svingar med
+        kameraet og seier kva veg du ser frå; ei flate, ein kant eller eit
+        hjørne set synet. Under han står innramminga — den som låg i
+        dobbelttrykket før, der ho kom av seg sjølv midt i ei sikting.
+        Konturen er ei flat teikning og har inga vending å syne: der står
+        berre innramminga.
       */}
       <div className="synskube" style={{ left: rute.venstre + 16, top: rute.topp + 36 }}>
         {!flat && (
-          <button
-            type="button"
-            className="bur"
-            data-kube=""
-            aria-expanded={sider}
-            aria-label="synet"
-            title="synet: kva veg du ser frå. trykk for dei seks sidene"
-            onClick={() => setSider((v) => !v)}
-          >
-            {/* Kuben inni knappen, og ikkje knappen sjølv: ei flate som står
-                på kant er null pikslar brei, og ein knapp som forsvinn i eit
-                sidesyn er ein knapp som ikkje finst. */}
-            <span className="vend" ref={setKube}>
+          <div className="bur" data-kube="">
+            <div className="vend" ref={setKube}>
               {SIDER.map((q) => (
-                <span key={q.id} data-side={q.id} style={{ transform: q.css }} aria-hidden="true">{q.ord}</span>
+                <div key={q.id} data-side={q.id} style={{ transform: q.css }}>
+                  {celler(q).map((c) => (
+                    <button
+                      key={c.vel}
+                      type="button"
+                      data-vel={c.vel}
+                      data-slag={c.slag}
+                      // Kanten og hjørnet står på to og tre sider samstundes:
+                      // dei er den same retninga, og ei tabbrekkje på fire og
+                      // femti stopp er ingen veg gjennom noko. Sidene er
+                      // vegen for eit tastatur; kantane er for ein finger.
+                      tabIndex={c.slag === "side" ? undefined : -1}
+                      aria-label={c.namn}
+                      title={`sjå objektet frå ${c.namn}`}
+                      onClick={() => settSide(c.dir)}
+                    >
+                      {c.ord}
+                    </button>
+                  ))}
+                </div>
               ))}
-            </span>
-          </button>
-        )}
-        {sider && !flat && (
-          <div className="sider" data-sider="">
-            {SIDER.map((q) => (
-              <button
-                key={q.id}
-                type="button"
-                data-vel={q.id}
-                title={`sjå objektet ${q.hint}`}
-                onClick={() => { settSide(q.dir); setSider(false) }}
-              >
-                {q.ord}
-              </button>
-            ))}
+            </div>
           </div>
         )}
         <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt" onClick={heim}>
