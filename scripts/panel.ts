@@ -632,9 +632,15 @@ async function plata(browser: Browser, feil: string[]) {
   const breidd = (v: string | null) => Number((v ?? "").split(" ")[2])
   ok("eit klyp zoomar plata", !!naert && breidd(naert) < breidd(heile) * 0.6, `${heile} → ${naert}`)
   ok("og delane står framleis på henne", (await delar.count()) > 0)
+  // ADRESSA SLIK LASEREN SKRIV HENNE. Ho står på delen når du har klypt
+  // deg nærare — på ei heil plate i eit telefonvindauge er ho fire pikslar
+  // høg, og fire pikslar bokstav er grums og ikkje ei adresse.
+  const merke = await svg.locator("[data-merke]").count()
+  ok("adressa står gravert på delane når du er nær", merke > 0, `${merke} merke`)
   await svg.dblclick({ position: { x: 8, y: 8 } })
   await page.waitForTimeout(300)
   ok("dobbelttrykket syner heile plata att", (await viewBox()) === heile, String(await viewBox()))
+  ok("og ho går bort att når heile plata står", (await svg.locator("[data-merke]").count()) === 0)
   // Musa stod att på plata etter dobbelttrykket. Veks hovudet på plata
   // under henne — det fyrste festet gjev «slepp alle» — glid plata ut under
   // henne, og nettlesaren seier at ho fór ut: eit museforlat, som slepper
