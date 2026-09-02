@@ -23,8 +23,6 @@ export type Loop = {
   area: number
 }
 
-type Seg = [string, string]
-
 export function contour(
   g: Float64Array,
   x0: number,
@@ -34,37 +32,46 @@ export function contour(
   dy: number,
   ny: number,
 ): Loop[] {
-  const X = (i: number) => x0 + i * dx
-  const Y = (j: number) => y0 + j * dy
-  const at = (i: number, j: number) => g[j * (nx + 1) + i]
+  const W = nx + 1
+  const at = (i: number, j: number) => g[j * W + i]
 
-  const pts = new Map<string, Pt2>()
-  const next = new Map<string, string>()
+  // Kvar kant i ruta har eit TAL og ikkje ein tekst: den vassrette kanten
+  // ut frå hjørne (i, j) har 2·(j·W + i), den loddrette det talet pluss
+  // éin. Nøklane var tekstar — «h12,7» — og å byggje og slå opp ein tekst
+  // for kvar kant i kvar rute var dyrare enn sjølve marsjen.
+  const N = 2 * W * (ny + 1)
+  const px = new Float64Array(N)
+  const py = new Float64Array(N)
+  const har = new Uint8Array(N)
+  const next = new Int32Array(N).fill(-1)
 
-  const hKey = (i: number, j: number) => `h${i},${j}`
-  const vKey = (i: number, j: number) => `v${i},${j}`
   const hPt = (i: number, j: number) => {
-    const k = hKey(i, j)
-    if (!pts.has(k)) {
+    const k = 2 * (j * W + i)
+    if (!har[k]) {
       const a = at(i, j)
       const b = at(i + 1, j)
       const t = a / (a - b)
-      pts.set(k, [X(i) + t * dx, Y(j)])
+      px[k] = x0 + i * dx + t * dx
+      py[k] = y0 + j * dy
+      har[k] = 1
     }
     return k
   }
   const vPt = (i: number, j: number) => {
-    const k = vKey(i, j)
-    if (!pts.has(k)) {
+    const k = 2 * (j * W + i) + 1
+    if (!har[k]) {
       const a = at(i, j)
       const b = at(i, j + 1)
       const t = a / (a - b)
-      pts.set(k, [X(i), Y(j) + t * dy])
+      px[k] = x0 + i * dx
+      py[k] = y0 + j * dy + t * dy
+      har[k] = 1
     }
     return k
   }
 
-  const segs: Seg[] = []
+  /** par av kantar: frå, til */
+  const segs: number[] = []
   for (let j = 0; j < ny; j++) {
     for (let i = 0; i < nx; i++) {
       const c00 = at(i, j) > 0
@@ -78,46 +85,49 @@ export function contour(
       const L = () => vPt(i, j)
       const R = () => vPt(i + 1, j)
       switch (m) {
-        case 1: segs.push([B(), L()]); break
-        case 2: segs.push([R(), B()]); break
-        case 4: segs.push([T(), R()]); break
-        case 8: segs.push([L(), T()]); break
-        case 14: segs.push([L(), B()]); break
-        case 13: segs.push([B(), R()]); break
-        case 11: segs.push([R(), T()]); break
-        case 7: segs.push([T(), L()]); break
-        case 3: segs.push([R(), L()]); break
-        case 6: segs.push([T(), B()]); break
-        case 12: segs.push([L(), R()]); break
-        case 9: segs.push([B(), T()]); break
+        case 1: segs.push(B(), L()); break
+        case 2: segs.push(R(), B()); break
+        case 4: segs.push(T(), R()); break
+        case 8: segs.push(L(), T()); break
+        case 14: segs.push(L(), B()); break
+        case 13: segs.push(B(), R()); break
+        case 11: segs.push(R(), T()); break
+        case 7: segs.push(T(), L()); break
+        case 3: segs.push(R(), L()); break
+        case 6: segs.push(T(), B()); break
+        case 12: segs.push(L(), R()); break
+        case 9: segs.push(B(), T()); break
         case 5: {
           const mid = (at(i, j) + at(i + 1, j) + at(i + 1, j + 1) + at(i, j + 1)) / 4
-          if (mid > 0) { segs.push([B(), R()]); segs.push([T(), L()]) }
-          else { segs.push([B(), L()]); segs.push([T(), R()]) }
+          if (mid > 0) { segs.push(B(), R()); segs.push(T(), L()) }
+          else { segs.push(B(), L()); segs.push(T(), R()) }
           break
         }
         case 10: {
           const mid = (at(i, j) + at(i + 1, j) + at(i + 1, j + 1) + at(i, j + 1)) / 4
-          if (mid > 0) { segs.push([L(), B()]); segs.push([R(), T()]) }
-          else { segs.push([R(), B()]); segs.push([L(), T()]) }
+          if (mid > 0) { segs.push(L(), B()); segs.push(R(), T()) }
+          else { segs.push(R(), B()); segs.push(L(), T()) }
           break
         }
       }
     }
   }
-  for (const [a, b] of segs) next.set(a, b)
+  for (let s = 0; s < segs.length; s += 2) next[segs[s]] = segs[s + 1]
 
-  const seen = new Set<string>()
+  // Kjedene vert fylgde frå segmenta i den rekkjefylgja dei vart funne:
+  // det er den rekkjefylgja sløyfene kjem ut i, og stykka i ei delt ribbe
+  // får bokstavane sine etter henne.
+  const seen = new Uint8Array(N)
   const loops: Loop[] = []
-  for (const start of next.keys()) {
-    if (seen.has(start)) continue
+  for (let s = 0; s < segs.length; s += 2) {
+    const start = segs[s]
+    if (seen[start]) continue
     const poly: Pt2[] = []
-    let k: string | undefined = start
-    while (k !== undefined && !seen.has(k)) {
-      seen.add(k)
-      const p = pts.get(k)
-      if (p) poly.push(p)
-      k = next.get(k)
+    let k = start
+    while (k >= 0 && !seen[k]) {
+      seen[k] = 1
+      poly.push([px[k], py[k]])
+      k = next[k]
     }
     if (poly.length < 3) continue
     let a2 = 0
