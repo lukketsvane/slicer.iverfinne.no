@@ -32,14 +32,12 @@ import {
   IcoAngre,
   IcoDown,
   IcoFinn,
-  IcoHogre,
   IcoImport,
   IcoReset,
   IcoShare,
   IcoSliders,
   IcoStabel,
   IcoStopp,
-  IcoVenstre,
   Ring,
   R_ARK,
   R_DELAR,
@@ -99,15 +97,6 @@ export function ControlsPanel(props: {
   mode: PanelMode
   /** kor langt søket er kome, eller null når det ikkje går noko søk */
   tunar: { gjort: number; av: number } | null
-  /** kvar i svarlista vi står, eller null når ho ikkje gjeld lenger */
-  finnStad: {
-    nth: number
-    tal: number
-    ribbX: number
-    ribbY: number
-    /** svaret som står: delar, plater og kor mykje av forma det ber */
-    svar: { parts: number; sheets: number; troskap: number; fremst: boolean }
-  } | null
   kanAngre: boolean
   /** kor høgt arket er, i pikslar. Kameraet stiller objektet inn i det som
    *  er att. */
@@ -122,7 +111,6 @@ export function ControlsPanel(props: {
   onFinnDjup: () => void
   /** eit trykk medan søket går: stogg, og hald det beste so langt */
   onAvbryt: () => void
-  onFinnAtt: () => void
   onShare: () => void
   onFile: (f: File) => void
   /** kva verkty som står ope i skuffa, om noko — og vegen inn i han */
@@ -142,7 +130,6 @@ export function ControlsPanel(props: {
     melding,
     mode,
     tunar,
-    finnStad,
     kanAngre,
     onHogd,
     onMode,
@@ -153,7 +140,6 @@ export function ControlsPanel(props: {
     onFinn,
     onFinnDjup,
     onAvbryt,
-    onFinnAtt,
     onShare,
     onFile,
     verkty,
@@ -533,87 +519,18 @@ export function ControlsPanel(props: {
         </div>
 
         {/*
-          KVAR I SVARLISTA VI STOD.
+          LINA ETTER SØKET STOD HER, OG HO ER TEKEN BORT.
 
-          Medan søket går står det ingenting her. Ringen kring knappen ER
-          framdrifta, og eit tal som seier det same ein gong til er ei line
-          som spring opp og gjer arket høgare midt i det du ventar.
+          «3 av 8 · 5×4 · 7 delar · 1 ark» var bokføring over eit objekt
+          som er heile grunnen til at arket er lite. Ho tok ei line av eit
+          ark med eit tak på under halve skjermen, og ho svarte på eit
+          spørsmål ingen står og stiller: kvar i lista du er. Det du står
+          og ser på, er objektet.
 
-          OG BERRE NÅR ARKET ER OPE. Lukka er arket éi line — kjelda, tre
-          tal og to knappar — og objektet eig resten av skjermen. Denne lina
-          sprang opp under henne i det du trykte på knappen og gjorde det
-          lukka arket to liner høgt: ei rad med «1 av 10 · 9×7 ribber» over
-          eit objekt som er heile grunnen til at arket er lukka.
-          Sjølve knappen er framleis vegen vidare — kvart trykk er neste
-          svar — so lukka mistar du berre vegen ATTENDE, og han står her i
-          det du opnar arket.
-
-          Ho vart teken heilt bort ein gong, med den grunngjevinga at ho
-          kosta 32 px av eit ark med eit tak på 43 %. Det er den same
-          kostnaden `open` tek: lukka er ho borte, og lukka var det einaste
-          arket ho var for stor for. Det som ikkje kjem attende av seg
-          sjølv er VEGEN ATTENDE — ⇧F er ingen veg på ein telefon, der det
-          ikkje er noko tastatur — og med djupsøket er ho meir verd enn
-          før: svara skil seg no i kor mange plater dei tek, og då er «1 av
-          8» kva du står i og ikkje berre bokføring.
+          Tala står framleis der dei høyrer heime: kor mange delar og kor
+          mange plater i hovudlina, heile lista med kolonnar på benken.
+          Knappen er vegen vidare, og angre er vegen attende.
         */}
-        {finnStad && open && (
-          <div
-            className="flex items-center gap-1.5 px-2.5 pb-2 text-[10px] uppercase tracking-[0.14em]"
-            aria-live="polite"
-          >
-            <button
-              type="button"
-              onClick={onFinnAtt}
-              disabled={busy}
-              aria-label="førre svar"
-              title="førre svar (⇧F)"
-              className="hit flex h-6 w-6 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-30"
-              style={{ ...HAIR, color: "var(--ink)" }}
-            >
-              {IcoVenstre}
-            </button>
-            <button
-              type="button"
-              onClick={onFinn}
-              disabled={busy}
-              aria-label="neste svar"
-              title="neste svar (F)"
-              className="hit flex h-6 w-6 items-center justify-center rounded-full border transition active:scale-90 disabled:opacity-30"
-              style={{ ...HAIR, color: "var(--ink)" }}
-            >
-              {IcoHogre}
-            </button>
-            <span className="dim tab truncate pl-1">
-              {finnStad.nth + 1} av {finnStad.tal}
-              {/* Ribbetalet står som to skyvarar i skyveveggen. Der er
-                  halen ei avskrift av det du står og dreg i. */}
-              {mode !== "full" && ` · ${finnStad.ribbX}×${finnStad.ribbY}`}
-              {/* KVA SVARET ER, og ikkje berre kvar det står i lista.
-
-                  «3 av 116» seier at det finst hundre og tretten til, og
-                  ingenting om kvifor dette eine vann eller kva det neste
-                  vil koste. Benken har heile lista med kolonnar; telefonen
-                  har denne lina. So her står det søket rangerte på: kor
-                  mykje av forma, kor mange delar, kor mange plater. Forma
-                  berre når ho er målt — det raske søket reknar henne
-                  ikkje, og eit null som ser ut som eit måltal er verre enn
-                  ingen. */}
-              {finnStad.svar.troskap > 0 && ` · form ${n0(finnStad.svar.troskap * 100)} %`}
-              {` · ${n0(finnStad.svar.parts)} delar · ${n0(finnStad.svar.sheets)} ark`}
-              {/* OG OM DETTE SVARET ER SLEGE PÅ ALT.
-                  Djupsøket gjev hundre og førti svar, og her bladar du dei
-                  eitt om gongen: dei fyrste er fronten, resten er slegne på
-                  alt du spurde om — færrast delar, mest form, færrast
-                  plater. Utan dette ordet bladar du vidare forbi det siste
-                  svaret som kunne vore det beste. Benken har ei line på
-                  same staden i lista. */}
-              {finnStad.svar.troskap > 0 && !finnStad.svar.fremst && (
-                <span className="dim"> · slegen</span>
-              )}
-            </span>
-          </div>
-        )}
 
         {/*
           DET UTVIDBARE ARKET, OG HALVOPE ER HALVOPE.
