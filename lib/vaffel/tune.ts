@@ -53,6 +53,19 @@ export type Kandidat = {
   /** kor mykje av forma ribbene ber, 0..1 — sjå `profil.ts`. Berre
    *  djupsøket reknar han; det raske søket lèt han stå på null. */
   troskap: number
+  /**
+   * Står han i fronten — er det ingen som slår han på ALT?
+   *
+   * Djupsøket gjev hundre og førti svar, og på ein telefon bladar du dei
+   * eitt om gongen. Dei fyrste er fronten, dei siste er slegne på alt du
+   * spurde om, og lista sa ikkje kvar det eine sluttar og det andre tek
+   * til: du bladar vidare i von om noko betre, forbi det siste svaret som
+   * kunne vore det. Sjå `front`.
+   *
+   * Det raske søket reknar ikkje form, og utan henne finst ingen front:
+   * der står alle som `true`, og då seier merket ingen ting — som det skal.
+   */
+  fremst: boolean
 }
 
 /**
@@ -521,6 +534,9 @@ export function prov(p: Params, o: Oppgave, djup: boolean): Kandidat | null {
         ledd,
         poeng: djup ? djupPoeng(m, o.tro) : poengOf(q, m),
         troskap: o.tro,
+        // `rangert` set han: kven som står i fronten er eit spørsmål om
+        // heile lista, og det kan ikkje éin kandidat svare på.
+        fremst: true,
         ...m,
       }
     } catch {
@@ -549,6 +565,7 @@ export function rangert(alle: readonly Kandidat[], djup: boolean): Kandidat[] {
   const etterPoeng = (a: Kandidat, b: Kandidat) => b.poeng - a.poeng
   if (!djup) return [...alle].sort(etterPoeng)
   const f = new Set(front(alle))
+  for (const q of alle) q.fremst = f.has(q)
   return [
     ...alle.filter((q) => f.has(q)).sort(etterPoeng),
     ...alle.filter((q) => !f.has(q)).sort(etterPoeng),

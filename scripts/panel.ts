@@ -1058,6 +1058,19 @@ async function benken(browser: Browser, feil: string[]) {
   )
 
   ok("eit langt trykk gjev djupsøket", await harForm())
+  // KVAR FRONTEN SLUTTAR. Over lina er svar ingen slår på alt du spurde
+  // om; under er dei slegne. Utan henne bladar du vidare forbi det siste
+  // svaret som kunne vore det beste.
+  const svarTekst = await page
+    .locator("aside[aria-label='innstillingar'] [aria-label='svar']")
+    .innerText()
+  const linjer = svarTekst.split("\n")
+  const skiljet = linjer.findIndex((l) => /slegne på alt/i.test(l))
+  ok(
+    "og ei line der fronten sluttar",
+    skiljet > 1 && skiljet < linjer.length - 1,
+    skiljet < 0 ? "inga line" : `etter ${skiljet} liner av ${linjer.length}`,
+  )
   const djupe = await rader.count()
   ok("og ei liste å bla i", djupe > 0, `${djupe} rader`)
 

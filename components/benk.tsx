@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, type JSX } from "react"
+import { Fragment, useEffect, useRef, useState, type JSX } from "react"
 import {
   MATERIALS,
   TJUKNER,
@@ -166,8 +166,22 @@ function Svarlista({
         <span className="w-9 pr-1 text-right">ledd</span>
       </div>
       {liste.map((k, i) => (
+        <Fragment key={`${k.ribbX}x${k.ribbY}x${k.ledd}`}>
+          {/* KVAR FRONTEN SLUTTAR.
+              Dei over er ikkje slegne på alt du spurde om — færrast delar,
+              mest form, færrast plater. Dei under er, og dei står att av di
+              summen veg meir enn dei fire tala: eit rutenett kan ha betre
+              grep eller utnytting og likevel vera slege på alle fire. Utan
+              denne lina bladar du vidare forbi det siste svaret som kunne
+              vore det beste. */}
+          {formkol && !k.fremst && (i === 0 || liste[i - 1].fremst) && (
+            <div className="dim flex items-center gap-2 pt-1 text-[9px] uppercase tracking-[0.14em]">
+              <span className="h-px flex-1" style={{ background: "var(--rule)" }} />
+              slegne på alt
+              <span className="h-px flex-1" style={{ background: "var(--rule)" }} />
+            </div>
+          )}
         <button
-          key={`${k.ribbX}x${k.ribbY}x${k.ledd}`}
           type="button"
           onClick={() => onVel(i)}
           onPointerEnter={() => over(i)}
@@ -195,6 +209,7 @@ function Svarlista({
           <span className="w-7 text-right">{k.sheets}</span>
           <span className="w-9 pr-1 text-right">{k.joints}</span>
         </button>
+        </Fragment>
       ))}
     </div>
   )
