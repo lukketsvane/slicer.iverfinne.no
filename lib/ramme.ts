@@ -41,6 +41,17 @@ export const FIT_MARGIN = 1.35
  *  stig i takt med kameraavstanden, so vinkelen ned mot golvet er fast. */
 export const FLOOR_TAN = 0.1637
 export const MIN_DIST = 3.2
+/**
+ * Kor nær kameraet får kome i KONTUREN.
+ *
+ * Eit objekt kan ein ikkje gå inn i — der er tre komma to den avstanden
+ * som held heile kroppen framfor deg. Men konturen er ei teikning, og ei
+ * teikning ser ein på tett: eit spor på tre millimeter i eit omriss på ein
+ * halvmeter er fire pikslar på ein telefon, og då er «zoom» det einaste
+ * som seier om det er der. Innramminga brukar framleis MIN_DIST; dette er
+ * berre kor langt fingrane får dra.
+ */
+export const MIN_NAER = 0.45
 export const MAX_DIST = 18
 /**
  * Kor lite det frie bandet får verte før innramminga sluttar å ta omsyn.

@@ -41,13 +41,18 @@ export const metadata: Metadata = {
  * studioet.
  */
 export const viewport: Viewport = {
-  colorScheme: "light",
+  colorScheme: "light dark",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#ffffff",
+  // lina rundt sida er papiret: kvitt i lys, svart i mørk. Same tokena som
+  // globals.css set — dei står her òg av di nettlesaren les dei før CSS-en.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
