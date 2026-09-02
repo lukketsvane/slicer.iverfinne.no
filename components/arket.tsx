@@ -1,25 +1,27 @@
 "use client"
 
-import { useEffect, useRef, useState, type JSX } from "react"
+import { useEffect, useRef, useState, type JSX, type RefObject } from "react"
 import { MATERIALS, TJUKNER, klokke, lesTal, nn, snap, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import type { Plan } from "@/lib/plan"
 import type { Kandidat } from "@/lib/forslag"
-import { FORMAT } from "@/lib/io"
 import {
-  CHIP, EXPORTS, HAIR, ICON_BTN, IcoAngre, IcoDown, IcoFinn, IcoImport, IcoLaas, IcoReset, IcoShare, IcoSliders, IcoStopp,
-  Reglar, Ring, SliderRow, TASTAR, Tavla, VIEWS, chipStyle, n0, num, stengd, tjukn, useLangtrykk,
+  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoFerdig, IcoFinn, IcoLaas, IcoReset, IcoSkisse, IcoSliders, IcoStopp, IcoUttak,
+  Reglar, Ring, SliderRow, TASTAR, Tavla, chipStyle, n0, num, stengd, tjukn, useLangtrykk,
 } from "./deler"
 import type { VerktyId } from "./verkty"
+import type { Modus } from "./scene"
 
 /**
  * ARKET. Tre høgder på ein telefon: éi line, midten av jobben, alt. På
  * benken er det ei fast spalte til høgre med det same innhaldet.
  *
  * Lina er det som avgjer om uttaket er verdt å skjere: kor mange plan, kor
- * mange delar, kor mange plater, kor lang tid. Midten er plana du har låst
- * — berre dei låste; eit skissa plan finst ikkje nokon annan stad enn på
- * lerretet. Alt er resten: materialet, skyvarane, tavla, uttaka, verktya.
+ * mange delar, kor mange plater, kor lang tid — og det du gjer med det:
+ * lås, skissemodusen, forslag, og uttaket eitt trykk unna. Midten er plana
+ * du har låst — berre dei låste; eit skissa plan finst ikkje nokon annan
+ * stad enn på lerretet. Alt er resten: materialet, skyvarane, tavla,
+ * uttaka, verktya. Fila, lesemåtane, angre og lenkja står i topplina.
  */
 export type Steg = "line" | "midt" | "alt"
 const STEG: readonly Steg[] = ["line", "midt", "alt"]
@@ -42,9 +44,14 @@ export type ArketProps = {
   onSteg: (s: Steg) => void
   params: ParamBag
   onChange: (p: ParamBag) => void
-  kjelde: string
   view: View
-  onView: (v: View) => void
+  /** gestmodusen: «form» eller «skisse», og brytaren */
+  modus: Modus
+  onModus: () => void
+  /** råkar skissa kroppen? Låsen pulserer fyrste gongen ho gjer det. */
+  raakar: boolean
+  /** kor høg topplina er: kolonna på benken byrjar under henne */
+  topp: number
   metrics: Metrics | null
   rules: readonly Rule[]
   liste: readonly Kutt[]
@@ -70,11 +77,7 @@ export type ArketProps = {
   onAvbryt: () => void
   syn: string | null
   onExport: (k: ExportKind) => void
-  onShare: () => void
-  onFile: (f: File) => void
   onReset: () => void
-  onAngre: () => void
-  kanAngre: boolean
   verkty: VerktyId | null
   onVerkty: (id: VerktyId) => void
   onHogd: (px: number) => void
@@ -92,13 +95,14 @@ function Lina({ p }: { p: ArketProps }) {
     { id: "plan", text: `${plan.length} plan` },
     { id: "delar", text: `${n0(m.parts)} delar` },
     { id: "ark", text: `${n0(m.sheets)} ark` },
-    { id: "tid", text: klokke(m.cutTime) },
+    // tida er det fyrste som må vike på ein smal telefon: ho står òg i tavla
+    { id: "tid", text: klokke(m.cutTime), smal: true },
   ]
   return (
     <>
       {tal.map((t, i) => (
-        <span key={t.id}>
-          {i > 0 && <span className="px-1 opacity-30">·</span>}
+        <span key={t.id} className={t.smal ? "hidden min-[430px]:inline" : undefined}>
+          {i > 0 && <span className="px-0.5 opacity-30">·</span>}
           <span style={raud.has(t.id) ? { color: "var(--warn)" } : { opacity: 0.62 }}>{t.text}</span>
         </span>
       ))}
@@ -132,7 +136,7 @@ function Plana({ p }: { p: ArketProps }) {
                 {mine.length ? `${mine.length} stk · ${ledd} ledd` : "råkar ikkje"}
               </span>
             </button>
-            <button type="button" aria-label={`slett plan ${pl.id}`} title="ta planet bort" className="hit dim h-7 w-7 shrink-0 rounded-full" onClick={() => p.onSlett(pl.id)}>
+            <button type="button" aria-label={`slett plan ${pl.id}`} title="ta planet bort" className="hit dim h-9 w-11 shrink-0 rounded-full" onClick={() => p.onSlett(pl.id)}>
               ×
             </button>
           </li>
@@ -184,14 +188,38 @@ function Forslaga({ p }: { p: ArketProps }) {
   )
 }
 
+/** uttaka: éi brikke per fil, og kva dei to fargane tyder */
+function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
+  const { metrics } = p
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 py-2">
+      {EXPORTS.map((x) => {
+        const stopp = stengd(x.id, metrics)
+        return (
+          <button key={x.id} type="button" title={stopp || x.hint} disabled={p.busy || stopp !== ""} onClick={() => { p.onExport(x.id); onGjort?.() }} className={CHIP + " uppercase tracking-[0.1em]"} style={{ ...chipStyle(false), opacity: stopp ? 0.3 : undefined, textDecoration: stopp ? "line-through" : undefined }}>
+            {x.label}
+          </button>
+        )
+      })}
+      {/* svart er C00 i LightBurn og køyrer fyrst: difor graverer det */}
+      <span className="dim ml-auto flex items-center gap-3 text-[10px] uppercase tracking-[0.14em]" title="svart graverer, blått kutt. fargen er rekkjefylgja">
+        {[["#000000", "graver"], ["#0000ff", "kutt"]].map(([farge, ord]) => (
+          <span key={ord} className="flex items-center gap-1.5"><span aria-hidden="true" className="block h-[7px] w-[7px] rounded-full" style={{ background: farge }} />{ord}</span>
+        ))}
+      </span>
+    </div>
+  )
+}
+
 /** alt: material og plate, skyvarane, tavla, uttaka, verktya */
-function Alt({ p, fil }: { p: ArketProps; fil: () => void }) {
+function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | null> }) {
   const { params, onChange, metrics } = p
   const setParam = (k: string, raw: string) => onChange({ ...params, [k]: snap(lesTal(raw), PARAM_RANGES[k]) })
   const naaTjukn = num(params, "tjukn", TJUKNER[0])
   return (
     <>
-      <div className="flex items-center gap-1.5 py-2">
+      {/* materialet og tjukna på éi rad der det er plass, og på to der det ikkje er */}
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 py-2">
         {(Object.keys(MATERIALS) as Material[]).map((mk) => (
           <button
             key={mk}
@@ -200,13 +228,14 @@ function Alt({ p, fil }: { p: ArketProps; fil: () => void }) {
             aria-label={`materiale: ${MATERIALS[mk].label}`}
             title={MATERIALS[mk].label}
             onClick={() => onChange({ ...params, material: mk })}
-            className="h-6 w-6 shrink-0 rounded-full border transition active:scale-90"
-            style={{ backgroundColor: MATERIALS[mk].hex, borderColor: params.material === mk ? "var(--ink)" : "var(--rule)", boxShadow: params.material === mk ? "0 0 0 1px var(--ink)" : undefined }}
-          />
+            className="hit flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition active:scale-90"
+          >
+            <span aria-hidden="true" className="block h-6 w-6 rounded-full border" style={{ backgroundColor: MATERIALS[mk].hex, borderColor: params.material === mk ? "var(--ink)" : "var(--rule)", boxShadow: params.material === mk ? "0 0 0 1px var(--ink)" : undefined }} />
+          </button>
         ))}
         <span className="ml-auto flex items-center gap-1">
           {TJUKNER.map((t) => (
-            <button key={t} type="button" aria-pressed={naaTjukn === t} title={`${tjukn(t)} mm plate`} onClick={() => onChange({ ...params, tjukn: t })} className={CHIP + " tab px-2"} style={chipStyle(naaTjukn === t)}>
+            <button key={t} type="button" aria-pressed={naaTjukn === t} title={`${tjukn(t)} mm plate`} onClick={() => onChange({ ...params, tjukn: t })} className={CHIP + " tab min-w-[44px] px-2"} style={chipStyle(naaTjukn === t)}>
               {tjukn(t)}
             </button>
           ))}
@@ -234,21 +263,8 @@ function Alt({ p, fil }: { p: ArketProps; fil: () => void }) {
         /* eslint-disable-next-line @next/next/no-img-element */
         <img src={`data:image/svg+xml;utf8,${encodeURIComponent(p.syn)}`} alt="alle profilane, slik dei ligg på plata" className="my-2 max-h-40 w-full object-contain" style={{ opacity: p.busy ? 0.5 : 1 }} />
       )}
-      <div className="flex flex-wrap items-center gap-1.5 border-t py-2" style={HAIR}>
-        {EXPORTS.map((x) => {
-          const stopp = stengd(x.id, metrics)
-          return (
-            <button key={x.id} type="button" title={stopp || x.hint} disabled={p.busy || stopp !== ""} onClick={() => p.onExport(x.id)} className={CHIP + " uppercase tracking-[0.1em]"} style={{ ...chipStyle(false), opacity: stopp ? 0.3 : undefined, textDecoration: stopp ? "line-through" : undefined }}>
-              {x.label}
-            </button>
-          )
-        })}
-        {/* svart er C00 i LightBurn og køyrer fyrst: difor graverer det */}
-        <span className="dim ml-auto flex items-center gap-3 text-[10px] uppercase tracking-[0.14em]" title="svart graverer, blått kutt. fargen er rekkjefylgja">
-          {[["#000000", "graver"], ["#0000ff", "kutt"]].map(([farge, ord]) => (
-            <span key={ord} className="flex items-center gap-1.5"><span aria-hidden="true" className="block h-[7px] w-[7px] rounded-full" style={{ background: farge }} />{ord}</span>
-          ))}
-        </span>
+      <div ref={uttak} className="border-t" style={HAIR}>
+        <Uttaka p={p} />
       </div>
       <div className="flex flex-wrap items-center gap-1.5 py-1">
         {([["kuttliste", "kuttliste", "kvar del, med adresse, mål og plate"], ["ark", "plater", "kvar plate slik ho ligg — dra og fest delane"], ["oppsett", "oppsett", "alle innstillingane som tekst"]] as const).map(([id, ord, hint]) => (
@@ -256,9 +272,6 @@ function Alt({ p, fil }: { p: ArketProps; fil: () => void }) {
             {ord}
           </button>
         ))}
-        <button type="button" onClick={fil} title={`hent eit nett: ${FORMAT.join(" ")}`} className={CHIP + " ml-auto flex items-center gap-1.5"} style={chipStyle(false)}>
-          {IcoImport}<span className="max-w-[120px] truncate">{p.kjelde}</span>
-        </button>
       </div>
       {p.benk && <p className="dim pt-3 text-[10px] leading-relaxed tracking-[0.1em]">{TASTAR}</p>}
     </>
@@ -267,10 +280,33 @@ function Alt({ p, fil }: { p: ArketProps; fil: () => void }) {
 
 export function Arket(p: ArketProps): JSX.Element {
   const { benk, steg, onSteg, onHogd, tunar } = p
-  const pick = useRef<HTMLInputElement | null>(null)
-  const fil = () => pick.current?.click()
   const langtrykk = useLangtrykk(tunar ? p.onAvbryt : p.onFinn, tunar ? p.onAvbryt : p.onFinnDjup)
   const open = benk || steg !== "line"
+  /** uttaka eitt trykk unna: ein liten boks over lina. I «alt» står dei alt i arket, og knappen rullar dit. */
+  const [visUttak, setVisUttak] = useState(false)
+  const uttak = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!visUttak) return
+    const ute = (e: PointerEvent) => { if (!(e.target as Element).closest("[data-uttak]")) setVisUttak(false) }
+    const tast = (e: KeyboardEvent) => { if (e.key === "Escape") setVisUttak(false) }
+    window.addEventListener("pointerdown", ute, true)
+    window.addEventListener("keydown", tast, true)
+    return () => { window.removeEventListener("pointerdown", ute, true); window.removeEventListener("keydown", tast, true) }
+  }, [visUttak])
+  const eksport = () => {
+    if (steg === "alt") uttak.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+    else setVisUttak((v) => !v)
+  }
+  // låsen pulserer ÉIN gong: fyrste gongen skissa råkar kroppen
+  const [puls, setPuls] = useState(false)
+  const pulsa = useRef(false)
+  useEffect(() => {
+    if (!p.raakar || pulsa.current) return
+    pulsa.current = true
+    setPuls(true)
+    const t = window.setTimeout(() => setPuls(false), 1200)
+    return () => window.clearTimeout(t)
+  }, [p.raakar])
 
   // Kor mykje av ruta arket tek, MÅLT: kameraet stiller objektet inn i det
   // som er att. Grovkorna, so ei line til i arket ikkje rykkjer kameraet.
@@ -302,23 +338,38 @@ export function Arket(p: ArketProps): JSX.Element {
   }
 
   const linja = (
-    <div className="flex items-center gap-1.5 p-2.5">
+    <div className="flex items-center gap-1 px-2 py-2">
       {/* LÅSEN er handlinga: skissa vert ein del. Med eit plan valt er
-          skissa gøymd, og knappen slepp valet i staden. */}
+          skissa gøymd, og knappen slepp valet i staden. Prikken i hjørnet
+          er motoren som reknar. */}
       <button
         type="button"
         onClick={p.vald === null ? p.onLaas : () => p.onVald(null)}
         disabled={p.view === "kontur"}
+        aria-label={p.vald === null ? "lås" : "ferdig"}
         title={p.vald === null ? "lås skisseplanet: det vert ein del (L)" : "ferdig med planet (esc)"}
-        className="hit flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[11px] uppercase tracking-[0.14em] transition active:scale-95 disabled:opacity-30"
+        className={"hit flex h-10 w-12 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-30" + (puls ? " puls" : "")}
         style={{ background: "var(--ink)", color: "var(--paper)" }}
       >
-        {IcoLaas}{p.vald === null ? "lås" : "ferdig"}
+        {p.vald === null ? IcoLaas : IcoFerdig}
+        <span aria-hidden="true" className="absolute -right-px -top-px h-2 w-2 rounded-full" style={{ background: "var(--paper)", boxShadow: "0 0 0 1.5px var(--ink)", opacity: p.busy && !tunar ? 1 : 0, transition: "opacity 200ms ease" }} />
       </button>
-      <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className="tab min-w-0 flex-1 truncate pl-1 text-left text-[11px] tracking-[0.06em]" aria-label="plan, delar, ark og tid">
+      {/* SKISSEMODUSEN: to fingrar arbeider på planet — dra flyttar, vri
+          vinklar, klyp zoomar. Av er «form»: klyp storleiken, vri vendinga. */}
+      <button
+        type="button"
+        aria-pressed={p.modus === "skisse"}
+        aria-label="skisse"
+        title={p.modus === "skisse" ? "skissemodus (S): to fingrar dreg, vrir og zoomar snittet. trykk for form" : "form (S): to fingrar klyp storleiken, vrir vendinga, dreg snittet. trykk for skisse"}
+        onClick={p.onModus}
+        className={ICON_BTN}
+        style={chipStyle(p.modus === "skisse")}
+      >
+        {IcoSkisse}
+      </button>
+      <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className="hit tab min-w-0 flex-1 truncate rounded-lg pl-1 text-left text-[10px] tracking-[0.04em]" aria-label="plan, delar, ark og tid">
         <Lina p={p} />
       </button>
-      <span aria-hidden="true" className="block h-[5px] w-[5px] shrink-0 rounded-full" style={{ background: "var(--ink)", opacity: p.busy && !tunar ? 0.8 : 0.12, transition: "opacity 200ms ease" }} />
       <button
         type="button"
         {...langtrykk}
@@ -331,18 +382,16 @@ export function Arket(p: ArketProps): JSX.Element {
         {tunar ? IcoStopp : IcoFinn}
         {tunar && <Ring del={tunar.av ? tunar.gjort / tunar.av : 0} />}
       </button>
+      {!benk && (
+        <button type="button" aria-label="eksport" aria-expanded={visUttak} title="uttaka: stl, dxf, svg, ark, png, passprøve, alt, lagre" onClick={eksport} className={ICON_BTN} style={chipStyle(visUttak)} data-uttak="">
+          {IcoUttak}
+        </button>
+      )}
     </div>
   )
 
   const midt = (
     <>
-      {!benk && (
-        <div className="flex items-center gap-1.5 pb-1">
-          {VIEWS.map((v) => (
-            <button key={v.id} type="button" title={v.hint} aria-pressed={p.view === v.id} onClick={() => p.onView(v.id)} className={CHIP} style={chipStyle(p.view === v.id)}>{v.label}</button>
-          ))}
-        </div>
-      )}
       <SliderRow k="storleik" r={PARAM_RANGES.storleik} value={num(p.params, "storleik", 150)} onChange={(k, raw) => p.onChange({ ...p.params, [k]: snap(lesTal(raw), PARAM_RANGES[k]) })} bi={p.metrics ? `${n0(p.metrics.envX)}×${n0(p.metrics.envY)}×${n0(p.metrics.envZ)}` : undefined} />
       {p.visForslag ? <Forslaga p={p} /> : <Plana p={p} />}
       <Reglar rules={p.rules} params={p.params} onChange={p.onChange} />
@@ -353,9 +402,7 @@ export function Arket(p: ArketProps): JSX.Element {
     <div className="flex items-center gap-1.5 py-1">
       <span className="dim tab text-[10px]">{p.metrics ? `${nn(p.metrics.cutLen / 1000, 1)} m kutt` : ""}</span>
       <span className="ml-auto flex items-center gap-1.5">
-        <button type="button" onClick={p.onAngre} disabled={!p.kanAngre} aria-label="angre" title="angre siste endring (Z)" className={CHIP} style={chipStyle(false)}>{IcoAngre}</button>
         <button type="button" onClick={p.onReset} aria-label="attende til standarden" title="attende til standarden. nettet ditt står" className={CHIP} style={chipStyle(false)}>{IcoReset}</button>
-        <button type="button" onClick={p.onShare} aria-label="del" title="lenkja ber innstillingane, ikkje nettet" className={CHIP} style={chipStyle(false)}>{IcoShare}</button>
         {!benk && (
           <button type="button" aria-expanded={steg === "alt"} aria-label={steg === "alt" ? "færre kontrollar" : "alle kontrollane"} onClick={() => onSteg(steg === "alt" ? "midt" : "alt")} className={CHIP} style={chipStyle(steg === "alt")}>
             {steg === "alt" ? IcoDown : IcoSliders}
@@ -365,27 +412,13 @@ export function Arket(p: ArketProps): JSX.Element {
     </div>
   )
 
-  const filinn = (
-    <input ref={pick} type="file" accept={FORMAT.join(",")} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) p.onFile(f); e.target.value = "" }} />
-  )
-
   if (benk) {
     return (
-      <aside aria-label="kontrollar" aria-busy={p.busy} className="benk fixed bottom-0 right-0 top-0 z-20 flex flex-col border-l" style={{ ...HAIR, width: KOL, background: "var(--paper)", color: "var(--ink)" }}>
-        {filinn}
-        <header className="flex items-center gap-3 border-b px-4 py-2.5 text-[11px]" style={HAIR}>
-          <span className="mono tracking-[0.06em]">slicerman</span>
-          <span className="ml-auto flex items-center gap-1.5">
-            {VIEWS.map((v) => (
-              <button key={v.id} type="button" title={v.hint} aria-pressed={p.view === v.id} onClick={() => p.onView(v.id)} className={CHIP} style={chipStyle(p.view === v.id)}>{v.label}</button>
-            ))}
-          </span>
-          <a href="https://iverfinne.no" target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100">iverfinne.no</a>
-        </header>
+      <aside aria-label="kontrollar" aria-busy={p.busy} className="benk fixed bottom-0 right-0 z-20 flex flex-col border-l" style={{ ...HAIR, top: p.topp, width: KOL, background: "var(--paper)", color: "var(--ink)" }}>
         {linja}
         <div className="rull min-h-0 flex-1 px-3 pb-2">
           {midt}
-          <Alt p={p} fil={fil} />
+          <Alt p={p} uttak={uttak} />
         </div>
         <div className="border-t px-3" style={HAIR}>{fot}</div>
       </aside>
@@ -398,7 +431,7 @@ export function Arket(p: ArketProps): JSX.Element {
         ref={el}
         aria-label="kontrollar"
         aria-busy={p.busy}
-        className="pointer-events-auto flex w-full max-w-md flex-col rounded-3xl border sm:max-w-xl"
+        className="pointer-events-auto relative flex w-full max-w-md flex-col rounded-3xl border sm:max-w-xl"
         style={{
           ...HAIR,
           background: "var(--paper)",
@@ -409,7 +442,11 @@ export function Arket(p: ArketProps): JSX.Element {
           transition: drag.current ? undefined : "transform 180ms ease",
         }}
       >
-        {filinn}
+        {visUttak && steg !== "alt" && (
+          <div data-uttak="" role="group" aria-label="uttak" className="fade-inn absolute inset-x-2 bottom-[calc(100%+8px)] rounded-2xl border px-3" style={{ ...HAIR, background: "var(--paper)", boxShadow: "0 8px 28px color-mix(in srgb, var(--ink) 16%, transparent)" }}>
+            <Uttaka p={p} onGjort={() => setVisUttak(false)} />
+          </div>
+        )}
         <div
           className="shrink-0"
           style={{ touchAction: "none" }}
@@ -419,13 +456,13 @@ export function Arket(p: ArketProps): JSX.Element {
           onPointerCancel={dragOpp}
           onClickCapture={(e) => { if (svelg.current) { svelg.current = false; e.preventDefault(); e.stopPropagation() } }}
         >
-          {open && <div aria-hidden="true" className="mx-auto mt-2 h-1 w-9 rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 22%, transparent)" }} />}
+          <div aria-hidden="true" className="mx-auto mt-2 h-1 w-9 rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 22%, transparent)" }} />
           {linja}
         </div>
         {open && (
           <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-1">
             {midt}
-            {steg === "alt" && <Alt p={p} fil={fil} />}
+            {steg === "alt" && <Alt p={p} uttak={uttak} />}
           </div>
         )}
         {open && <div className="shrink-0 px-3 pb-1">{fot}</div>}

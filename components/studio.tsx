@@ -11,9 +11,11 @@ import { lesFest, skrivFest } from "@/lib/params"
 import type { Kandidat } from "@/lib/forslag"
 import type { Rute } from "@/lib/ramme"
 import type { ArkRes, BuildRes, MaalRes, Req, Res } from "@/lib/worker"
-import { Scene, type Skisse } from "./scene"
+import { Scene, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
 import { Skuff, type VerktyId } from "./verkty"
+import { Toppline } from "./toppline"
+import { PARAM_RANGES } from "@/lib/params"
 
 /**
  * STUDIOET. Ein parameterpose, ein arbeidar, og det som skal til for at
@@ -128,9 +130,17 @@ export function Studio() {
   const [feil, setFeil] = useState<string | null>(null)
   const [melding, setMelding] = useState<string | null>(null)
   const [hentar, setHentar] = useState(false)
-  const [hint, setHint] = useState<"fil" | "gest" | null>("fil")
+  /** éi line om gestane: ved starten, etter ein import, og når modusen byter. Ho går på fyrste gesten. */
+  const [hint, setHint] = useState<"gest" | null>("gest")
+  const hintTimer = useRef(0)
   const [drag, setDrag] = useState(false)
   const [arkH, setArkH] = useState(0)
+  const [toppH, setToppH] = useState(44)
+  /** gestmodusen: «form» er dei gamle gestane på objektet, «skisse» er gestane på planet */
+  const [modus, setModus] = useState<Modus>("form")
+  /** kva ein finger held på med akkurat no, til lesing over objektet */
+  const [gest, setGest] = useState<GestKva>(null)
+  const [raakar, setRaakar] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [namn, setNamn] = useState<Record<string, string>>({})
   const benk = useMedia("(pointer: fine) and (min-width: 1180px)")
@@ -278,9 +288,9 @@ export function Studio() {
         setVald(null)
         setFeil(null)
         setHentar(false)
-        if (!matchMedia("(pointer: coarse)").matches) return
         setHint("gest")
-        window.setTimeout(() => setHint(null), 7000)
+        window.clearTimeout(hintTimer.current)
+        hintTimer.current = window.setTimeout(() => setHint(null), 7000)
         return
       }
       if (r.kind === "feil") {
@@ -352,24 +362,45 @@ export function Studio() {
     }, 500)
     return () => window.clearTimeout(t)
   }, [params, view, mounted])
-  // og økta hugsar seg sjølv, når tala har fått stå
+  // og økta hugsar seg sjølv, straks. iOS drep ein PWA i bakgrunnen utan å
+  // spørje, so det som står skal alt vera skrive — og skrivast ein gong til
+  // i det appen går i bakgrunnen, for det som stod under ein halv sekund.
+  const skrivOkta = useCallback(() => {
+    const { kjelde: _k, ...rest } = naa.current
+    void _k
+    void lagre({ params: rest as Record<string, number | string> })
+  }, [])
   useEffect(() => {
     if (!mounted) return
-    const t = window.setTimeout(() => {
-      const { kjelde: _k, ...rest } = params
-      void _k
-      void lagre({ params: rest as Record<string, number | string> })
-    }, 900)
+    const t = window.setTimeout(skrivOkta, 150)
     return () => window.clearTimeout(t)
-  }, [params, mounted])
+  }, [params, mounted, skrivOkta])
+  useEffect(() => {
+    if (!mounted) return
+    const gøymd = () => { if (document.visibilityState === "hidden") skrivOkta() }
+    document.addEventListener("visibilitychange", gøymd)
+    window.addEventListener("pagehide", skrivOkta)
+    return () => {
+      document.removeEventListener("visibilitychange", gøymd)
+      window.removeEventListener("pagehide", skrivOkta)
+    }
+  }, [mounted, skrivOkta])
 
   /**
-   * ANGRE. Eit drag er hundre punkt og éi endring: eit punkt vert fyrst
-   * bokført når det har fått stå i ein knapp sekund.
+   * ANGRE OG GJER OM. Eit drag er hundre punkt og éi endring: eit punkt
+   * vert fyrst bokført når det har fått stå i ein knapp sekund — og aldri
+   * medan ein gest er i gang. Eit bygg som stoggar hovudtråden midt i ei
+   * vriding gav elles to bokføringar av éin gest, og Z tok berre halve.
+   * Framtida er det du angra: eit angre legg det som stod der, ei ny
+   * endring kastar henne.
    */
   const fortid = useRef<ParamBag[]>([])
+  const framtid = useRef<ParamBag[]>([])
   const stodd = useRef<ParamBag | null>(null)
   const [kanAngre, setKanAngre] = useState(false)
+  const [kanGjerOm, setKanGjerOm] = useState(false)
+  /** eit hopp i historikka er ikkje ei ny endring, og skal ikkje tøme framtida */
+  const hopp = useRef(false)
   useEffect(() => {
     if (!mounted) return
     if (stodd.current === null) {
@@ -380,7 +411,13 @@ export function Studio() {
       setKanAngre(fortid.current.length > 0)
       return
     }
+    if (hopp.current) hopp.current = false
+    else if (framtid.current.length) {
+      framtid.current = []
+      setKanGjerOm(false)
+    }
     setKanAngre(true)
+    if (gest) return
     const t = window.setTimeout(() => {
       if (stodd.current === null || stodd.current === params) return
       fortid.current.push(stodd.current)
@@ -388,13 +425,29 @@ export function Studio() {
       stodd.current = params
     }, 450)
     return () => window.clearTimeout(t)
-  }, [params, mounted])
+  }, [params, mounted, gest])
   const angre = useCallback(() => {
     const no = naa.current
     const mal = stodd.current !== null && stodd.current !== no ? stodd.current : fortid.current.pop()
     if (!mal) return
+    framtid.current.push(no)
+    setKanGjerOm(true)
     stodd.current = mal
+    hopp.current = true
     setKanAngre(fortid.current.length > 0)
+    setParams(mal)
+  }, [])
+  const gjerOm = useCallback(() => {
+    const mal = framtid.current.pop()
+    if (!mal) return
+    const no = naa.current
+    if (stodd.current !== null && stodd.current !== no) fortid.current.push(stodd.current)
+    fortid.current.push(no)
+    if (fortid.current.length > ANGRE_DJUPN) fortid.current.shift()
+    stodd.current = mal
+    hopp.current = true
+    setKanAngre(true)
+    setKanGjerOm(framtid.current.length > 0)
     setParams(mal)
   }, [])
 
@@ -402,6 +455,47 @@ export function Studio() {
     setHint(null)
     setParams(p)
   }, [])
+
+  // --- GESTANE --------------------------------------------------------------
+  /**
+   * KLYPET OG VRIDINGA MÅLER FRÅ DER GESTEN BYRJA: fingrane som står tre
+   * gonger so langt frå kvarandre skal gje eit objekt tre gonger so stort,
+   * same kor mange hendingar som kom fram undervegs. Grunnstoda vert sett
+   * når gesten melder seg og rydda når han sluttar.
+   */
+  const grunn = useRef<{ storleik: number; rotZ: number } | null>(null)
+  const taGest = useCallback((kva: GestKva) => {
+    const p = naa.current
+    grunn.current = kva === null ? null : { storleik: typeof p.storleik === "number" ? p.storleik : 150, rotZ: typeof p.rotZ === "number" ? p.rotZ : 0 }
+    setGest(kva)
+    if (kva) setHint(null)
+  }, [])
+  const skalerObjektet = useCallback((total: number) => {
+    if (!Number.isFinite(total) || total <= 0) return
+    const g = grunn.current
+    if (!g) return
+    const r = PARAM_RANGES.storleik
+    const v = Math.min(r.max, Math.max(r.min, Math.round((g.storleik * total) / r.step) * r.step))
+    setParams((cur) => (cur.storleik === v ? cur : { ...cur, storleik: v }))
+  }, [])
+  /** vendinga: objektet snur seg på bordet, og plana fylgjer ikkje med. Ho går rundt: 181° er −179°. */
+  const vendObjektet = useCallback((grader: number) => {
+    if (!Number.isFinite(grader)) return
+    const g = grunn.current
+    if (!g) return
+    setParams((cur) => {
+      const v = ((((Math.round(g.rotZ + grader) + 180) % 360) + 360) % 360) - 180
+      return cur.rotZ === v ? cur : { ...cur, rotZ: v }
+    })
+  }, [])
+  /** brytaren mellom form og skisse, med lina som seier kva som gjeld no */
+  const vekslModus = useCallback(() => {
+    setModus((m) => (m === "form" ? "skisse" : "form"))
+    setHint("gest")
+    window.clearTimeout(hintTimer.current)
+    hintTimer.current = window.setTimeout(() => setHint(null), 4500)
+  }, [])
+  useEffect(() => () => window.clearTimeout(hintTimer.current), [])
 
   // --- PLANA -----------------------------------------------------------------
   /**
@@ -614,7 +708,7 @@ export function Studio() {
       const k = e.key.toLowerCase()
       if ((e.metaKey || e.ctrlKey) && k === "z") {
         e.preventDefault()
-        return angre()
+        return e.shiftKey ? gjerOm() : angre()
       }
       if (e.metaKey || e.ctrlKey) return
       // same som knappen: med eit plan valt er skissa gøymd, og L slepp valet
@@ -623,7 +717,8 @@ export function Studio() {
         else velPlan(null)
       } else if (k === "delete" || k === "backspace") {
         if (vald !== null) slett(vald)
-      } else if (k === "z") angre()
+      } else if (k === "z") (e.shiftKey ? gjerOm : angre)()
+      else if (k === "s") vekslModus()
       else if (k === "f") finnForslag(false)
       else if (k === "d") finnForslag(true)
       else if (k === "1") setView("flate")
@@ -636,31 +731,42 @@ export function Studio() {
         else setSteg("line")
       } else return
       e.preventDefault()
-      setHint(null)
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, laas, slett, vald, finnForslag, verkty, visForslag, velPlan])
+  }, [angre, gjerOm, laas, slett, vald, finnForslag, verkty, visForslag, velPlan, vekslModus])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
   const rute: Rute = useMemo(
-    () => ({ W: vindu.w, H: vindu.h, venstre: 0, hogre: benk ? KOL : 0, topp: 0, botn: benk ? (verkty ? skuffH : 0) : arkH }),
-    [vindu, benk, verkty, skuffH, arkH],
+    () => ({ W: vindu.w, H: vindu.h, venstre: 0, hogre: benk ? KOL : 0, topp: toppH, botn: benk ? (verkty ? skuffH : 0) : arkH }),
+    [vindu, benk, verkty, skuffH, arkH, toppH],
   )
   const skuffRute: CSSProperties = benk
     ? { left: 0, right: KOL, bottom: 0, height: skuffH }
-    : { left: 8, right: 8, top: 52, bottom: `calc(${LUKKA_ARK}px + env(safe-area-inset-bottom))` }
+    : { left: 8, right: 8, top: toppH + 8, bottom: `calc(${LUKKA_ARK}px + env(safe-area-inset-bottom))` }
+  /** kva gesten held på med, i tal: ein gest utan tal er ein gest du ikkje kan sikte med */
+  const les = (k: string) => String(typeof params[k] === "number" ? Math.round(params[k] as number) : 0)
+  const gestTekst = gest === "storleik" ? `${les("storleik")} mm` : gest === "vend" ? `${les("rotZ")}°` : gest
+  const hintTekst = fin
+    ? modus === "form"
+      ? "form · dra snur · ⇧ dra flyttar snittet · ⌥ dra vrir det · ⌃ hjul = storleik · lås"
+      : "skisse · dra snur · ⇧ dra flyttar snittet · ⌥ dra vrir det · lås"
+    : modus === "form"
+      ? "form · éin finger snur · to fingrar: knip = storleik, vri = vend, dra = flytt snittet · lås"
+      : "skisse · éin finger snur · to fingrar: dra = flytt, vri = tilt, knip = zoom · lås"
 
   return (
     <main className="fixed inset-0 overflow-hidden" style={{ background: "var(--paper)" }}>
-      <div className="absolute inset-0">
+      {/* fyrste gesten på objektet tek lina om gestane bort */}
+      <div className="absolute inset-0" onPointerDownCapture={() => setHint(null)}>
         {mounted && (
           <Scene
             kropp={kropp}
             lag={lag}
             kontur={kontur}
             view={view}
+            modus={modus}
             material={String(params.material ?? "finer")}
             rute={rute}
             liste={liste}
@@ -670,24 +776,28 @@ export function Studio() {
             skisse={skisse}
             onVald={velPlan}
             onPlan={flyttPlan}
+            onSkala={skalerObjektet}
+            onVend={vendObjektet}
+            onGest={taGest}
+            onRaakar={setRaakar}
           />
         )}
       </div>
 
-      {!benk && (
-        <header className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-5 pt-[calc(env(safe-area-inset-top)+16px)]">
-          <span className="tab text-[11px] tracking-[0.14em]">slicerman</span>
-          <a href="https://iverfinne.no" target="_blank" rel="noopener noreferrer" className="pointer-events-auto text-[11px] tracking-wide opacity-60 hover:opacity-100">
-            iverfinne.no
-          </a>
-        </header>
+      <Toppline benk={benk} kjelde={kjeldeNamn} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
+
+      {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til høgre i det frie bandet */}
+      {gestTekst && (
+        <div className="pointer-events-none absolute flex justify-end" style={{ top: toppH + 10, right: (benk ? KOL : 0) + 14 }} aria-hidden="true">
+          <span className="tab text-[26px] leading-none tracking-[0.02em]" style={{ opacity: 0.5 }}>{gestTekst}</span>
+        </div>
       )}
 
-      {/* Éi line, to gonger i ei økt: at fila kan sleppast, og so kva to fingrar gjer. */}
-      {hint && !drag && (hint === "gest" || kjelde === KUBE) && (
-        <div className="pointer-events-none absolute inset-x-0 flex justify-center px-6" style={{ bottom: (benk ? 0 : arkH) + 24 }} aria-hidden="true">
-          <span className="fade-inn text-center text-[10px] uppercase tracking-[0.2em]" style={{ opacity: 0.6 }}>
-            {hint === "gest" ? "to fingrar: dra lina, vri henne, klyp" : "slepp ei fil kvar som helst"}
+      {/* Éi line om gestane, med modusen fremst. Ho går på fyrste gesten. */}
+      {hint && !drag && (
+        <div className="pointer-events-none absolute inset-x-0 flex justify-center px-4" style={{ bottom: (benk ? 0 : arkH) + 24, right: benk ? KOL : 0 }} aria-hidden="true">
+          <span className="fade-inn rounded-full px-3 py-1.5 text-center text-[10px] uppercase tracking-[0.16em]" style={{ background: "color-mix(in srgb, var(--paper) 85%, transparent)", opacity: 0.85 }}>
+            {hintTekst}
           </span>
         </div>
       )}
@@ -716,15 +826,14 @@ export function Studio() {
       <Arket
         benk={benk}
         steg={steg}
-        onSteg={(s) => {
-          setHint(null)
-          setSteg(s)
-        }}
+        onSteg={setSteg}
         params={params}
         onChange={endre}
-        kjelde={kjeldeNamn}
         view={view}
-        onView={setView}
+        modus={modus}
+        onModus={vekslModus}
+        raakar={raakar}
+        topp={toppH}
         metrics={tal?.metrics ?? null}
         rules={tal?.rules ?? []}
         liste={liste}
@@ -750,11 +859,7 @@ export function Studio() {
         onAvbryt={avbryt}
         syn={syn}
         onExport={doExport}
-        onShare={share}
-        onFile={(f) => void takeFile(f)}
         onReset={() => endre({ ...MOTOR.defaults, kjelde: params.kjelde })}
-        onAngre={angre}
-        kanAngre={kanAngre}
         verkty={verkty}
         onVerkty={opneVerkty}
         onHogd={setArkH}
