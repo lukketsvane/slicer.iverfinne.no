@@ -208,7 +208,8 @@ async function flate(namn: string, w: number, h: number) {
     const ord = await raad.first().getAttribute("aria-label")
     await raad.first().click()
     await ferdig(page)
-    await page.waitForTimeout(800)
+    // reglane kjem i meldinga ETTER nettet, so «ferdig» er før dei er der
+    await page.waitForFunction((n) => document.querySelectorAll("button[aria-label^='fiks ']").length < n, n, { timeout: 15000 }).catch(() => undefined)
     const att = await raad.count()
     console.log(`  råd «${ord}»: ${n} → ${att} knappar`)
     if (att >= n) brot(`${namn}: rådet «${ord}» tok ikkje brotet bort`)
