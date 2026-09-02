@@ -23,14 +23,17 @@
  *
  *   npx tsx scripts/djup.ts
  */
-import { makeKropp } from "../lib/vaffel/kropp"
-import { maalProfil, plateoverslag, truskap } from "../lib/vaffel/profil"
-import { measure } from "../lib/vaffel/metrics"
-import { checkRules } from "../lib/vaffel/rules"
-import { front, tune } from "../lib/vaffel/tune"
-import { DEFAULT_PARAMS, lesLaas, plasser, type Params } from "../lib/vaffel/params"
+import { makeKropp } from "../lib/kropp"
+import { maalProfil, plateoverslag, truskap } from "../lib/profil"
+import { measure } from "../lib/metrics"
+import { checkRules } from "../lib/rules"
+import { front, tune } from "../lib/forslag"
+import { DEFAULT_PARAMS, lesLaas, plasser, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
 
 let feil = 0
 const sjekk = (namn: string, ok: boolean, sagt = "") => {
@@ -313,7 +316,7 @@ console.log("\ndet vide steget er billig")
   const profil = Date.now() - t0
 
   const t1 = Date.now()
-  measure({ ...p, ribbX: 8, ribbY: 8 })
+  measure({ ...p, plan: nett(8, 8), })
   const snitt = Date.now() - t1
 
   // Heile grunnen til at tavla kan vera tusen ruter: målinga kostar mindre

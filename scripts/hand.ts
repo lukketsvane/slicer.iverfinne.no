@@ -1,5 +1,5 @@
 /**
- * HANDA: LÅSTE RIBBER OG FESTA DELAR.
+ * HANDA: HANDA OG FESTA DELAR.
  *
  * Ribbene var eit tal og er ei liste. Denne fila prøver dei to påstandane
  * lista må halde: at eit objekt UTAN låsar er nøyaktig det same objektet
@@ -9,215 +9,92 @@
  * ikkje er tal med eit band kring seg — dei er strengar, dei kjem frå ei
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
-import {
-  plasser,
-  lesLaas,
-  reinLaas,
-  skrivLaas,
-  reinFest,
-  clampParams,
-  DEFAULT_PARAMS,
-} from "../lib/vaffel/params"
+import { clampParams, DEFAULT_PARAMS, reinFest } from "../lib/params"
+import { lesPlan, nyId, reinPlan, rutenett, skrivPlan, PLAN_TAK } from "../lib/plan"
 import { apply, pack, type Fest } from "../lib/pack"
-import { VAFFEL } from "../lib/vaffel/engine"
+import { MOTOR } from "../lib/motor"
 import { bbox, type ParamBag, type Pt } from "../lib/core"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
-const p3 = (v: readonly number[]) => v.map((t) => t.toFixed(3)).join(" ")
 let feil = 0
 const sjekk = (namn: string, ok: boolean, sagt = "") => {
   console.log(ok ? "  ok  " : "  FEIL", namn.padEnd(44), sagt)
   if (!ok) feil++
 }
 
-// 1) utan lås er det den gamle jamne fordelinga
-const jamt6 = Array.from({ length: 6 }, (_, i) => (i + 0.5) / 6)
-sjekk("utan lås = jamt", p3(plasser(6, [])) === p3(jamt6), p3(plasser(6, [])))
-
-// 2) ei låst ribbe står nøyaktig der ho er låst, uansett tal
-for (const n of [4, 6, 10, 20]) {
-  const ut = plasser(n, [0.2])
-  sjekk(`lås 0,200 held ved ${n} ribber`, ut.includes(0.2) && ut.length === n, p3(ut))
-}
-
-// 3) dei frie fordeler seg — ingen dublettar, alltid sortert
-const ut = plasser(8, [0.2, 0.25])
-sjekk("to låsar tett i hop", ut.length === 8 && new Set(ut).size === 8 &&
-  ut.every((v, i) => i === 0 || v > ut[i - 1]), p3(ut))
-
-// 4) fleire låsar enn ribber: låsane vinn
-const many = plasser(2, [0.1, 0.3, 0.5, 0.7, 0.9])
-sjekk("5 låsar, skyvaren på 2", many.length === 5, p3(many))
-
-// 5) fiendtleg streng frå ei lenkje
+/**
+ * PLANA ER EI LISTE, OG LISTA ER STRENGEN.
+ *
+ * Alt handa gjer med eit plan — låse, flytte, vinkle om, slette — er ei
+ * endring i éi oppføring, og dei andre står. Det var det låsane måtte
+ * reknast fram til før; no er det det lista ER. Vakta held likevel på det:
+ * ein streng inn skal kome ut som den same lista, og alt som ikkje er eit
+ * plan skal falle på golvet før det når geometrien.
+ */
 for (const [inn, vent] of [
-  ["x:0.5", "x:0.5"],
-  ["y:0.25,0.75", "y:0.25,0.75"],
-  ["x:0.5;y:0.5", "x:0.5;y:0.5"],
-  ["z:0.5", ""],                              // ukjend akse
-  ["x:2,-1,NaN,Infinity", ""],                // utanfor bandet
-  ["x:0,1", ""],                              // kanten tel ikkje
-  ["x:0.5,0.5,0.5", "x:0.5"],                 // dublettar
-  ["x:0.9,0.1", "x:0.1,0.9"],                 // usortert
+  ["1@0.5,0.5,0.5/1,0,0", "1@0.5,0.5,0.5/1,0,0"],
+  ["3@0.25,0.5,0.5/0,1,0;7@0.5,0.5,0.5/0,0,1", "3@0.25,0.5,0.5/0,1,0;7@0.5,0.5,0.5/0,0,1"],
+  ["1@0.5,0.5,0.5/2,0,0", "1@0.5,0.5,0.5/1,0,0"],                 // normalen vert einingslang
+  ["1@0.5,0.5,0.5/0,0,0", ""],                                     // inga retning
+  ["1@0.5,0.5,0.5/1,0,0;1@0.5,0.5,0.5/0,1,0", "1@0.5,0.5,0.5/1,0,0"], // same namn to gonger
+  ["0@0.5,0.5,0.5/1,0,0", ""],                                     // null er ikkje eit namn
+  ["1@9,0.5,0.5/1,0,0", ""],                                       // langt utanfor kroppen
+  ["1@NaN,0.5,0.5/1,0,0", ""],
+  ["1@0.5,0.5,0.5", ""],                                           // ingen normal
+  ["1@0.5,0.5,0.5/1,0,0/-o:0,0,0.1,0.1,0", "1@0.5,0.5,0.5/1,0,0/-o:0,0,0.1,0.1,0"],
+  ["1@0.5,0.5,0.5/1,0,0/+r:0,0,0,0.1,0", "1@0.5,0.5,0.5/1,0,0"],  // strek utan breidd
+  ["1@0.5,0.5,0.5/1,0,0/tull", "1@0.5,0.5,0.5/1,0,0"],
   ["<script>", ""],
-  ["x:" + Array.from({ length: 400 }, (_, i) => (i + 1) / 500).join(","),
-   "x:" + Array.from({ length: 64 }, (_, i) => (i + 1) / 500).join(",")],
+  [Array.from({ length: 200 }, (_, i) => `${i + 1}@0.5,0.5,0.5/1,0,0`).join(";"),
+   Array.from({ length: PLAN_TAK }, (_, i) => `${i + 1}@0.5,0.5,0.5/1,0,0`).join(";")],
 ] as const) {
-  const fekk = reinLaas(inn)
+  const fekk = reinPlan(inn)
   sjekk(`rein «${String(inn).slice(0, 26)}»`, fekk === vent, fekk.slice(0, 40))
 }
 
-// 6) clampParams slepp han gjennom, og reinsar
-const q = clampParams({ ...DEFAULT_PARAMS, laas: "x:0.5;z:9" }, DEFAULT_PARAMS)
-sjekk("clampParams reinsar laas", q.laas === "x:0.5", q.laas)
-const r = clampParams({ storleik: 200 }, { ...DEFAULT_PARAMS, laas: "x:0.5" })
-sjekk("laas overlever ein annan endring", r.laas === "x:0.5", r.laas)
+const q = clampParams({ ...DEFAULT_PARAMS, plan: "1@0.5,0.5,0.5/1,0,0;x" }, DEFAULT_PARAMS)
+sjekk("clampParams reinsar plan", q.plan === "1@0.5,0.5,0.5/1,0,0", q.plan)
+const r = clampParams({ storleik: 200 }, { ...DEFAULT_PARAMS, plan: "1@0.5,0.5,0.5/1,0,0" })
+sjekk("plan overlever ein annan endring", r.plan === "1@0.5,0.5,0.5/1,0,0", r.plan)
 
-// 7) fram og attende
-const l = lesLaas("x:0.125,0.375;y:0.5")
-sjekk("les → skriv er identitet", skrivLaas(l) === "x:0.125,0.375;y:0.5", skrivLaas(l))
-
-// =============================================================================
-// STABELEN: Å RØRE ÉI RIBBE SKAL LA DEI ANDRE STÅ
-// =============================================================================
-/**
- * DETTE ER HEILE PÅSTANDEN STABELEDITOREN KVILER PÅ.
- *
- * Ein FRI ribbe har ingen eigen plass — han er «den fjerde av seks jamne»,
- * og den plassen er ei rekning på talet. So «flytt X2» kan ikkje tyde noko
- * før heile stabelen er skriven ned; gjer du det utan, krev brøken den nye
- * ribba fekk ein av dei jamne plassane, og dei andre fordeler seg kring
- * henne. Ei ribbe flytta seg, og fem andre gjorde det same.
- *
- * Verba i studioet låser difor stabelen fyrst. Her vert den rekninga prøvd
- * for seg: `plasser` er den einaste fasiten på kvar ribbene står, og ho
- * står i motoren.
- */
 console.log("")
 {
-  const alle = plasser(6, [])
-  /** det studioet gjer: skriv ned heile stabelen, og byt ut éin */
-  const flytt = (i: number, t: number) => plasser(6, alle.map((v, j) => (j === i ? t : v)))
-
-  /**
-   * MÅLET ER 0,35 og ikkje eit tal til.
-   *
-   * X2 står på 0,25, og eit lite dytt kjem ingen veg her: låsen krev den
-   * jamne plassen ho ligg NÆRAST, so alt innanfor si eiga celle tek si
-   * eiga celle og dei andre står — same kva veg det vart rekna. Prøva må
-   * krysse ei cellegrense for å prøve noko: 0,35 ligg nærare 0,4167 enn
-   * 0,25, so ULÅST krev han plassen til X3 i staden for sin eigen.
-   */
-  const etter = flytt(1, 0.35)
+  const alle = lesPlan(nett(6, 6))
+  sjekk("rutenettet 6×6 er tolv plan med tolv namn", alle.length === 12 && new Set(alle.map((p) => p.id)).size === 12)
+  /** det studioet gjer: byt ut éi oppføring */
+  const flytt = alle.map((p) => (p.id === 2 ? { ...p, o: [0.35, 0.5, 0.5] as [number, number, number] } : p))
   sjekk(
-    "flytt X2 til 0,35: dei fem andre står stille",
-    etter.length === 6 && alle.every((v, j) => j === 1 || etter.includes(v)),
-    p3(etter),
+    "flytt plan 2 til 0,35: dei elleve andre står stille",
+    flytt.length === 12 && alle.every((p, i) => p.id === 2 || skrivPlan([p]) === skrivPlan([flytt[i]])),
   )
-  sjekk("og X2 står der du sette henne", etter.includes(0.35), p3(etter))
-
-  // Same talet UTAN å låse fyrst: X2 står att der ho stod, og det er X3
-  // som er borte. Ei ribbe flytta seg, og det var ikkje den du tok i.
-  const utan = plasser(6, [0.35])
-  sjekk(
-    "utan å låse fyrst flyttar feil ribbe seg",
-    utan.includes(alle[1]) && !utan.includes(alle[2]),
-    p3(utan),
-  )
-
-  // Slett: talet går ned, og dei som står att står nøyaktig der dei stod.
-  const utanEin = alle.filter((_, j) => j !== 3)
-  const sletta = plasser(utanEin.length, utanEin)
-  sjekk(
-    "slett X4: dei fem andre står stille",
-    sletta.length === 5 && utanEin.every((v) => sletta.includes(v)),
-    p3(sletta),
-  )
-
-  // Lås alle, og dra så skyvaren opp: dei seks står, og dei nye kjem
-  // imellom. Det er heile skilnaden på ein stabel du eig og eit rutenett.
-  const opp = plasser(9, alle)
-  sjekk(
-    "lås alle, skyvaren til 9: dei seks står",
-    opp.length === 9 && alle.every((v) => opp.includes(v)),
-    p3(opp),
-  )
+  sjekk("og plan 2 står der du sette det", flytt.find((p) => p.id === 2)?.o[0] === 0.35)
+  const sletta = alle.filter((p) => p.id !== 4)
+  sjekk("slett plan 4: dei elleve andre står, og namna deira", sletta.length === 11 && !sletta.some((p) => p.id === 4) && sletta.every((p) => alle.some((a) => a.id === p.id)))
+  sjekk("eit nytt plan får eit namn ingen har hatt", nyId(alle) === 13 && nyId(sletta) === 13)
+  const vinkla = alle.map((p) => (p.id === 7 ? { ...p, n: [0, 0.7071, 0.7071] as [number, number, number] } : p))
+  const m1 = MOTOR.measure({ ...DEFAULT_PARAMS, plan: skrivPlan(alle) } as unknown as ParamBag)
+  const m2 = MOTOR.measure({ ...DEFAULT_PARAMS, plan: skrivPlan(vinkla) } as unknown as ParamBag)
+  sjekk("vinkle om eitt plan: dei andre elleve delane er dei same", m2.parts >= 12 && m2.joints > 0 && m1.joints === 36, `${m2.parts} delar, ${m2.joints} ledd`)
 }
 
-// =============================================================================
-// STABELEN I MILLIMETER
-// =============================================================================
-/**
- * BRUA MELLOM BRØKEN OG BORDET.
- *
- * Låsen er ein BRØKDEL av spennet — det er rett, og det er ubrukeleg å
- * redigere i. Stabelen syner millimeter, og han reknar dei ut av ei
- * RETTLINE han passar til to ribber i kuttlista: `pos = min + t · vidd`.
- *
- * Den lina er ei påstand om motoren, og ho er lett å ta feil av. Snittinga
- * fordeler ribbene over kroppen sitt eige spenn, ikkje over det ferdige
- * objektet sitt ytremål, og dei to er ikkje det same talet. Vert lina
- * passa til feil spenn, ser stabelen rett ut og kvart einaste tal i han er
- * nokre millimeter feil — den verste sorten feil, av di han ikkje syner.
- *
- * So her vert ho prøvd mot fasiten: kvar ribbe si eiga plassering, slik
- * kuttlista melder henne.
- */
 console.log("")
 {
-  const bag = { ...DEFAULT_PARAMS, ribbX: 7, ribbY: 5 } as unknown as ParamBag
-  const liste = VAFFEL.liste(bag)
-  sjekk("kuttlista ber ei plassering per del", liste.every((k) => Number.isFinite(k.pos)))
-
-  for (const akse of ["x", "y"] as const) {
-    const alle = plasser(Number(bag[akse === "x" ? "ribbX" : "ribbY"]), [])
-    const stor = akse.toUpperCase()
-    /** det studioet gjer: to ribber med kjend plass gjev heile lina */
-    let a: { t: number; mm: number } | null = null
-    let b: { t: number; mm: number } | null = null
-    for (const k of liste) {
-      const m = new RegExp(`^${stor}(\\d+)`).exec(k.adr)
-      if (!m) continue
-      const t = alle[Number(m[1]) - 1]
-      if (t === undefined) continue
-      if (!a || t < a.t) a = { t, mm: k.pos }
-      if (!b || t > b.t) b = { t, mm: k.pos }
-    }
-    if (!a || !b) {
-      sjekk(`${akse}: to ribber å passe lina til`, false)
-      continue
-    }
-    const vidd = (b.mm - a.mm) / (b.t - a.t)
-    const min = a.mm - a.t * vidd
-
-    // Og so kvar einaste ribbe, og ikkje berre dei to lina vart passa til.
-    let verst = 0
-    for (const k of liste) {
-      const m = new RegExp(`^${stor}(\\d+)`).exec(k.adr)
-      if (!m) continue
-      const t = alle[Number(m[1]) - 1]
-      if (t === undefined) continue
-      verst = Math.max(verst, Math.abs(min + t * vidd - k.pos))
-    }
-    sjekk(
-      `${akse}: lina treffer kvar ribbe`,
-      verst < 0.01,
-      `verste avvik ${verst.toFixed(4)} mm, spenn ${vidd.toFixed(1)} mm`,
-    )
-  }
+  const bag = { ...DEFAULT_PARAMS, plan: nett(7, 5) } as unknown as ParamBag
+  const liste = MOTOR.liste(bag)
+  const plan = lesPlan(String(bag.plan))
+  sjekk("kuttlista ber planet kvar del høyrer til", liste.length === 12 && liste.every((k) => plan.some((p) => p.id === k.plan)))
+  sjekk("og adressa er namnet på planet", liste.every((k) => new RegExp(`^${k.plan}[a-z]*$`).test(k.adr)))
 }
 
-// =============================================================================
-// FESTA DELAR
-// =============================================================================
 for (const [inn, vent] of [
-  ["X1:0,0,12.5,340", "X1:0,0,12.5,340"],
-  ["Y3a:1,2,100,50", "Y3a:1,2,100,50"],
-  ["X1:9,0,0,0;X1:0,0,5,5", "X1:0,0,5,5"],        // siste vinn, fyrste er ugyldig plate
-  ["X1:0,4,0,0", ""],                              // kvartsving finst ikkje
-  ["X1:-1,0,0,0", ""],                             // negativ plate
-  ["X1:0,0,-5,0", ""],                             // utanfor plata
-  ["X1:0,0,99999,0", ""],                          // langt utanfor
-  ["X1:0,0,NaN,0", ""],
+  ["1:0,0,12.5,340", "1:0,0,12.5,340"],
+  ["3a:1,2,100,50", "3a:1,2,100,50"],
+  ["1:9,0,0,0;1:0,0,5,5", "1:0,0,5,5"],           // siste vinn, fyrste er ugyldig plate
+  ["1:0,4,0,0", ""],                              // kvartsving finst ikkje
+  ["1:-1,0,0,0", ""],                             // negativ plate
+  ["1:0,0,-5,0", ""],                             // utanfor plata
+  ["1:0,0,99999,0", ""],                          // langt utanfor
+  ["1:0,0,NaN,0", ""],
   ["tull", ""],
   ["<script>:0,0,0,0", ""],
 ] as const) {
@@ -225,10 +102,9 @@ for (const [inn, vent] of [
   sjekk(`fest «${String(inn).slice(0, 26)}»`, fekk === vent, fekk)
 }
 
-const f = clampParams({ ...DEFAULT_PARAMS, fest: "X1:0,0,5,5;tull" }, DEFAULT_PARAMS)
-sjekk("clampParams reinsar fest", f.fest === "X1:0,0,5,5", f.fest)
+const f = clampParams({ ...DEFAULT_PARAMS, fest: "1:0,0,5,5;tull" }, DEFAULT_PARAMS)
+sjekk("clampParams reinsar fest", f.fest === "1:0,0,5,5", f.fest)
 
-// --- og gjennom sjølve pakkinga -------------------------------------------
 const rute = (w: number, h: number): Pt[] => [[0, 0], [w, 0], [w, h], [0, h]]
 const bitar = ["a", "b", "c"].map((key) => ({ key, rings: [rute(100, 100)] }))
 /** kvar ein del hamna, som hjørnet av boksen sin */

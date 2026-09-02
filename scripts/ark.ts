@@ -14,12 +14,15 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
-import { kerfOf, VAFFEL } from "../lib/vaffel/engine"
-import { sheetSvg } from "../lib/vaffel/export-svg"
-import { makePlan } from "../lib/vaffel/plan"
-import { DETAIL } from "../lib/vaffel/ribs"
-import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
+import { kerfOf, MOTOR } from "../lib/motor"
+import { sheetSvg } from "../lib/export-svg"
+import { makeBygg } from "../lib/bygg"
+import { DETAIL } from "../lib/snitt"
+import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import type { ExportKind, ParamBag } from "../lib/core"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
 
 const UT = "bilete"
 const RUTE = { width: 1180, height: 800 }
@@ -54,20 +57,20 @@ const main = async () => {
   const filer: { namn: string; svg: string }[] = []
   const saker: [string, Params][] = [
     ["kube", DEFAULT_PARAMS],
-    ["egg", { ...DEFAULT_PARAMS, kjelde: "egg", ribbX: 8, ribbY: 8, storleik: 200 }],
+    ["egg", { ...DEFAULT_PARAMS, kjelde: "egg", plan: nett(8, 8), storleik: 200 }],
   ]
 
   for (const [namn, p] of saker) {
     const bag = p as unknown as ParamBag
     // uttaka slik brukaren får dei
     for (const kind of ["ark", "prove", "svg", "dxf"] as ExportKind[]) {
-      const o = VAFFEL.exportFile(bag, kind)
+      const o = MOTOR.exportFile(bag, kind)
       const data = o.text ? Buffer.from(o.text) : Buffer.from(new Uint8Array(o.data!))
       writeFileSync(join(UT, o.name), data)
       console.log(`${namn} ${kind.padEnd(6)} → ${o.name} (${data.length} B)`)
     }
     // og kvar einskild plate, til biletet
-    const { ns } = makePlan(p, DETAIL.mid)
+    const { ns } = makeBygg(p, DETAIL.mid)
     ns.sheets.forEach((_, i) => {
       filer.push({
         namn: `ark-${namn}-${i + 1}av${ns.sheets.length}`,
@@ -106,6 +109,6 @@ const main = async () => {
   await browser.close()
 }
 
-const couponOf = (bag: ParamBag) => VAFFEL.exportFile(bag, "prove").text ?? ""
+const couponOf = (bag: ParamBag) => MOTOR.exportFile(bag, "prove").text ?? ""
 
 void main()

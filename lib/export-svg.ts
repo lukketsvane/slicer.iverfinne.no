@@ -32,11 +32,10 @@
  * Alt er i millimeter med viewBox i millimeter, so eit uttak kan skrivast
  * ut i 1:1 utan at nokon må rekne om noko.
  */
-import { nn, offsetPoly, type Pt } from "../core"
-import { fitSize, strokes, strokesAt } from "../stroke"
-import { bokstav } from "./parts"
+import { nn, offsetPoly, type Pt } from "./core"
+import { fitSize, strokes, strokesAt } from "./stroke"
+import { bokstav, type Snitt } from "./snitt"
 import { placedRings, type Nesting } from "./nest"
-import type { Grid } from "./ribs"
 
 const f = (v: number) => (Math.abs(v) < 1e-4 ? "0" : v.toFixed(2))
 /** Ein lukka bane. Eksportert av di plateSYNET teiknar dei same banene som
@@ -135,9 +134,9 @@ export function sheetSvg(n: Nesting, index: number, kerf: number): string {
     for (const h of r.holes) {
       innvendig.push(`<path d="${ring(offsetPoly(h, -kerf / 2))}" ${KUTT}/>`)
     }
-    const size = fitSize(q.part.from, q.label.room, q.label.wide)
+    const size = fitSize(q.part.adr, q.label.room, q.label.wide)
     if (size) {
-      for (const line of strokesAt(q.part.from, q.label.p[0], q.label.p[1], size)) {
+      for (const line of strokesAt(q.part.adr, q.label.p[0], q.label.p[1], size)) {
         gravert.push(`<path d="${open(line)}" ${GRAV}/>`)
       }
     }
@@ -272,35 +271,53 @@ export function couponSvg(
 const SYN_KUTT = "#141414"
 const SYN_GRAV = "#9a9a9a"
 
-export function profileSvg(g: Grid, kerf: number, syn = false): string {
-  const GAP = Math.max(10, g.p.tjukn * 2)
-  const xr = g.ribs.filter((r) => r.axis === "x")
-  const yr = g.ribs.filter((r) => r.axis === "y")
-
-  const extent = (rs: typeof g.ribs) => {
-    let w = 0
-    let h = 0
-    for (const r of rs) {
-      let lo = Infinity
-      let hi = -Infinity
-      let top = 0
-      for (const o of r.outlines) {
-        for (const q of o) {
-          lo = Math.min(lo, q[0])
-          hi = Math.max(hi, q[0])
-          top = Math.max(top, q[1])
-        }
+export function profileSvg(sn: Snitt, kerf: number, syn = false): string {
+  const GAP = 10
+  /**
+   * Ribbene i rader, som på ei plate: éi ribbe etter den andre til rada
+   * er breiare enn den lengste sida av kroppen gonger tre, so ny rad.
+   * Rutenettet la X-familien på éi rad og Y-familien på den neste; med
+   * vilkårlege plan finst det ikkje to familiar, berre lista.
+   */
+  type Lagd = { r: Snitt["ribber"][number]; lo: number; hi: number; top: number }
+  const alle: Lagd[] = []
+  for (const r of sn.ribber) {
+    let lo = Infinity
+    let hi = -Infinity
+    let top = -Infinity
+    let btm = Infinity
+    for (const o of r.outlines) {
+      for (const q of o) {
+        lo = Math.min(lo, q[0])
+        hi = Math.max(hi, q[0])
+        top = Math.max(top, q[1])
+        btm = Math.min(btm, q[1])
       }
-      if (!Number.isFinite(lo)) continue
-      w += hi - lo + GAP
-      h = Math.max(h, top)
     }
-    return { w: w + GAP, h }
+    // Ei ribbe som ikkje råka nettet har ingen profil, og skal ikkje leggje
+    // att ei tom luke i rada heller.
+    if (!Number.isFinite(lo)) continue
+    alle.push({ r, lo, hi, top: top - btm })
   }
-  const ex = extent(xr)
-  const ey = extent(yr)
-  const W = Math.max(ex.w, ey.w, 10)
-  const H = ex.h + ey.h + 3 * GAP + 24
+  const s = sn.k.solid
+  const taket = Math.max(600, 3 * Math.max(s.max[0] - s.min[0], s.max[1] - s.min[1], s.max[2] - s.min[2]))
+  const rader: Lagd[][] = [[]]
+  let bx = GAP
+  for (const l of alle) {
+    const w = l.hi - l.lo
+    if (rader[rader.length - 1].length && bx + w > taket) {
+      rader.push([])
+      bx = GAP
+    }
+    rader[rader.length - 1].push(l)
+    bx += w + GAP
+  }
+  let W = 10
+  let H = GAP
+  for (const rad of rader) {
+    W = Math.max(W, rad.reduce((a, l) => a + l.hi - l.lo + GAP, GAP))
+    H += rad.reduce((a, l) => Math.max(a, l.top), 0) + GAP + 12
+  }
   // Synet i panelet er vist tjue gonger for lite. Ein strek som er rett
   // på ei plate er ingen strek i det heile der.
   const w = syn ? pen(Math.max(W, H)) * 2.2 : pen(Math.max(W, H))
@@ -323,41 +340,27 @@ export function profileSvg(g: Grid, kerf: number, syn = false): string {
   const innvendig: string[] = []
   const omriss: string[] = []
 
-  let yOff = GAP + ex.h
-  for (const rs of [xr, yr]) {
+  let yOff = GAP
+  for (const rad of rader) {
+    const h = rad.reduce((a, l) => Math.max(a, l.top), 0)
+    yOff += h
     let x = GAP
-    for (const r of rs) {
-      let lo = Infinity
-      let hi = -Infinity
-      for (const o of r.outlines) {
-        for (const q of o) {
-          lo = Math.min(lo, q[0])
-          hi = Math.max(hi, q[0])
-        }
-      }
-      if (!Number.isFinite(lo)) continue
+    for (const { r, lo, hi } of rad) {
+      let btm = Infinity
+      for (const o of r.outlines) for (const q of o) btm = Math.min(btm, q[1])
       // Y vert spegla: SVG reknar nedover, og ei ribbe står oppreist. Etter
       // speglinga snur ytterkant og hòl om på vindinga, so skuvet er alt
       // rekna FØR henne.
       const lagd = (q: Pt[], d: number) =>
-        offsetPoly(q, d).map((p) => [x + (p[0] - lo), yOff - p[1]] as Pt)
-      // ADRESSA SKAL VERA DEN SOM STÅR PÅ DELEN.
-      //
-      // Kuttlista og kuttarket gjev kvart STYKKE si adresse — «X3a»,
-      // «X3b» — av di ei ribbe kan vera delt. Profilarket gav éi adresse
-      // per RIBBE, og skreiv «X3». Den som står med plata merkt X3b fann
-      // ingen X3b på profilarket, berre ein X3 som er to plater.
-      //
-      // Bokstavane kjem frå `buildParts`, som går dei same omrissa i den
-      // same rekkjefylgja og ikkje hoppar over noko, so dei to listene
-      // ikkje kan gli frå kvarandre. Kvar adresse står under sitt eige
-      // stykke og ikkje ved kanten av heile rada.
+        offsetPoly(q, d).map((p) => [x + (p[0] - lo), yOff - (p[1] - btm)] as Pt)
+      // ADRESSA SKAL VERA DEN SOM STÅR PÅ DELEN: kvart STYKKE si adresse,
+      // «3a», «3b», med bokstavane frå den same rekkjefylgja som
+      // `buildDelar` går omrissa i, so dei to listene ikkje kan gli.
       const fleire = r.outlines.length > 1
-      const base = r.axis.toUpperCase() + (r.k + 1)
       r.outlines.forEach((o, i) => {
         let olo = Infinity
         for (const q of o) olo = Math.min(olo, q[0])
-        const adr = base + (fleire ? bokstav(i) : "")
+        const adr = String(r.plan.id) + (fleire ? bokstav(i) : "")
         for (const line of nedover(strokes(adr, x + (olo - lo) + 1, 0, 8), yOff + 11)) {
           gravert.push(`<path d="${open(line)}" ${GRAV}/>`)
         }
@@ -370,7 +373,7 @@ export function profileSvg(g: Grid, kerf: number, syn = false): string {
       }
       x += hi - lo + GAP
     }
-    yOff += ey.h + GAP + 12
+    yOff += GAP + 12
   }
   out.push(...gravert, ...innvendig, ...omriss)
   out.push("</svg>")

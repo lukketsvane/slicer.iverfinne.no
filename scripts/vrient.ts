@@ -17,15 +17,18 @@
  *
  *   npx tsx scripts/vrient.ts
  */
-import { VAFFEL } from "../lib/vaffel/engine"
-import { DEFAULT_PARAMS, PARAM_RANGES, type Params } from "../lib/vaffel/params"
+import { MOTOR } from "../lib/motor"
+import { DEFAULT_PARAMS, PARAM_RANGES, type Params } from "../lib/params"
 import { parseMesh } from "../lib/io"
 import { unzip } from "../lib/zip"
-import { meshToStl } from "../lib/vaffel/export-stl"
+import { meshToStl } from "../lib/export-stl"
 import { bounds, makeSoup, weld } from "../lib/soup"
 import { taubin } from "../lib/mesh/smooth"
 import { put } from "../lib/sources"
 import type { ExportKind, Metrics, ParamBag } from "../lib/core"
+
+import { rutenett, skrivPlan } from "../lib/plan"
+const ruter = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 let brot = 0
 let saker = 0
@@ -156,7 +159,7 @@ function sjekk(namn: string, p: Params, vis = false) {
   const bag = p as unknown as ParamBag
   let m
   try {
-    m = VAFFEL.measure(bag)
+    m = MOTOR.measure(bag)
   } catch (e) {
     return feil(namn, `måling kasta: ${(e as Error).message}`)
   }
@@ -173,7 +176,7 @@ function sjekk(namn: string, p: Params, vis = false) {
 
   let r
   try {
-    r = VAFFEL.rules(bag, m)
+    r = MOTOR.rules(bag, m)
   } catch (e) {
     return feil(namn, `reglane kasta: ${(e as Error).message}`)
   }
@@ -183,7 +186,7 @@ function sjekk(namn: string, p: Params, vis = false) {
 
   for (const view of ["flate", "lag", "kontur"] as const) {
     try {
-      const b = VAFFEL.build(bag, "mid", view)
+      const b = MOTOR.build(bag, "mid", view)
       for (let i = 0; i < 3; i++) {
         if (!endeleg(b.min[i]) || !endeleg(b.max[i])) {
           feil(namn, `boksen til «${view}» er ${b.min}..${b.max}`)
@@ -201,7 +204,7 @@ function sjekk(namn: string, p: Params, vis = false) {
   const storleik: string[] = []
   for (const kind of ["stl", "dxf", "svg", "ark", "prove"] as ExportKind[]) {
     try {
-      const o = VAFFEL.exportFile(bag, kind)
+      const o = MOTOR.exportFile(bag, kind)
       const n = o.text?.length ?? o.data?.byteLength ?? 0
       storleik.push(`${kind} ${n}`)
       if (!o.name) feil(namn, `uttaket ${kind} har ikkje namn`)
@@ -318,7 +321,7 @@ console.log("\nlukka nett skal meldast lukka")
       pos.push(...a, ...b, ...c, ...a, ...c, ...d)
     }
   put("v-tett-kule", "tett-kule", makeSoup(new Float32Array(pos)))
-  const m = VAFFEL.measure({ ...DEFAULT_PARAMS, kjelde: "v-tett-kule" } as unknown as ParamBag)
+  const m = MOTOR.measure({ ...DEFAULT_PARAMS, kjelde: "v-tett-kule" } as unknown as ParamBag)
   if (m.openEdges !== 0) feil("tett kule", `${m.openEdges} opne kantar på ei lukka flate`)
   console.log(`  ei UV-kule med polar: ${m.openEdges} opne kantar`)
 }
@@ -338,7 +341,7 @@ console.log("\nsame geometri, same svar")
   put("v-skøyt-opp", "skøyt-opp", makeSoup(new Float32Array(opp)))
   saker++
   const tal = (kjelde: string) => {
-    const m = VAFFEL.measure({ ...DEFAULT_PARAMS, kjelde } as unknown as ParamBag)
+    const m = MOTOR.measure({ ...DEFAULT_PARAMS, kjelde } as unknown as ParamBag)
     return `${m.parts} delar · ${m.joints} ledd · ${m.cutLen.toFixed(1)} mm kutt · ${m.envZ.toFixed(1)} mm høg`
   }
   const a = tal("v-skøyt-ned")
@@ -405,9 +408,9 @@ console.log("det du lagrar er det du opnar")
   const lest = parseMesh("kule.stl", stl.buffer.slice(0) as ArrayBuffer)
   put("v-lagra", "kule.stl", lest, new Uint8Array(stl))
 
-  const p: Params = { ...DEFAULT_PARAMS, kjelde: "v-lagra", storleik: 220, ribbX: 7, ribbY: 7, tjukn: 4 }
+  const p: Params = { ...DEFAULT_PARAMS, kjelde: "v-lagra", storleik: 220, plan: ruter(7, 7), tjukn: 4 }
   const bag = p as unknown as ParamBag
-  const pro = VAFFEL.exportFile(bag, "prosjekt")
+  const pro = MOTOR.exportFile(bag, "prosjekt")
   const inni = unzip(pro.data as ArrayBuffer)
   const opp = inni.find((f) => f.name === "oppsett.json")
   const nett = inni.find((f) => f.name.startsWith("nett/"))
@@ -417,15 +420,15 @@ console.log("det du lagrar er det du opnar")
     const lese = (JSON.parse(new TextDecoder().decode(opp.data)) as { p: ParamBag }).p
     const attende = parseMesh(nett.name.slice(5), new Uint8Array(nett.data).buffer.slice(0) as ArrayBuffer)
     put("v-attende", "attende", attende)
-    const b = VAFFEL.exportFile({ ...lese, kjelde: "v-attende" }, "dxf").text ?? ""
-    const a = VAFFEL.exportFile(bag, "dxf").text ?? ""
+    const b = MOTOR.exportFile({ ...lese, kjelde: "v-attende" }, "dxf").text ?? ""
+    const a = MOTOR.exportFile(bag, "dxf").text ?? ""
     if (a !== b) feil("prosjekt", `DXF-en er ein annan etter opning (${a.length} mot ${b.length} teikn)`)
     console.log(`  prosjekt: ${inni.length} filer, ${attende.tris} trekantar attende, same DXF: ${a === b}`)
   }
 
   // og «alt» skal ha kvar einaste fil i seg
   saker++
-  const alt = VAFFEL.exportFile(bag, "alt")
+  const alt = MOTOR.exportFile(bag, "alt")
   const filer = unzip(alt.data as ArrayBuffer).map((f) => f.name)
   const mangler = ["stl", "dxf", "profilar.svg", "passprove", "kuttliste.csv", "oppsett.json"].filter(
     (q) => !filer.some((n) => n.includes(q)),
@@ -509,20 +512,23 @@ for (const k of Object.keys(PARAM_RANGES)) {
 
 console.log("\nvriene kombinasjonar")
 const KOMBI: [string, Partial<Params>][] = [
-  ["ei ribbe kvar veg", { ribbX: 1, ribbY: 1 }],
-  ["alt på ei ribbe", { ribbX: 32, ribbY: 1 }],
-  ["tett rutenett i tjukk plate", { ribbX: 32, ribbY: 32, tjukn: 25 }],
+  ["eitt plan kvar veg", { plan: ruter(1, 1) }],
+  ["alt på eitt plan", { plan: ruter(32, 1) }],
+  ["ingen plan", { plan: "" }],
+  ["berre skrå plan", { plan: "1@0.5,0.5,0.5/0.577,0.577,0.577;2@0.5,0.5,0.5/-0.577,0.577,0.577;3@0.5,0.5,0.5/0.577,-0.577,0.577" }],
+  ["plan utanfor kroppen", { plan: "1@1.4,0.5,0.5/1,0,0;2@0.5,-0.4,0.5/0,1,0" }],
+  ["tett rutenett i tjukk plate", { plan: ruter(32, 32), tjukn: 25 }],
   ["tjukkare plate enn objekt", { storleik: 40, tjukn: 25 }],
   ["snitt breiare enn godset", { snitt: 6, tjukn: 2 }],
   ["minsteark, størst objekt", { storleik: 1200, arkB: 200, arkH: 200 }],
   ["glatta i hel", { glatt: 24, trekant: 0.5 }],
   ["vend i alle tre", { rotX: 180, rotY: 180, rotZ: 180 }],
   ["lause tekne med", { lause: 0, kjelde: "v-nål" }],
-  ["nål med 32 ribber", { kjelde: "v-nål", ribbX: 32, ribbY: 32 }],
+  ["nål med 32 plan", { kjelde: "v-nål", plan: ruter(32, 32) }],
   ["flatt ark, tjukk plate", { kjelde: "v-flatt ark", tjukn: 25 }],
   // Ingen del får plass på plata. Delane finst, arka gjer det ikkje, og
   // det var her DXF-en og arket kom ut som tomme dokument.
-  ["for stort for plata", { storleik: 900, ribbX: 14, ribbY: 14, tjukn: 6, arkB: 400, arkH: 300 }],
+  ["for stort for plata", { storleik: 900, plan: ruter(14, 14), tjukn: 6, arkB: 400, arkH: 300 }],
 ]
 for (const [namn, over] of KOMBI) sjekk(namn.padEnd(20), { ...DEFAULT_PARAMS, ...over })
 
@@ -537,12 +543,15 @@ const SØPPEL: unknown[] = [
   { storleik: NaN },
   { storleik: Infinity },
   { storleik: -Infinity },
-  { ribbX: 1e9 },
+  { plan: "1@0.5,0.5,0.5/0,0,0" },
+  { plan: "1@0.5,0.5,0.5/1,0,0;1@0.5,0.5,0.5/0,1,0" },
+  { plan: "x".repeat(5000) },
+  { plan: "1@NaN,0,0/1,0,0;2@0.5,0.5,0.5/Infinity,0,0" },
   // Botnen på ribbene er to. Ei lenkje som ber 1 — eller 0, eller eit
   // negativt tal — skal kome ut på to og ikkje på det ho bad om: sløyfa
   // under les kvart band og ville teke det.
-  { ribbX: 1, ribbY: 1 },
-  { ribbX: 0, ribbY: -5 },
+  { plan: ruter(1, 1) },
+  { plan: Array.from({ length: 300 }, (_, i) => `${i + 1}@0.5,0.5,0.5/1,0,0`).join(";") },
   { tjukn: "tjukk" },
   { kjelde: "../../etc/passwd" },
   { kjelde: "x".repeat(400) },
@@ -552,7 +561,7 @@ const SØPPEL: unknown[] = [
   Object.fromEntries(Object.keys(PARAM_RANGES).map((k) => [k, NaN])),
 ]
 for (const s of SØPPEL) {
-  const q = VAFFEL.clamp(s, DEFAULT_PARAMS as unknown as ParamBag) as unknown as Params
+  const q = MOTOR.clamp(s, DEFAULT_PARAMS as unknown as ParamBag) as unknown as Params
   const daarleg = Object.entries(q).filter(
     ([k, v]) => typeof v === "number" && !Number.isFinite(v as number) && k !== "list",
   )
@@ -592,8 +601,8 @@ type Rørt = {
 const RØRER: Rørt[] = [
   { k: "material", v: "papp", les: (m) => m.mass },
   { k: "tjukn", v: 6, les: (m) => m.slotW },
-  { k: "ribbX", v: 9, les: (m) => m.parts },
-  { k: "ribbY", v: 9, les: (m) => m.parts },
+  { k: "plan", v: ruter(9, 9), les: (m) => m.parts },
+  { k: "plan", v: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.5/0,0.7071,0.7071", les: (m) => m.parts },
   { k: "storleik", v: 300, les: (m) => m.envX },
   { k: "klaring", v: 0.4, les: (m) => m.slotW },
   // Mindre plate, ikkje større: standarden er 600 x 400, og kuben får
@@ -613,10 +622,10 @@ console.log("\nkvar skyvar må røre noko")
   const grunn = { ...DEFAULT_PARAMS, kjelde: "kube" }
   const les = (p: Params) => {
     const bag = p as unknown as ParamBag
-    const m = VAFFEL.measure(bag)
+    const m = MOTOR.measure(bag)
     // Uttaket er summen av teiknetala i profilarket: han flyttar seg når
     // snittkompensasjonen gjer det, og står stille elles.
-    const svg = VAFFEL.exportFile(bag, "svg").text ?? ""
+    const svg = MOTOR.exportFile(bag, "svg").text ?? ""
     let sum = 0
     for (const t of svg.match(/-?\d+\.\d+/g) ?? []) sum += Number(t)
     return { m, uttak: sum }
@@ -688,13 +697,13 @@ function lesZip(buf: ArrayBuffer): { name: string; text: string }[] {
 console.log("\npakka må kunne opnast")
 for (const [namn, over] of [
   ["seks små plater", { storleik: 150, arkB: 400, arkH: 300 }],
-  ["seks store plater", { storleik: 400, ribbX: 12, ribbY: 9, tjukn: 6, arkB: 1200, arkH: 900 }],
+  ["seks store plater", { storleik: 400, plan: ruter(12, 9), tjukn: 6, arkB: 1200, arkH: 900 }],
 ] as [string, Partial<Params>][]) {
   saker++
-  const o = VAFFEL.exportFile({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag, "ark")
+  const o = MOTOR.exportFile({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag, "ark")
   // Éi plate er éi fil og ingen pakke. Er det fleire, MÅ det vera ei
   // pakke — kjem det ei enkelt fil då, har ei plate forsvunne.
-  const ark = VAFFEL.measure({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag).sheets
+  const ark = MOTOR.measure({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag).sheets
   if (!o.data) {
     if (ark > 1) feil(namn, `${ark} plater, men uttaket er éi enkelt fil`)
     else console.log(`  ${namn.padEnd(14)} ${ark} plate, ingen pakke`)
@@ -721,12 +730,12 @@ for (const [namn, over] of [
      */
     if (filer.length !== ark) feil(namn, `${ark} plater, ${filer.length} filer i pakka`)
     for (let i = 0; i < Math.min(filer.length, ark); i++) {
-      const fasit = VAFFEL.arkSyn({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag, i).svg
+      const fasit = MOTOR.arkSyn({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag, i).svg
       if (filer[i].text !== fasit) {
         // kva plate ER det, om det ikkje er den rette?
         let er = -1
         for (let k = 0; k < ark; k++) {
-          if (filer[i].text === VAFFEL.arkSyn({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag, k).svg) er = k
+          if (filer[i].text === MOTOR.arkSyn({ ...DEFAULT_PARAMS, ...over } as unknown as ParamBag, k).svg) er = k
         }
         feil(
           namn,

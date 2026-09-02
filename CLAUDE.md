@@ -79,13 +79,18 @@ English one would read better to you.
 
 `lib/core.ts` is what everything else reads from: what a parameter is, what a
 metric is, what a rule is, and the geometry the slicing, the measuring and the
-cut files all share. It knows nothing about waffle, cube or STL. A change that
-teaches it about one of those is in the wrong file.
+cut files all share. It knows nothing about planes, cube or STL. A change that
+teaches it about one of those is in the wrong file. `lib/plan.ts` is what a
+cutting plane is — a name, a point and a normal in the body's space, encoded as
+the `plan` string in the parameter bag — and it knows nothing about meshes.
 
-Read `README.md` before changing behaviour. The decisions in it are decisions,
-not accidents — it is a laser tool with no cutter diameter, colour is the
-operation and carries the order, kerf is taken exactly once, slots are cut in
-the field and not in the polygon, and there are two colours and no more.
+Read `README.md` and `REBUILD.md` before changing behaviour. The decisions in
+them are decisions, not accidents — the phone is the tool, a sketched plane is
+invisible until locked, a locked plane stays where you put it, names belong to
+the part and never get reused, it is a laser tool with no cutter diameter,
+colour is the operation and carries the order, kerf is taken exactly once,
+slots are cut in the field and not in the polygon, and there are two colours
+and no more.
 
 ## Verify with the harnesses, not by eye
 
@@ -97,12 +102,12 @@ pnpm build    # webpack (never Turbopack), then guards that the worker bundled
 pnpm probe    # engine without a browser: parts, joints, cut length, files
 pnpm rekkje   # reads the cut files back: engrave, inner cuts, outline, in order
 pnpm vrient   # meshes that aren't meshes, sliders at both ends, a hostile URL
-pnpm ledd     # every joint the panel counted, found again in the cut profiles
+pnpm ledd     # every joint the panel counted, found again in the cut profiles — grids and oblique planes
 pnpm raad     # breaks each rule, presses the fix it offers, checks it worked
 pnpm glb      # writes GLB files with known geometry and reads them back
 pnpm pakk     # redraws every sheet and counts cells — catches overlaps
-pnpm hand     # låste ribber: å røre éi skal la dei andre stå
-pnpm djup     # the deep search: the profile measures shape, the answers are real
+pnpm hand     # the plane list as a string: hostile input, one edit leaves the rest, names never reused
+pnpm djup     # the proposals: the profile measures shape, the answers are real
 pnpm tung     # a million triangles in, and how long that takes
 pnpm ark      # cut sheets as images
 pnpm look     # screenshots of the page, and any console errors
@@ -124,4 +129,6 @@ is the one thing this project has no way to catch later.
   webpack and fails if it happens anyway.
 - **The main thread only draws.** All geometry belongs in `lib/worker.ts` and
   what it calls. A metric computed in a component is a metric that will drift
-  from the cut file.
+  from the cut file. The one thing the main thread computes is the sketch
+  plane itself — a point and a normal from the camera — because that is the
+  input, not a result.
