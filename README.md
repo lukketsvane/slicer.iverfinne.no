@@ -55,7 +55,8 @@ no radius.
    each broken rule carries the button that fixes it.
 7. **Export ARK** and open it in LightBurn.
 
-Every change is undoable, by the arrow in the panel or by `Z`.
+Every change is undoable and redoable: the two arrows at the top, or `Z` and
+`⇧Z`.
 
 ## Two surfaces
 
@@ -78,7 +79,7 @@ it. Tap empty space to deselect; the row's `slett` removes the plane.
 pinch zooms, nothing turns, and double-tap takes you home.
 
 Keys: `L` lock, `S` sketch mode, `⌫` remove the selected plane, `F` proposals,
-`D` deep search, `Z` undo, `1` `2` `3` views, `Esc` close.
+`D` deep search, `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 
 **Three ways to keep an afternoon's work.** The link carries every setting —
 planes included — and no mesh. **LAGRE** gives a project file carrying both.
