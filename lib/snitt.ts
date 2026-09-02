@@ -526,9 +526,13 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
      */
     const holesOf = (o: Pt[]) => (outlines.length === 1 ? holes : holes.filter((h) => inRing(o, h[0])))
     const netto = (o: Pt[]) => holesOf(o).reduce((s, h) => s - Math.abs(shoelace(h)), Math.abs(shoelace(o)))
+    // Berre ØYER vert kasta: eit stykke utan ledd i ei ribbe som elles har
+    // ledd — øyretippen, hoven. Eit plan utan eit einaste ledd er noko anna:
+    // det er det fyrste planet du låste, og skal stå der so du ser det. At
+    // det heng i ingenting seier regelen, ikkje tomrommet.
     const heil = outlines.filter((o) => {
       if (netto(o) < MIN_AREA) return false
-      if (p.lause && jointsIn(a.spor, o) === 0) {
+      if (p.lause && a.spor.length && jointsIn(a.spor, o) === 0) {
         kasta++
         return false
       }

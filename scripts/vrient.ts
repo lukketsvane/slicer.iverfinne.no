@@ -596,7 +596,8 @@ type Rørt = {
   les: (m: Metrics, uttak: number) => number
   /** kva objekt skyvaren har noko å seie på. Kuben har tolv trekantar og
    *  ingen lause stykke, so han kan ikkje prøve forenkling eller kasting. */
-  kjelde?: string
+  kjelde?: string  /** og kva plan, om ikkje rutenettet */
+  plan?: string
 }
 const RØRER: Rørt[] = [
   { k: "material", v: "papp", les: (m) => m.mass },
@@ -612,7 +613,10 @@ const RØRER: Rørt[] = [
   { k: "fart", v: 60, les: (m) => m.cutTime },
   { k: "glatt", v: 12, les: (m) => m.cutLen, kjelde: "v-kule" },
   { k: "trekant", v: 1, les: (m) => m.tris, kjelde: "v-kule" },
-  { k: "lause", v: 0, les: (m) => m.parts + m.loose, kjelde: "v-torus" },
+  // Eit ståande torus-ledd: eitt loddrett plan gjev to øyer, og eit lågt
+  // vassrett plan gjev berre den nedste eit ledd. Den øvste er ei laus øy,
+  // og det er berre ØYER «kast» tek — eit heilt plan utan ledd står.
+  { k: "lause", v: 0, les: (m) => m.parts, kjelde: "v-torus", plan: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.15/0,0,1" },
   { k: "snitt", v: 0.5, les: (_m, uttak) => uttak },
   { k: "snittveg", v: 1, les: (_m, uttak) => uttak },
 ]
@@ -632,7 +636,7 @@ console.log("\nkvar skyvar må røre noko")
   }
   for (const r of RØRER) {
     saker++
-    const base = { ...grunn, ...(r.kjelde ? { kjelde: r.kjelde, rotX: 90 } : {}) } as Params
+    const base = { ...grunn, ...(r.kjelde ? { kjelde: r.kjelde, rotX: 90 } : {}), ...(r.plan ? { plan: r.plan } : {}) } as Params
     const fyrst = les(base)
     const etter = les({ ...base, [r.k]: r.v } as Params)
     const a = r.les(fyrst.m, fyrst.uttak)
