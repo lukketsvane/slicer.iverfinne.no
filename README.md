@@ -215,7 +215,7 @@ multiply in every joint.
 | `storleik` | size | longest side, 40–1200 mm |
 | `rotX/Y/Z` | rotation | ±180° |
 | `glatt` | smoothing | 0–24 Taubin passes |
-| `trekant` | triangle budget | 0.5–60 k, by vertex clustering |
+| `trekant` | triangle budget | 0.5–60 k, by vertex clustering; 40 k by default |
 | `forenkl` `hol` | cut profile | how far the cut may stray, and the smallest hole worth cutting |
 | `scene` | the body | pieces: source, place, size, turn, as a string |
 | `plan` | the planes | name, point, normal and strokes, as a string |
@@ -264,6 +264,15 @@ GLB / glTF / STL / OBJ / PLY
 **A mesh is a shell, not a solid.** Rays make it one: count which way each
 triangle faces, sum rather than parity, because scans have overlapping shells
 and parity reads the overlap as a hole.
+
+**Two resolutions decide how the parts look**, and they are not the same
+thing. `trekant` is the mesh budget — 40 000 triangles by default, which is
+what a scanned or modelled figure needs before it stops looking faceted. The
+sampling grid is the other: 220 cells along the longest side for everything
+that is measured, cut or drawn on screen (a coarser 120 while a finger is
+still moving, and the fine build lands when it stops). The screen and the cut
+file are built at the same number on purpose — the phone used to be pinned to
+the coarse level, so it showed stair-steps that were not in the file.
 
 **An oblique plane has no axis to shoot along, so the body is turned** — a
 right-handed rotation of the vertex soup per plane orientation, cached — and

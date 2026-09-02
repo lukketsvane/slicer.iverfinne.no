@@ -261,6 +261,13 @@ export const snittKey = (p: ParamBag, cells: number) =>
  * Resten er den maskina folk faktisk står ved. Tre millimeter MDF er det
  * som ligg i hylla på eit makerspace, og 600 × 400 er bordet på den
  * vanlege CO2-laseren — «6040» heiter han i katalogen.
+ *
+ * Trekanttaket er FØRTI tusen og ikkje tjue. Tjue tusen er nok til å måle
+ * ein kropp med, men ikkje til å sjå på: ein skanna eller modellert figur
+ * kjem ut med fasettar du kan telje, og det fyrste brukaren gjer er å tru
+ * at det er reiskapen som er grov. Kostnaden er lita — snittinga spør
+ * strålestrukturen og ikkje kvar trekant — og skyvaren går framleis frå ein
+ * halv til seksti.
  */
 export const DEFAULT_PARAMS: Params = {
   kjelde: "kube",
@@ -272,7 +279,7 @@ export const DEFAULT_PARAMS: Params = {
   rotZ: 0,
 
   glatt: 0,
-  trekant: 20,
+  trekant: 40,
 
   forenkl: 0,
   hol: 0,
