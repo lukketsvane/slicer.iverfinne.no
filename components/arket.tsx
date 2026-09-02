@@ -6,19 +6,19 @@ import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import type { Plan } from "@/lib/plan"
 import type { Kandidat } from "@/lib/forslag"
 import {
-  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoFerdig, IcoFinn, IcoLaas, IcoReset, IcoSkisse, IcoSliders, IcoStopp, IcoUttak,
+  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoFinn, IcoReset, IcoSliders, IcoStopp, IcoUttak,
   Reglar, Ring, SliderRow, TASTAR, Tavla, chipStyle, n0, num, stengd, tjukn, useLangtrykk,
 } from "./deler"
 import type { VerktyId } from "./verkty"
-import type { Modus } from "./scene"
 
 /**
  * ARKET. Tre høgder på ein telefon: éi line, midten av jobben, alt. På
  * benken er det ei fast spalte til høgre med det same innhaldet.
  *
  * Lina er det som avgjer om uttaket er verdt å skjere: kor mange plan, kor
- * mange delar, kor mange plater, kor lang tid — og det du gjer med det:
- * lås, skissemodusen, forslag, og uttaket eitt trykk unna. Midten er plana
+ * mange delar, kor mange plater, kor lang tid — og forslag og uttaket eitt
+ * trykk unna. Sjølve handlinga, skjer, står ikkje her: ho står under høgre
+ * tommel, i spalta over arket (sjå studio.tsx). Midten er plana
  * du har låst — berre dei låste; eit skissa plan finst ikkje nokon annan
  * stad enn på lerretet. Alt er resten: materialet, skyvarane, tavla,
  * uttaka, verktya. Fila, lesemåtane, angre og lenkja står i topplina.
@@ -45,11 +45,6 @@ export type ArketProps = {
   params: ParamBag
   onChange: (p: ParamBag) => void
   view: View
-  /** gestmodusen: «form» eller «skisse», og brytaren */
-  modus: Modus
-  onModus: () => void
-  /** råkar skissa kroppen? Låsen pulserer fyrste gongen ho gjer det. */
-  raakar: boolean
   /** kor høg topplina er: kolonna på benken byrjar under henne */
   topp: number
   metrics: Metrics | null
@@ -59,7 +54,6 @@ export type ArketProps = {
   vald: number | null
   onVald: (id: number | null) => void
   onSlett: (id: number) => void
-  onLaas: () => void
   busy: boolean
   feil: string | null
   melding: string | null
@@ -91,8 +85,9 @@ function Lina({ p }: { p: ArketProps }) {
   if (hentar) return <span className="dim">les fila …</span>
   if (!m) return <span className="dim">snittar …</span>
   const raud = new Set(rules.filter((r) => !r.ok && r.hard && r.rad).map((r) => r.rad))
-  const tal = [
-    { id: "plan", text: `${plan.length} plan` },
+  const tal: { id: string; text: string; nokkel?: number; smal?: boolean }[] = [
+    // talet tikkar når det endrar seg: nøkkelen er talet sjølv
+    { id: "plan", text: `${plan.length} plan`, nokkel: plan.length },
     { id: "delar", text: `${n0(m.parts)} delar` },
     { id: "ark", text: `${n0(m.sheets)} ark` },
     // tida er det fyrste som må vike på ein smal telefon: ho står òg i tavla
@@ -103,7 +98,7 @@ function Lina({ p }: { p: ArketProps }) {
       {tal.map((t, i) => (
         <span key={t.id} className={t.smal ? "hidden min-[430px]:inline" : undefined}>
           {i > 0 && <span className="px-0.5 opacity-30">·</span>}
-          <span style={raud.has(t.id) ? { color: "var(--warn)" } : { opacity: 0.62 }}>{t.text}</span>
+          <span key={t.nokkel} className={t.nokkel !== undefined ? "tikk" : undefined} style={raud.has(t.id) ? { color: "var(--warn)" } : { opacity: 0.62 }}>{t.text}</span>
         </span>
       ))}
     </>
@@ -113,7 +108,7 @@ function Lina({ p }: { p: ArketProps }) {
 /** éi rad per låst plan: namn, kva det er, stykke og ledd, og vegen ut */
 function Plana({ p }: { p: ArketProps }) {
   if (!p.plan.length) {
-    return <p className="dim py-3 text-[11px]">ingen plan enno. sikt med to fingrar, og lås.</p>
+    return <p className="dim py-3 text-[11px]">ingen plan enno. snu, sikt, og skjer.</p>
   }
   return (
     <ul className="py-1" role="listbox" aria-label="plan">
@@ -297,17 +292,6 @@ export function Arket(p: ArketProps): JSX.Element {
     if (steg === "alt") uttak.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
     else setVisUttak((v) => !v)
   }
-  // låsen pulserer ÉIN gong: fyrste gongen skissa råkar kroppen
-  const [puls, setPuls] = useState(false)
-  const pulsa = useRef(false)
-  useEffect(() => {
-    if (!p.raakar || pulsa.current) return
-    pulsa.current = true
-    setPuls(true)
-    const t = window.setTimeout(() => setPuls(false), 1200)
-    return () => window.clearTimeout(t)
-  }, [p.raakar])
-
   // Kor mykje av ruta arket tek, MÅLT: kameraet stiller objektet inn i det
   // som er att. Grovkorna, so ei line til i arket ikkje rykkjer kameraet.
   const el = useRef<HTMLElement | null>(null)
@@ -339,35 +323,8 @@ export function Arket(p: ArketProps): JSX.Element {
 
   const linja = (
     <div className="flex items-center gap-1 px-2 py-2">
-      {/* LÅSEN er handlinga: skissa vert ein del. Med eit plan valt er
-          skissa gøymd, og knappen slepp valet i staden. Prikken i hjørnet
-          er motoren som reknar. */}
-      <button
-        type="button"
-        onClick={p.vald === null ? p.onLaas : () => p.onVald(null)}
-        disabled={p.view === "kontur"}
-        aria-label={p.vald === null ? "lås" : "ferdig"}
-        title={p.vald === null ? "lås skisseplanet: det vert ein del (L)" : "ferdig med planet (esc)"}
-        className={"hit flex h-10 w-12 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-30" + (puls ? " puls" : "")}
-        style={{ background: "var(--ink)", color: "var(--paper)" }}
-      >
-        {p.vald === null ? IcoLaas : IcoFerdig}
-        <span aria-hidden="true" className="absolute -right-px -top-px h-2 w-2 rounded-full" style={{ background: "var(--paper)", boxShadow: "0 0 0 1.5px var(--ink)", opacity: p.busy && !tunar ? 1 : 0, transition: "opacity 200ms ease" }} />
-      </button>
-      {/* SKISSEMODUSEN: to fingrar arbeider på planet — dra flyttar, vri
-          vinklar, klyp zoomar. Av er «form»: klyp storleiken, vri vendinga. */}
-      <button
-        type="button"
-        aria-pressed={p.modus === "skisse"}
-        aria-label="skisse"
-        title={p.modus === "skisse" ? "skissemodus (S): to fingrar dreg, vrir og zoomar snittet. trykk for form" : "form (S): to fingrar klyp storleiken, vrir vendinga, dreg snittet. trykk for skisse"}
-        onClick={p.onModus}
-        className={ICON_BTN}
-        style={chipStyle(p.modus === "skisse")}
-      >
-        {IcoSkisse}
-      </button>
-      <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className="hit tab min-w-0 flex-1 truncate rounded-lg pl-1 text-left text-[10px] tracking-[0.04em]" aria-label="plan, delar, ark og tid">
+      {/* tala fyrst: dei er det lina er til. Skjer og skissebrytaren står i tommelspalta. */}
+      <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className="hit tab min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em]" aria-label="plan, delar, ark og tid">
         <Lina p={p} />
       </button>
       <button

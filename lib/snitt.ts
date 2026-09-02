@@ -35,7 +35,7 @@ import { bbox, inRing, MATERIALS, MIN_AREA, perimeter, shoelace, type Material, 
 import { contour, simplify } from "./contour"
 import type { Solid, Span } from "./mesh/solid"
 import { vend, type Kropp } from "./kropp"
-import { akser, cross, dot, kryss, len3, lesPlan, mul3, type Plan, type Ramme, type Strek } from "./plan"
+import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, type Plan, type Ramme, type Strek } from "./plan"
 import { snittKey, type Params } from "./params"
 
 /** ruter langs den lengste sida av objektet, per detaljnivå */
@@ -458,7 +458,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     let felt3: Vec3 | null = null
     for (let i = 0; i < j; i++) {
       const A = raa[i]
-      const x = kryss(A.r, B.r)
+      const x = kryssAv(A.r, B.r)
       if (!x) continue
       const d3 = kanonisk(x.d)
       // helst nedover; på ei vassrett line er retninga eit val, og valet
@@ -710,4 +710,61 @@ export function buildDelar(sn: Snitt, p: Params): DelListe {
     cutLen: delar.reduce((s, q) => s + q.cutLen, 0),
     lause: delar.filter((q) => q.joints === 0).length,
   }
+}
+
+// =============================================================================
+// SKISSA — eitt plan, snitta før det er låst
+// =============================================================================
+/**
+ * Det du ser før du skjer.
+ *
+ * Ei line over skjermen seier ikkje kva du får; snittet gjer det. Skissa
+ * vert difor snitta for seg, på det låge nivået og utan spor, medan du
+ * siktar: profilen gjennom kroppen, og linene der planet kryssar plan som
+ * alt er låste — der leddet ville kome. Ingenting av dette vert hugsa; ei
+ * skisse er ein straum av punkt, og berre det siste tel.
+ */
+export type SkisseSyn = {
+  r: Ramme
+  ringar: Pt[][]
+  /** stykke av kryssliner med gods i begge plan, i skissa si ramme: to endepunkt, og kva plan */
+  kryss: { a: Pt; b: Pt; mot: number }[]
+}
+
+export function skisseSyn(k: Kropp, p: Params, pl: Plan, cells: number): SkisseSyn {
+  const s = k.solid
+  const span = Math.max(s.max[0] - s.min[0], s.max[1] - s.min[1], s.max[2] - s.min[2], 1)
+  const step = span / cells
+  const { u, v } = akser(pl.n)
+  const o: Vec3 = [
+    s.min[0] + pl.o[0] * (s.max[0] - s.min[0]),
+    s.min[1] + pl.o[1] * (s.max[1] - s.min[1]),
+    s.min[2] + pl.o[2] * (s.max[2] - s.min[2]),
+  ]
+  const d = dot(o, pl.n)
+  const r: Ramme = { o: mul3(pl.n, d), n: pl.n, u, v }
+  const sol = vend(k, pl.n)
+  const ru = ruteAv(sol, d, step)
+  const tol = Math.max(Math.min(0.25, step / 8), p.forenkl)
+  const ringar = felt(ru, [], [])
+    .map((l) => simplify(l.pts, tol) as Pt[])
+    .filter((q) => q.length >= 3)
+  const kryss: SkisseSyn["kryss"] = []
+  if (ringar.length) {
+    const laast = buildSnitt(k, p, cells)
+    const til2 = (rr: Ramme, q: Vec3): Pt => [dot(q, rr.u), dot(q, rr.v)]
+    for (const rib of laast.ribber) {
+      const x = kryssAv(r, rib.r)
+      if (!x) continue
+      const pA = til2(r, x.p)
+      const dA = til2(r, x.d)
+      const pB = til2(rib.r, x.p)
+      const dB = til2(rib.r, x.d)
+      for (const [lo, hi] of felles(stykkeLangs(ringar, pA, dA), stykkeLangs(rib.raa, pB, dB))) {
+        if (hi - lo < Math.max(2, p.tjukn)) continue
+        kryss.push({ a: [pA[0] + dA[0] * lo, pA[1] + dA[1] * lo], b: [pA[0] + dA[0] * hi, pA[1] + dA[1] * hi], mot: rib.plan.id })
+      }
+    }
+  }
+  return { r, ringar, kryss }
 }

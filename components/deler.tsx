@@ -39,7 +39,7 @@ export function stengd(x: ExportKind, m: Metrics | null): string {
 }
 
 export const TASTAR =
-  "l lås · s skissemodus · ⌫ slett valt · f forslag · d djupsøk · 1 2 3 lesemåte · z angre · esc lat att · ⇧ dra flytt snittet · ⌥ dra vri det · ⌃ hjul storleik"
+  "l skjer · s skissemodus · ⌫ slett valt · f forslag · d djupsøk · 1 2 3 lesemåte · z angre · esc lat att · ⇧ dra flytt snittet · ⌥ dra vri det · ⌃ hjul storleik"
 
 /**
  * EIT LANGT TRYKK. Fingeren står stille (seks pikslar), det korte fyrer
@@ -158,15 +158,16 @@ export const IcoReset = ikon("M3 12a9 9 0 1 0 2.6-6.36|M3 4v4.5h4.5", "h-3.5 w-3
 export const IcoShare = ikon("M12 3v12|m8 7 4-4 4 4|M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8", "h-3.5 w-3.5")
 export const IcoUttak = ikon("M12 15V3|m8 11 4 4 4-4|M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4")
 /** skissemodusen: lina med handtaket på */
-export const IcoSkisse = ikon("M4 20 20 4|M9 15a2 2 0 1 0 4 0 2 2 0 1 0-4 0")
-/** ferdig med det valde planet: eit merke */
-export const IcoFerdig = ikon("m5 12 5 5L20 7")
-/** låsen: eit plan som vert ein del */
-export const IcoLaas = (
-  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
-  </svg>
-)
+export const IcoSkisse = ikon("M4 20 20 4|M9 15a2 2 0 1 0 4 0 2 2 0 1 0-4 0", "h-5 w-5")
+/** ferdig med det valde planet: eit merke. Stort: han står i den store knappen under tommelen. */
+export const IcoFerdig = ikon("m5 12 5 5L20 7", "h-7 w-7")
+/** SKJER: kniven. Handlinga som gjer skissa til ein del — eit ikon og aldri eit ord. */
+export const IcoSkjer = ikon("M3 21l6-6|M9 15 20.5 3.5c1.3 3.3.4 6.3-2.4 8.4L9 15z", "h-7 w-7")
+/** slett det valde planet */
+export const IcoSlett = ikon("M4 7h16|M9 7V4h6v3|M6 7l1 13h10l1-13|M10 11v6|M14 11v6", "h-5 w-5")
+/** dei to fyrste stega i rettleiinga: snu, og sikt */
+export const IcoSnu = ikon("M19 12a7 7 0 1 1-2.05-4.95|M17 3v4.5h-4.5")
+export const IcoSikt = ikon("M12 2v4M12 18v4M2 12h4M18 12h4|M7 12a5 5 0 1 0 10 0a5 5 0 1 0-10 0")
 
 /** Ringen kring knappen: søket går, og omtrent kor langt det er att. */
 export function Ring({ del }: { del: number }) {

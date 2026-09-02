@@ -6,13 +6,15 @@ import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { PLAN_TAK, broek, lesPlan, nyId, skrivPlan } from "@/lib/plan"
+import { PLAN_TAK, broek, lesPlan, nyId, skrivPlan, type Plan } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
 import type { Kandidat } from "@/lib/forslag"
 import type { Rute } from "@/lib/ramme"
-import type { ArkRes, BuildRes, MaalRes, Req, Res } from "@/lib/worker"
+import type { SkisseSyn } from "@/lib/snitt"
+import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
+import { HAIR, IcoFerdig, IcoSikt, IcoSkisse, IcoSkjer, IcoSlett, IcoSnu, chipStyle } from "./deler"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
 import { PARAM_RANGES } from "@/lib/params"
@@ -28,6 +30,10 @@ const MAX_FIL = 220 * 1024 * 1024
 const ANGRE_DJUPN = 50
 /** kor høgt det lukka arket er med botnmargen; skuffa står over det på telefonen */
 const LUKKA_ARK = 84
+/** nøkkelen i nettlesaren som seier at rettleiinga er sett */
+const COACH = "slicerman.coach"
+/** knappane over skjer i tommelspalta: 48 pikslar, runde */
+const TUMME_BTN = "hit relative flex h-12 w-12 items-center justify-center rounded-full border transition active:scale-95"
 /** det «forslag» IKKJE rører: endrar noko av dette seg, er lista eit svar på eit anna spørsmål */
 const tuneBase = (p: ParamBag) =>
   [p.kjelde, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant, p.tjukn, p.klaring, p.snitt, p.arkB, p.arkH, p.lause].join("|")
@@ -141,6 +147,11 @@ export function Studio() {
   /** kva ein finger held på med akkurat no, til lesing over objektet */
   const [gest, setGest] = useState<GestKva>(null)
   const [raakar, setRaakar] = useState(false)
+  /** snittet skissa (eller det valde planet) ville gje, slik motoren las det */
+  const [snitt, setSnitt] = useState<SkisseSyn | null>(null)
+  /** planet som nett vart skore: delen hans blinkar éin gong når han kjem */
+  const [blink, setBlink] = useState<number | null>(null)
+  const [coach, setCoach] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [namn, setNamn] = useState<Record<string, string>>({})
   const benk = useMedia("(pointer: fine) and (min-width: 1180px)")
@@ -192,6 +203,37 @@ export function Studio() {
   const send = useCallback((msg: Req, transfer?: Transferable[]) => {
     worker.current?.postMessage(msg, transfer ?? [])
   }, [])
+  /**
+   * SKISSEPORTEN. Skissa er ein straum av punkt og motoren svarar på eitt
+   * om gongen: éin i lufta, det siste ventar, og eit svar som er eldre enn
+   * det som alt er synt vert kasta. `plan` er det som vert snitta no —
+   * skissa med namn 0, eller det valde planet — og eit byte tømer snittet,
+   * so det gamle ikkje står i den nye fargen.
+   */
+  const skissePort = useRef<{ inFlight: boolean; pending: SkisseReq | null; shown: number; plan: Plan | null }>({ inFlight: false, pending: null, shown: 0, plan: null })
+  const pumpSkisse = useCallback(() => {
+    const p = skissePort.current
+    if (p.inFlight || !p.pending) return
+    p.inFlight = true
+    worker.current?.postMessage(p.pending)
+    p.pending = null
+  }, [])
+  const spørSkisse = useCallback((pl: Plan | null) => {
+    const p = skissePort.current
+    if ((pl?.id ?? null) !== (p.plan?.id ?? null)) setSnitt(null)
+    p.plan = pl
+    if (!pl) {
+      p.pending = null
+      return
+    }
+    p.pending = { kind: "skisse", id: ++reqId.current, params: naa.current, plan: pl }
+    pumpSkisse()
+  }, [pumpSkisse])
+  /** skissa flytta seg i scena: punktet som brøk av boksen, og normalen som han er */
+  const skisseEndra = useCallback((s: Skisse) => {
+    const k = kroppRef.current
+    if (k) spørSkisse({ id: 0, o: broek(s.o, k.min, k.max), n: s.n, strek: [] })
+  }, [spørSkisse])
 
   // Hashen er ikkje til å stole på: kvart felt vert klemt av motoren sin eigen clamp.
   useEffect(() => {
@@ -228,6 +270,8 @@ export function Studio() {
       p.inFlight = false
       p.pending = null
     }
+    skissePort.current.inFlight = false
+    skissePort.current.pending = null
     // og ein arbeidar som døyr skal seie det: same stille døden som Turbopack gjev
     w.onerror = () => {
       setBusy(false)
@@ -243,6 +287,20 @@ export function Studio() {
         if (r.id < p.shown) return
         p.shown = r.id
         ;(r.view === "flate" ? setKropp : r.view === "lag" ? setLag : setKontur)(r)
+        return
+      }
+      if (r.kind === "skisse") {
+        const p = skissePort.current
+        p.inFlight = false
+        pumpSkisse()
+        if (r.id < p.shown || !p.plan) return
+        p.shown = r.id
+        const { kind, id, ...syn } = r
+        void kind
+        void id
+        // det same snittet om att — etter eit skjer ligg det nye planet i skissa — er inga endring, og skal ikkje teiknast om att
+        const ny = JSON.stringify(syn)
+        setSnitt((prev) => (prev && JSON.stringify(prev) === ny ? prev : syn))
         return
       }
       if (r.kind === "maal") {
@@ -300,6 +358,12 @@ export function Studio() {
           if (r.id >= sisteBygg.current) setBusy(false)
           return
         }
+        if (r.kva === "skisse") {
+          // ei skisse som kasta er ikkje ein feil å syne; porten skal berre opnast att
+          skissePort.current.inFlight = false
+          pumpSkisse()
+          return
+        }
         if (r.kva === "tune") {
           tunarRef.current = false
           setTunar(null)
@@ -329,7 +393,20 @@ export function Studio() {
       w.terminate()
       worker.current = null
     }
-  }, [pump])
+  }, [pump, pumpSkisse])
+
+  /**
+   * KVA MOTOREN SNITTAR MEDAN DU SIKTAR: skissa, eller det valde planet.
+   * Om att kvar gong posen endrar seg — eit nytt låst plan gjev nye kryss —
+   * og kvar gong kroppen kjem, so brøkane er rekna mot den rette boksen.
+   */
+  useEffect(() => {
+    if (!mounted || !kropp) return
+    if (vald !== null) return spørSkisse(plan.find((q) => q.id === vald) ?? null)
+    const s = skisse.current
+    spørSkisse(s ? { id: 0, o: broek(s.o, kropp.min, kropp.max), n: s.n, strek: [] } : null)
+  }, [mounted, kropp, vald, plan, params, spørSkisse])
+  const harSnitt = !!snitt?.ringar.length
 
   const detail: DetailKey = fin ? "mid" : "lav"
   // Kroppen berre når kroppen endrar seg; delane kvar gong noko gjer det —
@@ -499,9 +576,10 @@ export function Studio() {
 
   // --- PLANA -----------------------------------------------------------------
   /**
-   * LÅS: skissa vert ein del. Punktet vert brøk av boksen kring kroppen, so
+   * SKJER: skissa vert ein del. Punktet vert brøk av boksen kring kroppen, so
    * planet står på kroppen når storleiken endrar seg. Skissa står der ho
-   * står, so du kan snu synet og låse att.
+   * står, so du kan snu synet og skjere att — og den nye delen blinkar éin
+   * gong når han kjem, so du ser kva du gjorde.
    */
   const laas = useCallback(() => {
     const s = skisse.current
@@ -513,12 +591,51 @@ export function Studio() {
       return
     }
     setHint(null)
+    const id = nyId(lesPlan(naa.current.plan))
     setParams((cur) => {
       const l = lesPlan(cur.plan)
       if (l.length >= PLAN_TAK) return cur
       return { ...cur, plan: skrivPlan([...l, { id: nyId(l), o, n: s.n, strek: [] }]) }
     })
+    setBlink(id)
   }, [])
+  // skjer pulserer ÉIN gong: fyrste gongen skissa råkar kroppen er det noko å skjere
+  const [puls, setPuls] = useState(false)
+  const pulsa = useRef(false)
+  useEffect(() => {
+    if (!raakar || pulsa.current) return
+    pulsa.current = true
+    setPuls(true)
+    const t = window.setTimeout(() => setPuls(false), 1200)
+    return () => window.clearTimeout(t)
+  }, [raakar])
+  /**
+   * RETTLEIINGA, ÉIN GONG: tre steg til det fyrste snittet, midt i det frie
+   * bandet. Fyrste trykk kvar som helst tek henne bort — og trykket går
+   * vidare til det det var meint for — og nettlesaren hugsar at ho er sett.
+   */
+  useEffect(() => {
+    if (!mounted) return
+    try {
+      if (localStorage.getItem(COACH)) return
+    } catch {
+      // utan lager: syn henne, ho kostar eitt trykk
+    }
+    setCoach(true)
+  }, [mounted])
+  useEffect(() => {
+    if (!coach) return
+    const bort = () => {
+      setCoach(false)
+      try {
+        localStorage.setItem(COACH, "1")
+      } catch {
+        // utan lager kjem ho att neste gong
+      }
+    }
+    window.addEventListener("pointerdown", bort, { capture: true, once: true })
+    return () => window.removeEventListener("pointerdown", bort, { capture: true })
+  }, [coach])
   /** eit plan flytt eller vinkla om av fingrane — gjennom parametrane, so angre og lenkja gjeld */
   const flyttPlan = useCallback((id: number, o: Vec3, n: Vec3) => {
     setParams((cur) => {
@@ -750,11 +867,11 @@ export function Studio() {
   const gestTekst = gest === "storleik" ? `${les("storleik")} mm` : gest === "vend" ? `${les("rotZ")}°` : gest
   const hintTekst = fin
     ? modus === "form"
-      ? "form · dra snur · ⇧ dra flyttar snittet · ⌥ dra vrir det · ⌃ hjul = storleik · lås"
-      : "skisse · dra snur · ⇧ dra flyttar snittet · ⌥ dra vrir det · lås"
+      ? "form · dra snur · ⇧ dra flyttar snittet · ⌥ dra vrir det · ⌃ hjul = storleik · skjer"
+      : "skisse · dra snur · ⇧ dra flyttar snittet · ⌥ dra vrir det · skjer"
     : modus === "form"
-      ? "form · éin finger snur · to fingrar: knip = storleik, vri = vend, dra = flytt snittet · lås"
-      : "skisse · éin finger snur · to fingrar: dra = flytt, vri = tilt, knip = zoom · lås"
+      ? "form · éin finger snur · to fingrar: knip = storleik, vri = vend, dra = flytt snittet · skjer"
+      : "skisse · éin finger snur · to fingrar: dra = flytt, vri = tilt, knip = zoom · skjer"
 
   return (
     <main className="fixed inset-0 overflow-hidden" style={{ background: "var(--paper)" }}>
@@ -773,6 +890,8 @@ export function Studio() {
             plan={plan}
             vald={vald}
             spok={spok}
+            snitt={snitt}
+            blink={blink}
             skisse={skisse}
             onVald={velPlan}
             onPlan={flyttPlan}
@@ -780,6 +899,7 @@ export function Studio() {
             onVend={vendObjektet}
             onGest={taGest}
             onRaakar={setRaakar}
+            onSkisse={skisseEndra}
           />
         )}
       </div>
@@ -793,9 +913,62 @@ export function Studio() {
         </div>
       )}
 
-      {/* Éi line om gestane, med modusen fremst. Ho går på fyrste gesten. */}
+      {/*
+        TOMMELSPALTA. Skjer står der høgre tommelen alt er: nedst til høgre,
+        over arket, 64 pikslar. Med eit plan valt er skissa gøymd, og knappen
+        er «ferdig» og slepp valet. Over han: skissebrytaren, og slett når
+        eit plan er valt. Ikon, aldri ord. Prikken i hjørnet er motoren som
+        reknar. På benken står spalta nedst i lerretet, ved kolonna.
+      */}
+      {mounted && (
+        <div className="tumme" style={{ right: (benk ? KOL : 0) + 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}>
+          {vald !== null && (
+            <button type="button" aria-label="slett" title="ta det valde planet bort (⌫)" onClick={() => slett(vald)} className={TUMME_BTN} style={{ ...HAIR, background: "var(--paper)", color: "var(--warn)" }}>
+              {IcoSlett}
+            </button>
+          )}
+          {/* SKISSEMODUSEN: to fingrar arbeider på planet — dra flyttar, vri
+              vinklar, klyp zoomar. Av er «form»: klyp storleiken, vri vendinga. */}
+          <button
+            type="button"
+            aria-pressed={modus === "skisse"}
+            aria-label="skisse"
+            title={modus === "skisse" ? "skissemodus (S): to fingrar dreg, vrir og zoomar snittet. trykk for form" : "form (S): to fingrar klyp storleiken, vrir vendinga, dreg snittet. trykk for skisse"}
+            onClick={vekslModus}
+            className={TUMME_BTN}
+            style={{ ...chipStyle(modus === "skisse"), background: modus === "skisse" ? "var(--ink)" : "var(--paper)" }}
+          >
+            {IcoSkisse}
+          </button>
+          <button
+            type="button"
+            onClick={vald === null ? laas : () => velPlan(null)}
+            disabled={view === "kontur" || (vald === null && !harSnitt)}
+            aria-label={vald === null ? "skjer" : "ferdig"}
+            title={vald === null ? "skjer: skissa vert ein del (L)" : "ferdig med planet (esc)"}
+            className={"skjer" + (puls ? " puls" : "")}
+            style={{ background: "var(--ink)", color: "var(--paper)" }}
+          >
+            {vald === null ? IcoSkjer : IcoFerdig}
+            <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--paper)", boxShadow: "0 0 0 1.5px var(--ink)", opacity: busy && !tunar ? 1 : 0, transition: "opacity 200ms ease" }} />
+          </button>
+        </div>
+      )}
+
+      {/* rettleiinga: tre steg, éin gong */}
+      {coach && !drag && (
+        <div role="note" aria-label="slik skjer du" className="coach fade-inn pointer-events-none absolute" style={{ left: 0, right: benk ? KOL : 0, top: toppH, bottom: benk ? 0 : arkH }}>
+          <div className="coach-kort">
+            {([["1", IcoSnu, "snu"], ["2", IcoSikt, "sikt"], ["3", IcoSkjer, "skjer"]] as const).map(([n, g, ord]) => (
+              <span key={ord} className="coach-steg"><b>{n}</b>{g}<span>{ord}</span></span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Éi line om gestane, med modusen fremst. Ho går på fyrste gesten. Til venstre for tommelspalta. */}
       {hint && !drag && (
-        <div className="pointer-events-none absolute inset-x-0 flex justify-center px-4" style={{ bottom: (benk ? 0 : arkH) + 24, right: benk ? KOL : 0 }} aria-hidden="true">
+        <div className="pointer-events-none absolute flex justify-center px-4" style={{ left: 0, bottom: (benk ? 0 : arkH) + 24, right: benk ? KOL : 92 }} aria-hidden="true">
           <span className="fade-inn rounded-full px-3 py-1.5 text-center text-[10px] uppercase tracking-[0.16em]" style={{ background: "color-mix(in srgb, var(--paper) 85%, transparent)", opacity: 0.85 }}>
             {hintTekst}
           </span>
@@ -830,9 +1003,6 @@ export function Studio() {
         params={params}
         onChange={endre}
         view={view}
-        modus={modus}
-        onModus={vekslModus}
-        raakar={raakar}
         topp={toppH}
         metrics={tal?.metrics ?? null}
         rules={tal?.rules ?? []}
@@ -841,7 +1011,6 @@ export function Studio() {
         vald={vald}
         onVald={velPlan}
         onSlett={slett}
-        onLaas={laas}
         busy={busy}
         feil={feil}
         melding={melding}
