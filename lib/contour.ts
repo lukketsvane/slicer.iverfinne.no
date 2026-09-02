@@ -174,17 +174,98 @@ export function simplify(poly: Pt2[], tol: number): Pt2[] {
   if (n < 4) return poly
   const out: Pt2[] = [poly[0]]
   let start = 0
+
+  /**
+   * KJEGLA: SVARET UTAN Å SPØRJE KVART PUNKT.
+   *
+   * Prøva over er kvadratisk på ei rett strekkje: kvart nytt punkt på
+   * lina spør alle dei førre om att, og ei kubeside på hundre punkt
+   * spør fem tusen gonger. Men spørsmålet «ligg alle mellompunkta
+   * innanfor toleransen av lina frå start gjennom punkt i» har eit svar
+   * som kan haldast ved like: kvart mellompunkt i avstand r frå start
+   * tillèt berre liner som peikar innanfor asin(tol/r) av retninga til
+   * punktet, og snittet av dei vinkelromma er ei kjegle. Peikar korda
+   * inn i kjegla, held ho; peikar ho utanfor, held ho ikkje.
+   *
+   * Kjegla avgjer berre det ho er sikker på. Ei kord som ligg nærare
+   * kanten av kjegla enn ein milliarddels radian, eit punkt som ligg
+   * nærare start enn halvannan toleranse, ei kord kortare enn
+   * toleransen — alt slikt går til den gamle prøva, punkt for punkt.
+   * Difor er svaret det same, ned til siste punkt.
+   */
+  const EPS = 1e-9
+  let senter = 0
+  let lo = -Infinity
+  let hi = Infinity
+  let fyrst = true
+  let usikker = false
+  /** vinkelen lagd inn i same halvsirkel som senteret: ei line har inga
+   *  retning, so θ og θ + π er same lina */
+  const inn = (a: number) => {
+    while (a - senter >= Math.PI / 2) a -= Math.PI
+    while (a - senter < -Math.PI / 2) a += Math.PI
+    return a
+  }
+  /** punkt j er vorte eit mellompunkt for korda frå start */
+  const legg = (j: number) => {
+    if (usikker) return
+    const s = poly[start]
+    const dx = poly[j][0] - s[0]
+    const dy = poly[j][1] - s[1]
+    const r = Math.hypot(dx, dy)
+    // For nær start opnar vinkelrommet seg over ein kvart sirkel, og då
+    // kan det nå rundt halvsirkelen og inn i kjegla frå den andre sida.
+    if (r <= tol * Math.SQRT2 + EPS) {
+      usikker = true
+      return
+    }
+    const th = Math.atan2(dy, dx)
+    const al = Math.asin(tol / r)
+    if (fyrst) {
+      senter = th
+      fyrst = false
+      lo = th - al
+      hi = th + al
+      return
+    }
+    const t = inn(th)
+    if (t - al > lo) lo = t - al
+    if (t + al < hi) hi = t + al
+  }
+
   for (let i = 2; i < n; i++) {
+    legg(i - 1)
     let held = true
-    for (let j = start + 1; j < i; j++) {
-      if (fråLina(poly[j], poly[start], poly[i]) >= tol) {
-        held = false
-        break
+    let avgjort = false
+    if (!usikker && !fyrst) {
+      const s = poly[start]
+      const dx = poly[i][0] - s[0]
+      const dy = poly[i][1] - s[1]
+      if (Math.hypot(dx, dy) > tol) {
+        const f = inn(Math.atan2(dy, dx))
+        if (lo > hi + EPS || f <= lo - EPS || f >= hi + EPS) {
+          held = false
+          avgjort = true
+        } else if (f >= lo + EPS && f <= hi - EPS) {
+          avgjort = true
+        }
+      }
+    }
+    if (!avgjort) {
+      for (let j = start + 1; j < i; j++) {
+        if (fråLina(poly[j], poly[start], poly[i]) >= tol) {
+          held = false
+          break
+        }
       }
     }
     if (!held) {
       out.push(poly[i - 1])
       start = i - 1
+      lo = -Infinity
+      hi = Infinity
+      fyrst = true
+      usikker = false
     }
   }
   // Det siste punktet står alltid: lina attende til fyrste punktet er ein
