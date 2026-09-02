@@ -2419,7 +2419,6 @@ export function Studio() {
         melding={melding}
         mode={mode}
         tunar={tunar}
-        finnStad={finnStad}
         kanAngre={kanAngre}
         onHogd={setArkH}
         onMode={(m) => {
@@ -2433,7 +2432,6 @@ export function Studio() {
         onFinn={() => steg(1)}
         onFinnDjup={() => steg(1, true)}
         onAvbryt={avbryt}
-        onFinnAtt={() => steg(-1)}
         onShare={share}
         onFile={(f) => void takeFile(f)}
         verkty={verkty}
