@@ -114,6 +114,30 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(400)
   sjekk("esc stengjer arket til lina", (await liste.count()) === 0)
 
+  // --- TALA: tap-drag set verdien, ingen tekstfelt å zoome inn i ----------------
+  await midt(page)
+  const tal = page.locator("[aria-label='storleik, tal']")
+  const tb = await tal.boundingBox()
+  const sFør = hash(page).storleik
+  if (tb) {
+    const cdp = await page.context().newCDPSession(page)
+    const pkt = (x: number, y: number) => [{ x, y, id: 0, radiusX: 4, radiusY: 4, force: 1 }]
+    const cx = tb.x + tb.width / 2
+    const cy = tb.y + tb.height / 2
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(cx, cy) })
+    for (let i = 1; i <= 12; i++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pkt(cx + 6 * i, cy) })
+      await page.waitForTimeout(16)
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await cdp.detach()
+  }
+  await vent(page, (p) => p.storleik !== sFør)
+  sjekk("tap-drag på talet set storleiken", hash(page).storleik > sFør, `${sFør} → ${hash(page).storleik}`)
+  await page.keyboard.press("z")
+  await vent(page, (p) => p.storleik === sFør)
+  sjekk("ingen tekstfelt på sida å zoome inn i", (await page.locator("input:not([type=file]):not([type=range])").count()) === 0)
+
   // --- lås og slett, med knapp og med tast ------------------------------------
   const n0 = plana(page).length
   await page.getByRole("button", { name: "skjer", exact: true }).click()
@@ -419,13 +443,22 @@ async function benk(browser: Browser) {
   await vent(page, talPlan(n0))
   sjekk("Delete tek det valde bort", plana(page).length === n0)
 
-  // storleiken er eit tal du kan skrive
-  const felt = page.locator("input[aria-label='storleik, tal']")
-  await felt.fill("200")
-  await felt.press("Enter")
-  await vent(page, (p) => p.storleik === 200)
-  sjekk("talfeltet set storleiken", hash(page).storleik === 200, String(hash(page).storleik))
+  // storleiken er eit tal du DREG i, ikkje skriv: eit tekstfelt zoomar sida
+  const felt = page.locator("[aria-label='storleik, tal']")
+  const fb = await felt.boundingBox()
+  const s0b = hash(page).storleik
+  if (fb) {
+    await page.mouse.move(fb.x + fb.width / 2, fb.y + fb.height / 2)
+    await page.mouse.down()
+    for (let i = 1; i <= 12; i++) await page.mouse.move(fb.x + fb.width / 2 + 8 * i, fb.y + fb.height / 2)
+    await page.mouse.up()
+  }
+  await vent(page, (p) => p.storleik !== s0b)
+  sjekk("dra i talet set storleiken", hash(page).storleik > s0b, `${s0b} → ${hash(page).storleik}`)
+  sjekk("og talet er ikkje eit tekstfelt", (await page.locator("input[aria-label='storleik, tal']").count()) === 0)
   sjekk("og plana står der dei stod, som brøkar", plana(page).length === n0 && plana(page)[0].o[0] < 0.2)
+  await page.keyboard.press("z")
+  await vent(page, (p) => p.storleik === s0b)
 
   await page.keyboard.press("f")
   const kand = page.locator("button[aria-pressed]").filter({ hasText: /^\d+×\d+/ })
