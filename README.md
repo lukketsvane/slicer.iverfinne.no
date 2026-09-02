@@ -151,7 +151,7 @@ settings were saved together.
 | **ARK** | one file per nested sheet, 1:1 — zipped when there is more than one |
 | **PNG** | the same sheets as pictures, for messages and the wall — not for the machine |
 | **PRØVE** | fit-test coupon: seven slots, each 0.05 mm wider than the last |
-| **ALT** | the whole job in one download, plus the cut list as CSV |
+| **ALT** | the whole job in one download, plus the cut list as CSV and the assembly order as text |
 | **LAGRE** | a project file — settings and mesh together |
 
 In the SVG files **colour is the operation, and the colour carries the order**:

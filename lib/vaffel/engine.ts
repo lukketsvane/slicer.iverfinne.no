@@ -11,7 +11,7 @@
  * ein skrue eller ei oppspenning i heile stabelen. Rutenettet held seg
  * sjølv, og det er heile poenget.
  */
-import { bbox, kuttCsv, offsetPoly } from "../core"
+import { bbox, kuttCsv, nn, offsetPoly } from "../core"
 import type {
   BuildOut,
   DetailKey,
@@ -35,7 +35,7 @@ import { measure } from "./metrics"
 import { checkRules } from "./rules"
 import { makePlan } from "./plan"
 import { placedRings } from "./nest"
-import type { Part } from "./parts"
+import { bokstav, type Part } from "./parts"
 import { meshToStl } from "./export-stl"
 import { partsToDxf } from "./export-dxf"
 import { couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
@@ -228,7 +228,7 @@ export const VAFFEL: EngineDef = {
         text: couponSvg(p.tjukn, kerfOf(p), p.snitt, p.material),
       }
     }
-    const { g, ns } = makePlan(p, DETAIL.mid)
+    const { k, g, ns } = makePlan(p, DETAIL.mid)
 
     /** Éi plate = éi fil. Namnet seier kva for ei av kor mange. */
     const arkFiler = () => {
@@ -237,6 +237,41 @@ export const VAFFEL: EngineDef = {
         name: n <= 1 ? `${name}-ark.svg` : `${name}-ark-${i + 1}av${n}.svg`,
         text: sheetSvg(ns, i, kerfOf(p)),
       }))
+    }
+
+    /**
+     * MONTERINGA, SOM TEKST.
+     *
+     * README-en seier korleis ein vaffel vert sett saman; ingen fil sa det.
+     * Den som står ved benken med tjue delar og ein telefon med tom
+     * batteri treng det på papir: kva familie fyrst, kva veg spora vender,
+     * og kvar kvar ribbe står — millimeter frå kanten, slik stabelen syner
+     * dei. Adressa på delen er nøkkelen; ei ribbe i fleire stykke har
+     * bokstav etter talet, og stykka står i det same planet.
+     */
+    const montering = () => {
+      const s = k.solid
+      const fam = (axis: "x" | "y") =>
+        g.ribs
+          .filter((r) => r.axis === axis)
+          .map((r) => {
+            const stykke = r.outlines.length
+            const mm = r.pos - s.min[axis === "x" ? 0 : 1]
+            return `  ${axis.toUpperCase()}${r.k + 1}${stykke > 1 ? ` (${stykke} stykke: a–${bokstav(stykke - 1)})` : ""}  ${nn(mm, 1)} mm`
+          })
+      return [
+        `MONTERING — ${srcLabel(p.kjelde)}`,
+        `${g.ribs.filter((r) => r.axis === "x").length} ribber langs x, ${g.ribs.filter((r) => r.axis === "y").length} langs y, ${p.tjukn} mm plate. Adressa er gravert på kvar del.`,
+        "",
+        "1  X-RIBBENE FYRST. Legg dei på benken med spora OPP, i denne rekkjefylgja, målt frå kanten av kroppen langs x:",
+        ...fam("x"),
+        "",
+        "2  SO Y-RIBBENE. Spora NED. Senk kvar av dei ned i X-familien der spora møtest, målt frå kanten langs y:",
+        ...fam("y"),
+        "",
+        "Sit eit ledd for hardt, er klaringa for liten: skjer passprøva i den same plata og set klaringa til det sporet avkappet går i med tommelkraft.",
+        "",
+      ].join("\n")
     }
 
     /** Innstillingane som tekst. Det same lenkja ber, berre lesbart — og
@@ -269,6 +304,7 @@ export const VAFFEL: EngineDef = {
             text: couponSvg(p.tjukn, kerfOf(p), p.snitt, p.material),
           },
           { name: "kuttliste.csv", text: kuttCsv(VAFFEL.liste(bag)) },
+          { name: "montering.txt", text: montering() },
           { name: "oppsett.json", text: oppsett() },
         ]),
       }
