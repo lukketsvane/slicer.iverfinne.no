@@ -23,8 +23,8 @@ A grid of ribs is one thing you can build this way; a set of planes at angles
 no grid could describe is another. The tool does not care which.
 
 It opens on **3 mm MDF on a 600 × 400 mm bed** — the common "6040" CO2
-laser — with a cube and six planes each way already locked, so you can see
-the whole idea before you drop anything in. Change the thickness to the sheet
+laser — with a cube and **no cuts**: the body sits there as a shell and the
+first thing you do is cut it. Want a grid, it is one press of **forslag**. Change the thickness to the sheet
 in your hand and the bed to your machine; the link carries both.
 
 **It is a laser tool.** No cutter diameter and no dogbones, because a beam has
@@ -32,9 +32,12 @@ no radius.
 
 ## Use it
 
-1. **Drop a file** — `.glb`, `.gltf`, `.stl`, `.obj`, `.ply`, or a `.zip` saved
-   by **LAGRE**. Up to 220 MB. Or start from the built-in cube. A new mesh
-   clears the planes: they were an answer about the body you had.
+1. **Pick a body.** The pill at the top opens the sources: five primitives
+   (cube, sphere, cylinder, cone, torus) and your own files — `.glb`, `.gltf`,
+   `.stl`, `.obj`, `.ply`, up to 220 MB, or a `.zip` saved by **LAGRE**. Add
+   several and the body is all of them together: a sphere on a cube, a
+   cylinder into its side. Each piece has a place, a size and a turn. A new
+   body clears the planes: they were an answer about the body you had.
 2. **Set the size.** Drag the number, or take it from the sheet.
 3. **Sketch a plane.** One finger turns the object. The sketch plane is a line
    across the screen — a knife seen edge-on — with a grab handle in the middle
@@ -63,12 +66,15 @@ Every change is undoable and redoable: the two arrows at the top, or `Z` and
 
 ## Two surfaces
 
-The iPhone 16e is the target device: one thumb, a 390-point screen, the object
-visible while you work. A slim bar at the top carries the file you dropped in
+The iPhone 16e, saved to the home screen, is the target device — the only one:
+one thumb, a 390-point screen, the object visible while you work. The page
+itself never zooms, scrolls or lets you select anything; every gesture belongs
+to the object. A slim bar at the top carries the file you dropped in
 (tap it to pick another), the three views, undo and the link. A sheet at the
-bottom has three heights: one line (lock, the live count, proposals, export),
-the middle (size, the plane list, the broken rules with their fixes),
-everything (material and thickness, the sliders, the table, the tools).
+bottom has three heights: one line (the live count, proposals, export), the
+middle (size and the plane list), everything (material and thickness, the
+sliders, the table with the rules and their fixes, the tools). The cut button
+and the sketch toggle float above it, under the right thumb.
 
 **Over 1180 px with a mouse**, no sheet — the same controls as one column on
 the right, the top bar above the canvas, and the camera frames the object into
@@ -89,6 +95,16 @@ planes included — and no mesh. **LAGRE** gives a project file carrying both.
 And the browser remembers by itself, in IndexedDB. The unlocked sketch is
 disposable and is not kept; it costs one gesture to make again.
 
+## The body
+
+The body is a list of pieces, not a file: primitives made in code and files
+you dropped in, each scaled to 100 mm on its longest side times its own size,
+turned about z and placed, then the whole list is rotated, scaled to
+`storleik` and set on the floor. Nothing is stitched: the rays count shells,
+so two pieces that overlap are one body where they overlap. The list is the
+`scene` string in the parameter bag, and the project file carries every
+piece's file.
+
 ## Planes
 
 A plane is a **name, a point and a normal**, in the body's own space. The
@@ -105,13 +121,15 @@ re-angled and redrawn, and the `7` engraved on a plate in a pile matches the
 row on the screen. A plane cut into several islands gets letters: `7a`, `7b`.
 
 **Every kept plane is editable, down to its outline.** Nudge and re-angle with
-two fingers. The outline itself takes hand-drawn strokes — a rectangle or a
-round, adding material (`+`) or cutting it away (`-`) — written into the plane
-in the settings text; they are cut in the same field as the slots, so a hole
-you drew and a slot the engine cut never disagree. When the model changes
-underneath a stroke, **the stroke stays**: it is what you did, and the tool
-does not throw work away unasked. It may drift out of true, and then you see
-it in the profile and remove it yourself.
+two fingers or the handles. Select a part and the thumb column offers **legg til
+gods** and **skjer hòl**: a rectangle that adds material, a round that cuts it
+away, dropped at the centre of the section and then moved, resized and turned
+with three handles. They are cut in the same field as the slots, so a hole you
+drew and a slot the engine cut never disagree, and the section shows the real
+result while you drag. When the model changes underneath a stroke, **the
+stroke stays**: it is what you did, and the tool does not throw work away
+unasked. It may drift out of true, and then you see it in the profile and
+remove it yourself.
 
 **Up to 64 planes.** Beyond that a link is trying something.
 
@@ -186,6 +204,7 @@ multiply in every joint.
 | `glatt` | smoothing | 0–24 Taubin passes |
 | `trekant` | triangle budget | 0.5–60 k, by vertex clustering |
 | `forenkl` `hol` | cut profile | how far the cut may stray, and the smallest hole worth cutting |
+| `scene` | the body | pieces: source, place, size, turn, as a string |
 | `plan` | the planes | name, point, normal and strokes, as a string |
 | `lause` | pieces with no joint | keep / drop |
 | `tjukn` | thickness | 1–25 mm |
@@ -293,7 +312,8 @@ minutes, and HMR reloading underneath produces failures that look real.
 | `lib/core.ts` | **start here.** The contract: parameters, metrics, rules, views |
 | `lib/plan.ts` | what a plane is: name, point, normal, strokes; the string; the grid as a proposal |
 | `lib/params.ts` | the parameter space and its defaults |
-| `lib/kropp.ts` | the body: weld, unflip, simplify, smooth, place — and turned along any normal |
+| `lib/scene.ts` | the body as pieces: primitives and files, placed |
+| `lib/kropp.ts` | the body: pieces joined, weld, unflip, simplify, smooth, place — and turned along any normal |
 | `lib/snitt.ts` | planes to ribs: the field, the joints, the slots, the parts, the assembly order |
 | `lib/bygg.ts` | the whole build once: body, ribs, parts, nesting |
 | `lib/soup.ts` | mesh in two forms, and the road between them |
@@ -329,8 +349,6 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   would need a real search.
 - Kerf compensation offsets along the angle bisector; tighter corners than the
   kerf are approximate, erring safe.
-- Hand-drawn strokes are edited as text for now; the gesture editor for them is
-  the next thing to build.
 
 ## Credit
 

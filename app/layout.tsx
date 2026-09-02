@@ -33,19 +33,19 @@ export const metadata: Metadata = {
 }
 
 /**
- * Sida kan forstørrast.
- *
- * Ho var låst med `maximum-scale=1`, av di klypet er ein gest reiskapen
- * bruker sjølv — og eit klyp som forstørrar sida i staden for objektet er
- * eit klyp som gjer feil ting. Men lerretet har `touch-action: none` og tek
- * fingrane sine sjølv; låsen gjaldt difor berre resten av sida, der ingen
- * gest konkurrerer og der den minste teksten er ti pikslar. Den som treng
- * å forstørre for å lese, skal få lov.
+ * SIDA ER SKJERMEN. iPhone 16e, lagra på heimskjermen, er det einaste
+ * målet: ingenting på sida skal merkast, forstørrast eller rullast. Klypet
+ * er ein gest reiskapen brukar sjølv, og eit klyp som forstørrar sida i
+ * staden for objektet er eit klyp som gjekk til systemet. Difor er skalaen
+ * låst her, og resten — gestane, merkinga, rullinga — i globals.css og i
+ * studioet.
  */
 export const viewport: Viewport = {
   colorScheme: "light",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   themeColor: "#ffffff",
 }

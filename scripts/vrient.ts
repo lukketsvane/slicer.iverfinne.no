@@ -30,6 +30,13 @@ import type { ExportKind, Metrics, ParamBag } from "../lib/core"
 import { rutenett, skrivPlan } from "../lib/plan"
 const ruter = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
+/**
+ * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
+ * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
+ * det same rutenettet standarden hadde før, og det same objektet.
+ */
+const GRUNN = { ...DEFAULT_PARAMS, plan: ruter(6, 6) }
+
 let brot = 0
 let saker = 0
 const feil = (namn: string, kva: string) => {
@@ -544,6 +551,9 @@ const SØPPEL: unknown[] = [
   { storleik: Infinity },
   { storleik: -Infinity },
   { plan: "1@0.5,0.5,0.5/0,0,0" },
+  { scene: "kube@1e9,0,0/1/0" },
+  { scene: "x".repeat(4000) },
+  { scene: "kule@0,0,0/NaN/0;../../etc@0,0,0/1/0" },
   { plan: "1@0.5,0.5,0.5/1,0,0;1@0.5,0.5,0.5/0,1,0" },
   { plan: "x".repeat(5000) },
   { plan: "1@NaN,0,0/1,0,0;2@0.5,0.5,0.5/Infinity,0,0" },
@@ -603,6 +613,7 @@ const RØRER: Rørt[] = [
   { k: "material", v: "papp", les: (m) => m.mass },
   { k: "tjukn", v: 6, les: (m) => m.slotW },
   { k: "plan", v: ruter(9, 9), les: (m) => m.parts },
+  { k: "scene", v: "kube@0,0,0/1/0;kule@0,0,80/0.6/0", les: (m) => m.envZ },
   { k: "plan", v: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.5/0,0.7071,0.7071", les: (m) => m.parts },
   { k: "storleik", v: 300, les: (m) => m.envX },
   { k: "klaring", v: 0.4, les: (m) => m.slotW },
@@ -623,7 +634,7 @@ const RØRER: Rørt[] = [
 
 console.log("\nkvar skyvar må røre noko")
 {
-  const grunn = { ...DEFAULT_PARAMS, kjelde: "kube" }
+  const grunn = { ...GRUNN, kjelde: "kube" }
   const les = (p: Params) => {
     const bag = p as unknown as ParamBag
     const m = MOTOR.measure(bag)

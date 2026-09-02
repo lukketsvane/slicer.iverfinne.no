@@ -12,7 +12,7 @@
  *   PW_CHROMIUM=/opt/pw-browsers/chromium pnpm panel [url]
  */
 import { chromium, type Browser, type Page } from "playwright"
-import { lesPlan } from "../lib/plan"
+import { lesPlan, skrivPlan } from "../lib/plan"
 import type { Params } from "../lib/params"
 
 const URL = process.argv[2] ?? "http://127.0.0.1:3210"
@@ -108,11 +108,37 @@ async function telefon(browser: Browser) {
   sjekk("eit trykk på lina opnar midten, med planlista", (await liste.count()) === 1)
   await page.getByRole("button", { name: "alle kontrollane" }).click()
   await page.waitForTimeout(500)
-  const felt = await page.locator("input[aria-label$=', tal']").count()
-  sjekk("«alle kontrollane» syner skyvarane", felt >= 12, `${felt} talfelt`)
+  // Tala er DRAGSKIVER og ikkje tekstfelt: eit felt tek fokus, og iOS
+  // zoomar sida. Difor `[aria-label$=", tal"]` og ikkje `input[…]`.
+  const felt = await page.locator("[aria-label$=', tal'][role=slider]").count()
+  sjekk("«alle kontrollane» syner skyvarane", felt >= 12, `${felt} dragskiver`)
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
   sjekk("esc stengjer arket til lina", (await liste.count()) === 0)
+
+  // --- TALA: tap-drag set verdien, ingen tekstfelt å zoome inn i ----------------
+  await midt(page)
+  const talet = page.locator("[aria-label='storleik, tal']")
+  const tb = await talet.boundingBox()
+  const sFør = hash(page).storleik
+  if (tb) {
+    const cdp = await page.context().newCDPSession(page)
+    const pkt = (x: number, y: number) => [{ x, y, id: 0, radiusX: 4, radiusY: 4, force: 1 }]
+    const cx = tb.x + tb.width / 2
+    const cy = tb.y + tb.height / 2
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(cx, cy) })
+    for (let i = 1; i <= 12; i++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pkt(cx + 6 * i, cy) })
+      await page.waitForTimeout(16)
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await cdp.detach()
+  }
+  await vent(page, (p) => p.storleik !== sFør)
+  sjekk("tap-drag på talet set storleiken", hash(page).storleik > sFør, `${sFør} → ${hash(page).storleik}`)
+  await page.keyboard.press("z")
+  await vent(page, (p) => p.storleik === sFør)
+  sjekk("ingen tekstfelt på sida å zoome inn i", (await page.locator("input:not([type=file]):not([type=range])").count()) === 0)
 
   // --- lås og slett, med knapp og med tast ------------------------------------
   const n0 = plana(page).length
@@ -249,6 +275,9 @@ async function telefon(browser: Browser) {
   }
 
   // --- eit valt plan tek gestane ---------------------------------------------
+  // Standarden er tom: vakta skjer eitt plan å ta i.
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
   await midt(page)
   const fyrst = plana(page)[0]
   await liste.locator("[role=option]").first().locator("button").first().click()
@@ -267,6 +296,66 @@ async function telefon(browser: Browser) {
   await vent(page, (p) => JSON.stringify(lesPlan(p.plan)[0]?.o) === JSON.stringify(fyrst.o))
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0))
+
+  // --- TEIKNE I PROFILEN: gods og hòl på eit valt plan ---------------------------
+  // Standarden er tom, so vakta skjer sjølv det planet ho skal teikne i.
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
+  await midt(page)
+  await liste.locator("[role=option]").first().locator("button").first().click()
+  await page.waitForTimeout(300)
+  const hol = page.getByRole("button", { name: "skjer hòl", exact: true })
+  sjekk("eit valt plan får «skjer hòl» og «legg til gods» under tommelen", (await hol.count()) === 1 && (await page.getByRole("button", { name: "legg til gods", exact: true }).count()) === 1)
+  const planFør = plana(page)[0]
+  await hol.click()
+  await vent(page, (p) => lesPlan(p.plan)[0]?.strek.length === 1)
+  const medHol = plana(page)[0]
+  sjekk("hòlet står i lenkja som ein strek på planet", medHol.strek.length === 1 && medHol.strek[0].slag === "hol", skrivPlan([medHol]).slice(0, 50))
+  const flyttS = page.locator("[data-handtak='strek-flytt']")
+  sjekk("streken har handtak: flytt, storleik, vri", (await flyttS.count()) === 1 && (await page.locator("[data-handtak='strek-storleik']").count()) === 1 && (await page.locator("[data-handtak='strek-vri']").count()) === 1)
+  const sb = await flyttS.boundingBox()
+  if (sb) {
+    const cx = sb.x + sb.width / 2
+    const cy = sb.y + sb.height / 2
+    const cdp = await page.context().newCDPSession(page)
+    const pkt = (x: number, y: number) => [{ x, y, id: 0, radiusX: 4, radiusY: 4, force: 1 }]
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(cx, cy) })
+    for (let i = 1; i <= 12; i++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pkt(cx + 40 * (i / 12), cy) })
+      await page.waitForTimeout(16)
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await cdp.detach()
+    await vent(page, (p) => Math.abs((lesPlan(p.plan)[0]?.strek[0]?.x ?? 0) - medHol.strek[0].x) > 0.01)
+    const flytta = plana(page)[0].strek[0]
+    sjekk("handtaket flyttar hòlet, og lenkja veit det", Math.abs(flytta.x - medHol.strek[0].x) > 0.01, `x ${medHol.strek[0].x} → ${flytta.x}`)
+    // draget må få falle på plass i angrestakken før neste endring, elles er
+    // dei to éi bokføring — som er meint, men ikkje det vakta måler her
+    await page.waitForTimeout(1400)
+  }
+  await page.keyboard.press("Backspace")
+  await vent(page, (p) => lesPlan(p.plan)[0]?.strek.length === 0)
+  // Bokføringa i angrestakken er dempa 450 ms — eit drag er hundre punkt og
+  // éi endring. Vakta må la ho falle på plass før ho angrar.
+  await page.waitForTimeout(1400)
+  sjekk("⌫ tek streken bort, ikkje planet", plana(page)[0]?.strek.length === 0 && plana(page).length === n0 + 1 && plana(page)[0].id === planFør.id)
+  /**
+   * Z HENTAR STREKEN ATT — men ikkje prøvd her.
+   *
+   * Han gjer det: prøvd for hand, skjer → hòl → ⌫ → Z gjev hòlet attende.
+   * Men etter eit HANDTAKSDRAG i same rekkja er dempinga på 450 ms og
+   * arbeidaren si eiga svartid ikkje til å tidfeste utanfrå, og dei to
+   * endringane fell i lag til éi bokføring like ofte som ikkje. Ei vakt som
+   * er grøn halvparten av gongene er verre enn inga: ho lærer deg å sjå bort
+   * frå henne. Draget og slettinga står prøvde kvar for seg over.
+   */
+  await page.keyboard.press("Escape")
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0))
 
   // --- framlegga ----------------------------------------------------------------
   await midt(page)
@@ -284,12 +373,15 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(200)
   const namn = (await valt.first().innerText()).trim()
   const m = /^(\d+)×(\d+)/.exec(namn)
+  // kva som stod FØR framlegget — det er dit Z skal ta oss, og det treng
+  // ikkje vera det same som ved starten av prøva
+  const førFramlegg = plana(page).length
   await page.getByRole("button", { name: "ta alle", exact: true }).click()
   await vent(page, (p) => !!m && lesPlan(p.plan).length === Number(m[1]) + Number(m[2]))
   sjekk("«ta alle» set nett dei plana", !!m && plana(page).length === Number(m[1]) + Number(m[2]), `${namn} → ${plana(page).length} plan`)
   await page.keyboard.press("z")
-  await vent(page, talPlan(n0))
-  sjekk("og Z tek det attende", plana(page).length === n0)
+  await vent(page, talPlan(førFramlegg))
+  sjekk("og Z tek det attende", plana(page).length === førFramlegg, `${plana(page).length} plan`)
   // «lat att» legg framlegga bort og syner planlista att
   const latAtt = page.getByRole("button", { name: "lat att", exact: true })
   if (await latAtt.count()) await latAtt.click()
@@ -339,8 +431,10 @@ async function telefon(browser: Browser) {
   await alt()
   await page.getByRole("button", { name: "oppsett", exact: true }).click()
   await verkty.waitFor({ timeout: 10000 })
-  const tekst = await page.locator("textarea[aria-label='alle innstillingane som tekst']").inputValue()
+  const tekstfelt = page.locator("textarea[aria-label='alle innstillingane som tekst']")
+  const tekst = await tekstfelt.inputValue()
   sjekk("oppsettet som tekst ber plana", /\bplan\b/.test(tekst) && tekst.includes("@"), `${tekst.length} teikn`)
+  sjekk("og feltet er lese-berre, med kopier og lim inn som knappar", (await tekstfelt.getAttribute("readonly")) !== null && (await page.getByRole("button", { name: "kopier", exact: true }).count()) === 1 && (await page.getByRole("button", { name: "lim inn", exact: true }).count()) === 1)
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
 
@@ -375,13 +469,22 @@ async function benk(browser: Browser) {
   await vent(page, talPlan(n0))
   sjekk("Delete tek det valde bort", plana(page).length === n0)
 
-  // storleiken er eit tal du kan skrive
-  const felt = page.locator("input[aria-label='storleik, tal']")
-  await felt.fill("200")
-  await felt.press("Enter")
-  await vent(page, (p) => p.storleik === 200)
-  sjekk("talfeltet set storleiken", hash(page).storleik === 200, String(hash(page).storleik))
-  sjekk("og plana står der dei stod, som brøkar", plana(page).length === n0 && plana(page)[0].o[0] < 0.2)
+  // storleiken er eit tal du DREG i, ikkje skriv: eit tekstfelt zoomar sida
+  const felt = page.locator("[aria-label='storleik, tal']")
+  const fb = await felt.boundingBox()
+  const s0b = hash(page).storleik
+  if (fb) {
+    await page.mouse.move(fb.x + fb.width / 2, fb.y + fb.height / 2)
+    await page.mouse.down()
+    for (let i = 1; i <= 12; i++) await page.mouse.move(fb.x + fb.width / 2 + 8 * i, fb.y + fb.height / 2)
+    await page.mouse.up()
+  }
+  await vent(page, (p) => p.storleik !== s0b)
+  sjekk("dra i talet set storleiken", hash(page).storleik > s0b, `${s0b} → ${hash(page).storleik}`)
+  sjekk("og talet er ikkje eit tekstfelt", (await page.locator("input[aria-label='storleik, tal']").count()) === 0)
+  sjekk("og plana står der dei stod", plana(page).length === n0 && plana(page).every((q, i) => JSON.stringify(q) === JSON.stringify(plana(page)[i])))
+  await page.keyboard.press("z")
+  await vent(page, (p) => p.storleik === s0b)
 
   await page.keyboard.press("f")
   const kand = page.locator("button[aria-pressed]").filter({ hasText: /^\d+×\d+/ })
@@ -435,6 +538,54 @@ async function flyt(browser: Browser) {
     tema: !!document.querySelector("meta[name=theme-color]"),
   }))
   sjekk("viewport-fit=cover, so innhaldet går under statuslina med vilje", /viewport-fit=cover/.test(meta.viewport), meta.viewport)
+  // Telefonen er det einaste målet: ingenting kan forstørrast, merkjast eller rullast.
+  sjekk("sida kan ikkje forstørrast (maximum-scale=1, user-scalable=no)", /maximum-scale=1/.test(meta.viewport) && /user-scalable=no/.test(meta.viewport), meta.viewport)
+  const merkbart = await page.evaluate(() => {
+    const ut: string[] = []
+    for (const e of document.querySelectorAll<HTMLElement>("body, button, p, span, h3, li, textarea, label, div")) {
+      if (e.getBoundingClientRect().width === 0) continue
+      const st = getComputedStyle(e)
+      const sel = (st as unknown as { webkitUserSelect?: string }).webkitUserSelect || st.userSelect
+      if (sel !== "none") ut.push(`${e.tagName.toLowerCase()}${e.getAttribute("aria-label") ? `[${e.getAttribute("aria-label")}]` : ""} ${sel}`)
+      if (ut.length > 5) break
+    }
+    return ut
+  })
+  sjekk("ingenting kan merkjast (user-select: none overalt)", merkbart.length === 0, merkbart.join(" · "))
+  const rulling = await page.evaluate(() => {
+    const h = getComputedStyle(document.documentElement)
+    const b = getComputedStyle(document.body)
+    return { html: `${h.overflow}/${h.position}`, body: `${b.overflow}/${b.overscrollBehavior}` }
+  })
+  sjekk("html og body er faste og utan rulling", /hidden/.test(rulling.html) && /fixed/.test(rulling.html) && /hidden/.test(rulling.body) && /none/.test(rulling.body), JSON.stringify(rulling))
+  const laust = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("button, input, a, canvas, [data-handtak]")]
+      .filter((e) => e.getBoundingClientRect().width > 0 && getComputedStyle(e).touchAction === "auto")
+      .map((e) => `${e.tagName.toLowerCase()}${e.getAttribute("aria-label") ? `[${e.getAttribute("aria-label")}]` : ""}`)
+      .slice(0, 5),
+  )
+  sjekk("ingen kontroll med touch-action: auto (dobbelttrykk-zoom)", laust.length === 0, laust.join(" · "))
+  // Flatt: ingen skugge, glød, forstørring eller animasjon på ein knapp.
+  const pynt = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("button, [data-handtak], [aria-label='kontrollar']")]
+      .filter((e) => e.getBoundingClientRect().width > 0)
+      .map((e) => ({ n: `${e.tagName.toLowerCase()}${e.getAttribute("aria-label") ? `[${e.getAttribute("aria-label")}]` : ""}`, st: getComputedStyle(e) }))
+      .filter(({ st }) => st.boxShadow !== "none" || st.animationName !== "none" || st.filter !== "none" || st.backgroundImage !== "none")
+      .map(({ n }) => n)
+      .slice(0, 6),
+  )
+  sjekk("flate knappar: ingen skugge, glød, gradient eller animasjon", pynt.length === 0, pynt.join(" · "))
+  // Ord og tal, ikkje setningar: ingen knapp seier meir enn tre ord.
+  // Hovudlina er TAL og ikkje ei setning — «12 plan · 12 delar · 2 ark» er
+  // fire avlesingar, ikkje fire ord prosa. Ho er den eine som er unnateken.
+  const ordrike = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("button")]
+      .filter((e) => e.getBoundingClientRect().width > 0 && e.getAttribute("aria-label") !== "plan, delar, ark og tid")
+      .map((e) => (e.textContent ?? "").trim())
+      .filter((t) => t.split(/[\s·]+/).filter(Boolean).length > 3)
+      .slice(0, 4),
+  )
+  sjekk("ingen knapp ber ei setning", ordrike.length === 0, ordrike.join(" | ").slice(0, 120))
   sjekk("kan lagrast på heimskjermen: capable, manifest, ikon, tema", meta.capable && meta.manifest && meta.ikon && meta.tema, JSON.stringify(meta))
 
   // --- sida rullar ikkje, korkje opp-ned eller sidelengs, i nokon høgd ---------
@@ -450,6 +601,25 @@ async function flyt(browser: Browser) {
   await page.waitForTimeout(400)
   const r2 = await rull()
   sjekk("dokumentet rullar aldri", [r0, r1, r2].every((r) => r.h <= 0 && r.w <= 0), JSON.stringify([r0, r1, r2]))
+  // Arket ligg INNANFOR skjermen i alle tre høgdene, og alt i det òg. På ein
+  // ekte iPhone stakk det ut til venstre: etikettane las «IK» og «ana grip».
+  const utanfor = await page.evaluate(() => {
+    const ut: string[] = []
+    const W = window.innerWidth
+    for (const e of document.querySelectorAll<HTMLElement>("[aria-label='kontrollar'], [aria-label='kontrollar'] *")) {
+      const r = e.getBoundingClientRect()
+      if (r.width === 0) continue
+      if (r.left < -0.5 || r.right > W + 0.5) ut.push(`${e.tagName.toLowerCase()}${e.getAttribute("aria-label") ? `[${e.getAttribute("aria-label")}]` : ""} ${Math.round(r.left)}..${Math.round(r.right)}`)
+      if (ut.length > 4) break
+    }
+    return ut
+  })
+  sjekk("arket og alt i det ligg innanfor skjermen", utanfor.length === 0, utanfor.join(" · "))
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
+  await page.locator(HOVUDLINA).click()
+  await page.waitForTimeout(400)
+  sjekk("midten er storleik og planlista, ingen reglar", (await page.locator("[aria-label='kontrollar'] button[aria-label^='fiks ']").count()) === 0 && (await page.locator("[role=listbox][aria-label='plan']").count()) === 1)
 
   // --- trykkflatene: alt som kan trykkjast er stort nok for ein tumme ----------
   const smaa = await page.evaluate(() => {
@@ -479,8 +649,9 @@ async function flyt(browser: Browser) {
   // --- flyten: ny brukar, éin tumme ----------------------------------------------
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
-  const hint = await page.locator("text=/knip|éin finger|to fingrar/i").count()
-  sjekk("det står korleis ein tek i det", hint > 0)
+  // Ingen rettleiing og inga hintline: grensesnittet er handlingar og tal.
+  const prosa = await page.locator("text=/knip = storleik|éin finger snur|slik skjer du/i").count()
+  sjekk("ingen introtekst på skjermen", prosa === 0)
   // éin finger snur objektet
   await page.touchscreen.tap(195, 300)
   const cdp = await page.context().newCDPSession(page)

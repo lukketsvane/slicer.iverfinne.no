@@ -19,6 +19,8 @@ import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { newSoup } from "../lib/mesh"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 let feil = 0
 const sjekk = (namn: string, ok: boolean, sagt = "") => {
@@ -52,7 +54,7 @@ void newSoup
 put("torus", "torus", torus(50, 18, 64, 32))
 
 const maal = (o: Partial<Params>) =>
-  measure({ ...DEFAULT_PARAMS, kjelde: "torus", storleik: 300, ...o } as Params)
+  measure({ ...DEFAULT_PARAMS, plan: nett(6, 6), kjelde: "torus", storleik: 300, ...o } as Params)
 
 // =============================================================================
 // TOLERANSEN

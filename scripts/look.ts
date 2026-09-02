@@ -197,7 +197,10 @@ async function flate(namn: string, w: number, h: number) {
   await ferdig(page)
   await page.waitForTimeout(800)
   if (!benk) {
+    // reglane og råda står i «alt», ikkje i midten
     await page.locator(HOVUDLINA).click()
+    await page.waitForTimeout(500)
+    await page.getByRole("button", { name: "alle kontrollane" }).click()
     await page.waitForTimeout(500)
   }
   const raad = page.locator("button[aria-label^='fiks ']")

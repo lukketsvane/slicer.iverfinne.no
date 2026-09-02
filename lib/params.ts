@@ -16,10 +16,14 @@
 import { clampBag, type Group, type ParamBag, type Range } from "./core"
 import type { Fest } from "./pack"
 import { reinPlan } from "./plan"
+import { reinScene } from "./scene"
 
 export type Params = {
-  /** kva nett som vert snitta: «kube», eller namnet på ei importert fil */
+  /** hovudkjelda: «kube», eller namnet på ei importert fil. Namnet i pilla,
+   *  stamma i filnamna. Sjølve kroppen står i `scene`. */
   kjelde: string
+  /** kroppen som ei liste av bitar — sjå `lib/scene.ts`. Tom tyder kjelda åleine. */
+  scene: string
 
   // --- FORM: kva som skjer med nettet før det vert snitta ----------------
   storleik: number // lengste side etter skalering, mm
@@ -149,7 +153,7 @@ export const GROUPS: readonly Group[] = [
 export const PARAM_KEYS = GROUPS.flatMap((g) => g.keys)
 
 /** alt eit uttak er ein funksjon av, tal og namn */
-export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "material", "plan", "fest"]
+export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "scene", "material", "plan", "fest"]
 
 /** Fleire feste enn dette er ikkje ei plate, det er ei lenkje som prøver seg. */
 const FEST_TAK = 128
@@ -246,14 +250,13 @@ export const snittKey = (p: ParamBag, cells: number) =>
 
 /**
  * Standarden er ein kube i tre millimeter MDF, på ei plate på 600 × 400,
- * med seks plan kvar veg alt låste.
+ * og INGEN PLAN.
  *
- * Kuben er ikkje interessant. Han er det einaste objektet som ikkje gøymer
- * noko: seks plan kvar veg gjev seks og tretti ledd, alle like, alle
- * synlege — og ser du at kuben held seg sjølv oppe, veit du kva reiskapen
- * gjer før du har lasta opp noko som helst. Eit nytt nett tømmer lista —
- * det er eit svar om den kroppen du hadde — og då står du med kroppen og
- * eit skisseplan.
+ * Reiskapen opnar tom med vilje. Eit rutenett som alt låg der var eit svar
+ * på eit spørsmål ingen hadde stilt: du såg tolv ribber du ikkje valde, og
+ * det fyrste du gjorde var å skjøne kva dei var. No ligg kroppen der som
+ * eit skal, skissa står gjennom han, og det fyrste du gjer er å skjere.
+ * Vil du ha rutenettet, ligg det eit trykk unna under framlegga.
  *
  * Resten er den maskina folk faktisk står ved. Tre millimeter MDF er det
  * som ligg i hylla på eit makerspace, og 600 × 400 er bordet på den
@@ -261,6 +264,7 @@ export const snittKey = (p: ParamBag, cells: number) =>
  */
 export const DEFAULT_PARAMS: Params = {
   kjelde: "kube",
+  scene: "",
 
   storleik: 150,
   rotX: 0,
@@ -286,10 +290,7 @@ export const DEFAULT_PARAMS: Params = {
   arkH: 400,
 
   material: "mdf",
-  plan: [
-    ...[1, 2, 3, 4, 5, 6].map((i) => `${i}@${(i - 0.5) / 6},0.5,0.5/1,0,0`),
-    ...[1, 2, 3, 4, 5, 6].map((j) => `${j + 6}@0.5,${(j - 0.5) / 6},0.5/0,1,0`),
-  ].join(";"),
+  plan: "",
   fest: "",
 }
 
@@ -302,6 +303,7 @@ export function clampParams(o: unknown, prev: Params): Params {
     const rec = o as Record<string, unknown>
     if (typeof rec.plan === "string") ut.plan = reinPlan(rec.plan)
     if (typeof rec.fest === "string") ut.fest = reinFest(rec.fest)
+    if (typeof rec.scene === "string") ut.scene = reinScene(rec.scene)
   }
   return ut
 }

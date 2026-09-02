@@ -27,6 +27,13 @@ import { put } from "../lib/sources"
 import { rutenett, skrivPlan } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
+/**
+ * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
+ * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
+ * det same rutenettet standarden hadde før, og det same objektet.
+ */
+const GRUNN = { ...DEFAULT_PARAMS, plan: nett(6, 6) }
+
 
 let brot = 0
 const feil = (namn: string, kva: string) => {
@@ -306,10 +313,10 @@ put("kule", "kule", kule(50, 32))
 put("torus", "torus", torus(50, 18, 48, 24))
 
 const saker: [string, Params][] = [
-  ["kube", { ...DEFAULT_PARAMS }],
-  ["kule", { ...DEFAULT_PARAMS, kjelde: "kule" }],
-  ["torus ståande", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90 }],
-  ["torus, små ark", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, arkB: 300, arkH: 200 }],
+  ["kube", { ...GRUNN }],
+  ["kule", { ...GRUNN, kjelde: "kule" }],
+  ["torus ståande", { ...GRUNN, kjelde: "torus", rotX: 90 }],
+  ["torus, små ark", { ...GRUNN, kjelde: "torus", rotX: 90, arkB: 300, arkH: 200 }],
   // ADRESSA MOT SPORVEGGEN.
   //
   // Ribbene her er kammar med lange, tette rader av spor, og dei er store
@@ -318,7 +325,7 @@ const saker: [string, Params][] = [
   // feitaste punktet på delen hoppa over eit spor, fylte tvers over det,
   // og la adressa midt på veggen mellom to spor. Ein millimeter utanfor,
   // og heilt usynleg på skjermen.
-  ["torus, tett og stort", { ...DEFAULT_PARAMS, kjelde: "torus", plan: nett(13, 13), storleik: 560 }],
+  ["torus, tett og stort", { ...GRUNN, kjelde: "torus", plan: nett(13, 13), storleik: 560 }],
 ]
 
 /** kuttfila er éi fil per plate, so kvar plate vert prøvd for seg */
@@ -423,7 +430,7 @@ for (const [namn, p] of saker) {
   inventar(namn, p, ark, dxf)
 }
 
-const kupong = MOTOR.exportFile(DEFAULT_PARAMS as unknown as ParamBag, "prove").text ?? ""
+const kupong = MOTOR.exportFile(GRUNN as unknown as ParamBag, "prove").text ?? ""
 graveringaLiggInne("passprøve", kupong)
 sjekkSteg("passprøve", svgSteg("passprøve", kupong))
 
@@ -549,7 +556,7 @@ const proveSaker: [string, Partial<Params>][] = [
   ["passprøve utan snitt", { snitt: 0 }],
 ]
 for (const [namn, over] of proveSaker) {
-  const pp = { ...DEFAULT_PARAMS, ...over }
+  const pp = { ...GRUNN, ...over }
   const svg = MOTOR.exportFile(pp as unknown as ParamBag, "prove").text ?? ""
   innanforRamma(namn, svg)
   graveringaLiggInne(namn, svg)
@@ -566,7 +573,7 @@ for (const [namn, over] of proveSaker) {
  */
 const teikn = (p: Partial<Params>) =>
   JSON.stringify(
-    arkSteg("snittveg", { ...DEFAULT_PARAMS, ...p }).map((s) =>
+    arkSteg("snittveg", { ...GRUNN, ...p }).map((s) =>
       s.map((q) => q.areal.toFixed(3)),
     ),
   )
@@ -593,7 +600,7 @@ else console.log("  ok   snittveg                 fila kompenserer berre når ho
  * krympar gjev mindre negativt. Summen må opp.
  */
 const summer = (p: Partial<Params>) =>
-  arkSteg("snittveg", { ...DEFAULT_PARAMS, ...p })
+  arkSteg("snittveg", { ...GRUNN, ...p })
     .flat()
     .reduce((a, q) => a + q.areal, 0)
 

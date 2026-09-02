@@ -11,6 +11,7 @@
  */
 import { clampParams, DEFAULT_PARAMS, reinFest } from "../lib/params"
 import { lesPlan, nyId, reinPlan, rutenett, skrivPlan, PLAN_TAK } from "../lib/plan"
+import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
 import { bbox, type ParamBag, type Pt } from "../lib/core"
@@ -52,6 +53,24 @@ for (const [inn, vent] of [
   sjekk(`rein «${String(inn).slice(0, 26)}»`, fekk === vent, fekk.slice(0, 40))
 }
 
+console.log("")
+for (const [inn, vent] of [
+  ["kube@0,0,0/1/0", "kube@0,0,0/1/0"],
+  ["kule@10,-20,30/0.5/45;torus@0,0,0/1/0", "kule@10,-20,30/0.5/45;torus@0,0,0/1/0"],
+  ["kube@0,0,0/1/400", "kube@0,0,0/1/40"],           // vendinga går rundt
+  ["kube@0,0,0/9/0", ""],                            // for stor
+  ["kube@999,0,0/1/0", ""],                          // for langt ute
+  ["kube@NaN,0,0/1/0", ""],
+  ["../x@0,0,0/1/0", ""],
+  ["<b>@0,0,0/1/0", ""],
+  [Array.from({ length: 40 }, () => "kube@0,0,0/1/0").join(";"), Array.from({ length: SCENE_TAK }, () => "kube@0,0,0/1/0").join(";")],
+] as const) {
+  const fekk = reinScene(inn)
+  sjekk(`scene «${String(inn).slice(0, 24)}»`, fekk === vent, fekk.slice(0, 40))
+}
+const sc = clampParams({ ...DEFAULT_PARAMS, scene: "kule@0,0,0/1/0;tull" }, DEFAULT_PARAMS)
+sjekk("clampParams reinsar scena", sc.scene === "kule@0,0,0/1/0", sc.scene)
+
 const q = clampParams({ ...DEFAULT_PARAMS, plan: "1@0.5,0.5,0.5/1,0,0;x" }, DEFAULT_PARAMS)
 sjekk("clampParams reinsar plan", q.plan === "1@0.5,0.5,0.5/1,0,0", q.plan)
 const r = clampParams({ storleik: 200 }, { ...DEFAULT_PARAMS, plan: "1@0.5,0.5,0.5/1,0,0" })
@@ -84,6 +103,30 @@ console.log("")
   const plan = lesPlan(String(bag.plan))
   sjekk("kuttlista ber planet kvar del høyrer til", liste.length === 12 && liste.every((k) => plan.some((p) => p.id === k.plan)))
   sjekk("og adressa er namnet på planet", liste.every((k) => new RegExp(`^${k.plan}[a-z]*$`).test(k.adr)))
+}
+
+/**
+ * STREKA: gods legg til, hòl tek bort, og eit strek som rekk ut forbi
+ * kroppen er ikkje eit strek som kløyver plata.
+ *
+ * Det var det: ruta som feltet vert lese på dekte kroppen og ikkje
+ * streka, og eit strek over kanten vart klipt av ruta — ei open kjede,
+ * lukka på måfå, og plata kom ut i to stykke med eit skrått band imellom.
+ */
+console.log("")
+{
+  const grunn = lesPlan(nett(6, 6))
+  const med = (strek: object[]) => {
+    const l = grunn.map((q) => ({ ...q, strek: q.id === 3 ? (strek as never) : q.strek }))
+    const bag = { ...DEFAULT_PARAMS, plan: skrivPlan(l) } as unknown as ParamBag
+    const m = MOTOR.measure(bag)
+    return { delar: m.parts, flate: m.plyArea, ledd: m.joints, nodar: m.nodes }
+  }
+  const utan = med([])
+  const gods = med([{ slag: "gods", form: "rekt", x: 0.55, y: 0.1, w: 0.2, h: 0.1, a: 20 }])
+  const hol = med([{ slag: "hol", form: "rund", x: 0, y: -0.3, w: 0.15, h: 0.15, a: 0 }])
+  sjekk("gods over kanten legg til flate, og delar ikkje plata", gods.delar === utan.delar && gods.flate > utan.flate && gods.ledd === utan.ledd, `${utan.delar}→${gods.delar} delar, ${Math.round(utan.flate)}→${Math.round(gods.flate)} mm², ${gods.ledd} ledd`)
+  sjekk("eit hòl tek flate og legg til ein ring", hol.delar === utan.delar && hol.flate < utan.flate && hol.nodar > utan.nodar, `${Math.round(utan.flate)}→${Math.round(hol.flate)} mm²`)
 }
 
 for (const [inn, vent] of [

@@ -9,7 +9,8 @@
 import { bbox, kuttCsv, nn, offsetPoly, type Pt } from "./core"
 import type { BuildOut, DetailKey, ExportKind, ExportOut, Group, ArkSyn, Kutt, Metrics, ParamBag, Range, Rule, Vec3, View } from "./core"
 import { label as srcLabel, raw as srcRaw } from "./sources"
-import { makeKropp } from "./kropp"
+import { makeKropp, scenaAv } from "./kropp"
+import { lesScene } from "./scene"
 import { buildSnitt, DETAIL, skisseSyn, type SkisseSyn, type Snitt } from "./snitt"
 import type { Plan } from "./plan"
 import { contourLines, flateMesh, lagMesh } from "./mesh"
@@ -200,10 +201,14 @@ export const MOTOR: EngineDef = {
       }
     }
     if (what === "prosjekt") {
-      // Lenkja ber kvar innstilling utan om nettet. Denne fila ber begge.
-      const bytes = srcRaw(String(p.kjelde))
+      // Lenkja ber kvar innstilling utan om nettet. Denne fila ber begge —
+      // kvar fil i scena, med id-en sin i namnet, so scena finn dei att.
       const filer = [{ name: "oppsett.json", text: oppsett() }]
-      if (bytes) filer.push({ name: `nett/${srcLabel(p.kjelde)}`, data: bytes } as never)
+      const idar = [...new Set([String(p.kjelde), ...lesScene(scenaAv(p)).map((b) => b.id)])]
+      for (const id of idar) {
+        const bytes = srcRaw(id)
+        if (bytes) filer.push({ name: `nett/${id}__${srcLabel(id)}`, data: bytes } as never)
+      }
       return { name: `${name}-prosjekt.zip`, mime: "application/zip", data: zip(filer) }
     }
     if (what === "svg") return { name: `${name}-profilar.svg`, mime: "image/svg+xml", text: profileSvg(s, kerf) }

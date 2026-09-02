@@ -35,6 +35,7 @@ import { decimate } from "./mesh/simplify"
 import { taubin } from "./mesh/smooth"
 import { makeSolid, type Solid } from "./mesh/solid"
 import { source } from "./sources"
+import { eiKjelde, lesScene } from "./scene"
 import { akser } from "./plan"
 import type { Vec3 } from "./core"
 import type { Params } from "./params"
@@ -67,16 +68,65 @@ export type Kropp = {
  */
 type Net = { net: Indexed; srcTris: number; openEdges: number }
 
-const NETT_NOKKEL = (p: Params) => [p.kjelde, p.trekant, p.glatt].join("|")
+const NETT_NOKKEL = (p: Params) => [scenaAv(p), p.trekant, p.glatt].join("|")
 const KROPP_NOKKEL = (p: Params) =>
-  [p.kjelde, p.trekant, p.glatt, p.storleik, p.rotX, p.rotY, p.rotZ].join("|")
+  [scenaAv(p), p.trekant, p.glatt, p.storleik, p.rotX, p.rotY, p.rotZ].join("|")
+
+/** scena som gjeld: lista, eller kjelda åleine når lista er tom */
+export const scenaAv = (p: Params) => p.scene || eiKjelde(p.kjelde)
+
+/**
+ * BITANE LAGDE SAMAN TIL EITT NETT.
+ *
+ * Kvar bit vert skalert til hundre millimeter på det lengste gonger sin
+ * eigen storleik, vend kring z, flytt, og so lagd rett inn i den same
+ * trekantsuppa. Ingen boolsk operasjon: strålane tel skal, so der to
+ * lukka skal ligg oppå kvarandre er det gods, og der ingen ligg er det
+ * luft. Det er nett det ein kropp bygd av klossar treng, og ikkje meir.
+ */
+function samlaSoup(p: Params): { soup: Soup; tris: number } {
+  const bitar = lesScene(scenaAv(p))
+  const delar: Float32Array[] = []
+  let tris = 0
+  for (const b of bitar.length ? bitar : lesScene(eiKjelde(p.kjelde))) {
+    const src = source(b.id)
+    tris += src.tris
+    const span = Math.max(src.max[0] - src.min[0], src.max[1] - src.min[1], src.max[2] - src.min[2], 1e-6)
+    const k = (100 * b.s) / span
+    const cx = (src.min[0] + src.max[0]) / 2
+    const cy = (src.min[1] + src.max[1]) / 2
+    const cz = src.min[2]
+    const a = (b.rz * Math.PI) / 180
+    const c = Math.cos(a)
+    const sn = Math.sin(a)
+    const P = src.pos
+    const ut = new Float32Array(P.length)
+    for (let i = 0; i < P.length; i += 3) {
+      const x = (P[i] - cx) * k
+      const y = (P[i + 1] - cy) * k
+      const z = (P[i + 2] - cz) * k
+      ut[i] = x * c - y * sn + b.t[0]
+      ut[i + 1] = x * sn + y * c + b.t[1]
+      ut[i + 2] = z + b.t[2]
+    }
+    delar.push(ut)
+  }
+  if (delar.length === 1) return { soup: makeSoup(delar[0]), tris }
+  const alle = new Float32Array(delar.reduce((n, d) => n + d.length, 0))
+  let o = 0
+  for (const d of delar) {
+    alle.set(d, o)
+    o += d.length
+  }
+  return { soup: makeSoup(alle), tris }
+}
 
 const NETT_HUGS = keep<Net>(2)
 const KROPP_HUGS = keep<Kropp>(3)
 
 function makeNet(p: Params): Net {
   return NETT_HUGS(NETT_NOKKEL(p), () => {
-    const raw = source(p.kjelde)
+    const raw = samlaSoup(p).soup
     let net = weld(raw)
     // Ut-inn fyrst, og før alt anna: er nettet snudd, er kvar einaste
     // seinare avgjerd teken på feil side av flata.

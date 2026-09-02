@@ -13,6 +13,7 @@ import { forget, put, type SourceInfo } from "./sources"
 import { unzip } from "./zip"
 import type { Kandidat } from "./forslag"
 import type { Plan } from "./plan"
+import { lesScene } from "./scene"
 import type { SkisseSyn } from "./snitt"
 import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rule, Vec3, View } from "./core"
 
@@ -129,7 +130,7 @@ self.onmessage = (e: MessageEvent<Req>) => {
           if (soup.tris > 0) {
             const id = "f" + req.id.toString(36) + Math.floor(soup.tris).toString(36)
             src = put(id, kort, soup, bytes)
-            forget(id)
+            /* scena avgjer kva som skal hugsast — sjå bygg */
           }
         }
         post({ kind: "prosjekt", id: req.id, src, params })
@@ -145,7 +146,7 @@ self.onmessage = (e: MessageEvent<Req>) => {
       // filer treng ikkje dei fem fyrste — eit skann er lett hundre megabyte.
       const id = "f" + req.id.toString(36) + Math.floor(soup.tris).toString(36)
       const src = put(id, req.name, soup, bytes)
-      forget(id)
+      /* scena avgjer kva som skal hugsast — sjå bygg */
       post({ kind: "kjelde", id: req.id, src })
       return
     }
@@ -188,6 +189,11 @@ self.onmessage = (e: MessageEvent<Req>) => {
       }
       steg()
       return
+    }
+
+    if (req.kind === "build") {
+      // Importar hopar seg opp. Det scena ikkje bruker lenger, kan gå.
+      forget([String(req.params.kjelde), ...lesScene(String(req.params.scene || "")).map((b) => b.id)])
     }
 
     if (req.kind === "skisse") {
