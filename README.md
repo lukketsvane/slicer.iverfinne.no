@@ -101,7 +101,8 @@ room between ribs. A broken hard rule is not a deduction, it is a no.
 best few grids at every part count, one or two hundred of them, each nested and
 checked against the hard rules. It takes the time it takes; the ring around the
 button shows how far it is, and tapping the button again stops it and keeps the
-best found so far.
+best found so far. On a device with cores to spare the slicing is shared across
+a few extra workers; the ring counts the same grids, it just fills faster.
 
 It affords a thousand by **measuring the body once**: one ray per column of a
 128×128 raster gives volume and the cross-section profiles A(x) and A(y) in one

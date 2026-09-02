@@ -39,7 +39,7 @@ import { bokstav, type Part } from "./parts"
 import { meshToStl } from "./export-stl"
 import { partsToDxf } from "./export-dxf"
 import { couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
-import { bruk, tune, tuneSteg, type Kandidat } from "./tune"
+import { bruk, djupOppgaver, prov, rangert, tune, tuneSteg, type Kandidat, type Oppgave } from "./tune"
 import { zip } from "../zip"
 import {
   DEFAULT_PARAMS,
@@ -81,6 +81,12 @@ export type EngineDef = {
     p: ParamBag,
     djup?: boolean,
   ): Generator<{ gjort: number; av: number; alle: Kandidat[] }, Kandidat[], void>
+  /** djupsøket i tre delar, for den som vil dele snittinga på fleire
+   *  arbeidarar: oppgåvene i rekkjefylgje, éi av dei snitta, og lista
+   *  sortert slik svaret skal stå */
+  djupOppgaver(p: ParamBag): Oppgave[]
+  prov(p: ParamBag, o: Oppgave, djup: boolean): Kandidat | null
+  rangert(alle: readonly Kandidat[], djup: boolean): Kandidat[]
   /** det n-te svaret frå ei liste som alt er rekna */
   pick(p: ParamBag, alle: Kandidat[], nth: number): ParamBag
   /** profilane som bilete til panelet — same teikning som SVG-uttaket,
@@ -194,6 +200,9 @@ export const VAFFEL: EngineDef = {
   measure: (bag) => measure(asP(bag)),
   tune: (bag, djup) => tune(asP(bag), djup),
   tuneSteg: (bag, djup) => tuneSteg(asP(bag), djup),
+  djupOppgaver: (bag) => djupOppgaver(asP(bag)),
+  prov: (bag, o, djup) => prov(asP(bag), o, djup),
+  rangert,
   pick: (bag, alle, nth) => bruk(asP(bag), alle, nth) as unknown as ParamBag,
   rules: (bag, m) => checkRules(asP(bag), m),
 

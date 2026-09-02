@@ -134,6 +134,14 @@ const MAX_FIL = 220 * 1024 * 1024
 const ANGRE_DJUPN = 50
 
 /** ruta, i CSS-pikslar */
+/**
+ * Motoren — og hjelparane hans — er det same skriptet. Webpack kjenner
+ * arbeidaren att på nett denne forma, so ho står éin stad.
+ */
+function nyArbeidar() {
+  return new Worker(new URL("../lib/worker.ts", import.meta.url), { type: "module" })
+}
+
 function useVindu() {
   const [v, setV] = useState({ w: 1280, h: 800 })
   useEffect(() => {
@@ -253,6 +261,8 @@ export function Studio() {
    * eit steg som vert rekna av ein gamal kopi går same steget to gonger.
    */
   const finn = useRef<{ base: string; alle: Kandidat[]; nth: number; djup: boolean } | null>(null)
+  /** arbeidarane som snittar for djupsøket saman med motoren — sjå `steg` */
+  const hjelparar = useRef<Worker[] | null>(null)
   /** det same, men til SKJERMEN: kvar i lista vi står, og kva som kom ut */
   const [stad, setStad] = useState<
     {
@@ -462,7 +472,7 @@ export function Studio() {
   }, [])
 
   useEffect(() => {
-    const w = new Worker(new URL("../lib/worker.ts", import.meta.url), { type: "module" })
+    const w = nyArbeidar()
     worker.current = w
     /**
      * EIN NY ARBEIDAR ER EIN TOM PORT.
@@ -680,6 +690,8 @@ export function Studio() {
     }
     return () => {
       w.terminate()
+      hjelparar.current?.forEach((h) => h.terminate())
+      hjelparar.current = null
       worker.current = null
     }
     // pump er stabil (useCallback utan avhengnader)
@@ -1456,6 +1468,29 @@ export function Studio() {
     tunarRef.current = true
     setTunar({ gjort: 0, av: 0 })
     finn.current = { base, alle: [], nth: 0, djup }
+    /**
+     * HJELPARANE KJEM FYRST NÅR NOKON HELD KNAPPEN.
+     *
+     * Djupsøket er hundre snittingar som ikkje treng vita om kvarandre,
+     * og telefonen har fleire kjernar enn den eine motoren står på. So
+     * eit par arbeidarar til av same skriptet, kvar knytt til motoren
+     * med ein kanal — hovudtråden held berre endane, og høyrer aldri kva
+     * som går i dei. Ikkje før nokon held: dei kostar minne og tråd, og
+     * eit kort trykk treng dei ikkje. Ein kjerne til hovudtråden og ein
+     * til motoren; resten, opp til tre, får snitte.
+     */
+    if (djup && !hjelparar.current) {
+      const tal = Math.min(3, Math.max(1, (navigator.hardwareConcurrency ?? 4) - 2))
+      hjelparar.current = Array.from({ length: tal }, () => {
+        const h = nyArbeidar()
+        const kanal = new MessageChannel()
+        const hjelp: Req = { kind: "hjelp", id: 0, port: kanal.port1 }
+        h.postMessage(hjelp, [kanal.port1])
+        const hjelpar: Req = { kind: "hjelpar", id: 0, port: kanal.port2 }
+        worker.current?.postMessage(hjelpar, [kanal.port2])
+        return h
+      })
+    }
     // Utanom porten, som uttaka: eit klikk er ikkje ein straum, og eit
     // søk som stod i kø bak eit bygg ville kome fram etter at brukaren
     // hadde gjeve opp.

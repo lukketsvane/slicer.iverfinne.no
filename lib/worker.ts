@@ -11,9 +11,10 @@
  */
 import { VAFFEL } from "./vaffel/engine"
 import { parseMesh } from "./io"
-import { forget, put, type SourceInfo } from "./sources"
+import { forget, KUBE, label, put, source, type SourceInfo } from "./sources"
+import { makeSoup } from "./soup"
 import { unzip } from "./zip"
-import type { Kandidat } from "./vaffel/tune"
+import type { Kandidat, Oppgave } from "./vaffel/tune"
 import type {
   DetailKey,
   ExportKind,
@@ -43,7 +44,20 @@ export type TuneReq = { kind: "tune"; id: number; params: ParamBag; djup?: boole
 export type AvbrytReq = { kind: "avbryt"; id: number }
 /** «syn meg plate nummer i» — teikninga kjem attende, ikkje ei fil */
 export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number }
-export type Req = BuildReq | ExportReq | ImportReq | TuneReq | AvbrytReq | ArkReq
+/** «her er ein hjelpar»: den eine enden av ein kanal til ein arbeidar til,
+ *  som snittar for djupsøket. Sjå «FLEIRE SOM SNITTAR». */
+export type HjelparReq = { kind: "hjelpar"; id: number; port: MessagePort }
+/** «du er ein hjelpar»: den andre enden av same kanalen */
+export type HjelpReq = { kind: "hjelp"; id: number; port: MessagePort }
+export type Req =
+  | BuildReq
+  | ExportReq
+  | ImportReq
+  | TuneReq
+  | AvbrytReq
+  | ArkReq
+  | HjelparReq
+  | HjelpReq
 
 export type BuildRes = {
   kind: "build"
@@ -151,6 +165,118 @@ let tuneKøyr = 0
 /** det søket som går: kva melding han svarar på, og det beste so langt */
 let tuneGaar: { id: number; alle: Kandidat[] } | null = null
 
+/**
+ * FLEIRE SOM SNITTAR.
+ *
+ * Djupsøket er hundre snittingar som ikkje treng vita om kvarandre, og
+ * ein telefon har fleire kjernar enn den eine denne tråden står på.
+ * Hovudtråden lagar difor eit par arbeidarar til av same skriptet og
+ * knyter kvar av dei til denne med ein kanal: han sjølv teiknar berre,
+ * og skal ikkje vita kva som går i kanalen. Denne arbeidaren eig
+ * oppgåvene og deler dei ut — to om gongen til kvar hjelpar, so ingen
+ * står og ventar medan denne er midt i si eiga snitting — og snittar
+ * sjølv imellom.
+ *
+ * Hjelparane har ikkje nettet. Kjelda vert send éin gong per hjelpar,
+ * som ein kopi; kuben lagar dei sjølve. Eit skann på ein million
+ * trekantar vert ikkje kopiert tre gonger inn i minnet på ein telefon —
+ * over tre hundre tusen snittar denne tråden åleine.
+ */
+type Ærend =
+  | { kind: "kjelde"; id: string; label: string; pos: Float32Array }
+  | { kind: "prov"; id: number; n: number; params: ParamBag; o: Oppgave }
+type Svar = { kind: "prov"; id: number; n: number; k: Kandidat | null }
+type Hjelpar = {
+  port: MessagePort
+  /** kjelda han held — éi om gongen, den siste han fekk */
+  kjelde: string | null
+  /** oppgåvene han har fått og ikkje svart på, i den rekkjefylgja han tek dei */
+  ute: number[]
+}
+const hjelparar: Hjelpar[] = []
+/** den som tek imot svara for det søket som går */
+let svarPaa: ((h: Hjelpar, s: Svar) => void) | null = null
+const MED_HJELP_TIL = 300000
+
+function djupSaman(req: TuneReq, mitt: number) {
+  const bag = req.params
+  const oppgaver = VAFFEL.djupOppgaver(bag)
+  if (!oppgaver.length) {
+    tuneGaar = null
+    post({ kind: "tune", id: req.id, alle: [] })
+    return
+  }
+  const ut: Kandidat[] = []
+  let neste = 0
+  /** kva oppgåver som er talde — ei oppgåve kan verte snitta to gonger, sjå `steg` */
+  const talt = new Uint8Array(oppgaver.length)
+  let gjort = 0
+  post({ kind: "tunep", id: req.id, gjort: 0, av: oppgaver.length })
+
+  const kjelde = typeof bag.kjelde === "string" ? bag.kjelde : KUBE
+  const soup = source(kjelde)
+  const med = soup.tris <= MED_HJELP_TIL ? hjelparar : []
+  for (const h of med) {
+    if (kjelde === KUBE || h.kjelde === kjelde) continue
+    const æ: Ærend = { kind: "kjelde", id: kjelde, label: label(kjelde), pos: soup.pos }
+    h.port.postMessage(æ)
+    h.kjelde = kjelde
+  }
+
+  const ferdig = (n: number, k: Kandidat | null) => {
+    if (talt[n]) return
+    talt[n] = 1
+    if (k) ut.push(k)
+    gjort++
+    const alle = VAFFEL.rangert(ut, true)
+    if (tuneGaar) tuneGaar.alle = alle
+    if (gjort === oppgaver.length) {
+      tuneGaar = null
+      post({ kind: "tune", id: req.id, alle })
+      return
+    }
+    post({ kind: "tunep", id: req.id, gjort, av: oppgaver.length })
+  }
+  const gjev = (h: Hjelpar) => {
+    if (neste >= oppgaver.length) return
+    const n = neste++
+    h.ute.push(n)
+    const æ: Ærend = { kind: "prov", id: req.id, n, params: bag, o: oppgaver[n] }
+    h.port.postMessage(æ)
+  }
+  svarPaa = (h, s) => {
+    // eit svar på eit søk som er stogga eller bytt ut er ikkje eit svar
+    if (s.id !== req.id || mitt !== tuneKøyr) return
+    h.ute = h.ute.filter((n) => n !== s.n)
+    ferdig(s.n, s.k)
+    gjev(h)
+  }
+  for (const h of med) {
+    h.ute = []
+    gjev(h)
+    gjev(h)
+  }
+  const steg = () => {
+    if (mitt !== tuneKøyr) return
+    let n = -1
+    if (neste < oppgaver.length) {
+      n = neste++
+    } else {
+      // Tomt for nye: ta den siste ein hjelpar sit med. Den som svarar
+      // fyrst tel, og den andre vert ikkje talt to gonger. So står ingen
+      // og ventar på den siste snittinga i ein annan tråd — og ein
+      // hjelpar som døydde undervegs stoggar ikkje søket.
+      let flest: Hjelpar | null = null
+      for (const h of med) if (h.ute.length && (!flest || h.ute.length > flest.ute.length)) flest = h
+      if (flest) n = flest.ute.pop()!
+    }
+    if (n < 0) return
+    ferdig(n, VAFFEL.prov(bag, oppgaver[n], true))
+    setTimeout(steg, 0)
+  }
+  steg()
+}
+
 self.onmessage = (e: MessageEvent<Req>) => {
   const req = e.data
   try {
@@ -215,6 +341,38 @@ self.onmessage = (e: MessageEvent<Req>) => {
       return
     }
 
+    if (req.kind === "hjelpar") {
+      const h: Hjelpar = { port: req.port, kjelde: null, ute: [] }
+      req.port.onmessage = (e: MessageEvent<Svar>) => svarPaa?.(h, e.data)
+      hjelparar.push(h)
+      return
+    }
+
+    if (req.kind === "hjelp") {
+      // Denne arbeidaren er ein hjelpar: han får kjelda og oppgåver over
+      // kanalen, og svarar same veg. Hovudtråden høyrer aldri frå han.
+      const port = req.port
+      port.onmessage = (e: MessageEvent<Ærend>) => {
+        const æ = e.data
+        if (æ.kind === "kjelde") {
+          // Eitt nett om gongen: den som har prøvd seks filer treng ikkje
+          // dei fem fyrste i tre hjelparar òg.
+          put(æ.id, æ.label, makeSoup(æ.pos))
+          forget(æ.id)
+          return
+        }
+        let k: Kandidat | null = null
+        try {
+          k = VAFFEL.prov(æ.params, æ.o, true)
+        } catch (err) {
+          console.error("slicerman: hjelparen slo feil", err)
+        }
+        const svar: Svar = { kind: "prov", id: æ.id, n: æ.n, k }
+        port.postMessage(svar)
+      }
+      return
+    }
+
     if (req.kind === "avbryt") {
       // EIT SØK SOM VERT STOGGA HAR SVART.
       //
@@ -240,9 +398,13 @@ self.onmessage = (e: MessageEvent<Req>) => {
       // Turen innom køen kostar eit par millisekund per kandidat, og han
       // gjev meir enn framdrifta attende: eit bygg som kjem medan søket
       // går, slepp til imellom i staden for å stå og vente på heile.
-      const it = VAFFEL.tuneSteg(req.params, req.djup)
       const mitt = ++tuneKøyr
       tuneGaar = { id: req.id, alle: [] }
+      if (req.djup && hjelparar.length) {
+        djupSaman(req, mitt)
+        return
+      }
+      const it = VAFFEL.tuneSteg(req.params, req.djup)
       const steg = () => {
         // Eit nytt søk gjer det gamle uinteressant. Utan denne ville to
         // søk rekna om kvarandre og sendt kvar sine svar.
