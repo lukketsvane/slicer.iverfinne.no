@@ -1519,15 +1519,28 @@ export function Studio() {
      */
     if (djup && !hjelparar.current) {
       const tal = Math.min(3, Math.max(1, (navigator.hardwareConcurrency ?? 4) - 2))
-      hjelparar.current = Array.from({ length: tal }, () => {
-        const h = nyArbeidar()
-        const kanal = new MessageChannel()
-        const hjelp: Req = { kind: "hjelp", id: 0, port: kanal.port1 }
-        h.postMessage(hjelp, [kanal.port1])
-        const hjelpar: Req = { kind: "hjelpar", id: 0, port: kanal.port2 }
-        worker.current?.postMessage(hjelpar, [kanal.port2])
-        return h
-      })
+      const flokk: Worker[] = []
+      // EIN HJELPAR SOM IKKJE VART TIL, ER BERRE EIN HJELPAR MINDRE.
+      //
+      // Ein tråd er minne, og ein telefon med lite att kan nekte. Han skal
+      // ikkje ta søket med seg i fallet: motoren snittar sjølv, og han tek
+      // over oppgåvene til ein hjelpar som aldri svarar — sjå «steg» i
+      // arbeidaren. So det som vart til, hjelper; det som ikkje vart til,
+      // kostar eit sekund eller to.
+      for (let i = 0; i < tal; i++) {
+        try {
+          const h = nyArbeidar()
+          const kanal = new MessageChannel()
+          const hjelp: Req = { kind: "hjelp", id: 0, port: kanal.port1 }
+          h.postMessage(hjelp, [kanal.port1])
+          const hjelpar: Req = { kind: "hjelpar", id: 0, port: kanal.port2 }
+          worker.current?.postMessage(hjelpar, [kanal.port2])
+          flokk.push(h)
+        } catch {
+          break
+        }
+      }
+      hjelparar.current = flokk
     }
     // Utanom porten, som uttaka: eit klikk er ikkje ein straum, og eit
     // søk som stod i kø bak eit bygg ville kome fram etter at brukaren

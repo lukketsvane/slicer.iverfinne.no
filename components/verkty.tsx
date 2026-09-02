@@ -462,6 +462,10 @@ function Plater(props: {
   const fingrar = useRef(new Map<number, { x: number; y: number }>())
   const klyp = useRef<{ v: Syn; ppm: number; a: { x: number; y: number }; b: { x: number; y: number } } | null>(null)
   const pan = useRef<{ id: number; v: Syn; ppm: number; p: { x: number; y: number } } | null>(null)
+  /** `heile` og `inne` vert laga lenger nede, etter at plata er kjend;
+   *  hjullyttaren står over og når dei gjennom desse */
+  const heileRef = useRef<(r: DOMRect) => Syn>(() => ({ x: 0, y: 0, w: 1, h: 1 }))
+  const inneRef = useRef<(v: Syn) => Syn>((v) => v)
   /**
    * TO FINGRAR PÅ DEN VALDE DELEN.
    *
@@ -500,6 +504,51 @@ function Plater(props: {
   const tapp = useRef<{ id: number; x: number; y: number; paaDel: boolean; fleire: boolean } | null>(null)
   useEffect(() => setSyn(null), [ark?.arkB, ark?.arkH])
 
+  /**
+   * HJULET GJER DET KLYPET GJER.
+   *
+   * Plata kan klypast nærare med to fingrar. På ein benk er det ikkje to
+   * fingrar, det er eit hjul — og eit hjul som rullar sida i staden for å
+   * gå nærare plata er eit hjul som gjer feil ting når peikaren står over
+   * ei teikning du skal arbeide i.
+   *
+   * Lyttaren står her og ikkje som `onWheel`: React set hjulet som ei
+   * PASSIV lyttar på rota, og ei passiv lyttar kan ikkje stogge rullinga.
+   * Same grunnen som lerretet har si eiga.
+   */
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const paa = (e: WheelEvent) => {
+      e.preventDefault()
+      const r = el.getBoundingClientRect()
+      const v = synRef.current ?? heileRef.current(r)
+      const ppm = r.width / v.w
+      const passa = heileRef.current(r)
+      const ppmHeile = r.width / passa.w
+      // Same taket som klypet: mellom heile plata og ti gonger nærare.
+      const ppm1 = Math.min(ppmHeile * 10, Math.max(ppmHeile, ppm * Math.exp(-e.deltaY / 400)))
+      if (ppm1 <= ppmHeile * 1.01) {
+        setSyn(null)
+        return
+      }
+      // Punktet under peikaren skal stå stille på plata.
+      const M = { x: v.x + (e.clientX - r.left) / ppm, y: v.y + (e.clientY - r.top) / ppm }
+      setSyn(
+        inneRef.current({
+          x: M.x - (e.clientX - r.left) / ppm1,
+          y: M.y - (e.clientY - r.top) / ppm1,
+          w: r.width / ppm1,
+          h: r.height / ppm1,
+        }),
+      )
+    }
+    el.addEventListener("wheel", paa, { passive: false })
+    return () => el.removeEventListener("wheel", paa)
+    // Plata kjem frå arbeidaren, og teikninga med henne: køyrer denne berre
+    // ved montering, finst det ingen `svg` å henge lyttaren på enno.
+  }, [ark])
+
   /** frå skjermpikslar til millimeter på plata, y opp — gjennom den same
    *  spegelen teikninga sjølv ligg i, so tala er dei plata reknar i */
   const mm = (cx: number, cy: number): [number, number] | null => {
@@ -532,6 +581,8 @@ function Plater(props: {
     x: Math.min(Math.max(v.x, -v.w / 2), arkB - v.w / 2),
     y: Math.min(Math.max(v.y, -v.h / 2), arkH - v.h / 2),
   })
+  heileRef.current = heile
+  inneRef.current = inne
   /** ein finger til er slutten på det som var i gang på ein del */
   const sleppDelen = () => {
     window.clearTimeout(langt.current)
