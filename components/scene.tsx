@@ -27,7 +27,16 @@ const VALT = "#e05a1a"
 /** planet slik skissa står no, i motoren sitt rom (mm, z opp) */
 export type Skisse = { o: Vec3; n: Vec3 }
 /** kva ein gest held på med, til lesing på skjermen */
-export type GestKva = "storleik" | "vend" | "lys" | "snitt" | null
+export type GestKva = "storleik" | "vend" | "lys" | "snitt" | "zoom" | null
+/**
+ * TO GESTMODUSAR, EIN BRYTAR. «form» er dei gamle gestane: to fingrar på
+ * objektet klyp storleiken, vrir vendinga og dreg snittet på tvers — éin
+ * gest om gongen, den som leier vinn. «skisse» er reiskapen for sjølve
+ * planet: dra flyttar det, vri vinklar det, klyp dollyar kameraet — alle
+ * tre samstundes, som på eit kart. Med eit låst plan valt gjeld skisse-
+ * gestane DET planet, i begge modusane.
+ */
+export type Modus = "form" | "skisse"
 type Lys = { az: number; el: number }
 
 type Ramma = { cx: number; cy: number; s: number; min: Vec3; max: Vec3; midt: Vec3; fit: Fit }
@@ -201,6 +210,9 @@ const DAUD = 8
 const NOK = 1.25
 /** under femten grader er ei vriding ingen kandidat: utilsikta rull ligg under ti */
 const VRI_MIN = 0.26
+/** skissemodusen: under dette er ei vriding inga vriding, og eit klyp ingen klyp */
+const VRI_SAM = 0.15
+const KLYP_SAM = 0.04
 
 type Tak = {
   id: number
@@ -214,10 +226,11 @@ type Tak = {
   pl: { id: number; o: THREE.Vector3; n: THREE.Vector3 } | null
 }
 
-function Handa({ f, fri, view, vald, plan, skisse, boks, onPlan, onDoubleTap, onSkala, onVend, onLys, onGest, onRaakar }: {
+function Handa({ f, fri, view, modus, vald, plan, skisse, boks, onPlan, onDoubleTap, onSkala, onVend, onLys, onGest, onRaakar }: {
   f: Ramma | null
   fri: ReturnType<typeof fritt>
   view: View
+  modus: Modus
   vald: number | null
   plan: readonly Plan[]
   skisse: MutableRefObject<Skisse | null>
@@ -271,8 +284,8 @@ function Handa({ f, fri, view, vald, plan, skisse, boks, onPlan, onDoubleTap, on
     return { x: ((p.x + 1) / 2) * size.width, y: ((1 - p.y) / 2) * size.height }
   }
 
-  const naa = useRef({ f, vald, valt, view, fri, onPlan, onDoubleTap, onSkala, onVend, onLys, onGest })
-  naa.current = { f, vald, valt, view, fri, onPlan, onDoubleTap, onSkala, onVend, onLys, onGest }
+  const naa = useRef({ f, vald, valt, view, modus, fri, onPlan, onDoubleTap, onSkala, onVend, onLys, onGest })
+  naa.current = { f, vald, valt, view, modus, fri, onPlan, onDoubleTap, onSkala, onVend, onLys, onGest }
 
   useFrame(() => {
     const g = gruppe.current
@@ -349,8 +362,12 @@ function Handa({ f, fri, view, vald, plan, skisse, boks, onPlan, onDoubleTap, on
   useEffect(() => {
     const el = gl.domElement
     const pts = new Map<number, { x: number; y: number }>()
-    type Modus = "none" | "klyp" | "vri" | "dra" | "lys" | "hFlytt" | "hVri" | "musFlytt" | "musVri"
-    let mode: Modus = "none"
+    type Gest = "none" | "klyp" | "vri" | "dra" | "sam" | "lys" | "hFlytt" | "hVri" | "musFlytt" | "musVri"
+    let mode: Gest = "none"
+    /** skissemodusen: dra, vri og klyp SAMSTUNDES, kvar med si daudsone */
+    let sam = { d0: 1, sistA: 0, vri: 0, dist0: 6, akt: { pan: false, vri: false, klyp: false }, sagt: null as GestKva }
+    /** skissegestane gjeld når brytaren står på skisse — og alltid når eit låst plan er valt */
+    const skisseStil = () => naa.current.modus === "skisse" || naa.current.valt !== null
     let last = { cx: 0, cy: 0, d: 0, a: 0 }
     /** stoda då gesten vart klassifisert, som klyp, vri og drag måler frå */
     let start = { cx: 0, cy: 0, d: 0, a: 0 }
@@ -399,39 +416,47 @@ function Handa({ f, fri, view, vald, plan, skisse, boks, onPlan, onDoubleTap, on
       }
       return { id, x0, y0, a0: 0, senter: { ...senterPx.current }, pose: { ...pose.current }, pl }
     }
-    /** eit drag på (dx, dy) pikslar: skissa på tvers av lina, planet langs normalen */
-    const flytt = (t: Tak, dx: number, dy: number) => {
+    /**
+     * Gesten so langt, brukt på skissa eller planet: eit drag på (dx, dy)
+     * pikslar og ei vriding på `ang` radianar på skjermen (med klokka er
+     * positivt). Skissa flyttar på tvers av lina — langs henne er ingenting
+     * — og midten held seg i det frie bandet, so handtaket alltid kan
+     * nåast. Planet skuvar langs normalen sin og dreier kring synsaksen.
+     */
+    const bruk = (t: Tak, dx: number, dy: number, ang: number) => {
       const { f, onPlan, fri } = naa.current
       if (!f) return
       if (t.pl) {
         const { right, up, fwd } = aksar()
+        // ei dreiing kring synsaksen: med klokka på skjermen er positivt kring «fram»
+        const n = t.pl.n.clone()
+        if (ang) n.applyAxisAngle(fwd, ang)
         const o = t.pl.o.clone()
-        const n = t.pl.n
-        // normalen projisert på skjermen, i pikslar; draget prikka med han.
-        // Eit plan sett rett framanfrå har inga retning å skuve i.
-        const k = pxPer(Math.max(0.1, o.clone().sub(camera.position).dot(fwd)))
-        const ns = new THREE.Vector2(n.dot(right) * k, -n.dot(up) * k)
-        if (ns.length() > 0.05 * k) o.addScaledVector(n, (dx * ns.x + dy * ns.y) / ns.lengthSq())
+        if (dx || dy) {
+          // normalen projisert på skjermen, i pikslar; draget prikka med han.
+          // Eit plan sett rett framanfrå har inga retning å skuve i.
+          const k = pxPer(Math.max(0.1, o.clone().sub(camera.position).dot(fwd)))
+          const ns = new THREE.Vector2(n.dot(right) * k, -n.dot(up) * k)
+          if (ns.length() > 0.05 * k) o.addScaledVector(n, (dx * ns.x + dy * ns.y) / ns.lengthSq())
+        }
         onPlan(t.pl.id, broek(fraaVerd(f, o), f.min, f.max), nFraaVerd(n))
       } else {
-        // berre komponenten på tvers av lina; langs henne er ingenting.
-        // Og midten held seg i det frie bandet, so handtaket alltid kan nåast.
         const p = pose.current
+        p.phi = t.pose.phi - ang
         const k = dx * Math.sin(t.pose.phi) + dy * Math.cos(t.pose.phi)
         p.px = klem(t.pose.px + k * Math.sin(t.pose.phi), fri.w / 2 - 24)
         p.py = klem(t.pose.py + k * Math.cos(t.pose.phi), fri.h / 2 - 24)
       }
       invalidate()
     }
-    /** ei vriding på `ang` radianar på skjermen (med klokka er positivt) */
-    const vri = (t: Tak, ang: number) => {
-      const { f, onPlan } = naa.current
-      if (!f) return
-      if (t.pl) {
-        // ei dreiing kring synsaksen: med klokka på skjermen er positivt kring «fram»
-        const n = t.pl.n.clone().applyAxisAngle(aksar().fwd, ang)
-        onPlan(t.pl.id, broek(fraaVerd(f, t.pl.o), f.min, f.max), nFraaVerd(n))
-      } else pose.current.phi = t.pose.phi - ang
+    const flytt = (t: Tak, dx: number, dy: number) => bruk(t, dx, dy, 0)
+    const vri = (t: Tak, ang: number) => bruk(t, 0, 0, ang)
+    /** klypet i skissemodusen dollyar kameraet: totalen sidan gesten byrja */
+    const dolly = (klyp: number) => {
+      if (!controls) return
+      const dist = Math.min(MAX_DIST, Math.max(MIN_DIST, sam.dist0 / klyp))
+      camera.position.copy(controls.target).add(camera.position.clone().sub(controls.target).setLength(dist))
+      controls.update?.()
       invalidate()
     }
     const slepp = () => {
@@ -459,13 +484,24 @@ function Handa({ f, fri, view, vald, plan, skisse, boks, onPlan, onDoubleTap, on
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pts.size === 1 && controls) snap = { pos: camera.position.clone(), target: controls.target.clone() }
       if (pts.size === 2 && mode !== "lys" && !flat) {
-        mode = "none"
-        last = measure2()
-        anker = last
-        sumVri = 0
-        leiar = null
-        iRad = 0
         if (controls) controls.enabled = false
+        const c = measure2()
+        last = c
+        if (skisseStil()) {
+          // skissa: den fyrste fingeren rakk å snu synet litt før den andre
+          // landa; det høyrer ikkje til gesten. Og alle tre gestane er
+          // levande frå no, kvar med si daudsone.
+          restore()
+          tak = taTak(c.cx, c.cy)
+          sam = { d0: Math.max(1, c.d), sistA: c.a, vri: 0, dist0: controls ? camera.position.distanceTo(controls.target) : 6, akt: { pan: false, vri: false, klyp: false }, sagt: null }
+          mode = "sam"
+        } else {
+          mode = "none"
+          anker = c
+          sumVri = 0
+          leiar = null
+          iRad = 0
+        }
       }
       if (pts.size === 3) {
         mode = "lys"
@@ -503,6 +539,26 @@ function Handa({ f, fri, view, vald, plan, skisse, boks, onPlan, onDoubleTap, on
       }
       if (pts.size !== 2 || naa.current.view === "kontur") return
       const c = measure2()
+      if (mode === "sam") {
+        if (!tak) return
+        sam.vri += vinkel(c.a, sam.sistA)
+        sam.sistA = c.a
+        const panX = c.cx - tak.x0
+        const panY = c.cy - tak.y0
+        const klyp = c.d / sam.d0
+        if (!sam.akt.pan && Math.hypot(panX, panY) > 6) sam.akt.pan = true
+        if (!sam.akt.vri && Math.abs(sam.vri) > VRI_SAM) sam.akt.vri = true
+        if (!sam.akt.klyp && Math.abs(klyp - 1) > KLYP_SAM) sam.akt.klyp = true
+        if (sam.akt.klyp) dolly(klyp)
+        if (sam.akt.pan || sam.akt.vri) bruk(tak, sam.akt.pan ? panX : 0, sam.akt.pan ? panY : 0, sam.akt.vri ? sam.vri : 0)
+        const sagt: GestKva = sam.akt.pan || sam.akt.vri ? "snitt" : sam.akt.klyp ? "zoom" : null
+        if (sagt !== sam.sagt) {
+          sam.sagt = sagt
+          naa.current.onGest(sagt)
+        }
+        last = c
+        return
+      }
       const dv = vinkel(c.a, last.a)
       // Vinkelen vert lagd saman heile vegen, òg medan gesten er namnlaus: det er han klassifiseringa les.
       sumVri += dv
@@ -824,11 +880,12 @@ const IkonVri = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, kontur, view, material, rute, liste, plan, vald, spok, skisse, onVald, onPlan, onSkala, onVend, onGest, onRaakar }: {
+export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, material, rute, liste, plan, vald, spok, skisse, onVald, onPlan, onSkala, onVend, onGest, onRaakar }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   kontur: BuildRes | null
   view: View
+  modus: Modus
   material: string
   rute: Rute
   liste: readonly Kutt[]
@@ -891,7 +948,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, material, r
           </mesh>
         </group>
         <FitCamera fit={(flat ? fk : f)?.fit ?? null} rute={rute} flat={flat} reframe={reframe} />
-        <Handa f={f} fri={fri} view={view} vald={vald} plan={plan} skisse={skisse} boks={boks} onPlan={onPlan} onDoubleTap={dobbel} onSkala={onSkala} onVend={onVend} onLys={flyttLys} onGest={onGest} onRaakar={onRaakar} />
+        <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} skisse={skisse} boks={boks} onPlan={onPlan} onDoubleTap={dobbel} onSkala={onSkala} onVend={onVend} onLys={flyttLys} onGest={onGest} onRaakar={onRaakar} />
         {/* konturen er ei teikning: éin finger dreg, klypet zoomar, ingenting snur */}
         <OrbitControls
           target={[0, 0.35, 0]}

@@ -39,7 +39,7 @@ export function stengd(x: ExportKind, m: Metrics | null): string {
 }
 
 export const TASTAR =
-  "l lås · ⌫ slett valt · f forslag · 1 2 3 lesemåte · z angre · esc lat att · ⇧ dra flytt planet · ⌥ dra vri det"
+  "l lås · s skissemodus · ⌫ slett valt · f forslag · d djupsøk · 1 2 3 lesemåte · z angre · esc lat att · ⇧ dra flytt snittet · ⌥ dra vri det · ⌃ hjul storleik"
 
 /**
  * EIT LANGT TRYKK. Fingeren står stille (seks pikslar), det korte fyrer
@@ -90,7 +90,7 @@ export const HAIR: CSSProperties = { borderColor: "var(--rule)" }
 export const ICON_BTN =
   "hit relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition active:scale-95"
 export const CHIP =
-  "hit min-h-[30px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] transition active:scale-95 disabled:opacity-30"
+  "hit min-h-[36px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] transition active:scale-95 disabled:opacity-30"
 export function chipStyle(active: boolean): CSSProperties {
   return active
     ? { background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }
@@ -155,7 +155,11 @@ export const IcoDown = ikon("m6 9 6 6 6-6")
 export const IcoAngre = ikon("M9 14 4 9l5-5|M4 9h10a6 6 0 0 1 0 12h-3", "h-3.5 w-3.5")
 export const IcoReset = ikon("M3 12a9 9 0 1 0 2.6-6.36|M3 4v4.5h4.5", "h-3.5 w-3.5")
 export const IcoShare = ikon("M12 3v12|m8 7 4-4 4 4|M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8", "h-3.5 w-3.5")
-export const IcoImport = ikon("M12 15V3|m8 11 4 4 4-4|M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4", "h-3.5 w-3.5")
+/** importen er ei mappe som opnar seg; uttaket er fila som går ned i skuffa */
+export const IcoImport = ikon("M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "h-3.5 w-3.5")
+export const IcoUttak = ikon("M12 15V3|m8 11 4 4 4-4|M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4")
+/** skissemodusen: lina med handtaket på */
+export const IcoSkisse = ikon("M4 20 20 4|M9 15a2 2 0 1 0 4 0 2 2 0 1 0-4 0")
 /** låsen: eit plan som vert ein del */
 export const IcoLaas = (
   <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
