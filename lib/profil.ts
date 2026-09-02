@@ -1,5 +1,5 @@
 /**
- * VAFFEL — kroppen sin eigen profil, målt éin gong.
+ * SLICERMAN — kroppen sin eigen profil, målt éin gong.
  *
  * EI RIBBE ER EI PRØVE AV EI FORM, og eit rutenett er eit prøvesett. Det
  * som ligg mellom to naboribber vert aldri skore: står ribbene tolv
@@ -20,12 +20,12 @@
  *
  * KVIFOR EIN GONG
  * Profilen er ein funksjon av KROPPEN, og kroppen står stille medan
- * ribbetalet vert prøvd: `tune` rører berre ribbX, ribbY og leddelinga,
- * og ingen av dei tre er med i nøkkelen kroppen er hugsa på. So han vert
- * målt éin gong, og deretter kostar kvar kandidat ei summering over ei
- * talrekkje. Det er heile grunnen til at djupsøket kan sjå på tusen
- * rutenett i staden for tretten: dei tusen er aritmetikk, og berre dei
- * beste av dei vert snitta for alvor.
+ * framlegga vert prøvde: søket i `forslag.ts` rører berre `plan`, og plana
+ * er ikkje med i nøkkelen kroppen er hugsa på. So han vert målt éin gong,
+ * og deretter kostar kvar kandidat ei summering over ei talrekkje. Det er
+ * heile grunnen til at djupsøket kan sjå på tusen rutenett i staden for
+ * tretten: dei tusen er aritmetikk, og berre dei beste av dei vert snitta
+ * for alvor.
  *
  * KORLEIS
  * Ein loddrett stråle per søyle i eit rutenett over golvet. Strålen gjev
@@ -59,8 +59,8 @@ export type Profil = {
  *
  * Han skal vera fin nok til at ei celle mellom to ribber har fleire
  * bingar i seg — elles måler han si eiga oppløysing i staden for forma.
- * Ribbetaket er 32, so 128 bingar gjev fire per celle på det tettaste og
- * seksti på det spinklaste.
+ * Søket går til 32 plan per akse, so 128 bingar gjev fire per celle på det
+ * tettaste og seksti på det spinklaste.
  *
  * Kostnaden er kvadratisk: 128 × 128 er 16 384 strålar. Det er under ei
  * ribbesnitting, og det er den samanlikninga som gjeld — djupsøket
