@@ -535,9 +535,21 @@ function Plater(props: {
             {kryss} i kvarandre
           </span>
         )}
+        {/* MEDAN DU DREG: kvar hjørnet landar, i millimeter frå plata sitt
+            eige hjørne. Fingeren dekkjer delen, so talet står her oppe og
+            ikkje under han — og det er det talet som vert festet. */}
+        {dra && (() => {
+          const d = ark.plasser.find((q) => q.adr === dra.adr)
+          if (!d) return null
+          return (
+            <span className="mono basis-full text-[10px]" style={{ color: "var(--ink)" }}>
+              {dra.adr} · x {nn(Math.max(0, d.plass.x + dra.dx), 0)} · y {nn(Math.max(0, d.plass.y + dra.dy), 0)} mm
+            </span>
+          )
+        })()}
         {/* Gestane syner seg ikkje sjølve. Lina står til du har festa
             noko — då har du funne dei. */}
-        {festa.size === 0 && (
+        {festa.size === 0 && !dra && (
           <span className="dim basis-full text-[10px] tracking-[0.04em]">
             dra ein del for å flytte han · hald for å feste og snu · klyp for å sjå nærare
           </span>
