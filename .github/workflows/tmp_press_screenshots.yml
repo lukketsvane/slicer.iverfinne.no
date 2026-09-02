@@ -1,0 +1,114 @@
+name: Temporary international press screenshots
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  capture:
+    if: github.event.head_commit.message == 'build press screenshot archive'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install lightweight browser driver
+        run: npm install --no-save puppeteer-core@24
+      - name: Capture real outlet pages
+        shell: bash
+        run: |
+          cat > /tmp/capture.mjs <<'NODE'
+          import fs from 'fs';
+          import path from 'path';
+          import puppeteer from 'puppeteer-core';
+
+          const urls = [...new Set(fs.readFileSync('tmp_press_urls_20260902.txt','utf8').split(/\r?\n/).map(x=>x.trim()).filter(Boolean))];
+          const chromeCandidates = ['/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'];
+          const executablePath = chromeCandidates.find(p => fs.existsSync(p));
+          if (!executablePath) throw new Error('No Chrome/Chromium found on runner');
+          fs.mkdirSync('original_press_pages', {recursive:true});
+          fs.mkdirSync('failed_pages', {recursive:true});
+          const browser = await puppeteer.launch({headless:true, executablePath, args:['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-gpu','--hide-scrollbars','--lang=en-US,en']});
+          const records = [];
+          let cursor = 0;
+          const relevant = /mette|marius|høiby|hoiby|epstein|haakon|norway|norweg|noruega|norv[eè]ge|norvegia|норв/i;
+          const safe = s => s.replace(/^www\./,'').replace(/[^a-z0-9._-]+/gi,'_').slice(0,55);
+          const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+          async function dismissConsent(page) {
+            try {
+              const clicked = await page.evaluate(() => {
+                const rx = /^(accept( all)?|agree|i agree|allow all|godta( alle)?|accepter|aceptar|akzeptieren|alle akzeptieren|consent|continue without accepting|reject all)$/i;
+                const els = [...document.querySelectorAll('button,[role="button"],a')];
+                const el = els.find(e => rx.test((e.innerText || e.textContent || '').trim()));
+                if (el) { el.click(); return true; }
+                return false;
+              });
+              if (clicked) await sleep(700);
+            } catch {}
+          }
+
+          async function worker() {
+            const page = await browser.newPage();
+            await page.setViewport({width:1170,height:900,deviceScaleFactor:1});
+            await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36');
+            page.setDefaultNavigationTimeout(26000);
+            while (true) {
+              const i = cursor++;
+              if (i >= urls.length) break;
+              const url = urls[i];
+              let domain = 'unknown';
+              try { domain = new URL(url).hostname; } catch {}
+              const base = String(i+1).padStart(3,'0') + '_' + safe(domain) + '.png';
+              const out = path.join('original_press_pages',base);
+              const failOut = path.join('failed_pages',base);
+              let status='ok', title='', finalUrl=url, note='';
+              try {
+                const resp = await page.goto(url,{waitUntil:'domcontentloaded',timeout:26000});
+                await sleep(1800);
+                await dismissConsent(page);
+                title = await page.title();
+                finalUrl = page.url();
+                const text = await page.evaluate(() => (document.body?.innerText || '').slice(0,12000));
+                const http = resp?.status() ?? 0;
+                const isRelevant = relevant.test((title+' '+text).toLowerCase());
+                if (http >= 400 || !isRelevant) {
+                  status='failed'; note=`http=${http}; relevant=${isRelevant}`;
+                  await page.screenshot({path:failOut,fullPage:false,type:'png'});
+                } else {
+                  await page.screenshot({path:out,fullPage:false,type:'png'});
+                }
+              } catch (e) {
+                status='failed'; note=String(e?.message || e).slice(0,300);
+                try { title=await page.title(); finalUrl=page.url(); await page.screenshot({path:failOut,fullPage:false,type:'png'}); } catch {}
+              }
+              records.push({index:i+1,status,url,finalUrl,title,file:status==='ok'?base:'',failureScreenshot:status==='failed'?base:'',note});
+              console.log(`${i+1}/${urls.length} ${status.toUpperCase()} ${domain} ${title.slice(0,90)}`);
+              try { await page.goto('about:blank',{waitUntil:'load',timeout:5000}); } catch {}
+            }
+            await page.close();
+          }
+          await Promise.all(Array.from({length:6},()=>worker()));
+          await browser.close();
+          records.sort((a,b)=>a.index-b.index);
+          fs.writeFileSync('SOURCES.json',JSON.stringify(records,null,2));
+          const ok = records.filter(r=>r.status==='ok').length;
+          const failed = records.length-ok;
+          fs.writeFileSync('README.txt',`REAL BROWSER SCREENSHOTS OF THE ORIGINAL PUBLISHERS' OWN ARTICLE PAGES\nNo recreated cards or generated press graphics.\nViewport: 1170x900.\nCandidates: ${records.length}\nSuccessful relevant page captures: ${ok}\nFailed/blocked: ${failed}\nSee SOURCES.json for the exact URL and page title for every capture.\n`);
+          console.log(`RESULT successful=${ok} failed=${failed} total=${records.length}`);
+          NODE
+          node /tmp/capture.mjs
+          zip -9 -r internasjonal_presse_ORIGINALE_sider.zip original_press_pages SOURCES.json README.txt >/dev/null
+          echo "Successful screenshots: $(find original_press_pages -type f -name '*.png' | wc -l)"
+          echo "Blocked/failed screenshots kept separately for diagnostics: $(find failed_pages -type f -name '*.png' | wc -l)"
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: internasjonal-presse-originale-sider
+          path: |
+            internasjonal_presse_ORIGINALE_sider.zip
+            failed_pages
+          compression-level: 0
+          retention-days: 1
