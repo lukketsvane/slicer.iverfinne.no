@@ -1,67 +1,36 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react"
-import {
-  TJUKNER,
-  feltTal,
-  lesTal,
-  nn,
-  snap,
-  type ExportKind,
-  type Metrics,
-  type ParamBag,
-  type Range,
-  type Rule,
-  type View,
-} from "@/lib/core"
-import { RADER } from "@/lib/vaffel/metrics"
-import { lesLaas } from "@/lib/vaffel/params"
-import { VAFFEL } from "@/lib/vaffel/engine"
+import { feltTal, lesTal, nn, type ExportKind, type Metrics, type ParamBag, type Range, type Rule, type View } from "@/lib/core"
+import { RADER } from "@/lib/metrics"
 
 /**
- * DELANE.
- *
- * Dei same knappane, brikkene, ikona og skyvarane står i to heilt ulike
- * oppsett: arket nedst på ein telefon, og benken med to veggar på ein
- * skjerm. Oppsetta har ingenting med kvarandre å gjere, men delane har det,
- * og ein brikke som ser ulik ut på dei to flatene er to brikker.
- *
- * Her bur difor alt som IKKJE er eit oppsett.
+ * DELANE. Det som ikkje er eit oppsett: brikker, ikon, skyvarar, tavla.
+ * Dei står i arket på telefonen og i spalta på benken, og ei brikke som
+ * ser ulik ut på dei to flatene er to brikker.
  */
 
-export const VIEWS: readonly { id: View; label: string; hint: string; tast: string }[] = [
-  { id: "flate", label: "flate", hint: "nettet slik det kom inn, etter forenkling og glatting", tast: "1" },
-  { id: "lag", label: "lag", hint: "ribbene slik dei faktisk står, med spor", tast: "2" },
-  { id: "kontur", label: "kontur", hint: "dei flate kuttprofilane", tast: "3" },
+export const VIEWS: readonly { id: View; label: string; hint: string }[] = [
+  { id: "flate", label: "flate", hint: "nettet slik det kom inn (1)" },
+  { id: "lag", label: "lag", hint: "kroppen som skugge, delane som står (2)" },
+  { id: "kontur", label: "kontur", hint: "dei flate kuttprofilane (3)" },
 ]
 
-/**
- * NÅR EIN KNAPP IKKJE SKAL VERA TRYKKBAR.
- *
- * Ein knapp som leverer ei tom fil er ein knapp som lyg, og han lyg på det
- * verste tidspunktet: du lastar ned, opnar i LightBurn, ser eit tomt ark og
- * trur programmet er øydelagt.
- *
- * Det skjer i to tilfelle. Objektet gjev ingen delar — då er alt tomt. Eller
- * ingen del fekk plass på plata du har sett — då er profilarket og STL-en
- * framleis heile, men platene finst ikkje, so DXF-en og arka er tomme
- * dokument. Passprøva står alltid open: ho er ei plate med sju spor, og ho
- * treng ikkje eit objekt i det heile.
- */
+export const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[] = [
+  { id: "stl", label: "stl", hint: "delane som trekantnett, til rendering og 3D-print" },
+  { id: "dxf", label: "dxf", hint: "alle delane nesta på plate, med snittkompensasjon" },
+  { id: "svg", label: "svg", hint: "alle profilane ved sida av kvarandre, i 1:1" },
+  { id: "ark", label: "ark", hint: "platene slik dei er pakka, ei fil per plate" },
+  { id: "png", label: "png", hint: "dei same platene som bilete — til meldingar, ikkje til maskina" },
+  { id: "prove", label: "passprøve", hint: "sju spor, kvart 0,05 mm breiare. skjer i di eiga plate og set klaringa" },
+  { id: "alt", label: "alt", hint: "heile jobben i éi nedlasting: stl, dxf, profilar, plater, passprøve, kuttliste, oppsett" },
+  { id: "prosjekt", label: "lagre", hint: "oppsettet og nettet i lag. slepp fila inn att, og du står der du gjekk frå" },
+]
+
+/** Ein knapp som leverer ei tom fil lyg, og han lyg i LightBurn. Passprøva
+ *  og prosjektfila treng ingen delar. */
 export function stengd(x: ExportKind, m: Metrics | null): string {
-  // Passprøva treng ingen delar — ho er ei plate med sju spor. Og
-  // prosjektfila ber oppsettet og nettet: ho skal kunne lagrast midt i eit
-  // arbeid som ikkje held ein einaste regel enno.
   if (x === "prove" || x === "prosjekt" || !m) return ""
-  // Knappen seier kva FILA ville vorte, og ikkje eit ord om kvifor.
-  //
-  // Han sa «ingen delar å skjere. sjå reglane» — der «delar å skjere» er
-  // etiketten på regelen ordrett, og «sjå reglane» peika på ei liste som
-  // ikkje finst lenger: reglane ER tavla no. Den andre sa «større plate,
-  // eller mindre objekt», som er `why`-teksten til plateregelen skriven om
-  // — og den regelen står i tavla i raudt med ein knapp som reknar ut
-  // talet for deg. Eit råd i ein tooltip er eit dårlegare råd enn ein
-  // knapp som gjer det.
   if (m.parts === 0) return "ville vorte ei tom fil: ingen delar"
   if ((x === "ark" || x === "png" || x === "dxf" || x === "alt") && m.sheets === 0) {
     return "ville vorte ei tom fil: ingen del fekk plass på plata"
@@ -69,53 +38,13 @@ export function stengd(x: ExportKind, m: Metrics | null): string {
   return ""
 }
 
-export const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[] = [
-  { id: "stl", label: "stl", hint: "heile stabelen som trekantnett, til rendering og 3D-print" },
-  { id: "dxf", label: "dxf", hint: "alle delane nesta på plate, med snittkompensasjon" },
-  { id: "svg", label: "svg", hint: "alle profilane ved sida av kvarandre, i 1:1" },
-  { id: "ark", label: "ark", hint: "platene slik dei er pakka, ei fil per plate" },
-  {
-    id: "png",
-    label: "png",
-    hint: "dei same platene som bilete. til meldingar, bestillingar og veggen ved laseren — ikkje til maskina",
-  },
-  {
-    id: "prove",
-    label: "passprøve",
-    hint: "sju spor, kvart 0,05 mm breiare. skjer i di eiga plate og sett klaringa til det som går inn med tommelkraft",
-  },
-  {
-    id: "alt",
-    label: "alt",
-    hint: "heile jobben i éi nedlasting: stl, dxf, profilar, kvar plate, passprøve, kuttlista som csv og oppsettet",
-  },
-  {
-    id: "prosjekt",
-    label: "lagre",
-    hint: "oppsettet og nettet i lag. slepp fila inn att, og du står der du gjekk frå",
-  },
-]
-
-/** Kva tastane gjer. Dei står i kvar sin tooltip òg, men ei samla line er
- *  den einaste staden nokon kan finne dei UTAN å vite at dei finst. */
 export const TASTAR =
-  "f finn · d djupsøk · ⇧f førre · 1 2 3 lesemåte · , . vend · ← → flytt ribba · z angre · ctrl+hjul storleik"
+  "l lås · ⌫ slett valt · f forslag · 1 2 3 lesemåte · z angre · esc lat att · ⇧ dra flytt planet · ⌥ dra vri det"
 
 /**
- * EIT LANGT TRYKK PÅ EIN KNAPP.
- *
- * Ein knapp har eitt trykk. Vil du ha to ting ut av han, må det andre vera
- * eit trykk som VARER — og då er det tre ting som må stemme:
- *
- *   fingeren står stille  eit drag er ikkje eit trykk. Seks pikslar er
- *                         det same skiljet delane bruker.
- *   det korte fyrer ikkje det lange fyrer medan fingeren enno står nede,
- *                         og `click` kjem når han slepper. Utan flagget
- *                         gjer eit langt trykk BÅE tinga.
- *   tastaturet kjem fram  `click` frå ein tast har ingen `pointerdown`
- *                         framfor seg, so flagget står av og det korte
- *                         fyrer. Det er rett: eit langt trykk finst ikkje
- *                         på eit tastatur, og den vegen står i `TASTAR`.
+ * EIT LANGT TRYKK. Fingeren står stille (seks pikslar), det korte fyrer
+ * ikkje når det lange har fyrt, og eit klikk frå tastaturet — utan
+ * pointerdown — er alltid det korte.
  */
 export function useLangtrykk(kort: () => void, langt: () => void, ms = 450) {
   const ned = useRef<{ x: number; y: number } | null>(null)
@@ -149,191 +78,28 @@ export function useLangtrykk(kort: () => void, langt: () => void, ms = 450) {
     },
   }
 }
-/** det som berre finst på den eine flata */
-export const TAST_ARK = " · o panel"
-export const TAST_BENK = " · l a s verkty · mellomrom berre objektet"
-
-/**
- * STORLEIKEN STÅR ALT FRAMME, SOM DEN SAME SKYVAREN.
- *
- * Same skyvar to gonger på same skjerm er ikkje to skyvarar: det er ein som
- * ser ut til å ikkje verke når du dreg den andre.
- *
- * Tjukna står framme som BRIKKER, og det er noko anna. Brikkene er dei fem
- * platene ein laser skjer; skyvaren er kvar plate som finst. Tek ein
- * skyvaren vekk, kan ingen setje sju millimeter finér lenger, og det er
- * ikkje ei forenkling, det er ein reiskap som gjer mindre.
- */
-export const FRAMME = new Set(["storleik"])
-
-/**
- * KVIFOR RIBBESKYVAREN IKKJE VIL NEDOVER.
- *
- * Ein lås vinn over talet — det er heile poenget med han, og det er
- * dokumentert i `plasser`. Fylgja er at ein stabel med seks låste ribber
- * står på seks kva enn skyvaren seier: dreg du han til to, skjer det
- * ingen ting, og det er ingen ting på skjermen som seier kvifor.
- *
- * Det var ein krok så lenge det å låse var noko ein gjorde med éi ribbe om
- * gongen. Med stabelen er «lås alle» det fyrste grepet, og då er ein daud
- * skyvar det fyrste den som byggjer møter.
- *
- * So talet står under etiketten, der `bi` alt syner mål som høyrer til ein
- * skyvar. Ingen ny rad, og ingen ny regel — berre den eine opplysninga som
- * gjer ein skyvar som ikkje rører seg til ein skyvar du forstår.
- */
-export function laasteBi(params: ParamBag, k: string): string | undefined {
-  if (k !== "ribbX" && k !== "ribbY") return undefined
-  const n = lesLaas(params.laas)[k === "ribbX" ? "x" : "y"].length
-  return n ? `${n} låste` : undefined
-}
 
 export const DASH = "–"
-/** Plata er 2, 2,5 eller 3 mm. Rundar ein av desimalen, står det to
- *  knappar med «3» på — og den eine av dei set ei halv millimeter tynnare
- *  plate enn ho seier. Klaringa i kvart einaste spor kjem av det talet. */
+/** 2,5 mm er ikkje 3 mm: desimalen står når han finst */
 export const tjukn = (v: number) => nn(v, Number.isInteger(v) ? 0 : 1)
 export const n0 = (v: number) => nn(v, 0)
-export const n1 = (v: number) => nn(v, 1)
-
-/**
- * Klemminga, lesinga og skrivinga av eit tal bur i `lib/core.ts`, saman med
- * `Range` sjølv. Dei er reglar om eit band og ikkje om ein knapp, og dei
- * stod her i ein kopi som alt hadde drive frå originalen. Dei vert
- * eksporterte vidare her so kvar komponent framleis har dei ein stad.
- */
-export { decimals, feltTal, lesTal, snap } from "../lib/core"
-
-/**
- * EIT TAL DU KAN TA I.
- *
- * Ein skyvar er god til å leite og dårleg til å treffe; eit talfelt er
- * motsett. Dette er begge: dreg du sidelengs i feltet, går talet; klikkar
- * du, kan du skrive det.
- *
- * Han stod inne i storleiken og var den einaste av sitt slag. No er han to
- * stader — storleiken og kvar rad i stabelen — og då kan han ikkje vera
- * skriven to gonger. Det er ikkje eit spørsmål om liner: dei tre
- * kommentarane nedanfor er kvar sin feil nokon har hatt, og ein kopi av
- * denne koden er ein kopi som ikkje har hatt dei enno.
- */
-export function TalDrag({
-  verdi,
-  r,
-  etikett,
-  className,
-  style,
-  onSet,
-}: {
-  verdi: number
-  /** bandet talet bur i. I stabelen er endane naboribbene, so kvar rad har
-   *  sitt eige band og feltet stoggar der ribba stoggar. */
-  r: Range
-  /** kva den som høyrer skjermen skal kalle feltet */
-  etikett: string
-  className?: string
-  style?: CSSProperties
-  onSet: (v: number) => void
-}) {
-  const [utkast, setUtkast] = useState<string | null>(null)
-  const dra = useRef<{ x: number; fra: number; rort: boolean } | null>(null)
-  return (
-    <input
-      className={className}
-      style={{ cursor: "ew-resize", ...style }}
-      // Det som STÅR, ikkje ei avrunding av det. Talet kan bera ein halv
-      // millimeter — ei lenkje, ei prosjektfil eller eit anna felt kan
-      // setje 247,5 — og `Math.round` gjorde henne om til 248 så snart
-      // nokon såg på feltet.
-      value={utkast ?? feltTal(verdi, r.step).replace(".", ",")}
-      inputMode="decimal"
-      aria-label={etikett}
-      onPointerDown={(e) => {
-        if (e.pointerType === "touch") return
-        dra.current = { x: e.clientX, fra: verdi, rort: false }
-        e.currentTarget.setPointerCapture(e.pointerId)
-      }}
-      onPointerMove={(e) => {
-        const d = dra.current
-        if (!d) return
-        const dx = e.clientX - d.x
-        if (!d.rort && Math.abs(dx) < 3) return
-        d.rort = true
-        // UTKASTET SKAL VEKK NÅR DRAGET BYRJAR.
-        //
-        // `onFocus` fyrer på det same peikartrykket som draget og legg
-        // talet slik det stod FØR draget i utkastet. Feltet syner utkastet
-        // når det finst, so talet fraus medan objektet vaks — og `onBlur`
-        // skreiv det gamle talet attende. Heile draget vart rulla attende
-        // i det du klikka ein annan stad.
-        setUtkast(null)
-        // Fire pikslar per steg: fint nok til å treffe, grovt nok til at
-        // heile bandet ligg i ei armlengd.
-        onSet(snap(d.fra + Math.round(dx / 4) * r.step * (e.shiftKey ? 0.2 : 1), r))
-      }}
-      onPointerUp={(e) => {
-        const d = dra.current
-        dra.current = null
-        // Eit drag er ikkje eit klikk: har talet rørt seg, skal feltet
-        // ikkje òg opne seg for skriving.
-        if (d?.rort) e.preventDefault()
-        else e.currentTarget.select()
-      }}
-      onFocus={() => setUtkast(feltTal(verdi, r.step).replace(".", ","))}
-      onChange={(e) => setUtkast(e.target.value)}
-      onBlur={() => {
-        const v = utkast === null ? NaN : lesTal(utkast)
-        setUtkast(null)
-        // Tull er ikkje ei endring, og å ta feltet og sleppe det er det
-        // heller ikkje.
-        if (Number.isFinite(v) && v !== verdi) onSet(snap(v, r))
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur()
-        else if (e.key === "Escape") {
-          setUtkast(null)
-          e.currentTarget.blur()
-        }
-      }}
-    />
-  )
-}
 export const num = (p: ParamBag, k: string, fallback: number) =>
   typeof p[k] === "number" ? (p[k] as number) : fallback
 
 export const HAIR: CSSProperties = { borderColor: "var(--rule)" }
-/** `hit` gjev peikaren eit svar på ei flate som elles er heilt still */
 export const ICON_BTN =
   "hit relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition active:scale-95"
-
+export const CHIP =
+  "hit min-h-[30px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] transition active:scale-95 disabled:opacity-30"
 export function chipStyle(active: boolean): CSSProperties {
   return active
     ? { background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }
     : { color: "var(--ink)", borderColor: "var(--rule)" }
 }
-export const CHIP =
-  "hit min-h-[30px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] transition active:scale-95 disabled:opacity-30"
 
-/**
- * RÅDET, SOM EIN KNAPP.
- *
- * Ein regel som ryk peikar på eit tal han sjølv har rekna ut. Knappen set
- * det talet, gjennom den vanlege vegen inn i parametrane: han legg seg i
- * angrestabelen som alt anna, so eit råd du ikkje likar kostar eitt trykk
- * å gå ut av att.
- *
- * Knappen er raud som lina han står i. Han er ikkje ei åtvaring — han er
- * det einaste i den lina som gjer noko med henne.
- */
-export function Fiksen({
-  rule,
-  params,
-  onChange,
-}: {
-  rule: Rule
-  params: ParamBag
-  onChange: (p: ParamBag) => void
-}) {
+/** RÅDET SOM KNAPP. Regelen har rekna talet; knappen set det gjennom den
+ *  vanlege vegen, so det ligg i angrelista som alt anna. */
+export function Fiksen({ rule, params, onChange }: { rule: Rule; params: ParamBag; onChange: (p: ParamBag) => void }) {
   if (rule.ok || !rule.fiks) return null
   const f = rule.fiks
   return (
@@ -350,23 +116,39 @@ export function Fiksen({
   )
 }
 
-/** Ikona er strekar, teikna her i staden for henta frå eit bibliotek:
- *  seks ikon er ikkje verdt ein avhengnad. */
-export const STROKE = {
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
+/** Dei brotne reglane, som liner: raude når dei er harde, med rådet i lina. */
+export function Reglar({ rules, params, onChange }: { rules: readonly Rule[]; params: ParamBag; onChange: (p: ParamBag) => void }) {
+  const brotne = rules.filter((r) => !r.ok)
+  if (!brotne.length) return null
+  return (
+    <ul className="space-y-1 py-1">
+      {brotne.map((r) => (
+        <li
+          key={r.id}
+          title={r.why}
+          className="flex items-center justify-between gap-3 text-[11px] leading-4"
+          style={{ color: r.hard ? "var(--warn)" : undefined, opacity: r.hard ? 1 : 0.65 }}
+        >
+          <span className="truncate tracking-[0.04em]">
+            {r.hard ? "bryt" : "merk"} · {r.label}
+          </span>
+          <span className="flex shrink-0 items-center gap-2">
+            <span className="tab">{r.value}</span>
+            <Fiksen rule={r} params={params} onChange={onChange} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 }
-/** to piler som byter plass: gjev meg eit anna svar */
-/** stopp: søket går, og eit trykk til held det beste so langt */
+
+/** ikona er strekar: seks ikon er ikkje verdt ein avhengnad */
+const STROKE = { fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const }
 export const IcoStopp = (
   <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
     <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none" />
   </svg>
 )
-
 export const IcoFinn = (
   <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
     <path d="M2 18h2.9a4 4 0 0 0 3.4-1.9l5.4-8.2A4 4 0 0 1 17.1 6H22" />
@@ -381,33 +163,9 @@ export const IcoSliders = (
     <path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4" />
   </svg>
 )
-/**
- * STABELEN: tre plan over kvarandre, sedde på skrå.
- *
- * Ikkje eit hengelås. Låsen er noko du GJER i stabelen og ikkje det
- * stabelen er — og eit hengelås på ein knapp som opnar eit vindauge les
- * som «her er det stengt».
- */
-export const IcoStabel = (
-  <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
-    <path d="m12 3 9 4.5-9 4.5-9-4.5L12 3Z" />
-    <path d="m3 12 9 4.5 9-4.5" />
-    <path d="m3 16.5 9 4.5 9-4.5" />
-  </svg>
-)
 export const IcoDown = (
   <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
     <path d="m6 9 6 6 6-6" />
-  </svg>
-)
-export const IcoVenstre = (
-  <svg viewBox="0 0 24 24" className="h-3 w-3" {...STROKE}>
-    <path d="m15 18-6-6 6-6" />
-  </svg>
-)
-export const IcoHogre = (
-  <svg viewBox="0 0 24 24" className="h-3 w-3" {...STROKE}>
-    <path d="m9 18 6-6-6-6" />
   </svg>
 )
 export const IcoAngre = (
@@ -436,23 +194,20 @@ export const IcoImport = (
     <path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
   </svg>
 )
+/** låsen: eit plan som vert ein del */
+export const IcoLaas = (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
+    <rect x="5" y="11" width="14" height="10" rx="2" />
+    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+  </svg>
+)
 
-/**
- * Ringen kring finn-knappen.
- *
- * Søket tek eit par sekund, og eit par sekund utan svar er ikkje til å
- * skilje frå ein reiskap som har hengt seg. Ringen er ikkje pynt: han seier
- * at det går, og omtrent kor langt det er att.
- */
+/** Ringen kring knappen: søket går, og omtrent kor langt det er att. */
 export function Ring({ del }: { del: number }) {
   const R = 15.5
   const O = 2 * Math.PI * R
   return (
-    <svg
-      viewBox="0 0 36 36"
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0 h-full w-full -rotate-90"
-    >
+    <svg viewBox="0 0 36 36" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full -rotate-90">
       <circle cx="18" cy="18" r={R} fill="none" stroke="var(--paper)" strokeOpacity="0.25" strokeWidth="2" />
       <circle
         cx="18"
@@ -470,127 +225,41 @@ export function Ring({ del }: { del: number }) {
   )
 }
 
-/** Reglane som eig kvart tal i HOVUDLINA. Ho har tre tal og reiskapen har
- *  tolv reglar, so her er kartet mange-til-ein; tavla under har eitt. */
-export const R_DELAR = ["delar", "grip", "lause"]
-export const R_GODS = ["gods", "spor"]
-export const R_ARK = ["plate", "utnytting"]
-
-export type TableRow = {
-  id: string
-  label: string
-  value: string
-  unit: string
-  /** regelen som dømer denne avlesinga, om nokon gjer det */
-  rule?: Rule
-}
-
 /**
- * TAVLA OG REGLANE ER DEN SAME LISTA.
- *
- * Dei stod som to. Tavla las «ledd · 36», «opning · 22,0 mm», «utnytting ·
- * 68 %»; reglane las «ribbene grip · 36 ledd», «opning mellom ribber · 22,0
- * mm», «utnytting · 68 %». Ti av tolv tal stod to gonger på den same
- * skjermen, og eitt av dei — utnyttinga — stod to gonger med den same
- * etiketten òg.
- *
- * No peikar regelen på rada si (`Rule.rad`), og rada ber dommen: fargen,
- * grunngjevinga og rådet. Att står to reglar utan rad — klaringa og
- * snittbreidda — og dei les av ein skyvar og ikkje av geometrien.
+ * TAVLA OG REGLANE ER DEN SAME LISTA. Éi line per avlesing: verdien frå
+ * målinga, farga av regelen som dømer henne (`Rule.rad`), med rådet i lina.
+ * Tom tavle og full tavle er same lista, so dei kan ikkje drive frå kvarandre.
  */
-export function tableRows(m: Metrics | null, rules: readonly Rule[] = []): TableRow[] {
-  const eig = new Map<string, Rule>()
-  for (const r of rules) if (r.rad) eig.set(r.rad, r)
-  // Tom tavle og full tavle er den SAME lista. Ho stod ein gong to stader,
-  // og dei to dreiv frå kvarandre: tretten rader tom og femten full, og
-  // eit ord som bytte seg i det fyrste svaret kom.
-  const rader = m ? m.list : RADER.map((r) => ({ ...r, text: DASH }))
-  return rader.map((q) => ({
-    id: q.id,
-    label: q.label,
-    value: q.text,
-    unit: q.unit,
-    rule: eig.get(q.id),
-  }))
-}
-
-/** Dei reglane tavla ikkje kan seie: dei dømer ein skyvar og ikkje ei
- *  måling, so dei har inga rad å farge og syner seg berre når dei ryk. */
-export const utanRad = (rules: readonly Rule[]) => rules.filter((r) => !r.rad && !r.ok)
-
-/**
- * TAVLA.
- *
- * Tolv avlesingar i to spalter, like på begge flatene. Ei rad som ryk seier
- * det med regelen sitt eige tal — «15 utanfor», «0,20 mot 3,15» — av di
- * målinga åleine ikkje er feilen: «1 ark» er ikkje ei forklaring på at
- * femten delar ikkje fekk plass. Held regelen, står målinga.
- */
-export function Tavla({
-  rows,
-  busy,
-  params,
-  onChange,
-  tett,
-  className,
-}: {
-  rows: readonly TableRow[]
+export function Tavla({ metrics, rules, busy, params, onChange }: {
+  metrics: Metrics | null
+  rules: readonly Rule[]
   busy: boolean
   params: ParamBag
   onChange: (p: ParamBag) => void
-  /** benken les tettare enn telefonen: han er eit instrument */
-  tett?: boolean
-  className?: string
 }) {
+  const eig = new Map<string, Rule>()
+  for (const r of rules) if (r.rad) eig.set(r.rad, r)
+  const rader = metrics ? metrics.list : RADER.map((r) => ({ ...r, text: DASH }))
   return (
     <dl
-      className={
-        `grid grid-cols-2 ${tett ? "gap-x-4 text-[10px]" : "gap-x-6 text-[11px]"} ` +
-        (className ?? "")
-      }
-      // `className` kan bera ein topprand (sjå BLOKK på benken); ho skal
-      // teiknast i hårstreken og ikkje i blekket.
-      style={{ ...HAIR, opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
+      className="grid grid-cols-2 gap-x-6 text-[11px]"
+      style={{ opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
     >
-      {rows.map((row) => {
-        const r = row.rule
+      {rader.map((q) => {
+        const r = eig.get(q.id)
         const brote = !!r && !r.ok
-        const hard = brote && r.hard
-        const soft = brote && !r.hard
         return (
           <div
-            key={row.id}
+            key={q.id}
             title={r?.why}
-            // EI RAD SOM RYK FÅR HEILE LINA.
-            // Ho ber to ting til: regelen sitt eige tal, som er lengre enn
-            // målinga («12 utanfor» mot «1»), og knappen som rettar han.
-            // I ei halv spalte vart det «1… [prøv 190 mm]» — sjølve feilen
-            // kappa vekk til fordel for vegen ut av han.
-            className={
-              `flex items-baseline justify-between gap-2 leading-4 ${tett ? "py-[1px]" : "py-[2px]"}` +
-              (brote ? " col-span-2" : "")
-            }
+            // ei rad som ryk får heile lina: regelen sitt tal og knappen
+            className={"flex items-baseline justify-between gap-2 py-[2px] leading-4" + (brote ? " col-span-2" : "")}
           >
-            <dt className="dim shrink-0 truncate">{row.label}</dt>
-            <dd
-              className="tab flex min-w-0 items-baseline justify-end gap-1.5 text-right"
-              style={{ color: hard ? "var(--warn)" : undefined }}
-            >
-              <span
-                className="truncate"
-                style={{
-                  // eit mjukt brot er eit val og ikkje ein feil: det skal
-                  // merkast, men ikkje rope
-                  textDecoration: soft ? "underline dotted" : undefined,
-                  textDecorationColor: soft
-                    ? "color-mix(in srgb, var(--ink) 45%, transparent)"
-                    : undefined,
-                  textUnderlineOffset: 3,
-                }}
-              >
-                {brote ? r.value : row.value}
-                {/* regelen sitt tal ber si eiga eining; målinga sin står ved sida av */}
-                {!brote && row.unit && <span className="dim pl-1">{row.unit}</span>}
+            <dt className="dim shrink-0 truncate">{q.label}</dt>
+            <dd className="tab flex min-w-0 items-baseline justify-end gap-1.5 text-right" style={{ color: brote && r.hard ? "var(--warn)" : undefined }}>
+              <span className="truncate" style={{ textDecoration: brote && !r.hard ? "underline dotted" : undefined, textUnderlineOffset: 3 }}>
+                {brote ? r.value : q.text}
+                {!brote && q.unit && <span className="dim pl-1">{q.unit}</span>}
               </span>
               {r && <Fiksen rule={r} params={params} onChange={onChange} />}
             </dd>
@@ -602,58 +271,33 @@ export function Tavla({
 }
 
 /**
- * Éin skyvar: etiketten er låsen, prikken seier om han er teken.
- *
- * Talet til høgre er eit FELT og ikkje ei avskrift. Ein skyvar er god til å
- * leite og elendig til å treffe: den som vil ha nøyaktig 240 millimeter,
- * eller nøyaktig 0,15 i klaring frå passprøva, skal skrive det. Han står
- * som tekst til nokon tek han, so lina er like still som før.
+ * ÉIN SKYVAR. Talet til høgre er eit FELT: ein skyvar leitar, eit felt
+ * treffer, og den som har målt plata si til 2,87 skal kunne skrive det.
+ * Feltet syner talet slik det ER (`feltTal`), ikkje avrunda til steget.
  */
-export function SliderRow({
-  k,
-  r,
-  value,
-  bi,
-  onChange,
-}: {
+export function SliderRow({ k, r, value, bi, onChange }: {
   k: string
   r: Range
   value: number
-  /** ei måling som høyrer til denne skyvaren, under etiketten */
+  /** ei måling som høyrer til skyvaren, under etiketten */
   bi?: string
   onChange: (k: string, raw: string) => void
 }) {
-  // Eit val er ikkje ei mengd. Står det namn i bandet, er det namnet som
-  // skal stå til høgre — «hundebein» seier kva det er; «1» seier ingenting.
-  const shown = r.names
-    ? (r.names[Math.round(value)] ?? String(value))
-    : feltTal(value, r.step).replace(".", ",")
-  /** det som står i feltet medan det er teke; null når det ikkje er teke */
+  const shown = r.names ? (r.names[Math.round(value)] ?? String(value)) : feltTal(value, r.step).replace(".", ",")
   const [utkast, setUtkast] = useState<string | null>(null)
-
   const send = () => {
     if (utkast === null) return
     const v = lesTal(utkast)
     setUtkast(null)
-    // Tull i feltet er ikkje ei endring. Talet som stod, står.
-    if (!Number.isFinite(v)) return
-    // Å ta feltet og sleppe det er heller ikkje ei endring.
-    if (v === value) return
+    // tull er ikkje ei endring, og å ta feltet og sleppe det er det heller ikkje
+    if (!Number.isFinite(v) || v === value) return
     onChange(k, String(v))
   }
-
   return (
     <div className="flex items-center gap-3 py-1.5">
-      <span
-        className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]"
-        style={{ color: "var(--ink)" }}
-      >
+      <span className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]" style={{ color: "var(--ink)" }}>
         {r.label}
-        {bi && (
-          <span className="dim tab block pt-px text-[9px] normal-case tracking-[0.02em]">
-            {bi}
-          </span>
-        )}
+        {bi && <span className="dim tab block pt-px text-[9px] normal-case tracking-[0.02em]">{bi}</span>}
       </span>
       <input
         type="range"
@@ -666,17 +310,9 @@ export function SliderRow({
         onChange={(e) => onChange(k, e.target.value)}
       />
       {r.names ? (
-        <span
-          className="tab w-[68px] shrink-0 truncate text-right text-[11px]"
-          style={{ color: "var(--ink)" }}
-        >
-          {shown}
-        </span>
+        <span className="tab w-[68px] shrink-0 truncate text-right text-[11px]" style={{ color: "var(--ink)" }}>{shown}</span>
       ) : (
-        <span
-          className="flex w-[68px] shrink-0 items-baseline justify-end text-[11px]"
-          style={{ color: "var(--ink)" }}
-        >
+        <span className="flex w-[68px] shrink-0 items-baseline justify-end text-[11px]" style={{ color: "var(--ink)" }}>
           <input
             className="tab talfelt min-w-0 flex-1 rounded bg-transparent text-right"
             value={utkast ?? shown}
@@ -703,4 +339,3 @@ export function SliderRow({
     </div>
   )
 }
-
