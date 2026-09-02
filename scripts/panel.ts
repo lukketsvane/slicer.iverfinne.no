@@ -930,10 +930,45 @@ async function benken(browser: Browser, feil: string[]) {
     `${p.ribbX}×${p.ribbY}`,
   )
 
+  // --- EIT TRYKK TIL STOGGAR SØKET -----------------------------------------
+  /**
+   * Djupsøket tek den tida det tek, og knappen er ein stoppknapp medan det
+   * går: eit trykk til held det beste so langt. Lista skal koma, med form i,
+   * og ho skal vera kortare enn heile fronten — det er det som viser at ho
+   * vart kappa og ikkje fullført.
+   */
+  await page.getByLabel("storleik, tal", { exact: true }).fill("200")
+  await page.keyboard.press("Enter")
+  await rolig(page)
+  const heile = djupe
+  const kb2 = (await page.getByLabel("finn innstillingar").boundingBox())!
+  await page.mouse.move(kb2.x + kb2.width / 2, kb2.y + kb2.height / 2)
+  await page.mouse.down()
+  await page.waitForTimeout(700)
+  await page.mouse.up()
+  await page.waitForTimeout(4000)
+  ok("medan søket går heiter knappen stopp", /stopp/i.test(await page.getByLabel("finn innstillingar").innerText()))
+  await page.getByLabel("finn innstillingar").click()
+  await rolig(page)
+  const kappa = await rader.count()
+  ok("eit trykk til stoggar søket og held det beste so langt", kappa > 0 && kappa < heile && (await harForm()), `${kappa} rader av ${heile}`)
+
   // --- MELLOMROM: BERRE OBJEKTET -------------------------------------------
   await page.locator("body").click({ position: { x: 660, y: 500 } })
   await page.keyboard.down("Space")
-  await page.waitForTimeout(300)
+  // Til veggane ER borte, og ikkje ei fast venting: klikket kan ha
+  // landa på objektet og lyst opp ein del, og ramma det kostar på ein
+  // benk utan skjermkort held tasten i køen lenger enn 300 ms.
+  await page
+    .waitForFunction(
+      () =>
+        Number(
+          getComputedStyle(document.querySelector("aside[aria-label='innstillingar']")!).opacity,
+        ) < 0.1,
+      undefined,
+      { timeout: 5000 },
+    )
+    .catch(() => undefined)
   const skjult = await page.evaluate(
     `getComputedStyle(document.querySelector("aside[aria-label='innstillingar']")).opacity`,
   )
