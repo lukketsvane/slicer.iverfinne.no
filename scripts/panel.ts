@@ -177,6 +177,31 @@ async function telefon(browser: Browser) {
   await page.keyboard.press("z")
   await vent(page, talPlan(n0))
 
+  // --- SKISSE-MODUSEN: same to fingrane, men på planet -----------------------------
+  const skisse = page.getByRole("button", { name: "skisse", exact: true })
+  sjekk("«skisse» er ein knapp med tilstand", (await skisse.count()) === 1 && (await skisse.getAttribute("aria-pressed")) === "false")
+  await skisse.click()
+  await page.waitForTimeout(300)
+  sjekk("og eit trykk slår han på", (await skisse.getAttribute("aria-pressed")) === "true")
+  await toFingrar(page, (t) => {
+    const a = (30 * t * Math.PI) / 180
+    return [[195, 380], [195 + 80 * Math.cos(a), 380 + 80 * Math.sin(a)]]
+  })
+  await page.waitForTimeout(300)
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
+  const vriddS = plana(page)[plana(page).length - 1]
+  sjekk("i skisse-modus vrir to fingrar planet, ikkje objektet", Math.abs(vriddS.n[2]) > 0.1 && hash(page).rotZ === 0, `n = ${vriddS.n.map((c) => c.toFixed(2)).join(",")}, rotZ ${hash(page).rotZ}`)
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0))
+  const s1 = hash(page).storleik
+  await toFingrar(page, (t) => [[195 - 30 - 70 * t, 380], [195 + 30 + 70 * t, 380]])
+  await page.waitForTimeout(400)
+  sjekk("og eit knip rører ikkje storleiken der", hash(page).storleik === s1, `${s1} → ${hash(page).storleik}`)
+  await page.keyboard.press("s")
+  await page.waitForTimeout(300)
+  sjekk("S slår skissa av att", (await skisse.getAttribute("aria-pressed")) === "false")
+
   // --- HANDTAKA: éin finger på handtaket flyttar og vrir --------------------------
   const flyttH = page.locator("[data-handtak='flytt']")
   const vriH = page.locator("[data-handtak='vri']")

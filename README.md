@@ -40,9 +40,11 @@ no radius.
    across the screen — a knife seen edge-on — with a grab handle in the middle
    and a rotation handle at the end: drag the one to move the cut across the
    object, the other to tilt it. **Two fingers on the object** work as they
-   always did: spread to size, twist to turn, drag to move the cut. Three
-   fingers move the light; double-tap reframes. The plane swings with the view
-   and nothing is built from it.
+   always did: spread to size, twist to turn, drag to move the cut. Switch on
+   **skisse** (or press `S`) and the same two fingers work on the plane
+   instead: drag moves it, twist tilts it, pinch zooms. Three fingers move the
+   light; double-tap reframes. The plane swings with the view and nothing is
+   built from it.
 4. **Press lås.** The sketch becomes a part: it gets a name, a profile, slots
    against every plane it crosses, a place in the assembly and a row in the
    list. Turn the object and lock again. The locked planes stay where you put
@@ -77,8 +79,8 @@ it. Tap empty space to deselect; the row's `slett` removes the plane.
 **The contour view is a drawing, so it is a canvas**: one finger drags it,
 pinch zooms, nothing turns, and double-tap takes you home.
 
-Keys: `L` lock, `⌫` remove the selected plane, `F` proposals, `D` deep search,
-`Z` undo, `1` `2` `3` views, `Esc` close.
+Keys: `L` lock, `S` sketch mode, `⌫` remove the selected plane, `F` proposals,
+`D` deep search, `Z` undo, `1` `2` `3` views, `Esc` close.
 
 **Three ways to keep an afternoon's work.** The link carries every setting —
 planes included — and no mesh. **LAGRE** gives a project file carrying both.
