@@ -47,6 +47,9 @@ export type Kandidat = {
   sheets: number
   joints: number
   util: number
+  /** stykke som fall av — lause, eller kasta av rutenettet. Det er
+   *  stykke av forma du ikkje får, og fronten tel dei. */
+  loose: number
   /** kor mykje av forma ribbene ber, 0..1 — sjå `profil.ts`. Berre
    *  djupsøket reknar han; det raske søket lèt han stå på null. */
   troskap: number
@@ -239,9 +242,11 @@ function djupPoeng(
   // Grepet.
   poeng += 30 * Math.min(1, perDel / 3)
 
-  // Arbeidet. Lineært opp til seksti delar, og flatt over: er du fyrst
-  // komen dit, er skilnaden på seksti og åtti ein kveld anten vegen.
-  poeng -= 14 * Math.min(1, m.parts / 60)
+  // Arbeidet. Kvar del er ein kontur å skjere og eit stykke å setje i, og
+  // prisen er den same for den sekstiande som for den sjette: søket ser
+  // no heile tavla for alvor, og eit tak her ville gjort dei finaste
+  // rutenetta gratis der dei kostar mest.
+  poeng -= 14 * (m.parts / 60)
 
   // Eit stykke som fall av er eit stykke av forma du ikkje får — og det er
   // eit tap profilen ikkje ser: han måler kvar planet står, ikkje kva som
@@ -255,7 +260,7 @@ function djupPoeng(
 }
 
 /**
- * HEILE RIBBETAVLA, RANGERT PÅ OVERSLAG — og so det beste av kvar sort.
+ * HEILE RIBBETAVLA, RANGERT PÅ OVERSLAG — og so FRONTEN av henne.
  *
  * Kvart einaste rutenett frå 2×2 til 32×32 vert rekna gjennom her: tusen
  * av dei, med den SAME vekta som avgjer til slutt, men på overslag i
@@ -267,26 +272,23 @@ function djupPoeng(
  *   delar    nx + ny, som er golvet: ein kropp som deler seg gjev fleire
  *   luke     stigninga minus ei platetjukn
  *
- * SVARET ER IKKJE EITT PUNKT, DET ER EI FRONT. Fleire ribber gjev meir
- * form og fleire plater, og dei dreg kvar sin veg — so det som vert sendt
- * vidare er det beste rutenettet på éi plate, det beste på to, det beste
- * på tre. Fronten er verd meir enn berre vinnaren: ho er nett den lista
- * nokon vil bla i. «På ei plate ser han slik ut, på to slik.» Det
- * spørsmålet har ikkje hatt noko svar før.
+ * SPØRSMÅLET ER «FÆRRAST DELAR SOM BER MEST AV FORMA», og det er ei
+ * front og ikkje eit punkt: for kvart tal delar finst det eit best
+ * rutenett, og fleire delar gjev meir form for meir arbeid. Båsen er
+ * difor TALET PÅ DELAR, ikkje plata, og i kvar bås står dei fire beste
+ * som er ulike nok til å vera kvar sitt svar — 10×6 og 8×8 er to ulike
+ * løysingar på seksten delar, og pakkinga kan meine noko anna om dei enn
+ * overslaget gjer.
  *
- * KVAR BÅSEN FÅR PLASS TIL FLEIRE, OG DEI FYRSTE BÅSANE FLEIRE ENN DEI
- * SISTE. Platestraffa er tretti poeng; heile formleddet er hundre, og
- * spennet mellom eit grovt og eit fint rutenett på same forma er sjeldan
- * meir enn ti. Ein kandidat på fire plater kan difor ikkje vinne, uansett
- * kor godt han ser ut — so han er med for å synast fram og ikkje for å
- * vinne, og han får éin plass. Dei to fyrste båsane er der svaret bur, og
- * dei får fire kvar.
+ * Alle får ei snitting, så langt budsjettet rekk, og budsjettet vert brukt
+ * på tvers av båsane: fyrst den beste i kvar bås, so den nest beste i
+ * kvar. Vert det knapt, er det reservane som fell og ikkje ein ende av
+ * fronten — svaret på «kva får eg med tolv delar» skal ikkje forsvinne
+ * av di det finst mange svar på «kva får eg med femti».
  *
  * Reservane er ikkje pynt: platetalet her er eit overslag, og pakkinga kan
  * svare noko anna. Utnyttinga og dei kasta stykka veit overslaget
- * ingenting om i det heile. Ein reserve som står eit stykke unna i
- * ribbetal er ei anna løysing og ikkje same svaret ein gong til — difor
- * kravet om at dei skal skilje seg frå kvarandre.
+ * ingenting om i det heile.
  */
 type Framlegg = { nx: number; ny: number; tro: number; poeng: number }
 
@@ -306,6 +308,9 @@ function leggI(b: Framlegg[], q: Framlegg, tak: number) {
   if (b.length > tak) b.length = tak
 }
 
+/** kor mange ulike svar kvar bås held */
+const I_BAASEN = 4
+
 function djupeKandidatar(
   p: Params,
   pr: Profil,
@@ -323,8 +328,6 @@ function djupeKandidatar(
   // rekna éin gong per akse i staden for éin gong per rute i tavla. Tavla
   // er tusen ruter; utan dette er det tusen kall til `plasser` og tusen
   // gjennomgangar av profilen for seksti svar.
-  const xsAv: number[][] = []
-  const ysAv: number[][] = []
   const troX: number[] = []
   const troY: number[] = []
   const flateX: number[] = []
@@ -332,15 +335,13 @@ function djupeKandidatar(
   for (let n = lo; n <= hi; n++) {
     const xs = plasser(n, laas.x).map((t) => s.min[0] + t * viddX)
     const ys = plasser(n, laas.y).map((t) => s.min[1] + t * viddY)
-    xsAv[n] = xs
-    ysAv[n] = ys
     troX[n] = truskap(pr, "x", xs)
     troY[n] = truskap(pr, "y", ys)
     flateX[n] = plateoverslag(pr, xs, [])
     flateY[n] = plateoverslag(pr, [], ys)
   }
 
-  /** dei beste og mest ulike i kvar platebås */
+  /** dei beste og mest ulike, per tal delar */
   const baas = new Map<number, Framlegg[]>()
   for (let nx = lo; nx <= hi; nx++) {
     for (let ny = lo; ny <= hi; ny++) {
@@ -359,21 +360,25 @@ function djupeKandidatar(
         },
         tro,
       )
-      let b = baas.get(ark)
+      const delar = nx + ny
+      let b = baas.get(delar)
       if (!b) {
         b = []
-        baas.set(ark, b)
+        baas.set(delar, b)
       }
-      leggI(b, { nx, ny, tro, poeng }, ark <= 2 ? 4 : 1)
+      leggI(b, { nx, ny, tro, poeng }, I_BAASEN)
     }
   }
 
-  // Færrast plater fyrst: det er den enden av fronten spørsmålet kom frå,
-  // og budsjettet skal kappe dei dyre og ikkje dei billige.
+  // På tvers av båsane, rang for rang: den beste i kvar bås fyrst, med
+  // færrast delar fyrst innanfor rangen. Budsjettet kappar bakfrå, og
+  // bakerst står reservane — ikkje ein ende av fronten.
+  const delar = [...baas.keys()].sort((a, b) => a - b)
   const ut: Framlegg[] = []
   let brukt = 0
-  for (const ark of [...baas.keys()].sort((a, b) => a - b)) {
-    for (const q of baas.get(ark) ?? []) {
+  for (let rang = 0; rang < I_BAASEN; rang++) {
+    for (const d of delar) {
+      const q = baas.get(d)?.[rang]
       if (!q) continue
       // Alltid minst éin: eit søk som ikkje har råd til noko har ikkje
       // svart, og då er knappen ein knapp som ikkje gjer noko.
@@ -386,36 +391,40 @@ function djupeKandidatar(
 }
 
 /**
- * KVA EI SNITTING KOSTAR, TALT I DET HO FAKTISK GJER.
+ * KVA EI SNITTING KOSTAR, MÅLT.
  *
- * To ting, og dei veks kvar sin veg. Feltet vert lese éin gong per RIBBE,
- * og sporet vert skore éin gong per KRYSS — og kryssa er talet gonga med
- * seg sjølv. Difor er ikkje eit rutenett på 30×30 fem gonger eit på 6×6;
- * det er kring tjue gonger, og eit budsjett som tel kandidatar eller berre
- * ribber trur noko anna.
+ * Ein fast del og ein del som veks: kroppen vert lesen éin gong per RIBBE
+ * og sporet skore éin gong per KRYSS, men det meste av tida er det faste —
+ * rasteret som kvar ribbe vert lesen av, og pakkinga. Målt på det grove
+ * nivået med rask pakking: ein kube på 6×6 tok 130 ms, ei kule på 16×16
+ * tok 230. Ei rett line gjennom dei to er hundre og ti millisekund pluss
+ * fire tidelar per ribbe og kryss, og det er den lina budsjettet vert
+ * rekna i — i millisekund på maskina det vart målt på.
  *
- * Målt på ein kube: fire hundre ribber fordelte på tolv rutenett tok ni
- * sekund, medan hundre og åtti ribber fordelte på tretten tok to. Det er
- * ikkje same prisen per ribbe, og det er kryssa som er skilnaden.
+ * Eit budsjett som berre telde ribber og kryss gjorde dei fine rutenetta
+ * ti gonger dyrare enn dei er, og kappa fronten ved femti delar.
  */
-const arbeid = (nx: number, ny: number) => nx + ny + nx * ny
+const arbeid = (nx: number, ny: number) => 110 + 0.4 * (nx + ny + nx * ny)
 
 /**
  * KOR MYKJE SNITTING DJUPSØKET HAR RÅD TIL.
  *
  * Det vide steget er gratis. Snittinga er ikkje, og ho vert målt i
- * `arbeid` — ribber og kryss. Femten hundre einingar er kring fire sekund
- * på ein lett modell: det doble av det raske søket, som er greitt for ein
- * knapp du med vilje held nede.
+ * `arbeid` — millisekund på ein benk. Tretti sekund der er kring hundre
+ * og tjue rutenett snitta for alvor, heile fronten frå fire delar og
+ * oppover og ei reserve i dei fyrste båsane: eit langt trykk er eit langt
+ * trykk, og det du får for det er at fronten er MÅLT og ikkje gjetta.
+ * Ringen kring knappen syner kor langt det er kome, og eit trykk til
+ * stoggar søket der det er og held det beste det har funne.
  *
- * Men eit skann er ikkje ein kube. Kvar ribbe i eit nett på ein million
+ * Eit skann er ikkje ein kube: kvar ribbe i eit nett på ein million
  * trekantar kostar strålar gjennom heile det nettet, so den same eininga
  * er dyrare. Difor vert budsjettet lese av nettet, og det vert lese FØR
  * fyrste snittinga: framdriftslina skal vera sann frå fyrste meldinga, og
- * ei line som fyrst seier tolv og so ombestemmer seg er verre enn ingen
+ * ei line som fyrst seier hundre og so ombestemmer seg er verre enn ingen
  * line.
  */
-const djupTak = (tris: number) => (tris > 300000 ? 250 : tris > 80000 ? 600 : 1500)
+const djupTak = (tris: number) => (tris > 300000 ? 5000 : tris > 80000 ? 12000 : 30000)
 
 /**
  * Rekna gjennom kandidatane, og gjev dei sorterte.
@@ -446,7 +455,9 @@ const djupTak = (tris: number) => (tris > 300000 ? 250 : tris > 80000 ? 600 : 15
 export function* tuneSteg(
   p: Params,
   djup = false,
-): Generator<{ gjort: number; av: number }, Kandidat[], void> {
+  /** budsjettet for djupsøket, i `arbeid`. Prøvebenken set eit lite. */
+  tak?: number,
+): Generator<{ gjort: number; av: number; alle: Kandidat[] }, Kandidat[], void> {
   const k = makeKropp(p)
   const spennX = Math.max(1, k.solid.max[0] - k.solid.min[0])
   const spennY = Math.max(1, k.solid.max[1] - k.solid.min[1])
@@ -459,7 +470,10 @@ export function* tuneSteg(
   const prov = (ribbX: number, ribbY: number, ledd: number): string[] => {
     const q: Params = { ...p, ribbX, ribbY, ledd }
     try {
-      const plan = makePlan(q, DETAIL.lav)
+      // Grovt nivå og rask pakking: tala som rangerer — delar, ledd, plater
+      // — er sanne nok der, og vinnaren vert snitta og pakka for alvor i
+      // det han vert sett.
+      const plan = makePlan(q, DETAIL.lav, true)
       const m = {
         parts: plan.pl.parts.length,
         sheets: plan.ns.sheets.length,
@@ -470,7 +484,7 @@ export function* tuneSteg(
       }
       if (m.parts === 0 || m.sheets === 0) return ["tom"]
       // Dei harde reglane er eit ja eller nei, ikkje eit trekk i summen.
-      const fall = checkRules(q, maal(q, plan), plan)
+      const fall = checkRules(q, maal(q, plan), plan, false)
         .filter((r) => r.hard && !r.ok)
         .map((r) => r.id)
       if (fall.length) return fall
@@ -498,13 +512,28 @@ export function* tuneSteg(
     // éin kandidat — og ho må stå FØR fyrste framdriftsmeldinga, so lina
     // veit kor mange steg det vert.
     const pr = maalProfil(k)
-    const front = djupeKandidatar(p, pr, k.solid, djupTak(k.soup.tris))
+    const front = djupeKandidatar(p, pr, k.solid, tak ?? djupTak(k.soup.tris))
     for (const q of front) tro.set(`${q.nx},${q.ny}`, q.tro)
     liste = front.map((q) => [q.nx, q.ny] as [number, number])
   } else {
     liste = kandidatar(p, spennX, spennY)
   }
-  yield { gjort: 0, av: liste.length }
+  // Det beste so langt fylgjer kvart steg: den som stoggar søket midt i
+  // skal ha det som er funne, sortert — hundre ekte snittingar er eit
+  // svar, om det var to hundre som var planen.
+  const soLangt = () => {
+    const etterPoeng = (a: Kandidat, b: Kandidat) => b.poeng - a.poeng
+    if (!djup) return [...ut].sort(etterPoeng)
+    // Fronten fyrst, og so resten: det fyrste svaret er aldri slege på
+    // alt, og dei slegne står att å bla i — på ein kube er fronten eitt
+    // einaste punkt, og ei liste på eitt er ein knapp som ikkje blar.
+    const f = new Set(front(ut))
+    return [
+      ...ut.filter((q) => f.has(q)).sort(etterPoeng),
+      ...ut.filter((q) => !f.has(q)).sort(etterPoeng),
+    ]
+  }
+  yield { gjort: 0, av: liste.length, alle: [] }
   for (let i = 0; i < liste.length; i++) {
     const [x, y] = liste[i]
     // Leddelinga står midt på. Ho rører ingen av tala i summen — ho
@@ -521,15 +550,41 @@ export function* tuneSteg(
     if (fall.length === 1 && fall[0] === "gods") {
       if (prov(x, y, 0.35).length) prov(x, y, 0.65)
     }
-    yield { gjort: i + 1, av: liste.length }
+    yield { gjort: i + 1, av: liste.length, alle: soLangt() }
   }
-  ut.sort((a, b) => b.poeng - a.poeng)
-  return ut
+  return soLangt()
+}
+
+/**
+ * FRONTEN: INGEN SOM ER SLEGEN PÅ ALT.
+ *
+ * Spørsmålet var færrast delar som ber mest av forma på færrast plater.
+ * Eit svar som har fleire delar, fleire plater OG mindre form enn eit
+ * anna — eller like mykje på to av dei og verre på den tredje — er ikkje
+ * eit svar på det spørsmålet, uansett kva summen seier: summen veg òg
+ * grepet og utnyttinga, og dei kan løfte eit rutenett forbi eit som er
+ * betre på alt du spurde om. På ei kule kom 9×4 fyrst, med tretten delar
+ * og 86 % av forma, medan 6×6 hadde tolv delar og meir form på like
+ * mange plater.
+ *
+ * So fronten står fyrst: for kvart tal delar det beste som finst, og
+ * ingen som ein annan slår på alt. Dei slegne kjem etter, til å bla i.
+ * Berre djupsøket — det raske reknar ikkje form, og utan henne ville
+ * fronten vore det minste rutenettet åleine.
+ */
+export function front(alle: readonly Kandidat[]): Kandidat[] {
+  const slaar = (a: Kandidat, b: Kandidat) =>
+    a.parts <= b.parts &&
+    a.sheets <= b.sheets &&
+    a.troskap >= b.troskap &&
+    a.loose <= b.loose &&
+    (a.parts < b.parts || a.sheets < b.sheets || a.troskap > b.troskap || a.loose < b.loose)
+  return alle.filter((b) => !alle.some((a) => a !== b && slaar(a, b)))
 }
 
 /** heile søket i eitt jafs, for den som ikkje har bruk for framdrifta */
-export function tune(p: Params, djup = false): Kandidat[] {
-  const it = tuneSteg(p, djup)
+export function tune(p: Params, djup = false, tak?: number): Kandidat[] {
+  const it = tuneSteg(p, djup, tak)
   let r = it.next()
   while (!r.done) r = it.next()
   return r.value

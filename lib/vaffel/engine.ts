@@ -75,11 +75,12 @@ export type EngineDef = {
    *  måling av kroppen, og dei beste av dei snitta for alvor. */
   tune(p: ParamBag, djup?: boolean): Kandidat[]
   /** det same søket, men eitt steg om gongen: den som driv han kan sleppe
-   *  tråden imellom, og då kjem framdrifta fram medan ho gjeld */
+   *  tråden imellom, og då kjem framdrifta fram medan ho gjeld — og det
+   *  beste so langt, om nokon stoggar han */
   tuneSteg(
     p: ParamBag,
     djup?: boolean,
-  ): Generator<{ gjort: number; av: number }, Kandidat[], void>
+  ): Generator<{ gjort: number; av: number; alle: Kandidat[] }, Kandidat[], void>
   /** det n-te svaret frå ei liste som alt er rekna */
   pick(p: ParamBag, alle: Kandidat[], nth: number): ParamBag
   /** profilane som bilete til panelet — same teikning som SVG-uttaket,

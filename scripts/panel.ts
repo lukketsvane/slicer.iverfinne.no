@@ -898,7 +898,13 @@ async function benken(browser: Browser, feil: string[]) {
   await page.mouse.down()
   await page.waitForTimeout(700)
   await page.mouse.up()
-  await rolig(page)
+  // Djupsøket snittar hundrevis for alvor, og på ein benk utan skjermkort
+  // tek det kring eit minutt. Ringen syner det; prøva ventar.
+  await page.waitForFunction(
+    () => document.querySelector("[aria-busy]")?.getAttribute("aria-busy") === "false",
+    undefined,
+    { timeout: 240000 },
+  )
 
   ok("eit langt trykk gjev djupsøket", await harForm())
   const djupe = await rader.count()

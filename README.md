@@ -96,8 +96,12 @@ came out: does it hold together, how many parts, how many sheets, utilisation,
 room between ribs. A broken hard rule is not a deduction, it is a no.
 
 **Hold the button** (or press `D`) and it asks a different question: what does
-*this shape* need? It reads every rib count from 2×2 to 32×32 — about a thousand
-grids — then slices only the best for real.
+*this shape* need, for the fewest parts? It reads every rib count from 2×2 to
+32×32 — about a thousand grids — then slices the front of them for real: the
+best few grids at every part count, one or two hundred of them, each nested and
+checked against the hard rules. It takes the time it takes; the ring around the
+button shows how far it is, and tapping the button again stops it and keeps the
+best found so far.
 
 It affords a thousand by **measuring the body once**: one ray per column of a
 128×128 raster gives volume and the cross-section profiles A(x) and A(y) in one
@@ -112,8 +116,9 @@ than y, so the deep search picks lopsided grids there. And on a body with legs
 it is **not monotonic**: three ribs can score worse than two, because the third
 plane landed between the legs.
 
-What comes back is a front, not a point: the best grid on one sheet, on two, on
-three.
+What comes back is a front, not a point: for each number of parts, the grid that
+carries the most shape. The first answer is the knee, where more parts stop
+paying for themselves; press again to walk along the front.
 
 ## Building by hand
 

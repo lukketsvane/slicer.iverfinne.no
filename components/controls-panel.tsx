@@ -38,6 +38,7 @@ import {
   IcoShare,
   IcoSliders,
   IcoStabel,
+  IcoStopp,
   IcoVenstre,
   Ring,
   R_ARK,
@@ -112,6 +113,8 @@ export function ControlsPanel(props: {
   onFinn: () => void
   /** eit langt trykk på den same knappen: djupsøket */
   onFinnDjup: () => void
+  /** eit trykk medan søket går: stogg, og hald det beste so langt */
+  onAvbryt: () => void
   onFinnAtt: () => void
   onShare: () => void
   onFile: (f: File) => void
@@ -142,13 +145,15 @@ export function ControlsPanel(props: {
     onExport,
     onFinn,
     onFinnDjup,
+    onAvbryt,
     onFinnAtt,
     onShare,
     onFile,
     verkty,
     onVerkty,
   } = props
-  const langtrykk = useLangtrykk(onFinn, onFinnDjup)
+  // Medan søket går er knappen ein stoppknapp, kort eller langt trykk.
+  const langtrykk = useLangtrykk(tunar ? onAvbryt : onFinn, tunar ? onAvbryt : onFinnDjup)
 
   // lukka → halv (lesemåtar, materiale, delane, eksport) → full (skyveveggen)
   const open = mode !== "lukka"
@@ -491,16 +496,18 @@ export function ControlsPanel(props: {
               <button
                 type="button"
                 {...langtrykk}
-                disabled={busy}
+                disabled={busy && !tunar}
                 aria-label="finn innstillingar"
                 title={
-                  "(F) reknar gjennom eit titals rutenett og set det beste. trykk igjen for det neste.\n" +
-                  "hald han nede (D) for djupsøket: heile ribbetavla, rangert på kor mykje av forma ribbene ber og kor mange plater ho tek."
+                  tunar
+                    ? "søket går. trykk for å stogge og halde det beste so langt"
+                    : "(F) reknar gjennom eit titals rutenett og set det beste. trykk igjen for det neste.\n" +
+                      "hald han nede (D) for djupsøket: heile ribbetavla, hundrevis snitta for alvor, rangert på kor mykje av forma ribbene ber for kor få delar."
                 }
                 className={ICON_BTN + " disabled:opacity-100"}
                 style={{ background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }}
               >
-                {IcoFinn}
+                {tunar ? IcoStopp : IcoFinn}
                 {tunar && <Ring del={tunar.av ? tunar.gjort / tunar.av : 0} />}
               </button>
               <button

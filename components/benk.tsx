@@ -26,6 +26,7 @@ import {
   IcoImport,
   IcoReset,
   IcoShare,
+  IcoStopp,
   R_ARK,
   R_DELAR,
   R_GODS,
@@ -279,6 +280,8 @@ export function Benk(props: {
   onFinn: () => void
   /** eit langt trykk på den same knappen: djupsøket */
   onFinnDjup: () => void
+  /** eit trykk medan søket går: stogg, og hald det beste so langt */
+  onAvbryt: () => void
   onVelSvar: (i: number) => void
   onSynSvar: (i: number | null) => void
   onShare: () => void
@@ -312,6 +315,7 @@ export function Benk(props: {
     onExport,
     onFinn,
     onFinnDjup,
+    onAvbryt,
     onVelSvar,
     onSynSvar,
     onShare,
@@ -319,7 +323,8 @@ export function Benk(props: {
     verkty,
     onVerkty,
   } = props
-  const langtrykk = useLangtrykk(onFinn, onFinnDjup)
+  // Medan søket går er knappen ein stoppknapp, kort eller langt trykk.
+  const langtrykk = useLangtrykk(tunar ? onAvbryt : onFinn, tunar ? onAvbryt : onFinnDjup)
   const pick = useRef<HTMLInputElement | null>(null)
 
   /**
@@ -526,11 +531,13 @@ export function Benk(props: {
           <button
             type="button"
             {...langtrykk}
-            disabled={busy}
+            disabled={busy && !tunar}
             aria-label="finn innstillingar"
             title={
-              "(F) reknar gjennom eit titals rutenett og set det beste\n" +
-              "hald han nede (D) for djupsøket: heile ribbetavla, rangert på kor mykje av forma ribbene ber og kor mange plater ho tek"
+              tunar
+                ? "søket går. trykk for å stogge og halde det beste so langt"
+                : "(F) reknar gjennom eit titals rutenett og set det beste\n" +
+                  "hald han nede (D) for djupsøket: heile ribbetavla, hundrevis snitta for alvor, rangert på kor mykje av forma ribbene ber for kor få delar"
             }
             className="hit relative flex h-9 w-full items-center justify-center gap-2 rounded-[2px] text-[11px] uppercase tracking-[0.14em] transition active:scale-[0.99] disabled:opacity-100"
             style={{ background: "var(--ink)", color: "var(--paper)" }}
@@ -550,8 +557,8 @@ export function Benk(props: {
                 }}
               />
             )}
-            <span className="relative opacity-90">{IcoFinn}</span>
-            <span className="relative">finn</span>
+            <span className="relative opacity-90">{tunar ? IcoStopp : IcoFinn}</span>
+            <span className="relative">{tunar ? "stopp" : "finn"}</span>
           </button>
         </div>
 

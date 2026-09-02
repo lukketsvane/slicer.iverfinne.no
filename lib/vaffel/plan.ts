@@ -37,11 +37,21 @@ export const nestGap = (p: Params) => Math.max(4, 2 * p.snitt + 2)
 
 const HUGS = keep<Plan>(2)
 
-export function makePlan(p: Params, cells: number): Plan {
-  return HUGS(planKey(p as unknown as ParamBag, cells), () => {
+/**
+ * `rask` er søket sin plan: pakkinga tek éin passasje og ikkje fire. Han
+ * har sin eigen nøkkel, so ein rask plan aldri vert servert som den sanne
+ * — den sanne er den vinnaren får når han vert sett, på det midtre nivået.
+ */
+export function makePlan(p: Params, cells: number, rask = false): Plan {
+  return HUGS(planKey(p as unknown as ParamBag, cells) + (rask ? "|rask" : ""), () => {
     const k = makeKropp(p)
     const g = buildGrid(k, p, cells)
     const pl = buildParts(g, p)
-    return { k, g, pl, ns: nest(pl.parts, p.arkB, p.arkH, nestGap(p), lesFest(p.fest)) }
+    return {
+      k,
+      g,
+      pl,
+      ns: nest(pl.parts, p.arkB, p.arkH, nestGap(p), lesFest(p.fest), rask ? 0 : undefined),
+    }
   })
 }
