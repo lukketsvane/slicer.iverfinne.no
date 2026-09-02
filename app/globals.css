@@ -1,18 +1,14 @@
 @import "tailwindcss";
 
-/* Kvitt, alltid. Objektet er lyst material med hard skugge på kvitt papir —
-   som ei side i eit kuttark. Ingen mørkmodus: den ville vore ein annan
-   design, ikkje ei innstilling. */
+/* Kvitt, alltid: lyst material med hard skugge på kvitt papir, som ei side i
+   eit kuttark. Ingen mørkmodus — det ville vore ein annan design. */
 :root {
   --paper: #ffffff;
   --ink: #141414;
   --rule: #00000021;
   --warn: #b91c1c;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  /* Systemet si eiga maskinskrift. Ingen nedlasting: ho ligg i maskina,
-     og ho er den skrifta tal står i overalt elles på ho òg. */
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 html {
@@ -24,58 +20,18 @@ html {
   html,
   body {
     height: 100%;
-    /* lås sida så lerretet eig alle fingergestar */
+    /* lås sida so lerretet eig alle fingergestar */
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
   }
+  /* EIN REISKAP ER IKKJE EIN TEKST. Eit langt trykk på ein knapp i iOS
+     merkjer ordet og sprett opp «Kopier · Slå opp»; flata her er knappar,
+     tal og eit objekt. Det som FAKTISK er tekst — talfelta og oppsettet —
+     skal framleis kunne merkast og limast i. */
   body {
     background: var(--paper);
     color: var(--ink);
     font-family: var(--font-sans);
-    /*
-     * EIN REISKAP ER IKKJE EIN TEKST.
-     *
-     * Eit langt trykk på ein knapp i iOS Safari merkjer ordet i han og
-     * sprett opp «Kopier · Oversett · Lær … · Les opp». Halve arket vart
-     * blått, og den einaste vegen ut var å trykkje ein annan stad. Ingen
-     * av dei fire tinga menyen tilbyr gjev meining på ein uttaksknapp.
-     *
-     * Ein finger som kviler på ein knapp gjer det av di han er i ferd
-     * med å trykkje, eller av di han dreg arket — begge er gestar, ikkje
-     * lesing.
-     */
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-  }
-  /* Det som FAKTISK er tekst, er framleis tekst: talfelta og oppsettet
-     skal kunne merkjast, kopierast og limast i. */
-  input,
-  textarea,
-  [contenteditable] {
-    -webkit-user-select: text;
-    user-select: text;
-  }
-  /*
-   * INGEN MERKING, OG INGA LUPE.
-   *
-   * Eit langt trykk på ein knapp er eit langt trykk på ein knapp. På iOS
-   * var det ei merking: filnamnet vart blått, to handtak sprang opp, og
-   * over dei ein meny med «Kopier» og «Slå opp» — midt i eit ark du heldt
-   * på å dra i. Ingen ting av det finst i eit program; det finst i eit
-   * dokument, og flata her er ikkje eit dokument. Ho er knappar, tal og
-   * eit objekt.
-   *
-   * `touch-callout` er den som tek menyen og lupa; `user-select` tek
-   * merkinga. Begge trengst — den eine utan den andre gjev anten ei blå
-   * merking utan meny eller ein meny over noko som ikkje er merkt.
-   *
-   * MEN DER TEKSTEN ER SJØLVE INNHALDET, står han att. Oppsettet er ein
-   * tekst du skal kunne merke og lime, og talfelta må kunne merkast for å
-   * skrivast i — `select()` på eit felt som ikkje let seg merke gjer
-   * ingen ting, og då må du viske ut siffer for siffer.
-   */
-  body {
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
@@ -86,90 +42,40 @@ html {
     user-select: text;
     -webkit-touch-callout: default;
   }
-  /* Alle tal i grensesnittet er måltal. Dei skal stå i kolonne. */
+  /* alle tal er måltal og skal stå i kolonne */
   .tab {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
   }
-  /*
-   * Tala på benken står i maskinskrift.
-   *
-   * Ein telefon er ein telefon, og der er tala tal i den same skrifta som
-   * alt anna. Ein benk er eit instrument: tala er avlesingar, dei skal
-   * stå i kolonne, og dei skal sjå ut som noko som er MÅLT og ikkje
-   * skrive. Skrifta ligg i maskina frå før, so ho kostar ikkje ei
-   * nedlasting.
-   */
-  .mono {
+  /* på benken og i skuffa er tala avlesingar: maskinskrift */
+  .mono,
+  .benk .tab,
+  .benk .talfelt {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
     letter-spacing: -0.01em;
   }
-  /*
-   * Og alt som står INNI ein vegg, same kven som teikna det.
-   *
-   * Skyvarane, talfelta og tavla er dei same komponentane på begge
-   * flatene, og dei skal ikkje trenge å vita kva for ei dei står i. Ein
-   * vegg er ein vegg: står eit tal der, står det i maskinskrift.
-   */
-  .benk .tab,
-  .benk .talfelt {
-    font-family: var(--font-mono);
-    letter-spacing: -0.01em;
-  }
 }
 
-/*
- * DEMPA TEKST, OG KOR DEMPA HO KAN VERE.
- *
- * Flata lever av at det meste er stille: einingar, etikettar og
- * overskrifter skal stå attende so tala kan stå fram. Men ein tekst som er
- * dempa er framleis ein tekst nokon skal lese, og under eit visst punkt er
- * han ikkje dempa lenger — han er borte.
- *
- * Blekket er #141414 på kvitt papir. Skal ti pikslar halde kravet på 4,5:1,
- * kan gjennomsikta ikkje gå under 0,58. Difor 0,6, og difor eitt tal og
- * ikkje femten: det stod 0,30, 0,35, 0,40, 0,45, 0,50 og 0,55 kring i
- * grensesnittet, og alle seks las dårlegare enn kravet. Skiljet mellom dei
- * bar ingenting som storleiken, sperringa og plasseringa ikkje bar frå før.
- *
- * Skiljeteikn, avslegne knappar og reine dekorasjonar står utanfor: dei er
- * ikkje tekst nokon skal lese.
- */
+/* Dempa tekst er framleis tekst nokon skal lese: #141414 på kvitt held 4,5:1
+   ned til 0,58, so eitt tal og ikkje femten. */
 .dim {
   opacity: 0.6;
 }
 
-/*
- * EI LISTE SOM HELD FRAM NEDANFOR KANTEN, SKAL SEIE DET.
- *
- * Veggane står fast og rullar ikkje — det er heile grunnen til at dei er
- * veggar og ikkje eit ark med tre høgder. Men på ein låg skjerm er det
- * ikkje plass til alle skyvarane likevel, og då rullar lista. Ho gjorde det
- * heilt stille: siste skyvaren var kappa på midten, og ingenting sa at det
- * var meir under.
- *
- * Skuggen kjem og går av seg sjølv, utan ei einaste line JavaScript. To av
- * gradientane er festa til INNHALDET (`local`) og har papirfargen; dei to
- * andre er festa til RAMMA (`scroll`) og er skuggen. Står lista øvst, ligg
- * papiret oppå den øvre skuggen og gøymer han; rullar du, glir papiret vekk
- * og skuggen kjem fram. Er det ingenting å rulle, ligg begge papirlappane
- * over begge skuggane, og du ser ingen.
- */
+/* Ei liste som held fram nedanfor kanten skal seie det: papirlappane er festa
+   til innhaldet, skuggane til ramma, og skuggen kjem fram når du rullar. */
 .rull {
   overflow-y: auto;
   background:
     linear-gradient(var(--paper) 40%, transparent) top / 100% 16px no-repeat local,
     linear-gradient(transparent, var(--paper) 60%) bottom / 100% 16px no-repeat local,
-    linear-gradient(color-mix(in srgb, var(--ink) 24%, transparent), transparent)
-      top / 100% 10px no-repeat scroll,
-    linear-gradient(transparent, color-mix(in srgb, var(--ink) 24%, transparent))
-      bottom / 100% 10px no-repeat scroll;
+    linear-gradient(color-mix(in srgb, var(--ink) 24%, transparent), transparent) top / 100% 10px no-repeat scroll,
+    linear-gradient(transparent, color-mix(in srgb, var(--ink) 24%, transparent)) bottom / 100% 10px no-repeat scroll;
 }
 
-/* Skyvaren. Ei line og ein prikk — ingenting anna, fordi alt anna ville
-   konkurrere med objektet om merksemda. */
+/* skyvaren: ei line og ein prikk, ingenting som konkurrerer med objektet */
 .pslider {
   -webkit-appearance: none;
   appearance: none;
@@ -199,57 +105,37 @@ html {
 .pslider:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 2px var(--ink);
 }
+.pslider:focus-visible {
+  outline: none;
+}
 
-/*
- * EIT SVAR PÅ PEIKAREN.
- *
- * Flata er med vilje still: kvit, hårfine strekar, ingen skuggar. Men ei
- * flate som ikkje svarar når peikaren står over henne, ser ut som ho ikkje
- * er trykkbar. Skuggen ligg INNI knappen og ikkje som ein bakgrunn, so han
- * verkar likt på ein knapp som er kvit og ein som er svart — den svarte
- * vert litt mørkare, den kvite litt grå. Éin regel, to tilstandar.
- *
- * Berre der det finst ein peikar. På ein telefon ville han hengt att etter
- * kvart trykk.
- */
+/* eit svar på peikaren, inni knappen so det verkar likt på kvit og svart;
+   berre der det finst ein peikar */
 @media (hover: hover) and (pointer: fine) {
   .hit:hover:not(:disabled) {
     box-shadow: inset 0 0 0 40px color-mix(in srgb, var(--ink) 7%, transparent);
   }
-}
-
-/* Tastaturet skal kunne sjåast. Ein ring utanpå, i same blekket som alt
-   anna — ikkje nettlesaren sin blå. */
-:where(button, a, [role="switch"], input):focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-  border-radius: 9999px;
-}
-.pslider:focus-visible {
-  outline: none;
-}
-/* Talfeltet er eit felt og ikkje ei avskrift, men det skal ikkje ropa det:
-   streken under kjem når peikaren er der, og ringen er firkanta av di
-   feltet er det. */
-.talfelt:focus-visible {
-  outline-offset: 1px;
-  border-radius: 3px;
-}
-@media (hover: hover) and (pointer: fine) {
   .talfelt:hover {
     box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--ink) 32%, transparent);
   }
 }
 
-/* Merkinga i eit talfelt òg: sida er kvit og svart, og nettlesaren sin
-   blå er den einaste fargen som ikkje er vald. */
+/* tastaturet skal kunne sjåast, i same blekket som alt anna */
+:where(button, a, [role="switch"], input):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
+.talfelt:focus-visible {
+  outline-offset: 1px;
+  border-radius: 3px;
+}
 ::selection {
   background: color-mix(in srgb, var(--ink) 16%, transparent);
   color: var(--ink);
 }
 
-/* Lina som seier at fila kan sleppast. Ho skal ikkje vera der før auget er
-   framme. */
+/* lina som seier at fila kan sleppast skal ikkje vera der før auget er framme */
 .fade-inn {
   animation: fade-inn 900ms ease both;
 }
@@ -258,7 +144,6 @@ html {
     opacity: 0;
   }
 }
-
 @media (prefers-reduced-motion: reduce) {
   .fade-inn {
     animation: none;

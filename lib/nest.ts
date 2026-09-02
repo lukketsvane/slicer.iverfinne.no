@@ -12,10 +12,10 @@
  * det tomrommet. Det er skilnaden mellom å telje boksar og å telje form,
  * og på eit krumt objekt er han fort ei heil plate.
  */
-import { bbox, inRing, type Pt } from "../core"
-import { anchor, pack, apply, type Fest, type Slot } from "../pack"
-import { fitSize, strokesAt } from "../stroke"
-import type { Part } from "./parts"
+import { bbox, inRing, type Pt } from "./core"
+import { anchor, pack, apply, type Fest, type Slot } from "./pack"
+import { fitSize, strokesAt } from "./stroke"
+import type { Del as Part } from "./snitt"
 
 export type Placed = {
   part: Part
@@ -57,7 +57,7 @@ export function nest(
   if (fest?.size) {
     fast = new Map()
     parts.forEach((q, i) => {
-      const f = fest.get(q.from)
+      const f = fest.get(q.adr)
       if (f) fast!.set(i, f)
     })
   }
@@ -94,7 +94,7 @@ export function nest(
     // like mykje.
     const paa = apply(slot.m, [a.p[0] + eige.x0, a.p[1] + eige.y0])
     const rom = prøvd(
-      part.from,
+      part.adr,
       {
         outline: part.outline.map((q) => apply(slot.m, q)),
         holes: part.holes.map((h) => h.map((q) => apply(slot.m, q))),

@@ -23,14 +23,17 @@
  *
  *   npx tsx scripts/djup.ts
  */
-import { makeKropp } from "../lib/vaffel/kropp"
-import { maalProfil, plateoverslag, truskap } from "../lib/vaffel/profil"
-import { measure } from "../lib/vaffel/metrics"
-import { checkRules } from "../lib/vaffel/rules"
-import { front, tune } from "../lib/vaffel/tune"
-import { DEFAULT_PARAMS, lesLaas, plasser, type Params } from "../lib/vaffel/params"
+import { makeKropp } from "../lib/kropp"
+import { maalProfil, plateoverslag, truskap } from "../lib/profil"
+import { measure } from "../lib/metrics"
+import { checkRules } from "../lib/rules"
+import { front, tune } from "../lib/forslag"
+import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
 
 let feil = 0
 const sjekk = (namn: string, ok: boolean, sagt = "") => {
@@ -116,10 +119,10 @@ function troFor(p: Params, akse: "x" | "y", n: number): number {
   const k = makeKropp(p)
   const pr = maalProfil(k)
   const i = akse === "x" ? 0 : 1
-  const laas = lesLaas(p.laas)
   const vidd = k.solid.max[i] - k.solid.min[i]
-  const ribber = plasser(n, akse === "x" ? laas.x : laas.y).map((t) => k.solid.min[i] + t * vidd)
-  return truskap(pr, akse, ribber)
+  // dei same plana som framlegget ber: (i + ½) / n, i cellesenter
+  const plan = akse === "x" ? rutenett(n, 0) : rutenett(0, n)
+  return truskap(pr, akse, plan.map((q) => k.solid.min[i] + q.o[i] * vidd))
 }
 
 // =============================================================================
@@ -176,9 +179,8 @@ console.log("\noverslaget over plateforbruket")
   const p = par({ kjelde: "d-kule" })
   const k = makeKropp(p)
   const pr = maalProfil(k)
-  const laas = lesLaas(p.laas)
   const vidd = k.solid.max[0] - k.solid.min[0]
-  const xs = (n: number) => plasser(n, laas.x).map((t) => k.solid.min[0] + t * vidd)
+  const xs = (n: number) => rutenett(n, 0).map((q) => k.solid.min[0] + q.o[0] * vidd)
 
   const ei = plateoverslag(pr, xs(4), [])
   const to = plateoverslag(pr, xs(8), [])
@@ -241,20 +243,20 @@ for (const [namn, over] of [
   // og eit svar utan det er eit svar frå det raske søket på avvegar.
   sjekk(
     `${namn}: kvart svar seier kor mykje av forma det ber`,
-    alle.every((q) => q.troskap > 0 && q.troskap <= 1),
-    alle.map((q) => (q.troskap * 100).toFixed(0) + "%").join(" "),
+    alle.every((q) => q.tro > 0 && q.tro <= 1),
+    alle.map((q) => (q.tro * 100).toFixed(0) + "%").join(" "),
   )
 
   // Og tala er ekte. Ei MÅLING av vinnaren skal seie det same som svaret
   // gjer — same delar, same ark — elles er lista ei gjetting med to
   // desimalar på.
   const beste = alle[0]
-  const q = { ...p, ribbX: beste.ribbX, ribbY: beste.ribbY, ledd: beste.ledd }
+  const q = { ...p, plan: beste.plan }
   const m = measure(q)
   sjekk(
     `${namn}: vinnaren måler det han seier`,
-    m.parts === beste.parts && m.sheets === beste.sheets && m.joints === beste.joints,
-    `${beste.ribbX}×${beste.ribbY}: ${m.parts}/${beste.parts} delar, ${m.sheets}/${beste.sheets} ark, ${m.joints}/${beste.joints} ledd`,
+    m.parts === beste.delar && m.sheets === beste.ark && m.joints === beste.ledd,
+    `${beste.namn}: ${m.parts}/${beste.delar} delar, ${m.sheets}/${beste.ark} ark, ${m.joints}/${beste.ledd} ledd`,
   )
 
   // Ingen hard regel får vera broten. Eit svar som ikkje let seg lage er
@@ -266,8 +268,8 @@ for (const [namn, over] of [
   // på éi plate» skal ikkje stå bak svaret på «kva får eg på fire».
   sjekk(
     `${namn}: vinnaren tek ikkje fleire plater enn nokon annan`,
-    alle.every((v) => v.sheets >= beste.sheets),
-    `${beste.sheets} ark, minst i lista ${Math.min(...alle.map((v) => v.sheets))}`,
+    alle.every((v) => v.ark >= beste.ark),
+    `${beste.ark} ark, minst i lista ${Math.min(...alle.map((v) => v.ark))}`,
   )
 }
 
@@ -285,8 +287,12 @@ console.log("\nsøket ser hundrevis for alvor")
   const t0 = Date.now()
   const alle = tune(p, true)
   const ms = Date.now() - t0
-  const delar = new Set(alle.map((q) => q.parts))
-  sjekk("djupsøket snittar hundrevis for alvor", alle.length >= 100, `${alle.length} svar på ${(ms / 1000).toFixed(1)} s`)
+  const delar = new Set(alle.map((q) => q.delar))
+  // Sekstiliter er taket på tretti sekund når kvar kandidat vert snitta på det
+  // midtre nivået — det same som tavla og kuttfilene, so talet du får er talet
+  // du ser. Det gamle søket snitta hundre på det låge nivået og synte tal som
+  // ikkje heldt når vinnaren vart sett.
+  sjekk("djupsøket snittar mange titals for alvor", alle.length >= 60, `${alle.length} svar på ${(ms / 1000).toFixed(1)} s`)
   sjekk("og dei spenner over fronten av delar", delar.size >= 20, `${delar.size} ulike deletal, ${Math.min(...delar)}–${Math.max(...delar)}`)
   // Fronten står fyrst: vinnaren er ikkje slegen på delar, plater, form og
   // kasta stykke av nokon annan, og ingen slegen står før ein uslegen.
@@ -297,7 +303,7 @@ console.log("\nsøket ser hundrevis for alvor")
   sjekk(
     "fronten står fyrst, og vinnaren er ikkje slegen av nokon",
     f.has(beste) && f.size >= 30 && (fyrsteSlegne < 0 || fyrsteSlegne > sisteUslegne),
-    `${f.size} i fronten av ${alle.length} · vinnar ${beste.ribbX}×${beste.ribbY}: ${beste.parts} delar, ${beste.sheets} ark, ${(beste.troskap * 100).toFixed(0)} % av forma`,
+    `${f.size} i fronten av ${alle.length} · vinnar ${beste.namn}: ${beste.delar} delar, ${beste.ark} ark, ${(beste.tro * 100).toFixed(0)} % av forma`,
   )
 }
 
@@ -313,7 +319,7 @@ console.log("\ndet vide steget er billig")
   const profil = Date.now() - t0
 
   const t1 = Date.now()
-  measure({ ...p, ribbX: 8, ribbY: 8 })
+  measure({ ...p, plan: nett(8, 8) })
   const snitt = Date.now() - t1
 
   // Heile grunnen til at tavla kan vera tusen ruter: målinga kostar mindre
@@ -337,15 +343,15 @@ console.log("\ndet djupe og det raske er to spørsmål")
     "dei to gjev ikkje det same svaret på ein ståande torus",
     rask.length > 0 &&
       djup.length > 0 &&
-      (rask[0].ribbX !== djup[0].ribbX || rask[0].ribbY !== djup[0].ribbY),
-    `rask ${rask[0]?.ribbX}×${rask[0]?.ribbY}, djup ${djup[0]?.ribbX}×${djup[0]?.ribbY}`,
+      rask[0].plan !== djup[0].plan,
+    `rask ${rask[0]?.namn}, djup ${djup[0]?.namn}`,
   )
 
   // Og det raske reknar ikkje truskap. Ikkje av di han ikkje kunne, men av
   // di målinga kostar meir enn han har råd til for eit tal han ikkje
   // rangerer på — og eit null som SER ut som eit måltal er verre enn
   // ingen.
-  sjekk("det raske søket reknar ingen truskap", rask.every((q) => q.troskap === 0))
+  sjekk("det raske søket reknar ingen truskap", rask.every((q) => q.tro === 0))
 }
 
 console.log(feil ? `\n${feil} BROT` : "\ndjupsøket held")

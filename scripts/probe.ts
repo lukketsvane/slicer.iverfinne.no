@@ -5,15 +5,18 @@
  *
  *   npx tsx scripts/probe.ts
  */
-import { VAFFEL } from "../lib/vaffel/engine"
-import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
+import { MOTOR } from "../lib/motor"
+import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { parseMesh } from "../lib/io"
 import { put } from "../lib/sources"
-import { meshToStl } from "../lib/vaffel/export-stl"
+import { meshToStl } from "../lib/export-stl"
 import { makeSoup } from "../lib/soup"
 import { glb } from "./glbfil"
 import { feltTal, klokke, lesTal, snap, type ParamBag } from "../lib/core"
-import { PARAM_RANGES } from "../lib/vaffel/params"
+import { PARAM_RANGES } from "../lib/params"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
 
 const nn = (v: number, d = 1) => v.toFixed(d)
 
@@ -36,21 +39,21 @@ const bryt = (kva: string) => {
 function report(name: string, p: Params) {
   const t0 = Date.now()
   const bag = p as unknown as ParamBag
-  const m = VAFFEL.measure(bag)
-  const r = VAFFEL.rules(bag, m)
+  const m = MOTOR.measure(bag)
+  const r = MOTOR.rules(bag, m)
   const tMeasure = Date.now() - t0
 
   const t1 = Date.now()
-  const lag = VAFFEL.build(bag, "mid", "lag")
-  const flate = VAFFEL.build(bag, "mid", "flate")
-  const kontur = VAFFEL.build(bag, "mid", "kontur")
+  const lag = MOTOR.build(bag, "mid", "lag")
+  const flate = MOTOR.build(bag, "mid", "flate")
+  const kontur = MOTOR.build(bag, "mid", "kontur")
   const tBuild = Date.now() - t1
 
   const t2 = Date.now()
-  const stl = VAFFEL.exportFile(bag, "stl")
-  const dxf = VAFFEL.exportFile(bag, "dxf")
-  const svg = VAFFEL.exportFile(bag, "svg")
-  const ark = VAFFEL.exportFile(bag, "ark")
+  const stl = MOTOR.exportFile(bag, "stl")
+  const dxf = MOTOR.exportFile(bag, "dxf")
+  const svg = MOTOR.exportFile(bag, "svg")
+  const ark = MOTOR.exportFile(bag, "ark")
   const tExport = Date.now() - t2
 
   console.log(`\n=== ${name} ===`)
@@ -58,7 +61,7 @@ function report(name: string, p: Params) {
     `  nett      ${m.tris} trekantar (av ${m.srcTris}), ${m.openEdges} opne kantar`,
   )
   console.log(`  ytre      ${nn(m.envX)} x ${nn(m.envY)} x ${nn(m.envZ)} mm`)
-  console.log(`  ribber    ${m.units}   ledd ${m.joints}`)
+  console.log(`  plan      ${m.units}   ledd ${m.joints}`)
   console.log(`  delar     ${m.parts} (${m.unique} unike)`)
   console.log(
     `  kutt      ${nn(m.cutLen / 1000, 2)} m   ${klokke(m.cutTime)} ved ${p.fart} mm/s   ` +
@@ -75,7 +78,7 @@ function report(name: string, p: Params) {
   )
   const bytes = (o: { text?: string; data?: ArrayBuffer }) =>
     o.text?.length ?? o.data?.byteLength ?? 0
-  const prove = VAFFEL.exportFile(bag, "prove")
+  const prove = MOTOR.exportFile(bag, "prove")
   console.log(
     `  filer     stl ${bytes(stl)} B, dxf ${bytes(dxf)} B, svg ${bytes(svg)} B, ` +
       `${ark.name.endsWith(".zip") ? "zip" : "ark"} ${bytes(ark)} B, ` +
@@ -95,15 +98,15 @@ function report(name: string, p: Params) {
 
 // --- 1 standarden: kuben --------------------------------------------------
 const kube = report("kube, standard", DEFAULT_PARAMS)
-if (kube.m.joints !== DEFAULT_PARAMS.ribbX * DEFAULT_PARAMS.ribbY) {
+if (kube.m.joints !== 36) {
   bryt(
-    `venta ${DEFAULT_PARAMS.ribbX * DEFAULT_PARAMS.ribbY} ledd på ein kube, fekk ${kube.m.joints}`,
+    `venta 36 ledd på ein kube, fekk ${kube.m.joints}`,
   )
 }
 
 // --- 2 tettare rutenett og tjukkare plate ---------------------------------
 report("kube 400, 12x9 ribber i 6 mm", {
-  ...DEFAULT_PARAMS, storleik: 400, ribbX: 12, ribbY: 9, tjukn: 6,
+  ...DEFAULT_PARAMS, storleik: 400, plan: nett(12, 9), tjukn: 6,
   arkB: 1200, arkH: 900,
 })
 
@@ -155,14 +158,13 @@ const stl = sphereStl(50, 48)
 const kule = parseMesh("kule.stl", stl)
 console.log(`\nles att STL: ${kule.tris} trekantar, boks ${kule.min} .. ${kule.max}`)
 put("kule", "kule.stl", kule)
-report("kule, importert STL", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 7, ribbY: 7 })
+report("kule, importert STL", { ...DEFAULT_PARAMS, kjelde: "kule", plan: nett(7, 7), })
 report("kule, glatta og forenkla", {
   ...DEFAULT_PARAMS,
   kjelde: "kule",
   glatt: 6,
   trekant: 2,
-  ribbX: 7,
-  ribbY: 7,
+  plan: nett(7, 7),
 })
 
 // --- 6 ein torus: to stykke i same søyle, og eit hòl gjennom ---------------
@@ -189,7 +191,7 @@ function torusSoup(R: number, r: number, n: number, m: number) {
   return makeSoup(new Float32Array(pos))
 }
 put("torus", "torus", torusSoup(60, 22, 64, 32))
-report("torus, staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9 })
+report("torus, staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, plan: nett(9, 9), })
 
 // --- 7 eit nett som er snudd ut-inn ---------------------------------------
 // Ein eksport som gløymde å snu normalane er ei heilt vanleg fil, og
@@ -211,10 +213,10 @@ const vrengd = makeSoup(
 )
 put("vrengd", "vrengd", vrengd)
 const a = report("torus, snudd ut-inn", {
-  ...DEFAULT_PARAMS, kjelde: "vrengd", rotX: 90, ribbX: 9, ribbY: 9,
+  ...DEFAULT_PARAMS, kjelde: "vrengd", rotX: 90, plan: nett(9, 9),
 })
 const b = report("torus, rettvend (fasit)", {
-  ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9,
+  ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, plan: nett(9, 9),
 })
 if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   bryt(
@@ -262,8 +264,8 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   }
   put("rawkule", "kule.raw", makeSoup(zup))
 
-  const g = report("kule frå GLB", { ...DEFAULT_PARAMS, kjelde: "glbkule", ribbX: 7, ribbY: 7 })
-  const r = report("same kule, Z-opp direkte", { ...DEFAULT_PARAMS, kjelde: "rawkule", ribbX: 7, ribbY: 7 })
+  const g = report("kule frå GLB", { ...DEFAULT_PARAMS, kjelde: "glbkule", plan: nett(7, 7), })
+  const r = report("same kule, Z-opp direkte", { ...DEFAULT_PARAMS, kjelde: "rawkule", plan: nett(7, 7), })
   const likt =
     g.m.parts === r.m.parts &&
     g.m.joints === r.m.joints &&

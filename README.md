@@ -1,10 +1,11 @@
 # slicerman
 
 Turn a 3D mesh into flat parts you can cut on a laser — parts that hold
-themselves together with no glue and no screws.
+themselves together with no glue and no screws — by sketching the cuts
+yourself, on a phone, with the object in front of you.
 
-Drop in a file. Set how big you want it. Press **find settings**. Download the
-sheets.
+Drop in a file. Set how big you want it. Turn the object, place a cutting
+plane where you are looking, press **lås**. Repeat. Download the sheets.
 
 **[slicer.iverfinne.no](https://slicer.iverfinne.no)** — runs in the browser,
 nothing to install, no account, no licence key. Your mesh never leaves the
@@ -14,13 +15,17 @@ machine it was dropped on.
 
 ## What it does
 
-One construction type: **waffle** — interlocking ribs in two directions. X-ribs
-get slots opening upward, Y-ribs slots opening downward, so you lay the X family
-on the bench and lower the Y family into it. That is the whole assembly.
+Every part is a **plane cut through the body**, with slots where it crosses
+other planes. Any two planes that cross in material lock together: one gets
+its slot from one end of the shared line, the other from the other end, and the
+part that comes later in the list slides onto the ones that are already there.
+A grid of ribs is one thing you can build this way; a set of planes at angles
+no grid could describe is another. The tool does not care which.
 
 It opens on **3 mm MDF on a 600 × 400 mm bed** — the common "6040" CO2
-laser, the smallest bed anyone calls a workshop machine. Change the thickness
-to the sheet in your hand and the bed to your machine; the link carries both.
+laser — with a cube and six planes each way already locked, so you can see
+the whole idea before you drop anything in. Change the thickness to the sheet
+in your hand and the bed to your machine; the link carries both.
 
 **It is a laser tool.** No cutter diameter and no dogbones, because a beam has
 no radius.
@@ -28,129 +33,106 @@ no radius.
 ## Use it
 
 1. **Drop a file** — `.glb`, `.gltf`, `.stl`, `.obj`, `.ply`, or a `.zip` saved
-   by **LAGRE**. Up to 220 MB. Or start from the built-in cube.
-2. **Set the size.** Pinch the object, or drag the number.
-3. **Press find settings.** It slices a dozen rib grids for real, ranks them and
-   sets the best. Press again for the next. **Hold** it for the deep search.
-4. **Read the rules.** They say what can't be cut or assembled, and why.
-5. **Export ARK** and open it in LightBurn.
+   by **LAGRE**. Up to 220 MB. Or start from the built-in cube. A new mesh
+   clears the planes: they were an answer about the body you had.
+2. **Set the size.** Drag the number, or take it from the sheet.
+3. **Sketch a plane.** One finger turns the object. The sketch plane is a line
+   across the screen — a knife seen edge-on. Two fingers: **pan** moves the
+   cut across the object, **twist** tilts it, **pinch** zooms. The plane swings
+   with the view and nothing is built from it.
+4. **Press lås.** The sketch becomes a part: it gets a name, a profile, slots
+   against every plane it crosses, a place in the assembly and a row in the
+   list. Turn the object and lock again. The locked planes stay where you put
+   them while the view turns.
+5. **Or take a proposal.** **forslag** slices a dozen rib grids for real and
+   ranks them; take one whole, or as a start. Hold it for the deep search.
+6. **Read the rules.** They say what can't be cut or assembled, and why, and
+   each broken rule carries the button that fixes it.
+7. **Export ARK** and open it in LightBurn.
 
 Every change is undoable, by the arrow in the panel or by `Z`.
 
-## Two surfaces
+## The phone is the tool
 
-**On a phone**, a sheet at the bottom with three heights: one line, the middle
-of the job, everything. **Over 1180 px with a mouse**, no sheet — two fixed
-walls with the object between them: what you put in on the left, what comes out
-on the right. The camera frames the object into whatever rectangle is left over.
+The iPhone 16e is the target device: one thumb, a 390-point screen, the object
+visible while you work. A sheet at the bottom with three heights: one line
+(lock, the live count, proposals), the middle (the plane list and the broken
+rules), everything (material, sliders, the table, exports, tools). Over 1180
+px with a mouse the same sheet is a column on the right; the camera frames the
+object into whatever rectangle is left over.
 
-**Two fingers on the object**: spread to size, twist to turn, drag to change the
-rib counts. Three fingers move the light, double-tap reframes, one finger
-orbits.
+**With a part selected** (tap it in the object), two fingers edit *that* plane
+instead of the sketch: pan nudges it along its normal, twist re-angles it. Tap
+empty space to deselect; the row's `slett` removes the plane.
 
-**The contour view is a drawing, so it is a canvas**: one finger drags it,
-pinch zooms, nothing turns. The parameter gestures are off there — changing the
-drawing while you are navigating it is not what two fingers are for on a flat
-page — and double-tap still takes you home.
+Keys: `L` lock, `⌫` remove the selected plane, `F` proposals, `Z` undo,
+`1` `2` `3` views, `Esc` close.
 
-Keys: `F` find settings, `⇧F` back, `D` deep search, `1` `2` `3` views, `←` `→`
-nudge the rib you point at, `Z` undo, `L` cut list, `A` sheets, `S` stack, `O`
-control sheet, `Esc` close.
+**Three ways to keep an afternoon's work.** The link carries every setting —
+planes included — and no mesh. **LAGRE** gives a project file carrying both.
+And the browser remembers by itself, in IndexedDB. The unlocked sketch is
+disposable and is not kept; it costs one gesture to make again.
 
-**Three ways to keep an afternoon's work.** The link carries every setting and
-no mesh. **LAGRE** gives a project file carrying both — drop it back in and you
-are where you left off. And the browser remembers by itself, in IndexedDB.
+## Planes
 
-## Four tools
+A plane is a **name, a point and a normal**, in the body's own space. The
+point is stored as fractions of the box around the body, so resizing keeps a
+plane where it is *on the body*. The normal is a unit vector — two angles would
+have a pole. The whole list is one string in the parameter bag, so undo, the
+link, the project file and the browser's memory all carry it with no extra
+code, and a hostile link cannot push anything but a valid plane into the
+geometry.
 
-A drawer, one tool at a time, as tall as its contents and no taller — a list of
-three rows is three rows and the object keeps the rest. On the bench it sits in
-the lower half so you read a list *while* looking at what it points at. On a
-phone the closed control line stays visible below it, so you move a rib and
-watch the counts answer. The stack has its own icon in the sheet's footer; the
-other three are a word away in the drawer's title bar.
+**Names belong to the part, not to its position.** A plane is numbered when it
+is locked and the number is never reused, so `7` stays `7` while it is nudged,
+re-angled and redrawn, and the `7` engraved on a plate in a pile matches the
+row on the screen. A plane cut into several islands gets letters: `7a`, `7b`.
 
-- **Cut list** — every part with its engraved address, size, joints and sheet,
-  plus shape id, area and cut length where there is room for them. Click a rib
-  in the object and the list opens on that line. A part with no joints is red.
-  Once anything is locked it shows **yours** first — the ribs you locked,
-  copied or moved — with a chip reading `mine 6 av 20`, because while you are
-  building it is those six you are working on, not the twenty.
-- **Sheets** — one at a time, large enough to read the addresses. Not a picture
-  of the file; it *is* the file, engraved addresses included: zoom in and each
-  part carries the same strokes the laser will burn, in the same place. **Drag a part** and it stays where you drop
-  it; the rest repacks around it. **Hold a part** to pin or release it, to
-  turn it a quarter at a time about its centre, or to send it to the next or
-  previous sheet — the drawer follows it. **Tap a part** to select it, in the
-  sheet or in the model; the sheet turns to the plate that part is on, and
-  tapping empty sheet or empty canvas deselects. With a
-  part selected, **two fingers** slide it by the millimetre — zoom in and the
-  same motion is a smaller step — and twist to turn it, snapping to a quarter
-  when you let go. A moving part **snaps** to its neighbours' edges, at exactly
-  the gap, and to the sheet edge, within a fingertip; zoom in to snap finer.
-  **Pinch** to zoom the sheet, selection or not, drag
-  empty sheet to pan, double-tap for the whole sheet. Pinned parts are shaded. Two
-  pinned parts you have put inside each other are drawn red, and the sheet
-  rule says no until you move one.
-- **Stack** — every rib on both axes: where it stands in mm, whether it is
-  fixed, what it became. See below.
-- **Settings, as text** — select, copy, paste back.
+**Every kept plane is editable, down to its outline.** Nudge and re-angle with
+two fingers. The outline itself takes hand-drawn strokes — a rectangle or a
+round, adding material (`+`) or cutting it away (`-`) — written into the plane
+in the settings text; they are cut in the same field as the slots, so a hole
+you drew and a slot the engine cut never disagree. When the model changes
+underneath a stroke, **the stroke stays**: it is what you did, and the tool
+does not throw work away unasked. It may drift out of true, and then you see
+it in the profile and remove it yourself.
 
-## Find settings
+**Up to 64 planes.** Beyond that a link is trying something.
 
-It takes your mesh at your size on your sheet, slices about a dozen rib grids
-**for real** — ribs, joints, parts, nesting, every hard rule — and ranks what
-came out: does it hold together, how many parts, how many sheets, utilisation,
-room between ribs. A broken hard rule is not a deduction, it is a no.
+## Assembly
+
+The list order is the assembly order. A part slides in along its slots, and a
+plate can only go one way: when a part comes in, every part it crosses that is
+already placed must meet it along parallel lines. Its slots open in the
+direction of travel; theirs open toward it. Downward is preferred where the
+line has a vertical component. This is exactly what the rib grid always did —
+X family slots up, Y family lowered onto it — and it holds for every set where
+each part has one way in.
+
+Where it does not hold, the hard rule **kan monterast** names the part, and if
+reordering the list would fix it, the button does that. Three planes that
+cross each other in material without sharing a common line cannot be assembled
+in any order; then it is the plane, not the list, that has to change.
+`montering.txt` in the ALT bundle writes the order out, part by part, with the
+direction each comes in.
+
+## Proposals
+
+**forslag** takes your mesh at your size on your sheet, slices about a dozen
+rib grids **for real** — planes, joints, parts, nesting, every hard rule — and
+ranks what came out: does it hold together, how many parts, how many sheets,
+utilisation. A broken hard rule is not a deduction, it is a no.
 
 **Hold the button** (or press `D`) and it asks a different question: what does
 *this shape* need, for the fewest parts? It reads every rib count from 2×2 to
-32×32 — about a thousand grids — then slices the front of them for real: the
-best few grids at every part count, one or two hundred of them, each nested and
-checked against the hard rules. It takes the time it takes; the ring around the
-button shows how far it is, and tapping the button again stops it and keeps the
-best found so far. On a device with cores to spare the slicing is shared across
-a few extra workers; the ring counts the same grids, it just fills faster.
-
-It affords a thousand by **measuring the body once**: one ray per column of a
-128×128 raster gives volume and the cross-section profiles A(x) and A(y) in one
-sweep, for less than one slicing. A rib is a *sample* of A; the waffle's claim
+32×32 by **measuring the body once** — one ray per column of a 128×128 raster
+gives volume and the cross-section profiles A(x) and A(y) in one sweep — then
+slices the front of them for real. A rib is a *sample* of A; the grid's claim
 is the step function holding that sample to the next cell; the area between
-claim and truth is the part of your shape that is not there. That is the `form`
-column.
-
-It behaves like a measurement, not a guess. A cube scores 100 % at *every* rib
-count — its profile is constant. A standing torus scores differently along x
-than y, so the deep search picks lopsided grids there. And on a body with legs
-it is **not monotonic**: three ribs can score worse than two, because the third
-plane landed between the legs.
-
-What comes back is a front, not a point: for each number of parts, the grid that
-carries the most shape. The first answer is the knee, where more parts stop
-paying for themselves; press again to walk along the front. The list rules off
-where the front ends — below it are grids something else beats on every count
-you asked about — and on a phone that answer says `slegen` instead.
-
-## Building by hand
-
-`6` means six evenly spaced planes. It does not mean *these* six.
-
-**A lock is a fraction of the span.** Ribs are a list, not a count: locked ones
-hold their exact fraction and the free ones distribute around them, so the
-slider keeps meaning something — drag it from six to ten with four locked and
-four new planes appear *between* them. A fraction and not a millimetre, so
-resizing keeps a rib where it is **on the body**. The stack shows millimetres
-anyway, from the near edge, because nobody builds in fractions.
-
-**Every edit locks the whole stack first.** A free rib has no position of its
-own — it is "the fourth of six evenly spaced" — so moving one without writing
-the stack down first moves a rib you never touched. Neighbours bound the move:
-two planes closer than one plate thickness are two plates inside each other.
-
-Once anything is locked the rib slider says how many (`4 låste`), because a lock
-beats the count. A **new mesh clears the locks and the pins** — both are answers
-about the body you had. A project file is different: there the mesh and the
-settings were saved together.
+claim and truth is the part of your shape that is not there. That is the
+`form` column. What comes back is a front, not a point: for each number of
+parts, the grid that carries the most shape. The first answer is the knee;
+press again to walk along the front. Take a proposal whole, or as a start.
 
 ## Output
 
@@ -158,7 +140,7 @@ settings were saved together.
 |---|---|
 | **STL** | the assembled stack |
 | **DXF** | R12 ASCII, mm, layers `KUTT` and `GRAVER`, kerf-compensated, all sheets in one drawing |
-| **SVG** | every rib profile side by side, 1:1 |
+| **SVG** | every profile side by side, 1:1 |
 | **ARK** | one file per nested sheet, 1:1 — zipped when there is more than one |
 | **PNG** | the same sheets as pictures, for messages and the wall — not for the machine |
 | **PRØVE** | fit-test coupon: seven slots, each 0.05 mm wider than the last |
@@ -170,6 +152,11 @@ In the SVG files **colour is the operation, and the colour carries the order**:
 LightBurn runs layers in list order, so **black runs first** — engraving has to
 happen while the part is still held by the sheet. Two colours and no more;
 nothing is filled. Which sheet a file is comes from its name.
+
+The sheet view in the drawer is not a picture of the file; it *is* the file,
+engraved names included. Drag a part and it stays where you drop it; the rest
+repacks around it. Hold a part to pin or release it, turn it a quarter, or send
+it to the next sheet.
 
 **Cut the fit-test coupon first.** `klaring` and `snitt` are two guesses that
 multiply in every joint.
@@ -183,7 +170,7 @@ multiply in every joint.
 | `glatt` | smoothing | 0–24 Taubin passes |
 | `trekant` | triangle budget | 0.5–60 k, by vertex clustering |
 | `forenkl` `hol` | cut profile | how far the cut may stray, and the smallest hole worth cutting |
-| `ribbX/Y` | rib counts | 2–32 each way |
+| `plan` | the planes | name, point, normal and strokes, as a string |
 | `lause` | pieces with no joint | keep / drop |
 | `tjukn` | thickness | 1–25 mm |
 | `klaring` | press fit | 0–0.6 mm, slot wider than the plate |
@@ -191,19 +178,22 @@ multiply in every joint.
 | `snitt` `snittveg` | kerf | 0–6 mm, taken in the file or in the machine |
 | `fart` | cut speed | for the time estimate only |
 | `arkB/H` | sheet | up to 3000 × 2000 mm |
+| `fest` | pinned parts | where a part stands on the sheet, when the hand said so |
 
 Materials: plywood, MDF, acrylic, cardboard — density and surface.
 
 ## Rules
 
 The tool cuts anything, but it says what it cut. **Hard** means the parts can't
-be made or assembled; **soft** is a choice worth knowing about. Ribs interlock ·
-parts exist · every part hangs in a joint · material remains at the joint ·
-parts fit the sheet · press fit · kerf · slot survives the kerf · finger room ·
-mesh closed · resolution kept · utilisation.
+be made or assembled; **soft** is a choice worth knowing about. Planes grip ·
+parts exist · one way in for each part · every part hangs in a joint ·
+material remains at the joint · parts fit the sheet · press fit · kerf · slot
+survives the kerf · room between planes · mesh closed · resolution kept ·
+utilisation.
 
 A broken rule carries its own way out: the rule that knows fifteen parts are too
-big also knows *how much*, so it offers `prøv 290 mm` and sets it.
+big also knows *how much*, so it offers `prøv 290 mm` and sets it. The rule
+that finds no joints offers a grid to start from.
 
 ## How it works
 
@@ -215,7 +205,10 @@ GLB / glTF / STL / OBJ / PLY
   ├── smooth      Taubin low-pass — volume stays, noise goes
   ├── place       rotate, scale, centre, set on the floor
   ├── rays        which points are inside the solid?
-  ├── ribs        plane sections, with slots where they cross
+  ├── planes      for each plane: turn the body so the plane is an axis,
+  │               one ray per row and column, a signed field, marching squares
+  ├── joints      where two planes share a line through material — slots cut
+  │               in the field, oriented, widened by the angle between the planes
   ├── nest        parts packed by outline, holes counted as free space
   └── STL · DXF · SVG · ARK
 ```
@@ -224,11 +217,18 @@ GLB / glTF / STL / OBJ / PLY
 triangle faces, sum rather than parity, because scans have overlapping shells
 and parity reads the overlap as a hole.
 
+**An oblique plane has no axis to shoot along, so the body is turned** — a
+right-handed rotation of the vertex soup per plane orientation, cached — and
+the plane becomes an ordinary section with exact edge distances along every
+grid line. A grid has two orientations; a set of hand-placed planes has as many
+as you locked.
+
 **Slots are cut in the field, not in the polygon** — the only way the cut file
-and the 3D view cannot drift apart.
+and the 3D view cannot drift apart. Hand-drawn strokes go into the same field,
+before the slots.
 
 **Nesting follows the outline, not the bounding box** — raster-based, no genetic
-pass, because the sheet count has to keep up with a slider.
+pass, because the sheet count has to keep up with a gesture.
 
 **Addresses are engraved as strokes, not text.** A `TEXT` entity is a question
 about fonts, and the answer is often no.
@@ -242,7 +242,7 @@ pnpm build      # forces webpack, then checks the worker actually bundled
 ```
 
 Next.js + React Three Fiber. All geometry runs in a Web Worker; the main thread
-only draws.
+only draws — and computes the sketch plane, because that is the input.
 
 > Do not build with Turbopack. It ships `new Worker(new URL(…))` as raw
 > TypeScript in `static/media`, the worker dies silently, and the page just
@@ -254,14 +254,14 @@ Every number the tool prints is read off the geometry. So is every check:
 pnpm sjekk   # tsc --noEmit
 pnpm probe   # engine without a browser: parts, joints, cut length, files
 pnpm rekkje  # reads the cut files back: engrave, inner cuts, outline, in order
-pnpm vrient  # meshes that aren't meshes, sliders at both ends, a hostile URL
-pnpm ledd    # every joint the panel counted, found again in the cut profiles
+pnpm vrient  # meshes that aren't meshes, hostile plane strings, a hostile URL
+pnpm ledd    # every joint the panel counted, found again in the cut profiles — grids and oblique planes
 pnpm raad    # breaks each rule, presses the fix it offers, checks it worked
 pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps
-pnpm hand    # locked ribs: moving one leaves the others where they are
+pnpm hand    # the plane list as a string: one edit leaves the rest, names never reused, pins hold
 pnpm enkel   # the two simplification sliders take what they say and no more
-pnpm djup    # the deep search: the profile measures shape, the answers are real
+pnpm djup    # the proposals: the profile measures shape, the answers are real
 pnpm tung    # a million triangles in, and how long that takes
 pnpm ark     # cut sheets as images
 pnpm look    # screenshots of the page, and any console errors
@@ -275,22 +275,27 @@ minutes, and HMR reloading underneath produces failures that look real.
 | | |
 |---|---|
 | `lib/core.ts` | **start here.** The contract: parameters, metrics, rules, views |
+| `lib/plan.ts` | what a plane is: name, point, normal, strokes; the string; the grid as a proposal |
+| `lib/params.ts` | the parameter space and its defaults |
+| `lib/kropp.ts` | the body: weld, unflip, simplify, smooth, place — and turned along any normal |
+| `lib/snitt.ts` | planes to ribs: the field, the joints, the slots, the parts, the assembly order |
+| `lib/bygg.ts` | the whole build once: body, ribs, parts, nesting |
 | `lib/soup.ts` | mesh in two forms, and the road between them |
 | `lib/io/` | GLB, glTF, STL, OBJ, PLY readers |
 | `lib/mesh/solid.ts` | the rays — a mesh you can ask questions of |
 | `lib/mesh/simplify.ts` `smooth.ts` | vertex clustering, Taubin |
 | `lib/contour.ts` | marching squares |
-| `lib/pack.ts` | nesting |
-| `lib/stroke.ts` | single-stroke font |
-| `lib/zip.ts` | ZIP, both ways |
-| `lib/lagring.ts` | what the browser remembers between visits |
-| `lib/vaffel/` | body, ribs, joints, parts, metrics, rules, exports |
-| `lib/vaffel/profil.ts` | the body measured once, and how much of a shape a set of rib planes carries |
+| `lib/pack.ts` `nest.ts` | nesting |
+| `lib/metrics.ts` `rules.ts` | what is measured, and what is judged |
+| `lib/export-*.ts` `stroke.ts` `zip.ts` | the files, the single-stroke font, ZIP both ways |
+| `lib/forslag.ts` `profil.ts` | the proposals: the body measured once, the front of grids |
+| `lib/motor.ts` | the engine as one object |
 | `lib/worker.ts` | the engine in its own thread |
-| `components/verkty.tsx` | the four tools in the drawer |
+| `lib/lagring.ts` | what the browser remembers between visits |
+| `components/` | the studio: scene, sketch plane, gestures, sheet, tools |
 
 The reasoning behind each decision lives in the file it belongs to. The comments
-are the documentation.
+are the documentation. `REBUILD.md` is the brief this version was built to.
 
 ## Limits
 
@@ -299,13 +304,17 @@ are the documentation.
   `.glb`.
 - A globally inverted mesh is fixed automatically; *inconsistently* wound
   triangles are a real defect and need repairing elsewhere.
+- Two planes closer than five degrees to parallel do not get a joint: the slot
+  would be twelve plates wide.
+- Three planes that cross in material without sharing a line cannot be
+  assembled in any order. The rule says which one.
 - Nesting is deterministic: bottom-left-fill with four rotations, then up to
-  three more passes (lowest-top placement, lightly perturbed order) within a
-  fixed work budget, keeping the best. Fewer sheets would need a real search.
+  three more passes within a fixed work budget, keeping the best. Fewer sheets
+  would need a real search.
 - Kerf compensation offsets along the angle bisector; tighter corners than the
   kerf are approximate, erring safe.
-- One construction type so far. `lib/core.ts` is written so a second costs a
-  folder and a line.
+- Hand-drawn strokes are edited as text for now; the gesture editor for them is
+  the next thing to build.
 
 ## Credit
 
