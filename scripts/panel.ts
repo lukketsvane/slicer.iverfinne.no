@@ -506,6 +506,25 @@ async function flyt(browser: Browser) {
       .slice(0, 5),
   )
   sjekk("ingen kontroll med touch-action: auto (dobbelttrykk-zoom)", laust.length === 0, laust.join(" · "))
+  // Flatt: ingen skugge, glød, forstørring eller animasjon på ein knapp.
+  const pynt = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("button, [data-handtak], [aria-label='kontrollar']")]
+      .filter((e) => e.getBoundingClientRect().width > 0)
+      .map((e) => ({ n: `${e.tagName.toLowerCase()}${e.getAttribute("aria-label") ? `[${e.getAttribute("aria-label")}]` : ""}`, st: getComputedStyle(e) }))
+      .filter(({ st }) => st.boxShadow !== "none" || st.animationName !== "none" || st.filter !== "none" || st.backgroundImage !== "none")
+      .map(({ n }) => n)
+      .slice(0, 6),
+  )
+  sjekk("flate knappar: ingen skugge, glød, gradient eller animasjon", pynt.length === 0, pynt.join(" · "))
+  // Ord og tal, ikkje setningar: ingen knapp seier meir enn tre ord.
+  const ordrike = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("button")]
+      .filter((e) => e.getBoundingClientRect().width > 0)
+      .map((e) => (e.textContent ?? "").trim())
+      .filter((t) => t.split(/\s+/).filter(Boolean).length > 3)
+      .slice(0, 4),
+  )
+  sjekk("ingen knapp ber ei setning", ordrike.length === 0, ordrike.join(" | ").slice(0, 120))
   sjekk("kan lagrast på heimskjermen: capable, manifest, ikon, tema", meta.capable && meta.manifest && meta.ikon && meta.tema, JSON.stringify(meta))
 
   // --- sida rullar ikkje, korkje opp-ned eller sidelengs, i nokon høgd ---------
