@@ -38,8 +38,22 @@ import { vend, type Kropp } from "./kropp"
 import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, skrivPlan, type Plan, type Ramme, type Strek } from "./plan"
 import { snittKey, type Params } from "./params"
 
-/** ruter langs den lengste sida av objektet, per detaljnivå */
-export const DETAIL = { lav: 90, mid: 150, hog: 240 } as const
+/**
+ * Ruter langs den lengste sida av objektet, per detaljnivå.
+ *
+ * Ruta er ikkje presisjonen — radene og kolonnane les kanten NØYAKTIG med
+ * strålar, og den marsjerande ruta interpolerer mellom to eksakte tal — men
+ * ho er kor tett kanten vert punktprøvd, og det ser du: ein figur på fire
+ * hundre og femti millimeter fekk fem millimeters celler på det låge
+ * nivået, og fem millimeter er trappetrinn du kan telje på skjermen.
+ *
+ * Prisen er nesten berre i den marsjerande ruta: på ein kropp av seks
+ * hundre tusen trekantar med åtte og tretti plan kosta eit heilt snitt 292
+ * ms ved nitti ruter, 463 ved hundre og femti og 743 ved to hundre og
+ * tjue. Det midtre nivået er det filene vert skorne på, og no det same som
+ * skjermen syner: to millimeters celler på ein halvmeter.
+ */
+export const DETAIL = { lav: 120, mid: 220, hog: 320 } as const
 export type DetailStep = (typeof DETAIL)[keyof typeof DETAIL]
 
 export type Spor = {

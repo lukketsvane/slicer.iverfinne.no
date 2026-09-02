@@ -153,7 +153,6 @@ export function Studio() {
   const [mounted, setMounted] = useState(false)
   const [namn, setNamn] = useState<Record<string, string>>({})
   const benk = useMedia("(pointer: fine) and (min-width: 1180px)")
-  const fin = useMedia("(pointer: fine)")
   const vindu = useVindu()
 
   const worker = useRef<Worker | null>(null)
@@ -407,7 +406,19 @@ export function Studio() {
   }, [mounted, kropp, vald, plan, params, spørSkisse])
   const harSnitt = !!snitt?.ringar.length
 
-  const detail: DetailKey = fin ? "mid" : "lav"
+  /**
+   * SKJERMEN SYNER DET FILA VERT SKOREN PÅ.
+   *
+   * Nivået låg på peikaren: ei grov flate fekk det låge nivået og vart
+   * ståande der, av di det fine bygget berre vart bede om når det var ei mus
+   * i rommet. Det gjorde telefonen — den eine maskina dette er laga for —
+   * til den einaste flata som synte ei grovare utgåve av delane enn den
+   * laseren får: trappetrinn i omrisset som ikkje finst i kuttfila.
+   *
+   * No er nivået det same på begge flatene, og det same som uttaket og
+   * måltala: grovt medan fingeren dreg, det verkelege når han stoggar.
+   */
+  const detail: DetailKey = "mid"
   // Kroppen berre når kroppen endrar seg; delane kvar gong noko gjer det —
   // grovt med det same, fint når fingeren stoggar.
   const kk = kroppKey(params)
@@ -420,7 +431,6 @@ export function Studio() {
     setFeil(null)
     bygg("lag", "lav")
     if (view === "kontur") bygg("kontur", "lav")
-    if (detail === "lav") return
     const t = window.setTimeout(() => {
       bygg("lag", detail)
       if (view === "kontur") bygg("kontur", detail)
