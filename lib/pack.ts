@@ -539,6 +539,13 @@ export function pack(
   gap: number,
   /** delar som står fast, etter plassen sin i `pieces` */
   fest?: ReadonlyMap<number, Fest>,
+  /**
+   * Tak på kor mange passasjar TIL den fyrste får. Søket set 0: det
+   * snittar hundrevis av kandidatar og treng eit platetal som er sant
+   * nok til å rangere på, ikkje den beste plata — henne får vinnaren når
+   * han vert sett. Utan tak gjeld budsjettet.
+   */
+  ekstra?: number,
 ): Packing {
   if (!pieces.length) return { slots: [], sheets: 0, used: [], spilt: [], kross: 0 }
 
@@ -793,7 +800,11 @@ export function pack(
   // Den gamle fyrst, og ho tel kva ho kosta. Sjå `BUDSJETT`.
   arbeid = 0
   let best = legg(STRATEGIAR[0])
-  const fleire = Math.min(STRATEGIAR.length - 1, Math.floor(BUDSJETT / Math.max(1, arbeid)))
+  const fleire = Math.min(
+    ekstra ?? STRATEGIAR.length - 1,
+    STRATEGIAR.length - 1,
+    Math.floor(BUDSJETT / Math.max(1, arbeid)),
+  )
   for (let n = 1; n <= fleire; n++) {
     const p = legg(STRATEGIAR[n])
     if (betre(p, best)) best = p

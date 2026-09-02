@@ -27,7 +27,7 @@ import { makeKropp } from "../lib/vaffel/kropp"
 import { maalProfil, plateoverslag, truskap } from "../lib/vaffel/profil"
 import { measure } from "../lib/vaffel/metrics"
 import { checkRules } from "../lib/vaffel/rules"
-import { tune } from "../lib/vaffel/tune"
+import { front, tune } from "../lib/vaffel/tune"
 import { DEFAULT_PARAMS, lesLaas, plasser, type Params } from "../lib/vaffel/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
@@ -204,17 +204,27 @@ for (const [namn, over] of [
 ] as [string, Partial<Params>][]) {
   const p = par(over)
   const t0 = Date.now()
-  const alle = tune(p, true)
+  // Eit lite budsjett: påstandane her handlar om at svara er EKTE, og dei
+  // gjeld like mykje for tolv snittingar som for to hundre. Breidda vert
+  // prøvd for seg nedanfor.
+  const alle = tune(p, true, 1500)
   const ms = Date.now() - t0
 
   sjekk(`${namn}: djupsøket svarar`, alle.length > 0, `${alle.length} svar på ${ms} ms`)
   if (!alle.length) continue
 
-  // Sortert, og med det beste fyrst. Knappen tek det fyrste.
+  // Fronten fyrst, resten etter, og båe sorterte med det beste fyrst.
+  // Knappen tek det fyrste.
+  const fr = new Set(front(alle))
+  const fronten = alle.filter((q) => fr.has(q))
+  const resten = alle.filter((q) => !fr.has(q))
+  const sortert = (l: typeof alle) => l.every((q, i) => i === 0 || q.poeng <= l[i - 1].poeng)
   sjekk(
-    `${namn}: sortert, beste fyrst`,
-    alle.every((q, i) => i === 0 || q.poeng <= alle[i - 1].poeng),
-    `${alle[0].poeng.toFixed(1)} … ${alle[alle.length - 1].poeng.toFixed(1)}`,
+    `${namn}: fronten fyrst, sortert, beste fyrst`,
+    sortert(fronten) &&
+      sortert(resten) &&
+      (!resten.length || alle.indexOf(resten[0]) > alle.indexOf(fronten[fronten.length - 1])),
+    `${fronten.length} i fronten, ${resten.length} bak · ${alle[0].poeng.toFixed(1)} … ${alle[alle.length - 1].poeng.toFixed(1)}`,
   )
 
   // Kvart svar ber eit formtal. Det er heile skilnaden på dei to knappane,
@@ -252,6 +262,36 @@ for (const [namn, over] of [
 }
 
 // =============================================================================
+// SØKET SER HUNDREVIS FOR ALVOR
+// =============================================================================
+/**
+ * Det lange trykket lova hundrevis av ekte snittingar over heile fronten:
+ * for kvart tal delar, dei beste rutenetta. Éin kropp med fullt budsjett
+ * er nok til å halde løftet ærleg — og til å seie kva det kostar.
+ */
+console.log("\nsøket ser hundrevis for alvor")
+{
+  const p = par({ kjelde: "d-kule" })
+  const t0 = Date.now()
+  const alle = tune(p, true)
+  const ms = Date.now() - t0
+  const delar = new Set(alle.map((q) => q.parts))
+  sjekk("djupsøket snittar hundrevis for alvor", alle.length >= 100, `${alle.length} svar på ${(ms / 1000).toFixed(1)} s`)
+  sjekk("og dei spenner over fronten av delar", delar.size >= 20, `${delar.size} ulike deletal, ${Math.min(...delar)}–${Math.max(...delar)}`)
+  // Fronten står fyrst: vinnaren er ikkje slegen på delar, plater, form og
+  // kasta stykke av nokon annan, og ingen slegen står før ein uslegen.
+  const f = new Set(front(alle))
+  const beste = alle[0]
+  const sisteUslegne = alle.reduce((n, q, i) => (f.has(q) ? i : n), -1)
+  const fyrsteSlegne = alle.findIndex((q) => !f.has(q))
+  sjekk(
+    "fronten står fyrst, og vinnaren er ikkje slegen av nokon",
+    f.has(beste) && f.size >= 30 && (fyrsteSlegne < 0 || fyrsteSlegne > sisteUslegne),
+    `${f.size} i fronten av ${alle.length} · vinnar ${beste.ribbX}×${beste.ribbY}: ${beste.parts} delar, ${beste.sheets} ark, ${(beste.troskap * 100).toFixed(0)} % av forma`,
+  )
+}
+
+// =============================================================================
 // DET VIDE STEGET ER BILLIG
 // =============================================================================
 console.log("\ndet vide steget er billig")
@@ -282,7 +322,7 @@ console.log("\ndet djupe og det raske er to spørsmål")
   // noko det raske ikkje kan.
   const p = par({ kjelde: "d-torus", rotX: 90 })
   const rask = tune(p, false)
-  const djup = tune(p, true)
+  const djup = tune(p, true, 1500)
   sjekk(
     "dei to gjev ikkje det same svaret på ein ståande torus",
     rask.length > 0 &&

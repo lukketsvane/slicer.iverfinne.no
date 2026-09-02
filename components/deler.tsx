@@ -360,6 +360,13 @@ export const STROKE = {
   strokeLinejoin: "round" as const,
 }
 /** to piler som byter plass: gjev meg eit anna svar */
+/** stopp: søket går, og eit trykk til held det beste so langt */
+export const IcoStopp = (
+  <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
+    <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none" />
+  </svg>
+)
+
 export const IcoFinn = (
   <svg viewBox="0 0 24 24" className="h-4 w-4" {...STROKE}>
     <path d="M2 18h2.9a4 4 0 0 0 3.4-1.9l5.4-8.2A4 4 0 0 1 17.1 6H22" />

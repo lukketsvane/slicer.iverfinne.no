@@ -43,6 +43,8 @@ export function nest(
   gap: number,
   /** delar handa har sett fast, etter ADRESSA si — «X3a» */
   fest?: ReadonlyMap<string, Fest>,
+  /** tak på ekstra passasjar i pakkinga — sjå `pack` */
+  ekstra?: number,
 ): Nesting {
   if (!parts.length) {
     return { sheets: [], sheetW, sheetH, util: 0, spilt: 0, kross: 0 }
@@ -59,7 +61,7 @@ export function nest(
       if (f) fast!.set(i, f)
     })
   }
-  const out = pack(pieces, sheetW, sheetH, gap, fast)
+  const out = pack(pieces, sheetW, sheetH, gap, fast, ekstra)
 
   // Merket høyrer til FORMA og ikkje til den einskilde delen: to like
   // ribber har det på same staden I SEG SJØLVE, og då vert det rekna éin

@@ -39,9 +39,11 @@ export type ImportReq = { kind: "import"; id: number; name: string; buf: ArrayBu
  *  `djup` er det lange trykket — heile ribbetavla rekna gjennom på ei
  *  måling av kroppen, og berre dei beste av dei snitta. */
 export type TuneReq = { kind: "tune"; id: number; params: ParamBag; djup?: boolean }
+/** «stogg søket, og gjev meg det beste du har funne» */
+export type AvbrytReq = { kind: "avbryt"; id: number }
 /** «syn meg plate nummer i» — teikninga kjem attende, ikkje ei fil */
 export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number }
-export type Req = BuildReq | ExportReq | ImportReq | TuneReq | ArkReq
+export type Req = BuildReq | ExportReq | ImportReq | TuneReq | AvbrytReq | ArkReq
 
 export type BuildRes = {
   kind: "build"
@@ -146,6 +148,8 @@ function build(req: BuildReq) {
 let newest = 0
 /** kva søk som gjeld. Sjå «eit steg om gongen» nedanfor. */
 let tuneKøyr = 0
+/** det søket som går: kva melding han svarar på, og det beste so langt */
+let tuneGaar: { id: number; alle: Kandidat[] } | null = null
 
 self.onmessage = (e: MessageEvent<Req>) => {
   const req = e.data
@@ -211,6 +215,20 @@ self.onmessage = (e: MessageEvent<Req>) => {
       return
     }
 
+    if (req.kind === "avbryt") {
+      // EIT SØK SOM VERT STOGGA HAR SVART.
+      //
+      // Hundre ekte snittingar er eit svar, om to hundre var planen. Det
+      // beste so langt går attende som om søket var ferdig, med same
+      // melding og same id, so hovudtråden ikkje treng vita at det vart
+      // kappa.
+      const g = tuneGaar
+      tuneGaar = null
+      tuneKøyr++
+      if (g) post({ kind: "tune", id: g.id, alle: g.alle })
+      return
+    }
+
     if (req.kind === "tune") {
       // EIT STEG OM GONGEN, med ein tur innom køen imellom.
       //
@@ -224,6 +242,7 @@ self.onmessage = (e: MessageEvent<Req>) => {
       // går, slepp til imellom i staden for å stå og vente på heile.
       const it = VAFFEL.tuneSteg(req.params, req.djup)
       const mitt = ++tuneKøyr
+      tuneGaar = { id: req.id, alle: [] }
       const steg = () => {
         // Eit nytt søk gjer det gamle uinteressant. Utan denne ville to
         // søk rekna om kvarandre og sendt kvar sine svar.
@@ -231,9 +250,11 @@ self.onmessage = (e: MessageEvent<Req>) => {
         try {
           const n = it.next()
           if (n.done) {
+            tuneGaar = null
             post({ kind: "tune", id: req.id, alle: n.value })
             return
           }
+          if (tuneGaar) tuneGaar.alle = n.value.alle
           post({ kind: "tunep", id: req.id, gjort: n.value.gjort, av: n.value.av })
           setTimeout(steg, 0)
         } catch (err) {
@@ -241,6 +262,7 @@ self.onmessage = (e: MessageEvent<Req>) => {
           // Eit søk som kasta er noko anna, og skal ikkje seiast som om
           // det var eit svar.
           console.error("slicerman: søket slo feil", err)
+          tuneGaar = null
           post({
             kind: "feil",
             id: req.id,

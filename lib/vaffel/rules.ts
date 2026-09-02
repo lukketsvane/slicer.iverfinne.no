@@ -50,10 +50,18 @@ const ribberFor = (n: number, gap: number, tjukn: number, mål: number) =>
  * innstillingar prøver tretten punkt, so det var tretten fine snittingar
  * ingen skulle sjå. Standarden er den same som før.
  */
-export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
+/**
+ * `raad` er om reglane skal rekne ut råda sine. Søket spør berre om dei
+ * harde held, for hundrevis av kandidatar — og eit råd er gjerne ein plan
+ * til på det midtre nivået. Det er rekning for ein knapp ingen får sjå.
+ */
+export function checkRules(p: Params, m: Metrics, plan?: Plan, raad = true): Rule[] {
   const { g, pl, ns } = plan ?? makePlan(p, DETAIL.mid)
   const out: Rule[] = []
-  const add = (r: Rule) => out.push(r)
+  const add = (r: Rule) => {
+    if (!raad) delete r.fiks
+    out.push(r)
+  }
 
   /**
    * KOR MYKJE MINDRE?
@@ -149,7 +157,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     ok: m.joints > 0,
     value: `${nn(m.joints)} ledd`,
     why: "Utan eit einaste kryssledd er dette ikkje eit objekt, men ein bunke laust liggjande plater. Vanlegaste grunnen er at nettet er for tynt der ribbene kryssar, eller at det står for få ribber til at nokon av dei møtest i gods.",
-    fiks: fleireRibber(),
+    fiks: raad ? fleireRibber() : undefined,
   })
 
   // --- 2 delane finst (hard) --------------------------------------------------
@@ -161,7 +169,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     ok: m.parts > 0,
     value: `${nn(m.parts)} stk`,
     why: "Ingen ribbe råka nettet. Anten står objektet utanfor rutenettet, eller so er nettet så tynt at kvar profil fell under minstearealet.",
-    fiks: fleireRibber(),
+    fiks: raad ? fleireRibber() : undefined,
   })
 
   // --- 3 kvar del heng i noko (hard) ------------------------------------------
@@ -236,7 +244,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     ok: m.narrow >= minGods,
     value: mm1(m.narrow),
     why: `Sporet et halve overlappet, og det som er att må bera resten av ribba. Under ${mm1(minGods)} knekk finéren i sporbotnen når du pressar delane saman. Flytt leddelinga, eller sett ribbene der nettet er tjukkare.`,
-    fiks: godsFiks(),
+    fiks: raad ? godsFiks() : undefined,
   })
 
   // --- 5 delane får plass på plata (hard) -------------------------------------
@@ -264,7 +272,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     why: ns.kross
       ? "Ein festa del ligg i ein annan festa del, og to kutt som går i kvarandre gjev to stykke skrap. Dra den eine vekk, eller slepp han so pakkinga får leggje han. Knappen slepper dei som ligg i nokon."
       : `Ein del er større enn plata. Anten mindre objekt, fleire ribber (kvar ribbe vert mindre), eller ei større plate enn ${nn(p.arkB)} × ${nn(p.arkH)} mm.`,
-    fiks: plateFiks(),
+    fiks: raad ? plateFiks() : undefined,
   })
 
   // --- 6 klaringa (mjuk) ------------------------------------------------------
@@ -326,7 +334,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     why: "Snittbreidda vert kompensert ved å skuve omrisset utover, og sporet vert teikna like mykje smalare. Er snittet like breitt som sporet, er det teikna sporet borte, og konturen brettar seg over seg sjølv. Anten står snittbreidda for høgt, eller so er plata for tynn til det verktøyet.",
     // Halve sporet, ikkje heile: brettinga byrjar eit stykke før grensa,
     // so eit råd som legg seg inntil henne er eit råd som ikkje held.
-    fiks: snittFiks(),
+    fiks: raad ? snittFiks() : undefined,
   })
 
   // --- 9 opninga mellom ribbene (mjuk) ----------------------------------------
@@ -338,7 +346,7 @@ export function checkRules(p: Params, m: Metrics, plan?: Plan): Rule[] {
     ok: m.minGap >= 3,
     value: mm1(m.minGap),
     why: "Ribbene står så tett at fingrane ikkje kjem imellom dei når du monterer, og på plata står delane så nær kvarandre at nestinga ikkje har noko å gå på.",
-    fiks: opningFiks(),
+    fiks: raad ? opningFiks() : undefined,
   })
 
   // --- 10 lukka nett (mjuk) ---------------------------------------------------

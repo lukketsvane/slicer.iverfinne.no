@@ -1448,6 +1448,20 @@ export function Studio() {
   }, [])
 
   /**
+   * STOGG SØKET, OG HALD DET BESTE SO LANGT.
+   *
+   * Djupsøket snittar hundrevis, og det tek den tida det tek. Den som har
+   * sett nok — ringen er halvvegs og svaret ser rett ut — skal ikkje
+   * måtte vente på resten: eit trykk til stoggar det, og arbeidaren svarar
+   * med det han har funne, sortert, som om søket var ferdig.
+   */
+  const avbryt = useCallback(() => {
+    if (!tunarRef.current) return
+    const msg: Req = { kind: "avbryt", id: ++reqId.current }
+    worker.current?.postMessage(msg)
+  }, [])
+
+  /**
    * EIT SVAR VALT MED PEIKAREN.
    *
    * Klikk BIND: det er ei endring som vert bokført og som kan angrast.
@@ -2274,6 +2288,7 @@ export function Studio() {
           onExport={doExport}
           onFinn={() => steg(1)}
           onFinnDjup={() => steg(1, true)}
+          onAvbryt={avbryt}
           onVelSvar={velSvar}
           onSynSvar={synSvar}
           onShare={share}
@@ -2308,6 +2323,7 @@ export function Studio() {
         onExport={doExport}
         onFinn={() => steg(1)}
         onFinnDjup={() => steg(1, true)}
+        onAvbryt={avbryt}
         onFinnAtt={() => steg(-1)}
         onShare={share}
         onFile={(f) => void takeFile(f)}
