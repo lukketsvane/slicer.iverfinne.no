@@ -705,6 +705,16 @@ function Plater(props: {
                     const t = trykk.current
                     const q2 = draRef.current
                     if (t && feillese(t, e.timeStamp)) onAvbryt()
+                    // Og motsett: eit slepp som HENDE etter terskelen, utan
+                    // at klokka hadde fått fyre — tråden stod stille heile
+                    // vegen — er eit langt trykk, ikkje eit trykk. Sleppet
+                    // ber si eiga klokke, og ho er den som gjeld.
+                    if (t && !t.brukt && !q2 && e.timeStamp - t.tid >= LANGT_MS) {
+                      t.brukt = true
+                      t.lang = true
+                      onLangtrykk(t.adr, t.x, t.y)
+                      return
+                    }
                     if (!t || t.brukt || !q2) return
                     t.brukt = true
                     /**
