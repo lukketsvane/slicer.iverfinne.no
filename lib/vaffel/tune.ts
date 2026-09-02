@@ -452,27 +452,53 @@ const djupTak = (tris: number) => (tris > 300000 ? 5000 : tris > 80000 ? 12000 :
  * reglane og redninga med leddelinga er dei same — det er berre kven som
  * vert snitta, og kva som gjer eit svar godt, som er eit anna spørsmål.
  */
-export function* tuneSteg(
+/** eitt rutenett å snitte for alvor, med truskapen profilen las av det */
+export type Oppgave = { nx: number; ny: number; tro: number }
+
+/**
+ * DJUPSØKET SINE OPPGÅVER: kroppen målt, tavla rangert, og fronten med
+ * reservane so langt budsjettet rekk. Målinga av kroppen er det einaste
+ * steget som ikkje er ei snitting, og det einaste som ikkje kan skippast:
+ * alt under er aritmetikk på det ho fann. Ho tek nokre titals millisekund
+ * — under ein tredel av éin kandidat — og ho står FØR fyrste
+ * framdriftsmeldinga, so lina veit kor mange steg det vert.
+ *
+ * Oppgåvene er det som kan delast ut: kvar av dei er ei snitting som
+ * ikkje treng vita om dei andre, so fleire arbeidarar kan ta kvar sine.
+ */
+export function djupOppgaver(
   p: Params,
-  djup = false,
-  /** budsjettet for djupsøket, i `arbeid`. Prøvebenken set eit lite. */
+  /** budsjettet, i `arbeid`. Prøvebenken set eit lite. */
   tak?: number,
-): Generator<{ gjort: number; av: number; alle: Kandidat[] }, Kandidat[], void> {
+): Oppgave[] {
   const k = makeKropp(p)
-  const spennX = Math.max(1, k.solid.max[0] - k.solid.min[0])
-  const spennY = Math.max(1, k.solid.max[1] - k.solid.min[1])
+  const pr = maalProfil(k)
+  const front = djupeKandidatar(p, pr, k.solid, tak ?? djupTak(k.soup.tris))
+  return front.map((q) => ({ nx: q.nx, ny: q.ny, tro: q.tro }))
+}
 
-  /** kor mykje av forma kvart rutenett ber. Tom uttan djupsøk. */
-  const tro = new Map<string, number>()
-
-  const ut: Kandidat[] = []
-  /** kva harde reglar som fall, eller tom liste om han held */
-  const prov = (ribbX: number, ribbY: number, ledd: number): string[] => {
-    const q: Params = { ...p, ribbX, ribbY, ledd }
+/**
+ * ÉI OPPGÅVE SNITTA FOR ALVOR: kandidaten om han held, elles null.
+ *
+ * Grovt nivå og rask pakking: tala som rangerer — delar, ledd, plater —
+ * er sanne nok der, og vinnaren vert snitta og pakka for alvor i det han
+ * vert sett. Dei harde reglane er eit ja eller nei, ikkje eit trekk i
+ * summen.
+ *
+ * Leddelinga står midt på. Ho rører ingen av tala i summen — ho flyttar
+ * sporbotnen, og det ser du berre i godset — so å prøve henne på alle er
+ * å rekne det same tre gonger. Men på ei form der godset er tynt kan ho
+ * vera skilnaden på ein hard regel som held og ein som brest, og DÅ er
+ * ho verd ei rekning. Difor: berre som redning, og berre for dei som
+ * fall på nett det. Fall kandidaten på noko anna — for få ledd, for lite
+ * plass på plata — hjelper det ikkje å flytte sporbotnen, og då er dei
+ * to ekstra rekningane berre venting.
+ */
+export function prov(p: Params, o: Oppgave, djup: boolean): Kandidat | null {
+  /** kandidaten, eller kva harde reglar som fall */
+  const ein = (ledd: number): Kandidat | string[] => {
+    const q: Params = { ...p, ribbX: o.nx, ribbY: o.ny, ledd }
     try {
-      // Grovt nivå og rask pakking: tala som rangerer — delar, ledd, plater
-      // — er sanne nok der, og vinnaren vert snitta og pakka for alvor i
-      // det han vert sett.
       const plan = makePlan(q, DETAIL.lav, true)
       const m = {
         parts: plan.pl.parts.length,
@@ -483,76 +509,76 @@ export function* tuneSteg(
         loose: plan.pl.lause + plan.g.kasta,
       }
       if (m.parts === 0 || m.sheets === 0) return ["tom"]
-      // Dei harde reglane er eit ja eller nei, ikkje eit trekk i summen.
       const fall = checkRules(q, maal(q, plan), plan, false)
         .filter((r) => r.hard && !r.ok)
         .map((r) => r.id)
       if (fall.length) return fall
-      const t = tro.get(`${ribbX},${ribbY}`) ?? 0
-      ut.push({
-        ribbX,
-        ribbY,
+      return {
+        ribbX: o.nx,
+        ribbY: o.ny,
         ledd,
-        poeng: djup ? djupPoeng(m, t) : poengOf(q, m),
-        troskap: t,
+        poeng: djup ? djupPoeng(m, o.tro) : poengOf(q, m),
+        troskap: o.tro,
         ...m,
-      })
-      return []
+      }
     } catch {
       // Ein kandidat som kastar er ein kandidat som ikkje finst.
       return ["kasta"]
     }
   }
+  const a = ein(0.5)
+  if (!Array.isArray(a)) return a
+  if (a.length === 1 && a[0] === "gods") {
+    const b = ein(0.35)
+    if (!Array.isArray(b)) return b
+    const c = ein(0.65)
+    if (!Array.isArray(c)) return c
+  }
+  return null
+}
 
-  let liste: [number, number][]
+/**
+ * Dei sorterte, beste fyrst. I djupsøket fronten fyrst, og so resten: det
+ * fyrste svaret er aldri slege på alt, og dei slegne står att å bla i —
+ * på ein kube er fronten eitt einaste punkt, og ei liste på eitt er ein
+ * knapp som ikkje blar.
+ */
+export function rangert(alle: readonly Kandidat[], djup: boolean): Kandidat[] {
+  const etterPoeng = (a: Kandidat, b: Kandidat) => b.poeng - a.poeng
+  if (!djup) return [...alle].sort(etterPoeng)
+  const f = new Set(front(alle))
+  return [
+    ...alle.filter((q) => f.has(q)).sort(etterPoeng),
+    ...alle.filter((q) => !f.has(q)).sort(etterPoeng),
+  ]
+}
+
+export function* tuneSteg(
+  p: Params,
+  djup = false,
+  /** budsjettet for djupsøket, i `arbeid`. Prøvebenken set eit lite. */
+  tak?: number,
+): Generator<{ gjort: number; av: number; alle: Kandidat[] }, Kandidat[], void> {
+  let liste: Oppgave[]
   if (djup) {
-    // Målinga av kroppen er det einaste steget som ikkje er ei snitting,
-    // og det einaste som ikkje kan skippast: alt under er aritmetikk på
-    // det ho fann. Ho tek nokre titals millisekund — under ein tredel av
-    // éin kandidat — og ho må stå FØR fyrste framdriftsmeldinga, so lina
-    // veit kor mange steg det vert.
-    const pr = maalProfil(k)
-    const front = djupeKandidatar(p, pr, k.solid, tak ?? djupTak(k.soup.tris))
-    for (const q of front) tro.set(`${q.nx},${q.ny}`, q.tro)
-    liste = front.map((q) => [q.nx, q.ny] as [number, number])
+    liste = djupOppgaver(p, tak)
   } else {
-    liste = kandidatar(p, spennX, spennY)
+    const k = makeKropp(p)
+    const spennX = Math.max(1, k.solid.max[0] - k.solid.min[0])
+    const spennY = Math.max(1, k.solid.max[1] - k.solid.min[1])
+    liste = kandidatar(p, spennX, spennY).map(([nx, ny]) => ({ nx, ny, tro: 0 }))
   }
   // Det beste so langt fylgjer kvart steg: den som stoggar søket midt i
   // skal ha det som er funne, sortert — hundre ekte snittingar er eit
   // svar, om det var to hundre som var planen.
-  const soLangt = () => {
-    const etterPoeng = (a: Kandidat, b: Kandidat) => b.poeng - a.poeng
-    if (!djup) return [...ut].sort(etterPoeng)
-    // Fronten fyrst, og so resten: det fyrste svaret er aldri slege på
-    // alt, og dei slegne står att å bla i — på ein kube er fronten eitt
-    // einaste punkt, og ei liste på eitt er ein knapp som ikkje blar.
-    const f = new Set(front(ut))
-    return [
-      ...ut.filter((q) => f.has(q)).sort(etterPoeng),
-      ...ut.filter((q) => !f.has(q)).sort(etterPoeng),
-    ]
-  }
+  const ut: Kandidat[] = []
   yield { gjort: 0, av: liste.length, alle: [] }
   for (let i = 0; i < liste.length; i++) {
-    const [x, y] = liste[i]
-    // Leddelinga står midt på. Ho rører ingen av tala i summen — ho
-    // flyttar sporbotnen, og det ser du berre i godset — so å prøve
-    // henne på alle er å rekne det same tre gonger. Men på ei form der
-    // godset er tynt kan ho vera skilnaden på ein hard regel som held og
-    // ein som brest, og DÅ er ho verd ei rekning. Difor: berre som
-    // redning, og berre for dei som fall.
-    const fall = prov(x, y, 0.5)
-    // Berre EIN ting leddelinga kan berge: godset under sporbotnen. Fall
-    // kandidaten på noko anna — for få ledd, for lite plass på plata —
-    // hjelper det ikkje å flytte sporbotnen, og då er dei to ekstra
-    // rekningane berre venting.
-    if (fall.length === 1 && fall[0] === "gods") {
-      if (prov(x, y, 0.35).length) prov(x, y, 0.65)
-    }
-    yield { gjort: i + 1, av: liste.length, alle: soLangt() }
+    const q = prov(p, liste[i], djup)
+    if (q) ut.push(q)
+    yield { gjort: i + 1, av: liste.length, alle: rangert(ut, djup) }
   }
-  return soLangt()
+  return rangert(ut, djup)
 }
 
 /**
