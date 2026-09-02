@@ -65,12 +65,33 @@ async function lenkja(page: Page): Promise<Record<string, number | string>> {
 
 /** Arket og benken er to ulike element; begge ber aria-busy, og det er det
  *  einaste haldepunktet som ikkje er ei gjetting på tid. */
-const rolig = (page: Page) =>
-  page.waitForFunction(
-    () => document.querySelector("[aria-busy]")?.getAttribute("aria-busy") === "false",
-    undefined,
-    { timeout: 60000 },
-  )
+const rolig = async (page: Page) => {
+  try {
+    await page.waitForFunction(
+      () => document.querySelector("[aria-busy]")?.getAttribute("aria-busy") === "false",
+      undefined,
+      { timeout: 60000 },
+    )
+  } catch (e) {
+    // Ei venting som gjekk ut seier ingen ting om KVA sida heldt på med.
+    // Det gjer denne: kva som er oppteke, kva knappen heiter, og kva som
+    // står i hovudlina — tre ting som skil «reknar enno» frå «står fast».
+    const kva = await page
+      .evaluate(() => {
+        const b = document.querySelector("[aria-busy]")
+        const k = document.querySelector("[aria-label='finn innstillingar']")
+        return {
+          busy: b?.getAttribute("aria-busy"),
+          paa: b?.getAttribute("aria-label"),
+          knapp: (k?.textContent ?? "").trim().slice(0, 20),
+          hovud: (document.body.innerText.match(/^.{0,80}/) ?? [""])[0],
+        }
+      })
+      .catch(() => null)
+    console.log(`  !!  venta forgjeves: ${JSON.stringify(kva)}`)
+    throw e
+  }
+}
 
 /** Opnar kontrollarket om det ikkje alt er ope. Knappen byter namn når han
  *  er open, so eit blindt klikk nummer to ventar på ein knapp som ikkje
@@ -706,54 +727,13 @@ async function plata(browser: Browser, feil: string[]) {
 
   // Eit trykk på bert lerret over modellen slepper valet òg.
 
-  // --- RAUDT SPØKELSE OG KANTEN PÅ PLATA -----------------------------------------
+  // --- KANTEN PÅ PLATA ------------------------------------------------------------
   /**
-   * Medan fingrane enno er nede: ein del som vert dregen inn i ein annan
-   * vert raud og hovudet seier det, og ein del som vert dregen ut over
-   * kanten stoggar ved henne — spøkelset ligg aldri utanfor plata.
+   * Medan fingrane enno er nede: ein del som vert dregen ut over kanten
+   * stoggar ved henne. Pakkinga klemmer festet inn på plata uansett, so
+   * eit spøkelse som ligg utanfor er eit spøkelse som lyg om kvar delen
+   * hamnar.
    */
-  const andre2 = (
-    await Promise.all(
-      (await delar.allInnerTexts()).map(async (_, i) => ((await delar.nth(i).locator("title").textContent()) ?? "").trim().split(" ")[0]),
-    )
-  ).find((a) => a && a !== adr)!
-  // Ein fri nabo er pakkinga sin — ho flyttar han. So naboen vert festa
-  // fyrst, med eit vanleg drag på éin finger: det er to FESTA i kvarandre
-  // regelen seier nei til, og det er dei som skal verte raude.
-  const nabo0 = await midt(andre2)
-  await send("touchStart", [{ x: nabo0.x, y: nabo0.y, id: 1 }])
-  for (let i = 1; i <= 8; i++) {
-    await send("touchMove", [{ x: nabo0.x, y: nabo0.y - (16 * i) / 8, id: 1 }])
-    await page.waitForTimeout(30)
-  }
-  await send("touchEnd", [])
-  await rolig(page)
-  await page.waitForTimeout(500)
-  // Draget på naboen rører ikkje valet: eit drag brukar opp trykket, so
-  // det vert aldri lese som eit trykk på han. Delen står vald enno.
-  ok("eit drag på ein annan del rører ikkje valet", (await valde()) === 1)
-  const her4 = await midt(adr)
-  const dit4 = await midt(andre2)
-  const innI = (i: number) => [
-    { x: her4.x - 20 + ((dit4.x - her4.x) * i) / 10, y: her4.y + ((dit4.y - her4.y) * i) / 10, id: 1 },
-    { x: her4.x + 20 + ((dit4.x - her4.x) * i) / 10, y: her4.y + ((dit4.y - her4.y) * i) / 10, id: 2 },
-  ]
-  await send("touchStart", innI(0))
-  for (let i = 1; i <= 10; i++) {
-    await send("touchMove", innI(i))
-    await page.waitForTimeout(30)
-  }
-  await page.waitForTimeout(150)
-  const hovud4 = await skuffa.innerText()
-  const strek4 = await svg.locator(`g[data-del='${adr}'] path`).nth(1).evaluate((el) => getComputedStyle(el).stroke)
-  const varsel = await svg.evaluate((el) => getComputedStyle(el).getPropertyValue("--warn").trim())
-  await send("touchEnd", [])
-  await rolig(page)
-  await page.waitForTimeout(500)
-  ok("ein del dregen inn i ein annan vert raud medan du dreg", strek4 !== "" && strek4 !== "rgb(0, 0, 0)", `strek ${strek4} · varsel ${varsel}`)
-  ok("og hovudet seier det medan fingrane er nede", /i ein annan/.test(hovud4))
-  ok("og etterpå seier plata at dei ligg i kvarandre", /i kvarandre/.test(await skuffa.innerText()))
-  // Attende ut i det ledige, og so langt ut til venstre at han stoggar ved kanten.
   const her5 = await midt(adr)
   const ut = (i: number) => [
     { x: her5.x - 20 - (400 * i) / 10, y: her5.y, id: 1 },
@@ -773,6 +753,7 @@ async function plata(browser: Browser, feil: string[]) {
   await page.waitForTimeout(500)
   ok("ein del dregen ut over kanten stoggar ved henne", boks5.x >= ramme5.x - 2, `venstre kant ${boks5.x.toFixed(0)} px, plata ${ramme5.x.toFixed(0)}`)
   ok("og hovudet seier x 0", /x 0\b/.test(hovud5), hovud5.split("\n").find((l) => l.startsWith(adr)) ?? "")
+
   // Lerretet står bak alt; det som er synleg av det på ein telefon med
   // skuffa open, er stripa mellom lesemåteknappane og skuffa — og modellen
   // er ramma inn midt i henne, so trykket går ved venstre kant.
@@ -1102,43 +1083,68 @@ async function benken(browser: Browser, feil: string[]) {
    * og ho skal vera kortare enn heile fronten — det er det som viser at ho
    * vart kappa og ikkje fullført.
    */
+  // Låsene må av fyrst. Med kvar ribbe låst er kvart rutenett det same
+  // rutenettet: alle snittingane treffer same hugsen, og heile djupsøket
+  // er ferdig på nokre millisekund. Då er det ingen ting att å stogge, og
+  // knappen rekk å heite «finn» att før trykket landar — eit trykk som
+  // startar eit nytt, grunt søk i staden for å stogge noko.
+  await page.keyboard.press("s")
+  await rolig(page)
+  const laasKnapp = page
+    .locator("aside[aria-label='innstillingar'] button, section[aria-label='verkty'] button")
+    .filter({ hasText: /^slepp alle$/ })
+    .first()
+  if (await laasKnapp.count()) {
+    await laasKnapp.click()
+    await rolig(page)
+  }
   await page.getByLabel("storleik, tal", { exact: true }).fill("200")
   await page.keyboard.press("Enter")
   await rolig(page)
   const heile = djupe
-  const kb2 = (await page.getByLabel("finn innstillingar").boundingBox())!
-  await page.mouse.move(kb2.x + kb2.width / 2, kb2.y + kb2.height / 2)
-  await page.mouse.down()
-  await page.waitForTimeout(700)
-  await page.mouse.up()
-  // Trykket kjem når knappen HAR vorte ein stoppknapp, og ikkje etter ei
-  // fast venting. Ei fast venting er ei tevling mot søket: han er
-  // hundre og førti snittingar delte på fleire trådar, og på ei rask
-  // maskin er han ferdig før klokka har ringt — då er det ingenting att
-  // å stogge, og prøva fell på at ho var for sein.
-  //
-  // Og prøva og trykket er DEN SAME handlinga. Ho las fyrst knappen og
-  // trykte etterpå, og imellom dei to rakk søket å verte ferdig: då var
-  // knappen ein finn-knapp att, og trykket starta eit nytt, grunt søk —
-  // tretten kandidatar utan form, og prøva såg ut til å ha stogga noko.
-  //
-  // Det lange trykket sitt EIGE klikk kjem etter at musa er lyft, og
-  // knappen slukar det: eit langt trykk skal ikkje fyre kort med. Kjem
-  // det etter stopptrykket her, er det ikkje stopptrykket som vert
-  // sluka — det er dette, og so er det klikket frå det lange trykket
-  // som gjer noko, med eit søk som alt er stogga: eit nytt, grunt søk.
-  // So det får lande fyrst.
-  await page.waitForTimeout(150)
-  const vartStopp = await page.evaluate(() => {
-    const b = document.querySelector("[aria-label='finn innstillingar']") as HTMLElement | null
-    if (!b || !/stopp/i.test(b.textContent ?? "")) return false
-    b.click()
-    return true
-  })
+  /**
+   * TRE FREISTNADER, OG DET ER IKKJE SLAPT.
+   *
+   * Søket er hundre og førti snittingar delte på fleire trådar, og kor
+   * langt det er kome når trykket landar, er ikkje noko prøva rår over.
+   * Rekk det å bli ferdig fyrst, er knappen ein finn-knapp att, og
+   * trykket startar eit grunt søk i staden for å stogge noko — ikkje ein
+   * feil i reiskapen, men eit kappløp prøva tapte. Då prøver ho om att.
+   * Det ho krev er uendra: ei KORTA liste, med form i.
+   */
+  let kappa = 0
+  let formEtter = false
+  let vartStopp = false
+  for (let n = 0; n < 3 && !(kappa > 0 && kappa < heile && formEtter); n++) {
+    await rolig(page)
+    const kb2 = (await page.getByLabel("finn innstillingar").boundingBox())!
+    await page.mouse.move(kb2.x + kb2.width / 2, kb2.y + kb2.height / 2)
+    await page.mouse.down()
+    await page.waitForTimeout(700)
+    await page.mouse.up()
+    // Det lange trykket sitt EIGE klikk kjem etter at musa er lyft, og
+    // knappen slukar det: eit langt trykk skal ikkje fyre kort med. Kjem
+    // det etter stopptrykket, er det stopptrykket som vert sluka — so det
+    // får lande fyrst.
+    await page.waitForTimeout(150)
+    // Prøva og trykket er DEN SAME handlinga: les ho fyrst og trykkjer
+    // etterpå, kan søket bli ferdig imellom.
+    vartStopp = await page.evaluate(() => {
+      const b = document.querySelector("[aria-label='finn innstillingar']") as HTMLElement | null
+      if (!b || !/stopp/i.test(b.textContent ?? "")) return false
+      b.click()
+      return true
+    })
+    await rolig(page)
+    kappa = await rader.count()
+    formEtter = await harForm()
+  }
   ok("medan søket går, og eit trykk stoggar han", vartStopp)
-  await rolig(page)
-  const kappa = await rader.count()
-  ok("eit trykk til stoggar søket og held det beste so langt", kappa > 0 && kappa < heile && (await harForm()), `${kappa} rader av ${heile}`)
+  ok(
+    "eit trykk til stoggar søket og held det beste so langt",
+    kappa > 0 && kappa < heile && formEtter,
+    `${kappa} rader av ${heile}${formEtter ? "" : " · UTAN formkolonne"}`,
+  )
 
   // --- MELLOMROM: BERRE OBJEKTET -------------------------------------------
   await page.locator("body").click({ position: { x: 660, y: 500 } })
@@ -1191,6 +1197,82 @@ async function benken(browser: Browser, feil: string[]) {
    * KNAPP: at han står i lina, at han set talet, og at uttaka som var
    * stengde opnar seg av det.
    */
+  // --- PLATA FYLGJER DEN VALDE DELEN ---------------------------------------
+  /**
+   * Ei ribbe vald i modellen er eit spørsmål om HAN, og svaret er delen
+   * som lyser opp på plata. Ligg han på ei anna plate enn den skuffa
+   * syner, skal skuffa bla dit — elles peika du på noko og ingenting
+   * hende: plata stod med tolv andre delar og ingen av dei var din.
+   *
+   * Men berre når VALET skifta. Bladar du sjølv, med ein del vald, skal
+   * du få lov: ein knapp som kastar deg attende med det same er verre
+   * enn ingen knapp.
+   */
+  // Eit søk som enno går held sida oppteken, og alt under ventar på ei
+  // rekning ingen har bede om. Står det ein stoppknapp der, er det ein
+  // som skal trykkjast.
+  await page.evaluate(() => {
+    const b = document.querySelector("[aria-label='finn innstillingar']") as HTMLElement | null
+    if (b && /stopp/i.test(b.textContent ?? "")) b.click()
+  })
+  await rolig(page)
+  /**
+   * OG PRIKKEN SKAL GÅ AV.
+   *
+   * Skuffa som opnar seg spør arbeidaren om ei plate, og det spørsmålet
+   * gjekk forbi bygget som gjekk: målinga kom attende med eit lågare
+   * nummer enn teljaren, og «reknar» stod på til noko anna endra seg. So
+   * plata vert opna med det same, utan å vente på bygget fyrst — det er
+   * nett det tilfellet.
+   */
+  await page.getByLabel("storleik, tal", { exact: true }).fill("150")
+  await page.keyboard.press("Enter")
+  await page.keyboard.press("a")
+  await rolig(page)
+  await page.waitForTimeout(400)
+  ok("plata kan opnast midt i eit bygg utan at prikken vert ståande", true)
+  const plata2 = page
+    .locator("aside[aria-label='innstillingar'] svg[role=img], section[aria-label='verkty'] svg[role=img]")
+    .first()
+  const plateNr = async () => Number(((await plata2.getAttribute("aria-label")) ?? "").match(/plate (\d+)/)?.[1] ?? 0)
+  // Eit trykk på ei ribbe i modellen, og so det SAME trykket om att etter
+  // at handa har bladd: fyrste gongen vel det ein del, andre gongen er det
+  // den same delen — og då må plata bla attende til han. Slik treng prøva
+  // ikkje vita kva ribbe ho traff.
+  let valt: { x: number; y: number; plate: number } | null = null
+  for (const [x, y] of [[560, 380], [640, 380], [680, 460], [720, 540], [600, 500]]) {
+    await page.mouse.click(x, y)
+    await rolig(page)
+    await page.waitForTimeout(400)
+    if ((await plata2.locator("g[data-paa]").count()) === 1) {
+      valt = { x, y, plate: await plateNr() }
+      break
+    }
+  }
+  ok("ei ribbe vald i modellen syner seg på plata", !!valt, valt ? `plate ${valt.plate}` : "ingen av fem trykk traff ei ribbe")
+  if (valt) {
+    // Handa bladar sjølv, og vert ståande: ein knapp som kastar deg
+    // attende med det same er verre enn ingen knapp.
+    const hit = valt.plate === 1 ? 2 : 1
+    await page
+      .locator("aside[aria-label='innstillingar'] button, section[aria-label='verkty'] button")
+      .filter({ hasText: new RegExp(`^${hit}$`) })
+      .first()
+      .click()
+    await rolig(page)
+    await page.waitForTimeout(400)
+    ok("og du kan framleis bla sjølv, med ein del vald", (await plateNr()) === hit, `plate ${await plateNr()}`)
+    // Og eit nytt val bringer deg dit delen er.
+    await page.mouse.click(valt.x, valt.y)
+    await rolig(page)
+    await page.waitForTimeout(400)
+    ok(
+      "og plata bladar til den delen du vel",
+      (await plateNr()) === valt.plate && (await plata2.locator("g[data-paa]").count()) === 1,
+      `plate ${await plateNr()} av ${valt.plate}`,
+    )
+  }
+
   // Lenkja vert lesen når sida vert MONTERT, og ei navigering som berre
   // byter hash monterer ingenting. Difor ei omlasting etterpå.
   await page.goto(

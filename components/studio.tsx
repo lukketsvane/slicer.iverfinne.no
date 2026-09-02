@@ -220,6 +220,12 @@ export function Studio() {
   const [ark, setArk] = useState<ArkSyn | null>(null)
   /** adressa peikaren står på, i lista eller i objektet */
   const [peikt, setPeikt] = useState<string | null>(null)
+  /** kva skuffa syner no — lese av `peikDel`, som køyrer utanfor teikninga */
+  const verktyRef = useRef<VerktyId | null>(null)
+  const arkRef = useRef<ArkSyn | null>(null)
+  const askArkRef = useRef((i: number) => {
+    void i
+  })
   /**
    * DELEVERKTYET: eit langt trykk på ein del, og kva det gjeld.
    *
@@ -245,6 +251,8 @@ export function Studio() {
   } | null>(null)
   const delVerktyRef = useRef<HTMLDivElement | null>(null)
   const [busy, setBusy] = useState(true)
+  /** nummeret på det siste BYGGET — sjå `maal` nedanfor */
+  const sisteBygg = useRef(0)
   const [mounted, setMounted] = useState(false)
   const [feil, setFeil] = useState<string | null>(null)
   // Arket sin tilstand bur her og ikkje i panelet: tastaturet skal kunne
@@ -526,8 +534,14 @@ export function Studio() {
       if (r.kind === "maal") {
         setTal(r)
         setKuttliste(r.liste)
-        // fyrst når rekninga for det siste punktet er inne, er motoren ferdig
-        if (r.id >= reqId.current) setBusy(false)
+        // Fyrst når rekninga for det SISTE BYGGET er inne, er motoren
+        // ferdig. Og det er bygget som gjeld, ikkje den siste meldinga:
+        // teljaren er felles for alt som går til arbeidaren, so eit spørsmål
+        // om ei plate — som er det å opne skuffa er — la seg forbi bygget
+        // som gjekk. Målinga kom då med eit lågare nummer enn teljaren, og
+        // «reknar» stod på til noko anna endra seg. Målt: dra ein skyvar og
+        // opne plata med det same, og prikken går aldri av.
+        if (r.id >= sisteBygg.current) setBusy(false)
         return
       }
       if (r.kind === "prosjekt") {
@@ -631,7 +645,7 @@ export function Studio() {
         // bygget kasta: slepp porten fri og lat det førre objektet stå
         inFlight.current = false
         pump()
-        if (r.id >= reqId.current) setBusy(false)
+        if (r.id >= sisteBygg.current) setBusy(false)
         return
       }
       if (r.kind === "tunep") {
@@ -710,10 +724,33 @@ export function Studio() {
     () => (peikt === null ? -1 : kuttliste.findIndex((k) => k.adr === peikt)),
     [peikt, kuttliste],
   )
+  /**
+   * PLATA FYLGJER DEN DU VEL.
+   *
+   * Ei ribbe vald i modellen eller i kuttlista er eit spørsmål om HAN, og
+   * svaret er delen som lyser opp på plata. Men skuffa syner éi plate om
+   * gongen, og delen kan liggje på ei anna: då peika du på noko og
+   * ingenting hende — plata stod med tolv andre delar, og ingen av dei
+   * var din.
+   *
+   * Det står HER, i valet, og ikkje i ein effekt som ser på kva som er
+   * vald. Ein effekt måtte lese plata av kuttlista kvar gong noko rørte
+   * seg, og lista er eit steg etter parametrane: flyttar du ein del til
+   * neste plate, seier ho framleis den gamle, og effekten bladar deg
+   * attende dit delen ikkje er. Her er lista og nummeret det same
+   * oppslaget, so dei kan ikkje vera usamde.
+   *
+   * Og handa rår over resten: bladar du sjølv i bunken, med ein del vald,
+   * vert du ståande.
+   */
   const peikDel = useCallback(
     (i: number) => {
       const adr = i >= 0 ? (kuttliste[i]?.adr ?? null) : null
       setPeikt(adr)
+      const paa = i >= 0 ? kuttliste[i]?.ark : undefined
+      if (adr && paa && verktyRef.current === "ark" && arkRef.current && arkRef.current.i !== paa - 1) {
+        askArkRef.current(paa - 1)
+      }
       /**
        * SVARET STÅR DER DU STÅR.
        *
@@ -1249,6 +1286,7 @@ export function Studio() {
     setFeil(null)
     const enqueue = (d: DetailKey) => {
       const id = ++reqId.current
+      sisteBygg.current = id
       pending.current = { kind: "build", id, params, detail: d, view }
       pump()
     }
@@ -1563,6 +1601,12 @@ export function Studio() {
     const msg: Req = { kind: "ark", id: ++reqId.current, params: naa.current, sheet: Math.max(0, i) }
     worker.current?.postMessage(msg)
   }, [])
+
+  // `peikDel` står før `askArk` og køyrer utanfor teikninga, so det ho
+  // treng vita om skuffa vert lagt her, kvar teikning.
+  askArkRef.current = askArk
+  verktyRef.current = verkty
+  arkRef.current = ark
 
   /**
    * TIL EI ANNA PLATE.

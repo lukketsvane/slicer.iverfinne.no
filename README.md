@@ -81,7 +81,8 @@ other three are a word away in the drawer's title bar.
   it; the rest repacks around it. **Hold a part** to pin or release it, to
   turn it a quarter at a time about its centre, or to send it to the next or
   previous sheet — the drawer follows it. **Tap a part** to select it, in the
-  sheet or in the model; tap empty sheet or empty canvas to deselect. With a
+  sheet or in the model; the sheet turns to the plate that part is on, and
+  tapping empty sheet or empty canvas deselects. With a
   part selected, **two fingers** slide it by the millimetre — zoom in and the
   same motion is a smaller step — and twist to turn it, snapping to a quarter
   when you let go. A moving part **snaps** to its neighbours' edges, at exactly

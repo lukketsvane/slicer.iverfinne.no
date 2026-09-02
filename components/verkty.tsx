@@ -431,8 +431,6 @@ function Plater(props: {
     dx: number
     dy: number
     vri?: number
-    /** der han står no, ligg han i ein annan — teikna raud medan du dreg */
-    kross?: boolean
   } | null>(null)
   const draRef = useRef(dra)
   const flata = useRef<SVGGElement | null>(null)
@@ -552,16 +550,16 @@ function Plater(props: {
    * Åtte PIKSLAR og ikkje millimeter: det er fingeren som er unøyaktig, og
    * zoomar du inn, smett han fyrst når du er nærare.
    *
-   * Og to ting til, medan fingeren enno er nede: masken stoggar ved kanten
-   * av plata — ein del kan ikkje liggje utanfor henne, so spøkelset skal
-   * ikkje heller — og ligg han i ein annan FESTA der han står, seier
-   * svaret frå, so delen kan teiknast raud FØR du slepper han.
+   * Og ein ting til, medan fingeren enno er nede: masken stoggar ved
+   * kanten av plata. Ein del kan ikkje liggje utanfor henne — pakkinga
+   * klemmer festet inn uansett — so spøkelset skal ikkje det heller.
    *
-   * Berre dei festa. Ein fri del er pakkinga sin, og ho flyttar han: legg
-   * du noko oppå han, får han ein annan plass, og det er ikkje eit
-   * problem å åtvare om. To festa er handa si eiga skuld, og det er nett
-   * det regelen seier nei til etterpå. Dette er den same dommen, sagd
-   * medan det enno kan rettast med fingeren.
+   * Her stod det ei åtvaring om delar som låg i kvarandre òg, teikna
+   * medan du drog. Ho er teken ut att: ho samanlikna BOKSANE, og to
+   * ribber som grip inn i kvarandre deler boks utan å røre kvarandre —
+   * det er nett slik pakkinga sjølv får plass til dei. Ho lyste difor
+   * raudt på det tettaste og beste du kunne gjere. Regelen etterpå
+   * samanliknar formene, og det er han som har rett.
    */
   const snapp = (
     g: { adr: string; plass: Delplass["plass"]; boks: Delplass["boks"] },
@@ -595,21 +593,10 @@ function Plater(props: {
       }
       return Math.min(Math.max(0, best), Math.max(0, tak))
     }
-    const x = naer(g.plass.x + dx, xs, arkB - W)
-    const y = naer(g.plass.y + dy, ys, arkH - H)
-    // Kant i kant er IKKJE i kvarandre: det er nøyaktig luka.
-    let kross = false
-    for (const d of ark.plasser) {
-      if (d.adr === g.adr || !festa.has(d.adr)) continue
-      const m = Math.max(0, d.boks.x - d.plass.x)
-      const w = d.boks.w + 2 * m
-      const h = d.boks.h + 2 * m
-      if (x < d.plass.x + w - 1e-6 && x + W > d.plass.x + 1e-6 && y < d.plass.y + h - 1e-6 && y + H > d.plass.y + 1e-6) {
-        kross = true
-        break
-      }
+    return {
+      dx: naer(g.plass.x + dx, xs, arkB - W) - g.plass.x,
+      dy: naer(g.plass.y + dy, ys, arkH - H) - g.plass.y,
     }
-    return { dx: x - g.plass.x, dy: y - g.plass.y, kross }
   }
 
   /**
@@ -706,7 +693,6 @@ function Plater(props: {
             <span className="mono basis-full text-[10px]" style={{ color: "var(--ink)" }}>
               {dra.adr} · x {nn(Math.max(0, d.plass.x + dra.dx), 0)} · y {nn(Math.max(0, d.plass.y + dra.dy), 0)} mm
               {dra.vri ? ` · ${nn(dra.vri, 0)}°` : ""}
-              {dra.kross && <span style={{ color: "var(--warn)" }}> · i ein annan</span>}
             </span>
           )
         })()}
@@ -855,11 +841,10 @@ function Plater(props: {
               const vri = Math.abs(grader) > 8 ? grader : 0
               let dx = flytt ? (cx - gd.anker.cx) / gd.ppm : 0
               let dy = flytt ? -(cy - gd.anker.cy) / gd.ppm : 0
-              let kross = false
               // Snappet gjeld berre ein del som ikkje er midt i ein sving:
               // ei maske som held på å snu har ikkje kantar å snappe med.
-              if (flytt && !vri) ({ dx, dy, kross } = snapp(gd, dx, dy, gd.ppm))
-              const ny = { adr: gd.adr, dx, dy, vri, kross }
+              if (flytt && !vri) ({ dx, dy } = snapp(gd, dx, dy, gd.ppm))
+              const ny = { adr: gd.adr, dx, dy, vri }
               draRef.current = ny
               setDra(ny)
               return
@@ -946,8 +931,6 @@ function Plater(props: {
               const paa = peikt === d.adr
               const fast = festa.has(d.adr)
               const q = dra?.adr === d.adr ? dra : null
-              // raud: ligg i ein annan — der plata la han, eller der fingeren har han no
-              const raud = d.kross || !!q?.kross
               return (
                 <g
                   key={d.adr}
@@ -1074,7 +1057,7 @@ function Plater(props: {
                     d={d.ut}
                     strokeWidth={paa || q ? 2 : 1}
                     vectorEffect="non-scaling-stroke"
-                    style={{ fill: "none", stroke: raud ? "var(--warn)" : "var(--ink)" }}
+                    style={{ fill: "none", stroke: d.kross ? "var(--warn)" : "var(--ink)" }}
                   />
                   {d.inn.map((h, j) => (
                     <path
@@ -1082,7 +1065,7 @@ function Plater(props: {
                       d={h}
                       strokeWidth={paa || q ? 2 : 1}
                       vectorEffect="non-scaling-stroke"
-                      style={{ fill: "none", stroke: raud ? "var(--warn)" : "var(--ink)" }}
+                      style={{ fill: "none", stroke: d.kross ? "var(--warn)" : "var(--ink)" }}
                     />
                   ))}
                   <title>
