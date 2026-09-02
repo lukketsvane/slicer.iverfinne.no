@@ -83,12 +83,59 @@ const RAW = new Map<string, { soup: Soup; label: string; fil?: Uint8Array }>()
 
 export const KUBE = "kube"
 
+/**
+ * DEI FEM PRIMITIVA, laga i koden og ikkje lasta: kube, kule, sylinder,
+ * kjegle, torus. Alle hundre millimeter på det lengste, sentrerte i planet
+ * og med botnen på z = 0, vindinga mot klokka sedd utanfrå. Ein kropp du
+ * byggjer av dei treng ikkje ei fil i det heile.
+ */
+function rotasjonsSoup(
+  profil: (v: number) => [number, number],
+  n: number,
+  m: number,
+  lukka = false,
+): Soup {
+  // profil(v) gjev (radius, z) for v i [0, 1]; lukka tyder at profilen er
+  // ein ring (torus) og ikkje ein boge frå topp til botn
+  const pos: number[] = []
+  const at = (i: number, j: number): [number, number, number] => {
+    const th = (i / n) * Math.PI * 2
+    const [r, z] = profil(lukka ? (j / m) % 1 : Math.min(1, j / m))
+    return [r * Math.cos(th), r * Math.sin(th), z]
+  }
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < m; j++) {
+      const a = at(i, j)
+      const b = at(i + 1, j)
+      const c = at(i + 1, j + 1)
+      const d = at(i, j + 1)
+      pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+    }
+  }
+  return makeSoup(new Float32Array(pos))
+}
+
+const PRIMITIV: Record<string, () => Soup> = {
+  kube: () => cubeSoup(),
+  // v går frå toppen (0) til botnen (1) med polane som nullradius, so
+  // skalet lukkar seg der og trekantane i polen fell saman utan hòl
+  kule: () => rotasjonsSoup((v) => [50 * Math.sin(v * Math.PI), 50 + 50 * Math.cos(v * Math.PI)], 48, 24),
+  sylinder: () =>
+    rotasjonsSoup((v) => (v < 0.05 ? [(v / 0.05) * 40, 100] : v > 0.95 ? [((1 - v) / 0.05) * 40, 0] : [40, 100 - ((v - 0.05) / 0.9) * 100]), 48, 40),
+  kjegle: () =>
+    rotasjonsSoup((v) => (v > 0.95 ? [((1 - v) / 0.05) * 50, 0] : [(v / 0.95) * 50, 100 - (v / 0.95) * 100]), 48, 40),
+  torus: () => rotasjonsSoup((v) => [35 + 15 * Math.cos(v * Math.PI * 2), 15 + 15 * Math.sin(v * Math.PI * 2)], 48, 24, true),
+}
+
+export const erPrimitiv = (id: string) => id in PRIMITIV
+
 export function source(id: string): Soup {
   const hit = RAW.get(id)
   if (hit) return hit.soup
-  if (id !== KUBE) return source(KUBE)
-  const s = cubeSoup()
-  RAW.set(KUBE, { soup: s, label: "kube" })
+  const lag = PRIMITIV[id]
+  if (!lag) return source(KUBE)
+  const s = lag()
+  RAW.set(id, { soup: s, label: id })
   return s
 }
 
@@ -108,8 +155,9 @@ export function label(id: string): string {
 
 /** Importar hopar seg opp i minnet. Ein brukar som har prøvd seks filer
  *  treng ikkje dei fem fyrste, og eit skann er lett hundre megabyte. */
-export function forget(keep: string) {
+export function forget(keep: string | readonly string[]) {
+  const hald = new Set(typeof keep === "string" ? [keep] : keep)
   for (const id of [...RAW.keys()]) {
-    if (id !== keep && id !== KUBE) RAW.delete(id)
+    if (!hald.has(id) && !(id in PRIMITIV)) RAW.delete(id)
   }
 }

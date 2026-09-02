@@ -32,9 +32,12 @@ no radius.
 
 ## Use it
 
-1. **Drop a file** — `.glb`, `.gltf`, `.stl`, `.obj`, `.ply`, or a `.zip` saved
-   by **LAGRE**. Up to 220 MB. Or start from the built-in cube. A new mesh
-   clears the planes: they were an answer about the body you had.
+1. **Pick a body.** The pill at the top opens the sources: five primitives
+   (cube, sphere, cylinder, cone, torus) and your own files — `.glb`, `.gltf`,
+   `.stl`, `.obj`, `.ply`, up to 220 MB, or a `.zip` saved by **LAGRE**. Add
+   several and the body is all of them together: a sphere on a cube, a
+   cylinder into its side. Each piece has a place, a size and a turn. A new
+   body clears the planes: they were an answer about the body you had.
 2. **Set the size.** Drag the number, or take it from the sheet.
 3. **Sketch a plane.** One finger turns the object. The sketch plane is a line
    across the screen — a knife seen edge-on — with a grab handle in the middle
@@ -90,6 +93,16 @@ Keys: `L` cut, `S` sketch mode, `⌫` remove the selected plane, `F` proposals,
 planes included — and no mesh. **LAGRE** gives a project file carrying both.
 And the browser remembers by itself, in IndexedDB. The unlocked sketch is
 disposable and is not kept; it costs one gesture to make again.
+
+## The body
+
+The body is a list of pieces, not a file: primitives made in code and files
+you dropped in, each scaled to 100 mm on its longest side times its own size,
+turned about z and placed, then the whole list is rotated, scaled to
+`storleik` and set on the floor. Nothing is stitched: the rays count shells,
+so two pieces that overlap are one body where they overlap. The list is the
+`scene` string in the parameter bag, and the project file carries every
+piece's file.
 
 ## Planes
 
@@ -190,6 +203,7 @@ multiply in every joint.
 | `glatt` | smoothing | 0–24 Taubin passes |
 | `trekant` | triangle budget | 0.5–60 k, by vertex clustering |
 | `forenkl` `hol` | cut profile | how far the cut may stray, and the smallest hole worth cutting |
+| `scene` | the body | pieces: source, place, size, turn, as a string |
 | `plan` | the planes | name, point, normal and strokes, as a string |
 | `lause` | pieces with no joint | keep / drop |
 | `tjukn` | thickness | 1–25 mm |
@@ -297,7 +311,8 @@ minutes, and HMR reloading underneath produces failures that look real.
 | `lib/core.ts` | **start here.** The contract: parameters, metrics, rules, views |
 | `lib/plan.ts` | what a plane is: name, point, normal, strokes; the string; the grid as a proposal |
 | `lib/params.ts` | the parameter space and its defaults |
-| `lib/kropp.ts` | the body: weld, unflip, simplify, smooth, place — and turned along any normal |
+| `lib/scene.ts` | the body as pieces: primitives and files, placed |
+| `lib/kropp.ts` | the body: pieces joined, weld, unflip, simplify, smooth, place — and turned along any normal |
 | `lib/snitt.ts` | planes to ribs: the field, the joints, the slots, the parts, the assembly order |
 | `lib/bygg.ts` | the whole build once: body, ribs, parts, nesting |
 | `lib/soup.ts` | mesh in two forms, and the road between them |
