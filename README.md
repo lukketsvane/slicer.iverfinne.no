@@ -126,7 +126,9 @@ plane landed between the legs.
 
 What comes back is a front, not a point: for each number of parts, the grid that
 carries the most shape. The first answer is the knee, where more parts stop
-paying for themselves; press again to walk along the front.
+paying for themselves; press again to walk along the front. The list rules off
+where the front ends — below it are grids something else beats on every count
+you asked about — and on a phone that answer says `slegen` instead.
 
 ## Building by hand
 

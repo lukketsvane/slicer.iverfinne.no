@@ -106,7 +106,7 @@ export function ControlsPanel(props: {
     ribbX: number
     ribbY: number
     /** svaret som står: delar, plater og kor mykje av forma det ber */
-    svar: { parts: number; sheets: number; troskap: number }
+    svar: { parts: number; sheets: number; troskap: number; fremst: boolean }
   } | null
   kanAngre: boolean
   /** kor høgt arket er, i pikslar. Kameraet stiller objektet inn i det som
@@ -601,6 +601,16 @@ export function ControlsPanel(props: {
                   ingen. */}
               {finnStad.svar.troskap > 0 && ` · form ${n0(finnStad.svar.troskap * 100)} %`}
               {` · ${n0(finnStad.svar.parts)} delar · ${n0(finnStad.svar.sheets)} ark`}
+              {/* OG OM DETTE SVARET ER SLEGE PÅ ALT.
+                  Djupsøket gjev hundre og førti svar, og her bladar du dei
+                  eitt om gongen: dei fyrste er fronten, resten er slegne på
+                  alt du spurde om — færrast delar, mest form, færrast
+                  plater. Utan dette ordet bladar du vidare forbi det siste
+                  svaret som kunne vore det beste. Benken har ei line på
+                  same staden i lista. */}
+              {finnStad.svar.troskap > 0 && !finnStad.svar.fremst && (
+                <span className="dim"> · slegen</span>
+              )}
             </span>
           </div>
         )}

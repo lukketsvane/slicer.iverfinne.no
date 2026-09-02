@@ -227,6 +227,16 @@ for (const [namn, over] of [
     `${fronten.length} i fronten, ${resten.length} bak · ${alle[0].poeng.toFixed(1)} … ${alle[alle.length - 1].poeng.toFixed(1)}`,
   )
 
+  // Og kvart svar seier SJØLV om han står i fronten. Det er det merket
+  // panelet les — ei line i lista på benken, eit ord på telefonen — og
+  // eit merke som ikkje stemmer med rekninga er verre enn ingen: det
+  // seier «her sluttar det som er verdt å sjå på» på feil stad.
+  sjekk(
+    `${namn}: og kvar av dei veit om han står der`,
+    alle.every((q) => q.fremst === fr.has(q)),
+    `${alle.filter((q) => q.fremst).length} merkte, ${fronten.length} i fronten`,
+  )
+
   // Kvart svar ber eit formtal. Det er heile skilnaden på dei to knappane,
   // og eit svar utan det er eit svar frå det raske søket på avvegar.
   sjekk(
