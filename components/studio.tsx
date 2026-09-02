@@ -255,7 +255,15 @@ export function Studio() {
   const finn = useRef<{ base: string; alle: Kandidat[]; nth: number; djup: boolean } | null>(null)
   /** det same, men til SKJERMEN: kvar i lista vi står, og kva som kom ut */
   const [stad, setStad] = useState<
-    { nth: number; tal: number; ribbX: number; ribbY: number; base: string } | null
+    {
+      nth: number
+      tal: number
+      ribbX: number
+      ribbY: number
+      base: string
+      /** svaret sjølv, so lina kan seie kva det er og ikkje berre kvar det står */
+      svar: Kandidat
+    } | null
   >(null)
   /** heile svarlista, til benken. Ho står til nokon spør om noko anna. */
   const [liste, setListe] = useState<Kandidat[]>([])
@@ -660,6 +668,7 @@ export function Studio() {
           ribbX: r.alle[0].ribbX,
           ribbY: r.alle[0].ribbY,
           base,
+          svar: r.alle[0],
         })
         return
       }
@@ -1429,7 +1438,14 @@ export function Studio() {
     if (cur && cur.base === base && cur.alle.length && (cur.djup || !djup)) {
       const i = (((cur.nth + dir) % cur.alle.length) + cur.alle.length) % cur.alle.length
       cur.nth = i
-      setStad({ nth: i, tal: cur.alle.length, ribbX: cur.alle[i].ribbX, ribbY: cur.alle[i].ribbY, base })
+      setStad({
+        nth: i,
+        tal: cur.alle.length,
+        ribbX: cur.alle[i].ribbX,
+        ribbY: cur.alle[i].ribbY,
+        base,
+        svar: cur.alle[i],
+      })
       setParams((q) => VAFFEL.pick(q, cur.alle, i))
       return
     }
@@ -1482,6 +1498,7 @@ export function Studio() {
       ribbX: cur.alle[i].ribbX,
       ribbY: cur.alle[i].ribbY,
       base: cur.base,
+      svar: cur.alle[i],
     })
     setParams((q) => VAFFEL.pick(q, cur.alle, i))
   }, [])
