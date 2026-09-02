@@ -57,9 +57,8 @@ export type Kandidat = {
   held: boolean
   /** kor godt framlegget svarar på oppgåva, høgare er betre */
   poeng: number
-  /** Står han i fronten — er det ingen som slår han på ALT? Djupsøket gjev
-   *  hundre svar, og på ein telefon bladar du dei eitt om gongen; utan
-   *  merket bladar du forbi det siste som kunne vore det. Det raske søket
+  /** Står han i fronten — er det ingen som slår han på ALT? Utan merket
+   *  bladar du forbi det siste svaret som kunne vore det. Det raske søket
    *  reknar ikkje form, og utan henne finst ingen front: der står alle som
    *  `true`, og merket seier ingenting — som det skal. Sjå `front`. */
   fremst: boolean
@@ -84,10 +83,10 @@ const MANGE = 32
  * ein tredel av objektet eit skjelett du kan putte handa gjennom. Difor
  * vert dei valde på AVSTANDEN og ikkje på talet — ni avstandar jamt over
  * bandet, og talet i kvar retning fylgjer av objektet sitt mål; tre plan
- * den eine vegen og fjorten den andre er ein kam, ikkje eit rutenett.
- * Attpå fire skeive, eit steg opp eller ned i éi retning: somme former
- * vil ha det, og eit søk som berre ser det symmetriske finn dei aldri.
- * Tretten snittingar er kring to sekund — so lenge ventar nokon på ein knapp.
+ * den eine vegen og fjorten den andre er ein kam. Attpå fire skeive, eit
+ * steg opp eller ned i éi retning: somme former vil ha det, og eit søk som
+ * berre ser det symmetriske finn dei aldri. Tretten snittingar er kring to
+ * sekund — so lenge ventar nokon på ein knapp.
  */
 function kandidatar(p: Params, spennX: number, spennY: number): [number, number][] {
   const minPitch = Math.max(p.tjukn * 4, p.tjukn + 6)
@@ -114,8 +113,7 @@ function kandidatar(p: Params, spennX: number, spennY: number): [number, number]
  * kveld med pinsett — ei mjuk klokke kring tjue. PLATER: pengar og ei
  * oppspenning til; straffa veks og flatar ut, éi mot to merkast meir enn
  * nitten mot tjue. UTNYTTING: same plata, meir objekt. OPNING: under tre
- * millimeter kjem ikkje fingrane imellom. Brotne harde reglar er ikkje eit
- * trekk i summen — dei er `held`.
+ * millimeter kjem ikkje fingrane imellom. Brotne harde reglar er `held`.
  */
 function poengOf(p: Params, m: Maal): number {
   const perDel = m.parts > 0 ? m.joints / m.parts : 0
@@ -141,16 +139,11 @@ function poengOf(p: Params, m: Maal): number {
  * forma som liknar mest, på so få plater som råd. Då må det sjå på langt
  * fleire rutenett enn tretten, av di svaret ofte er skeivt: ein torus som
  * står har ein dramatisk profil den eine vegen og ein roleg den andre, og
- * eit søk som held retningane like tette finn han aldri.
- *
- * KORLEIS DET HAR RÅD TIL TUSEN: ikkje ved å snitte tusen gonger. Kroppen
- * vert MÅLT éin gong — `profil.ts` — og etterpå kostar det ei summering å
- * seie kor mykje av forma eit rutenett ber og kor mykje plate det tek;
- * heile tavla, 2×2 til 32×32, går på nokre millisekund. Det er eit
- * OVERSLAG og får ikkje siste ordet: det veit ingenting om ledd, harde
- * reglar eller kva pakkinga får til. So det vel kven som er verd ei
- * snitting, og snittinga tel. Eit vidt steg som er billig, eit smalt som
- * er sant.
+ * eit søk som held retningane like tette finn han aldri. Det har råd til
+ * tusen av di kroppen vert MÅLT éin gong (`profil.ts`) og tavla, 2×2 til
+ * 32×32, so er aritmetikk. Men det er eit OVERSLAG utan ledd, harde reglar
+ * eller pakking, so det vel berre kven som er verd ei snitting — eit vidt
+ * steg som er billig, eit smalt som er sant.
  *
  * KVA DJUPSØKET MEINER ER BEST, vege på det du bad om då du heldt knappen
  * nede: FORMA er det tyngste leddet og det einaste nye; PLATENE tel tyngre
@@ -188,12 +181,11 @@ function djupPoeng(m: Maal, tro: number): number {
 const VENTA_UTNYTT = 0.55
 
 /**
- * HEILE TAVLA, RANGERT PÅ OVERSLAG — og so FRONTEN av henne. Kvart rutenett
- * frå 2×2 til 32×32 med den SAME vekta som avgjer til slutt, men på
- * overslag: truskapen er lesen av profilen og like sann her som seinare;
- * platene er plateforbruket delt på ei plate med venta utnytting; ledda
- * eitt per kryss; delane nx + ny, som er golvet; luka stigninga minus ei
- * platetjukn.
+ * HEILE TAVLA, RANGERT PÅ OVERSLAG — og so FRONTEN av henne. Same vekt som
+ * avgjer til slutt, men på overslag: truskapen er lesen av profilen og
+ * like sann her som seinare; platene er plateforbruket delt på ei plate
+ * med venta utnytting; ledda eitt per kryss; delane nx + ny, som er
+ * golvet; luka stigninga minus ei platetjukn.
  *
  * SPØRSMÅLET ER «FÆRRAST DELAR SOM BER MEST AV FORMA», og det er ei front
  * og ikkje eit punkt: for kvart tal delar finst eit best rutenett. Båsen
@@ -256,17 +248,12 @@ function djupeKandidatar(
     for (let ny = FAA; ny <= MANGE; ny++) {
       // plana langs x ber profilen langs x; snittet er kva heile nettet ber
       const tro = (troX[nx] + troY[ny]) / 2
-      const m: Maal = {
-        parts: nx + ny,
-        sheets: Math.max(1, Math.ceil((flateX[nx] + flateY[ny]) / arkFlate)),
-        joints: nx * ny,
-        util: VENTA_UTNYTT,
-        minGap: Math.min(viddX / nx, viddY / ny) - p.tjukn,
-        loose: 0,
-      }
+      const ark = Math.max(1, Math.ceil((flateX[nx] + flateY[ny]) / arkFlate))
+      const luke = Math.min(viddX / nx, viddY / ny) - p.tjukn
+      const poeng = djupPoeng({ parts: nx + ny, sheets: ark, joints: nx * ny, util: VENTA_UTNYTT, minGap: luke, loose: 0 }, tro)
       let b = baas.get(nx + ny)
       if (!b) baas.set(nx + ny, (b = []))
-      leggI(b, { nx, ny, tro, poeng: djupPoeng(m, tro) }, I_BAASEN)
+      leggI(b, { nx, ny, tro, poeng }, I_BAASEN)
     }
   }
 
@@ -312,10 +299,9 @@ const djupTak = (tris: number) => (tris > 300000 ? 5000 : tris > 80000 ? 12000 :
 
 /**
  * DJUPSØKET SINE OPPGÅVER: kroppen målt, tavla rangert, fronten med
- * reservane so langt budsjettet rekk. Målinga er det einaste steget som
- * ikkje er ei snitting — nokre titals millisekund — og står FØR fyrste
- * framdriftsmeldinga, so lina veit kor mange steg det vert. Kvar oppgåve er
- * ei snitting som ikkje treng vita om dei andre, so dei kan delast ut.
+ * reservane so langt budsjettet rekk. Målinga er nokre titals millisekund
+ * og står FØR fyrste framdriftsmeldinga, so lina veit kor mange steg det
+ * vert. Kvar oppgåve er ei snitting som ikkje treng dei andre: dei kan delast ut.
  */
 export function djupOppgaver(
   p: Params,
