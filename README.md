@@ -66,10 +66,8 @@ bottom has three heights: one line (lock, the live count, proposals, export),
 the middle (size, the plane list, the broken rules with their fixes),
 everything (material and thickness, the sliders, the table, the tools).
 
-**Over 1180 px with a mouse**, no sheet — two fixed walls with the object
-between them: what you put in on the left (file, size, rotation, mesh,
-material, the sliders), what comes out on the right (lock, the plane list, the
-rules, the table, the exports, the tools). The camera frames the object into
+**Over 1180 px with a mouse**, no sheet — the same controls as one column on
+the right, the top bar above the canvas, and the camera frames the object into
 whatever rectangle is left over.
 
 **With a part selected** (tap it in the object), the handles and the two-finger
