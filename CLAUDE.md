@@ -122,6 +122,18 @@ underneath produces failures that look exactly like real ones.
 Changing geometry, exports or rules without running the harness that covers it
 is the one thing this project has no way to catch later.
 
+## The one device
+
+The iPhone 16e, saved to the home screen and opened standalone, is the only
+target. Every control sits under one thumb, the primary action bottom-right.
+The page never zooms (`maximum-scale=1`, `user-scalable=no`, `gesturestart`
+prevented), never scrolls (html and body fixed, overscroll none, containers
+contain), and lets nothing be selected or long-press-called-out (`user-select:
+none` everywhere; the only caret is a focused number field; the settings text
+is read-only with copy and paste buttons). A button is an icon or a word,
+never both. `pnpm panel` checks all of it; a change that breaks one of these
+is wrong even if it looks fine on a laptop.
+
 ## Two traps
 
 - **Turbopack ships the worker as raw TypeScript** into `static/media`. The
