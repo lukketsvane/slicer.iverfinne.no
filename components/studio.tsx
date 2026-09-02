@@ -298,7 +298,9 @@ export function Studio() {
         const { kind, id, ...syn } = r
         void kind
         void id
-        setSnitt(syn)
+        // det same snittet om att — etter eit skjer ligg det nye planet i skissa — er inga endring, og skal ikkje teiknast om att
+        const ny = JSON.stringify(syn)
+        setSnitt((prev) => (prev && JSON.stringify(prev) === ny ? prev : syn))
         return
       }
       if (r.kind === "maal") {

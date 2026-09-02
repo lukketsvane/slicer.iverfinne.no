@@ -510,10 +510,12 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, onPlan, o
     delete boks.dataset.tom
     const c = skjerm(sv.midt)
     senterPx.current = c
-    // vrihandtaket står på toppen av snittet slik det ligg på skjermen — og aldri nærare midten enn 56 pikslar
+    // vrihandtaket står på toppen av snittet slik det ligg på skjermen — aldri nærare
+    // midten enn 56 pikslar, og aldri over det frie bandet: zoomar du inn so toppen går
+    // av skjermen, står handtaket i overkanten og kan framleis takast
     let topp = c.y
     for (const q of sv.punkt) topp = Math.min(topp, skjerm(q).y)
-    const vy = Math.min(topp, c.y - 56)
+    const vy = Math.max(Math.min(topp, c.y - 56), Math.min(c.y - 56, fri.T + 36))
     const inne = c.x > -40 && c.x < size.width + 40 && c.y > -40 && c.y < size.height + 40
     boks.style.visibility = inne ? "visible" : "hidden"
     boks.dataset.slag = synleg ? "skisse" : "plan"
@@ -678,7 +680,10 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, onPlan, o
     const dolly = (klyp: number) => {
       if (!controls) return
       const dist = Math.min(MAX_DIST, Math.max(MIN_DIST, sam.dist0 / klyp))
-      camera.position.copy(controls.target).add(camera.position.clone().sub(controls.target).setLength(dist))
+      // retninga FØR kameraet vert flytt: `copy` går føre argumentet sitt, og
+      // eit nullpunkt vart til eit kamera rett over objektet i azimut null
+      const retn = camera.position.clone().sub(controls.target).setLength(dist)
+      camera.position.copy(controls.target).add(retn)
       controls.update?.()
       invalidate()
     }
@@ -1043,7 +1048,7 @@ function Demping({ onSein }: { onSein: (sein: boolean) => void }) {
 }
 
 /** kroppen og delane, i kroppen si ramme */
-function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, spok, blink, onVald }: {
+function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, spok, blink, sein, onVald }: {
   f: Ramma
   kropp: BuildRes | null
   lag: BuildRes | null
@@ -1055,6 +1060,8 @@ function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, spok, blink
   spok: readonly Plan[] | null
   /** planet som nett vart skore: delen hans lyser éin gong når han kjem */
   blink: number | null
+  /** bileta er seine: blinken er då eitt bilete og ei klokke, ikkje ei rekkje teikningar */
+  sein: boolean
   onVald: (id: number | null) => void
 }) {
   const invalidate = useThree((s) => s.invalidate)
@@ -1105,27 +1112,43 @@ function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, spok, blink
   const surf = useMemo(() => makeWood(MATERIALS[mat].hex, 0.9, uKorn.current, uVald.current, uBlink.current, uBlinkT.current), [mat])
   useEffect(() => () => surf.dispose(), [surf])
   /**
-   * KVITTERINGA FOR SKJER: den nye delen lyser éin gong, fire hundre
-   * millisekund, i det han kjem — det er fyrst når lista kjenner planet at
-   * hjørna hans er merkte. Same plan blinkar ikkje to gonger.
+   * KVITTERINGA FOR SKJER: den nye delen lyser i det han kjem og døyr ut
+   * over fire hundre millisekund — det er fyrst når lista kjenner planet at
+   * hjørna hans er merkte, so blinken går på det biletet som uansett
+   * teiknar han. Same plan blinkar ikkje to gonger. Utdøyinga er ei rekkje
+   * bilete berre når bileta er raske: på ei sein maskin er kvart bilete ein
+   * halv sekund, og ei rekkje av dei ville stått i vegen for lina som skal
+   * seie at planet er skore. Der er blinken eitt bilete, og klokka sløkkjer.
    */
   const blinka = useRef<number | null>(null)
   const blinkT0 = useRef(0)
+  const blinkSist = useRef(0)
+  const seinRef = useRef(sein)
+  seinRef.current = sein
   useEffect(() => {
     if (blink === null || blink === blinka.current || !gLag || !liste.some((k) => k.plan === blink)) return
     blinka.current = blink
     blinkT0.current = performance.now()
+    blinkSist.current = blinkT0.current
     uBlink.current.value = blink
+    uBlinkT.current.value = 1
     invalidate()
+    // Sløkkinga er eit bilete til. Er bileta seine, kjem det fyrst når det
+    // som fylgjer eit skjer — lina, lista, plata — har fått teikne seg.
+    const t = window.setTimeout(() => {
+      uBlink.current.value = -1
+      uBlinkT.current.value = 0
+      invalidate()
+    }, seinRef.current ? 1500 : 420)
+    return () => window.clearTimeout(t)
   }, [blink, gLag, liste, invalidate])
   useFrame(() => {
     if (uBlink.current.value < 0) return
-    const t = (performance.now() - blinkT0.current) / 400
-    if (t >= 1) {
-      uBlink.current.value = -1
-      uBlinkT.current.value = 0
-    } else uBlinkT.current.value = Math.sin(Math.PI * t)
-    invalidate()
+    const no = performance.now()
+    const t = (no - blinkT0.current) / 400
+    uBlinkT.current.value = t >= 1 ? 0 : Math.cos((Math.PI * t) / 2)
+    if (t < 1 && !seinRef.current && no - blinkSist.current < 80) invalidate()
+    blinkSist.current = no
   })
   useEffect(() => {
     uVald.current.value = vald ?? -1
@@ -1291,7 +1314,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
         <group position={[0, GROUND_Y, 0]}>
           {flat
             ? fk && kontur && <Konturen f={fk} d={kontur} />
-            : f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} material={material} liste={liste} vald={vald} plan={plan} spok={spok} blink={blink} onVald={onVald} />}
+            : f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} material={material} liste={liste} vald={vald} plan={plan} spok={spok} blink={blink} sein={sein} onVald={onVald} />}
           {!flat && f && snitt && snitt.ringar.length > 0 && <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[60, 60]} />
