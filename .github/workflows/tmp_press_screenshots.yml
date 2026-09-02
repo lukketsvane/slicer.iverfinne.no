@@ -19,7 +19,7 @@ jobs:
       - name: Capture real outlet pages
         shell: bash
         run: |
-          cat > /tmp/capture.mjs <<'NODE'
+          cat > capture.mjs <<'NODE'
           import fs from 'fs';
           import path from 'path';
           import puppeteer from 'puppeteer-core';
@@ -99,7 +99,7 @@ jobs:
           fs.writeFileSync('README.txt',`REAL BROWSER SCREENSHOTS OF THE ORIGINAL PUBLISHERS' OWN ARTICLE PAGES\nNo recreated cards or generated press graphics.\nViewport: 1170x900.\nCandidates: ${records.length}\nSuccessful relevant page captures: ${ok}\nFailed/blocked: ${failed}\nSee SOURCES.json for the exact URL and page title for every capture.\n`);
           console.log(`RESULT successful=${ok} failed=${failed} total=${records.length}`);
           NODE
-          node /tmp/capture.mjs
+          node capture.mjs
           zip -9 -r internasjonal_presse_ORIGINALE_sider.zip original_press_pages SOURCES.json README.txt >/dev/null
           echo "Successful screenshots: $(find original_press_pages -type f -name '*.png' | wc -l)"
           echo "Blocked/failed screenshots kept separately for diagnostics: $(find failed_pages -type f -name '*.png' | wc -l)"
