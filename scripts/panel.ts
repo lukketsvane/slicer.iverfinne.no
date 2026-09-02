@@ -460,6 +460,7 @@ async function plata(browser: Browser, feil: string[]) {
   const send = (type: string, touchPoints: Pt[]) =>
     cdp.send("Input.dispatchTouchEvent", { type, touchPoints } as never)
   /** ein finger frå ein stad til ein annan, i tolv steg */
+  let undervegs = ""
   const dra = async (fra: { x: number; y: number }, til: { x: number; y: number }) => {
     await send("touchStart", [{ x: fra.x, y: fra.y, id: 1 }])
     for (let i = 1; i <= 12; i++) {
@@ -468,6 +469,8 @@ async function plata(browser: Browser, feil: string[]) {
       ])
       await page.waitForTimeout(30)
     }
+    // det som står i hovudet på plata medan fingeren enno er nede
+    undervegs = await skuffa.innerText()
     await send("touchEnd", [])
     await rolig(page)
     await page.waitForTimeout(500)
@@ -478,6 +481,8 @@ async function plata(browser: Browser, feil: string[]) {
   ok("ingen feste før nokon har dregen", (await festet()) === "")
   const mål = { x: Math.min(370, fyrst.x + 90), y: fyrst.y - 60 }
   await dra(fyrst, mål)
+  // Fingeren dekkjer delen; hovudet på plata seier kvar hjørnet landar.
+  ok("medan du dreg seier plata kvar hjørnet landar", /x \d+ · y \d+ mm/.test(undervegs), undervegs.replace(/\s+/g, " ").slice(0, 90))
   const f1 = await festet()
   ok("eit drag festar delen", f1.startsWith(adr + ":"), f1)
   const etter = await midt(adr)
