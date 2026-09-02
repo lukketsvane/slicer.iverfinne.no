@@ -380,6 +380,7 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
                 <g
                   key={d.adr}
                   data-del={d.adr}
+                  data-paa={paa ? "" : undefined}
                   transform={q ? `translate(${q.dx} ${q.dy})` + (q.vri ? ` rotate(${q.vri} ${d.boks.x + d.boks.w / 2} ${d.boks.y + d.boks.h / 2})` : "") : undefined}
                   onPointerEnter={(e) => { if (e.pointerType === "mouse") onPeik(d.adr) }}
                   onPointerDown={(e) => {
@@ -445,7 +446,7 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
                   <path d={d.ut} strokeWidth={paa || q ? 2 : 1} vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: strek }} />
                   {d.inn.map((h, j) => <path key={j} d={h} strokeWidth={paa || q ? 2 : 1} vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: strek }} />)}
                   {/* adressa slik laseren skriv henne — berre når du har klypt deg nærare */}
-                  {syn && d.merke && <path d={d.merke} vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: "var(--ink)", opacity: 0.55 }} />}
+                  {syn && d.merke && <path d={d.merke} data-merke="" vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: "var(--ink)", opacity: 0.55 }} />}
                   <title>{d.adr}{fast ? " · fast" : ""}{d.kross ? " · ligg i ein annan" : ""}</title>
                 </g>
               )

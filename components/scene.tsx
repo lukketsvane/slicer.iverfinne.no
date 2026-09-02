@@ -102,8 +102,8 @@ const mkGeom = (a: ArrayLike<number>) => {
   return g
 }
 /** kvadrat per plan, i millimeter: flatene som trekantar og kantane som liner */
-function kvadratar(plana: readonly Plan[], f: Ramma) {
-  const side = 1.6 * diag(f)
+function kvadratar(plana: readonly Plan[], f: Ramma, fak = 1.6) {
+  const side = fak * diag(f)
   const pos: number[] = []
   const lin: number[] = []
   for (const pl of plana) {
@@ -212,10 +212,13 @@ function Handa({ f, fri, view, vald, plan, skisse, onPlan, onDoubleTap }: {
     if (!g) return
     g.visible = synleg
     if (!f || !synleg) return
+    // kameraet kan ha flytt seg i denne teikninga; matrisa skal vera hans no
+    camera.updateMatrixWorld()
     const { right, up, fwd } = aksar()
     const p = pose.current
     const d = right.clone().multiplyScalar(Math.cos(p.phi)).addScaledVector(up, Math.sin(p.phi))
-    const n = new THREE.Vector3().crossVectors(fwd, d).normalize()
+    // (d, fram, n) høgrehendt, elles er matrisa ei spegling og ikkje ei dreiing
+    const n = new THREE.Vector3().crossVectors(d, fwd).normalize()
     const ray = new THREE.Vector3(p.x, p.y, 0.5).unproject(camera).sub(camera.position).normalize()
     const depth = tilVerd(f, f.midt).sub(camera.position).dot(fwd)
     const o = camera.position.clone().addScaledVector(ray, depth / Math.max(1e-6, ray.dot(fwd)))
@@ -378,24 +381,18 @@ function Handa({ f, fri, view, vald, plan, skisse, onPlan, onDoubleTap }: {
         if (controls) controls.enabled = true
       }
     }
-    // iOS tek vassrette to-finger-sveip som navigasjon; berre ei ikkje-passiv
-    // touchmove kan ta dei attende
-    const taTouchen = (e: TouchEvent) => {
-      if (e.touches.length >= 2) e.preventDefault()
-    }
+    // iOS tek vassrette to-finger-sveip som navigasjon; berre ei ikkje-passiv touchmove tek dei attende
+    const taTouchen = (e: TouchEvent) => { if (e.touches.length >= 2) e.preventDefault() }
     el.addEventListener("touchstart", taTouchen, { passive: false })
     el.addEventListener("touchmove", taTouchen, { passive: false })
     el.addEventListener("pointerdown", ned, { capture: true })
-    window.addEventListener("pointermove", rorsle, { passive: true })
-    window.addEventListener("pointerup", opp)
-    window.addEventListener("pointercancel", opp)
+    const vindu: [string, (e: PointerEvent) => void][] = [["pointermove", rorsle], ["pointerup", opp], ["pointercancel", opp]]
+    for (const [n, h] of vindu) window.addEventListener(n, h as EventListener, { passive: true })
     return () => {
       el.removeEventListener("touchstart", taTouchen)
       el.removeEventListener("touchmove", taTouchen)
       el.removeEventListener("pointerdown", ned, { capture: true })
-      window.removeEventListener("pointermove", rorsle)
-      window.removeEventListener("pointerup", opp)
-      window.removeEventListener("pointercancel", opp)
+      for (const [n, h] of vindu) window.removeEventListener(n, h as EventListener)
       if (controls) controls.enabled = true
     }
   }, [gl, controls, camera, invalidate])
@@ -460,7 +457,8 @@ function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, spok, onVal
     const p = vald === null ? null : plan.find((q) => q.id === vald)
     return p ? kvadratar([p], f) : null
   }, [vald, plan, f])
-  const gSpok = useMemo(() => (spok?.length ? kvadratar(spok, f) : null), [spok, f])
+  // skuggeplana er mange og ligg oppå kvarandre: lette, og ikkje større enn kroppen treng
+  const gSpok = useMemo(() => (spok?.length ? kvadratar(spok, f, 1.15) : null), [spok, f])
   useEffect(() => () => gKropp?.dispose(), [gKropp])
   useEffect(() => () => gLag?.dispose(), [gLag])
   useEffect(() => () => { gVald?.flate.dispose(); gVald?.kant.dispose() }, [gVald])
@@ -519,10 +517,10 @@ function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, spok, onVal
       {gSpok && (
         <>
           <mesh geometry={gSpok.flate} raycast={() => null} renderOrder={2}>
-            <meshBasicMaterial color="#141414" transparent opacity={0.1} depthWrite={false} side={THREE.DoubleSide} />
+            <meshBasicMaterial color="#1f6feb" transparent opacity={0.05} depthWrite={false} side={THREE.DoubleSide} />
           </mesh>
           <lineSegments geometry={gSpok.kant}>
-            <lineBasicMaterial color="#141414" transparent opacity={0.5} />
+            <lineBasicMaterial color="#1f6feb" transparent opacity={0.45} />
           </lineSegments>
         </>
       )}
@@ -571,7 +569,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, material, r
   const bg = "#ffffff"
   return (
     <Canvas
-      shadows="soft"
+      shadows
       frameloop="demand"
       dpr={[1, 2]}
       gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.NeutralToneMapping }}

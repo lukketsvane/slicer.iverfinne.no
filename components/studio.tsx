@@ -568,40 +568,24 @@ export function Studio() {
       setBusy(false)
     }
   }, [send])
-  // slepp ei fil kvar som helst på sida
+  // slepp ei fil kvar som helst på sida: ein reiskap som krev ein bestemt firkant har ikkje forstått drag-og-slepp
   useEffect(() => {
-    let depth = 0
-    const over = (e: DragEvent) => {
-      if (!e.dataTransfer?.types.includes("Files")) return
-      e.preventDefault()
-      depth++
-      setDrag(true)
-    }
-    const move = (e: DragEvent) => {
-      if (e.dataTransfer?.types.includes("Files")) e.preventDefault()
-    }
-    const out = () => {
-      depth = Math.max(0, depth - 1)
-      if (!depth) setDrag(false)
-    }
-    const drop = (e: DragEvent) => {
+    let djup = 0
+    const filer = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files")
+    const inn = (e: DragEvent) => { if (filer(e)) { e.preventDefault(); djup++; setDrag(true) } }
+    const over = (e: DragEvent) => { if (filer(e)) e.preventDefault() }
+    const ut = () => { djup = Math.max(0, djup - 1); if (!djup) setDrag(false) }
+    const slepp = (e: DragEvent) => {
       const f = e.dataTransfer?.files?.[0]
       if (!f) return
       e.preventDefault()
-      depth = 0
+      djup = 0
       setDrag(false)
       void takeFile(f)
     }
-    window.addEventListener("dragenter", over)
-    window.addEventListener("dragover", move)
-    window.addEventListener("dragleave", out)
-    window.addEventListener("drop", drop)
-    return () => {
-      window.removeEventListener("dragenter", over)
-      window.removeEventListener("dragover", move)
-      window.removeEventListener("dragleave", out)
-      window.removeEventListener("drop", drop)
-    }
+    const par: [string, (e: DragEvent) => void][] = [["dragenter", inn], ["dragover", over], ["dragleave", ut], ["drop", slepp]]
+    for (const [n, h] of par) window.addEventListener(n, h as EventListener)
+    return () => { for (const [n, h] of par) window.removeEventListener(n, h as EventListener) }
   }, [takeFile])
 
   const opneVerkty = useCallback((id: VerktyId) => {
@@ -633,8 +617,11 @@ export function Studio() {
         return angre()
       }
       if (e.metaKey || e.ctrlKey) return
-      if (k === "l") laas()
-      else if (k === "delete" || k === "backspace") {
+      // same som knappen: med eit plan valt er skissa gøymd, og L slepp valet
+      if (k === "l") {
+        if (vald === null) laas()
+        else velPlan(null)
+      } else if (k === "delete" || k === "backspace") {
         if (vald !== null) slett(vald)
       } else if (k === "z") angre()
       else if (k === "f") finnForslag(false)
