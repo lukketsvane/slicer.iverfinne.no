@@ -145,11 +145,27 @@ async function telefon(browser: Browser) {
   await vent(page, talPlan(n0))
   sjekk("og tre til er attende ved starten", plana(page).length === n0)
 
-  // --- SKISSA: to fingrar flyttar og vrir planet -------------------------------
-  // Skisseplanet står gjennom midten. Dra to fingrar sidelengs over objektet,
-  // lås, og planet som vart låst står ikkje i midten lenger.
+  // --- GESTANE, SOM FØR: knip = storleik, vri = vend, dra = flytt snittet -----
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
+  const s0 = hash(page).storleik
+  await toFingrar(page, (t) => [[195 - 30 - 70 * t, 380], [195 + 30 + 70 * t, 380]])
+  await vent(page, (p) => p.storleik !== s0)
+  sjekk("to fingrar som spreier seg set storleiken", hash(page).storleik > s0, `${s0} → ${hash(page).storleik} mm`)
+  await page.keyboard.press("z")
+  await vent(page, (p) => p.storleik === s0)
+
+  await toFingrar(page, (t) => {
+    const a = (40 * t * Math.PI) / 180
+    return [[195 - 80 * Math.cos(a), 380 - 80 * Math.sin(a)], [195 + 80 * Math.cos(a), 380 + 80 * Math.sin(a)]]
+  })
+  await vent(page, (p) => p.rotZ !== 0)
+  sjekk("to fingrar som vrir vender objektet (rotZ)", hash(page).rotZ !== 0, `rotZ ${hash(page).rotZ}°`)
+  await page.keyboard.press("z")
+  await vent(page, (p) => p.rotZ === 0)
+
+  // Skisseplanet står gjennom midten. Dra to fingrar sidelengs over objektet,
+  // lås, og planet som vart låst står ikkje i midten lenger.
   await toFingrar(page, (t) => [[150 + 90 * t, 330], [150 + 90 * t, 430]])
   await page.waitForTimeout(300)
   await page.keyboard.press("l")
@@ -161,18 +177,32 @@ async function telefon(browser: Browser) {
   await page.keyboard.press("z")
   await vent(page, talPlan(n0))
 
-  // Vri: den eine fingeren går rundt den andre, tredve grader.
-  await toFingrar(page, (t) => {
-    const a = (30 * t * Math.PI) / 180
-    return [[195, 380], [195 + 80 * Math.cos(a), 380 + 80 * Math.sin(a)]]
-  })
-  await page.waitForTimeout(300)
-  await page.keyboard.press("l")
-  await vent(page, talPlan(n0 + 1))
-  const vridd = plana(page)[plana(page).length - 1]
-  sjekk("to fingrar som vrir vinklar skissa: planet står ikkje loddrett", Math.abs(vridd.n[2]) > 0.1, `n = ${vridd.n.map((c) => c.toFixed(2)).join(",")}`)
-  await page.keyboard.press("z")
-  await vent(page, talPlan(n0))
+  // --- HANDTAKA: éin finger på handtaket flyttar og vrir --------------------------
+  const flyttH = page.locator("[data-handtak='flytt']")
+  const vriH = page.locator("[data-handtak='vri']")
+  sjekk("skissa har eit handtak å flytte og eitt å vri", (await flyttH.count()) === 1 && (await vriH.count()) === 1)
+  const boks = await vriH.boundingBox()
+  if (boks) {
+    const cx = boks.x + boks.width / 2
+    const cy = boks.y + boks.height / 2
+    await page.touchscreen.tap(cx, cy).catch(() => undefined)
+    const cdp = await page.context().newCDPSession(page)
+    const pkt = (x: number, y: number) => [{ x, y, id: 0, radiusX: 4, radiusY: 4, force: 1 }]
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(cx, cy) })
+    for (let i = 1; i <= 12; i++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pkt(cx + 60 * (i / 12), cy + 40 * (i / 12)) })
+      await page.waitForTimeout(16)
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await cdp.detach()
+    await page.waitForTimeout(300)
+    await page.keyboard.press("l")
+    await vent(page, talPlan(n0 + 1))
+    const vridd = plana(page)[plana(page).length - 1]
+    sjekk("vrihandtaket vinklar skissa: planet står ikkje loddrett", Math.abs(vridd.n[2]) > 0.1, `n = ${vridd.n.map((c) => c.toFixed(2)).join(",")}`)
+    await page.keyboard.press("z")
+    await vent(page, talPlan(n0))
+  }
 
   // --- eit valt plan tek gestane ---------------------------------------------
   await midt(page)
