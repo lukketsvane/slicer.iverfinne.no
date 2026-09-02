@@ -35,7 +35,7 @@ import { bbox, inRing, MATERIALS, MIN_AREA, perimeter, shoelace, type Material, 
 import { contour, simplify } from "./contour"
 import type { Solid, Span } from "./mesh/solid"
 import { vend, type Kropp } from "./kropp"
-import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, type Plan, type Ramme, type Strek } from "./plan"
+import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, skrivPlan, type Plan, type Ramme, type Strek } from "./plan"
 import { snittKey, type Params } from "./params"
 
 /** ruter langs den lengste sida av objektet, per detaljnivå */
@@ -729,9 +729,43 @@ export type SkisseSyn = {
   ringar: Pt[][]
   /** stykke av kryssliner med gods i begge plan, i skissa si ramme: to endepunkt, og kva plan */
   kryss: { a: Pt; b: Pt; mot: number }[]
+  /** kor langt inne i kroppen planet står, målt langs normalen frå den
+   *  nærmaste kanten av boksen, mm — og kva akse normalen ligg nærast */
+  avstand: number
+  akse: "x" | "y" | "z"
+  /** det svaret er ein funksjon av: same nøkkel, same svar, ingen grunn til å teikne om */
+  nokkel: string
+}
+
+/** eit plan som alt er låst: profilen slik han faktisk vert skoren, med spor og strek */
+function laastSyn(k: Kropp, p: Params, pl: Plan, cells: number): SkisseSyn | null {
+  const rib = buildSnitt(k, p, cells).ribber.find((r) => r.plan.id === pl.id)
+  if (!rib) return null
+  const kryss: SkisseSyn["kryss"] = []
+  for (const q of rib.spor) {
+    const lo = Math.min(q.munn, q.botn)
+    const hi = Math.max(q.munn, q.botn)
+    kryss.push({ a: [q.p[0] + q.d[0] * lo, q.p[1] + q.d[1] * lo], b: [q.p[0] + q.d[0] * hi, q.p[1] + q.d[1] * hi], mot: q.mot })
+  }
+  return { r: rib.r, ringar: [...rib.outlines, ...rib.holes], kryss, ...avstandAv(k, rib.r), nokkel: `laast|${pl.id}|${snittKey(p as unknown as ParamBag, cells)}` }
+}
+
+function avstandAv(k: Kropp, r: Ramme): { avstand: number; akse: "x" | "y" | "z" } {
+  const s = k.solid
+  let lo = Infinity
+  for (const x of [s.min[0], s.max[0]]) for (const y of [s.min[1], s.max[1]]) for (const z of [s.min[2], s.max[2]]) lo = Math.min(lo, dot([x, y, z], r.n))
+  const a = r.n.map(Math.abs)
+  const akse = a[0] >= a[1] && a[0] >= a[2] ? "x" : a[1] >= a[2] ? "y" : "z"
+  return { avstand: dot(r.o, r.n) - lo, akse }
 }
 
 export function skisseSyn(k: Kropp, p: Params, pl: Plan, cells: number): SkisseSyn {
+  // Eit plan som står i lista er ikkje ei skisse: det er skore, med spor
+  // og strek, og det er DET du skal sjå når du vel det.
+  if (lesPlan(p.plan).some((q) => q.id === pl.id)) {
+    const laast = laastSyn(k, p, pl, cells)
+    if (laast) return laast
+  }
   const s = k.solid
   const span = Math.max(s.max[0] - s.min[0], s.max[1] - s.min[1], s.max[2] - s.min[2], 1)
   const step = span / cells
@@ -766,5 +800,6 @@ export function skisseSyn(k: Kropp, p: Params, pl: Plan, cells: number): SkisseS
       }
     }
   }
-  return { r, ringar, kryss }
+  const nokkel = `skisse|${skrivPlan([pl])}|${snittKey(p as unknown as ParamBag, cells)}`
+  return { r, ringar, kryss, ...avstandAv(k, r), nokkel }
 }
