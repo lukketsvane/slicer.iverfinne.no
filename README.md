@@ -80,7 +80,11 @@ other three are a word away in the drawer's title bar.
   of the file; it *is* the file. **Drag a part** and it stays where you drop
   it; the rest repacks around it. **Hold a part** to pin or release it, to
   turn it a quarter at a time about its centre, or to send it to the next or
-  previous sheet — the drawer follows it. **Pinch** to zoom the sheet, drag
+  previous sheet — the drawer follows it. **Tap a part** to select it, in the
+  sheet or in the model; tap empty sheet or empty canvas to deselect. With a
+  part selected, **two fingers** slide it by the millimetre — zoom in and the
+  same motion is a smaller step — and twist to turn it, snapping to a quarter
+  when you let go. **Pinch** to zoom the sheet when nothing is selected, drag
   empty sheet to pan, double-tap for the whole sheet. Pinned parts are shaded. Two
   pinned parts you have put inside each other are drawn red, and the sheet
   rule says no until you move one.

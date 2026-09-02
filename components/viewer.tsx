@@ -190,6 +190,11 @@ export const Viewer = memo(function Viewer({
       }}
       camera={{ position: [2.4, 2.1, 6.4], fov: 30 }}
       className="touch-none"
+      // Eit trykk UTANFOR modellen peikar på ingenting: den delen som stod
+      // fram, går attende. Berre eit trykk — R3F slepp dette berre gjennom
+      // når peikaren gjekk under to pikslar, so ei dreiing som endar på
+      // bert lerret slepper ikkje delen.
+      onPointerMissed={() => onPeik(-1)}
     >
       <color attach="background" args={[bg]} />
       {/* Tåka byrjar bakanfor der kameraet kan kome: eit ope kontrollark
