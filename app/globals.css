@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Kvitt, alltid: lyst material med hard skugge på kvitt papir, som ei side i
-   eit kuttark. Ingen mørkmodus — det ville vore ein annan design. */
+/* Lyst material med hard skugge på kvitt papir, som ei side i eit kuttark.
+   FIRE FARGAR, og alt anna er laga av dei: papiret, blekket, hårstreket og
+   varselet. Ingen komponent skriv ein farge sjølv. */
 :root {
   --paper: #ffffff;
   --ink: #141414;
@@ -11,9 +12,34 @@
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
+/*
+   MØRKT ER SVART, IKKJE MØRKEGRÅTT.
+
+   Det er dei same fire fargane, snudde: papiret vert svart og blekket
+   kvitt. Ingen knapp, ingen brytar — telefonen veit alt kva du har valt,
+   og eit val til er eit val for mykje. Ei grå flate ville lagt eit
+   tredje lag mellom svart og kvitt som ikkje finst i den lyse
+   utgåva heller; det einaste som er grått, er streket som skal vera det.
+
+   Hårstreket ligg på 22 % og ikkje 13 %: kvitt på svart er mindre synleg
+   enn svart på kvitt ved same tal. Varselet er lysare av same grunn —
+   #b91c1c på svart er ei flekk du ikkje ser.
+
+   Kuttfilene høyrer ikkje med her. Ein SVG og ein PNG er svart på kvitt
+   papir same kva skjermen står på: dei er DOKUMENT og ikkje grensesnitt.
+*/
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #000000;
+    --ink: #ffffff;
+    --rule: #ffffff38;
+    --warn: #ff5f5f;
+  }
+}
+
 html {
   background: var(--paper);
-  color-scheme: light;
+  color-scheme: light dark;
 }
 
 @layer base {

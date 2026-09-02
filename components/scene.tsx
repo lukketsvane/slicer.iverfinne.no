@@ -6,7 +6,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRe
 import * as THREE from "three"
 import { MATERIALS, inRing, shoelace, type Kutt, type Material, type Pt, type Vec3, type View } from "@/lib/core"
 import { akser, broek, dot, inn, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
-import { GROUND_Y, MAX_DIST, MIN_DIST, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
+import { GROUND_Y, MAX_DIST, MIN_DIST, MIN_NAER, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { BuildRes } from "@/lib/worker"
 
@@ -24,6 +24,30 @@ const FRAME = 2.2
 const HEIM = { flat: [0, 0, 1] as Vec3, rom: [2.4, 1.7, 6.4] as Vec3 }
 const SKISSE = "#1f6feb"
 const VALT = "#e05a1a"
+
+/**
+ * FARGANE SCENA TEIKNAR MED, LESNE AV CSS.
+ *
+ * Papiret og blekket står i `globals.css` og ingen annan stad — òg for
+ * lerretet, som elles ville hatt sin eigen kvitfarge å gløyme når systemet
+ * står mørkt. Media-spørsmålet er det einaste som seier frå: det finst
+ * ingen brytar, og telefonen har alt valt.
+ */
+function useTema() {
+  const [t, setT] = useState({ paper: "#ffffff", ink: "#141414" })
+  useEffect(() => {
+    const les = () => {
+      const s = getComputedStyle(document.documentElement)
+      const f = (k: string, fall: string) => s.getPropertyValue(k).trim() || fall
+      setT({ paper: f("--paper", "#ffffff"), ink: f("--ink", "#141414") })
+    }
+    les()
+    const mq = window.matchMedia("(prefers-color-scheme: dark)")
+    mq.addEventListener("change", les)
+    return () => mq.removeEventListener("change", les)
+  }, [])
+  return t
+}
 
 /** planet slik skissa står no, i motoren sitt rom (mm, z opp) */
 export type Skisse = { o: Vec3; n: Vec3 }
@@ -496,6 +520,14 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     const g = gruppe.current
     if (!g) return
     g.visible = synleg
+    // KAMERAET, TIL LESING UTANFRÅ, og før alt anna: eit drag på eit handtak
+    // skal ikkje flytte det, og konturen — som ikkje har handtak i det heile
+    // — skal likevel kunne seiast noko om. Avstanden er kor nær du har fått
+    // kome; ho er det einaste zoomen kan lesast av på.
+    if (boks) {
+      boks.dataset.kamera = [camera.position.x, camera.position.y, camera.position.z].map((c) => c.toFixed(6)).join(",")
+      if (controls) boks.dataset.avstand = camera.position.distanceTo(controls.target).toFixed(3)
+    }
     const gøym = () => {
       if (!boks) return
       boks.style.visibility = "hidden"
@@ -538,8 +570,6 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       h.style.left = `${x - 24}px`
       h.style.top = `${y - 24}px`
     }
-    // kameraet, til lesing utanfrå: eit drag på eit handtak skal ikkje flytte det
-    boks.dataset.kamera = [camera.position.x, camera.position.y, camera.position.z].map((c) => c.toFixed(6)).join(",")
     const { flytt, vri, arm, merke, ord, sFlytt, sStor, sVri } = delar
     const sv = naa.current.snittVerd
     if (!sv) {
@@ -1456,15 +1486,25 @@ function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, spok, blink
 
   return (
     <group {...gruppa(f)}>
-      {gKropp && (solid ? (
-        <mesh geometry={gKropp} material={surf} castShadow receiveShadow />
-      ) : (
+      {/*
+        TO MESH-AR OG IKKJE EIN MED TO ANSIKT. Kroppen er den same
+        geometrien i båe lesemåtane, men i «flate» ber han materialet som
+        ein PROP og i «lag» som eit BARN — og byter eitt og same elementet
+        mellom dei to, får det ingen av delane: React ser same slaget på
+        same plassen og held instansen, materialprop-en fell bort, og
+        instansen sit att med standardmaterialet sitt. Det er kvitt og
+        ugjennomsiktig, og skalet la seg over delane som ei maling.
+        To plassar i lista er to identitetar: ein av dei vert montert, den
+        andre riven, og materialet fylgjer med.
+      */}
+      {gKropp && solid && <mesh geometry={gKropp} material={surf} castShadow receiveShadow />}
+      {gKropp && !solid && (
         // skuggen av kroppen. Ikkje til å peike på: han ligg utanpå delane
         // og ville teke kvart einaste trykk.
         <mesh geometry={gKropp} raycast={() => null} renderOrder={1}>
           <meshStandardMaterial color={MATERIALS[mat].hex} transparent opacity={0.18} depthWrite={false} roughness={1} />
         </mesh>
-      ))}
+      )}
       {gLag && !solid && (
         <mesh
           geometry={gLag}
@@ -1500,15 +1540,16 @@ function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, spok, blink
   )
 }
 
-/** konturen: profilane flatt ved sida av kvarandre, ei teikning */
-function Konturen({ f, d }: { f: Ramma; d: BuildRes }) {
+/** konturen: profilane flatt ved sida av kvarandre, ei teikning i blekk */
+function Konturen({ f, d, ink }: { f: Ramma; d: BuildRes; ink: string }) {
   const thin = useMemo(() => mkGeom(d.lines), [d])
   const bold = useMemo(() => mkGeom(d.heavy), [d])
   useEffect(() => () => { thin.dispose(); bold.dispose() }, [thin, bold])
   return (
     <group rotation={[-Math.PI / 2, 0, 0]} scale={f.s} position={[-f.cx * f.s, 0, f.cy * f.s]}>
-      <lineSegments geometry={thin}><lineBasicMaterial color="#9a9a9a" transparent opacity={0.55} /></lineSegments>
-      <lineSegments geometry={bold}><lineBasicMaterial color="#000000" /></lineSegments>
+      {/* det tynne er alle profillinene, det tunge er omrisset som vert skore */}
+      <lineSegments geometry={thin}><lineBasicMaterial color={ink} transparent opacity={0.22} /></lineSegments>
+      <lineSegments geometry={bold}><lineBasicMaterial color={ink} /></lineSegments>
     </group>
   )
 }
@@ -1658,7 +1699,8 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
     const h = R * Math.cos(lys.el)
     return [h * Math.cos(lys.az), R * Math.sin(lys.el), h * Math.sin(lys.az)]
   }, [lys])
-  const bg = "#ffffff"
+  const tema = useTema()
+  const bg = tema.paper
   return (
     <>
       <Canvas
@@ -1680,7 +1722,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
         <directionalLight position={[0.5, -3, 2]} intensity={0.3} />
         <group position={[0, GROUND_Y, 0]}>
           {flat
-            ? fk && kontur && <Konturen f={fk} d={kontur} />
+            ? fk && kontur && <Konturen f={fk} d={kontur} ink={tema.ink} />
             : f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} material={material} liste={liste} vald={vald} plan={plan} spok={spok} blink={blink} sein={sein} onVald={onVald} />}
           {!flat && f && snitt && snitt.ringar.length > 0 && <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />}
           {!flat && f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
@@ -1704,7 +1746,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
           mouseButtons={flat ? { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN } : undefined}
           touches={flat ? { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN } : { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}
           enableZoom
-          minDistance={MIN_DIST}
+          minDistance={flat ? MIN_NAER : MIN_DIST}
           maxDistance={MAX_DIST}
           rotateSpeed={0.9}
           enableDamping={!sein}

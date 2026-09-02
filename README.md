@@ -87,6 +87,14 @@ object back into the screen. (The sides are words and not the cube's own faces
 on purpose: a face seen at an angle is thirteen pixels tall, and this is a
 tool for a thumb.) The body turns the whole way round, underside included.
 
+**Dark is black.** There is no toggle: the page takes the system's setting and
+inverts the four colours it is built from — paper becomes black, ink becomes
+white. No dark greys; a grey surface is a third layer that does not exist in
+the light version either. The 3D view follows the same two tokens, so the
+canvas is black too. What does *not* follow is the output: an SVG, a DXF and a
+PNG are black on white paper whatever the screen is set to, because they are
+documents and not interface.
+
 **Over 1180 px with a mouse**, no sheet — the same controls as one column on
 the right, the top bar above the canvas, and the camera frames the object into
 whatever rectangle is left over.
@@ -96,7 +104,10 @@ drag edit *that* plane instead of the sketch: move it along its normal, re-angle
 it. Tap empty space to deselect; the row's `slett` removes the plane.
 
 **The contour view is a drawing, so it is a canvas**: one finger drags it,
-pinch zooms, nothing turns, and the reframe button takes you home.
+pinch zooms, nothing turns, and the reframe button takes you home. It zooms
+in much further than the object view does — a 3 mm slot in a half-metre
+outline is four pixels on a phone, and going in close is the only way to see
+whether it is there.
 
 Keys: `L` cut, `S` sketch mode, `⌫` remove the selected plane, `F` proposals,
 `D` deep search, `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
@@ -201,7 +212,8 @@ happen while the part is still held by the sheet. Two colours and no more;
 nothing is filled. Which sheet a file is comes from its name.
 
 The sheet view in the drawer is not a picture of the file; it *is* the file,
-engraved names included. Drag a part and it stays where you drop it; the rest
+engraved names included — drawn in the interface's ink, while the file itself
+is always black and blue on white paper. Drag a part and it stays where you drop it; the rest
 repacks around it. Hold a part to pin or release it, turn it a quarter, or send
 it to the next sheet.
 

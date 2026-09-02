@@ -502,6 +502,46 @@ async function telefon(browser: Browser) {
   const kSprang = Math.hypot(kEtter[0] - heim[0], kEtter[1] - heim[1], kEtter[2] - heim[2])
   sjekk("eit dobbelttrykk rammar IKKJE inn på nytt", kSprang < 1e-3, `${kSprang.toFixed(4)} frå der det stod`)
 
+  // --- KONTUREN ER EI TEIKNING, OG EI TEIKNING SER EIN PÅ TETT ---------------
+  /**
+   * I kroppen står kameraet aldri nærare enn MIN_DIST — nærare er inni
+   * objektet. Konturen er flat, og der er den same grensa berre ein grense:
+   * eit spor på tre millimeter i eit omriss på ein halvmeter er fire pikslar,
+   * og då må ein kunne gå heilt inn. Avstanden står i lappen scena skriv.
+   */
+  const avstand = async () => Number((await page.locator(".handtak").getAttribute("data-avstand")) ?? 0)
+  await page.getByRole("button", { name: "kontur", exact: true }).click()
+  await roleg(page, 900)
+  const naerFør = await avstand()
+  await page.mouse.move(195, 380)
+  for (let i = 0; i < 60; i++) {
+    await page.mouse.wheel(0, -90)
+    await page.waitForTimeout(20)
+  }
+  await page.waitForTimeout(900)
+  const naerEtter = await avstand()
+  // MIN_DIST er 3,2 og MIN_NAER 0,45: heilt inn, og ikkje forbi
+  sjekk("konturen kan zoomast inn forbi kroppen si grense", naerEtter < 1 && naerEtter >= 0.4, `${naerFør.toFixed(2)} → ${naerEtter.toFixed(2)}`)
+  await page.getByRole("button", { name: "lag", exact: true }).click()
+  await roleg(page, 900)
+
+  // --- SKALET ER GJENNOMSIKTIG, OG BLIR VERANDE DET -------------------------
+  /**
+   * Kroppen er den same geometrien i «flate» og i «lag», men med materialet
+   * som prop det eine stadet og som barn det andre. Byter eitt element
+   * mellom dei to, sit instansen att med standardmaterialet — kvitt og tett
+   * — og skalet legg seg over delane som ei maling. Prøva er at biletet er
+   * NØYAKTIG det same før og etter ein tur innom «flate».
+   */
+  const klipp = { x: 30, y: 150, width: 330, height: 420 }
+  const skalFør = await page.screenshot({ clip: klipp })
+  await page.getByRole("button", { name: "flate", exact: true }).click()
+  await roleg(page, 1200)
+  await page.getByRole("button", { name: "lag", exact: true }).click()
+  await roleg(page, 1200)
+  const skalEtter = await page.screenshot({ clip: klipp })
+  sjekk("ein tur innom «flate» let skalet stå som det stod", skalFør.equals(skalEtter), `${skalFør.length} B → ${skalEtter.length} B`)
+
   // --- KROPPEN ER EI LISTE: menyen legg til eit primitiv ----------------------
   const kjelde = page.locator("button[data-kjelde]")
   sjekk("kjelda står i toppen med namn", (await kjelde.isVisible()) && (await kjelde.innerText()).trim() === "kube")
@@ -758,10 +798,69 @@ async function flyt(browser: Browser) {
   await ctx.close()
 }
 
+/**
+ * MØRKT ER SVART. Ingen brytar: systemet seier det, og sida fylgjer.
+ * Fargane står i fire token i `globals.css`, og prøva her er at dei —
+ * og berre dei — bestemmer kva flatene vert. Ei flate som er mørkegrå
+ * er ein farge nokon har skrive ein annan stad.
+ */
+async function mork(browser: Browser) {
+  console.log("\n=== mørkt (systemet står mørkt)")
+  const side = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, colorScheme: "dark" })
+  const konsoll: string[] = []
+  side.on("pageerror", (e) => konsoll.push(String(e)))
+  await side.goto(URL, { waitUntil: "networkidle" })
+  await roleg(side, 800)
+  const token = await side.evaluate(() => {
+    const s = getComputedStyle(document.documentElement)
+    return {
+      paper: s.getPropertyValue("--paper").trim(),
+      ink: s.getPropertyValue("--ink").trim(),
+      body: getComputedStyle(document.body).backgroundColor,
+      skjema: s.colorScheme,
+    }
+  })
+  // nettlesaren kortar ned #000000 til #000 når han les tokenet attende
+  const hex = (v: string) => v.replace(/^#([0-9a-f])\1?([0-9a-f])\2?([0-9a-f])\3?$/i, "#$1$1$2$2$3$3").toLowerCase()
+  sjekk("papiret er svart og blekket kvitt", hex(token.paper) === "#000000" && hex(token.ink) === "#ffffff", JSON.stringify(token))
+  sjekk("og sida er svart, ikkje mørkegrå", token.body === "rgb(0, 0, 0)", token.body)
+  sjekk("color-scheme seier frå til nettlesaren", /dark/.test(token.skjema), token.skjema)
+  // Flatene som ber grensesnittet skal vera papiret sjølv — ikkje ein grå
+  // tone nokon har skrive i ein komponent.
+  const graa = await side.evaluate(() => {
+    const ut: string[] = []
+    for (const e of document.querySelectorAll<HTMLElement>("header, [aria-label='kontrollar'], section[aria-label='verkty'], .tumme button, [data-kjelde], [data-heim]")) {
+      const bg = getComputedStyle(e).backgroundColor
+      const m = /^rgba?\((\d+), (\d+), (\d+)/.exec(bg)
+      if (!m) continue
+      const [r, g, b] = [Number(m[1]), Number(m[2]), Number(m[3])]
+      // svart, kvitt eller heilt gjennomsiktig er greitt; alt imellom er ein gråtone
+      const kant = (r === 0 && g === 0 && b === 0) || (r === 255 && g === 255 && b === 255)
+      if (!kant && !/rgba\(0, 0, 0, 0\)/.test(bg)) ut.push(`${e.tagName.toLowerCase()}${e.getAttribute("aria-label") ? `[${e.getAttribute("aria-label")}]` : ""} ${bg}`)
+    }
+    return ut
+  })
+  sjekk("ingen flate er ein gråtone", graa.length === 0, graa.slice(0, 4).join(" · "))
+  // og lerretet tek den same fargen: teiknar han kvitt, blinkar sida
+  const lerret = await side.evaluate(() => {
+    const c = document.querySelector("canvas")
+    if (!c) return "ikkje noko lerret"
+    const g = c.getContext("webgl2") ?? c.getContext("webgl")
+    if (!g) return "ingen kontekst"
+    const px = new Uint8Array(4)
+    ;(g as WebGLRenderingContext).readPixels(4, 4, 1, 1, 5121 /* UNSIGNED_BYTE */, 6408 /* RGBA */, px)
+    return `${px[0]},${px[1]},${px[2]}`
+  })
+  sjekk("lerretet er svart i hjørnet", lerret === "0,0,0" || lerret === "ikkje noko lerret", lerret)
+  sjekk("ingen konsollfeil i mørkt", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await side.close()
+}
+
 const main = async () => {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
   await telefon(browser)
   await flyt(browser)
+  await mork(browser)
   await benk(browser)
   await browser.close()
   console.log(feil ? `\n${feil} FEIL` : "\npanelet held")

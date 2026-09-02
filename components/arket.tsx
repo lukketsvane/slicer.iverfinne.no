@@ -203,7 +203,8 @@ function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
       {/* svart er C00 i LightBurn og køyrer fyrst: difor graverer det */}
       <span className="dim ml-auto flex items-center gap-3 text-[10px] uppercase tracking-[0.14em]" title="svart graverer, blått kutt. fargen er rekkjefylgja">
         {[["#000000", "graver"], ["#0000ff", "kutt"]].map(([farge, ord]) => (
-          <span key={ord} className="flex items-center gap-1.5"><span aria-hidden="true" className="block h-[7px] w-[7px] rounded-full" style={{ background: farge }} />{ord}</span>
+          // ringen kring prikken: den svarte er ein svart prikk på svart papir når systemet står mørkt
+          <span key={ord} className="flex items-center gap-1.5"><span aria-hidden="true" className="block h-[7px] w-[7px] rounded-full border" style={{ background: farge, borderColor: "var(--rule)" }} />{ord}</span>
         ))}
       </span>
     </div>
