@@ -319,6 +319,17 @@ export type Delplass = {
    * og ikkje berre seie det i ei regel.
    */
   kross?: boolean
+  /**
+   * Adressa slik ho vert GRAVERT, som ei bane.
+   *
+   * Skuffa seier om seg sjølv at ho ikkje er eit bilete av fila, ho ER
+   * fila — og so mangla ho det einaste laseren skriv på delane. Du fann
+   * att X3a i eska ved å telje ribber.
+   *
+   * Same rekninga som uttaket: same staden på delen, same høgda, same
+   * streksettet. Tom når delen er for liten til å merkjast, som i fila.
+   */
+  merke: string
 }
 
 /** Ei plate slik ho ligg, til skjermen: teikninga og dei to tala som høyrer

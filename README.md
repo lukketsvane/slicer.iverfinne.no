@@ -77,7 +77,8 @@ other three are a word away in the drawer's title bar.
   copied or moved — with a chip reading `mine 6 av 20`, because while you are
   building it is those six you are working on, not the twenty.
 - **Sheets** — one at a time, large enough to read the addresses. Not a picture
-  of the file; it *is* the file. **Drag a part** and it stays where you drop
+  of the file; it *is* the file, engraved addresses included: zoom in and each
+  part carries the same strokes the laser will burn, in the same place. **Drag a part** and it stays where you drop
   it; the rest repacks around it. **Hold a part** to pin or release it, to
   turn it a quarter at a time about its centre, or to send it to the next or
   previous sheet — the drawer follows it. **Tap a part** to select it, in the

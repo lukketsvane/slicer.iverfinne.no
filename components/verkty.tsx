@@ -1068,6 +1068,21 @@ function Plater(props: {
                       style={{ fill: "none", stroke: d.kross ? "var(--warn)" : "var(--ink)" }}
                     />
                   ))}
+                  {/* ADRESSA SLIK LASEREN SKRIV HENNE.
+                      Same staden, same høgda, same streka som i fila —
+                      skuffa seier om seg sjølv at ho ER fila, og det
+                      einaste laseren skriv på delane mangla. Ho står berre
+                      når du har klypt deg nærare: på ei heil plate i eit
+                      telefonvindauge er ho fire pikslar høg, og fire
+                      pikslar bokstav er ikkje ei adresse, det er grums. */}
+                  {syn && d.merke && (
+                    <path
+                      d={d.merke}
+                      data-merke=""
+                      vectorEffect="non-scaling-stroke"
+                      style={{ fill: "none", stroke: "var(--ink)", opacity: 0.55 }}
+                    />
+                  )}
                   <title>
                     {d.adr}
                     {fast ? " · fast" : ""}

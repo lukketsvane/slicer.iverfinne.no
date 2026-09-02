@@ -11,7 +11,7 @@
  * ein skrue eller ei oppspenning i heile stabelen. Rutenettet held seg
  * sjølv, og det er heile poenget.
  */
-import { bbox, kuttCsv, nn, offsetPoly } from "../core"
+import { bbox, kuttCsv, nn, offsetPoly, type Pt } from "../core"
 import type {
   BuildOut,
   DetailKey,
@@ -34,6 +34,7 @@ import { contourLines, flateMesh, lagMesh } from "./mesh"
 import { measure } from "./metrics"
 import { checkRules } from "./rules"
 import { makePlan } from "./plan"
+import { fitSize, strokesAt } from "../stroke"
 import { placedRings } from "./nest"
 import { bokstav, type Part } from "./parts"
 import { meshToStl } from "./export-stl"
@@ -420,6 +421,7 @@ export const VAFFEL: EngineDef = {
           inn: r.holes.map((h) => ring(offsetPoly(h, -kerf / 2))),
           boks: { x: bb.x0, y: bb.y0, w: bb.x1 - bb.x0, h: bb.y1 - bb.y0 },
           plass: { sheet: q.slot.sheet, rot: q.slot.rot, x: q.slot.sx, y: q.slot.sy },
+          merke: merket(q.part.from, q.label),
           ...(q.slot.kross ? { kross: true } : {}),
         }
       }),
@@ -434,4 +436,20 @@ export const VAFFEL: EngineDef = {
     const p = asP(bag)
     return profileSvg(buildGrid(makeKropp(p), p, DETAIL.mid), kerfOf(p), true)
   },
+}
+
+/**
+ * Adressa som bane, slik ho vert gravert.
+ *
+ * Skuffa teiknar det same som fila skriv, og teiknar det med den same
+ * rekninga: `fitSize` finn høgda som får plass der `anchor` peikar, og
+ * `strokesAt` gjev streka. Ei anna skrift på skjermen ville vore ei
+ * teikning AV fila, og det er nett det denne skuffa ikkje er.
+ */
+function merket(adr: string, label: { p: readonly [number, number] | Pt; room: number; wide: number }): string {
+  const size = fitSize(adr, label.room, label.wide)
+  if (!size) return ""
+  return strokesAt(adr, label.p[0], label.p[1], size)
+    .map((line) => line.map((q, i) => `${i ? "L" : "M"}${q[0].toFixed(3)},${q[1].toFixed(3)}`).join(" "))
+    .join(" ")
 }
