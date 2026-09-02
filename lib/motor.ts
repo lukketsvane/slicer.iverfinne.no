@@ -10,7 +10,8 @@ import { bbox, kuttCsv, nn, offsetPoly, type Pt } from "./core"
 import type { BuildOut, DetailKey, ExportKind, ExportOut, Group, ArkSyn, Kutt, Metrics, ParamBag, Range, Rule, Vec3, View } from "./core"
 import { label as srcLabel, raw as srcRaw } from "./sources"
 import { makeKropp } from "./kropp"
-import { buildSnitt, DETAIL, type Snitt } from "./snitt"
+import { buildSnitt, DETAIL, skisseSyn, type SkisseSyn, type Snitt } from "./snitt"
+import type { Plan } from "./plan"
 import { contourLines, flateMesh, lagMesh } from "./mesh"
 import { measure } from "./metrics"
 import { checkRules } from "./rules"
@@ -53,6 +54,8 @@ export type EngineDef = {
   pick(p: ParamBag, alle: Kandidat[], nth: number): ParamBag
   /** profilane som bilete til panelet */
   preview(p: ParamBag): string
+  /** skissa snitta før ho er låst: profilen og kryssa mot dei låste plana */
+  skisse(p: ParamBag, plan: Plan): SkisseSyn
 }
 
 const asP = (p: ParamBag) => p as unknown as Params
@@ -265,6 +268,13 @@ export const MOTOR: EngineDef = {
   preview(bag: ParamBag): string {
     const p = asP(bag)
     return profileSvg(buildSnitt(makeKropp(p), p, DETAIL.mid), kerfOf(p), true)
+  },
+
+  skisse(bag: ParamBag, plan: Plan): SkisseSyn {
+    // det låge nivået: skissa er ein straum av punkt, og kvart av dei skal
+    // svare før neste kjem
+    const p = asP(bag)
+    return skisseSyn(makeKropp(p), p, plan, DETAIL.lav)
   },
 }
 
