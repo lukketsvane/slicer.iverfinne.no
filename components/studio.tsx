@@ -8,6 +8,7 @@ import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, skrivPlan, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
+import { eiKjelde, lesScene, skrivScene, SCENE_TAK } from "@/lib/scene"
 import type { Kandidat } from "@/lib/forslag"
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
@@ -34,9 +35,9 @@ const LUKKA_ARK = 84
 const TUMME_BTN = "hit relative flex h-12 w-12 items-center justify-center rounded-full border"
 /** det «forslag» IKKJE rører: endrar noko av dette seg, er lista eit svar på eit anna spørsmål */
 const tuneBase = (p: ParamBag) =>
-  [p.kjelde, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant, p.tjukn, p.klaring, p.snitt, p.arkB, p.arkH, p.lause].join("|")
+  [p.kjelde, p.scene, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant, p.tjukn, p.klaring, p.snitt, p.arkB, p.arkH, p.lause].join("|")
 /** det som er KROPPEN: berre desse ber om eit nytt «flate»-bygg */
-const kroppKey = (p: ParamBag) => [p.kjelde, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant].join("|")
+const kroppKey = (p: ParamBag) => [p.kjelde, p.scene, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant].join("|")
 /** filnamn utan mellomrom og aksentar; desimalkomma er bråk */
 const stamme = (label: string) =>
   ("slicer-" + label).replace(/\.[a-z0-9]+$/i, "").replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").toLowerCase().slice(0, 48)
@@ -171,6 +172,8 @@ export function Studio() {
   kroppRef.current = kropp
   const kjelde = String(params.kjelde ?? KUBE)
   const kjeldeNamn = kjelde === KUBE ? "kube" : (namn[kjelde] ?? "nett")
+  /** bitane kroppen er sett saman av: kjelda åleine når lista er tom */
+  const bitar = useMemo(() => lesScene(String(params.scene || "") || eiKjelde(kjelde)), [params.scene, kjelde])
   const plan = useMemo(() => lesPlan(params.plan), [params.plan])
   const liste = useMemo(() => tal?.liste ?? [], [tal])
 
@@ -341,7 +344,7 @@ export function Studio() {
         // EIT NYTT NETT TEK PLANA OG FESTA MED SEG UT: båe er svar om den
         // kroppen du hadde. Den hugsa økta går fri — ho er skriven for dette nettet.
         const eiga = attende.current.delete(r.id)
-        setParams((p) => (eiga ? { ...p, kjelde: r.src.id } : { ...p, kjelde: r.src.id, plan: "", fest: "" }))
+        setParams((p) => (eiga ? { ...p, kjelde: r.src.id } : { ...p, kjelde: r.src.id, scene: "", plan: "", fest: "" }))
         setVald(null)
         setFeil(null)
         setHentar(false)
@@ -526,6 +529,38 @@ export function Studio() {
 
   const endre = useCallback((p: ParamBag) => {
     setParams(p)
+  }, [])
+
+  // --- KROPPEN ---------------------------------------------------------------
+  /**
+   * EIN BIT TIL. Primitiva er hundre millimeter på det lengste, og ein ny
+   * står ved sida av dei som alt er der med femten millimeters overlapp:
+   * strålane tel skal, so to bitar som går i kvarandre er ÉIN kropp der
+   * dei overlappar, og ei rad av lause klossar ville vore lause delar.
+   *
+   * Rada vert lagd om att kvar gong og står midt i rommet. Det er ikkje ei
+   * plassering nokon har valt — det finst ikkje eit handtak å flytte ein
+   * bit med enno — men ho er den same kvar gong, og ho held seg innanfor
+   * det scenestrengen tek imot. Steget krympar når bitane vert mange.
+   */
+  const leggBit = useCallback((id: string) => {
+    setParams((cur) => {
+      const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
+      if (l.length >= SCENE_TAK) return cur
+      const ny = [...l, { id, t: [0, 0, 0] as Vec3, s: 1, rz: 0 }]
+      const steg = Math.min(85, 760 / Math.max(1, ny.length - 1))
+      const midt = (steg * (ny.length - 1)) / 2
+      return { ...cur, scene: skrivScene(ny.map((b, i) => ({ ...b, t: [+(i * steg - midt).toFixed(2), b.t[1], b.t[2]] as Vec3 }))) }
+    })
+  }, [])
+  /**
+   * ATTENDE TIL KJELDA ÅLEINE. Bitane bort, og plana står. Eit plan er ein
+   * brøk av boksen kring kroppen, so det fylgjer kroppen når han vert mindre
+   * — akkurat som når storleiken vert dregen. Ei ny FIL er noko anna: der
+   * er kroppen ein annan, og plana var eit svar om den du hadde.
+   */
+  const tomScene = useCallback(() => {
+    setParams((cur) => ({ ...cur, scene: "" }))
   }, [])
 
   // --- GESTANE --------------------------------------------------------------
@@ -951,7 +986,7 @@ export function Studio() {
         )}
       </div>
 
-      <Toppline benk={benk} kjelde={kjeldeNamn} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
+      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
 
       {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til høgre i det frie bandet */}
       {gestTekst && (

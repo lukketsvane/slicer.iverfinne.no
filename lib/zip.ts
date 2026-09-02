@@ -30,16 +30,25 @@ function crc32(b: Uint8Array): number {
   return (c ^ 0xffffffff) >>> 0
 }
 
-export function zip(entries: readonly Entry[]): ArrayBuffer {
+/**
+ * `juster` er USDZ og ingenting anna: der SKAL kvar fil byrje på ei adresse
+ * som går opp i seksti og fire, og vegen dit er polstring i det ekstrafeltet
+ * kvart lokalt hovud har. Ekstrafeltet er null bytar; ein lesar hoppar over
+ * det på lengda si — den same lengda `unzip` under les.
+ */
+export function zip(entries: readonly Entry[], juster = 0): ArrayBuffer {
   const enc = new TextEncoder()
   const files = entries.map((e) => {
     const name = enc.encode(e.name)
     const data = e.data ?? enc.encode(e.text ?? "")
-    return { name, data, crc: crc32(data) }
+    return { name, data, crc: crc32(data), pad: 0 }
   })
 
   let total = 0
-  for (const f of files) total += 30 + f.name.length + f.data.length
+  for (const f of files) {
+    if (juster > 0) f.pad = (juster - ((total + 30 + f.name.length) % juster)) % juster
+    total += 30 + f.name.length + f.pad + f.data.length
+  }
   const cdStart = total
   for (const f of files) total += 46 + f.name.length
   const cdSize = total - cdStart
@@ -63,10 +72,10 @@ export function zip(entries: readonly Entry[]): ArrayBuffer {
     dv.setUint32(at + 18, f.data.length, true)
     dv.setUint32(at + 22, f.data.length, true)
     dv.setUint16(at + 26, f.name.length, true)
-    dv.setUint16(at + 28, 0, true)
+    dv.setUint16(at + 28, f.pad, true)
     u8.set(f.name, at + 30)
-    u8.set(f.data, at + 30 + f.name.length)
-    at += 30 + f.name.length + f.data.length
+    u8.set(f.data, at + 30 + f.name.length + f.pad)
+    at += 30 + f.name.length + f.pad + f.data.length
   }
 
   files.forEach((f, i) => {

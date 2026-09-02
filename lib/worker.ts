@@ -93,6 +93,26 @@ function build(req: BuildReq) {
 }
 
 /**
+ * NAMNET PÅ EI KJELDE FYLGJER BYTANE, ikkje rekkjefylgja fila kom i.
+ *
+ * Scena peikar på kjeldene sine med namn. Var namnet ein teljar, fekk den
+ * same fila eit nytt namn kvar gong ho kom inn — ei økt attende, ei
+ * prosjektfil opna — og bitane i scena peika på noko som ikkje fanst
+ * lenger. Med bytane som namn kjem ho attende som seg sjølv.
+ *
+ * Dei fyrste seksti og fire kilobytane og lengda, og ikkje heile fila:
+ * eit skann er hundre megabyte, og to filer som er like i hovudet OG like
+ * lange er den same fila i denne samanhengen. Namnet kan ikkje gjettast
+ * frå ein URL — det er bytane, og dei ligg ikkje i lenkja.
+ */
+function kjeldeId(b: Uint8Array): string {
+  let h = 0x811c9dc5
+  const n = Math.min(b.length, 65536)
+  for (let i = 0; i < n; i++) h = Math.imul(h ^ b[i], 0x01000193)
+  return "f" + (h >>> 0).toString(36) + b.length.toString(36)
+}
+
+/**
  * Nettet fyrst, måltala etterpå — og berre for det SISTE punktet.
  *
  * Ein skyvar sender ein straum av punkt, og å måle kvart av dei er å måle
@@ -117,21 +137,24 @@ self.onmessage = (e: MessageEvent<Req>) => {
       if (erZip) {
         const filer = unzip(req.buf)
         const opp = filer.find((f) => f.name === "oppsett.json" || f.name.endsWith("/oppsett.json"))
-        const nett = filer.find((f) => f.name.startsWith("nett/") && f.data.byteLength > 0)
-        if (!opp && !nett) throw new Error("arkivet er korkje eit oppsett eller eit nett")
+        // KVART nett i arkivet, ikkje berre det fyrste: ein kropp av fleire
+        // bitar peikar på kvar si kjelde, og ei kjelde som ikkje kom med er
+        // ein bit som fell attende på kuben utan å seie frå. Det fyrste er
+        // kjelda; namnet ber id-en si, og etiketten står etter han.
+        const nett = filer.filter((f) => f.name.startsWith("nett/") && f.data.byteLength > 0)
+        if (!opp && !nett.length) throw new Error("arkivet er korkje eit oppsett eller eit nett")
         let params: ParamBag = {}
         if (opp) params = (JSON.parse(new TextDecoder().decode(opp.data)) as { p?: ParamBag }).p ?? {}
         let src: SourceInfo | null = null
-        if (nett) {
-          const kort = nett.name.slice(5)
+        for (const f of nett) {
+          const kort = f.name.slice(5).replace(/^[a-z0-9]+__/i, "")
           // eigen kopi: `subarray` peikar inn i arkivet, og arkivet skal sleppast
-          const bytes = new Uint8Array(nett.data)
+          const bytes = new Uint8Array(f.data)
           const soup = parseMesh(kort, bytes.buffer.slice(0) as ArrayBuffer)
-          if (soup.tris > 0) {
-            const id = "f" + req.id.toString(36) + Math.floor(soup.tris).toString(36)
-            src = put(id, kort, soup, bytes)
-            /* scena avgjer kva som skal hugsast — sjå bygg */
-          }
+          if (soup.tris < 1) continue
+          const inn = put(kjeldeId(bytes), kort, soup, bytes)
+          /* scena avgjer kva som skal hugsast — sjå bygg */
+          if (!src) src = inn
         }
         post({ kind: "prosjekt", id: req.id, src, params })
         return
@@ -142,10 +165,7 @@ self.onmessage = (e: MessageEvent<Req>) => {
         post({ kind: "feil", id: req.id, kva: "import", kvifor: "fann ingen trekantar i fila" })
         return
       }
-      // Eit ID som ikkje kan kome frå ein URL. Og den som har prøvd seks
-      // filer treng ikkje dei fem fyrste — eit skann er lett hundre megabyte.
-      const id = "f" + req.id.toString(36) + Math.floor(soup.tris).toString(36)
-      const src = put(id, req.name, soup, bytes)
+      const src = put(kjeldeId(bytes), req.name, soup, bytes)
       /* scena avgjer kva som skal hugsast — sjå bygg */
       post({ kind: "kjelde", id: req.id, src })
       return

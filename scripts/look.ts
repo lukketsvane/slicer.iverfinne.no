@@ -151,7 +151,7 @@ async function flate(namn: string, w: number, h: number) {
     await ferdig(page)
     await page.waitForTimeout(1500)
     const l = await lina(page)
-    const kjelde = (await page.locator("button[title^='hent eit nett']").innerText()).trim()
+    const kjelde = (await page.locator("button[data-kjelde]").innerText()).trim()
     console.log(`  import ${fil}: ${kjelde} — ${l}`)
     if (!kjelde.toLowerCase().includes(fil.toLowerCase())) brot(`${fil}: filnamnet kom ikkje fram («${kjelde}»)`)
     // eit nytt nett tømmer lista: dei gamle plana var eit svar om ein annan kropp
@@ -175,6 +175,8 @@ async function flate(namn: string, w: number, h: number) {
     ["ark", /\.svg$|\.zip$/],
     ["png", /\.png$|\.zip$/],
     ["dxf", /\.dxf$/],
+    ["glb", /\.glb$/],
+    ["usdz", /\.usdz$/],
     ["svg", /profilar\.svg$/],
   ] as [string, RegExp][]) {
     const [dl] = await Promise.all([
@@ -188,6 +190,42 @@ async function flate(namn: string, w: number, h: number) {
     console.log(`  uttak ${chip.padEnd(10)} → ${fil} (${stor} B)`)
     if (!vent.test(fil)) brot(`${chip}: uventa filnamn «${fil}»`)
     if (stor < 200) brot(`${chip}: fila er tom (${stor} B)`)
+  }
+
+  // --- KROPPEN ER EI LISTE, OG HAN OVERLEVER EI NY ØKT ---------------------
+  /**
+   * Menyen legg eit primitiv til det som alt står, og brikka tel bitane.
+   * So vert sida opna på nytt UTAN lenkje — det PWA-en gjer når han vert
+   * teken fram att — og kroppen skal vera den same. Han er det berre om
+   * kjelda heiter det bytane heiter: var namnet ein teljar, ville fila fått
+   * eit nytt eit ved importen, og biten i scena peikt på ingenting.
+   */
+  await page.locator("button[data-kjelde]").click()
+  await page.waitForTimeout(300)
+  await page.locator("[data-meny] button", { hasText: "kule" }).first().click()
+  await ferdig(page)
+  await page.waitForTimeout(1500)
+  const kropp = (await page.locator("button[data-kjelde]").innerText()).trim()
+  const scena = () => decodeURIComponent(page.url().split("#p=")[1] ?? "").match(/"scene":"([^"]*)"/)?.[1] ?? ""
+  console.log(`  kroppen: ${kropp} — ${scena()}`)
+  if (!/\+1$/.test(kropp)) brot(`${namn}: eit primitiv til gav «${kropp}»`)
+  const før4 = kropp
+  const scene4 = scena()
+  // utan lenkje: då er det økta i nettlesaren som gjeld, og ho ligg i IndexedDB
+  await page.evaluate(() => { window.location.hash = "" })
+  await page.reload({ waitUntil: "networkidle" })
+  await ferdig(page)
+  // nettet vert lese om att i arbeidaren: vent på at kroppen er der, i
+  // staden for på ei klokke
+  await page
+    .waitForFunction(() => (document.querySelector("button[data-kjelde]")?.textContent ?? "").includes("+"), undefined, { timeout: 20000 })
+    .catch(() => undefined)
+  await ferdig(page)
+  await page.waitForTimeout(600)
+  const attKropp = (await page.locator("button[data-kjelde]").innerText()).trim()
+  console.log(`  ny økt:  ${attKropp} — ${scena()}`)
+  if (attKropp !== før4 || scena() !== scene4) {
+    brot(`${namn}: økta kom attende som «${attKropp}» (${scena()}) og ikkje «${før4}» (${scene4})`)
   }
 
   // --- BLINDGATA HAR EIN VEG UT: ei lenkje med for stort objekt -------------

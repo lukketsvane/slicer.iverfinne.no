@@ -6,7 +6,7 @@
  * mange plater. Plana kryssar kvarandre og held seg sjølve — ikkje eit lim,
  * ein skrue eller ei oppspenning i heile stabelen.
  */
-import { bbox, kuttCsv, nn, offsetPoly, type Pt } from "./core"
+import { bbox, kuttCsv, MATERIALS, nn, offsetPoly, type Material, type Pt } from "./core"
 import type { BuildOut, DetailKey, ExportKind, ExportOut, Group, ArkSyn, Kutt, Metrics, ParamBag, Range, Rule, Vec3, View } from "./core"
 import { label as srcLabel, raw as srcRaw } from "./sources"
 import { makeKropp, scenaAv } from "./kropp"
@@ -20,6 +20,8 @@ import { makeBygg } from "./bygg"
 import { fitSize, strokesAt } from "./stroke"
 import { placedRings } from "./nest"
 import { meshToStl } from "./export-stl"
+import { meshToGlb } from "./export-glb"
+import { meshToUsdz } from "./export-usdz"
 import { partsToDxf } from "./export-dxf"
 import { couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
 import { bruk, djupOppgaver, prov, rangert, tune, tuneSteg, type Kandidat, type Oppgave } from "./forslag"
@@ -71,6 +73,16 @@ const EMPTY = () => new Float32Array(0)
 
 /** desimalkomma i eit filnamn er bråk: 2,5 mm vert «2p5» */
 const num = (v: number) => String(+v.toFixed(2)).replace(".", "p")
+
+/** Materialet sin farge slik GLB og USDZ vil ha han: lineær, ikkje sRGB.
+ *  Ein hex som vert send rett inn kjem ut for lys i kvar einaste lesar. */
+const linear = (m: string): [number, number, number] => {
+  const hex = MATERIALS[(m in MATERIALS ? m : "finer") as Material].hex
+  return [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255
+    return +(c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4).toFixed(4)
+  }) as [number, number, number]
+}
 
 /** Same stamme til PNG-en som til SVG-en; PNG-en vert laga på hovudtråden,
  *  so namnet må kunne lagast der òg, av ETIKETTEN. */
@@ -167,6 +179,14 @@ export const MOTOR: EngineDef = {
       // SAME OBJEKT SOM DELANE: det midtre nivået, som kuttfilene og tavla.
       const bytes = meshToStl(lagMesh(makeBygg(p, DETAIL.mid).s, p.tjukn), name)
       return { name: `${name}.stl`, mime: "model/stl", data: bytes.buffer.slice(0) as ArrayBuffer }
+    }
+    if (what === "glb") {
+      const bytes = meshToGlb(lagMesh(makeBygg(p, DETAIL.mid).s, p.tjukn), name, linear(p.material))
+      return { name: `${name}.glb`, mime: "model/gltf-binary", data: bytes.buffer.slice(0) as ArrayBuffer }
+    }
+    if (what === "usdz") {
+      const bytes = meshToUsdz(lagMesh(makeBygg(p, DETAIL.mid).s, p.tjukn), linear(p.material))
+      return { name: `${name}.usdz`, mime: "model/vnd.usdz+zip", data: bytes.buffer.slice(0) as ArrayBuffer }
     }
     if (what === "prove") {
       // Passprøva treng korkje plan eller nesting: ei lita plate med sju spor.
