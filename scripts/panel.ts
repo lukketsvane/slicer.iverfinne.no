@@ -116,8 +116,8 @@ async function telefon(browser: Browser) {
 
   // --- TALA: tap-drag set verdien, ingen tekstfelt å zoome inn i ----------------
   await midt(page)
-  const tal = page.locator("[aria-label='storleik, tal']")
-  const tb = await tal.boundingBox()
+  const talet = page.locator("[aria-label='storleik, tal']")
+  const tb = await talet.boundingBox()
   const sFør = hash(page).storleik
   if (tb) {
     const cdp = await page.context().newCDPSession(page)
