@@ -148,6 +148,16 @@ function Forslaga({ p }: { p: ArketProps }) {
   const form = forslag.some((k) => k.tro > 0)
   return (
     <div className="py-1">
+      {/* handlingane ØVST: lista er lang, og det du skal trykkje på skal ikkje rulle bort */}
+      <div className="flex items-center gap-1.5 pb-2">
+        {synt !== null && forslag[synt] && (
+          <>
+            <button type="button" className={CHIP} style={chipStyle(true)} onClick={() => p.onTaAlle(synt)} title="byt ut plana du har med desse">ta alle</button>
+            <button type="button" className={CHIP} style={chipStyle(false)} onClick={() => p.onLeggTil(synt)} title="legg desse til dei du har, med nye namn">legg til</button>
+          </>
+        )}
+        <button type="button" className={CHIP + " ml-auto"} style={chipStyle(false)} onClick={() => p.onVisForslag(false)}>lat att</button>
+      </div>
       <div className="dim flex items-center text-[9px] uppercase tracking-[0.14em]">
         <span className="flex-1">forslag</span>
         {form && <span className="w-10 text-right">form</span>}
@@ -170,13 +180,6 @@ function Forslaga({ p }: { p: ArketProps }) {
           <span className="w-8 text-right">{k.ark}</span>
         </button>
       ))}
-      {synt !== null && forslag[synt] && (
-        <div className="flex items-center gap-1.5 pt-2">
-          <button type="button" className={CHIP} style={chipStyle(true)} onClick={() => p.onTaAlle(synt)} title="byt ut plana du har med desse">ta alle</button>
-          <button type="button" className={CHIP} style={chipStyle(false)} onClick={() => p.onLeggTil(synt)} title="legg desse til dei du har, med nye namn">legg til</button>
-          <button type="button" className={CHIP + " ml-auto"} style={chipStyle(false)} onClick={() => p.onVisForslag(false)}>lat att</button>
-        </div>
-      )}
     </div>
   )
 }
