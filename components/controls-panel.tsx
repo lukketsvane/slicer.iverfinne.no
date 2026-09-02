@@ -100,7 +100,14 @@ export function ControlsPanel(props: {
   /** kor langt søket er kome, eller null når det ikkje går noko søk */
   tunar: { gjort: number; av: number } | null
   /** kvar i svarlista vi står, eller null når ho ikkje gjeld lenger */
-  finnStad: { nth: number; tal: number; ribbX: number; ribbY: number } | null
+  finnStad: {
+    nth: number
+    tal: number
+    ribbX: number
+    ribbY: number
+    /** svaret som står: delar, plater og kor mykje av forma det ber */
+    svar: { parts: number; sheets: number; troskap: number }
+  } | null
   kanAngre: boolean
   /** kor høgt arket er, i pikslar. Kameraet stiller objektet inn i det som
    *  er att. */
@@ -581,7 +588,19 @@ export function ControlsPanel(props: {
               {finnStad.nth + 1} av {finnStad.tal}
               {/* Ribbetalet står som to skyvarar i skyveveggen. Der er
                   halen ei avskrift av det du står og dreg i. */}
-              {mode !== "full" && ` · ${finnStad.ribbX}×${finnStad.ribbY} ribber`}
+              {mode !== "full" && ` · ${finnStad.ribbX}×${finnStad.ribbY}`}
+              {/* KVA SVARET ER, og ikkje berre kvar det står i lista.
+
+                  «3 av 116» seier at det finst hundre og tretten til, og
+                  ingenting om kvifor dette eine vann eller kva det neste
+                  vil koste. Benken har heile lista med kolonnar; telefonen
+                  har denne lina. So her står det søket rangerte på: kor
+                  mykje av forma, kor mange delar, kor mange plater. Forma
+                  berre når ho er målt — det raske søket reknar henne
+                  ikkje, og eit null som ser ut som eit måltal er verre enn
+                  ingen. */}
+              {finnStad.svar.troskap > 0 && ` · form ${n0(finnStad.svar.troskap * 100)} %`}
+              {` · ${n0(finnStad.svar.parts)} delar · ${n0(finnStad.svar.sheets)} ark`}
             </span>
           </div>
         )}
