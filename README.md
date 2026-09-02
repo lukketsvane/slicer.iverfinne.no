@@ -63,8 +63,10 @@ Every change is undoable and redoable: the two arrows at the top, or `Z` and
 
 ## Two surfaces
 
-The iPhone 16e is the target device: one thumb, a 390-point screen, the object
-visible while you work. A slim bar at the top carries the file you dropped in
+The iPhone 16e, saved to the home screen, is the target device — the only one:
+one thumb, a 390-point screen, the object visible while you work. The page
+itself never zooms, scrolls or lets you select anything; every gesture belongs
+to the object. A slim bar at the top carries the file you dropped in
 (tap it to pick another), the three views, undo and the link. A sheet at the
 bottom has three heights: one line (lock, the live count, proposals, export),
 the middle (size, the plane list, the broken rules with their fixes),

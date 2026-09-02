@@ -381,8 +381,10 @@ async function telefon(browser: Browser) {
   await alt()
   await page.getByRole("button", { name: "oppsett", exact: true }).click()
   await verkty.waitFor({ timeout: 10000 })
-  const tekst = await page.locator("textarea[aria-label='alle innstillingane som tekst']").inputValue()
+  const tekstfelt = page.locator("textarea[aria-label='alle innstillingane som tekst']")
+  const tekst = await tekstfelt.inputValue()
   sjekk("oppsettet som tekst ber plana", /\bplan\b/.test(tekst) && tekst.includes("@"), `${tekst.length} teikn`)
+  sjekk("og feltet er lese-berre, med kopier og lim inn som knappar", (await tekstfelt.getAttribute("readonly")) !== null && (await page.getByRole("button", { name: "kopier", exact: true }).count()) === 1 && (await page.getByRole("button", { name: "lim inn", exact: true }).count()) === 1)
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
 
@@ -477,6 +479,33 @@ async function flyt(browser: Browser) {
     tema: !!document.querySelector("meta[name=theme-color]"),
   }))
   sjekk("viewport-fit=cover, so innhaldet går under statuslina med vilje", /viewport-fit=cover/.test(meta.viewport), meta.viewport)
+  // Telefonen er det einaste målet: ingenting kan forstørrast, merkjast eller rullast.
+  sjekk("sida kan ikkje forstørrast (maximum-scale=1, user-scalable=no)", /maximum-scale=1/.test(meta.viewport) && /user-scalable=no/.test(meta.viewport), meta.viewport)
+  const merkbart = await page.evaluate(() => {
+    const ut: string[] = []
+    for (const e of document.querySelectorAll<HTMLElement>("body, button, p, span, h3, li, textarea, label, div")) {
+      if (e.getBoundingClientRect().width === 0) continue
+      const st = getComputedStyle(e)
+      const sel = (st as unknown as { webkitUserSelect?: string }).webkitUserSelect || st.userSelect
+      if (sel !== "none") ut.push(`${e.tagName.toLowerCase()}${e.getAttribute("aria-label") ? `[${e.getAttribute("aria-label")}]` : ""} ${sel}`)
+      if (ut.length > 5) break
+    }
+    return ut
+  })
+  sjekk("ingenting kan merkjast (user-select: none overalt)", merkbart.length === 0, merkbart.join(" · "))
+  const rulling = await page.evaluate(() => {
+    const h = getComputedStyle(document.documentElement)
+    const b = getComputedStyle(document.body)
+    return { html: `${h.overflow}/${h.position}`, body: `${b.overflow}/${b.overscrollBehavior}` }
+  })
+  sjekk("html og body er faste og utan rulling", /hidden/.test(rulling.html) && /fixed/.test(rulling.html) && /hidden/.test(rulling.body) && /none/.test(rulling.body), JSON.stringify(rulling))
+  const laust = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("button, input, a, canvas, [data-handtak]")]
+      .filter((e) => e.getBoundingClientRect().width > 0 && getComputedStyle(e).touchAction === "auto")
+      .map((e) => `${e.tagName.toLowerCase()}${e.getAttribute("aria-label") ? `[${e.getAttribute("aria-label")}]` : ""}`)
+      .slice(0, 5),
+  )
+  sjekk("ingen kontroll med touch-action: auto (dobbelttrykk-zoom)", laust.length === 0, laust.join(" · "))
   sjekk("kan lagrast på heimskjermen: capable, manifest, ikon, tema", meta.capable && meta.manifest && meta.ikon && meta.tema, JSON.stringify(meta))
 
   // --- sida rullar ikkje, korkje opp-ned eller sidelengs, i nokon høgd ---------
