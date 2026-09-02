@@ -16,10 +16,14 @@
 import { clampBag, type Group, type ParamBag, type Range } from "./core"
 import type { Fest } from "./pack"
 import { reinPlan } from "./plan"
+import { reinScene } from "./scene"
 
 export type Params = {
-  /** kva nett som vert snitta: «kube», eller namnet på ei importert fil */
+  /** hovudkjelda: «kube», eller namnet på ei importert fil. Namnet i pilla,
+   *  stamma i filnamna. Sjølve kroppen står i `scene`. */
   kjelde: string
+  /** kroppen som ei liste av bitar — sjå `lib/scene.ts`. Tom tyder kjelda åleine. */
+  scene: string
 
   // --- FORM: kva som skjer med nettet før det vert snitta ----------------
   storleik: number // lengste side etter skalering, mm
@@ -149,7 +153,7 @@ export const GROUPS: readonly Group[] = [
 export const PARAM_KEYS = GROUPS.flatMap((g) => g.keys)
 
 /** alt eit uttak er ein funksjon av, tal og namn */
-export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "material", "plan", "fest"]
+export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "scene", "material", "plan", "fest"]
 
 /** Fleire feste enn dette er ikkje ei plate, det er ei lenkje som prøver seg. */
 const FEST_TAK = 128
@@ -261,6 +265,7 @@ export const snittKey = (p: ParamBag, cells: number) =>
  */
 export const DEFAULT_PARAMS: Params = {
   kjelde: "kube",
+  scene: "",
 
   storleik: 150,
   rotX: 0,
@@ -302,6 +307,7 @@ export function clampParams(o: unknown, prev: Params): Params {
     const rec = o as Record<string, unknown>
     if (typeof rec.plan === "string") ut.plan = reinPlan(rec.plan)
     if (typeof rec.fest === "string") ut.fest = reinFest(rec.fest)
+    if (typeof rec.scene === "string") ut.scene = reinScene(rec.scene)
   }
   return ut
 }

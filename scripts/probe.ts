@@ -121,6 +121,22 @@ report("kube, vend 30/20/10 og 700 mm", {
   rotX: 30, rotY: 20, rotZ: 10, storleik: 700, tjukn: 6, arkB: 1200, arkH: 900,
 })
 
+// --- 4b scena: kroppen sett saman av bitar ---------------------------------
+// Ein kube med ei kule oppå og ein sylinder på skrå inn i sida er éin kropp:
+// strålane tel skal, so overlappet er gods. Skala vert ikkje sydd, og treng
+// ikkje det.
+{
+  const alle = ["kube", "kule", "sylinder", "kjegle", "torus"].map((id) => report(`primitiv: ${id}`, { ...DEFAULT_PARAMS, scene: `${id}@0,0,0/1/0` }))
+  if (alle.some((r) => r.m.parts === 0 || r.m.joints === 0 || r.m.openEdges > 0)) bryt("eit primitiv snittar ikkje til ein lukka kropp med ledd")
+  const sett = report("scene: kube + kule oppå + sylinder på skrå", {
+    ...DEFAULT_PARAMS,
+    scene: "kube@0,0,0/1/0;kule@0,0,80/0.6/0;sylinder@40,0,0/0.5/30",
+  })
+  if (sett.m.openEdges > 0 || sett.m.joints === 0 || sett.m.envZ <= sett.m.envX) {
+    bryt(`scena gav ${sett.m.openEdges} opne kantar, ${sett.m.joints} ledd, ${sett.m.envX.toFixed(0)}×${sett.m.envZ.toFixed(0)} — ei kule oppå ein kube skal vera høgare enn brei`)
+  }
+}
+
 // --- 5 eit importert nett: ei kule som STL --------------------------------
 function sphereStl(r: number, seg: number): ArrayBuffer {
   const pos: number[] = []

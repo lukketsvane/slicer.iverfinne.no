@@ -11,6 +11,7 @@
  */
 import { clampParams, DEFAULT_PARAMS, reinFest } from "../lib/params"
 import { lesPlan, nyId, reinPlan, rutenett, skrivPlan, PLAN_TAK } from "../lib/plan"
+import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
 import { bbox, type ParamBag, type Pt } from "../lib/core"
@@ -51,6 +52,24 @@ for (const [inn, vent] of [
   const fekk = reinPlan(inn)
   sjekk(`rein «${String(inn).slice(0, 26)}»`, fekk === vent, fekk.slice(0, 40))
 }
+
+console.log("")
+for (const [inn, vent] of [
+  ["kube@0,0,0/1/0", "kube@0,0,0/1/0"],
+  ["kule@10,-20,30/0.5/45;torus@0,0,0/1/0", "kule@10,-20,30/0.5/45;torus@0,0,0/1/0"],
+  ["kube@0,0,0/1/400", "kube@0,0,0/1/40"],           // vendinga går rundt
+  ["kube@0,0,0/9/0", ""],                            // for stor
+  ["kube@999,0,0/1/0", ""],                          // for langt ute
+  ["kube@NaN,0,0/1/0", ""],
+  ["../x@0,0,0/1/0", ""],
+  ["<b>@0,0,0/1/0", ""],
+  [Array.from({ length: 40 }, () => "kube@0,0,0/1/0").join(";"), Array.from({ length: SCENE_TAK }, () => "kube@0,0,0/1/0").join(";")],
+] as const) {
+  const fekk = reinScene(inn)
+  sjekk(`scene «${String(inn).slice(0, 24)}»`, fekk === vent, fekk.slice(0, 40))
+}
+const sc = clampParams({ ...DEFAULT_PARAMS, scene: "kule@0,0,0/1/0;tull" }, DEFAULT_PARAMS)
+sjekk("clampParams reinsar scena", sc.scene === "kule@0,0,0/1/0", sc.scene)
 
 const q = clampParams({ ...DEFAULT_PARAMS, plan: "1@0.5,0.5,0.5/1,0,0;x" }, DEFAULT_PARAMS)
 sjekk("clampParams reinsar plan", q.plan === "1@0.5,0.5,0.5/1,0,0", q.plan)
