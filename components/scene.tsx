@@ -726,6 +726,43 @@ function Handa({ f, fri, view, modus, vald, plan, skisse, boks, onPlan, onDouble
   )
 }
 
+/**
+ * DEMPINGA ER EIT SPØRSMÅL OM BILETE PER SEKUND. Rotasjonen glid til ro i
+ * staden for å stogge daudt — men glidinga er femti bilete, og på ei maskin
+ * som teiknar fem i sekundet er femti bilete ti sekund der ingen knapp
+ * svarar. Målt: 7,5 s hale etter eitt drag i ein programvare-GL, og låsen
+ * svara etter åtte. So dempinga fylgjer biletetakta: er bileta seine,
+ * stoggar rotasjonen der fingeren slepp; vert dei raske att, glid ho.
+ */
+function Demping({ onSein }: { onSein: (sein: boolean) => void }) {
+  const sist = useRef(0)
+  const seine = useRef(0)
+  const raske = useRef(0)
+  const sein = useRef(false)
+  useFrame(() => {
+    const n = performance.now()
+    const d = n - sist.current
+    sist.current = n
+    // ei pause er ikkje eit mål på takta; berre bilete som fylgjer kvarandre tel
+    if (d > 1000) return
+    if (d > 80) {
+      seine.current++
+      raske.current = 0
+    } else if (d < 40) {
+      raske.current++
+      seine.current = 0
+    }
+    if (!sein.current && seine.current >= 6) {
+      sein.current = true
+      onSein(true)
+    } else if (sein.current && raske.current >= 30) {
+      sein.current = false
+      onSein(false)
+    }
+  })
+  return null
+}
+
 /** kroppen og delane, i kroppen si ramme */
 function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, spok, onVald }: {
   f: Ramma
@@ -907,6 +944,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
   const [reframe, setReframe] = useState(0)
   const dobbel = useCallback(() => setReframe((n) => n + 1), [])
   const [boks, setBoks] = useState<HTMLDivElement | null>(null)
+  const [sein, setSein] = useState(false)
   // Éi styrbar hovudlyskjelde på ein fast kuppel, pluss fire svake fyll:
   // eit uttak skal kaste éin hard skugge, slik det gjer i eit verkstadlys.
   const [lys, setLys] = useState<Lys>({ az: 0.62, el: 0.92 })
@@ -948,6 +986,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
           </mesh>
         </group>
         <FitCamera fit={(flat ? fk : f)?.fit ?? null} rute={rute} flat={flat} reframe={reframe} />
+        <Demping onSein={setSein} />
         <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} skisse={skisse} boks={boks} onPlan={onPlan} onDoubleTap={dobbel} onSkala={onSkala} onVend={onVend} onLys={flyttLys} onGest={onGest} onRaakar={onRaakar} />
         {/* konturen er ei teikning: éin finger dreg, klypet zoomar, ingenting snur */}
         <OrbitControls
@@ -961,7 +1000,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
           minDistance={MIN_DIST}
           maxDistance={MAX_DIST}
           rotateSpeed={0.9}
-          enableDamping
+          enableDamping={!sein}
           dampingFactor={0.12}
           minPolarAngle={0.12}
           maxPolarAngle={Math.PI / 2 + 0.3}

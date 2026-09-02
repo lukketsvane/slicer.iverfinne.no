@@ -6,7 +6,7 @@ import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import type { Plan } from "@/lib/plan"
 import type { Kandidat } from "@/lib/forslag"
 import {
-  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoFinn, IcoLaas, IcoReset, IcoSkisse, IcoSliders, IcoStopp, IcoUttak,
+  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoFerdig, IcoFinn, IcoLaas, IcoReset, IcoSkisse, IcoSliders, IcoStopp, IcoUttak,
   Reglar, Ring, SliderRow, TASTAR, Tavla, chipStyle, n0, num, stengd, tjukn, useLangtrykk,
 } from "./deler"
 import type { VerktyId } from "./verkty"
@@ -218,7 +218,8 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
   const naaTjukn = num(params, "tjukn", TJUKNER[0])
   return (
     <>
-      <div className="flex items-center gap-1.5 py-2">
+      {/* materialet og tjukna på éi rad der det er plass, og på to der det ikkje er */}
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 py-2">
         {(Object.keys(MATERIALS) as Material[]).map((mk) => (
           <button
             key={mk}
@@ -345,11 +346,12 @@ export function Arket(p: ArketProps): JSX.Element {
         type="button"
         onClick={p.vald === null ? p.onLaas : () => p.onVald(null)}
         disabled={p.view === "kontur"}
+        aria-label={p.vald === null ? "lås" : "ferdig"}
         title={p.vald === null ? "lås skisseplanet: det vert ein del (L)" : "ferdig med planet (esc)"}
-        className={"hit flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-[11px] uppercase tracking-[0.14em] transition active:scale-95 disabled:opacity-30" + (puls ? " puls" : "")}
+        className={"hit flex h-10 w-12 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-30" + (puls ? " puls" : "")}
         style={{ background: "var(--ink)", color: "var(--paper)" }}
       >
-        {IcoLaas}{p.vald === null ? "lås" : "ferdig"}
+        {p.vald === null ? IcoLaas : IcoFerdig}
         <span aria-hidden="true" className="absolute -right-px -top-px h-2 w-2 rounded-full" style={{ background: "var(--paper)", boxShadow: "0 0 0 1.5px var(--ink)", opacity: p.busy && !tunar ? 1 : 0, transition: "opacity 200ms ease" }} />
       </button>
       {/* SKISSEMODUSEN: to fingrar arbeider på planet — dra flyttar, vri
@@ -365,7 +367,7 @@ export function Arket(p: ArketProps): JSX.Element {
       >
         {IcoSkisse}
       </button>
-      <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className={"tab min-w-0 flex-1 truncate pl-1 text-left tracking-[0.04em] " + (benk ? "text-[11px]" : "text-[10px]")} aria-label="plan, delar, ark og tid">
+      <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className="hit tab min-w-0 flex-1 truncate rounded-lg pl-1 text-left text-[10px] tracking-[0.04em]" aria-label="plan, delar, ark og tid">
         <Lina p={p} />
       </button>
       <button

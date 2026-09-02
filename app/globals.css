@@ -92,22 +92,32 @@ html {
     linear-gradient(transparent, color-mix(in srgb, var(--ink) 24%, transparent)) bottom / 100% 10px no-repeat scroll;
 }
 
-/* skyvaren: ei line og ein prikk, ingenting som konkurrerer med objektet */
+/* skyvaren: ei line og ein prikk, ingenting som konkurrerer med objektet.
+   Lina er éin piksel, men FELTET er 44: det er tommelen som skal treffe. */
 .pslider {
   -webkit-appearance: none;
   appearance: none;
-  height: 1px;
+  height: 44px;
   width: 100%;
-  background: color-mix(in srgb, var(--ink) 34%, transparent);
+  background: transparent;
   outline: none;
   cursor: ew-resize;
   touch-action: pan-y;
+}
+.pslider::-webkit-slider-runnable-track {
+  height: 1px;
+  background: color-mix(in srgb, var(--ink) 34%, transparent);
+}
+.pslider::-moz-range-track {
+  height: 1px;
+  background: color-mix(in srgb, var(--ink) 34%, transparent);
 }
 .pslider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   height: 13px;
   width: 13px;
+  margin-top: -6px;
   border-radius: 9999px;
   background: var(--ink);
   border: 3px solid var(--paper);
@@ -142,8 +152,15 @@ html {
   height: max(100%, 44px);
   transform: translate(-50%, -50%);
 }
-/* iOS forstørrar sida når eit felt under 16 px får fokus. Feltet er lite
-   av di det står i ei rad med andre; det veks i det du tek det. */
+/* iOS forstørrar sida når eit felt under 16 px får fokus. Der fingeren er
+   reiskapen står felta i 16 frå starten; med ein peikar er 11 nok, og feltet
+   veks i det du tek det. */
+@media (pointer: coarse) {
+  .talfelt,
+  textarea {
+    font-size: 16px;
+  }
+}
 .talfelt:focus,
 textarea:focus {
   font-size: 16px;
