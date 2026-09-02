@@ -1291,6 +1291,26 @@ async function benken(browser: Browser, feil: string[]) {
       `plate ${await plateNr()} av ${valt.plate}`,
     )
   }
+  // HJULET GJER DET KLYPET GJER. På ein benk er det ikkje to fingrar, og
+  // eit hjul som rullar sida i staden for å gå nærare plata gjer feil
+  // ting når peikaren står over ei teikning du skal arbeide i.
+  {
+    const sb = (await plata2.boundingBox())!
+    const vb = () => plata2.getAttribute("viewBox")
+    const breidd = (v: string | null) => Number((v ?? "").split(" ")[2])
+    const heileArket = await vb()
+    await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2)
+    await page.mouse.wheel(0, -400)
+    await page.waitForTimeout(250)
+    const naer = await vb()
+    ok("hjulet går nærare plata", breidd(naer) < breidd(heileArket) * 0.9, `${heileArket} → ${naer}`)
+    ok("og sida rullar ikkje av det", (await page.evaluate(() => window.scrollY)) === 0)
+    await page.mouse.wheel(0, 2000)
+    await page.waitForTimeout(250)
+    ok("og heilt ut att er heile plata", (await vb()) === heileArket, String(await vb()))
+    // musa av plata att: ho vel delen ho står over når teikninga skiftar
+    await page.mouse.move(1, 1)
+  }
 
   // Lenkja vert lesen når sida vert MONTERT, og ei navigering som berre
   // byter hash monterer ingenting. Difor ei omlasting etterpå.
