@@ -6,12 +6,15 @@
  *   npx tsx scripts/tung.ts
  */
 import { makeSoup } from "../lib/soup"
-import { meshToStl } from "../lib/vaffel/export-stl"
+import { meshToStl } from "../lib/export-stl"
 import { parseMesh } from "../lib/io"
 import { put } from "../lib/sources"
-import { VAFFEL } from "../lib/vaffel/engine"
-import { DEFAULT_PARAMS } from "../lib/vaffel/params"
+import { MOTOR } from "../lib/motor"
+import { DEFAULT_PARAMS } from "../lib/params"
 import type { ParamBag } from "../lib/core"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
 
 /** ei knudrete kule: ei kule med støy på, som eit skann */
 function scan(seg: number): Float32Array {
@@ -57,12 +60,12 @@ console.log(`las STL på ${Date.now() - t2} ms → ${inn.tris} trekantar`)
 put("skann", "skann.stl", inn)
 
 for (const trekant of [8, 20, 60]) {
-  const p = { ...DEFAULT_PARAMS, kjelde: "skann", trekant, glatt: 4, ribbX: 8, ribbY: 8 }
+  const p = { ...DEFAULT_PARAMS, kjelde: "skann", trekant, glatt: 4, plan: nett(8, 8), }
   const t = Date.now()
-  const m = VAFFEL.measure(p as unknown as ParamBag)
+  const m = MOTOR.measure(p as unknown as ParamBag)
   const tMeasure = Date.now() - t
   const t3 = Date.now()
-  VAFFEL.build(p as unknown as ParamBag, "mid", "lag")
+  MOTOR.build(p as unknown as ParamBag, "mid", "lag")
   const tBuild = Date.now() - t3
   console.log(
     `  tak ${trekant}k → ${m.tris} trekantar, ${m.parts} delar, ${m.joints} ledd, ` +
@@ -73,11 +76,11 @@ for (const trekant of [8, 20, 60]) {
 // Vendinga skal vera billeg. Nettet er alt sveisa og forenkla; det einaste
 // som står att er ein rotasjon, ein skalering og ei ny rutetabell.
 {
-  const base = { ...DEFAULT_PARAMS, kjelde: "skann", trekant: 20, glatt: 4, ribbX: 8, ribbY: 8 }
-  VAFFEL.measure(base as unknown as ParamBag)
+  const base = { ...DEFAULT_PARAMS, kjelde: "skann", trekant: 20, glatt: 4, plan: nett(8, 8), }
+  MOTOR.measure(base as unknown as ParamBag)
   for (const rotX of [5, 10, 15]) {
     const t = Date.now()
-    VAFFEL.measure({ ...base, rotX } as unknown as ParamBag)
+    MOTOR.measure({ ...base, rotX } as unknown as ParamBag)
     console.log(`  vend ${rotX}° → ${Date.now() - t} ms`)
   }
 }

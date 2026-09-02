@@ -21,8 +21,8 @@
  * slutt. Ein del som er skoren laus før spora er skorne, ligg ikkje lenger
  * i plata når stråla kjem tilbake til han.
  */
-import { offsetPoly, type Pt } from "../core"
-import { fitSize, strokesAt, strokes } from "../stroke"
+import { offsetPoly, type Pt } from "./core"
+import { fitSize, strokesAt, strokes } from "./stroke"
 import { placedRings, type Nesting } from "./nest"
 
 /** luka mellom arka i uttaket, mm */
@@ -56,7 +56,7 @@ export function partsToDxf(n: Nesting, plyT: number, kerf: number): string {
       poly(out, "GRAVER", line, false)
     }
     for (const q of sheet.placed) {
-      mark(out, q.part.from, q.label.p[0], q.label.p[1] + oy, q.label)
+      mark(out, q.part.adr, q.label.p[0], q.label.p[1] + oy, q.label)
     }
     for (const q of sheet.placed) {
       for (const hole of placedRings(q).holes) {

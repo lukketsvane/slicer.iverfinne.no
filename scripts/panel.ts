@@ -1,1808 +1,330 @@
 /**
- * PANELVAKTA — verkar knappane?
+ * PANELET — kontrollane i ein ekte nettlesar, på begge flatene.
  *
- * Motoren har prøvebenkar for kvart tal han reknar. Grensesnittet hadde
- * ingen. Det er den halvdelen brukaren faktisk tek i: knappen som finn
- * innstillingar, lina som seier kvar i lista du står, feltet du skriv eit
- * mål i, tasten som tek deg attende.
+ * Kikken (`look.ts`) ser om sida står. Dette harnesset TEK I HENNE: låser
+ * og slettar plan med knapp og tast, vel eit plan i lista, skisserer med to
+ * fingrar (CDP-touch: dra og vri) og ser at planet som vert låst faktisk
+ * flytta seg og vinkla seg, angrar, hentar framlegg og tek eitt, opnar
+ * platene og snur ein del, les oppsettet som tekst. Alt vert lese attende
+ * frå lenkja — ho ber parameterposen, og posen er sanninga.
  *
- * Kvar av dei har ein måte å svikte på som ikkje kastar, ikkje loggar og
- * ikkje syner att på eit bilete:
- *
- *   · lina seier «2 av 13» medan ribbene som står er frå eit anna svar
- *   · «førre» går framover, eller hoppar to
- *   · lista står att etter at du har endra storleiken, og lyg om kva ho
- *     er eit svar på
- *   · talfeltet tek imot 9999 og set eit objekt ingen plate kan bera
- *   · angre går eitt steg for langt, eller eitt for kort
- *   · eit drag på ein del på plata festar han ein annan stad enn der
- *     fingeren sleppte han, eller opnar verktyet i staden for å dra
- *
- * Difor vert dei prøvde her, i ein ekte nettlesar, mot det som faktisk
- * står i lenkja — lenkja ber alle parametrane, so ho er den einaste
- * fasiten som ikkje er ei avskrift av det panelet sjølv trur.
- *
- *   npx tsx scripts/panel.ts [url]
+ *   pnpm build && pnpm start -p 3210
+ *   PW_CHROMIUM=/opt/pw-browsers/chromium pnpm panel [url]
  */
 import { chromium, type Browser, type Page } from "playwright"
-import { fritt, paaSkjermen, ramme, type Fit, type Rute } from "../lib/ramme"
-import { mkdtempSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
-import { makeSoup } from "../lib/soup"
-import { meshToStl } from "../lib/vaffel/export-stl"
+import { lesPlan } from "../lib/plan"
+import type { Params } from "../lib/params"
 
 const URL = process.argv[2] ?? "http://127.0.0.1:3210"
-let brot = 0
+const HOVUDLINA = "[aria-label='plan, delar, ark og tid']"
 
-const ok = (namn: string, sant: boolean, sett?: string) => {
-  if (!sant) brot++
-  console.log(`${sant ? "  ok " : "FEIL"}  ${namn}${sett ? ` · ${sett}` : ""}`)
+let feil = 0
+const sjekk = (namn: string, ok: boolean, sagt = "") => {
+  console.log(ok ? "  ok  " : "  FEIL", namn.padEnd(50), sagt)
+  if (!ok) feil++
 }
 
-/**
- * Parametrane slik dei står i lenkja.
- *
- * Panelet si eiga bokføring er ikkje eit vitne på seg sjølv, so fasiten
- * vert lesen ut av URL-en. Han vert skriven eit halvt sekund etter siste
- * endring, og under eit bygg kan den klokka fyre seinare enn det — difor
- * vert han lesen til han står STILLE, og ikkje etter ei gjetta venting.
- * Ei venting som er for kort gjev eit brot som ikkje er eit brot, og eit
- * brot som ikkje er eit brot er verre enn ingen prøve.
- */
-async function lenkja(page: Page): Promise<Record<string, number | string>> {
-  const les = () => page.evaluate(() => window.location.hash)
-  let sist = await les()
-  let stille = 0
-  for (let i = 0; i < 50 && (stille < 6 || i < 8); i++) {
-    await page.waitForTimeout(120)
-    const h = await les()
-    stille = h === sist ? stille + 1 : 0
-    sist = h
-  }
-  return JSON.parse(decodeURIComponent(sist.replace(/^#p=/, "")))
-}
-
-/** Arket og benken er to ulike element; begge ber aria-busy, og det er det
- *  einaste haldepunktet som ikkje er ei gjetting på tid. */
-const rolig = async (page: Page) => {
-  try {
-    await page.waitForFunction(
-      () => document.querySelector("[aria-busy]")?.getAttribute("aria-busy") === "false",
-      undefined,
-      { timeout: 60000 },
-    )
-  } catch (e) {
-    // Ei venting som gjekk ut seier ingen ting om KVA sida heldt på med.
-    // Det gjer denne: kva som er oppteke, kva knappen heiter, og kva som
-    // står i hovudlina — tre ting som skil «reknar enno» frå «står fast».
-    const kva = await page
-      .evaluate(() => {
-        const b = document.querySelector("[aria-busy]")
-        const k = document.querySelector("[aria-label='finn innstillingar']")
-        return {
-          busy: b?.getAttribute("aria-busy"),
-          paa: b?.getAttribute("aria-label"),
-          knapp: (k?.textContent ?? "").trim().slice(0, 20),
-          hovud: (document.body.innerText.match(/^.{0,80}/) ?? [""])[0],
-        }
-      })
-      .catch(() => null)
-    console.log(`  !!  venta forgjeves: ${JSON.stringify(kva)}`)
-    throw e
-  }
-}
-
-/** Opnar kontrollarket om det ikkje alt er ope. Knappen byter namn når han
- *  er open, so eit blindt klikk nummer to ventar på ein knapp som ikkje
- *  finst. */
-const opnePanelet = async (page: Page) => {
-  const knapp = page.getByLabel("vis kontrollane")
-  if (await knapp.count()) await knapp.click()
-}
-
-/** «1 av 12 · 9×7 ribber» — ho bur i kontrollane, so dei må vera opne */
-const stadLine = (page: Page) =>
-  page.locator("section[aria-label='kontrollar'] [aria-live='polite']")
-
-/** ei kule med nok trekantar til at tolkinga tek meir enn eit augeblink */
-function kuleStl(r: number, seg: number): Buffer {
-  const pos: number[] = []
-  const at = (i: number, j: number): [number, number, number] => {
-    const th = (i / seg) * Math.PI * 2
-    const ph = (j / seg) * Math.PI
-    return [r * Math.sin(ph) * Math.cos(th), r * Math.sin(ph) * Math.sin(th), r * Math.cos(ph)]
-  }
-  for (let j = 0; j < seg; j++)
-    for (let i = 0; i < seg; i++) {
-      const a = at(i, j)
-      const b = at(i + 1, j)
-      const c = at(i + 1, j + 1)
-      const d = at(i, j + 1)
-      pos.push(...a, ...b, ...c, ...a, ...c, ...d)
-    }
-  const soup = makeSoup(new Float32Array(pos))
-  const nrm = new Float32Array(soup.pos.length)
-  for (let i = 0; i < nrm.length; i += 3) {
-    const L = Math.hypot(soup.pos[i], soup.pos[i + 1], soup.pos[i + 2]) || 1
-    nrm[i] = soup.pos[i] / L
-    nrm[i + 1] = soup.pos[i + 1] / L
-    nrm[i + 2] = soup.pos[i + 2] / L
-  }
-  return Buffer.from(meshToStl({ positions: soup.pos, normals: nrm, tris: soup.tris }, "kule"))
-}
-
-/**
- * STÅR OBJEKTET I DET BANDET ARKET LET STÅ ATT?
- *
- * Dette er den eine feilen i heile reiskapen som ikkje kastar, ikkje
- * loggar og ikkje syner att på eit einaste måltal: kameraet rammar inn
- * objektet i HEILE ruta, kontrollarket ligg over den nedste halvdelen, og
- * det som er att på skjermen er toppen av noko. Ingen prøve i ein
- * nettlesar fangar det heller — biletet er der, det er berre gøymt.
- *
- * So det vert rekna. For kvar rutestorleik nokon faktisk har, og for kvar
- * høgd arket kan ha, skal kula kring objektet liggje mellom øvste kanten
- * og overkanten av arket.
- */
-function innramminga() {
-  const saker: [string, Fit][] = [
-    ["kube", { r: 1.556, w: 2.2, h: 2.2, cy: 1.1 }],
-    ["flat plate", { r: 1.12, w: 2.2, h: 0.44, cy: 0.22 }],
-    ["høg søyle", { r: 1.12, w: 0.44, h: 2.2, cy: 1.1 }],
-    ["høgt og smalt", { r: 1.343, w: 1.542, h: 2.2, cy: 1.1 }],
-  ]
-  /** ruter og det som ligg over dei: telefonarket nedst, benken i sidene */
-  const ruter: [string, Rute][] = [
-    ["telefon 390×780, lukka", { W: 390, H: 780, venstre: 0, hogre: 0, topp: 0, botn: 70 }],
-    ["telefon 390×780, halvope", { W: 390, H: 780, venstre: 0, hogre: 0, topp: 0, botn: 314 }],
-    ["telefon 390×780, heilope", { W: 390, H: 780, venstre: 0, hogre: 0, topp: 0, botn: 523 }],
-    ["smal 320×700, halvope", { W: 320, H: 700, venstre: 0, hogre: 0, topp: 0, botn: 300 }],
-    ["brett 820×1180, halvope", { W: 820, H: 1180, venstre: 0, hogre: 0, topp: 0, botn: 330 }],
-    ["benk 1280×900", { W: 1280, H: 900, venstre: 264, hogre: 304, topp: 44, botn: 0 }],
-    ["benk 1920×1080", { W: 1920, H: 1080, venstre: 288, hogre: 336, topp: 44, botn: 0 }],
-    ["benk 1180×720", { W: 1180, H: 720, venstre: 240, hogre: 272, topp: 44, botn: 0 }],
-  ]
-  for (const [rn, rute] of ruter) {
-    for (const [fn, fit] of saker) {
-      const r = ramme(fit, { rute, fovDeg: 30, flat: false })
-      const p = paaSkjermen(fit, r, 30)
-      // Kula er romsleg: ho er rotasjonsfast og tek med hjørne objektet
-      // ikkje har. Difor ein liten slark.
-      const held = p.topp > -0.06 && p.botn < 1.06
-      ok(
-        `${rn} · ${fn}`,
-        held,
-        held ? "" : `topp ${p.topp.toFixed(2)}, botn ${p.botn.toFixed(2)}`,
-      )
-    }
-  }
-
-  // Klemminga: eit ark som tek meir enn helvta av ruta får ikkje meir.
-  const kvalt = fritt({ W: 390, H: 780, venstre: 0, hogre: 0, topp: 0, botn: 700 })
-  ok("eit ark som tek nesten alt får berre helvta", kvalt.h === 390, `${kvalt.h} px fritt`)
-  // …og forhaldet mellom kantane skal halde, elles hoppar objektet sidelengs.
-  const skeiv = fritt({ W: 1000, H: 600, venstre: 300, hogre: 600, topp: 0, botn: 0 })
-  ok(
-    "to veggar som til saman er for breie krympar likt",
-    Math.abs(skeiv.L / (1000 - skeiv.L - skeiv.w) - 300 / 600) < 0.001 && skeiv.w === 500,
-    `venstre ${skeiv.L.toFixed(0)}, fritt ${skeiv.w.toFixed(0)}`,
+const ferdig = (page: Page) =>
+  page.waitForFunction(
+    () => document.querySelector("[aria-label='kontrollar']")?.getAttribute("aria-busy") === "false",
+    undefined,
+    { timeout: 45000 },
   )
+/** parameterposen slik lenkja ber henne */
+const hash = (page: Page): Params => {
+  const h = page.url().split("#p=")[1]
+  return h ? (JSON.parse(decodeURIComponent(h)) as Params) : ({} as Params)
 }
-
-/**
- * TYNGDEPUNKTET TIL DET SOM ER TEIKNA.
- *
- * Ein gest på eit lerret har ikkje eitt einaste vitne i DOM-en: ingen
- * knapp, ingen tekst, ingen parameter. Det einaste som svarar er BILETET,
- * so det vert lese — kvar blekket ligg, og kor mykje det er av det.
- *
- * Ei dreiing og ei flytting skil seg tydeleg der. Ei flytting skuvar heile
- * teikninga same veg som fingeren og lét mengda blekk stå; ei dreiing
- * flyttar tyngdepunktet lite og endrar FORMA, so mengda går opp eller ned.
- *
- * PNG-en vert dekoda av nettlesaren sjølv. Å lese pikslar rett ut av eit
- * WebGL-lerret gjev svart: bufferet er sleppt når ramma er komponert, og
- * `frameloop="demand"` teiknar han ikkje på nytt for oss.
- */
-async function blekket(page: Page) {
-  const buf = await page.screenshot({ clip: { x: 120, y: 120, width: 660, height: 520 } })
-  return page.evaluate(async (b64: string) => {
-    const im = new Image()
-    im.src = "data:image/png;base64," + b64
-    await im.decode()
-    const g = document.createElement("canvas")
-    g.width = im.width
-    g.height = im.height
-    const cx = g.getContext("2d")!
-    cx.drawImage(im, 0, 0)
-    const d = cx.getImageData(0, 0, g.width, g.height).data
-    let sx = 0
-    let sy = 0
-    let n = 0
-    for (let y = 0; y < g.height; y++) {
-      for (let x = 0; x < g.width; x++) {
-        const i = (y * g.width + x) * 4
-        if (d[i] < 170 && d[i + 1] < 170) {
-          sx += x
-          sy += y
-          n++
-        }
-      }
-    }
-    return n ? { x: Math.round(sx / n), y: Math.round(sy / n), n } : { x: 0, y: 0, n: 0 }
-  }, buf.toString("base64"))
+const plana = (page: Page) => lesPlan(hash(page).plan)
+const lina = async (page: Page) => (await page.locator(HOVUDLINA).innerText()).replace(/\s+/g, " ").trim()
+const roleg = async (page: Page, ms = 500) => {
+  await ferdig(page)
+  await page.waitForTimeout(ms)
 }
-
-/**
- * FINGRANE.
- *
- * Gestane er det einaste i reiskapen ingen annan prøve kjem nær: dei har
- * ingen knapp å trykkje på, dei står ikkje i DOM-en, og eit bilete syner
- * dei ikkje. Dei kan slutte å verke — ein terskel som er feil veg, eit
- * forteikn som er snudd, ein klassifikator som tek eit klyp for eit drag —
- * utan at noko som helst feilar.
- *
- * Difor vert dei send inn som ekte punkt gjennom nettlesaren sin eigen
- * inngang, og svaret vert lese av lenkja.
- */
-async function gestane(browser: Browser) {
-  const page = await browser.newPage({
-    viewport: { width: 900, height: 900 },
-    hasTouch: true,
-  })
-  await page.goto(URL, { waitUntil: "networkidle" })
-  await rolig(page)
-  const cdp = await page.context().newCDPSession(page)
-  type Pt = { x: number; y: number; id: number }
-  const send = (type: string, touchPoints: Pt[]) =>
-    cdp.send("Input.dispatchTouchEvent", { type, touchPoints } as never)
-
-  /**
-   * FINGRANE DIRRAR.
-   *
-   * Gestane stod her med reine tal: to punkt som flytta seg nøyaktig dit
-   * dei skulle, hending etter hending. Ein skjerm gjev ikkje det. Han gjev
-   * eit par pikslar støy på kvar finger for seg, og den støyen er både
-   * avstand og vinkel — akkurat dei to tinga klassifikatoren skil eit klyp
-   * og ei vriding frå eit drag på.
-   *
-   * Utan dirret prøvde denne bolken den eine saka som aldri kjem inn frå
-   * ein ekte skjerm, og sa «ok». Med dirret feila ho annakvar gong: eit
-   * drag på to hundre og tjue pikslar vart kalla ei vriding, og ribbetalet
-   * rørte seg ikkje. Det var det brukaren såg.
-   *
-   * Tre pikslar kvar veg, uavhengig per finger. Det er på den rause sida av
-   * det ein kapasitiv skjerm gjev, og det er meininga: gestane skal halde
-   * med marg.
-   */
-  const dirr = () => (Math.random() - 0.5) * 6
-  const skjelv = ([a, b]: [Pt, Pt]): [Pt, Pt] => [
-    { ...a, x: a.x + dirr(), y: a.y + dirr() },
-    { ...b, x: b.x + dirr(), y: b.y + dirr() },
-  ]
-
-  /** to fingrar frå ei stode til ei anna, i tjue steg */
-  const gest = async (fra: [Pt, Pt], til: (t: number) => [Pt, Pt]) => {
-    await send("touchStart", skjelv(fra))
-    for (let i = 1; i <= 20; i++) {
-      await send("touchMove", skjelv(til(i / 20)))
-      await page.waitForTimeout(16)
-    }
-    await send("touchEnd", [])
-    await rolig(page)
+/** lenkja vert skriven litt etter handlinga; vent på at posen seier det ho skal */
+const vent = async (page: Page, f: (p: Params) => boolean, ms = 10000) => {
+  const t0 = Date.now()
+  while (Date.now() - t0 < ms) {
+    if (f(hash(page))) break
+    await page.waitForTimeout(100)
   }
-
-  const midt = { x: 450, y: 300 }
-  const pkt = (r: number, v: number): [Pt, Pt] => [
-    { x: midt.x - r * Math.cos(v), y: midt.y - r * Math.sin(v), id: 1 },
-    { x: midt.x + r * Math.cos(v), y: midt.y + r * Math.sin(v), id: 2 },
-  ]
-
-  // --- KLYP: STORLEIKEN ----------------------------------------------------
-  let p = await lenkja(page)
-  const for0 = Number(p.storleik)
-  await gest(pkt(60, 0), (t) => pkt(60 + 120 * t, 0))
-  p = await lenkja(page)
-  ok("klyp ut gjer objektet større", Number(p.storleik) > for0 * 1.5, `${for0} → ${p.storleik} mm`)
-
-  const for1 = Number(p.storleik)
-  await gest(pkt(180, 0), (t) => pkt(180 - 120 * t, 0))
-  p = await lenkja(page)
-  ok("og klyp inn gjer det mindre", Number(p.storleik) < for1 * 0.8, `${for1} → ${p.storleik} mm`)
-
-  // --- VRI: VENDINGA -------------------------------------------------------
-  // Med klokka på skjermen skal objektet gå med klokka, og det er negativ
-  // rotasjon kring den ståande aksen.
-  const vend0 = Number(p.rotZ)
-  await gest(pkt(140, 0), (t) => pkt(140, (t * 40 * Math.PI) / 180))
-  p = await lenkja(page)
-  const dv = Number(p.rotZ) - vend0
-  /**
-   * FYRTI GRADER INN SKAL GJE FYRTI GRADER UT.
-   *
-   * Bandet var −25 til −55 og dekte over at gesten gav 53: `sumVri` la den
-   * same vridinga saman om att for kvar hending som gjekk før gesten fekk
-   * namn. Ein vri som gjev ein tredel for mykje er ikkje ein vri du kan
-   * sikte med.
-   *
-   * Så vart det stramma til −35..−45, og då kom det fram at HALVE feilen
-   * stod att: dei to greinene som går ut att før gesten har fått namn er
-   * daudsona OG ventinga på at leiaren skal halde i tre bilete, og berre
-   * den fyrste vart retta. Fem køyringar gav 40, 43, 44, 45 og 49 grader —
-   * talet voks med kor mange bilete ventinga tok. Eit tal som varierer med
-   * timing er ikkje eit tal.
-   *
-   * Med båe greinene retta: 39 og 40 på to køyringar. Bandet er ±4 no, og
-   * det ville teke både dei 53 og dei 49.
-   */
-  ok("vri med klokka vender objektet like mykje", dv <= -36 && dv >= -44, `${vend0}° → ${p.rotZ}°`)
-
-  // --- DRAG: RIBBETALET ----------------------------------------------------
-  const ribb0 = Number(p.ribbY)
-  const stor0 = Number(p.storleik)
-  await gest(pkt(90, 0), (t) => [
-    { x: midt.x - 90, y: midt.y - 220 * t, id: 1 },
-    { x: midt.x + 90, y: midt.y - 220 * t, id: 2 },
-  ])
-  p = await lenkja(page)
-  ok("drag oppover gjev fleire ribber", Number(p.ribbY) > ribb0, `${ribb0} → ${p.ribbY}`)
-  // Klassifikatoren vel ÉIN gest. Eit drag som òg skalerer tyder at
-  // terskelen mellom dei to er for laus.
-  ok("og lét storleiken stå", Number(p.storleik) === stor0, `${stor0} → ${p.storleik} mm`)
-
-  // Og den andre vegen. Dei to aksane er kvar sin parameter og kvar sin
-  // gren i klassifikatoren, so den eine seier ingen ting om den andre.
-  const langs0 = Number(p.ribbX)
-  const vend1 = Number(p.rotZ)
-  await gest(pkt(90, 0), (t) => [
-    { x: midt.x - 90 + 220 * t, y: midt.y, id: 1 },
-    { x: midt.x + 90 + 220 * t, y: midt.y, id: 2 },
-  ])
-  p = await lenkja(page)
-  ok("drag til høgre gjev fleire ribber langs x", Number(p.ribbX) > langs0, `${langs0} → ${p.ribbX}`)
-  ok("og lét vendinga stå", Number(p.rotZ) === vend1, `${vend1}° → ${p.rotZ}°`)
-
-  // --- DRAG NEDOVER: BOTNEN HELD -------------------------------------------
-  // Draget den andre vegen er langt nok til å køyre båe tala under null om
-  // ingen tok imot. Botnen er to, og han er to av di ei einaste ribbe kvar
-  // veg ikkje er eit rutenett: det er to plater som kryssar, og på ein
-  // kropp med bein og hovud eit dusin øyer som ikkje heng i noko.
-  for (const [namn, veg] of [
-    ["ned", (t: number) => [
-      { x: midt.x - 90, y: midt.y + 700 * t, id: 1 },
-      { x: midt.x + 90, y: midt.y + 700 * t, id: 2 },
-    ]],
-    ["til venstre", (t: number) => [
-      { x: midt.x - 90 - 700 * t, y: midt.y, id: 1 },
-      { x: midt.x + 90 - 700 * t, y: midt.y, id: 2 },
-    ]],
-  ] as const) {
-    await gest(pkt(90, 0), veg as (t: number) => [Pt, Pt])
-    p = await lenkja(page)
-    ok(
-      `eit langt drag ${namn} stoggar på to ribber`,
-      Number(p.ribbX) >= 2 && Number(p.ribbY) >= 2,
-      `${p.ribbX}×${p.ribbY}`,
-    )
-  }
-
-  // --- DRAG MED RULL I HANDA -----------------------------------------------
-  /**
-   * EI HAND SOM DREG, RULLAR LITT.
-   *
-   * Draget over er reint: begge fingrane går rett opp, null grader vri.
-   * Slik dreg ingen. Ei hand som set to fingrar på glaset og dreg oppover
-   * rullar nokre grader medan ho set seg, og vridinga vert vegen som ein
-   * BOGE — vinkelen gonga med halve fingeravstanden. Med fingrane 180 px
-   * frå kvarandre er seks grader ti pikslar boge, meir enn dei fyrste
-   * pikslane av draget, og gesten vart namngjeven «vri». Éin gong, for
-   * heile draget: resten av rørsla gjorde ingen ting.
-   *
-   * Difor eit lite drag — eit par ribber, ikkje heile bandet — med rullen
-   * fremst, der han er verst.
-   */
-  const ribb1 = Number(p.ribbY)
-  const vend2 = Number(p.rotZ)
-  await gest(pkt(90, 0), (t) => {
-    const rull = (Math.min(1, t / 0.3) * 8 * Math.PI) / 180
-    const drag = 60 * Math.max(0, (t - 0.15) / 0.85)
-    return [
-      { x: midt.x - 90 * Math.cos(rull), y: midt.y - 90 * Math.sin(rull) - drag, id: 1 },
-      { x: midt.x + 90 * Math.cos(rull), y: midt.y + 90 * Math.sin(rull) - drag, id: 2 },
-    ]
-  })
-  p = await lenkja(page)
-  ok(
-    "eit drag med åtte grader rull i seg er framleis eit drag",
-    Number(p.ribbY) !== ribb1,
-    `${ribb1} → ${p.ribbY} ribber`,
-  )
-  ok("og vender ikkje objektet", Number(p.rotZ) === vend2, `${vend2}° → ${p.rotZ}°`)
-
-  await page.close()
+  await roleg(page, 200)
 }
-
-/**
- * PLATA PÅ EIN TELEFON: DRA EIN DEL, HALD HAN, SNU HAN.
- *
- * Kvar del på plata er sitt eige element, og ein finger kan gjere tre ting
- * med han: eit trykk peikar, eit trykk som varer opnar verktyet, og eit drag
- * FLYTTAR han — der fingeren slepper, står han fast. Ingen av dei tre står
- * i DOM-en som anna enn resultatet sitt, so dei vert prøvde med ekte
- * trykkpunkt gjennom nettlesaren sin eigen inngang, og svaret vert lese av
- * lenkja: `fest` er adressa, plata, svingen og hjørnet.
- *
- * Den eine feilen som ikkje kastar: klokka som gjer eit trykk langt ser
- * ikkje fingeren. Står hovudtråden stille etter at delen lyste opp — og i
- * ein nettlesar utan skjermkort gjer han det i eit halvt sekund — kjem
- * klokka før rørslene, og verktyet opnar seg over eit drag. Sjå `LANGT_MS`
- * i verkty.tsx. Difor er dette nett det miljøet prøva må halde i.
- */
-async function plata(browser: Browser, feil: string[]) {
-  const page = await browser.newPage({
-    viewport: { width: 390, height: 844 },
-    hasTouch: true,
-    isMobile: true,
-    deviceScaleFactor: 3,
-  })
-  page.on("pageerror", (e) => feil.push(String(e)))
-  page.on("console", (m) => {
-    if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) feil.push(m.text())
-  })
-  await page.goto(URL, { waitUntil: "networkidle" })
-  await rolig(page)
-  await opnePanelet(page)
-  await page.getByLabel("opne stabelen").click()
-  await rolig(page)
-  const skuffa = page.locator("section[aria-label='verkty']")
-  await skuffa.locator("button", { hasText: /^plater$/i }).first().click()
-  await rolig(page)
-  await page.waitForTimeout(600)
-
-  const svg = skuffa.locator("svg[role=img]")
-  const delar = svg.locator("g > g")
-  ok("plata har delar på seg", (await delar.count()) > 0, `${await delar.count()} delar`)
-
-  /** midten av delen med denne adressa, i skjermpikslar. Tittelen ber
-   *  adressa fyrst, og «· fast» etter når han står fast. */
-  const midt = async (adr: string) => {
-    const g = svg
-      .locator("g > g", { has: page.locator("title", { hasText: new RegExp(`^${adr}( |$)`) }) })
-      .first()
-    const b = (await g.boundingBox())!
-    return { x: b.x + b.width / 2, y: b.y + b.height / 2 }
-  }
-  const adr = ((await delar.first().locator("title").textContent()) ?? "").trim().split(" ")[0]
-  const fyrst = await midt(adr)
-
-  const cdp = await page.context().newCDPSession(page)
-  type Pt = { x: number; y: number; id: number }
-  const send = (type: string, touchPoints: Pt[]) =>
-    cdp.send("Input.dispatchTouchEvent", { type, touchPoints } as never)
-  /** ein finger frå ein stad til ein annan, i tolv steg */
-  let undervegs = ""
-  const dra = async (fra: { x: number; y: number }, til: { x: number; y: number }) => {
-    await send("touchStart", [{ x: fra.x, y: fra.y, id: 1 }])
-    for (let i = 1; i <= 12; i++) {
-      await send("touchMove", [
-        { x: fra.x + ((til.x - fra.x) * i) / 12, y: fra.y + ((til.y - fra.y) * i) / 12, id: 1 },
-      ])
-      await page.waitForTimeout(30)
-    }
-    // det som står i hovudet på plata medan fingeren enno er nede
-    undervegs = await skuffa.innerText()
-    await send("touchEnd", [])
-    await rolig(page)
-    await page.waitForTimeout(500)
-  }
-  const festet = async () => String((await lenkja(page)).fest)
-
-  // --- DRAGET FESTAR ---------------------------------------------------------
-  ok("ingen feste før nokon har dregen", (await festet()) === "")
-  const mål = { x: Math.min(370, fyrst.x + 90), y: fyrst.y - 60 }
-  await dra(fyrst, mål)
-  // Fingeren dekkjer delen; hovudet på plata seier kvar hjørnet landar.
-  ok("medan du dreg seier plata kvar hjørnet landar", /x \d+ · y \d+ mm/.test(undervegs), undervegs.replace(/\s+/g, " ").slice(0, 90))
-  const f1 = await festet()
-  ok("eit drag festar delen", f1.startsWith(adr + ":"), f1)
-  const etter = await midt(adr)
-  ok(
-    "og delen ligg der fingeren sleppte han",
-    Math.abs(etter.x - mål.x) < 30 && Math.abs(etter.y - mål.y) < 30,
-    `${fyrst.x.toFixed(0)},${fyrst.y.toFixed(0)} → ${etter.x.toFixed(0)},${etter.y.toFixed(0)}, mål ${mål.x.toFixed(0)},${mål.y.toFixed(0)}`,
-  )
-
-  // --- HALD: SLEPP OG SNU -------------------------------------------------------
-  await send("touchStart", [{ x: etter.x, y: etter.y, id: 1 }])
-  await page.waitForTimeout(700)
-  await send("touchEnd", [])
-  await page.waitForTimeout(300)
-  const meny = page.getByRole("dialog", { name: `del ${adr}` })
-  ok("eit langt trykk opnar verktyet over delen", (await meny.count()) === 1)
-  ok("og delen står som fast der", (await meny.locator("button", { hasText: /^slepp$/ }).count()) === 1)
-  const rotAv = (f: string) => Number(f.split(";").find((q) => q.startsWith(adr + ":"))?.split(":")[1].split(",")[1])
-  const rot0 = rotAv(f1)
-  await meny.locator("button", { hasText: /^snu$/ }).click()
-  await rolig(page)
-  const rot1 = rotAv(await festet())
-  ok("snu tek ein kvart sving", rot1 === (rot0 + 1) % 4, `${rot0} → ${rot1}`)
-  ok("og verktyet står att, so neste sving er eitt trykk", (await meny.count()) === 1)
-  await page.waitForTimeout(400)
-  await meny.locator("button", { hasText: /^snu$/ }).click()
-  await rolig(page)
-  ok("og ein til", rotAv(await festet()) === (rot0 + 2) % 4)
-  await page.waitForTimeout(400)
-  const snudd = await midt(adr)
-  ok(
-    "delen snur kring midten sin",
-    Math.abs(snudd.x - etter.x) < 25 && Math.abs(snudd.y - etter.y) < 25,
-    `${etter.x.toFixed(0)},${etter.y.toFixed(0)} → ${snudd.x.toFixed(0)},${snudd.y.toFixed(0)}`,
-  )
-  await meny.locator("button", { hasText: /^slepp$/ }).click()
-  await rolig(page)
-  ok("slepp tek festet bort", (await festet()) === "")
-
-  // --- TO FESTE I KVARANDRE ----------------------------------------------------
-  /**
-   * Pakkinga overprøver ikkje handa: dreg du ein del inn i ein annan festa
-   * del, ligg dei i kvarandre. Men plata skal SEIE det — raud del, og eit
-   * tal i hovudet på henne — og regelen om plata skal ryke.
-   */
-  const a = await midt(adr)
-  await dra(a, { x: Math.min(370, a.x + 90), y: a.y - 60 })
-  const andre = ((await delar.nth(1).locator("title").textContent()) ?? "").trim().split(" ")[0]
-  const b = await midt(andre)
-  const inn = await midt(adr)
-  await dra(b, inn)
-  const f3 = await festet()
-  ok("to delar dregne står begge fast", f3.split(";").length === 2, f3)
-  ok(
-    "og plata seier at dei ligg i kvarandre",
-    /\d+ i kvarandre/.test(await skuffa.innerText()),
-    (await skuffa.innerText()).replace(/\s+/g, " ").slice(0, 80),
-  )
-  const raude = await page.evaluate(() =>
-    [...document.querySelectorAll("section[aria-label='verkty'] svg g > g > path")].filter(
-      (q) => getComputedStyle(q).stroke === "rgb(185, 28, 28)",
-    ).length,
-  )
-  ok("og teiknar den som ligg i den andre raud", raude > 0, `${raude} raude baner`)
-
-  // --- TIL NESTE PLATE ---------------------------------------------------------
-  /**
-   * Draget flyttar innanfor plata. Ein del som skal AV henne tek vegen
-   * gjennom verktyet: «neste plate» festar han på plata etter — ei ny om
-   * det er den siste — og skuffa fylgjer han dit. Her tek det òg dei to ut
-   * av kvarandre.
-   */
-  const plateAv = (f: string, a: string) =>
-    Number((f.split(";").find((q) => q.startsWith(a + ":")) ?? "").split(":")[1]?.split(",")[0])
-  // Dei to ligg i kvarandre, so trykket landar på den som er teikna sist.
-  // Kven det vart, seier verktyet sjølv.
-  const her = await midt(andre)
-  await send("touchStart", [{ x: her.x, y: her.y, id: 1 }])
-  await page.waitForTimeout(700)
-  await send("touchEnd", [])
-  await page.waitForTimeout(300)
-  const meny2 = page.getByRole("dialog")
-  ok("verktyet opnar seg over ein festa del", (await meny2.count()) === 1)
-  const kven = ((await meny2.getAttribute("aria-label")) ?? "").replace(/^del /, "")
-  await meny2.locator("button", { hasText: /^neste plate$/ }).click()
-  await rolig(page)
-  await page.waitForTimeout(700)
-  const f4 = await festet()
-  ok("neste plate festar delen på plata etter", plateAv(f4, kven) === 1, `${kven} · ${f4}`)
-  const paaSkjermen = () => svg.locator("title", { hasText: new RegExp(`^${kven}( |$)`) }).count()
-  ok("og skuffa fylgjer han dit", (await paaSkjermen()) === 1)
-  ok("og dei ligg ikkje i kvarandre lenger", !/i kvarandre/.test(await skuffa.innerText()))
-  const der = await midt(kven)
-  await send("touchStart", [{ x: der.x, y: der.y, id: 1 }])
-  await page.waitForTimeout(700)
-  await send("touchEnd", [])
-  await page.waitForTimeout(300)
-  await page.getByRole("dialog", { name: `del ${kven}` }).locator("button", { hasText: /^førre plate$/ }).click()
-  await rolig(page)
-  await page.waitForTimeout(700)
-  ok("og førre plate tek han attende", plateAv(await festet(), kven) === 0 && (await paaSkjermen()) === 1, await festet())
-
-  // Vegen attende, éin gong for alle: to feste står, ein knapp tek dei.
-  await skuffa.locator("button", { hasText: /^slepp alle$/ }).click()
-  await rolig(page)
-  ok("slepp alle tek alle festa", (await festet()) === "" && (await skuffa.locator("button", { hasText: /^slepp alle$/ }).count()) === 0)
-
-  // --- KLYPET --------------------------------------------------------------------
-  /**
-   * Ei plate på 600 mm er 366 pikslar brei på ein telefon. To fingrar
-   * klyp henne nærare, éin finger på bert bord dreg utsnittet, og eit
-   * dobbelttrykk syner heile plata att.
-   */
-  const viewBox = () => svg.getAttribute("viewBox")
-  const heile = await viewBox()
-  const sb = (await svg.boundingBox())!
-  const c = { x: sb.x + sb.width / 2, y: sb.y + sb.height / 2 }
-  await send("touchStart", [{ x: c.x - 40, y: c.y, id: 1 }, { x: c.x + 40, y: c.y, id: 2 }])
-  for (let i = 1; i <= 8; i++) {
-    await send("touchMove", [{ x: c.x - 40 - 12 * i, y: c.y, id: 1 }, { x: c.x + 40 + 12 * i, y: c.y, id: 2 }])
-    await page.waitForTimeout(30)
-  }
-  await send("touchEnd", [])
-  await page.waitForTimeout(300)
-  const naert = await viewBox()
-  const breidd = (v: string | null) => Number((v ?? "").split(" ")[2])
-  ok("eit klyp zoomar plata", !!naert && breidd(naert) < breidd(heile) * 0.6, `${heile} → ${naert}`)
-  ok("og delane står framleis på henne", (await delar.count()) > 0)
-  // ADRESSA SLIK LASEREN SKRIV HENNE. Ho står på delen når du har klypt
-  // deg nærare — på ei heil plate i eit telefonvindauge er ho fire pikslar
-  // høg, og fire pikslar bokstav er grums og ikkje ei adresse.
-  const merke = await svg.locator("[data-merke]").count()
-  ok("adressa står gravert på delane når du er nær", merke > 0, `${merke} merke`)
-  await svg.dblclick({ position: { x: 8, y: 8 } })
-  await page.waitForTimeout(300)
-  ok("dobbelttrykket syner heile plata att", (await viewBox()) === heile, String(await viewBox()))
-  ok("og ho går bort att når heile plata står", (await svg.locator("[data-merke]").count()) === 0)
-  // Musa stod att på plata etter dobbelttrykket. Veks hovudet på plata
-  // under henne — det fyrste festet gjev «slepp alle» — glid plata ut under
-  // henne, og nettlesaren seier at ho fór ut: eit museforlat, som slepper
-  // valet fingeren gjorde. Ein telefon har inga mus; prøva flytter henne ut.
-  await page.mouse.move(1, 1)
-
-  // --- EIT VAL, OG TO FINGRAR PÅ HAN ---------------------------------------------
-  /**
-   * Eit trykk på ein del vel han; eit trykk på bert bord — eller på bert
-   * lerret over modellen — slepper valet. Med ein del vald er to fingrar
-   * hans: dei dreg han dit dei går, og vrir dei ein kvart sving, snur han.
-   */
-  const valde = () => svg.locator("g[data-paa]").count()
-  const trykk = async (x: number, y: number) => {
-    await send("touchStart", [{ x, y, id: 1 }])
-    await page.waitForTimeout(80)
-    await send("touchEnd", [])
+const talPlan = (n: number) => (p: Params) => lesPlan(p.plan).length === n
+/** arket i midten, med planlista synleg */
+const midt = async (page: Page) => {
+  if ((await page.locator("[role=listbox][aria-label='plan']").count()) === 0) {
+    await page.locator(HOVUDLINA).click()
     await page.waitForTimeout(400)
   }
-  const p0 = await midt(adr)
-  await trykk(p0.x, p0.y)
-  ok("eit trykk på ein del vel han", (await valde()) === 1)
-  // Plata er pakka frå nedre venstre hjørne, so øvre høgre er bert bord.
-  const sb2 = (await svg.boundingBox())!
-  await trykk(sb2.x + sb2.width - 10, sb2.y + 10)
-  ok("eit trykk på bert bord slepper valet", (await valde()) === 0)
-  await trykk(p0.x, p0.y)
-  ok("og eit trykk på delen vel han att", (await valde()) === 1)
-
-  // To fingrar på delen, og dei går til høgre og opp — inn i det ledige.
-  /** kvar delen står, i millimeter på plata, lesen mot ramma. Hovudet på
-   *  plata veks når det fyrste festet kjem — «slepp alle» — og då flytter
-   *  heile teikninga seg nokre pikslar; millimeterane står. */
-  const ramme = async () => (await svg.locator("rect").first().boundingBox())!
-  const paaPlata = async (a: string) => {
-    const m = await midt(a)
-    const f = await ramme()
-    return { x: ((m.x - f.x) / f.width) * 600, y: ((f.y + f.height - m.y) / f.height) * 400, ppm: f.width / 600 }
-  }
-  const før2 = await paaPlata(adr)
-  const steg = { dx: 70, dy: -40 }
-  const m2 = await midt(adr)
-  const to = (i: number) => [
-    { x: m2.x - 25 + (steg.dx * i) / 10, y: m2.y + (steg.dy * i) / 10, id: 1 },
-    { x: m2.x + 25 + (steg.dx * i) / 10, y: m2.y + (steg.dy * i) / 10, id: 2 },
-  ]
-  await send("touchStart", to(0))
-  for (let i = 1; i <= 10; i++) {
-    await send("touchMove", to(i))
-    await page.waitForTimeout(30)
-  }
-  await send("touchEnd", [])
-  await rolig(page)
-  await page.waitForTimeout(500)
-  const etter2 = await paaPlata(adr)
-  const venta = { x: før2.x + steg.dx / før2.ppm, y: før2.y - steg.dy / før2.ppm }
-  // Innanfor åtte pikslar smett kanten inntil ein nabo eller på line med
-  // han — på ei heil plate på ein telefon er det tretten millimeter.
-  ok(
-    "to fingrar dreg den valde delen dit dei går, eller til næraste kant",
-    Math.abs(etter2.x - venta.x) < 15 && Math.abs(etter2.y - venta.y) < 15,
-    `${før2.x.toFixed(0)},${før2.y.toFixed(0)} → ${etter2.x.toFixed(0)},${etter2.y.toFixed(0)} mm (venta ${venta.x.toFixed(0)},${venta.y.toFixed(0)})`,
-  )
-  ok("og festar han der", (await festet()).startsWith(adr + ":"), await festet())
-  ok("og han står vald enno", (await valde()) === 1)
-
-  // Og vrir dei — ein kvart sirkel kring midten av delen — snur han.
-  const før3 = await midt(adr)
-  const sving0 = Number((await festet()).split(":")[1].split(",")[1])
-  const kring = (th: number) => [
-    { x: før3.x + 40 * Math.cos(th), y: før3.y + 40 * Math.sin(th), id: 1 },
-    { x: før3.x - 40 * Math.cos(th), y: før3.y - 40 * Math.sin(th), id: 2 },
-  ]
-  await send("touchStart", kring(0))
-  for (let i = 1; i <= 12; i++) {
-    await send("touchMove", kring(((Math.PI / 2) * i) / 12))
-    await page.waitForTimeout(30)
-  }
-  await send("touchEnd", [])
-  await rolig(page)
-  await page.waitForTimeout(500)
-  const sving1 = Number((await festet()).split(":")[1].split(",")[1])
-  const etter3 = await midt(adr)
-  ok("og vrir dei ein kvart sirkel, snur han ein kvart sving", (sving1 - sving0 + 4) % 4 === 1 || (sving1 - sving0 + 4) % 4 === 3, `${sving0} → ${sving1}`)
-  ok(
-    "kring midten sin",
-    Math.abs(etter3.x - før3.x) < 25 && Math.abs(etter3.y - før3.y) < 25,
-    `${før3.x.toFixed(0)},${før3.y.toFixed(0)} → ${etter3.x.toFixed(0)},${etter3.y.toFixed(0)}`,
-  )
-
-  // Eit trykk på bert lerret over modellen slepper valet òg.
-
-  // --- KANTEN PÅ PLATA ------------------------------------------------------------
-  /**
-   * Medan fingrane enno er nede: ein del som vert dregen ut over kanten
-   * stoggar ved henne. Pakkinga klemmer festet inn på plata uansett, so
-   * eit spøkelse som ligg utanfor er eit spøkelse som lyg om kvar delen
-   * hamnar.
-   */
-  const her5 = await midt(adr)
-  const ut = (i: number) => [
-    { x: her5.x - 20 - (400 * i) / 10, y: her5.y, id: 1 },
-    { x: her5.x + 20 - (400 * i) / 10, y: her5.y, id: 2 },
-  ]
-  await send("touchStart", ut(0))
-  for (let i = 1; i <= 10; i++) {
-    await send("touchMove", ut(i))
-    await page.waitForTimeout(30)
-  }
-  await page.waitForTimeout(150)
-  const hovud5 = await skuffa.innerText()
-  const boks5 = (await svg.locator(`g[data-del='${adr}']`).boundingBox())!
-  const ramme5 = await ramme()
-  await send("touchEnd", [])
-  await rolig(page)
-  await page.waitForTimeout(500)
-  ok("ein del dregen ut over kanten stoggar ved henne", boks5.x >= ramme5.x - 2, `venstre kant ${boks5.x.toFixed(0)} px, plata ${ramme5.x.toFixed(0)}`)
-  ok("og hovudet seier x 0", /x 0\b/.test(hovud5), hovud5.split("\n").find((l) => l.startsWith(adr)) ?? "")
-
-  // Lerretet står bak alt; det som er synleg av det på ein telefon med
-  // skuffa open, er stripa mellom lesemåteknappane og skuffa — og modellen
-  // er ramma inn midt i henne, so trykket går ved venstre kant.
-  const skuffTopp = (await skuffa.boundingBox())!.y
-  await trykk(30, skuffTopp - 30)
-  ok("eit trykk på bert lerret slepper valet", (await valde()) === 0)
-  await page.close()
 }
 
-/**
- * LERRETET: KONTUREN ER EI TEIKNING, DEI ANDRE ER EIT ROM.
- *
- * Eitt drag, to heilt ulike svar, og ingen av dei står i DOM-en. I `lag`
- * skal draget SNU objektet; i `kontur` skal det FLYTTE teikninga, av di ein
- * kontur er dei flate kuttprofilane sedde rett ovanfrå og det einaste ein
- * gjer med ei teikning er å dra henne dit ein vil sjå.
- *
- * Skilnaden er målt i blekket. Ei flytting skuvar tyngdepunktet like langt
- * som fingeren og lét mengda stå; ei dreiing flyttar det lite og endrar
- * mengda, av di forma vert ei anna.
- */
-async function lerretet(browser: Browser, feil: string[]) {
-  const page = await browser.newPage({ viewport: { width: 900, height: 800 } })
-  page.on("pageerror", (e) => feil.push(String(e)))
-  await page.goto(URL, { waitUntil: "networkidle" })
-  await rolig(page)
-
-  const dra = async (dx: number, dy: number) => {
-    await page.mouse.move(450, 380)
-    await page.mouse.down()
-    for (let i = 1; i <= 14; i++) {
-      await page.mouse.move(450 + (dx * i) / 14, 380 + (dy * i) / 14)
-      await page.waitForTimeout(20)
-    }
-    await page.mouse.up()
-    await page.waitForTimeout(500)
-  }
-
-  await page.keyboard.press("2")
-  await rolig(page)
-  await page.waitForTimeout(600)
-  const lag0 = await blekket(page)
-  await dra(150, 0)
-  const lag1 = await blekket(page)
-  ok(
-    "eit drag i lag snur objektet i staden for å flytte det",
-    Math.abs(lag1.x - lag0.x) < 60 && Math.abs(lag1.n - lag0.n) > lag0.n * 0.01,
-    `flytta ${lag1.x - lag0.x} px, blekket ${lag0.n} → ${lag1.n}`,
-  )
-
-  await page.keyboard.press("3")
-  await rolig(page)
-  await page.waitForTimeout(700)
-  const k0 = await blekket(page)
-  await dra(150, 100)
-  const k1 = await blekket(page)
-  ok(
-    "eit drag i konturen flyttar teikninga",
-    k1.x - k0.x > 70 && k1.y - k0.y > 40,
-    `flytta ${k1.x - k0.x}, ${k1.y - k0.y} px av 150, 100`,
-  )
-  ok(
-    "og teikninga er den same — det var ei flytting, ikkje ei dreiing",
-    Math.abs(k1.n - k0.n) < k0.n * 0.2,
-    `blekket ${k0.n} → ${k1.n}`,
-  )
-
-  // Dobbelttrykket er vegen heim for den som har panorert seg bort. Det er
-  // ein av gestane konturen BEHELD, og difor verdt å prøve nett her.
-  await page.mouse.dblclick(450, 380)
-  await page.waitForTimeout(1000)
-  const k2 = await blekket(page)
-  ok(
-    "og dobbelttrykket tek deg heim att",
-    Math.abs(k2.x - k0.x) < 25 && Math.abs(k2.y - k0.y) < 25,
-    `${k1.x},${k1.y} → ${k2.x},${k2.y} mot ${k0.x},${k0.y}`,
-  )
-  await page.close()
-}
-
-/**
- * BENKEN.
- *
- * Over 1180 px er grensesnittet eit heilt anna: to faste veggar, ingen
- * tilstandar, og svaret frå finn som ei liste du kan peike i. Tre ting der
- * inne kan svikte utan at noko feilar, og alle tre er nye:
- *
- *   · lista syner tolv rader og set ein annan kandidat enn den du klikka
- *   · peikaren byggjer ei førehandsvising som ikkje vert rydda opp att
- *   · og verre: ei førehandsvising som vert BOKFØRT, so angre går attende
- *     til noko du berre såg på
- */
-async function benken(browser: Browser, feil: string[]) {
-  const page = await browser.newPage({ viewport: { width: 1320, height: 900 } })
-  page.on("pageerror", (e) => feil.push(String(e)))
+async function opne(url: string, browser: Browser, w: number, h: number) {
+  const page = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: w < 1180 })
+  const konsoll: string[] = []
   page.on("console", (m) => {
-    if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) feil.push(m.text())
+    if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) konsoll.push(m.text())
   })
-  await page.goto(URL, { waitUntil: "networkidle" })
-  await rolig(page)
-  ok("benken står over 1180 px", (await page.locator("aside[aria-label='innstillingar']").count()) === 1)
+  page.on("pageerror", (e) => konsoll.push(String(e)))
+  await page.goto(url, { waitUntil: "networkidle" })
+  await roleg(page, 800)
+  return { page, konsoll }
+}
 
-  // Lista sitt eige namn, og ikkje skriftklassen på radene. Selektoren
-  // stod på «.tab»; radene skifta til «.mono» i ei endring som ser lik ut
-  // på benken, og vakta fann null rader og sa frå — men berre om at det
-  // var null, ikkje om at det var HO som hadde drive. Eit namn skiftar
-  // ikkje av at nokon vel ei anna skrift.
-  const rader = page.locator("aside[aria-label='innstillingar'] [aria-label='svar'] button")
-  ok("og ingen svarliste før nokon har spurt", (await rader.count()) === 0)
-
-  await page.getByLabel("finn innstillingar").click()
-  await rolig(page)
-  const n = await rader.count()
-  ok("finn gjev heile lista, ikkje eitt svar", n >= 8, `${n} rader`)
-
-  let p = await lenkja(page)
-  const fyrst = `${p.ribbX}×${p.ribbY}`
-  const raden = (i: number) => rader.nth(i).innerText()
-  ok("og den fyrste rada er den som står", (await raden(0)).includes(fyrst), fyrst)
-
-  // --- KLIKK BIND ----------------------------------------------------------
-  const fjerde = (await raden(3)).split("\n")
-  await rader.nth(3).click()
-  await rolig(page)
-  p = await lenkja(page)
-  ok(
-    "eit klikk i lista set den kandidaten",
-    fjerde.join(" ").includes(`${p.ribbX}×${p.ribbY}`),
-    `${p.ribbX}×${p.ribbY}`,
-  )
-
-  // --- PEIKAREN BYGGJER, OG RYDDAR OPP ATT ---------------------------------
-  const for0 = `${p.ribbX}×${p.ribbY}`
-  await rader.nth(7).hover()
-  await page.waitForTimeout(900)
-  const under = await lenkja(page)
-  ok(
-    "å stå over ei rad byggjer henne",
-    `${under.ribbX}×${under.ribbY}` !== for0,
-    `${for0} → ${under.ribbX}×${under.ribbY}`,
-  )
-  await page.mouse.move(660, 500)
-  await rolig(page)
-  p = await lenkja(page)
-  ok("og å fare ut att gjev deg ditt attende", `${p.ribbX}×${p.ribbY}` === for0, for0)
-
-  // --- OG EI FØREHANDSVISING ER INGA ENDRING -------------------------------
-  await page.keyboard.press("z")
-  await rolig(page)
-  p = await lenkja(page)
-  ok(
-    "angre hoppar ikkje til noko du berre såg på",
-    `${p.ribbX}×${p.ribbY}` !== `${under.ribbX}×${under.ribbY}`,
-    `${p.ribbX}×${p.ribbY}`,
-  )
-
-  // --- STABELEN ------------------------------------------------------------
-  /**
-   * Å RØRE ÉI RIBBE SKAL LA DEI ANDRE STÅ.
-   *
-   * `pnpm hand` prøver den rekninga for seg, i motoren. Her vert han prøvd
-   * gjennom heile vegen: feltet, verbet, lenkja og attende ut i tabellen.
-   * Det er tre stader talet kan bli borte imellom, og ingen av dei feilar
-   * høgt — ei ribbe som ikkje flytta seg ser ut som ei ribbe du ikkje
-   * trykte hardt nok på.
-   */
-  await page.keyboard.press("s")
-  await rolig(page)
-  const stabel = page.locator("section[aria-label='verkty']")
-  const stader = () =>
-    stabel.evaluate((el) =>
-      [...el.querySelectorAll("input")]
-        .filter((q) => /^X\d+, stad$/.test(q.getAttribute("aria-label") ?? ""))
-        .map((q) => (q as HTMLInputElement).value),
-    )
-
-  /**
-   * «STÅR STILLE» ER PÅ EIN TIDELS MILLIMETER, og ikkje på teiknet.
-   *
-   * Ein lås er ein brøkdel av spennet, lagra med fire desimalar. Å låse
-   * stabelen kvantiserer difor kvar einaste ribbe, og på eit spenn på
-   * hundre og femti er det ein hundredels millimeter — nok til at ei ribbe
-   * som stod og las «117,9» les «117,8» etterpå.
-   *
-   * Det er ikkje ei ribbe som flytta seg. Det er den fjerde desimalen i
-   * brøken, og han er under snittbreidda på kvar einaste storleik skyvaren
-   * kan stille. Ei prøve som krev det same TEIKNET prøver avrundinga.
-   */
-  const mm = (s: string) => Number(s.replace(",", "."))
-  const same = (a: string[], b: string[]) =>
-    a.length === b.length && a.every((v, i) => Math.abs(mm(v) - mm(b[i])) < 0.15)
-
-  const fyrsteStad = await stader()
-  ok("stabelen syner ei rad per ribbe", fyrsteStad.length >= 2, fyrsteStad.join(" "))
-
-  // Eit tal skrive i ei rad flyttar DEN ribba, og berre henne.
-  const rad = stabel.getByLabel("X2, stad")
-  await rad.click()
-  await rad.fill("30")
-  await rad.press("Enter")
-  await rolig(page)
-  const flytta = await stader()
-  ok("eit tal i ei rad flyttar den ribba", flytta[1] === "30,0", flytta.join(" "))
-  ok(
-    "og dei andre står stille",
-    same(
-      flytta.filter((_, i) => i !== 1),
-      fyrsteStad.filter((_, i) => i !== 1),
-    ),
-    flytta.join(" "),
-  )
-
-  // Å flytte ei ribbe er å låse stabelen: ei fri ribbe har ingen eigen
-  // plass å flytte seg frå.
-  p = await lenkja(page)
-  ok(
-    "og heile stabelen er låst etterpå",
-    String(p.laas).split("x:")[1]?.split(";")[0]?.split(",").length === fyrsteStad.length,
-    String(p.laas),
-  )
-
-  // Slett: talet går ned, og dei som står att står der dei stod.
-  await stabel.getByLabel("X1: ×").click()
-  await rolig(page)
-  const etterSlett = await stader()
-  p = await lenkja(page)
-  ok(
-    "slett tek ei ribbe ut av stabelen",
-    etterSlett.length === flytta.length - 1 && Number(p.ribbX) === etterSlett.length,
-    `${flytta.length} → ${etterSlett.length}, ribbX ${p.ribbX}`,
-  )
-  ok(
-    "og dei som står att står stille",
-    same(etterSlett, flytta.slice(1)),
-    etterSlett.join(" "),
-  )
-
-  // Piltastane skyv den ribba peikaren står på.
-  await stabel.getByLabel("X2, stad").hover()
-  const foerPil = await stader()
-  await page.keyboard.press("ArrowRight")
-  await rolig(page)
-  const etterPil = await stader()
-  ok(
-    "høgrepila skyv ribba du peikar på",
-    etterPil[1] !== foerPil[1],
-    `${foerPil[1]} → ${etterPil[1]}`,
-  )
-  ok(
-    "og berre henne",
-    same(
-      etterPil.filter((_, i) => i !== 1),
-      foerPil.filter((_, i) => i !== 1),
-    ),
-    etterPil.join(" "),
-  )
-
-  // «Lås alle» på den andre aksen: y skal få ei full låseliste.
-  await stabel.locator("button", { hasText: /^(lås alle|slepp alle)$/ }).nth(1).click()
-  await rolig(page)
-  p = await lenkja(page)
-  ok(
-    "lås alle skriv ned heile aksen",
-    String(p.laas).split("y:")[1]?.split(",").length === Number(p.ribbY),
-    String(p.laas).slice(0, 60),
-  )
-  await page.keyboard.press("s")
-  await rolig(page)
-
-  // --- EIT LANGT TRYKK ER DJUPSØKET ----------------------------------------
-  /**
-   * TO TING UT AV ÉIN KNAPP.
-   *
-   * Eit langt trykk skal gje ei anna liste, og det korte skal IKKJE fyre
-   * med. Ei rekning på tolv grunne kandidatar som kjem etter djupsøket
-   * ville sett det beste svaret hans til side utan at nokon såg det.
-   *
-   * Det som skil dei to listene er formkolonnen: truskapen er det
-   * djupsøket rangerer på, og det raske reknar han ikkje. Kjem han fram,
-   * kom lista frå djupsøket — og det er ein skilnad ein kan LESE, ikkje
-   * ein ein må tru på.
-   */
-  const harForm = () =>
-    page
-      .locator("aside[aria-label='innstillingar'] [aria-label='svar']")
-      .innerText()
-      .then((t) => /\bform\b/i.test(t))
-
-  ok("det korte trykket gjev inga formkolonne", !(await harForm()))
-
-  const kb = (await page.getByLabel("finn innstillingar").boundingBox())!
-  await page.mouse.move(kb.x + kb.width / 2, kb.y + kb.height / 2)
-  await page.mouse.down()
-  await page.waitForTimeout(700)
-  await page.mouse.up()
-  // Djupsøket snittar hundrevis for alvor, og på ein benk utan skjermkort
-  // tek det kring eit minutt. Ringen syner det; prøva ventar.
-  await page.waitForFunction(
-    () => document.querySelector("[aria-busy]")?.getAttribute("aria-busy") === "false",
-    undefined,
-    { timeout: 240000 },
-  )
-
-  ok("eit langt trykk gjev djupsøket", await harForm())
-  // KVAR FRONTEN SLUTTAR. Over lina er svar ingen slår på alt du spurde
-  // om; under er dei slegne. Utan henne bladar du vidare forbi det siste
-  // svaret som kunne vore det beste.
-  const svarTekst = await page
-    .locator("aside[aria-label='innstillingar'] [aria-label='svar']")
-    .innerText()
-  const linjer = svarTekst.split("\n")
-  const skiljet = linjer.findIndex((l) => /slegne på alt/i.test(l))
-  ok(
-    "og ei line der fronten sluttar",
-    skiljet > 1 && skiljet < linjer.length - 1,
-    skiljet < 0 ? "inga line" : `etter ${skiljet} liner av ${linjer.length}`,
-  )
-  const djupe = await rader.count()
-  ok("og ei liste å bla i", djupe > 0, `${djupe} rader`)
-
-  // Kvar rad ber eit formtal, og eit formtal er ein prosent mellom null og
-  // hundre. Ein kolonne med «NaN%» i ser rett ut på avstand.
-  const tal = (await page.locator("aside[aria-label='innstillingar'] [aria-label='svar'] button").first().innerText())
-    .match(/(\d+)%/)
-  ok("og eit formtal som er eit tal", !!tal && Number(tal[1]) > 0 && Number(tal[1]) <= 100, tal?.[0])
-
-  // Og det som står er det som er sett: eit langt trykk skal binde svaret
-  // sitt, ikkje berre rekne det ut.
-  p = await lenkja(page)
-  ok(
-    "og det fyrste djupe svaret er sett",
-    (await raden(0)).includes(`${p.ribbX}×${p.ribbY}`),
-    `${p.ribbX}×${p.ribbY}`,
-  )
-
-  // --- EIT TRYKK TIL STOGGAR SØKET -----------------------------------------
-  /**
-   * Djupsøket tek den tida det tek, og knappen er ein stoppknapp medan det
-   * går: eit trykk til held det beste so langt. Lista skal koma, med form i,
-   * og ho skal vera kortare enn heile fronten — det er det som viser at ho
-   * vart kappa og ikkje fullført.
-   */
-  // Låsene må av fyrst. Med kvar ribbe låst er kvart rutenett det same
-  // rutenettet: alle snittingane treffer same hugsen, og heile djupsøket
-  // er ferdig på nokre millisekund. Då er det ingen ting att å stogge, og
-  // knappen rekk å heite «finn» att før trykket landar — eit trykk som
-  // startar eit nytt, grunt søk i staden for å stogge noko.
-  await page.keyboard.press("s")
-  await rolig(page)
-  const laasKnapp = page
-    .locator("aside[aria-label='innstillingar'] button, section[aria-label='verkty'] button")
-    .filter({ hasText: /^slepp alle$/ })
-    .first()
-  if (await laasKnapp.count()) {
-    await laasKnapp.click()
-    await rolig(page)
-  }
-  await page.getByLabel("storleik, tal", { exact: true }).fill("200")
-  await page.keyboard.press("Enter")
-  await rolig(page)
-  const heile = djupe
-  /**
-   * TRE FREISTNADER, OG DET ER IKKJE SLAPT.
-   *
-   * Søket er hundre og førti snittingar delte på fleire trådar, og kor
-   * langt det er kome når trykket landar, er ikkje noko prøva rår over.
-   * Rekk det å bli ferdig fyrst, er knappen ein finn-knapp att, og
-   * trykket startar eit grunt søk i staden for å stogge noko — ikkje ein
-   * feil i reiskapen, men eit kappløp prøva tapte. Då prøver ho om att.
-   * Det ho krev er uendra: ei KORTA liste, med form i.
-   */
-  let kappa = 0
-  let formEtter = false
-  let vartStopp = false
-  for (let n = 0; n < 3 && !(kappa > 0 && kappa < heile && formEtter); n++) {
-    await rolig(page)
-    const kb2 = (await page.getByLabel("finn innstillingar").boundingBox())!
-    await page.mouse.move(kb2.x + kb2.width / 2, kb2.y + kb2.height / 2)
-    await page.mouse.down()
-    await page.waitForTimeout(700)
-    await page.mouse.up()
-    // Det lange trykket sitt EIGE klikk kjem etter at musa er lyft, og
-    // knappen slukar det: eit langt trykk skal ikkje fyre kort med. Kjem
-    // det etter stopptrykket, er det stopptrykket som vert sluka — so det
-    // får lande fyrst.
-    await page.waitForTimeout(150)
-    // Prøva og trykket er DEN SAME handlinga: les ho fyrst og trykkjer
-    // etterpå, kan søket bli ferdig imellom.
-    vartStopp = await page.evaluate(() => {
-      const b = document.querySelector("[aria-label='finn innstillingar']") as HTMLElement | null
-      if (!b || !/stopp/i.test(b.textContent ?? "")) return false
-      b.click()
-      return true
-    })
-    await rolig(page)
-    kappa = await rader.count()
-    formEtter = await harForm()
-  }
-  ok("medan søket går, og eit trykk stoggar han", vartStopp)
-  ok(
-    "eit trykk til stoggar søket og held det beste so langt",
-    kappa > 0 && kappa < heile && formEtter,
-    `${kappa} rader av ${heile}${formEtter ? "" : " · UTAN formkolonne"}`,
-  )
-
-  // --- MELLOMROM: BERRE OBJEKTET -------------------------------------------
-  await page.locator("body").click({ position: { x: 660, y: 500 } })
-  await page.keyboard.down("Space")
-  // Til veggane ER borte, og ikkje ei fast venting: klikket kan ha
-  // landa på objektet og lyst opp ein del, og ramma det kostar på ein
-  // benk utan skjermkort held tasten i køen lenger enn 300 ms.
-  await page
-    .waitForFunction(
-      () =>
-        Number(
-          getComputedStyle(document.querySelector("aside[aria-label='innstillingar']")!).opacity,
-        ) < 0.1,
-      undefined,
-      { timeout: 5000 },
-    )
-    .catch(() => undefined)
-  const skjult = await page.evaluate(
-    `getComputedStyle(document.querySelector("aside[aria-label='innstillingar']")).opacity`,
-  )
-  await page.keyboard.up("Space")
-  await page.waitForTimeout(300)
-  const synleg = await page.evaluate(
-    `getComputedStyle(document.querySelector("aside[aria-label='innstillingar']")).opacity`,
-  )
-  ok("mellomrom tek veggane bort", Number(skjult) < 0.1 && Number(synleg) > 0.9, `${skjult} → ${synleg}`)
-
-  // --- STORLEIKEN ER EIT TAL DU KAN DRA I ----------------------------------
-  const felt = page.getByLabel("storleik, tal", { exact: true })
-  const boks = (await felt.boundingBox())!
-  const stor0 = Number((await lenkja(page)).storleik)
-  await page.mouse.move(boks.x + 20, boks.y + boks.height / 2)
-  await page.mouse.down()
-  for (let i = 1; i <= 10; i++) {
-    await page.mouse.move(boks.x + 20 + i * 8, boks.y + boks.height / 2)
+/**
+ * TO FINGRAR, GJENNOM CDP. Playwright har éin finger; skissa treng to.
+ * `steg` gjev fingrane sine plassar frå 0 til 1.
+ */
+async function toFingrar(page: Page, steg: (t: number) => [[number, number], [number, number]], n = 12) {
+  const cdp = await page.context().newCDPSession(page)
+  const pkt = (t: number) => steg(t).map(([x, y], id) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 }))
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(0) })
+  for (let i = 1; i <= n; i++) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pkt(i / n) })
     await page.waitForTimeout(16)
   }
-  await page.mouse.up()
-  await rolig(page)
-  const stor1 = Number((await lenkja(page)).storleik)
-  ok("drag på storleikstalet skrur han", stor1 > stor0, `${stor0} → ${stor1} mm`)
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+  await cdp.detach()
+}
 
-  // --- BLINDGATA HAR EIN VEG UT --------------------------------------------
-  /**
-   * Det brukaren sat med: eit klyp gjorde objektet så stort at kvar del
-   * var større enn plata. «bryt · delane får plass · 15 utanfor», DXF og
-   * ARK strekne over, og ingen ting å trykkje på.
-   *
-   * `raad.ts` prøver at rådet reknar rett. Dette prøver at det er ein
-   * KNAPP: at han står i lina, at han set talet, og at uttaka som var
-   * stengde opnar seg av det.
-   */
-  // --- PLATA FYLGJER DEN VALDE DELEN ---------------------------------------
-  /**
-   * Ei ribbe vald i modellen er eit spørsmål om HAN, og svaret er delen
-   * som lyser opp på plata. Ligg han på ei anna plate enn den skuffa
-   * syner, skal skuffa bla dit — elles peika du på noko og ingenting
-   * hende: plata stod med tolv andre delar og ingen av dei var din.
-   *
-   * Men berre når VALET skifta. Bladar du sjølv, med ein del vald, skal
-   * du få lov: ein knapp som kastar deg attende med det same er verre
-   * enn ingen knapp.
-   */
-  // Eit søk som enno går held sida oppteken, og alt under ventar på ei
-  // rekning ingen har bede om. Står det ein stoppknapp der, er det ein
-  // som skal trykkjast.
-  await page.evaluate(() => {
-    const b = document.querySelector("[aria-label='finn innstillingar']") as HTMLElement | null
-    if (b && /stopp/i.test(b.textContent ?? "")) b.click()
-  })
-  await rolig(page)
-  /**
-   * OG PRIKKEN SKAL GÅ AV.
-   *
-   * Skuffa som opnar seg spør arbeidaren om ei plate, og det spørsmålet
-   * gjekk forbi bygget som gjekk: målinga kom attende med eit lågare
-   * nummer enn teljaren, og «reknar» stod på til noko anna endra seg. So
-   * plata vert opna med det same, utan å vente på bygget fyrst — det er
-   * nett det tilfellet.
-   */
-  await page.getByLabel("storleik, tal", { exact: true }).fill("150")
-  await page.keyboard.press("Enter")
-  await page.keyboard.press("a")
-  await rolig(page)
+async function telefon(browser: Browser) {
+  console.log("\n=== telefon 390×844")
+  const { page, konsoll } = await opne(URL, browser, 390, 844)
+
+  // --- arket har tre høgder ---------------------------------------------------
+  const liste = page.locator("[role=listbox][aria-label='plan']")
+  sjekk("arket startar som éi line", (await liste.count()) === 0)
+  await page.locator(HOVUDLINA).click()
+  await page.waitForTimeout(500)
+  sjekk("eit trykk på lina opnar midten, med planlista", (await liste.count()) === 1)
+  await page.getByRole("button", { name: "alle kontrollane" }).click()
+  await page.waitForTimeout(500)
+  const felt = await page.locator("input[aria-label$=', tal']").count()
+  sjekk("«alle kontrollane» syner skyvarane", felt >= 12, `${felt} talfelt`)
+  await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
-  ok("plata kan opnast midt i eit bygg utan at prikken vert ståande", true)
-  const plata2 = page
-    .locator("aside[aria-label='innstillingar'] svg[role=img], section[aria-label='verkty'] svg[role=img]")
-    .first()
-  const plateNr = async () => Number(((await plata2.getAttribute("aria-label")) ?? "").match(/plate (\d+)/)?.[1] ?? 0)
-  // Eit trykk på ei ribbe i modellen, og so det SAME trykket om att etter
-  // at handa har bladd: fyrste gongen vel det ein del, andre gongen er det
-  // den same delen — og då må plata bla attende til han. Slik treng prøva
-  // ikkje vita kva ribbe ho traff.
-  let valt: { x: number; y: number; plate: number } | null = null
-  for (const [x, y] of [[560, 380], [640, 380], [680, 460], [720, 540], [600, 500]]) {
-    await page.mouse.click(x, y)
-    await rolig(page)
-    await page.waitForTimeout(400)
-    if ((await plata2.locator("g[data-paa]").count()) === 1) {
-      valt = { x, y, plate: await plateNr() }
-      break
+  sjekk("esc stengjer arket til lina", (await liste.count()) === 0)
+
+  // --- lås og slett, med knapp og med tast ------------------------------------
+  const n0 = plana(page).length
+  await page.getByRole("button", { name: "lås", exact: true }).click()
+  await vent(page, talPlan(n0 + 1))
+  sjekk("lås legg eitt plan i lenkja", plana(page).length === n0 + 1, `${n0} → ${plana(page).length}`)
+  await midt(page)
+  const nytt = plana(page)[plana(page).length - 1]
+  sjekk("det nye planet har eit namn ingen har hatt", plana(page).filter((p) => p.id === nytt.id).length === 1 && nytt.id > n0, `namn ${nytt.id}`)
+  sjekk("og lista har like mange rader", (await liste.locator("[role=option]").count()) === n0 + 1)
+
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 2))
+  sjekk("L låser òg", plana(page).length === n0 + 2)
+  await midt(page)
+
+  const rad = liste.locator("[role=option]").last()
+  await rad.locator("button").first().click()
+  await page.waitForTimeout(300)
+  sjekk("eit trykk på rada vel planet", (await rad.getAttribute("aria-selected")) === "true")
+  sjekk("og den store knappen seier «ferdig»", (await page.getByRole("button", { name: "ferdig", exact: true }).count()) === 1)
+  await page.keyboard.press("Backspace")
+  await vent(page, talPlan(n0 + 1))
+  sjekk("⌫ tek det valde planet bort", plana(page).length === n0 + 1)
+  await midt(page)
+  await page.getByRole("button", { name: `slett plan ${nytt.id}`, exact: true }).click()
+  await vent(page, talPlan(n0))
+  sjekk("× på rada tek planet bort", plana(page).length === n0 && !plana(page).some((p) => p.id === nytt.id))
+
+  // --- angre --------------------------------------------------------------------
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0 + 1))
+  sjekk("Z angrar slettinga", plana(page).length === n0 + 1)
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0 + 2))
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0 + 1))
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0))
+  sjekk("og tre til er attende ved starten", plana(page).length === n0)
+
+  // --- SKISSA: to fingrar flyttar og vrir planet -------------------------------
+  // Skisseplanet står gjennom midten. Dra to fingrar sidelengs over objektet,
+  // lås, og planet som vart låst står ikkje i midten lenger.
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
+  await toFingrar(page, (t) => [[150 + 90 * t, 330], [150 + 90 * t, 430]])
+  await page.waitForTimeout(300)
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
+  const flytt = plana(page)[plana(page).length - 1]
+  const av = Math.hypot(flytt.o[0] - 0.5, flytt.o[1] - 0.5)
+  sjekk("to fingrar sidelengs flyttar skissa: planet står ikkje i midten", av > 0.05, `o = ${flytt.o.map((c) => c.toFixed(2)).join(",")}`)
+  sjekk("men det står framleis loddrett", Math.abs(flytt.n[2]) < 0.05, `n = ${flytt.n.map((c) => c.toFixed(2)).join(",")}`)
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0))
+
+  // Vri: den eine fingeren går rundt den andre, tredve grader.
+  await toFingrar(page, (t) => {
+    const a = (30 * t * Math.PI) / 180
+    return [[195, 380], [195 + 80 * Math.cos(a), 380 + 80 * Math.sin(a)]]
+  })
+  await page.waitForTimeout(300)
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
+  const vridd = plana(page)[plana(page).length - 1]
+  sjekk("to fingrar som vrir vinklar skissa: planet står ikkje loddrett", Math.abs(vridd.n[2]) > 0.1, `n = ${vridd.n.map((c) => c.toFixed(2)).join(",")}`)
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0))
+
+  // --- eit valt plan tek gestane ---------------------------------------------
+  await midt(page)
+  const fyrst = plana(page)[0]
+  await liste.locator("[role=option]").first().locator("button").first().click()
+  await page.waitForTimeout(300)
+  // lina lukkar arket utan å sleppe valet — esc ville sleppt det
+  await page.locator(HOVUDLINA).click()
+  await page.waitForTimeout(400)
+  const før = plana(page)
+  await toFingrar(page, (t) => [[150 + 90 * t, 330], [150 + 90 * t, 430]])
+  await vent(page, (p) => JSON.stringify(lesPlan(p.plan)[0]?.o) !== JSON.stringify(fyrst.o))
+  const etter = plana(page)[0]
+  const rørt = Math.hypot(etter.o[0] - fyrst.o[0], etter.o[1] - fyrst.o[1], etter.o[2] - fyrst.o[2]) > 0.02
+  sjekk("med eit plan valt flyttar to fingrar DET planet", rørt && etter.id === fyrst.id, `o ${fyrst.o.map((c) => c.toFixed(2))} → ${etter.o.map((c) => c.toFixed(2))}`)
+  sjekk("og dei andre står stille", plana(page).slice(1).every((p, i) => JSON.stringify(p) === JSON.stringify(før[i + 1])))
+  await page.keyboard.press("z")
+  await vent(page, (p) => JSON.stringify(lesPlan(p.plan)[0]?.o) === JSON.stringify(fyrst.o))
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
+
+  // --- framlegga ----------------------------------------------------------------
+  await midt(page)
+  await page.getByRole("button", { name: "forslag", exact: true }).click()
+  const kand = page.locator("button[aria-pressed]").filter({ hasText: /^\d+×\d+/ })
+  // søket går kandidat for kandidat; vent til knappen seier at det er ferdig
+  await page.locator("button[aria-label='forslag'][title^='(F)']").waitFor({ timeout: 90000 })
+  await kand.first().waitFor({ timeout: 10000 })
+  const tal = await kand.count()
+  sjekk("forslag gjev ei liste", tal >= 3, `${tal} sett`)
+  // det beste står alt valt når lista kjem; eit trykk på det slepper det
+  const valt = page.locator("button[aria-pressed='true']").filter({ hasText: /^\d+×\d+/ })
+  sjekk("og det beste er valt frå starten, som spøkjelsesplan", (await valt.count()) === 1)
+  if ((await valt.count()) === 0) await kand.first().click()
+  await page.waitForTimeout(200)
+  const namn = (await valt.first().innerText()).trim()
+  const m = /^(\d+)×(\d+)/.exec(namn)
+  await page.getByRole("button", { name: "ta alle", exact: true }).click()
+  await vent(page, (p) => !!m && lesPlan(p.plan).length === Number(m[1]) + Number(m[2]))
+  sjekk("«ta alle» set nett dei plana", !!m && plana(page).length === Number(m[1]) + Number(m[2]), `${namn} → ${plana(page).length} plan`)
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0))
+  sjekk("og Z tek det attende", plana(page).length === n0)
+  // «lat att» legg framlegga bort og syner planlista att
+  const latAtt = page.getByRole("button", { name: "lat att", exact: true })
+  if (await latAtt.count()) await latAtt.click()
+  await page.waitForTimeout(300)
+  sjekk("«lat att» syner planlista att", (await liste.count()) === 1)
+
+  // --- verktya: platene, kuttlista, oppsettet ----------------------------------
+  /** arket ope med «alt»: storleiken står alt i midten, verktya står i alt */
+  const alt = async () => {
+    await midt(page)
+    if ((await page.getByRole("button", { name: "plater", exact: true }).count()) === 0) {
+      await page.getByRole("button", { name: "alle kontrollane" }).click()
+      await page.waitForTimeout(400)
     }
   }
-  ok("ei ribbe vald i modellen syner seg på plata", !!valt, valt ? `plate ${valt.plate}` : "ingen av fem trykk traff ei ribbe")
-  if (valt) {
-    // Handa bladar sjølv, og vert ståande: ein knapp som kastar deg
-    // attende med det same er verre enn ingen knapp.
-    const hit = valt.plate === 1 ? 2 : 1
-    await page
-      .locator("aside[aria-label='innstillingar'] button, section[aria-label='verkty'] button")
-      .filter({ hasText: new RegExp(`^${hit}$`) })
-      .first()
-      .click()
-    await rolig(page)
-    await page.waitForTimeout(400)
-    ok("og du kan framleis bla sjølv, med ein del vald", (await plateNr()) === hit, `plate ${await plateNr()}`)
-    // Og eit nytt val bringer deg dit delen er.
-    await page.mouse.click(valt.x, valt.y)
-    await rolig(page)
-    await page.waitForTimeout(400)
-    ok(
-      "og plata bladar til den delen du vel",
-      (await plateNr()) === valt.plate && (await plata2.locator("g[data-paa]").count()) === 1,
-      `plate ${await plateNr()} av ${valt.plate}`,
-    )
+  await alt()
+  sjekk("arket er ope med alt", (await page.getByRole("button", { name: "plater", exact: true }).count()) === 1)
+  await page.getByRole("button", { name: "plater", exact: true }).click()
+  const verkty = page.locator("section[aria-label='verkty']")
+  await verkty.waitFor({ timeout: 10000 })
+  await roleg(page)
+  const delar = verkty.locator("g[data-del]")
+  const nDel = await delar.count()
+  sjekk("platene syner delane som noko du kan ta i", nDel > 0, `${nDel} delar på plata`)
+  const adr = await delar.first().getAttribute("data-del")
+  await delar.first().dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0, buttons: 1 })
+  await page.waitForTimeout(700)
+  await delar.first().dispatchEvent("pointerup", { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0, buttons: 0 })
+  const meny = page.getByRole("dialog", { name: `del ${adr}` })
+  const harMeny = (await meny.count()) === 1
+  sjekk("hald på ein del opnar menyen hans", harMeny, `del ${adr}`)
+  if (harMeny) {
+    await meny.getByRole("button", { name: /snu/ }).first().click()
+    await vent(page, (p) => !!p.fest)
+    sjekk("«snu» festar delen, med kvartsving, i lenkja", new RegExp(`(^|;)${adr}:\\d+,[123],`).test(hash(page).fest), hash(page).fest.slice(0, 40))
+    await page.keyboard.press("z")
+    await roleg(page)
   }
-  // HJULET GJER DET KLYPET GJER. På ein benk er det ikkje to fingrar, og
-  // eit hjul som rullar sida i staden for å gå nærare plata gjer feil
-  // ting når peikaren står over ei teikning du skal arbeide i.
-  {
-    const sb = (await plata2.boundingBox())!
-    const vb = () => plata2.getAttribute("viewBox")
-    const breidd = (v: string | null) => Number((v ?? "").split(" ")[2])
-    const heileArket = await vb()
-    await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2)
-    await page.mouse.wheel(0, -400)
-    await page.waitForTimeout(250)
-    const naer = await vb()
-    ok("hjulet går nærare plata", breidd(naer) < breidd(heileArket) * 0.9, `${heileArket} → ${naer}`)
-    ok("og sida rullar ikkje av det", (await page.evaluate(() => window.scrollY)) === 0)
-    await page.mouse.wheel(0, 2000)
-    await page.waitForTimeout(250)
-    ok("og heilt ut att er heile plata", (await vb()) === heileArket, String(await vb()))
-    // musa av plata att: ho vel delen ho står over når teikninga skiftar
-    await page.mouse.move(1, 1)
-  }
+  // menyen ligg over alt til du trykkjer utanfor han
+  const bak = page.locator("div[aria-hidden='true'].fixed.inset-0")
+  if (await bak.count()) await bak.dispatchEvent("pointerdown")
+  await page.waitForTimeout(200)
+  await page.getByRole("button", { name: "lat att verktyet" }).click()
+  await page.waitForTimeout(300)
+  sjekk("«lat att» stengjer verktyet", (await verkty.count()) === 0)
 
-  // Lenkja vert lesen når sida vert MONTERT, og ei navigering som berre
-  // byter hash monterer ingenting. Difor ei omlasting etterpå.
-  await page.goto(
-    URL + "#p=" + encodeURIComponent(JSON.stringify({ storleik: 1100, ribbX: 3, ribbY: 3, arkB: 400, arkH: 300 })),
-    { waitUntil: "networkidle" },
-  )
-  await page.reload({ waitUntil: "networkidle" })
-  await rolig(page)
-  const ark = page.locator("aside[aria-label='måltal'] button", { hasText: /^ark$/i })
-  ok("eit objekt som ikkje får plass stengjer arket", await ark.isDisabled())
+  await alt()
+  await page.getByRole("button", { name: "oppsett", exact: true }).click()
+  await verkty.waitFor({ timeout: 10000 })
+  const tekst = await page.locator("textarea[aria-label='alle innstillingane som tekst']").inputValue()
+  sjekk("oppsettet som tekst ber plana", /\bplan\b/.test(tekst) && tekst.includes("@"), `${tekst.length} teikn`)
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
 
-  const knapp = page.getByLabel(/^fiks delane får plass/)
-  const ordet = (await knapp.innerText()).trim()
-  ok("og lina ber rådet som ein knapp", /^prøv \d+ mm$/.test(ordet), ordet)
+  await alt()
+  await page.getByRole("button", { name: "kuttliste", exact: true }).click()
+  await verkty.waitFor({ timeout: 10000 })
+  const kutt = (await verkty.innerText()).replace(/\s+/g, " ")
+  sjekk("kuttlista har éi line per del, med plan og ledd", /ledd/i.test(kutt) && /\b1\b/.test(kutt), kutt.slice(0, 60))
+  await page.keyboard.press("Escape")
 
-  await knapp.click()
-  await rolig(page)
-  const etter = await lenkja(page)
-  ok(
-    "knappen set talet han seier",
-    String(etter.storleik) === ordet.replace(/\D/g, ""),
-    `${ordet} → ${etter.storleik} mm`,
-  )
-  ok("og arket er ope att", !(await ark.isDisabled()))
-  ok("og rådet er borte når regelen står", (await page.getByLabel(/^fiks delane får plass/).count()) === 0)
-
-  // --- EIT NYTT NETT TEK LÅSANE MED SEG UT ---------------------------------
-  /**
-   * Låsane er brøkdelar av spennet til DEN KROPPEN DU HADDE. Slepper du inn
-   * ei anna fil, tyder dei same brøkane heilt andre plan — og ingen ting på
-   * skjermen seier at det ligg gamle tal i det nye objektet.
-   *
-   * Prøva står sist i bolken av di ho byter ut objektet: alt etter henne
-   * ville handla om ei kule i staden for ein kube.
-   */
-  await page.keyboard.press("s")
-  await rolig(page)
-  await stabel.locator("button", { hasText: /^(lås alle|slepp alle)$/ }).first().click()
-  await rolig(page)
-  p = await lenkja(page)
-  ok("lås alle før importen", String(p.laas).includes("x:"), String(p.laas).slice(0, 40))
-
-  const mappe2 = mkdtempSync(join(tmpdir(), "slicerman-"))
-  const fil2 = join(mappe2, "ei-anna-kule.stl")
-  writeFileSync(fil2, kuleStl(50, 40))
-  await page.setInputFiles("input[type=file]", fil2)
-  await rolig(page)
-  p = await lenkja(page)
-  ok("og eit nytt nett tek dei med seg ut", p.laas === "" && p.fest === "", `laas «${p.laas}»`)
-
+  sjekk("ingen konsollfeil på telefonen", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
 }
 
-async function main() {
-  console.log("innramminga:")
-  innramminga()
-  console.log("panelet:")
-  const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
-  // Under 1180 px er det ARKET som gjeld. Benken har sin eigen bolk.
-  const page = await browser.newPage({ viewport: { width: 1000, height: 900 } })
-  const feil: string[] = []
-  page.on("pageerror", (e) => feil.push(String(e)))
-  page.on("console", (m) => {
-    if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) feil.push(m.text())
-  })
+async function benk(browser: Browser) {
+  console.log("\n=== benk 1400×900")
+  const { page, konsoll } = await opne(URL, browser, 1400, 900)
+  sjekk("kolonna står", (await page.locator("aside[aria-label='kontrollar']").count()) === 1)
 
-  await page.goto(URL, { waitUntil: "networkidle" })
-  await rolig(page)
-
-  // --- FINN INNSTILLINGAR --------------------------------------------------
-  // Ein prøvetakar inne på sida, som skriv ned kvar gong ringen kring
-  // finn-knappen flyttar seg. Han må stå INNE i sida: sett utanfrå ville
-  // kvar avlesing gå ein tur over ei protokollgrense, og det er tregare
-  // enn det som skal målast.
-  await page.evaluate(`(function(){
-    window.LOGG = []
-    function sjaa(){
-      var c = document.querySelector("section[aria-label='kontrollar'] button[aria-label='finn innstillingar'] svg circle:last-child")
-      var v = c ? c.getAttribute("stroke-dashoffset") : ""
-      var L = window.LOGG
-      if (v && (!L.length || L[L.length-1] !== v)) L.push(v)
-    }
-    setInterval(sjaa, 25)
-  })()`)
-  await page.getByLabel("finn innstillingar").click()
-  await rolig(page)
-
-  /**
-   * FRAMDRIFTA MÅ RØRE SEG MEDAN HO GJELD.
-   *
-   * Ringen kring knappen har to måtar å kollapse til «null, og so ferdig»
-   * på, og ingen av dei kastar: arbeidaren som reknar heile søket i eitt
-   * jafs (då kjem alle meldingane i same augeblinken som svaret), og
-   * hovudtråden som teiknar heile scena om att for kvar melding (då hopar
-   * dei seg opp i køen og kjem i klumpar). Begge to gjev ein ring som står
-   * stille og so er ferdig, og ein ring som står stille er verre enn ingen
-   * ring.
-   */
-  const steg = (await page.evaluate("window.LOGG")) as string[]
-  ok("framdrifta rører seg medan søket går", steg.length >= 4, `${steg.length} steg synte seg`)
-
-  /**
-   * KVA SVARET VART, LESE AV LENKJA — OG SO AV LINA.
-   *
-   * Steget vert prøvd mot URL-en og ikkje mot rada. URL-en ber ribbetalet
-   * som faktisk er sett, so han seier alt rada sa, og han seier det utan å
-   * krevje at rada finst: rada er kontrollane sitt eige rekneskap, og eit
-   * rekneskap er ikkje eit vitne på seg sjølv.
-   *
-   * SO VERT RADA LESEN LIKEVEL, og mot den same URL-en. Ho finst — ho bur i
-   * kontrollane, so dei må opnast for at ho skal kunne lesast — og ei rad
-   * som finst kan lyge. Det er den eine feilen ho har: å seie «1 av 12 ·
-   * 9×7» medan ribbene som står er frå eit anna svar.
-   */
-  await opnePanelet(page)
-  await rolig(page)
-  let p = await lenkja(page)
-  const fyrste = `${p.ribbX}×${p.ribbY}`
-  ok("fyrste trykket set eit svar", Number(p.ribbX) > 0 && Number(p.ribbY) > 0, fyrste)
-
-  const rada = await stadLine(page).innerText()
-  const m1 = rada.match(/(\d+) av (\d+) · (\d+)×(\d+)/i)
-  ok("lina seier kvar i lista vi står", !!m1, rada.replace(/\s+/g, " "))
-  if (m1) {
-    ok("og ho står på det fyrste svaret", m1[1] === "1", `${m1[1]} av ${m1[2]}`)
-    ok(
-      "og ribbetalet ho seier er det som faktisk står",
-      `${m1[3]}×${m1[4]}` === fyrste,
-      `lina ${m1[3]}×${m1[4]}, sett ${fyrste}`,
-    )
-  }
-
-  // --- NESTE OG FØRRE ------------------------------------------------------
-  // Tastane, ikkje pilene: pilene budde i rada som er borte. `steg(±1)` er
-  // den same funksjonen dei kalla.
-  await page.keyboard.press("f")
-  await rolig(page)
-  p = await lenkja(page)
-  const andre = `${p.ribbX}×${p.ribbY}`
-  ok("neste går eitt steg ned i lista", andre !== fyrste, `${fyrste} → ${andre}`)
-
-  await page.keyboard.press("Shift+f")
-  await rolig(page)
-  p = await lenkja(page)
-  ok(
-    "førre er attende på det same svaret",
-    `${p.ribbX}×${p.ribbY}` === fyrste,
-    `${andre} → ${p.ribbX}×${p.ribbY}`,
-  )
-
-  // --- LISTA GJELD BERRE DET SPØRSMÅLET HO SVARTE PÅ -----------------------
-  await opnePanelet(page)
-  await page.getByLabel("storleik, tal", { exact: true }).fill("240")
-  await page.keyboard.press("Enter")
-  await rolig(page)
-  p = await lenkja(page)
-  ok("talfeltet set talet", p.storleik === 240, `storleik ${p.storleik}`)
-  // Ei liste som svarte på ein annan storleik er ikkje ei liste lenger:
-  // «førre svar» har ingen stad å gå, og skal la ribbetalet stå.
-  const forStorleik = `${p.ribbX}×${p.ribbY}`
-  await page.keyboard.press("Shift+f")
-  await rolig(page)
-  p = await lenkja(page)
-  ok(
-    "og lista gjeld ikkje når spørsmålet er eit anna",
-    `${p.ribbX}×${p.ribbY}` === forStorleik,
-    `${forStorleik} → ${p.ribbX}×${p.ribbY}`,
-  )
-
-  // --- TALFELTET KLEMMER ---------------------------------------------------
-  await page.getByLabel("storleik, tal", { exact: true }).fill("99999")
-  await page.keyboard.press("Enter")
-  await rolig(page)
-  p = await lenkja(page)
-  ok("eit tal utanfor bandet vert klemt inn i det", p.storleik === 1200, `storleik ${p.storleik}`)
-
-  // --- ANGRE ---------------------------------------------------------------
-  // Frå 99999 → 1200 er eitt steg attende til 240, og eitt til dit vi kom frå.
-  await page.getByLabel("angre siste endring").click()
-  await rolig(page)
-  p = await lenkja(page)
-  ok("angre tek deg eitt steg attende", p.storleik === 240, `storleik ${p.storleik}`)
-  await page.keyboard.press("z")
-  await rolig(page)
-  p = await lenkja(page)
-  ok("og tasten gjer det same", p.storleik === 150, `storleik ${p.storleik}`)
-
-  // --- TASTANE -------------------------------------------------------------
-  for (const [tast, vent] of [["1", "flate"], ["3", "kontur"], ["2", "lag"]]) {
+  for (const [tast, view] of [["1", "flate"], ["3", "kontur"], ["2", "lag"]] as const) {
     await page.keyboard.press(tast)
-    await page.waitForTimeout(250)
-    const q = await lenkja(page)
-    ok(`tasten ${tast} byter lesemåte`, q.view === vent, String(q.view))
-  }
-  await page.keyboard.press("Escape")
-  await page.waitForTimeout(200)
-  ok("escape lukkar arket", (await page.getByLabel("vis kontrollane").count()) === 1)
-  await page.keyboard.press("o")
-  await page.waitForTimeout(200)
-  ok("o opnar han att", (await page.getByLabel("gøym kontrollane").count()) === 1)
-
-  // --- EIT FELT SOM ER TEKE EIG SINE EIGNE TASTAR --------------------------
-  const felt = page.getByLabel("storleik, tal", { exact: true })
-  await felt.click()
-  await felt.press("3")
-  await page.waitForTimeout(250)
-  p = await lenkja(page)
-  ok("eit tal skrive i eit felt byter ikkje lesemåte", p.view === "lag", String(p.view))
-  await felt.press("Escape")
-
-  // --- MEDAN FILA VERT LESEN -----------------------------------------------
-  // Eit skann tek fleire sekund å tolke. I dei sekunda stod dei gamle tala
-  // i hovudlina og fortalde om eit objekt som ikkje var der lenger. No
-  // står det at fila vert lesen — og det MÅ slutte å stå der når ho er
-  // lesen: ei line som heng att er verre enn inga line.
-  // Prøvetakaren ser på ENDRINGAR og ikkje på klokka: ei lita fil kan verte
-  // lesen på under ein tjuedels sekund, og ein prøvetakar som ser kvart
-  // tjuande millisekund melder då at lina aldri stod der ho stod.
-  await page.evaluate(`(function(){
-    window.LES = []
-    function sjaa(){
-      var el = document.querySelector("section[aria-label='kontrollar'] button[aria-label='delar, kuttlengd og ark']")
-      var txt = el ? el.textContent.trim() : ""
-      var L = window.LES
-      if (txt && (!L.length || L[L.length-1] !== txt)) L.push(txt)
-    }
-    new MutationObserver(sjaa).observe(document.body, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-    })
-    setInterval(sjaa, 20)
-  })()`)
-  const mappe = mkdtempSync(join(tmpdir(), "slicerman-"))
-  // Eit langt filnamn er den verste saka for hovudlina: kjeldepilla
-  // veks til taket sitt og et av plassen tala har.
-  const fil = join(mappe, "kule-med-eit-ganske-langt-namn.stl")
-  writeFileSync(fil, kuleStl(60, 150))
-  await page.setInputFiles("input[type=file]", fil)
-  await rolig(page)
-  await page.waitForTimeout(400)
-  const les = (await page.evaluate("window.LES")) as string[]
-  ok("hovudlina seier frå medan fila vert lesen", les.some((t) => /les fila/i.test(t)))
-  ok(
-    "og sluttar å seie det når ho er lesen",
-    !/les fila/i.test(les[les.length - 1] ?? ""),
-    les[les.length - 1],
-  )
-  /**
-   * NAMNET STÅR, MEN IKKJE PÅ KNAPPEN.
-   *
-   * Kjeldeknappen bar filnamnet i hovudlina, og på ein telefon vart det
-   * «DRAGON_…»: kappa so kort at ikonet ved sida sa meir enn bokstavane —
-   * og han pressa den siste knappen i lina ned på ei rad for seg sjølv. No
-   * er han eit ikon, og namnet står heilt i grepslina når arket er ope.
-   *
-   * Lukka står det framleis i det TILGJENGELEGE namnet, som er det ein
-   * skjermlesar får, og det er det denne prøva ser på. Ho las teksten i
-   * knappen, og den er tom no.
-   */
-  ok(
-    "kjelda er fila",
-    ((await page.getByLabel("hent eit nett").getAttribute("aria-label")) ?? "")
-      .toLowerCase()
-      .includes("kule"),
-  )
-  await opnePanelet(page)
-  await rolig(page)
-  ok(
-    "og namnet står heilt når arket er ope",
-    (await page.locator("section[aria-label='kontrollar'] button", { hasText: /kule/i }).count()) > 0,
-  )
-
-  // --- PÅ EIN SMAL TELEFON -------------------------------------------------
-  // Dei tre tala ER grunnen til at lina finst. På ein skjerm på 320 stod
-  // det «12 delar · 17,…»: kjelda, tala og tre knappar fekk ikkje plass på
-  // ei line, og det som gav etter var det einaste som ikkje kunne det.
-  for (const breidd of [320, 360, 390, 414, 430]) {
-    await page.setViewportSize({ width: breidd, height: 720 })
-    await page.waitForTimeout(250)
-    const kappa = await page.evaluate(`(function(){
-      var el = document.querySelector("section[aria-label='kontrollar'] button[aria-label='delar, kuttlengd og ark']")
-      return el ? el.scrollWidth - el.clientWidth : -1
-    })()`)
-    ok(`tala står heile på ${breidd} px`, kappa === 0, `${kappa} px kappa`)
+    await roleg(page, 300)
+    sjekk(`tast ${tast} vel «${view}»`, (await page.getByRole("button", { name: view, exact: true }).getAttribute("aria-pressed")) === "true")
   }
 
-  // --- TAKET ---------------------------------------------------------------
-  /**
-   * INGEN TILSTAND FÅR DEKKJE MEIR ENN DETTE.
-   *
-   * Arket er ein meny over eit objekt, og eit objekt du ikkje ser er ein
-   * reiskap som ikkje seier deg noko. Det fulle steget las 621 px av 844
-   * — sytti prosent — av di taket låg på RULLEKASSA og ikkje på arket:
-   * grep, hovudline, svarline og fot står utanfor kassa og tel like fullt.
-   *
-   * Taket ligg på arket no (sjå `maxHeight` i controls-panel), og då er
-   * dette den prøva som held det der. Utan henne driv det attende ei rad
-   * om gongen, og kvar rad ser rimeleg ut åleine.
-   */
-  const TAK = 45
-  const dekninga = () =>
-    page.evaluate(`(function(){
-      var s = document.querySelector("section[aria-label='kontrollar']")
-      if (!s) return -1
-      var r = s.getBoundingClientRect()
-      return Math.round((window.innerHeight - r.top) / window.innerHeight * 1000) / 10
-    })()`) as Promise<number>
-  // MÅLMASKINA STÅR FYRST: iPhone 16e er 1170×2532 på tre gonger, som er
-  // 390×844 i CSS. Dei to andre er ein mindre Android og ein gamal SE —
-  // ei rad som får plass på 390 og ikkje på 320 er ei rad som bryt.
-  for (const [breidd, hogd] of [
-    [390, 844],
-    [360, 780],
-    [320, 700],
-  ]) {
-    await page.setViewportSize({ width: breidd, height: hogd })
-    await page.waitForTimeout(300)
-    // Arket står halvope her; knappen tek det til det fulle og attende.
-    for (const [steg, vidare] of [
-      ["halvope", "alle parametrar"],
-      ["heilope", "færre kontrollar"],
-    ]) {
-      const d = await dekninga()
-      ok(`${steg} dekkjer under ${TAK} % på ${breidd}×${hogd}`, d > 0 && d <= TAK, `${d} %`)
-      /**
-       * OG INGEN KNAPP UTANFOR SKJERMEN.
-       *
-       * Høgda var målt og breidda var det ikkje. Ei rad med fem knappar og
-       * ei teiknforklaring treng 359 px; ei rute på 320 gjev rada 270, og
-       * dei to siste knappane låg på 342..384 — ikkje kappa, ikkje
-       * rullbare, berre utanfor. Ingenting feilar: knappen finst i DOM-en,
-       * `getByLabel` finn han, og eit klikk ventar til det gjev opp.
-       *
-       * Det gjekk gale i det ein femte knapp kom i rada, og rada var trong
-       * frå før. Difor står prøva her og ikkje på den eine knappen.
-       */
-      const ute = (await page.evaluate(`(function(){
-        var W = window.innerWidth
-        var ut = []
-        document.querySelectorAll("section[aria-label='kontrollar'] button").forEach(function(e){
-          var r = e.getBoundingClientRect()
-          if (!r.width) return
-          if (r.right > W + 0.5 || r.left < -0.5) ut.push((e.getAttribute("aria-label")||e.textContent||"?").trim())
-        })
-        return ut
-      })()`)) as string[]
-      ok(`${steg} held kvar knapp innanfor ${breidd} px`, ute.length === 0, ute.join(" | "))
-      await page.getByLabel(vidare).click()
-      await page.waitForTimeout(350)
-    }
-  }
-  await page.setViewportSize({ width: 1000, height: 900 })
+  const n0 = plana(page).length
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
+  sjekk("L låser på benken", plana(page).length === n0 + 1)
+  await page.locator("[role=listbox][aria-label='plan'] [role=option]").last().locator("button").first().click()
+  await page.keyboard.press("Delete")
+  await vent(page, talPlan(n0))
+  sjekk("Delete tek det valde bort", plana(page).length === n0)
 
-  // --- STABELEN FINST PÅ TELEFONEN OG -------------------------------------
-  /**
-   * SKUFFA VAR `benk &&`, og då fanst korkje kuttlista, platene, stabelen
-   * eller oppsettet på ein telefon. Stabelen er den av dei fire du GJER noko
-   * i, og han hadde ingen dør der i det heile: heile handa var ein reiskap
-   * du berre kunne nå frå ein skjerm over 1180 px.
-   *
-   * Tre ting må halde, og alle tre er ting som ikkje kastar når dei ryk:
-   * knappen finst, skuffa opnar seg der ho skal — ho fekk benkeveggane sine
-   * og stod to hundre og sytti pikslar frå venstre kant med halve breidda
-   * utanfor skjermen — og ho lèt hovudlina stå, so du ser delane og platene
-   * svare medan du redigerer.
-   */
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.waitForTimeout(300)
-  await opnePanelet(page)
-  const stabelKnapp = page.getByLabel("opne stabelen")
-  ok("telefonen har ein veg inn i stabelen", (await stabelKnapp.count()) === 1)
-  await stabelKnapp.click()
-  await rolig(page)
-  await page.waitForTimeout(300)
+  // storleiken er eit tal du kan skrive
+  const felt = page.locator("input[aria-label='storleik, tal']")
+  await felt.fill("200")
+  await felt.press("Enter")
+  await vent(page, (p) => p.storleik === 200)
+  sjekk("talfeltet set storleiken", hash(page).storleik === 200, String(hash(page).storleik))
+  sjekk("og plana står der dei stod, som brøkar", plana(page).length === n0 && plana(page)[0].o[0] < 0.2)
 
-  const skuffa = page.locator("section[aria-label='verkty']")
-  const boks = await skuffa.boundingBox()
-  ok(
-    "og skuffa står innanfor skjermen",
-    !!boks && boks.x >= 0 && boks.x + boks.width <= 391,
-    boks ? `x ${boks.x.toFixed(0)}, breidd ${boks.width.toFixed(0)}` : "inga skuff",
-  )
-  const rader390 = await skuffa.getByLabel(/^X\d+, stad$/).count()
-  ok("og han syner ribbene", rader390 >= 2, `${rader390} rader`)
+  await page.keyboard.press("f")
+  const kand = page.locator("button[aria-pressed]").filter({ hasText: /^\d+×\d+/ })
+  await page.locator("button[aria-label='forslag'][title^='(F)']").waitFor({ timeout: 90000 })
+  await kand.first().waitFor({ timeout: 10000 })
+  sjekk("F hentar framlegg", (await kand.count()) >= 3)
 
-  // Hovudlina skal stå UNDER skuffa og ikkje bak henne: du flyttar ei ribbe
-  // og ser talet svare. Ei skuff som dekkjer svaret må lukkast for å lesast.
-  const lina = await page
-    .locator("section[aria-label='kontrollar'] button[aria-label='delar, kuttlengd og ark']")
-    .boundingBox()
-  ok(
-    "og hovudlina står under henne, ikkje bak",
-    !!lina && !!boks && lina.y >= boks.y + boks.height - 1,
-    lina && boks ? `skuffa endar ${(boks.y + boks.height).toFixed(0)}, lina ${lina.y.toFixed(0)}` : "",
-  )
-  // --- SKUFFA BYTER VERKTY, OG KUTTLISTA ER EI ANNA LISTE HER ------------
-  /**
-   * FIRE ORD I TOPPLINA, av di ein telefon ikkje har den topplina benken
-   * har. Utan dei kom du berre dit knappen du trykte tok deg.
-   */
-  for (const ord of ["kuttliste", "plater", "stabelen", "oppsett"]) {
-    const kn = skuffa.locator("button", { hasText: new RegExp(`^${ord}$`, "i") })
-    ok(`skuffa byter til ${ord}`, (await kn.count()) === 1)
-  }
-
-  /**
-   * SJU KOLONNAR ER EIN TABELL FOR EIN SKJERM.
-   *
-   * På 390 px braut «74,5 × 129,8» over to liner i kvar einaste rad. Fire
-   * står att, og det er dei fire du treng med lista i handa: kva delen
-   * heiter, kor stor han er, om han heng i noko, og kva plate han ligg på.
-   */
-  await skuffa.locator("button", { hasText: /^kuttliste$/i }).first().click()
-  await rolig(page)
-  const kolonnar = () =>
-    page.evaluate(`(function(){
-      var ut = []
-      document.querySelectorAll("section[aria-label='verkty'] thead th").forEach(function(e){
-        if (getComputedStyle(e).display !== "none") ut.push(e.textContent.replace(/[\u2191\u2193]/g, "").trim())
-      })
-      return ut
-    })()`) as Promise<string[]>
-  const rad390 = await kolonnar()
-  ok("kuttlista har fire kolonnar på 390 px", rad390.length === 4, rad390.join(" · "))
-
-  /**
-   * OG DEI DU HAR TEKE I STÅR FYRST.
-   *
-   * Ei kuttliste er heile jobben. Medan du byggjer er det ikkje heile
-   * jobben du held på med — det er dei du har låst, og dei ligg spreidde
-   * mellom alle dei andre. Filteret er ikkje ei gøymsle: brikka seier
-   * forholdet, og talet i hovudlina er framleis heile jobben.
-   */
-  const teljRader = () => skuffa.locator("tbody tr").count()
-  const alle390 = await teljRader()
-  ok(
-    "utan låsar står alle radene, og inga brikke",
-    alle390 > 0 &&
-      (await skuffa.locator("button", { hasText: /^mine /i }).count()) === 0,
-    `${alle390} rader`,
-  )
-
-  await skuffa.locator("button", { hasText: /^stabelen$/i }).first().click()
-  await rolig(page)
-  for (const a of ["X1", "X3"]) {
-    await skuffa.getByLabel(`${a}: lås`).click()
-    await rolig(page)
-  }
-  await skuffa.locator("button", { hasText: /^kuttliste$/i }).first().click()
-  await rolig(page)
-  const mine390 = await teljRader()
-  const adr390 = await skuffa.locator("tbody tr td:first-child").allInnerTexts()
-  const brikka = await skuffa.locator("button", { hasText: /^mine /i }).first().innerText()
-  ok(
-    "med låsar står berre dine",
-    mine390 < alle390 && mine390 > 0,
-    `${adr390.join(" ")} — ${mine390} av ${alle390}`,
-  )
-  ok("og brikka seier forholdet", /\d+\s+av\s+\d+/i.test(brikka), brikka)
-
-  /**
-   * OG SKUFFA ER SÅ HØG SOM LISTA, IKKJE SÅ HØG SOM HO FÅR LOV TIL.
-   *
-   * Ei kuttliste med tre rader i stod med tusen pikslar kvitt papir under
-   * seg, over eit objekt som var pressa opp i eit band det ikkje trong.
-   * Det kvite er ikkje ein feil som kastar — det er berre plass ingen får.
-   */
-  const skuffH = async () => (await skuffa.boundingBox())?.height ?? 0
-  const kort = await skuffH()
-  await skuffa.locator("button", { hasText: /^mine /i }).first().click()
-  await rolig(page)
-  await page.waitForTimeout(500)
-  const lang = await skuffH()
-  ok(
-    "skuffa er så høg som lista er lang",
-    kort > 0 && lang > kort + 40,
-    `${mine390} rader ${kort.toFixed(0)} px, ${alle390} rader ${lang.toFixed(0)} px`,
-  )
-
-  await page.setViewportSize({ width: 1000, height: 900 })
-
-  await gestane(browser)
-  await plata(browser, feil)
-  await lerretet(browser, feil)
-  await benken(browser, feil)
-
-  ok("ingen feil i konsollen", feil.length === 0, feil.slice(0, 2).join(" | "))
-  await browser.close()
-  console.log(brot ? `\n${brot} brot` : "\npanelet gjer det det seier")
-  process.exit(brot ? 1 : 0)
+  sjekk("ingen konsollfeil på benken", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
+  await page.close()
 }
 
+const main = async () => {
+  const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
+  await telefon(browser)
+  await benk(browser)
+  await browser.close()
+  console.log(feil ? `\n${feil} FEIL` : "\npanelet held")
+  process.exit(feil ? 1 : 0)
+}
 void main()

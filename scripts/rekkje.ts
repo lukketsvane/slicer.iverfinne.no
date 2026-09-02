@@ -16,14 +16,17 @@
  *   npx tsx scripts/rekkje.ts
  */
 import { inRing, shoelace, type ParamBag, type Pt } from "../lib/core"
-import { kerfOf, VAFFEL } from "../lib/vaffel/engine"
-import { makePlan } from "../lib/vaffel/plan"
-import { DETAIL } from "../lib/vaffel/ribs"
-import { sheetSvg } from "../lib/vaffel/export-svg"
-import { SHEET_GAP } from "../lib/vaffel/export-dxf"
-import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
+import { kerfOf, MOTOR } from "../lib/motor"
+import { makeBygg } from "../lib/bygg"
+import { DETAIL } from "../lib/snitt"
+import { sheetSvg } from "../lib/export-svg"
+import { SHEET_GAP } from "../lib/export-dxf"
+import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
 
 let brot = 0
 const feil = (namn: string, kva: string) => {
@@ -315,12 +318,12 @@ const saker: [string, Params][] = [
   // feitaste punktet på delen hoppa over eit spor, fylte tvers over det,
   // og la adressa midt på veggen mellom to spor. Ein millimeter utanfor,
   // og heilt usynleg på skjermen.
-  ["torus, tett og stort", { ...DEFAULT_PARAMS, kjelde: "torus", ribbX: 13, ribbY: 13, storleik: 560 }],
+  ["torus, tett og stort", { ...DEFAULT_PARAMS, kjelde: "torus", plan: nett(13, 13), storleik: 560 }],
 ]
 
 /** kuttfila er éi fil per plate, so kvar plate vert prøvd for seg */
 function arkSteg(namn: string, p: Params): Steg[][] {
-  const { ns } = makePlan(p, DETAIL.mid)
+  const { ns } = makeBygg(p, DETAIL.mid)
   const kerf = kerfOf(p)
   return ns.sheets.map((_, i) => {
     const svg = sheetSvg(ns, i, kerf)
@@ -373,13 +376,13 @@ function dxfPerArk(namn: string, dxf: string, arkH: number): Steg[][] {
  */
 function inventar(namn: string, p: Params, svg: Steg[][], dxf: Steg[][]) {
   const før = brot
-  const { pl, ns } = makePlan(p, DETAIL.mid)
+  const { dl, ns } = makeBygg(p, DETAIL.mid)
 
   // Pakkinga skal gjere greie for kvar einaste del ho fekk: han ligg på ei
   // plate, eller han er talt som spilt. Det er ingen tredje stad.
   const lagde = ns.sheets.reduce((n, s) => n + s.placed.length, 0)
-  if (lagde + ns.spilt !== pl.parts.length) {
-    feil(namn, `pakkinga: ${pl.parts.length} delar inn, ${lagde} lagde + ${ns.spilt} spilte ut`)
+  if (lagde + ns.spilt !== dl.delar.length) {
+    feil(namn, `pakkinga: ${dl.delar.length} delar inn, ${lagde} lagde + ${ns.spilt} spilte ut`)
   }
 
   const venta = ns.sheets.map((s) => s.placed.reduce((n, q) => n + 1 + q.part.holes.length, 0))
@@ -402,7 +405,7 @@ function inventar(namn: string, p: Params, svg: Steg[][], dxf: Steg[][]) {
 
   if (brot === før) {
     console.log(
-      `  ok   ${(namn + " · inventar").padEnd(24)} ${pl.parts.length} delar, ` +
+      `  ok   ${(namn + " · inventar").padEnd(24)} ${dl.delar.length} delar, ` +
         `${venta.reduce((a, b) => a + b, 0)} kuttbaner på ${ns.sheets.length} plater`,
     )
   }
@@ -412,15 +415,15 @@ for (const [namn, p] of saker) {
   const bag = p as unknown as ParamBag
   const ark = arkSteg(namn, p)
   ark.forEach((steg, i, all) => sjekkSteg(`${namn} · ark ${i + 1}/${all.length}`, steg))
-  const prof = VAFFEL.exportFile(bag, "svg").text ?? ""
+  const prof = MOTOR.exportFile(bag, "svg").text ?? ""
   innanforRamma(`${namn} · profilar`, prof)
   sjekkSteg(`${namn} · profilar`, svgSteg(`${namn} · profilar`, prof))
-  const dxf = dxfPerArk(`${namn} · dxf`, VAFFEL.exportFile(bag, "dxf").text ?? "", p.arkH)
+  const dxf = dxfPerArk(`${namn} · dxf`, MOTOR.exportFile(bag, "dxf").text ?? "", p.arkH)
   dxf.forEach((steg, i, all) => sjekkSteg(`${namn} · dxf ${i + 1}/${all.length}`, steg))
   inventar(namn, p, ark, dxf)
 }
 
-const kupong = VAFFEL.exportFile(DEFAULT_PARAMS as unknown as ParamBag, "prove").text ?? ""
+const kupong = MOTOR.exportFile(DEFAULT_PARAMS as unknown as ParamBag, "prove").text ?? ""
 graveringaLiggInne("passprøve", kupong)
 sjekkSteg("passprøve", svgSteg("passprøve", kupong))
 
@@ -547,7 +550,7 @@ const proveSaker: [string, Partial<Params>][] = [
 ]
 for (const [namn, over] of proveSaker) {
   const pp = { ...DEFAULT_PARAMS, ...over }
-  const svg = VAFFEL.exportFile(pp as unknown as ParamBag, "prove").text ?? ""
+  const svg = MOTOR.exportFile(pp as unknown as ParamBag, "prove").text ?? ""
   innanforRamma(namn, svg)
   graveringaLiggInne(namn, svg)
   kupongMaal(namn, svg, pp.tjukn, kerfOf(pp))
