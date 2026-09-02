@@ -15,10 +15,10 @@
 import { bbox, inRing, offsetPoly, type Pt } from "../lib/core"
 import { fitSize } from "../lib/stroke"
 import { anchor, apply, pack } from "../lib/pack"
-import { makePlan, nestGap } from "../lib/vaffel/plan"
-import { DETAIL } from "../lib/vaffel/ribs"
-import { placedRings } from "../lib/vaffel/nest"
-import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
+import { makeBygg, nestGap } from "../lib/bygg"
+import { DETAIL } from "../lib/snitt"
+import { placedRings } from "../lib/nest"
+import { DEFAULT_PARAMS, type Params } from "../lib/params"
 
 /**
  * AVSTANDEN MELLOM TO OMRISS, MÅLT SOM AVSTANDEN MELLOM TO OMRISS.
@@ -58,6 +58,9 @@ const ringAvstand = (A: readonly Pt[], B: readonly Pt[]) => {
 }
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
 
 const RES = 0.6
 
@@ -186,7 +189,7 @@ function pakkarenSjolv() {
 
 
 function sjekk(namn: string, p: Params) {
-  const { pl, ns } = makePlan(p, DETAIL.mid)
+  const { dl, ns } = makeBygg(p, DETAIL.mid)
   const w = Math.ceil(p.arkB / RES)
   const h = Math.ceil(p.arkH / RES)
   let overlapp = 0
@@ -246,7 +249,7 @@ function sjekk(namn: string, p: Params) {
     }
   }
 
-  const areal = pl.parts.reduce((s, q) => s + q.area, 0)
+  const areal = dl.delar.reduce((s, q) => s + q.area, 0)
   // Delar som ikkje fekk plass står ikkje på noka plate, so overlappstesten
   // ser dei aldri. Utan denne lina kan skriptet melde «ok» medan to delar
   // stille har forsvunne ut av kuttlista.
@@ -265,7 +268,7 @@ function sjekk(namn: string, p: Params) {
   let feilmerkt = 0
   for (const sheet of ns.sheets) {
     for (const q of sheet.placed) {
-      if (!fitSize(q.part.from, q.label.room, q.label.wide)) continue
+      if (!fitSize(q.part.adr, q.label.room, q.label.wide)) continue
       if (!inRing(placedRings(q).outline, q.label.p)) feilmerkt++
     }
   }
@@ -275,7 +278,7 @@ function sjekk(namn: string, p: Params) {
   const ok =
     overlapp === 0 &&
     utanfor === 0 &&
-    lagd + ns.spilt === pl.parts.length &&
+    lagd + ns.spilt === dl.delar.length &&
     feilmerkt === 0 &&
     (!Number.isFinite(gods) || gods >= 1) &&
     // Luka er ein LOVNAD, ikkje ei opplysning. Ho stod berre skriven ut.
@@ -285,7 +288,7 @@ function sjekk(namn: string, p: Params) {
   if (!ok) brot++
   console.log(
     `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ` +
-      `${String(pl.parts.length).padStart(3)} delar · ${ns.sheets.length} ark · ` +
+      `${String(dl.delar.length).padStart(3)} delar · ${ns.sheets.length} ark · ` +
       `${ns.spilt ? `${ns.spilt} utanfor · ` : ""}` +
       `${Math.round(ns.util * 100)} % · ` +
       `overlapp ${overlapp} · utanfor ${utanfor} · ` +
@@ -368,17 +371,17 @@ put("kam", "kam", kam())
 
 sjekk("kube 6x6", DEFAULT_PARAMS)
 sjekk("kube 400, 12x9 i 12 mm", {
-  ...DEFAULT_PARAMS, storleik: 400, ribbX: 12, ribbY: 9, tjukn: 12,
+  ...DEFAULT_PARAMS, storleik: 400, plan: nett(12, 9), tjukn: 12,
   arkB: 1200, arkH: 900,
 })
 sjekk("kube vend/700", {
   ...DEFAULT_PARAMS, rotX: 30, rotY: 20, rotZ: 10, storleik: 700, tjukn: 6,
   arkB: 1200, arkH: 900,
 })
-sjekk("kule 7x7", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 7, ribbY: 7 })
-sjekk("egg 8x8", { ...DEFAULT_PARAMS, kjelde: "egg", ribbX: 8, ribbY: 8 })
-sjekk("torus staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, ribbX: 9, ribbY: 9 })
-sjekk("kule stor plate", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 10, ribbY: 10, arkB: 2500, arkH: 1250 })
+sjekk("kule 7x7", { ...DEFAULT_PARAMS, kjelde: "kule", plan: nett(7, 7), })
+sjekk("egg 8x8", { ...DEFAULT_PARAMS, kjelde: "egg", plan: nett(8, 8), })
+sjekk("torus staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, plan: nett(9, 9), })
+sjekk("kule stor plate", { ...DEFAULT_PARAMS, kjelde: "kule", plan: nett(10, 10), arkB: 2500, arkH: 1250 })
 // PLATENE MELLOM DEI TO GOLVA.
 //
 // Oppløysinga vert vald som `max(luke/3, plata/620, 1)`. Er plata stor nok
@@ -387,13 +390,13 @@ sjekk("kule stor plate", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 10, ribbY: 
 // på fire millimeter er det plater mellom 827 og 2480 mm — altso dei
 // fleste store laserbord, og heile finérplata på 2440. Prøvene over låg
 // tilfeldigvis på kvar si side av det vindauget: 800 under, 2500 over.
-sjekk("kule 1600x1000", { ...DEFAULT_PARAMS, kjelde: "kule", ribbX: 12, ribbY: 12, storleik: 400, arkB: 1600, arkH: 1000 })
-sjekk("kube finerplate", { ...DEFAULT_PARAMS, storleik: 700, ribbX: 10, ribbY: 10, arkB: 2440, arkH: 1220 })
-sjekk("egg i 6 mm", { ...DEFAULT_PARAMS, kjelde: "egg", tjukn: 6, ribbX: 7, ribbY: 7 })
+sjekk("kule 1600x1000", { ...DEFAULT_PARAMS, kjelde: "kule", plan: nett(12, 12), storleik: 400, arkB: 1600, arkH: 1000 })
+sjekk("kube finerplate", { ...DEFAULT_PARAMS, storleik: 700, plan: nett(10, 10), arkB: 2440, arkH: 1220 })
+sjekk("egg i 6 mm", { ...DEFAULT_PARAMS, kjelde: "egg", tjukn: 6, plan: nett(7, 7), })
 // Ein kam: tre like tindar under ein rygg. Kvar tverribbe vert delt i tre
 // stykke med NØYAKTIG same form, som ligg tre ulike stader. Det er den
 // eine forma der eit merke rekna per form kan hamne på nabodelen.
-sjekk("kam med tre tindar", { ...DEFAULT_PARAMS, kjelde: "kam", ribbX: 5, ribbY: 4, lause: 0 })
+sjekk("kam med tre tindar", { ...DEFAULT_PARAMS, kjelde: "kam", plan: nett(5, 4), lause: 0 })
 // Eit breitt snitt et av luka frå begge sider. Her var godset mellom to
 // delar minus ein komma tre millimeter: dei to kutta gjekk i kvarandre.
 sjekk("breitt snitt", {
@@ -418,11 +421,11 @@ sjekk("breitt snitt", {
 // for stor, og ei prøve der halvparten av delane ligg utanfor prøver
 // spilt og ikkje snittet.
 sjekk("same objekt, smalt snitt", {
-  ...DEFAULT_PARAMS, kjelde: "kule", storleik: 420, ribbX: 8, ribbY: 8, snitt: 0.2,
+  ...DEFAULT_PARAMS, kjelde: "kule", storleik: 420, plan: nett(8, 8), snitt: 0.2,
   arkB: 800, arkH: 600,
 })
 sjekk("same objekt, breitt snitt", {
-  ...DEFAULT_PARAMS, kjelde: "kule", storleik: 420, ribbX: 8, ribbY: 8, snitt: 6,
+  ...DEFAULT_PARAMS, kjelde: "kule", storleik: 420, plan: nett(8, 8), snitt: 6,
   arkB: 800, arkH: 600,
 })
 

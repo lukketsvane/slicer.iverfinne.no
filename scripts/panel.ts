@@ -30,7 +30,10 @@ import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { makeSoup } from "../lib/soup"
-import { meshToStl } from "../lib/vaffel/export-stl"
+import { meshToStl } from "../lib/export-stl"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
 
 const URL = process.argv[2] ?? "http://127.0.0.1:3210"
 let brot = 0
@@ -1315,7 +1318,7 @@ async function benken(browser: Browser, feil: string[]) {
   // Lenkja vert lesen når sida vert MONTERT, og ei navigering som berre
   // byter hash monterer ingenting. Difor ei omlasting etterpå.
   await page.goto(
-    URL + "#p=" + encodeURIComponent(JSON.stringify({ storleik: 1100, ribbX: 3, ribbY: 3, arkB: 400, arkH: 300 })),
+    URL + "#p=" + encodeURIComponent(JSON.stringify({ storleik: 1100, plan: nett(3, 3), arkB: 400, arkH: 300 })),
     { waitUntil: "networkidle" },
   )
   await page.reload({ waitUntil: "networkidle" })

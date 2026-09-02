@@ -16,14 +16,17 @@
  *   npx tsx scripts/raad.ts
  */
 import type { ParamBag } from "../lib/core"
-import { measure } from "../lib/vaffel/metrics"
-import { checkRules } from "../lib/vaffel/rules"
-import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
-import { VAFFEL } from "../lib/vaffel/engine"
-import { meshToStl } from "../lib/vaffel/export-stl"
+import { measure } from "../lib/metrics"
+import { checkRules } from "../lib/rules"
+import { DEFAULT_PARAMS, type Params } from "../lib/params"
+import { MOTOR } from "../lib/motor"
+import { meshToStl } from "../lib/export-stl"
 import { parseMesh } from "../lib/io"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
 
 let brot = 0
 const ok = (namn: string, sant: boolean, kva = "") => {
@@ -142,16 +145,14 @@ prov("for stort til plata", "plate", {
   ...DEFAULT_PARAMS,
   kjelde: "kule",
   storleik: 1200,
-  ribbX: 3,
-  ribbY: 3,
+  plan: nett(3, 3),
   arkB: 600,
   arkH: 400,
 })
 prov("for stort på ei lita plate òg", "plate", {
   ...DEFAULT_PARAMS,
   storleik: 900,
-  ribbX: 4,
-  ribbY: 4,
+  plan: nett(4, 4),
   arkB: 300,
   arkH: 200,
 })
@@ -167,8 +168,7 @@ prov("så vidt for stort", "plate", {
   ...DEFAULT_PARAMS,
   kjelde: "kule",
   storleik: 300,
-  ribbX: 3,
-  ribbY: 3,
+  plan: nett(3, 3),
   arkB: 420,
   arkH: 297,
 })
@@ -177,23 +177,23 @@ prov("så vidt for stort", "plate", {
 // Handa sette to delar i kvarandre. Rådet slepper nett dei, og lèt det
 // tredje festet stå.
 {
-  const p = { ...DEFAULT_PARAMS, fest: "X1:0,0,10,10;X2:0,0,20,20;X3:0,0,300,200" }
+  const p = { ...DEFAULT_PARAMS, fest: "1:0,0,10,10;2:0,0,20,20;3:0,0,300,200" }
   prov("to feste i kvarandre", "plate", p)
   const r = finn(p, "plate")
   const etter = r?.fiks ? String(r.fiks.set.fest) : "?"
-  ok("og det tredje festet står", etter.includes("X3:") && !etter.includes("X2:"), etter)
+  ok("og det tredje festet står", etter.includes("3:") && !etter.includes("2:"), etter)
 }
 
 // --- opning mellom ribbene -------------------------------------------------
 // Tettleiken er rekna på ei jamn stigning over eit ujamnt legeme, so her
 // er to runder tillatne: fyrste rådet skal ta deg mesteparten av vegen.
-prov("ribbene står for tett", "opning", {
+// Plan 1 og 2 kryssar kvarandre utanfor kroppen og har ikkje ledd; plan 3
+// kryssar begge, langs to liner som ikkje er parallelle. Sist i lista har
+// det to vegar inn; fyrst i lista kjem dei to andre inn på det, kvar sin veg.
+prov("eit plan har to vegar inn", "orden", {
   ...DEFAULT_PARAMS,
-  kjelde: "kule",
-  storleik: 120,
-  ribbX: 30,
-  ribbY: 30,
-}, 3)
+  plan: "1@0.2,0.5,0.5/1,0,0;2@0.5,0.5,1/0.7071,0,0.7071;3@0.5,0.5,0.5/0,1,0",
+})
 
 // --- klaringa --------------------------------------------------------------
 prov("klaringa er null", "klaring", { ...DEFAULT_PARAMS, klaring: 0 })
@@ -210,8 +210,7 @@ prov("eit stykke heng ikkje i noko", "lause", {
   ...DEFAULT_PARAMS,
   kjelde: "kule",
   storleik: 200,
-  ribbX: 13,
-  ribbY: 2,
+  plan: nett(13, 2),
   lause: 0,
 })
 
@@ -223,18 +222,16 @@ prov("godset er tynt", "gods", {
   kjelde: "torus",
   storleik: 120,
   tjukn: 8,
-  ribbX: 8,
-  ribbY: 8,
+  plan: nett(8, 8),
   ledd: 0.2,
 })
 
 // --- ingen ledd ------------------------------------------------------------
-prov("ingen ribber møtest", "grip", {
+prov("ingen plan møtest", "grip", {
   ...DEFAULT_PARAMS,
   kjelde: "torus",
   storleik: 200,
-  ribbX: 1,
-  ribbY: 1,
+  plan: nett(1, 1),
 })
 
 // =============================================================================
@@ -267,13 +264,13 @@ prov("ingen ribber møtest", "grip", {
  */
 {
   const saker: Params[] = [
-    { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 100, tjukn: 10, ribbX: 10, ribbY: 10, ledd: 0.2 },
-    { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 100, tjukn: 10, ribbX: 10, ribbY: 10, ledd: 0.8 },
-    { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 120, tjukn: 8, ribbX: 8, ribbY: 8, ledd: 0.2 },
-    { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 200, ribbX: 13, ribbY: 2, lause: 0 },
-    { ...DEFAULT_PARAMS, storleik: 1200, ribbX: 3, ribbY: 3, arkB: 300, arkH: 200 },
+    { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 100, tjukn: 10, plan: nett(10, 10), ledd: 0.2 },
+    { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 100, tjukn: 10, plan: nett(10, 10), ledd: 0.8 },
+    { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 120, tjukn: 8, plan: nett(8, 8), ledd: 0.2 },
+    { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 200, plan: nett(13, 2), lause: 0 },
+    { ...DEFAULT_PARAMS, storleik: 1200, plan: nett(3, 3), arkB: 300, arkH: 200 },
     { ...DEFAULT_PARAMS, tjukn: 1, snitt: 6 },
-    { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 60, ribbX: 30, ribbY: 30 },
+    { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 60, plan: nett(30, 30), },
   ]
   const harde = (p: Params) => reglane(p).filter((r) => !r.ok && r.hard).length
   let verre: string[] = []
@@ -292,8 +289,8 @@ prov("ingen ribber møtest", "grip", {
 // bort att, er knappen ein knapp som ikkje gjer det han seier.
 {
   const kantar: Params[] = [
-    { ...DEFAULT_PARAMS, storleik: 1200, ribbX: 3, ribbY: 3, arkB: 300, arkH: 200 },
-    { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 60, ribbX: 30, ribbY: 30 },
+    { ...DEFAULT_PARAMS, storleik: 1200, plan: nett(3, 3), arkB: 300, arkH: 200 },
+    { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 60, plan: nett(30, 30), },
     { ...DEFAULT_PARAMS, tjukn: 1, snitt: 6 },
   ]
   let alleLovlege = true
@@ -302,7 +299,7 @@ prov("ingen ribber møtest", "grip", {
     for (const r of reglane(p)) {
       if (r.ok || !r.fiks) continue
       const bede = { ...p, ...r.fiks.set } as unknown as ParamBag
-      const fekk = VAFFEL.clamp(bede, p as unknown as ParamBag)
+      const fekk = MOTOR.clamp(bede, p as unknown as ParamBag)
       for (const k of Object.keys(r.fiks.set)) {
         // Eit tal skal stå innanfor bandet; ein streng skal stå som han er.
         const v = r.fiks.set[k]

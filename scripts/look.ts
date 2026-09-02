@@ -12,8 +12,11 @@ import { chromium } from "playwright"
 import { mkdirSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { makeSoup } from "../lib/soup"
-import { meshToStl } from "../lib/vaffel/export-stl"
+import { meshToStl } from "../lib/export-stl"
 import { glb } from "./glbfil"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
 
 const URL = process.argv[2] ?? "http://127.0.0.1:3210"
 const HOVUDLINA = "[aria-label='delar, kuttlengd og ark']"
@@ -172,7 +175,7 @@ const main = async () => {
     const brote =
       "#p=" +
       encodeURIComponent(
-        JSON.stringify({ storleik: 1100, ribbX: 3, ribbY: 3, arkB: 400, arkH: 300 }),
+        JSON.stringify({ storleik: 1100, plan: nett(3, 3), arkB: 400, arkH: 300 }),
       )
     for (const [namn, w, h] of [
       ["9-blindgate-benk.png", 1320, 900],

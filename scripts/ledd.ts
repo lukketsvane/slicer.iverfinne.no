@@ -24,13 +24,15 @@
  *   npx tsx scripts/ledd.ts
  */
 import { inRing, shoelace, type Pt } from "../lib/core"
-import { makePlan } from "../lib/vaffel/plan"
-import { newSoup, ribSolid, soupToMesh } from "../lib/vaffel/mesh"
-import { DETAIL, jointsIn, type Grid, type Rib } from "../lib/vaffel/ribs"
-import type { Kropp } from "../lib/vaffel/kropp"
-import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
+import { makeBygg } from "../lib/bygg"
+import { newSoup, ribSolid, soupToMesh } from "../lib/mesh"
+import { DETAIL, jointsIn, stykkeLangs, type Snitt, type Ribbe as Rib, type Spor } from "../lib/snitt"
+import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
+import { rutenett, skrivPlan } from "../lib/plan"
+const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
 
 let brot = 0
 
@@ -56,16 +58,17 @@ function gods(r: Rib, p: Pt): boolean {
  * Å skjere gjennom LUFT er greitt — der er det ingenting å skjere. Det er
  * nabostykket det ikkje har noko i å gjere.
  */
-function inniNabo(k: Kropp, r: Rib): { tal: number; verst: number } {
+function inniNabo(r: Rib): { tal: number; verst: number } {
   let tal = 0
   let verst = 0
-  for (const q of r.slots) {
-    const runs = r.axis === "x" ? k.solid.runsZ(r.pos, q.t) : k.solid.runsZ(q.t, r.pos)
-    const i = runs.findIndex(([lo, hi]) => q.zMouth >= lo - 0.6 && q.zMouth <= hi + 0.6)
+  for (const q of r.spor) {
+    const runs = stykkeLangs(r.raa, q.p, q.d)
+    const i = runs.findIndex(([lo, hi]) => q.munn >= lo - 0.6 && q.munn <= hi + 0.6)
     if (i < 0) continue
-    const nabo = q.fromTop ? runs[i + 1] : runs[i - 1]
+    const opp = q.munn > q.botn
+    const nabo = opp ? runs[i + 1] : runs[i - 1]
     if (!nabo) continue
-    const inn = q.fromTop ? q.zOut - nabo[0] : nabo[1] - q.zOut
+    const inn = opp ? q.ut - nabo[0] : nabo[1] - q.ut
     if (inn > 0.01) {
       tal++
       verst = Math.max(verst, inn)
@@ -88,13 +91,13 @@ function inniNabo(k: Kropp, r: Rib): { tal: number; verst: number } {
  * til. Ei ribbe i den ståande torusen kom ut på 52 386,6 mm³ der ho skulle
  * vore 33 216,3 — og STL-en hadde vrengde flater rundt kvart hòl.
  */
-function volumAvvik(g: Grid): { tal: number; verst: number } {
+function volumAvvik(g: Snitt, tjukn: number): { tal: number; verst: number } {
   let tal = 0
   let verst = 0
-  for (const r of g.ribs) {
+  for (const r of g.ribber) {
     if (!r.outlines.length) continue
     const s = newSoup()
-    ribSolid(s, r, g.p.tjukn)
+    ribSolid(s, r, tjukn)
     const pos = soupToMesh(s).positions
     let V = 0
     for (let i = 0; i < pos.length; i += 9) {
@@ -109,7 +112,7 @@ function volumAvvik(g: Grid): { tal: number; verst: number } {
       A += Math.abs(shoelace(o))
       for (const h of r.holes) if (inRing(o, h[0])) A -= Math.abs(shoelace(h))
     }
-    const venta = A * g.p.tjukn
+    const venta = A * tjukn
     if (venta < 1) continue
     const av = Math.abs(Math.abs(V) - venta) / venta
     if (av > 0.01) {
@@ -121,18 +124,20 @@ function volumAvvik(g: Grid): { tal: number; verst: number } {
 }
 
 function sjekk(namn: string, p: Params) {
-  const { k, g } = makePlan(p, DETAIL.mid)
+  const { s: g } = makeBygg(p, DETAIL.mid)
   let ledd = 0
   let tapt = 0
   let uteneskulder = 0
   let nabo = 0
   let naboVerst = 0
 
-  for (const r of g.ribs) {
-    const n = inniNabo(k, r)
+  /** punktet `t` langs sporet, `s` til sides */
+  const paa = (q: Spor, t: number, s = 0): Pt => [q.p[0] + q.d[0] * t - q.d[1] * s, q.p[1] + q.d[1] * t + q.d[0] * s]
+  for (const r of g.ribber) {
+    const n = inniNabo(r)
     nabo += n.tal
     naboVerst = Math.max(naboVerst, n.verst)
-    for (const q of r.slots) {
+    for (const q of r.spor) {
       // Eit spor som høyrer til eit stykke som er kasta, er ikkje eit
       // spor lenger. Det er berre bokføring frå før kastinga.
       if (!r.outlines.some((o) => jointsIn([q], o) > 0)) continue
@@ -141,13 +146,13 @@ function sjekk(namn: string, p: Params) {
       // Midt i sporet, på halve djupna. Nær munnen kan konturen framleis
       // vera i ferd med å runde inn; nær botnen kan hundebeinet ha teke
       // hjørnet. Midten er det einaste punktet som er eit spor uansett.
-      const z = (q.zMouth + q.zEnd) / 2
-      if (gods(r, [q.t, z])) {
+      const z = (q.munn + q.botn) / 2
+      if (gods(r, paa(q, z))) {
         tapt++
         if (tapt <= 3) {
           console.log(
-            `      ${r.axis}${r.k} t=${q.t.toFixed(1)} z=${z.toFixed(1)}: ` +
-              `gods midt i sporet (munn ${q.zMouth.toFixed(1)}, botn ${q.zEnd.toFixed(1)})`,
+            `      plan ${r.plan.id} mot ${q.mot} t=${z.toFixed(1)}: ` +
+              `gods midt i sporet (munn ${q.munn.toFixed(1)}, botn ${q.botn.toFixed(1)})`,
           )
         }
         continue
@@ -163,13 +168,13 @@ function sjekk(namn: string, p: Params) {
       // skulder er eit spor som ikkje held noko — den kryssande ribba sig
       // rett gjennom — og det er nett det harnesset er her for.
       const ut = q.w / 2 + 0.5
-      if (!gods(r, [q.t - ut, z]) || !gods(r, [q.t + ut, z])) {
+      if (!gods(r, paa(q, z, -ut)) || !gods(r, paa(q, z, ut))) {
         uteneskulder++
         if (uteneskulder <= 3) {
           console.log(
-            `      ${r.axis}${r.k} t=${q.t.toFixed(1)} z=${z.toFixed(1)}: ` +
+            `      plan ${r.plan.id} mot ${q.mot} t=${z.toFixed(1)}: ` +
               `ingen skulder ${ut.toFixed(1)} mm ut på ` +
-              `${!gods(r, [q.t - ut, z]) ? "venstre" : "høgre"} sida`,
+              `${!gods(r, paa(q, z, -ut)) ? "venstre" : "høgre"} sida`,
           )
         }
       }
@@ -189,10 +194,10 @@ function sjekk(namn: string, p: Params) {
   // Talet er ikkje til å gjette på fortegnet til. Står det negativt, er
   // det ikkje ei tynn ribbe — det er ei måling som har spegla seg.
   let godsVerst = Infinity
-  for (const r of g.ribs) if (r.slots.length) godsVerst = Math.min(godsVerst, r.narrow)
+  for (const r of g.ribber) if (r.spor.length) godsVerst = Math.min(godsVerst, r.narrow)
   const godsOk = !Number.isFinite(godsVerst) || godsVerst > 0
 
-  const vol = volumAvvik(g)
+  const vol = volumAvvik(g, p.tjukn)
 
   const ok = tapt === 0 && uteneskulder === 0 && nabo === 0 && godsOk && vol.tal === 0
   if (!ok) brot++
@@ -285,21 +290,22 @@ put("torus", "torus", torus(50, 18, 48, 24))
 
 const SAKER: [string, Partial<Params>][] = [
   ["kube, standard", {}],
-  ["kube, 32 ribber", { ribbX: 32, ribbY: 32 }],
-  ["kube, ei ribbe kvar veg", { ribbX: 1, ribbY: 1 }],
+  ["kube, 32 plan kvar veg", { plan: nett(32, 32) }],
+  ["kube, skrå plan", { plan: "1@0.3,0.5,0.5/1,0,0;2@0.7,0.5,0.5/1,0,0;3@0.5,0.5,0.5/0,0.7071,0.7071;4@0.5,0.5,0.25/0,0.7071,0.7071" }],
+  ["kube, eitt plan kvar veg", { plan: nett(1, 1) }],
   ["kube, tjukk plate", { tjukn: 12, storleik: 400 }],
   ["kube, leddet høgt", { ledd: 0.8 }],
   ["kube, leddet lågt", { ledd: 0.2 }],
   ["kube, vend", { rotX: 30, rotY: 20, rotZ: 10 }],
   ["kule", { kjelde: "kule" }],
-  ["kule, 16 ribber", { kjelde: "kule", ribbX: 16, ribbY: 16 }],
+  ["kule, 16 ribber", { kjelde: "kule", plan: nett(16, 16) }],
   ["egg", { kjelde: "egg" }],
   ["torus ståande", { kjelde: "torus", rotX: 90 }],
   ["torus, lause med", { kjelde: "torus", rotX: 90, lause: 0 }],
   ["firbeint", { kjelde: "firbeint", lause: 0 }],
-  ["firbeint, 10 ribber", { kjelde: "firbeint", ribbX: 10, ribbY: 10, lause: 0 }],
+  ["firbeint, 10 ribber", { kjelde: "firbeint", plan: nett(10, 10), lause: 0 }],
   ["firbeint, tjukk plate", { kjelde: "firbeint", tjukn: 6, storleik: 300, lause: 0 }],
-  ["kule, tett og tynt", { kjelde: "kule", ribbX: 24, ribbY: 24, tjukn: 1 }],
+  ["kule, tett og tynt", { kjelde: "kule", plan: nett(24, 24), tjukn: 1 }],
 ]
 
 for (const [namn, over] of SAKER) sjekk(namn, { ...DEFAULT_PARAMS, ...over })

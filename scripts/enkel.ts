@@ -14,9 +14,9 @@
  * Og båe skal vera heilt still på null: eit objekt utan forenkling er det
  * same objektet som før skyvarane fanst.
  */
-import { measure } from "../lib/vaffel/metrics"
-import { DEFAULT_PARAMS, type Params } from "../lib/vaffel/params"
-import { newSoup } from "../lib/vaffel/mesh"
+import { measure } from "../lib/metrics"
+import { DEFAULT_PARAMS, type Params } from "../lib/params"
+import { newSoup } from "../lib/mesh"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
 

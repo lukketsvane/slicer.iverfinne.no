@@ -212,7 +212,7 @@ export type Metrics = {
   unique: number // kor mange av dei som er ULIKE — det er oppspenningane
   loose: number // stykke utan eit einaste ledd: kasta, eller med i lista
   joints: number // kryssledd som faktisk vart skorne
-  units: number // ribber i alt
+  units: number // plan i alt
   unitLabel: string
 
   mass: number // ferdig masse, kg
@@ -253,7 +253,7 @@ export type Metrics = {
  * lista, kuttfila og plata du held i handa.
  */
 export type Kutt = {
-  /** «X3», «X3b» — det som er gravert på delen */
+  /** «3», «3b» — det som er gravert på delen */
   adr: string
   /** forma. To delar med same id er den same delen, og treng éi oppspenning */
   id: string
@@ -269,17 +269,17 @@ export type Kutt = {
   /** kva plate han ligg på, frå 1. Null tyder at han ikkje fekk plass. */
   ark: number
   /**
-   * KVAR HAN HØYRER HEIME, mm.
+   * KVA PLAN HAN HØYRER TIL.
    *
    * Kuttlista sa kva du skal skjere og kor stort. Ho sa ikkje kvar det
-   * skal stå — og det er det siste spørsmålet du har att når delane
-   * ligg skorne på bordet. Talet er planet stykket sitt eige er ein del
-   * av, målt langs den aksen det står vinkelrett på.
+   * skal stå — og det er det siste spørsmålet du har att når delane ligg
+   * skorne på bordet. Talet er namnet på planet stykket er ein del av;
+   * planet står éin stad i lista over plan, med punkt og retning.
    *
-   * To stykke av den same ribba deler det: «X3a» og «X3b» er to øyer i
-   * det same planet, og planet står éin stad.
+   * To stykke av det same planet deler det: «3a» og «3b» er to øyer i
+   * det same planet.
    */
-  pos: number
+  plan: number
 }
 
 /**
@@ -296,7 +296,7 @@ export type Kutt = {
  * du ser på skjermen er ikkje ei framsyning av plata, det ER plata.
  */
 export type Delplass = {
-  /** adressa som vert gravert — «X3a». Same nøkkelen som kuttlista og
+  /** adressa som vert gravert — «3a». Same nøkkelen som kuttlista og
    *  objektet brukar, so ein del kan fylgjast mellom dei tre. */
   adr: string
   /** forma. To plassar med same id er den same delen om att. */

@@ -1,5 +1,5 @@
 /**
- * VAFFEL — kroppen.
+ * SLICERMAN — kroppen.
  *
  * Mellom fila brukaren drog inn og ribbene som kjem ut, ligg fire steg, og
  * dei skjer alltid i denne rekkjefylgja:
@@ -19,7 +19,7 @@
  * arbeidaren om bygg, måltal og reglar etter kvarandre, og alle tre startar
  * her; utan hugs kostar eit skyvartrykk tre snittingar av same nett.
  */
-import { keep } from "../core"
+import { keep } from "./core"
 import {
   flip,
   makeSoup,
@@ -30,11 +30,13 @@ import {
   weld,
   type Indexed,
   type Soup,
-} from "../soup"
-import { decimate } from "../mesh/simplify"
-import { taubin } from "../mesh/smooth"
-import { makeSolid, type Solid } from "../mesh/solid"
-import { source } from "../sources"
+} from "./soup"
+import { decimate } from "./mesh/simplify"
+import { taubin } from "./mesh/smooth"
+import { makeSolid, type Solid } from "./mesh/solid"
+import { source } from "./sources"
+import { akser } from "./plan"
+import type { Vec3 } from "./core"
 import type { Params } from "./params"
 
 export type Kropp = {
@@ -100,4 +102,45 @@ export function makeKropp(p: Params): Kropp {
       openEdges: n.openEdges,
     }
   })
+}
+
+/**
+ * KROPPEN SEDD LANGS EI NORMAL.
+ *
+ * Strålane går langs aksane, og eit skrått plan har ingen akse. I staden
+ * for å lære strålane å gå på skrå vert NETTET snudd: (u, v, n) vert
+ * (x, y, z), og planet er då eit z-snitt som alle andre — same rader, same
+ * kolonnar, same marsjerande rute. Å snu tjue tusen trekantar kostar
+ * ingenting mot å snitte dei; å snu ein million kostar eit par titals
+ * millisekund, og svaret vert hugsa per retning. Eit rutenett har to.
+ *
+ * Vendinga er høgrehendt, so vindinga står og innsida er innsida.
+ */
+const VENDT = new WeakMap<Kropp, Map<string, Solid>>()
+const VENDT_TAK = 12
+
+export function vend(k: Kropp, n: Vec3): Solid {
+  const key = n.map((c) => c.toFixed(4)).join(",")
+  let per = VENDT.get(k)
+  if (!per) {
+    per = new Map()
+    VENDT.set(k, per)
+  }
+  const hit = per.get(key)
+  if (hit) return hit
+  const { u, v } = akser(n)
+  const P = k.soup.pos
+  const ut = new Float32Array(P.length)
+  for (let i = 0; i < P.length; i += 3) {
+    const x = P[i]
+    const y = P[i + 1]
+    const z = P[i + 2]
+    ut[i] = x * u[0] + y * u[1] + z * u[2]
+    ut[i + 1] = x * v[0] + y * v[1] + z * v[2]
+    ut[i + 2] = x * n[0] + y * n[1] + z * n[2]
+  }
+  const sol = makeSolid(makeSoup(ut))
+  per.set(key, sol)
+  if (per.size > VENDT_TAK) per.delete(per.keys().next().value as string)
+  return sol
 }
