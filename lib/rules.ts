@@ -203,15 +203,21 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
   })
 
   // --- 4 kvar del heng i noko -------------------------------------------------
+  /**
+   * Hard når du tek dei lause øyene med, mjuk når du kastar dei. Eit heilt
+   * plan utan ledd vert aldri kasta — det er det fyrste planet du låste —
+   * og står her som eit tal til det får eit ledd.
+   */
+  const utan = dl.lause
   add({
     id: "lause",
     rad: "lause",
-    label: p.lause ? "kasta stykke" : "delar utan ledd",
-    hard: !p.lause,
-    ok: p.lause ? s.kasta === 0 : dl.lause === 0,
-    value: p.lause ? (s.kasta ? `${nn(s.kasta)} kasta` : "ingen") : dl.lause ? `${nn(dl.lause)} av ${nn(dl.delar.length)}` : "ingen",
-    why: "Eit stykke som ikkje kryssar eit einaste anna plan heng ikkje i noko: det står i kuttlista, kostar plass på plata, og ligg laust i eska. Eit plan til gjennom stykket tek det med; `lause` på «kast» tek det ut av fila.",
-    fiks: !p.lause && dl.lause > 0 ? { ord: "kast dei", set: { lause: 1 } } : undefined,
+    label: p.lause ? "utan ledd · kasta" : "delar utan ledd",
+    hard: !p.lause && utan > 0,
+    ok: utan === 0 && s.kasta === 0,
+    value: utan || s.kasta ? [utan ? `${nn(utan)} utan ledd` : "", s.kasta ? `${nn(s.kasta)} kasta` : ""].filter(Boolean).join(", ") : "ingen",
+    why: "Eit stykke som ikkje kryssar eit einaste anna plan heng ikkje i noko: det står i kuttlista, kostar plass på plata, og ligg laust i eska. Eit plan til gjennom stykket gjev det eit ledd; `lause` på «kast» tek lause øyer ut av fila.",
+    fiks: !p.lause && utan > 0 ? { ord: "kast dei", set: { lause: 1 } } : undefined,
   })
 
   // --- 5 gods att i leddet (hard) ---------------------------------------------
