@@ -45,10 +45,13 @@ no radius.
    instead: drag moves it, twist tilts it, pinch zooms. Three fingers move the
    light; double-tap reframes. The plane swings with the view and nothing is
    built from it.
-4. **Press lås.** The sketch becomes a part: it gets a name, a profile, slots
-   against every plane it crosses, a place in the assembly and a row in the
-   list. Turn the object and lock again. The locked planes stay where you put
-   them while the view turns.
+4. **Press skjer** — the big button under your right thumb. The sketch shows
+   the slice it would make while you aim: the section through the body, and
+   marks where it would lock into planes you already cut, with the joint
+   count on its label. Cut, and the section becomes a part: a name, a
+   profile, slots against every plane it crosses, a place in the assembly and
+   a row in the list. Turn the object and cut again. The cut planes stay where
+   you put them while the view turns.
 5. **Or take a proposal.** **forslag** slices a dozen rib grids for real and
    ranks them; take one whole, or as a start. Hold it for the deep search.
 6. **Read the rules.** They say what can't be cut or assembled, and why, and
@@ -78,7 +81,7 @@ it. Tap empty space to deselect; the row's `slett` removes the plane.
 **The contour view is a drawing, so it is a canvas**: one finger drags it,
 pinch zooms, nothing turns, and double-tap takes you home.
 
-Keys: `L` lock, `S` sketch mode, `⌫` remove the selected plane, `F` proposals,
+Keys: `L` cut, `S` sketch mode, `⌫` remove the selected plane, `F` proposals,
 `D` deep search, `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 
 **Three ways to keep an afternoon's work.** The link carries every setting —

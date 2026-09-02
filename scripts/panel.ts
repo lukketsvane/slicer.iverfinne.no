@@ -95,8 +95,14 @@ async function telefon(browser: Browser) {
   const liste = page.locator("[role=listbox][aria-label='plan']")
   sjekk("arket startar som éi line", (await liste.count()) === 0)
   // ikon ELLER ord på ein knapp, aldri begge: låsen er ikonet åleine
-  const laasKnapp = page.getByRole("button", { name: "lås", exact: true })
-  sjekk("låseknappen er eit ikon utan tekst", (await laasKnapp.count()) === 1 && ((await laasKnapp.innerText()).trim() === ""), `«${(await laasKnapp.innerText()).trim()}»`)
+  const laasKnapp = page.getByRole("button", { name: "skjer", exact: true })
+  sjekk("skjer-knappen er eit ikon utan tekst", (await laasKnapp.count()) === 1 && ((await laasKnapp.innerText()).trim() === ""), `«${(await laasKnapp.innerText()).trim()}»`)
+  const kb = await laasKnapp.boundingBox()
+  sjekk("og han ligg under høgre tommel: nedst til høgre, minst 56 px", !!kb && kb.x + kb.width / 2 > 390 * 0.6 && kb.y + kb.height / 2 > 844 * 0.6 && Math.min(kb.width, kb.height) >= 56, kb ? `${Math.round(kb.x)},${Math.round(kb.y)} ${Math.round(kb.width)}×${Math.round(kb.height)}` : "finst ikkje")
+  // snittet er synleg før du skjer: skissa har ein profil gjennom kroppen
+  const snitt = page.locator("[data-skisse='snitt']")
+  await snitt.first().waitFor({ timeout: 15000 }).catch(() => undefined)
+  sjekk("skissa syner snittet gjennom kroppen før du skjer", (await snitt.count()) >= 1)
   await page.locator(HOVUDLINA).click()
   await page.waitForTimeout(500)
   sjekk("eit trykk på lina opnar midten, med planlista", (await liste.count()) === 1)
@@ -110,9 +116,9 @@ async function telefon(browser: Browser) {
 
   // --- lås og slett, med knapp og med tast ------------------------------------
   const n0 = plana(page).length
-  await page.getByRole("button", { name: "lås", exact: true }).click()
+  await page.getByRole("button", { name: "skjer", exact: true }).click()
   await vent(page, talPlan(n0 + 1))
-  sjekk("lås legg eitt plan i lenkja", plana(page).length === n0 + 1, `${n0} → ${plana(page).length}`)
+  sjekk("skjer legg eitt plan i lenkja", plana(page).length === n0 + 1, `${n0} → ${plana(page).length}`)
   await midt(page)
   const nytt = plana(page)[plana(page).length - 1]
   sjekk("det nye planet har eit namn ingen har hatt", plana(page).filter((p) => p.id === nytt.id).length === 1 && nytt.id > n0, `namn ${nytt.id}`)
@@ -120,7 +126,7 @@ async function telefon(browser: Browser) {
 
   await page.keyboard.press("l")
   await vent(page, talPlan(n0 + 2))
-  sjekk("L låser òg", plana(page).length === n0 + 2)
+  sjekk("L skjer òg", plana(page).length === n0 + 2)
   await midt(page)
 
   const rad = liste.locator("[role=option]").last()
@@ -363,7 +369,7 @@ async function benk(browser: Browser) {
   const n0 = plana(page).length
   await page.keyboard.press("l")
   await vent(page, talPlan(n0 + 1))
-  sjekk("L låser på benken", plana(page).length === n0 + 1)
+  sjekk("L skjer på benken", plana(page).length === n0 + 1)
   await page.locator("[role=listbox][aria-label='plan'] [role=option]").last().locator("button").first().click()
   await page.keyboard.press("Delete")
   await vent(page, talPlan(n0))
@@ -489,10 +495,10 @@ async function flyt(browser: Browser) {
   await page.waitForTimeout(400)
   const n0 = plana(page).length
   const t1 = Date.now()
-  await page.getByRole("button", { name: "lås", exact: true }).click()
+  await page.getByRole("button", { name: "skjer", exact: true }).click()
   await vent(page, talPlan(n0 + 1))
   await page.waitForFunction((n) => new RegExp(`${n} plan`).test(document.querySelector("[aria-label='plan, delar, ark og tid']")?.textContent ?? ""), n0 + 1, { timeout: 15000 })
-  sjekk("lås svarar i lina innan to sekund", Date.now() - t1 < 2000, `${Date.now() - t1} ms`)
+  sjekk("skjer svarar i lina innan to sekund", Date.now() - t1 < 2000, `${Date.now() - t1} ms`)
   // uttaket er eitt trykk unna lina
   const eksport = page.getByRole("button", { name: "eksport", exact: true })
   sjekk("eksport ligg på lina", (await eksport.count()) === 1)
