@@ -394,17 +394,19 @@ function djupeKandidatar(
  * KVA EI SNITTING KOSTAR, MÅLT.
  *
  * Ein fast del og ein del som veks: kroppen vert lesen éin gong per RIBBE
- * og sporet skore éin gong per KRYSS, men det meste av tida er det faste —
- * rasteret som kvar ribbe vert lesen av, og pakkinga. Målt på det grove
- * nivået med rask pakking: ein kube på 6×6 tok 130 ms, ei kule på 16×16
- * tok 230. Ei rett line gjennom dei to er hundre og ti millisekund pluss
- * fire tidelar per ribbe og kryss, og det er den lina budsjettet vert
- * rekna i — i millisekund på maskina det vart målt på.
+ * og sporet skore éin gong per KRYSS, og rasteret kvar ribbe vert lesen
+ * av og pakkinga kjem attåt. Målt på det grove nivået med rask pakking,
+ * etter at pakkaren, ruta og forenklinga vart raskare: ein kube på 6×6
+ * tek 60 ms, ei kule på 16×16 tek 190. Ei rett line gjennom dei to er
+ * førti millisekund pluss ein halv per ribbe og kryss, og det er den lina
+ * budsjettet vert rekna i — i millisekund på maskina det vart målt på.
+ * Før var ho hundre og ti pluss fire tidelar: det faste vart mindre enn
+ * halvparten, og dei fine rutenetta vart relativt dyrare.
  *
  * Eit budsjett som berre telde ribber og kryss gjorde dei fine rutenetta
  * ti gonger dyrare enn dei er, og kappa fronten ved femti delar.
  */
-const arbeid = (nx: number, ny: number) => 110 + 0.4 * (nx + ny + nx * ny)
+const arbeid = (nx: number, ny: number) => 40 + 0.5 * (nx + ny + nx * ny)
 
 /**
  * KOR MYKJE SNITTING DJUPSØKET HAR RÅD TIL.
