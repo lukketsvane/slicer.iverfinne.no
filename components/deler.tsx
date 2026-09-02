@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react"
-import { feltTal, lesTal, nn, type ExportKind, type Metrics, type ParamBag, type Range, type Rule, type View } from "@/lib/core"
+import { useCallback, useEffect, useRef, type CSSProperties } from "react"
+import { feltTal, nn, snap, type ExportKind, type Metrics, type ParamBag, type Range, type Rule, type View } from "@/lib/core"
 import { RADER } from "@/lib/metrics"
 
 /**
@@ -37,9 +37,6 @@ export function stengd(x: ExportKind, m: Metrics | null): string {
   }
   return ""
 }
-
-export const TASTAR =
-  "l skjer · s skissemodus · ⌫ slett valt · f forslag · d djupsøk · 1 2 3 lesemåte · z angre · esc lat att · ⇧ dra flytt snittet · ⌥ dra vri det · ⌃ hjul storleik"
 
 /**
  * EIT LANGT TRYKK. Fingeren står stille (seks pikslar), det korte fyrer
@@ -87,10 +84,11 @@ export const num = (p: ParamBag, k: string, fallback: number) =>
   typeof p[k] === "number" ? (p[k] as number) : fallback
 
 export const HAIR: CSSProperties = { borderColor: "var(--rule)" }
+/* Flate knappar: fyllet byter, og ikkje noko anna — ingen skugge, ingen overgang, inga krymping under fingeren. */
 export const ICON_BTN =
-  "hit relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition active:scale-95"
+  "hit relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border"
 export const CHIP =
-  "hit min-h-[36px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] transition active:scale-95 disabled:opacity-30"
+  "hit min-h-[36px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] disabled:opacity-30"
 export function chipStyle(active: boolean): CSSProperties {
   return active
     ? { background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }
@@ -108,37 +106,11 @@ export function Fiksen({ rule, params, onChange }: { rule: Rule; params: ParamBa
       aria-label={`fiks ${rule.label}: ${f.ord}`}
       title="set dette og rekn om att"
       onClick={() => onChange({ ...params, ...f.set })}
-      className="hit shrink-0 rounded-full border px-2 py-[2px] text-[10px] leading-[14px] tracking-[0.04em] transition active:scale-95"
+      className="hit shrink-0 rounded-full border px-2 py-[2px] text-[10px] leading-[14px] tracking-[0.04em]"
       style={{ borderColor: "currentColor", opacity: 0.85 }}
     >
       {f.ord}
     </button>
-  )
-}
-
-/** Dei brotne reglane, som liner: raude når dei er harde, med rådet i lina. */
-export function Reglar({ rules, params, onChange }: { rules: readonly Rule[]; params: ParamBag; onChange: (p: ParamBag) => void }) {
-  const brotne = rules.filter((r) => !r.ok)
-  if (!brotne.length) return null
-  return (
-    <ul className="space-y-1 py-1">
-      {brotne.map((r) => (
-        <li
-          key={r.id}
-          title={r.why}
-          className="flex items-center justify-between gap-3 text-[11px] leading-4"
-          style={{ color: r.hard ? "var(--warn)" : undefined, opacity: r.hard ? 1 : 0.65 }}
-        >
-          <span className="truncate tracking-[0.04em]">
-            {r.hard ? "bryt" : "merk"} · {r.label}
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            <span className="tab">{r.value}</span>
-            <Fiksen rule={r} params={params} onChange={onChange} />
-          </span>
-        </li>
-      ))}
-    </ul>
   )
 }
 
@@ -165,9 +137,23 @@ export const IcoFerdig = ikon("m5 12 5 5L20 7", "h-7 w-7")
 export const IcoSkjer = ikon("M3 21l6-6|M9 15 20.5 3.5c1.3 3.3.4 6.3-2.4 8.4L9 15z", "h-7 w-7")
 /** slett det valde planet */
 export const IcoSlett = ikon("M4 7h16|M9 7V4h6v3|M6 7l1 13h10l1-13|M10 11v6|M14 11v6", "h-5 w-5")
+/** streka i profilen: gods er ein fylt firkant med pluss, eit hòl er ein ring med minus */
+export const IcoGods = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+    <rect x="4" y="4" width="16" height="16" rx="2" fill="currentColor" />
+    <path d="M12 8.5v7M8.5 12h7" fill="none" stroke="var(--paper)" strokeWidth={2} strokeLinecap="round" />
+  </svg>
+)
+export const IcoHol = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+    <circle cx="12" cy="12" r="8" />
+    <path d="M8.5 12h7" />
+  </svg>
+)
+/** oppsettet: kopier det ut, lim det inn */
+export const IcoKopier = ikon("M9 9h10v10H9z|M5 15V5h10", "h-4 w-4")
+export const IcoLimInn = ikon("M9 4h6v3H9z|M15 5h3v15H6V5h3|M12 10v7|m9 14 3 3 3-3", "h-4 w-4")
 /** dei to fyrste stega i rettleiinga: snu, og sikt */
-export const IcoSnu = ikon("M19 12a7 7 0 1 1-2.05-4.95|M17 3v4.5h-4.5")
-export const IcoSikt = ikon("M12 2v4M12 18v4M2 12h4M18 12h4|M7 12a5 5 0 1 0 10 0a5 5 0 1 0-10 0")
 
 /** Ringen kring knappen: søket går, og omtrent kor langt det er att. */
 export function Ring({ del }: { del: number }) {
@@ -186,7 +172,6 @@ export function Ring({ del }: { del: number }) {
         strokeLinecap="round"
         strokeDasharray={O}
         strokeDashoffset={O * (1 - Math.max(0.04, Math.min(1, del)))}
-        style={{ transition: "stroke-dashoffset 150ms linear" }}
       />
     </svg>
   )
@@ -210,7 +195,7 @@ export function Tavla({ metrics, rules, busy, params, onChange }: {
   return (
     <dl
       className="grid grid-cols-2 gap-x-6 text-[11px]"
-      style={{ opacity: busy ? 0.5 : 1, transition: "opacity 200ms ease" }}
+      style={{ opacity: busy ? 0.5 : 1 }}
     >
       {rader.map((q) => {
         const r = eig.get(q.id)
@@ -238,71 +223,85 @@ export function Tavla({ metrics, rules, busy, params, onChange }: {
 }
 
 /**
- * ÉIN SKYVAR. Talet til høgre er eit FELT: ein skyvar leitar, eit felt
- * treffer, og den som har målt plata si til 2,87 skal kunne skrive det.
- * Feltet syner talet slik det ER (`feltTal`), ikkje avrunda til steget.
+ * ÉIN VERDI, SETT MED EIT DRAG PÅ SEG SJØLV.
+ *
+ * Ikkje eit tekstfelt og ikkje ein skyvar: eit felt tek fokus, iOS zoomar
+ * sida inn og tastaturet står over objektet. Heile rada er skrubbaren —
+ * peikar ned og vassrett drag, eitt steg per seks pikslar, ti steg per steg
+ * forbi hundre og tjue, so du treffer fint nær og kjem langt ute. Eit trykk
+ * utan drag gjer ingenting, og tastaturet kjem aldri; på benken stegar
+ * pilene. Verdien går live medan du dreg, og sleppet er eitt steg i angre.
+ * Lina og prikken er lesing, ikkje handtak: ho seier kvar i bandet du står.
  */
-export function SliderRow({ k, r, value, bi, onChange }: {
+export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
   k: string
   r: Range
   value: number
-  /** ei måling som høyrer til skyvaren, under etiketten */
+  /** ei måling som høyrer til verdien, under etiketten */
   bi?: string
-  onChange: (k: string, raw: string) => void
+  /** pilene stegar berre der det finst eit tastatur */
+  benk?: boolean
+  onChange: (k: string, v: number) => void
+  /** draget er i gang: angre ventar til det er sleppt */
+  onSkrubb?: (aktiv: boolean) => void
 }) {
   const shown = r.names ? (r.names[Math.round(value)] ?? String(value)) : feltTal(value, r.step).replace(".", ",")
-  const [utkast, setUtkast] = useState<string | null>(null)
-  const send = () => {
-    if (utkast === null) return
-    const v = lesTal(utkast)
-    setUtkast(null)
-    // tull er ikkje ei endring, og å ta feltet og sleppe det er det heller ikkje
-    if (!Number.isFinite(v) || v === value) return
-    onChange(k, String(v))
+  const tak = useRef<{ id: number; x0: number; v0: number; sist: number } | null>(null)
+  const del = Math.max(0, Math.min(1, (value - r.min) / (r.max - r.min || 1)))
+  const slepp = (e: React.PointerEvent) => {
+    const t = tak.current
+    if (!t || e.pointerId !== t.id) return
+    tak.current = null
+    onSkrubb?.(false)
   }
   return (
-    <div className="flex items-center gap-3">
+    <div
+      role="slider"
+      tabIndex={benk ? 0 : -1}
+      aria-label={`${r.label}, tal`}
+      aria-valuenow={value}
+      aria-valuemin={r.min}
+      aria-valuemax={r.max}
+      aria-valuetext={`${shown}${r.unit ? " " + r.unit : ""}`}
+      title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra sidelengs`}
+      className="skrubb flex min-h-[44px] items-center gap-3"
+      onPointerDown={(e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return
+        tak.current = { id: e.pointerId, x0: e.clientX, v0: value, sist: value }
+        e.currentTarget.setPointerCapture(e.pointerId)
+        onSkrubb?.(true)
+      }}
+      onPointerMove={(e) => {
+        const t = tak.current
+        if (!t || e.pointerId !== t.id) return
+        const dx = e.clientX - t.x0
+        const a = Math.abs(dx)
+        const steg = Math.sign(dx) * (Math.min(a, 120) / 6 + (Math.max(0, a - 120) / 6) * 10)
+        const v = snap(t.v0 + Math.round(steg) * r.step, r)
+        if (v === t.sist) return
+        t.sist = v
+        onChange(k, v)
+      }}
+      onPointerUp={slepp}
+      onPointerCancel={slepp}
+      onKeyDown={(e) => {
+        const steg = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : e.key === "PageUp" ? 10 : e.key === "PageDown" ? -10 : 0
+        if (!steg) return
+        e.preventDefault()
+        onChange(k, snap(value + steg * r.step, r))
+      }}
+    >
       <span className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]" style={{ color: "var(--ink)" }}>
         {r.label}
         {bi && <span className="dim tab block pt-px text-[9px] normal-case tracking-[0.02em]">{bi}</span>}
       </span>
-      <input
-        type="range"
-        className="pslider flex-1"
-        min={r.min}
-        max={r.max}
-        step={r.step}
-        value={value}
-        aria-label={r.label}
-        onChange={(e) => onChange(k, e.target.value)}
-      />
-      {r.names ? (
-        <span className="tab w-[68px] shrink-0 truncate text-right text-[11px]" style={{ color: "var(--ink)" }}>{shown}</span>
-      ) : (
-        <span className="flex w-[68px] shrink-0 items-baseline justify-end text-[11px]" style={{ color: "var(--ink)" }}>
-          <input
-            className="tab talfelt min-w-0 flex-1 rounded bg-transparent text-right"
-            value={utkast ?? shown}
-            inputMode="decimal"
-            aria-label={`${r.label}, tal`}
-            title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""}`}
-            onFocus={(e) => {
-              setUtkast(shown)
-              e.currentTarget.select()
-            }}
-            onChange={(e) => setUtkast(e.target.value)}
-            onBlur={send}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur()
-              else if (e.key === "Escape") {
-                setUtkast(null)
-                e.currentTarget.blur()
-              }
-            }}
-          />
-          {r.unit && <span className="dim shrink-0 pl-0.5">{r.unit}</span>}
-        </span>
-      )}
+      <span className="relative h-px flex-1" style={{ background: "color-mix(in srgb, var(--ink) 34%, transparent)" }} aria-hidden="true">
+        <span className="absolute top-1/2 block h-[13px] w-[13px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px]" style={{ left: `${del * 100}%`, background: "var(--ink)", borderColor: "var(--paper)" }} />
+      </span>
+      <span className="tab flex w-[68px] shrink-0 items-baseline justify-end text-[11px]" style={{ color: "var(--ink)" }}>
+        <span className="truncate">{shown}</span>
+        {r.unit && <span className="dim shrink-0 pl-0.5">{r.unit}</span>}
+      </span>
     </div>
   )
 }

@@ -23,8 +23,8 @@ A grid of ribs is one thing you can build this way; a set of planes at angles
 no grid could describe is another. The tool does not care which.
 
 It opens on **3 mm MDF on a 600 × 400 mm bed** — the common "6040" CO2
-laser — with a cube and six planes each way already locked, so you can see
-the whole idea before you drop anything in. Change the thickness to the sheet
+laser — with a cube and **no cuts**: the body sits there as a shell and the
+first thing you do is cut it. Want a grid, it is one press of **forslag**. Change the thickness to the sheet
 in your hand and the bed to your machine; the link carries both.
 
 **It is a laser tool.** No cutter diameter and no dogbones, because a beam has

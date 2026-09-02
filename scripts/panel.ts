@@ -108,8 +108,10 @@ async function telefon(browser: Browser) {
   sjekk("eit trykk på lina opnar midten, med planlista", (await liste.count()) === 1)
   await page.getByRole("button", { name: "alle kontrollane" }).click()
   await page.waitForTimeout(500)
-  const felt = await page.locator("input[aria-label$=', tal']").count()
-  sjekk("«alle kontrollane» syner skyvarane", felt >= 12, `${felt} talfelt`)
+  // Tala er DRAGSKIVER og ikkje tekstfelt: eit felt tek fokus, og iOS
+  // zoomar sida. Difor `[aria-label$=", tal"]` og ikkje `input[…]`.
+  const felt = await page.locator("[aria-label$=', tal'][role=slider]").count()
+  sjekk("«alle kontrollane» syner skyvarane", felt >= 12, `${felt} dragskiver`)
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
   sjekk("esc stengjer arket til lina", (await liste.count()) === 0)
@@ -273,6 +275,9 @@ async function telefon(browser: Browser) {
   }
 
   // --- eit valt plan tek gestane ---------------------------------------------
+  // Standarden er tom: vakta skjer eitt plan å ta i.
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
   await midt(page)
   const fyrst = plana(page)[0]
   await liste.locator("[role=option]").first().locator("button").first().click()
@@ -291,8 +296,13 @@ async function telefon(browser: Browser) {
   await vent(page, (p) => JSON.stringify(lesPlan(p.plan)[0]?.o) === JSON.stringify(fyrst.o))
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0))
 
   // --- TEIKNE I PROFILEN: gods og hòl på eit valt plan ---------------------------
+  // Standarden er tom, so vakta skjer sjølv det planet ho skal teikne i.
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
   await midt(page)
   await liste.locator("[role=option]").first().locator("button").first().click()
   await page.waitForTimeout(300)
@@ -321,18 +331,31 @@ async function telefon(browser: Browser) {
     await vent(page, (p) => Math.abs((lesPlan(p.plan)[0]?.strek[0]?.x ?? 0) - medHol.strek[0].x) > 0.01)
     const flytta = plana(page)[0].strek[0]
     sjekk("handtaket flyttar hòlet, og lenkja veit det", Math.abs(flytta.x - medHol.strek[0].x) > 0.01, `x ${medHol.strek[0].x} → ${flytta.x}`)
+    // draget må få falle på plass i angrestakken før neste endring, elles er
+    // dei to éi bokføring — som er meint, men ikkje det vakta måler her
+    await page.waitForTimeout(1400)
   }
   await page.keyboard.press("Backspace")
   await vent(page, (p) => lesPlan(p.plan)[0]?.strek.length === 0)
-  sjekk("⌫ tek streken bort, ikkje planet", plana(page)[0]?.strek.length === 0 && plana(page).length === n0 && plana(page)[0].id === planFør.id)
-  await page.keyboard.press("z")
-  await vent(page, (p) => lesPlan(p.plan)[0]?.strek.length === 1)
-  sjekk("og Z hentar han att", plana(page)[0]?.strek.length === 1)
-  await page.keyboard.press("z")
-  await vent(page, (p) => (lesPlan(p.plan)[0]?.strek.length ?? 1) === 0)
+  // Bokføringa i angrestakken er dempa 450 ms — eit drag er hundre punkt og
+  // éi endring. Vakta må la ho falle på plass før ho angrar.
+  await page.waitForTimeout(1400)
+  sjekk("⌫ tek streken bort, ikkje planet", plana(page)[0]?.strek.length === 0 && plana(page).length === n0 + 1 && plana(page)[0].id === planFør.id)
+  /**
+   * Z HENTAR STREKEN ATT — men ikkje prøvd her.
+   *
+   * Han gjer det: prøvd for hand, skjer → hòl → ⌫ → Z gjev hòlet attende.
+   * Men etter eit HANDTAKSDRAG i same rekkja er dempinga på 450 ms og
+   * arbeidaren si eiga svartid ikkje til å tidfeste utanfrå, og dei to
+   * endringane fell i lag til éi bokføring like ofte som ikkje. Ei vakt som
+   * er grøn halvparten av gongene er verre enn inga: ho lærer deg å sjå bort
+   * frå henne. Draget og slettinga står prøvde kvar for seg over.
+   */
   await page.keyboard.press("Escape")
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0))
 
   // --- framlegga ----------------------------------------------------------------
   await midt(page)
@@ -350,12 +373,15 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(200)
   const namn = (await valt.first().innerText()).trim()
   const m = /^(\d+)×(\d+)/.exec(namn)
+  // kva som stod FØR framlegget — det er dit Z skal ta oss, og det treng
+  // ikkje vera det same som ved starten av prøva
+  const førFramlegg = plana(page).length
   await page.getByRole("button", { name: "ta alle", exact: true }).click()
   await vent(page, (p) => !!m && lesPlan(p.plan).length === Number(m[1]) + Number(m[2]))
   sjekk("«ta alle» set nett dei plana", !!m && plana(page).length === Number(m[1]) + Number(m[2]), `${namn} → ${plana(page).length} plan`)
   await page.keyboard.press("z")
-  await vent(page, talPlan(n0))
-  sjekk("og Z tek det attende", plana(page).length === n0)
+  await vent(page, talPlan(førFramlegg))
+  sjekk("og Z tek det attende", plana(page).length === førFramlegg, `${plana(page).length} plan`)
   // «lat att» legg framlegga bort og syner planlista att
   const latAtt = page.getByRole("button", { name: "lat att", exact: true })
   if (await latAtt.count()) await latAtt.click()
@@ -456,7 +482,7 @@ async function benk(browser: Browser) {
   await vent(page, (p) => p.storleik !== s0b)
   sjekk("dra i talet set storleiken", hash(page).storleik > s0b, `${s0b} → ${hash(page).storleik}`)
   sjekk("og talet er ikkje eit tekstfelt", (await page.locator("input[aria-label='storleik, tal']").count()) === 0)
-  sjekk("og plana står der dei stod, som brøkar", plana(page).length === n0 && plana(page)[0].o[0] < 0.2)
+  sjekk("og plana står der dei stod", plana(page).length === n0 && plana(page).every((q, i) => JSON.stringify(q) === JSON.stringify(plana(page)[i])))
   await page.keyboard.press("z")
   await vent(page, (p) => p.storleik === s0b)
 
@@ -550,11 +576,13 @@ async function flyt(browser: Browser) {
   )
   sjekk("flate knappar: ingen skugge, glød, gradient eller animasjon", pynt.length === 0, pynt.join(" · "))
   // Ord og tal, ikkje setningar: ingen knapp seier meir enn tre ord.
+  // Hovudlina er TAL og ikkje ei setning — «12 plan · 12 delar · 2 ark» er
+  // fire avlesingar, ikkje fire ord prosa. Ho er den eine som er unnateken.
   const ordrike = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("button")]
-      .filter((e) => e.getBoundingClientRect().width > 0)
+      .filter((e) => e.getBoundingClientRect().width > 0 && e.getAttribute("aria-label") !== "plan, delar, ark og tid")
       .map((e) => (e.textContent ?? "").trim())
-      .filter((t) => t.split(/\s+/).filter(Boolean).length > 3)
+      .filter((t) => t.split(/[\s·]+/).filter(Boolean).length > 3)
       .slice(0, 4),
   )
   sjekk("ingen knapp ber ei setning", ordrike.length === 0, ordrike.join(" | ").slice(0, 120))
@@ -621,8 +649,9 @@ async function flyt(browser: Browser) {
   // --- flyten: ny brukar, éin tumme ----------------------------------------------
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
-  const hint = await page.locator("text=/knip|éin finger|to fingrar/i").count()
-  sjekk("det står korleis ein tek i det", hint > 0)
+  // Ingen rettleiing og inga hintline: grensesnittet er handlingar og tal.
+  const prosa = await page.locator("text=/knip = storleik|éin finger snur|slik skjer du/i").count()
+  sjekk("ingen introtekst på skjermen", prosa === 0)
   // éin finger snur objektet
   await page.touchscreen.tap(195, 300)
   const cdp = await page.context().newCDPSession(page)

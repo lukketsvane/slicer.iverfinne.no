@@ -250,14 +250,13 @@ export const snittKey = (p: ParamBag, cells: number) =>
 
 /**
  * Standarden er ein kube i tre millimeter MDF, på ei plate på 600 × 400,
- * med seks plan kvar veg alt låste.
+ * og INGEN PLAN.
  *
- * Kuben er ikkje interessant. Han er det einaste objektet som ikkje gøymer
- * noko: seks plan kvar veg gjev seks og tretti ledd, alle like, alle
- * synlege — og ser du at kuben held seg sjølv oppe, veit du kva reiskapen
- * gjer før du har lasta opp noko som helst. Eit nytt nett tømmer lista —
- * det er eit svar om den kroppen du hadde — og då står du med kroppen og
- * eit skisseplan.
+ * Reiskapen opnar tom med vilje. Eit rutenett som alt låg der var eit svar
+ * på eit spørsmål ingen hadde stilt: du såg tolv ribber du ikkje valde, og
+ * det fyrste du gjorde var å skjøne kva dei var. No ligg kroppen der som
+ * eit skal, skissa står gjennom han, og det fyrste du gjer er å skjere.
+ * Vil du ha rutenettet, ligg det eit trykk unna under framlegga.
  *
  * Resten er den maskina folk faktisk står ved. Tre millimeter MDF er det
  * som ligg i hylla på eit makerspace, og 600 × 400 er bordet på den
@@ -291,10 +290,7 @@ export const DEFAULT_PARAMS: Params = {
   arkH: 400,
 
   material: "mdf",
-  plan: [
-    ...[1, 2, 3, 4, 5, 6].map((i) => `${i}@${(i - 0.5) / 6},0.5,0.5/1,0,0`),
-    ...[1, 2, 3, 4, 5, 6].map((j) => `${j + 6}@0.5,${(j - 0.5) / 6},0.5/0,1,0`),
-  ].join(";"),
+  plan: "",
   fest: "",
 }
 
