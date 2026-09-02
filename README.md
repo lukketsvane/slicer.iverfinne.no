@@ -105,13 +105,15 @@ re-angled and redrawn, and the `7` engraved on a plate in a pile matches the
 row on the screen. A plane cut into several islands gets letters: `7a`, `7b`.
 
 **Every kept plane is editable, down to its outline.** Nudge and re-angle with
-two fingers. The outline itself takes hand-drawn strokes — a rectangle or a
-round, adding material (`+`) or cutting it away (`-`) — written into the plane
-in the settings text; they are cut in the same field as the slots, so a hole
-you drew and a slot the engine cut never disagree. When the model changes
-underneath a stroke, **the stroke stays**: it is what you did, and the tool
-does not throw work away unasked. It may drift out of true, and then you see
-it in the profile and remove it yourself.
+two fingers or the handles. Select a part and the thumb column offers **legg til
+gods** and **skjer hòl**: a rectangle that adds material, a round that cuts it
+away, dropped at the centre of the section and then moved, resized and turned
+with three handles. They are cut in the same field as the slots, so a hole you
+drew and a slot the engine cut never disagree, and the section shows the real
+result while you drag. When the model changes underneath a stroke, **the
+stroke stays**: it is what you did, and the tool does not throw work away
+unasked. It may drift out of true, and then you see it in the profile and
+remove it yourself.
 
 **Up to 64 planes.** Beyond that a link is trying something.
 
@@ -329,8 +331,6 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   would need a real search.
 - Kerf compensation offsets along the angle bisector; tighter corners than the
   kerf are approximate, erring safe.
-- Hand-drawn strokes are edited as text for now; the gesture editor for them is
-  the next thing to build.
 
 ## Credit
 

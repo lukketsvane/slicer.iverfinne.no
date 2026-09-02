@@ -86,6 +86,30 @@ console.log("")
   sjekk("og adressa er namnet på planet", liste.every((k) => new RegExp(`^${k.plan}[a-z]*$`).test(k.adr)))
 }
 
+/**
+ * STREKA: gods legg til, hòl tek bort, og eit strek som rekk ut forbi
+ * kroppen er ikkje eit strek som kløyver plata.
+ *
+ * Det var det: ruta som feltet vert lese på dekte kroppen og ikkje
+ * streka, og eit strek over kanten vart klipt av ruta — ei open kjede,
+ * lukka på måfå, og plata kom ut i to stykke med eit skrått band imellom.
+ */
+console.log("")
+{
+  const grunn = lesPlan(nett(6, 6))
+  const med = (strek: object[]) => {
+    const l = grunn.map((q) => ({ ...q, strek: q.id === 3 ? (strek as never) : q.strek }))
+    const bag = { ...DEFAULT_PARAMS, plan: skrivPlan(l) } as unknown as ParamBag
+    const m = MOTOR.measure(bag)
+    return { delar: m.parts, flate: m.plyArea, ledd: m.joints, nodar: m.nodes }
+  }
+  const utan = med([])
+  const gods = med([{ slag: "gods", form: "rekt", x: 0.55, y: 0.1, w: 0.2, h: 0.1, a: 20 }])
+  const hol = med([{ slag: "hol", form: "rund", x: 0, y: -0.3, w: 0.15, h: 0.15, a: 0 }])
+  sjekk("gods over kanten legg til flate, og delar ikkje plata", gods.delar === utan.delar && gods.flate > utan.flate && gods.ledd === utan.ledd, `${utan.delar}→${gods.delar} delar, ${Math.round(utan.flate)}→${Math.round(gods.flate)} mm², ${gods.ledd} ledd`)
+  sjekk("eit hòl tek flate og legg til ein ring", hol.delar === utan.delar && hol.flate < utan.flate && hol.nodar > utan.nodar, `${Math.round(utan.flate)}→${Math.round(hol.flate)} mm²`)
+}
+
 for (const [inn, vent] of [
   ["1:0,0,12.5,340", "1:0,0,12.5,340"],
   ["3a:1,2,100,50", "3a:1,2,100,50"],

@@ -12,7 +12,7 @@
  *   PW_CHROMIUM=/opt/pw-browsers/chromium pnpm panel [url]
  */
 import { chromium, type Browser, type Page } from "playwright"
-import { lesPlan } from "../lib/plan"
+import { lesPlan, skrivPlan } from "../lib/plan"
 import type { Params } from "../lib/params"
 
 const URL = process.argv[2] ?? "http://127.0.0.1:3210"
@@ -265,6 +265,48 @@ async function telefon(browser: Browser) {
   sjekk("og dei andre står stille", plana(page).slice(1).every((p, i) => JSON.stringify(p) === JSON.stringify(før[i + 1])))
   await page.keyboard.press("z")
   await vent(page, (p) => JSON.stringify(lesPlan(p.plan)[0]?.o) === JSON.stringify(fyrst.o))
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
+
+  // --- TEIKNE I PROFILEN: gods og hòl på eit valt plan ---------------------------
+  await midt(page)
+  await liste.locator("[role=option]").first().locator("button").first().click()
+  await page.waitForTimeout(300)
+  const hol = page.getByRole("button", { name: "skjer hòl", exact: true })
+  sjekk("eit valt plan får «skjer hòl» og «legg til gods» under tommelen", (await hol.count()) === 1 && (await page.getByRole("button", { name: "legg til gods", exact: true }).count()) === 1)
+  const planFør = plana(page)[0]
+  await hol.click()
+  await vent(page, (p) => lesPlan(p.plan)[0]?.strek.length === 1)
+  const medHol = plana(page)[0]
+  sjekk("hòlet står i lenkja som ein strek på planet", medHol.strek.length === 1 && medHol.strek[0].slag === "hol", skrivPlan([medHol]).slice(0, 50))
+  const flyttS = page.locator("[data-handtak='strek-flytt']")
+  sjekk("streken har handtak: flytt, storleik, vri", (await flyttS.count()) === 1 && (await page.locator("[data-handtak='strek-storleik']").count()) === 1 && (await page.locator("[data-handtak='strek-vri']").count()) === 1)
+  const sb = await flyttS.boundingBox()
+  if (sb) {
+    const cx = sb.x + sb.width / 2
+    const cy = sb.y + sb.height / 2
+    const cdp = await page.context().newCDPSession(page)
+    const pkt = (x: number, y: number) => [{ x, y, id: 0, radiusX: 4, radiusY: 4, force: 1 }]
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(cx, cy) })
+    for (let i = 1; i <= 12; i++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pkt(cx + 40 * (i / 12), cy) })
+      await page.waitForTimeout(16)
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await cdp.detach()
+    await vent(page, (p) => Math.abs((lesPlan(p.plan)[0]?.strek[0]?.x ?? 0) - medHol.strek[0].x) > 0.01)
+    const flytta = plana(page)[0].strek[0]
+    sjekk("handtaket flyttar hòlet, og lenkja veit det", Math.abs(flytta.x - medHol.strek[0].x) > 0.01, `x ${medHol.strek[0].x} → ${flytta.x}`)
+  }
+  await page.keyboard.press("Backspace")
+  await vent(page, (p) => lesPlan(p.plan)[0]?.strek.length === 0)
+  sjekk("⌫ tek streken bort, ikkje planet", plana(page)[0]?.strek.length === 0 && plana(page).length === n0 && plana(page)[0].id === planFør.id)
+  await page.keyboard.press("z")
+  await vent(page, (p) => lesPlan(p.plan)[0]?.strek.length === 1)
+  sjekk("og Z hentar han att", plana(page)[0]?.strek.length === 1)
+  await page.keyboard.press("z")
+  await vent(page, (p) => (lesPlan(p.plan)[0]?.strek.length ?? 1) === 0)
+  await page.keyboard.press("Escape")
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
 

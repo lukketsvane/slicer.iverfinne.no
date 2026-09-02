@@ -170,14 +170,29 @@ type Rute = {
  * er w = d. Det er heile kostnaden ved ei ribbe — resten er aritmetikk på
  * ei tabell som alt ligg i minnet.
  */
-function ruteAv(s: Solid, d: number, step: number): Rute {
+function ruteAv(s: Solid, d: number, step: number, former: readonly Form[] = []): Rute {
   // Ruta må dekkje HEILE profilen med litt mon: ein kontur som vert klipt
-  // av kanten på ruta er ei open kjede og ikkje eit polygon.
+  // av kanten på ruta er ei open kjede og ikkje eit polygon. Og profilen
+  // er ikkje berre kroppen: eit strek som tjuknar eit bein rekk gjerne ut
+  // forbi boksen kring nettet, og vart klipt der — plata kom ut delt i to
+  // av eit skrått band der kjeda vart lukka på måfå.
   const PAD = Math.max(4, step * 2)
-  const t0 = s.min[0] - PAD
-  const t1 = s.max[0] + PAD
-  const z0 = s.min[1] - PAD
-  const z1 = s.max[1] + PAD
+  let t0 = s.min[0]
+  let t1 = s.max[0]
+  let z0 = s.min[1]
+  let z1 = s.max[1]
+  for (const f of former) {
+    const rx = f.hw * Math.abs(f.c) + f.hh * Math.abs(f.s)
+    const ry = f.hw * Math.abs(f.s) + f.hh * Math.abs(f.c)
+    t0 = Math.min(t0, f.cx - rx)
+    t1 = Math.max(t1, f.cx + rx)
+    z0 = Math.min(z0, f.cy - ry)
+    z1 = Math.max(z1, f.cy + ry)
+  }
+  t0 -= PAD
+  t1 += PAD
+  z0 -= PAD
+  z1 += PAD
   const nt = Math.max(24, Math.min(520, Math.ceil((t1 - t0) / step)))
   const nz = Math.max(24, Math.min(520, Math.ceil((z1 - z0) / step)))
   const dt = (t1 - t0) / nt
@@ -375,7 +390,6 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     const d = dot(o, pl.n)
     const r: Ramme = { o: mul3(pl.n, d), n: pl.n, u, v }
     const sol = vend(k, pl.n)
-    const ru = ruteAv(sol, d, step)
     const S = p.storleik
     // streka ligg kring planet sitt eige punkt, i planet si ramme
     const ou = dot(o, u)
@@ -393,6 +407,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
         s: Math.sin(a),
       }
     })
+    const ru = ruteAv(sol, d, step, former)
     const ringar = felt(ru, former, []).map((l) => l.pts as Pt[])
     return { plan: pl, r, d, sol, ru, former, ringar, spor: [] }
   })
