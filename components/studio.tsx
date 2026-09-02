@@ -387,12 +387,20 @@ export function Studio() {
   }, [mounted, skrivOkta])
 
   /**
-   * ANGRE. Eit drag er hundre punkt og éi endring: eit punkt vert fyrst
-   * bokført når det har fått stå i ein knapp sekund.
+   * ANGRE OG GJER OM. Eit drag er hundre punkt og éi endring: eit punkt
+   * vert fyrst bokført når det har fått stå i ein knapp sekund — og aldri
+   * medan ein gest er i gang. Eit bygg som stoggar hovudtråden midt i ei
+   * vriding gav elles to bokføringar av éin gest, og Z tok berre halve.
+   * Framtida er det du angra: eit angre legg det som stod der, ei ny
+   * endring kastar henne.
    */
   const fortid = useRef<ParamBag[]>([])
+  const framtid = useRef<ParamBag[]>([])
   const stodd = useRef<ParamBag | null>(null)
   const [kanAngre, setKanAngre] = useState(false)
+  const [kanGjerOm, setKanGjerOm] = useState(false)
+  /** eit hopp i historikka er ikkje ei ny endring, og skal ikkje tøme framtida */
+  const hopp = useRef(false)
   useEffect(() => {
     if (!mounted) return
     if (stodd.current === null) {
@@ -403,7 +411,13 @@ export function Studio() {
       setKanAngre(fortid.current.length > 0)
       return
     }
+    if (hopp.current) hopp.current = false
+    else if (framtid.current.length) {
+      framtid.current = []
+      setKanGjerOm(false)
+    }
     setKanAngre(true)
+    if (gest) return
     const t = window.setTimeout(() => {
       if (stodd.current === null || stodd.current === params) return
       fortid.current.push(stodd.current)
@@ -411,13 +425,29 @@ export function Studio() {
       stodd.current = params
     }, 450)
     return () => window.clearTimeout(t)
-  }, [params, mounted])
+  }, [params, mounted, gest])
   const angre = useCallback(() => {
     const no = naa.current
     const mal = stodd.current !== null && stodd.current !== no ? stodd.current : fortid.current.pop()
     if (!mal) return
+    framtid.current.push(no)
+    setKanGjerOm(true)
     stodd.current = mal
+    hopp.current = true
     setKanAngre(fortid.current.length > 0)
+    setParams(mal)
+  }, [])
+  const gjerOm = useCallback(() => {
+    const mal = framtid.current.pop()
+    if (!mal) return
+    const no = naa.current
+    if (stodd.current !== null && stodd.current !== no) fortid.current.push(stodd.current)
+    fortid.current.push(no)
+    if (fortid.current.length > ANGRE_DJUPN) fortid.current.shift()
+    stodd.current = mal
+    hopp.current = true
+    setKanAngre(true)
+    setKanGjerOm(framtid.current.length > 0)
     setParams(mal)
   }, [])
 
@@ -678,7 +708,7 @@ export function Studio() {
       const k = e.key.toLowerCase()
       if ((e.metaKey || e.ctrlKey) && k === "z") {
         e.preventDefault()
-        return angre()
+        return e.shiftKey ? gjerOm() : angre()
       }
       if (e.metaKey || e.ctrlKey) return
       // same som knappen: med eit plan valt er skissa gøymd, og L slepp valet
@@ -687,7 +717,7 @@ export function Studio() {
         else velPlan(null)
       } else if (k === "delete" || k === "backspace") {
         if (vald !== null) slett(vald)
-      } else if (k === "z") angre()
+      } else if (k === "z") (e.shiftKey ? gjerOm : angre)()
       else if (k === "s") vekslModus()
       else if (k === "f") finnForslag(false)
       else if (k === "d") finnForslag(true)
@@ -701,11 +731,10 @@ export function Studio() {
         else setSteg("line")
       } else return
       e.preventDefault()
-      setHint(null)
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, laas, slett, vald, finnForslag, verkty, visForslag, velPlan, vekslModus])
+  }, [angre, gjerOm, laas, slett, vald, finnForslag, verkty, visForslag, velPlan, vekslModus])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -755,7 +784,7 @@ export function Studio() {
         )}
       </div>
 
-      <Toppline benk={benk} kjelde={kjeldeNamn} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onShare={share} onHogd={setToppH} />
+      <Toppline benk={benk} kjelde={kjeldeNamn} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
 
       {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til høgre i det frie bandet */}
       {gestTekst && (
@@ -797,10 +826,7 @@ export function Studio() {
       <Arket
         benk={benk}
         steg={steg}
-        onSteg={(s) => {
-          setHint(null)
-          setSteg(s)
-        }}
+        onSteg={setSteg}
         params={params}
         onChange={endre}
         view={view}
