@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useRef, useState, type JSX, type RefObject } from "react"
-import { MATERIALS, TJUKNER, klokke, lesTal, nn, snap, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
+import { MATERIALS, TJUKNER, klokke, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import type { Plan } from "@/lib/plan"
 import type { Kandidat } from "@/lib/forslag"
 import {
   CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoFinn, IcoReset, IcoSliders, IcoStopp, IcoUttak,
-  Reglar, Ring, SliderRow, TASTAR, Tavla, chipStyle, n0, num, stengd, tjukn, useLangtrykk,
+  Ring, SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn, useLangtrykk,
 } from "./deler"
 import type { VerktyId } from "./verkty"
 
@@ -34,8 +34,8 @@ export function kvaSlag(n: Vec3): string {
   const tilt = (Math.asin(Math.min(1, Math.abs(n[2]))) * 180) / Math.PI
   const kurs = (((Math.atan2(n[1], n[0]) * 180) / Math.PI + 360) % 180 + 360) % 180
   if (tilt > 85) return "vassrett"
-  if (tilt < 5) return `loddrett · ${n0(kurs)}°`
-  return `skrå ${n0(tilt)}° · ${n0(kurs)}°`
+  if (tilt < 5) return `loddrett ${n0(kurs)}°`
+  return `skrå ${n0(tilt)}°/${n0(kurs)}°`
 }
 
 export type ArketProps = {
@@ -44,6 +44,8 @@ export type ArketProps = {
   onSteg: (s: Steg) => void
   params: ParamBag
   onChange: (p: ParamBag) => void
+  /** ein verdi vert dregen: angre ventar til fingeren slepper */
+  onSkrubb: (aktiv: boolean) => void
   view: View
   /** kor høg topplina er: kolonna på benken byrjar under henne */
   topp: number
@@ -82,12 +84,11 @@ function Lina({ p }: { p: ArketProps }) {
   const { metrics: m, rules, plan, feil, melding, hentar } = p
   if (feil) return <span style={{ color: "var(--warn)" }}>{feil}</span>
   if (melding) return <span className="opacity-70">{melding}</span>
-  if (hentar) return <span className="dim">les fila …</span>
+  if (hentar) return <span className="dim">les …</span>
   if (!m) return <span className="dim">snittar …</span>
   const raud = new Set(rules.filter((r) => !r.ok && r.hard && r.rad).map((r) => r.rad))
-  const tal: { id: string; text: string; nokkel?: number; smal?: boolean }[] = [
-    // talet tikkar når det endrar seg: nøkkelen er talet sjølv
-    { id: "plan", text: `${plan.length} plan`, nokkel: plan.length },
+  const tal: { id: string; text: string; smal?: boolean }[] = [
+    { id: "plan", text: `${plan.length} plan` },
     { id: "delar", text: `${n0(m.parts)} delar` },
     { id: "ark", text: `${n0(m.sheets)} ark` },
     // tida er det fyrste som må vike på ein smal telefon: ho står òg i tavla
@@ -98,18 +99,18 @@ function Lina({ p }: { p: ArketProps }) {
       {tal.map((t, i) => (
         <span key={t.id} className={t.smal ? "hidden min-[430px]:inline" : undefined}>
           {i > 0 && <span className="px-0.5 opacity-30">·</span>}
-          <span key={t.nokkel} className={t.nokkel !== undefined ? "tikk" : undefined} style={raud.has(t.id) ? { color: "var(--warn)" } : { opacity: 0.62 }}>{t.text}</span>
+          <span style={raud.has(t.id) ? { color: "var(--warn)" } : { opacity: 0.62 }}>{t.text}</span>
         </span>
       ))}
     </>
   )
 }
 
-/** éi rad per låst plan: namn, kva det er, stykke og ledd, og vegen ut */
+/** éi rad per låst plan: namn, kva det er, streka handa la i det, ledd (og stykke når det er fleire), og vegen ut.
+ *  Tom liste er tom: rettleiinga og snittet seier alt kva som skal til. */
+/** Lista står der jamvel når ho er tom: ho er staden plana bur, og ei tom
+ *  liste teiknar ingenting likevel. */
 function Plana({ p }: { p: ArketProps }) {
-  if (!p.plan.length) {
-    return <p className="dim py-3 text-[11px]">ingen plan enno. snu, sikt, og skjer.</p>
-  }
   return (
     <ul className="py-1" role="listbox" aria-label="plan">
       {p.plan.map((pl) => {
@@ -128,8 +129,11 @@ function Plana({ p }: { p: ArketProps }) {
               <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>{pl.id}</span>
               <span className="min-w-0 flex-1 truncate">{kvaSlag(pl.n)}</span>
               <span className="tab dim shrink-0" style={{ color: mine.length && !ledd ? "var(--warn)" : undefined }} title={`${mine.length} stykke, ${ledd} ledd`}>
-                {mine.length ? `${mine.length} stk · ${ledd} ledd` : "råkar ikkje"}
+                {mine.length ? `· ${mine.length > 1 ? `${mine.length} stk · ` : ""}${ledd} ledd` : "· utanfor"}
               </span>
+              {pl.strek.length > 0 && (
+                <span className="tab dim shrink-0 rounded-full border px-1.5 text-[9px] leading-[14px]" style={HAIR} title="handteikna strek i profilen">{pl.strek.length} strek</span>
+              )}
             </button>
             <button type="button" aria-label={`slett plan ${pl.id}`} title="ta planet bort" className="hit dim h-9 w-11 shrink-0 rounded-full" onClick={() => p.onSlett(pl.id)}>
               ×
@@ -163,7 +167,7 @@ function Forslaga({ p }: { p: ArketProps }) {
         <span className="w-10 text-right">delar</span>
         <span className="w-8 text-right">ark</span>
       </div>
-      {!forslag.length && <p className="dim py-2 text-[11px]">{p.tunar ? "søkjer …" : "ingen sett held. prøv ei anna plate eller tjukn."}</p>}
+      {!forslag.length && <p className="dim py-2 text-[11px]">{p.tunar ? "søkjer …" : "ingen sett"}</p>}
       {forslag.map((k, i) => (
         <button
           key={i}
@@ -206,10 +210,10 @@ function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
   )
 }
 
-/** alt: material og plate, skyvarane, tavla, uttaka, verktya */
+/** alt: material og plate, verdiane, tavla med reglane i, uttaka, verktya. Reglane står HER og i dei raude tala i lina, ikkje i midten. */
 function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | null> }) {
   const { params, onChange, metrics } = p
-  const setParam = (k: string, raw: string) => onChange({ ...params, [k]: snap(lesTal(raw), PARAM_RANGES[k]) })
+  const setParam = (k: string, v: number) => onChange({ ...params, [k]: v })
   const naaTjukn = num(params, "tjukn", TJUKNER[0])
   return (
     <>
@@ -223,9 +227,9 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
             aria-label={`materiale: ${MATERIALS[mk].label}`}
             title={MATERIALS[mk].label}
             onClick={() => onChange({ ...params, material: mk })}
-            className="hit flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition active:scale-90"
+            className="hit flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
           >
-            <span aria-hidden="true" className="block h-6 w-6 rounded-full border" style={{ backgroundColor: MATERIALS[mk].hex, borderColor: params.material === mk ? "var(--ink)" : "var(--rule)", boxShadow: params.material === mk ? "0 0 0 1px var(--ink)" : undefined }} />
+            <span aria-hidden="true" className="block h-6 w-6 rounded-full border-2" style={{ backgroundColor: MATERIALS[mk].hex, borderColor: params.material === mk ? "var(--ink)" : "var(--rule)" }} />
           </button>
         ))}
         <span className="ml-auto flex items-center gap-1">
@@ -237,7 +241,7 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
         </span>
       </div>
       {["arkB", "arkH"].map((k) => (
-        <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(params, k, PARAM_RANGES[k].min)} onChange={setParam} />
+        <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(params, k, PARAM_RANGES[k].min)} benk={p.benk} onChange={setParam} onSkrubb={p.onSkrubb} />
       ))}
       {GROUPS.map((g) => {
         const keys = g.keys.filter((k) => !FRAMME.has(k))
@@ -246,7 +250,7 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
           <div key={g.id} className="pt-3">
             <h3 className="dim pb-0.5 text-[10px] uppercase leading-none tracking-[0.24em]">{g.label}</h3>
             {keys.map((k) => (
-              <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(params, k, PARAM_RANGES[k].min)} onChange={setParam} />
+              <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(params, k, PARAM_RANGES[k].min)} benk={p.benk} onChange={setParam} onSkrubb={p.onSkrubb} />
             ))}
           </div>
         )
@@ -268,7 +272,6 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
           </button>
         ))}
       </div>
-      {p.benk && <p className="dim pt-3 text-[10px] leading-relaxed tracking-[0.1em]">{TASTAR}</p>}
     </>
   )
 }
@@ -349,9 +352,8 @@ export function Arket(p: ArketProps): JSX.Element {
 
   const midt = (
     <>
-      <SliderRow k="storleik" r={PARAM_RANGES.storleik} value={num(p.params, "storleik", 150)} onChange={(k, raw) => p.onChange({ ...p.params, [k]: snap(lesTal(raw), PARAM_RANGES[k]) })} bi={p.metrics ? `${n0(p.metrics.envX)}×${n0(p.metrics.envY)}×${n0(p.metrics.envZ)}` : undefined} />
+      <SliderRow k="storleik" r={PARAM_RANGES.storleik} value={num(p.params, "storleik", 150)} benk={benk} onChange={(k, v) => p.onChange({ ...p.params, [k]: v })} onSkrubb={p.onSkrubb} bi={p.metrics ? `${n0(p.metrics.envX)}×${n0(p.metrics.envY)}×${n0(p.metrics.envZ)}` : undefined} />
       {p.visForslag ? <Forslaga p={p} /> : <Plana p={p} />}
-      <Reglar rules={p.rules} params={p.params} onChange={p.onChange} />
     </>
   )
 
@@ -388,19 +390,20 @@ export function Arket(p: ArketProps): JSX.Element {
         ref={el}
         aria-label="kontrollar"
         aria-busy={p.busy}
-        className="pointer-events-auto relative flex w-full max-w-md flex-col rounded-3xl border sm:max-w-xl"
+        className="ark pointer-events-auto relative flex min-w-0 max-w-md flex-col overflow-x-hidden rounded-3xl border sm:max-w-xl"
         style={{
           ...HAIR,
+          // aldri breiare enn skjermen: ei rad med for lang tekst skal ikkje skuve arket ut av kanten
+          width: "calc(100vw - 24px)",
           background: "var(--paper)",
           color: "var(--ink)",
           // taket ligg på ARKET, og trygdesona tel med: summen er taket
           maxHeight: steg === "alt" ? "calc(72dvh - env(safe-area-inset-bottom) - 12px)" : "calc(48dvh - env(safe-area-inset-bottom) - 12px)",
           transform: pull ? `translateY(${pull}px)` : undefined,
-          transition: drag.current ? undefined : "transform 180ms ease",
         }}
       >
         {visUttak && steg !== "alt" && (
-          <div data-uttak="" role="group" aria-label="uttak" className="fade-inn absolute inset-x-2 bottom-[calc(100%+8px)] rounded-2xl border px-3" style={{ ...HAIR, background: "var(--paper)", boxShadow: "0 8px 28px color-mix(in srgb, var(--ink) 16%, transparent)" }}>
+          <div data-uttak="" role="group" aria-label="uttak" className="absolute inset-x-2 bottom-[calc(100%+8px)] rounded-2xl border px-3" style={{ ...HAIR, background: "var(--paper)" }}>
             <Uttaka p={p} onGjort={() => setVisUttak(false)} />
           </div>
         )}

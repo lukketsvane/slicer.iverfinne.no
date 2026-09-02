@@ -6,15 +6,15 @@ import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { PLAN_TAK, broek, lesPlan, nyId, skrivPlan, type Plan } from "@/lib/plan"
+import { PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, skrivPlan, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
 import type { Kandidat } from "@/lib/forslag"
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
-import { Scene, type GestKva, type Modus, type Skisse } from "./scene"
+import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { HAIR, IcoFerdig, IcoSikt, IcoSkisse, IcoSkjer, IcoSlett, IcoSnu, chipStyle } from "./deler"
+import { HAIR, IcoFerdig, IcoGods, IcoHol, IcoSkisse, IcoSkjer, IcoSlett, chipStyle } from "./deler"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
 import { PARAM_RANGES } from "@/lib/params"
@@ -30,10 +30,8 @@ const MAX_FIL = 220 * 1024 * 1024
 const ANGRE_DJUPN = 50
 /** kor høgt det lukka arket er med botnmargen; skuffa står over det på telefonen */
 const LUKKA_ARK = 84
-/** nøkkelen i nettlesaren som seier at rettleiinga er sett */
-const COACH = "slicerman.coach"
-/** knappane over skjer i tommelspalta: 48 pikslar, runde */
-const TUMME_BTN = "hit relative flex h-12 w-12 items-center justify-center rounded-full border transition active:scale-95"
+/** knappane over skjer i tommelspalta: 48 pikslar, runde, flate */
+const TUMME_BTN = "hit relative flex h-12 w-12 items-center justify-center rounded-full border"
 /** det «forslag» IKKJE rører: endrar noko av dette seg, er lista eit svar på eit anna spørsmål */
 const tuneBase = (p: ParamBag) =>
   [p.kjelde, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant, p.tjukn, p.klaring, p.snitt, p.arkB, p.arkH, p.lause].join("|")
@@ -125,6 +123,10 @@ export function Studio() {
   const [ark, setArk] = useState<ArkSyn | null>(null)
   /** det valde planet, og den valde delen på plata */
   const [vald, setVald] = useState<number | null>(null)
+  /** det valde streket i det valde planet, som plass i lista hans */
+  const [valdStrek, setValdStrek] = useState<number | null>(null)
+  /** ein verdi vert dregen i arket: angre ventar til fingeren slepper */
+  const [skrubbar, setSkrubbar] = useState(false)
   const [peikt, setPeikt] = useState<string | null>(null)
   const [steg, setSteg] = useState<Steg>("line")
   const [verkty, setVerkty] = useState<VerktyId | null>(null)
@@ -136,9 +138,6 @@ export function Studio() {
   const [feil, setFeil] = useState<string | null>(null)
   const [melding, setMelding] = useState<string | null>(null)
   const [hentar, setHentar] = useState(false)
-  /** éi line om gestane: ved starten, etter ein import, og når modusen byter. Ho går på fyrste gesten. */
-  const [hint, setHint] = useState<"gest" | null>("gest")
-  const hintTimer = useRef(0)
   const [drag, setDrag] = useState(false)
   const [arkH, setArkH] = useState(0)
   const [toppH, setToppH] = useState(44)
@@ -146,12 +145,10 @@ export function Studio() {
   const [modus, setModus] = useState<Modus>("form")
   /** kva ein finger held på med akkurat no, til lesing over objektet */
   const [gest, setGest] = useState<GestKva>(null)
-  const [raakar, setRaakar] = useState(false)
   /** snittet skissa (eller det valde planet) ville gje, slik motoren las det */
   const [snitt, setSnitt] = useState<SkisseSyn | null>(null)
   /** planet som nett vart skore: delen hans blinkar éin gong når han kjem */
   const [blink, setBlink] = useState<number | null>(null)
-  const [coach, setCoach] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [namn, setNamn] = useState<Record<string, string>>({})
   const benk = useMedia("(pointer: fine) and (min-width: 1180px)")
@@ -208,7 +205,10 @@ export function Studio() {
    * om gongen: éin i lufta, det siste ventar, og eit svar som er eldre enn
    * det som alt er synt vert kasta. `plan` er det som vert snitta no —
    * skissa med namn 0, eller det valde planet — og eit byte tømer snittet,
-   * so det gamle ikkje står i den nye fargen.
+   * so det gamle ikkje står i den nye fargen. `p` er posen motoren snittar
+   * frå: den som står, eller — medan eit strek vert drege — ein kopi med
+   * streken der fingeren har han, so snittet syner det du får utan at
+   * parametrane rører seg før du slepper.
    */
   const skissePort = useRef<{ inFlight: boolean; pending: SkisseReq | null; shown: number; plan: Plan | null }>({ inFlight: false, pending: null, shown: 0, plan: null })
   const pumpSkisse = useCallback(() => {
@@ -218,15 +218,15 @@ export function Studio() {
     worker.current?.postMessage(p.pending)
     p.pending = null
   }, [])
-  const spørSkisse = useCallback((pl: Plan | null) => {
-    const p = skissePort.current
-    if ((pl?.id ?? null) !== (p.plan?.id ?? null)) setSnitt(null)
-    p.plan = pl
+  const spørSkisse = useCallback((pl: Plan | null, p: ParamBag = naa.current) => {
+    const port = skissePort.current
+    if ((pl?.id ?? null) !== (port.plan?.id ?? null)) setSnitt(null)
+    port.plan = pl
     if (!pl) {
-      p.pending = null
+      port.pending = null
       return
     }
-    p.pending = { kind: "skisse", id: ++reqId.current, params: naa.current, plan: pl }
+    port.pending = { kind: "skisse", id: ++reqId.current, params: p, plan: pl }
     pumpSkisse()
   }, [pumpSkisse])
   /** skissa flytta seg i scena: punktet som brøk av boksen, og normalen som han er */
@@ -276,7 +276,7 @@ export function Studio() {
     w.onerror = () => {
       setBusy(false)
       setHentar(false)
-      setFeil("motoren stogga. last sida på nytt")
+      setFeil("motoren stogga")
     }
     w.onmessage = (e: MessageEvent<Res>) => {
       const r = e.data
@@ -298,9 +298,8 @@ export function Studio() {
         const { kind, id, ...syn } = r
         void kind
         void id
-        // det same snittet om att — etter eit skjer ligg det nye planet i skissa — er inga endring, og skal ikkje teiknast om att
-        const ny = JSON.stringify(syn)
-        setSnitt((prev) => (prev && JSON.stringify(prev) === ny ? prev : syn))
+        // det same snittet om att — etter eit skjer ligg det nye planet i skissa, etter eit slepp står streken der han alt var synt — er inga endring, og skal ikkje teiknast om att. Nøkkelen seier det.
+        setSnitt((prev) => (prev && prev.nokkel === syn.nokkel ? prev : syn))
         return
       }
       if (r.kind === "maal") {
@@ -321,7 +320,7 @@ export function Studio() {
         const kj = r.src ? r.src.id : KUBE
         setParams((p) => MOTOR.clamp({ ...r.params, kjelde: kj }, { ...p, kjelde: kj }))
         setVald(null)
-        setMelding(r.src ? "prosjektet er ope" : "innstillingane er sette")
+        setMelding(r.src ? "prosjekt ope" : "oppsett sett")
         return
       }
       if (r.kind === "ark") {
@@ -346,9 +345,6 @@ export function Studio() {
         setVald(null)
         setFeil(null)
         setHentar(false)
-        setHint("gest")
-        window.clearTimeout(hintTimer.current)
-        hintTimer.current = window.setTimeout(() => setHint(null), 7000)
         return
       }
       if (r.kind === "feil") {
@@ -368,7 +364,7 @@ export function Studio() {
           tunarRef.current = false
           setTunar(null)
         }
-        setFeil(r.kva === "import" ? (r.kvifor ?? "las ikkje fila") : r.kva === "tune" ? "søket slo feil" : "uttaket slo feil")
+        setFeil(r.kva === "import" ? (r.kvifor ?? "ulesbar fil") : r.kva === "tune" ? "søk feila" : "uttak feila")
         setHentar(false)
         setBusy(false)
         return
@@ -383,7 +379,7 @@ export function Studio() {
         setBusy(false)
         setForslag(r.alle)
         setSynt(r.alle.length ? 0 : null)
-        if (!r.alle.length) setMelding("ingen sett held")
+        if (!r.alle.length) setMelding("ingen sett")
         return
       }
       void lastNed(r.text ? new Blob([r.text], { type: r.mime }) : new Blob([r.data as ArrayBuffer], { type: r.mime }), r.name)
@@ -494,7 +490,7 @@ export function Studio() {
       setKanGjerOm(false)
     }
     setKanAngre(true)
-    if (gest) return
+    if (gest || skrubbar) return
     const t = window.setTimeout(() => {
       if (stodd.current === null || stodd.current === params) return
       fortid.current.push(stodd.current)
@@ -502,7 +498,7 @@ export function Studio() {
       stodd.current = params
     }, 450)
     return () => window.clearTimeout(t)
-  }, [params, mounted, gest])
+  }, [params, mounted, gest, skrubbar])
   const angre = useCallback(() => {
     const no = naa.current
     const mal = stodd.current !== null && stodd.current !== no ? stodd.current : fortid.current.pop()
@@ -529,7 +525,6 @@ export function Studio() {
   }, [])
 
   const endre = useCallback((p: ParamBag) => {
-    setHint(null)
     setParams(p)
   }, [])
 
@@ -545,7 +540,6 @@ export function Studio() {
     const p = naa.current
     grunn.current = kva === null ? null : { storleik: typeof p.storleik === "number" ? p.storleik : 150, rotZ: typeof p.rotZ === "number" ? p.rotZ : 0 }
     setGest(kva)
-    if (kva) setHint(null)
   }, [])
   const skalerObjektet = useCallback((total: number) => {
     if (!Number.isFinite(total) || total <= 0) return
@@ -568,11 +562,7 @@ export function Studio() {
   /** brytaren mellom form og skisse, med lina som seier kva som gjeld no */
   const vekslModus = useCallback(() => {
     setModus((m) => (m === "form" ? "skisse" : "form"))
-    setHint("gest")
-    window.clearTimeout(hintTimer.current)
-    hintTimer.current = window.setTimeout(() => setHint(null), 4500)
   }, [])
-  useEffect(() => () => window.clearTimeout(hintTimer.current), [])
 
   // --- PLANA -----------------------------------------------------------------
   /**
@@ -587,10 +577,9 @@ export function Studio() {
     if (!s || !k) return
     const o = broek(s.o, k.min, k.max)
     if (o.some((c) => c < -0.5 || c > 1.5)) {
-      setMelding("planet råkar ikkje kroppen")
+      setMelding("utanfor kroppen")
       return
     }
-    setHint(null)
     const id = nyId(lesPlan(naa.current.plan))
     setParams((cur) => {
       const l = lesPlan(cur.plan)
@@ -599,43 +588,6 @@ export function Studio() {
     })
     setBlink(id)
   }, [])
-  // skjer pulserer ÉIN gong: fyrste gongen skissa råkar kroppen er det noko å skjere
-  const [puls, setPuls] = useState(false)
-  const pulsa = useRef(false)
-  useEffect(() => {
-    if (!raakar || pulsa.current) return
-    pulsa.current = true
-    setPuls(true)
-    const t = window.setTimeout(() => setPuls(false), 1200)
-    return () => window.clearTimeout(t)
-  }, [raakar])
-  /**
-   * RETTLEIINGA, ÉIN GONG: tre steg til det fyrste snittet, midt i det frie
-   * bandet. Fyrste trykk kvar som helst tek henne bort — og trykket går
-   * vidare til det det var meint for — og nettlesaren hugsar at ho er sett.
-   */
-  useEffect(() => {
-    if (!mounted) return
-    try {
-      if (localStorage.getItem(COACH)) return
-    } catch {
-      // utan lager: syn henne, ho kostar eitt trykk
-    }
-    setCoach(true)
-  }, [mounted])
-  useEffect(() => {
-    if (!coach) return
-    const bort = () => {
-      setCoach(false)
-      try {
-        localStorage.setItem(COACH, "1")
-      } catch {
-        // utan lager kjem ho att neste gong
-      }
-    }
-    window.addEventListener("pointerdown", bort, { capture: true, once: true })
-    return () => window.removeEventListener("pointerdown", bort, { capture: true })
-  }, [coach])
   /** eit plan flytt eller vinkla om av fingrane — gjennom parametrane, so angre og lenkja gjeld */
   const flyttPlan = useCallback((id: number, o: Vec3, n: Vec3) => {
     setParams((cur) => {
@@ -655,11 +607,88 @@ export function Studio() {
       return { ...cur, plan: skrivPlan(lesPlan(cur.plan).filter((p) => p.id !== id)), fest: skrivFest(m) }
     })
   }, [])
-  /** eit plan valt i scena eller lista; ein del valt på plata eller i kuttlista */
+  /** eit plan valt i scena eller lista; ein del valt på plata eller i kuttlista. Eit anna plan er eit anna strek, og ingen er valt. */
   const velPlan = useCallback((id: number | null) => {
     setVald(id)
+    setValdStrek(null)
     setPeikt(id === null ? null : (liste.find((k) => k.plan === id)?.adr ?? null))
   }, [liste])
+  // eit strek som ikkje finst lenger — planet bytt, streken sletta, eit angre — er ikkje valt
+  useEffect(() => {
+    if (valdStrek === null) return
+    const pl = vald === null ? undefined : plan.find((q) => q.id === vald)
+    if (!pl || valdStrek >= pl.strek.length) setValdStrek(null)
+  }, [vald, plan, valdStrek])
+  /**
+   * STREKA: gods eller hòl i det valde planet, midt i snittet, og valt med det
+   * same so handtaka står på det. Midten er tyngdepunktet i det største
+   * stykket, lese av snittet motoren alt har svara med. Streken står relativt
+   * til planet sitt punkt, som brøk av storleiken, so det du teikna fylgjer
+   * kroppen når han vert skalert — sjå `lib/plan.ts`. Alt går gjennom
+   * parametrane: angre, lenkja og økta får det utan ei line til.
+   */
+  const leggStrek = useCallback((slag: Strek["slag"]) => {
+    const id = vald
+    if (id === null) return
+    const l = lesPlan(naa.current.plan)
+    const j = l.findIndex((q) => q.id === id)
+    if (j < 0) return
+    const k = kroppRef.current
+    const S = typeof naa.current.storleik === "number" ? naa.current.storleik : 150
+    let x = 0
+    let y = 0
+    if (k && snitt?.ringar.length) {
+      const r = planRamme(l[j], k.min, k.max)
+      const m = snittMidt(snitt)
+      x = (m[0] - dot(r.o, r.u)) / S
+      y = (m[1] - dot(r.o, r.v)) / S
+    }
+    const s: Strek = slag === "gods" ? { slag, form: "rekt", x, y, w: 0.25, h: 0.12, a: 0 } : { slag, form: "rund", x, y, w: 0.08, h: 0.08, a: 0 }
+    const i = l[j].strek.length
+    setParams((cur) => {
+      const ll = lesPlan(cur.plan)
+      const jj = ll.findIndex((q) => q.id === id)
+      if (jj < 0) return cur
+      ll[jj] = { ...ll[jj], strek: [...ll[jj].strek, s] }
+      return { ...cur, plan: skrivPlan(ll) }
+    })
+    setValdStrek(i)
+  }, [vald, snitt])
+  /** streken slik fingrane la han frå seg: eitt steg i angre */
+  const endraStrek = useCallback((id: number, i: number, s: Strek) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const j = l.findIndex((q) => q.id === id)
+      if (j < 0 || !l[j].strek[i]) return cur
+      const strek = l[j].strek.slice()
+      strek[i] = s
+      l[j] = { ...l[j], strek }
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [])
+  /** medan fingeren dreg: motoren snittar planet med streken der han står no, utan å røre parametrane */
+  const synStrek = useCallback((id: number, i: number, s: Strek) => {
+    const l = lesPlan(naa.current.plan)
+    const j = l.findIndex((q) => q.id === id)
+    if (j < 0 || !l[j].strek[i]) return
+    const strek = l[j].strek.slice()
+    strek[i] = s
+    l[j] = { ...l[j], strek }
+    spørSkisse(l[j], { ...naa.current, plan: skrivPlan(l) })
+  }, [spørSkisse])
+  const slettStrek = useCallback(() => {
+    const id = vald
+    const i = valdStrek
+    if (id === null || i === null) return
+    setValdStrek(null)
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const j = l.findIndex((q) => q.id === id)
+      if (j < 0) return cur
+      l[j] = { ...l[j], strek: l[j].strek.filter((_, k) => k !== i) }
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [vald, valdStrek])
   const askArk = useCallback((i: number) => send({ kind: "ark", id: ++reqId.current, params: naa.current, sheet: Math.max(0, i) }), [send])
   const velDel = useCallback((adr: string | null) => {
     setPeikt(adr)
@@ -673,7 +702,6 @@ export function Studio() {
   /** eit søk: eit titals sett snitta for alvor og rangerte. Djupt på det lange trykket. */
   const finnForslag = useCallback((djup = false) => {
     if (tunarRef.current) return
-    setHint(null)
     setVisForslag(true)
     setSteg((s) => (s === "line" ? "midt" : s))
     const base = tuneBase(naa.current)
@@ -746,7 +774,7 @@ export function Studio() {
       if (filer.length === 1) void lastNed(new Blob([filer[0].data as BlobPart], { type: "image/png" }), filer[0].name)
       else void lastNed(new Blob([zip(filer) as BlobPart], { type: "application/zip" }), `${st}-ark-png.zip`)
     } catch {
-      setFeil("fekk ikkje teikne platene")
+      setFeil("png feila")
     } finally {
       setBusy(false)
     }
@@ -759,12 +787,11 @@ export function Studio() {
   const share = useCallback(() => {
     const url = window.location.href
     if (navigator.share) return void navigator.share({ url })
-    void navigator.clipboard?.writeText(url).then(() => setMelding("lenkja er kopiert")).catch(() => setMelding("fekk ikkje kopiere lenkja"))
+    void navigator.clipboard?.writeText(url).then(() => setMelding("lenkje kopiert")).catch(() => setMelding("ikkje kopiert"))
   }, [])
   /** fila inn: lesen her, tolka i arbeidaren, bufferen overført og ikkje kopiert */
   const takeFile = useCallback(async (f: File) => {
-    setHint(null)
-    if (f.size > MAX_FIL) return setFeil("fila er for stor")
+    if (f.size > MAX_FIL) return setFeil("for stor")
     setFeil(null)
     setBusy(true)
     setHentar(true)
@@ -774,7 +801,7 @@ export function Studio() {
       if (!/\.zip$/i.test(f.name)) await lagre({ filnamn: f.name, nett: buf.slice(0) })
       send({ kind: "import", id: ++reqId.current, name: f.name, buf }, [buf])
     } catch {
-      setFeil("fekk ikkje lese fila")
+      setFeil("ulesbar fil")
       setHentar(false)
       setBusy(false)
     }
@@ -815,6 +842,26 @@ export function Studio() {
     const t = window.setTimeout(() => setMelding(null), 4000)
     return () => window.clearTimeout(t)
   }, [melding])
+  /**
+   * INGENTING PÅ SIDA VERT MERKT, FORSTØRRA ELLER RULLA. Skalaen er låst i
+   * viewporten og merkinga i CSS; her går det som CSS ikkje når: iOS sine
+   * eigne klypehendingar, eit fleirfingerdrag utanfor lerretet (lerretet
+   * tek sine eigne), og menyen som kjem på eit langt trykk.
+   */
+  useEffect(() => {
+    const stogg = (e: Event) => e.preventDefault()
+    const fleire = (e: TouchEvent) => { if (e.touches.length > 1) e.preventDefault() }
+    document.addEventListener("gesturestart", stogg, { passive: false })
+    document.addEventListener("gesturechange", stogg, { passive: false })
+    document.addEventListener("touchmove", fleire, { passive: false })
+    document.addEventListener("contextmenu", stogg)
+    return () => {
+      document.removeEventListener("gesturestart", stogg)
+      document.removeEventListener("gesturechange", stogg)
+      document.removeEventListener("touchmove", fleire)
+      document.removeEventListener("contextmenu", stogg)
+    }
+  }, [])
 
   // TASTANE. Eit felt som er teke eig sine eigne.
   useEffect(() => {
@@ -833,7 +880,8 @@ export function Studio() {
         if (vald === null) laas()
         else velPlan(null)
       } else if (k === "delete" || k === "backspace") {
-        if (vald !== null) slett(vald)
+        if (valdStrek !== null) slettStrek()
+        else if (vald !== null) slett(vald)
       } else if (k === "z") (e.shiftKey ? gjerOm : angre)()
       else if (k === "s") vekslModus()
       else if (k === "f") finnForslag(false)
@@ -844,6 +892,7 @@ export function Studio() {
       else if (k === "escape") {
         if (verkty) setVerkty(null)
         else if (visForslag) setVisForslag(false)
+        else if (valdStrek !== null) setValdStrek(null)
         else if (vald !== null) velPlan(null)
         else setSteg("line")
       } else return
@@ -851,7 +900,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, vald, finnForslag, verkty, visForslag, velPlan, vekslModus])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, finnForslag, verkty, visForslag, velPlan, vekslModus])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -865,18 +914,12 @@ export function Studio() {
   /** kva gesten held på med, i tal: ein gest utan tal er ein gest du ikkje kan sikte med */
   const les = (k: string) => String(typeof params[k] === "number" ? Math.round(params[k] as number) : 0)
   const gestTekst = gest === "storleik" ? `${les("storleik")} mm` : gest === "vend" ? `${les("rotZ")}°` : gest
-  const hintTekst = fin
-    ? modus === "form"
-      ? "form · dra snur · ⇧ dra flyttar snittet · ⌥ dra vrir det · ⌃ hjul = storleik · skjer"
-      : "skisse · dra snur · ⇧ dra flyttar snittet · ⌥ dra vrir det · skjer"
-    : modus === "form"
-      ? "form · éin finger snur · to fingrar: knip = storleik, vri = vend, dra = flytt snittet · skjer"
-      : "skisse · éin finger snur · to fingrar: dra = flytt, vri = tilt, knip = zoom · skjer"
+  /** ord, ikkje setningar: gestane i den rekkjefylgja du tek dei */
 
   return (
     <main className="fixed inset-0 overflow-hidden" style={{ background: "var(--paper)" }}>
       {/* fyrste gesten på objektet tek lina om gestane bort */}
-      <div className="absolute inset-0" onPointerDownCapture={() => setHint(null)}>
+      <div className="absolute inset-0">
         {mounted && (
           <Scene
             kropp={kropp}
@@ -893,12 +936,16 @@ export function Studio() {
             snitt={snitt}
             blink={blink}
             skisse={skisse}
+            storleik={typeof params.storleik === "number" ? params.storleik : 150}
+            valdStrek={valdStrek}
             onVald={velPlan}
+            onValdStrek={setValdStrek}
             onPlan={flyttPlan}
+            onStrek={endraStrek}
+            onSynStrek={synStrek}
             onSkala={skalerObjektet}
             onVend={vendObjektet}
             onGest={taGest}
-            onRaakar={setRaakar}
             onSkisse={skisseEndra}
           />
         )}
@@ -916,16 +963,33 @@ export function Studio() {
       {/*
         TOMMELSPALTA. Skjer står der høgre tommelen alt er: nedst til høgre,
         over arket, 64 pikslar. Med eit plan valt er skissa gøymd, og knappen
-        er «ferdig» og slepp valet. Over han: skissebrytaren, og slett når
-        eit plan er valt. Ikon, aldri ord. Prikken i hjørnet er motoren som
-        reknar. På benken står spalta nedst i lerretet, ved kolonna.
+        er «ferdig» og slepp valet. Over han: skissebrytaren, og med eit plan
+        valt òg slett — og dei to streka, gods og hòl, som teiknar i profilen
+        hans. Er eit strek valt, er det streken slett tek. Ikon, aldri ord.
+        Prikken i hjørnet er motoren som reknar. På benken står spalta nedst
+        i lerretet, ved kolonna.
       */}
       {mounted && (
         <div className="tumme" style={{ right: (benk ? KOL : 0) + 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}>
           {vald !== null && (
-            <button type="button" aria-label="slett" title="ta det valde planet bort (⌫)" onClick={() => slett(vald)} className={TUMME_BTN} style={{ ...HAIR, background: "var(--paper)", color: "var(--warn)" }}>
-              {IcoSlett}
-            </button>
+            <>
+              <button type="button" aria-label="legg til gods" title="legg til gods: ein firkant midt i snittet. flytt, vri og dra han større" onClick={() => leggStrek("gods")} className={TUMME_BTN} style={{ ...HAIR, background: "var(--paper)", color: "var(--ink)" }}>
+                {IcoGods}
+              </button>
+              <button type="button" aria-label="skjer hòl" title="skjer eit hòl: ein ring midt i snittet. flytt, vri og dra han større" onClick={() => leggStrek("hol")} className={TUMME_BTN} style={{ ...HAIR, background: "var(--paper)", color: "var(--ink)" }}>
+                {IcoHol}
+              </button>
+              <button
+                type="button"
+                aria-label={valdStrek !== null ? "slett strek" : "slett"}
+                title={valdStrek !== null ? "ta streken bort (⌫)" : "ta det valde planet bort (⌫)"}
+                onClick={valdStrek !== null ? slettStrek : () => slett(vald)}
+                className={TUMME_BTN}
+                style={{ ...HAIR, background: "var(--paper)", color: "var(--warn)" }}
+              >
+                {IcoSlett}
+              </button>
+            </>
           )}
           {/* SKISSEMODUSEN: to fingrar arbeider på planet — dra flyttar, vri
               vinklar, klyp zoomar. Av er «form»: klyp storleiken, vri vendinga. */}
@@ -946,37 +1010,18 @@ export function Studio() {
             disabled={view === "kontur" || (vald === null && !harSnitt)}
             aria-label={vald === null ? "skjer" : "ferdig"}
             title={vald === null ? "skjer: skissa vert ein del (L)" : "ferdig med planet (esc)"}
-            className={"skjer" + (puls ? " puls" : "")}
+            className="skjer"
             style={{ background: "var(--ink)", color: "var(--paper)" }}
           >
             {vald === null ? IcoSkjer : IcoFerdig}
-            <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--paper)", boxShadow: "0 0 0 1.5px var(--ink)", opacity: busy && !tunar ? 1 : 0, transition: "opacity 200ms ease" }} />
+            <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--paper)", opacity: busy && !tunar ? 1 : 0, transition: "opacity 200ms ease" }} />
           </button>
         </div>
       )}
 
-      {/* rettleiinga: tre steg, éin gong */}
-      {coach && !drag && (
-        <div role="note" aria-label="slik skjer du" className="coach fade-inn pointer-events-none absolute" style={{ left: 0, right: benk ? KOL : 0, top: toppH, bottom: benk ? 0 : arkH }}>
-          <div className="coach-kort">
-            {([["1", IcoSnu, "snu"], ["2", IcoSikt, "sikt"], ["3", IcoSkjer, "skjer"]] as const).map(([n, g, ord]) => (
-              <span key={ord} className="coach-steg"><b>{n}</b>{g}<span>{ord}</span></span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Éi line om gestane, med modusen fremst. Ho går på fyrste gesten. Til venstre for tommelspalta. */}
-      {hint && !drag && (
-        <div className="pointer-events-none absolute flex justify-center px-4" style={{ left: 0, bottom: (benk ? 0 : arkH) + 24, right: benk ? KOL : 92 }} aria-hidden="true">
-          <span className="fade-inn rounded-full px-3 py-1.5 text-center text-[10px] uppercase tracking-[0.16em]" style={{ background: "color-mix(in srgb, var(--paper) 85%, transparent)", opacity: 0.85 }}>
-            {hintTekst}
-          </span>
-        </div>
-      )}
       {drag && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center" style={{ background: "color-mix(in srgb, var(--paper) 82%, transparent)" }}>
-          <div className="rounded-2xl border border-dashed px-6 py-4 text-[11px] uppercase tracking-[0.2em]" style={{ borderColor: "var(--ink)" }}>slepp nettet</div>
+          <div className="rounded-2xl border border-dashed px-6 py-4 text-[11px] uppercase tracking-[0.2em]" style={{ borderColor: "var(--ink)" }}>slepp fila</div>
         </div>
       )}
 
@@ -993,7 +1038,7 @@ export function Studio() {
         onChange={endre}
         onBytt={opneVerkty}
         onClose={() => setVerkty(null)}
-        onOrd={(t) => void navigator.clipboard?.writeText(t).then(() => setMelding("kuttlista er kopiert")).catch(() => setMelding("fekk ikkje kopiere"))}
+        onOrd={(t) => void navigator.clipboard?.writeText(t).then(() => setMelding("kopiert")).catch(() => setMelding("ikkje kopiert"))}
       />
 
       <Arket
@@ -1002,6 +1047,7 @@ export function Studio() {
         onSteg={setSteg}
         params={params}
         onChange={endre}
+        onSkrubb={setSkrubbar}
         view={view}
         topp={toppH}
         metrics={tal?.metrics ?? null}
