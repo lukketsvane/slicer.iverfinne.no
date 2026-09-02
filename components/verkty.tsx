@@ -480,6 +480,18 @@ function Plater(props: {
     sist: number
     vri: number
     ppm: number
+    /** avstanden mellom fingrane då dei landa, og kvar dei landa */
+    d0: number
+    a: { x: number; y: number }
+    b: { x: number; y: number }
+    v: Syn
+    /**
+     * Kva fingrane gjer, avgjort éin gong når dei har kome ut av daudsona:
+     * eit klyp er plata — som utan val — og alt anna er delen. Same prøva
+     * som objektet gjer på sine to fingrar: bogen, avstanden og vegen, alle
+     * i pikslar, og den største vinn.
+     */
+    modus: "uavgjort" | "del"
   } | null>(null)
   /** eit trykk på plata som kan verte eit trykk på bert bord */
   const tapp = useRef<{ id: number; x: number; y: number; paaDel: boolean; fleire: boolean } | null>(null)
@@ -525,6 +537,52 @@ function Plater(props: {
     setDra(null)
   }
   /**
+   * SNAPPET: KANT I KANT ER NØYAKTIG LUKA.
+   *
+   * Masken er boksen pluss klaringa, so to masker som ligg kant i kant er
+   * to delar med nøyaktig luka mellom seg — det tettaste pakkinga sjølv
+   * ville lagt dei. Under draget søkjer kantane på den flytta masken etter
+   * kantane på dei andre på plata — inntil dei, og på line med dei — og
+   * etter plata sine eigne, og innanfor åtte pikslar smett dei på plass.
+   * Åtte PIKSLAR og ikkje millimeter: det er fingeren som er unøyaktig, og
+   * zoomar du inn, smett han fyrst når du er nærare.
+   */
+  const snapp = (
+    g: { adr: string; plass: Delplass["plass"]; boks: Delplass["boks"] },
+    dx: number,
+    dy: number,
+    ppm: number,
+  ) => {
+    const rekk = 8 / ppm
+    const marg = Math.max(0, g.boks.x - g.plass.x)
+    const W = g.boks.w + 2 * marg
+    const H = g.boks.h + 2 * marg
+    const xs = [0, arkB - W]
+    const ys = [0, arkH - H]
+    for (const d of ark.plasser) {
+      if (d.adr === g.adr) continue
+      const m = Math.max(0, d.boks.x - d.plass.x)
+      const w = d.boks.w + 2 * m
+      const h = d.boks.h + 2 * m
+      xs.push(d.plass.x + w, d.plass.x - W, d.plass.x, d.plass.x + w - W)
+      ys.push(d.plass.y + h, d.plass.y - H, d.plass.y, d.plass.y + h - H)
+    }
+    const naer = (v: number, kand: number[]) => {
+      let best = v
+      let avst = rekk
+      for (const c of kand) {
+        const a = Math.abs(c - v)
+        if (a < avst) {
+          avst = a
+          best = c
+        }
+      }
+      return best
+    }
+    return { dx: naer(g.plass.x + dx, xs) - g.plass.x, dy: naer(g.plass.y + dy, ys) - g.plass.y }
+  }
+
+  /**
    * Dei to fingrane slepper: delen skal stå fast der dei hadde han, i den
    * næraste av dei fire svingane. Svingen går kring midten av masken, som
    * `snu` i verktyet gjer det — boksen pluss margen, og etter ein odde
@@ -546,8 +604,11 @@ function Plater(props: {
     const marg = Math.max(0, g.boks.x - g.plass.x)
     const W = g.boks.w + 2 * marg
     const H = g.boks.h + 2 * marg
-    const cx = g.plass.x + W / 2 + q.dx
-    const cy = g.plass.y + H / 2 + q.dy
+    // Ein halv sving har same maske som ingen, so han kan snappe òg. Ein
+    // kvart har bytt breidd og høgd, og landar der fingrane hadde han.
+    const { dx, dy } = k % 2 === 0 ? snapp(g, q.dx, q.dy, g.ppm) : { dx: q.dx, dy: q.dy }
+    const cx = g.plass.x + W / 2 + dx
+    const cy = g.plass.y + H / 2 + dy
     const [w2, h2] = k % 2 ? [H, W] : [W, H]
     const klem = (v: number, tak: number) => Math.min(Math.max(0, v), Math.max(0, tak))
     const ny = { ...q, vri: k * 90 }
@@ -614,6 +675,7 @@ function Plater(props: {
           return (
             <span className="mono basis-full text-[10px]" style={{ color: "var(--ink)" }}>
               {dra.adr} · x {nn(Math.max(0, d.plass.x + dra.dx), 0)} · y {nn(Math.max(0, d.plass.y + dra.dy), 0)} mm
+              {dra.vri ? ` · ${nn(dra.vri, 0)}°` : ""}
             </span>
           )
         })()}
@@ -621,7 +683,7 @@ function Plater(props: {
             noko — då har du funne dei. */}
         {!dra && vald ? (
           <span className="dim basis-full text-[10px] tracking-[0.04em]">
-            to fingrar dreg og snur {vald.adr} · trykk bert bord for å sleppe
+            {vald.adr} · {nn(vald.boks.w, 0)} × {nn(vald.boks.h, 0)} mm · to fingrar dreg og snur han · trykk bert bord for å sleppe
           </span>
         ) : (
           festa.size === 0 &&
@@ -676,6 +738,11 @@ function Plater(props: {
                   sist: Math.atan2(b.y - a.y, b.x - a.x),
                   vri: 0,
                   ppm,
+                  d0: Math.hypot(a.x - b.x, a.y - b.y),
+                  a: { ...a },
+                  b: { ...b },
+                  v,
+                  modus: "uavgjort",
                 }
                 klyp.current = null
               } else {
@@ -703,18 +770,45 @@ function Plater(props: {
               const a = Math.atan2(b1.y - a1.y, b1.x - a1.x)
               g.vri += vinkel(a, g.sist)
               g.sist = a
+              if (g.modus === "uavgjort") {
+                // Bogen tel fyrst over femten grader — under det er han to
+                // fingrar som set seg — og han vert rekna om til pikslar med
+                // halve fingeravstanden som radius, so alle fire står i same
+                // eininga. Åtte pikslar er daudsona, som i objektet.
+                const A = Math.abs(g.vri) > 0.26 ? Math.abs(g.vri) * (g.d0 / 2) : 0
+                const D = Math.abs(Math.hypot(a1.x - b1.x, a1.y - b1.y) - g.d0)
+                const X = Math.abs(cx - g.anker.cx)
+                const Y = Math.abs(cy - g.anker.cy)
+                const M = Math.max(A, D, X, Y)
+                if (M < 8) return
+                if (D === M) {
+                  // Eit klyp er plata, vald del eller ikkje: same klypet som
+                  // utan val, anka der fingrane landa.
+                  klyp.current = { v: g.v, ppm: g.ppm, a: g.a, b: g.b }
+                  grep.current = null
+                } else {
+                  g.modus = "del"
+                }
+              }
+            }
+            const gd = grep.current
+            if (gd && fingrar.current.size >= 2) {
+              const [a1, b1] = [...fingrar.current.values()]
+              const cx = (a1.x + b1.x) / 2
+              const cy = (a1.y + b1.y) / 2
               // Seks pikslar skil eit drag frå ei skjelving, som elles; åtte
               // grader skil ei vriding frå to fingrar som set seg. Skjermen
               // har y ned og plata y opp, og med klokka på skjermen er mot
               // klokka på plata — so begge byter forteikn.
-              const flytt = Math.hypot(cx - g.anker.cx, cy - g.anker.cy) > 6
-              const grader = (-g.vri * 180) / Math.PI
-              const ny = {
-                adr: g.adr,
-                dx: flytt ? (cx - g.anker.cx) / g.ppm : 0,
-                dy: flytt ? -(cy - g.anker.cy) / g.ppm : 0,
-                vri: Math.abs(grader) > 8 ? grader : 0,
-              }
+              const flytt = Math.hypot(cx - gd.anker.cx, cy - gd.anker.cy) > 6
+              const grader = (-gd.vri * 180) / Math.PI
+              const vri = Math.abs(grader) > 8 ? grader : 0
+              let dx = flytt ? (cx - gd.anker.cx) / gd.ppm : 0
+              let dy = flytt ? -(cy - gd.anker.cy) / gd.ppm : 0
+              // Snappet gjeld berre ein del som ikkje er midt i ein sving:
+              // ei maske som held på å snu har ikkje kantar å snappe med.
+              if (flytt && !vri) ({ dx, dy } = snapp(gd, dx, dy, gd.ppm))
+              const ny = { adr: gd.adr, dx, dy, vri }
               draRef.current = ny
               setDra(ny)
               return
@@ -849,7 +943,7 @@ function Plater(props: {
                     const a = mm(t.x, t.y)
                     const b = mm(e.clientX, e.clientY)
                     if (!a || !b) return
-                    const ny = { adr: t.adr, dx: b[0] - a[0], dy: b[1] - a[1] }
+                    const ny = { adr: t.adr, ...snapp(t, b[0] - a[0], b[1] - a[1], stoda().ppm) }
                     draRef.current = ny
                     setDra(ny)
                   }}

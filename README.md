@@ -84,7 +84,9 @@ other three are a word away in the drawer's title bar.
   sheet or in the model; tap empty sheet or empty canvas to deselect. With a
   part selected, **two fingers** slide it by the millimetre — zoom in and the
   same motion is a smaller step — and twist to turn it, snapping to a quarter
-  when you let go. **Pinch** to zoom the sheet when nothing is selected, drag
+  when you let go. A moving part **snaps** to its neighbours' edges, at exactly
+  the gap, and to the sheet edge, within a fingertip; zoom in to snap finer.
+  **Pinch** to zoom the sheet, selection or not, drag
   empty sheet to pan, double-tap for the whole sheet. Pinned parts are shaded. Two
   pinned parts you have put inside each other are drawn red, and the sheet
   rule says no until you move one.

@@ -614,6 +614,11 @@ async function plata(browser: Browser, feil: string[]) {
   await svg.dblclick({ position: { x: 8, y: 8 } })
   await page.waitForTimeout(300)
   ok("dobbelttrykket syner heile plata att", (await viewBox()) === heile, String(await viewBox()))
+  // Musa stod att på plata etter dobbelttrykket. Veks hovudet på plata
+  // under henne — det fyrste festet gjev «slepp alle» — glid plata ut under
+  // henne, og nettlesaren seier at ho fór ut: eit museforlat, som slepper
+  // valet fingeren gjorde. Ein telefon har inga mus; prøva flytter henne ut.
+  await page.mouse.move(1, 1)
 
   // --- EIT VAL, OG TO FINGRAR PÅ HAN ---------------------------------------------
   /**
@@ -665,9 +670,11 @@ async function plata(browser: Browser, feil: string[]) {
   await page.waitForTimeout(500)
   const etter2 = await paaPlata(adr)
   const venta = { x: før2.x + steg.dx / før2.ppm, y: før2.y - steg.dy / før2.ppm }
+  // Innanfor åtte pikslar smett kanten inntil ein nabo eller på line med
+  // han — på ei heil plate på ein telefon er det tretten millimeter.
   ok(
-    "to fingrar dreg den valde delen dit dei går",
-    Math.abs(etter2.x - venta.x) < 8 && Math.abs(etter2.y - venta.y) < 8,
+    "to fingrar dreg den valde delen dit dei går, eller til næraste kant",
+    Math.abs(etter2.x - venta.x) < 15 && Math.abs(etter2.y - venta.y) < 15,
     `${før2.x.toFixed(0)},${før2.y.toFixed(0)} → ${etter2.x.toFixed(0)},${etter2.y.toFixed(0)} mm (venta ${venta.x.toFixed(0)},${venta.y.toFixed(0)})`,
   )
   ok("og festar han der", (await festet()).startsWith(adr + ":"), await festet())
