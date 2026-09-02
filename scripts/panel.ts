@@ -573,6 +573,25 @@ async function flyt(browser: Browser) {
   await page.waitForTimeout(400)
   const r2 = await rull()
   sjekk("dokumentet rullar aldri", [r0, r1, r2].every((r) => r.h <= 0 && r.w <= 0), JSON.stringify([r0, r1, r2]))
+  // Arket ligg INNANFOR skjermen i alle tre høgdene, og alt i det òg. På ein
+  // ekte iPhone stakk det ut til venstre: etikettane las «IK» og «ana grip».
+  const utanfor = await page.evaluate(() => {
+    const ut: string[] = []
+    const W = window.innerWidth
+    for (const e of document.querySelectorAll<HTMLElement>("[aria-label='kontrollar'], [aria-label='kontrollar'] *")) {
+      const r = e.getBoundingClientRect()
+      if (r.width === 0) continue
+      if (r.left < -0.5 || r.right > W + 0.5) ut.push(`${e.tagName.toLowerCase()}${e.getAttribute("aria-label") ? `[${e.getAttribute("aria-label")}]` : ""} ${Math.round(r.left)}..${Math.round(r.right)}`)
+      if (ut.length > 4) break
+    }
+    return ut
+  })
+  sjekk("arket og alt i det ligg innanfor skjermen", utanfor.length === 0, utanfor.join(" · "))
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
+  await page.locator(HOVUDLINA).click()
+  await page.waitForTimeout(400)
+  sjekk("midten er storleik og planlista, ingen reglar", (await page.locator("[aria-label='kontrollar'] button[aria-label^='fiks ']").count()) === 0 && (await page.locator("[role=listbox][aria-label='plan']").count()) === 1)
 
   // --- trykkflatene: alt som kan trykkjast er stort nok for ein tumme ----------
   const smaa = await page.evaluate(() => {
