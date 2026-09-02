@@ -426,7 +426,14 @@ function Plater(props: {
    * Han vert rydda når ei ny plate kjem, ikkje på ei klokke: det er plata
    * som veit når ho har teke han att.
    */
-  const [dra, setDra] = useState<{ adr: string; dx: number; dy: number; vri?: number } | null>(null)
+  const [dra, setDra] = useState<{
+    adr: string
+    dx: number
+    dy: number
+    vri?: number
+    /** der han står no, ligg han i ein annan — teikna raud medan du dreg */
+    kross?: boolean
+  } | null>(null)
   const draRef = useRef(dra)
   const flata = useRef<SVGGElement | null>(null)
   useEffect(() => {
@@ -480,16 +487,14 @@ function Plater(props: {
     sist: number
     vri: number
     ppm: number
-    /** avstanden mellom fingrane då dei landa, og kvar dei landa */
+    /** avstanden mellom fingrane då dei landa, og kvar kvar av dei landa */
     d0: number
     a: { x: number; y: number }
     b: { x: number; y: number }
     v: Syn
     /**
-     * Kva fingrane gjer, avgjort éin gong når dei har kome ut av daudsona:
-     * eit klyp er plata — som utan val — og alt anna er delen. Same prøva
-     * som objektet gjer på sine to fingrar: bogen, avstanden og vegen, alle
-     * i pikslar, og den største vinn.
+     * Kva fingrane gjer, avgjort éin gong: eit klyp er plata — som utan
+     * val — og alt anna er delen.
      */
     modus: "uavgjort" | "del"
   } | null>(null)
@@ -546,6 +551,17 @@ function Plater(props: {
    * etter plata sine eigne, og innanfor åtte pikslar smett dei på plass.
    * Åtte PIKSLAR og ikkje millimeter: det er fingeren som er unøyaktig, og
    * zoomar du inn, smett han fyrst når du er nærare.
+   *
+   * Og to ting til, medan fingeren enno er nede: masken stoggar ved kanten
+   * av plata — ein del kan ikkje liggje utanfor henne, so spøkelset skal
+   * ikkje heller — og ligg han i ein annan FESTA der han står, seier
+   * svaret frå, so delen kan teiknast raud FØR du slepper han.
+   *
+   * Berre dei festa. Ein fri del er pakkinga sin, og ho flyttar han: legg
+   * du noko oppå han, får han ein annan plass, og det er ikkje eit
+   * problem å åtvare om. To festa er handa si eiga skuld, og det er nett
+   * det regelen seier nei til etterpå. Dette er den same dommen, sagd
+   * medan det enno kan rettast med fingeren.
    */
   const snapp = (
     g: { adr: string; plass: Delplass["plass"]; boks: Delplass["boks"] },
@@ -567,7 +583,7 @@ function Plater(props: {
       xs.push(d.plass.x + w, d.plass.x - W, d.plass.x, d.plass.x + w - W)
       ys.push(d.plass.y + h, d.plass.y - H, d.plass.y, d.plass.y + h - H)
     }
-    const naer = (v: number, kand: number[]) => {
+    const naer = (v: number, kand: number[], tak: number) => {
       let best = v
       let avst = rekk
       for (const c of kand) {
@@ -577,9 +593,23 @@ function Plater(props: {
           best = c
         }
       }
-      return best
+      return Math.min(Math.max(0, best), Math.max(0, tak))
     }
-    return { dx: naer(g.plass.x + dx, xs) - g.plass.x, dy: naer(g.plass.y + dy, ys) - g.plass.y }
+    const x = naer(g.plass.x + dx, xs, arkB - W)
+    const y = naer(g.plass.y + dy, ys, arkH - H)
+    // Kant i kant er IKKJE i kvarandre: det er nøyaktig luka.
+    let kross = false
+    for (const d of ark.plasser) {
+      if (d.adr === g.adr || !festa.has(d.adr)) continue
+      const m = Math.max(0, d.boks.x - d.plass.x)
+      const w = d.boks.w + 2 * m
+      const h = d.boks.h + 2 * m
+      if (x < d.plass.x + w - 1e-6 && x + W > d.plass.x + 1e-6 && y < d.plass.y + h - 1e-6 && y + H > d.plass.y + 1e-6) {
+        kross = true
+        break
+      }
+    }
+    return { dx: x - g.plass.x, dy: y - g.plass.y, kross }
   }
 
   /**
@@ -676,6 +706,7 @@ function Plater(props: {
             <span className="mono basis-full text-[10px]" style={{ color: "var(--ink)" }}>
               {dra.adr} · x {nn(Math.max(0, d.plass.x + dra.dx), 0)} · y {nn(Math.max(0, d.plass.y + dra.dy), 0)} mm
               {dra.vri ? ` · ${nn(dra.vri, 0)}°` : ""}
+              {dra.kross && <span style={{ color: "var(--warn)" }}> · i ein annan</span>}
             </span>
           )
         })()}
@@ -771,17 +802,36 @@ function Plater(props: {
               g.vri += vinkel(a, g.sist)
               g.sist = a
               if (g.modus === "uavgjort") {
-                // Bogen tel fyrst over femten grader — under det er han to
-                // fingrar som set seg — og han vert rekna om til pikslar med
-                // halve fingeravstanden som radius, so alle fire står i same
-                // eininga. Åtte pikslar er daudsona, som i objektet.
-                const A = Math.abs(g.vri) > 0.26 ? Math.abs(g.vri) * (g.d0 / 2) : 0
-                const D = Math.abs(Math.hypot(a1.x - b1.x, a1.y - b1.y) - g.d0)
-                const X = Math.abs(cx - g.anker.cx)
-                const Y = Math.abs(cy - g.anker.cy)
-                const M = Math.max(A, D, X, Y)
-                if (M < 8) return
-                if (D === M) {
+                /**
+                 * KVA DEI TO FINGRANE GJER, LESE AV KVAR SIN VEG.
+                 *
+                 * Ikkje av avstanden mellom dei. To fingrar rører seg
+                 * aldri i same augeblinken: nettlesaren melder éin om
+                 * gongen, so midt imellom dei to meldingane har den eine
+                 * gått og den andre ikkje. Avstanden mellom dei sprett då
+                 * like mykje som steget — eit drag på fjorten pikslar ser
+                 * ut som eit klyp på fjorten — og gesten fekk namnet
+                 * «klyp» av ei rørsle som var eit reint drag. Målt: eit
+                 * drag mot venstre og ned zooma plata i staden for å
+                 * flytte delen.
+                 *
+                 * Vegen KVAR FINGER har gått frå der han landa, er ikkje
+                 * utsett for det. Går dei same vegen, er det eit drag;
+                 * kvar sin veg langs lina, eit klyp; på tvers, ei vriding.
+                 * Og har berre den eine gått, seier prøva ingenting og
+                 * ventar — som ho skal.
+                 */
+                const da = { x: a1.x - g.a.x, y: a1.y - g.a.y }
+                const db = { x: b1.x - g.b.x, y: b1.y - g.b.y }
+                const DAUD = 8
+                if (Math.hypot(da.x, da.y) < DAUD || Math.hypot(db.x, db.y) < DAUD) return
+                // Alle tre i pikslar: draget er den felles vegen, klypet er
+                // det avstanden har endra seg, og vridinga er bogen kvar
+                // finger har gått kring midten.
+                const drag = Math.hypot((da.x + db.x) / 2, (da.y + db.y) / 2)
+                const klem = Math.abs(Math.hypot(a1.x - b1.x, a1.y - b1.y) - g.d0)
+                const bog = Math.abs(g.vri) * (g.d0 / 2)
+                if (klem > drag && klem > bog) {
                   // Eit klyp er plata, vald del eller ikkje: same klypet som
                   // utan val, anka der fingrane landa.
                   klyp.current = { v: g.v, ppm: g.ppm, a: g.a, b: g.b }
@@ -805,10 +855,11 @@ function Plater(props: {
               const vri = Math.abs(grader) > 8 ? grader : 0
               let dx = flytt ? (cx - gd.anker.cx) / gd.ppm : 0
               let dy = flytt ? -(cy - gd.anker.cy) / gd.ppm : 0
+              let kross = false
               // Snappet gjeld berre ein del som ikkje er midt i ein sving:
               // ei maske som held på å snu har ikkje kantar å snappe med.
-              if (flytt && !vri) ({ dx, dy } = snapp(gd, dx, dy, gd.ppm))
-              const ny = { adr: gd.adr, dx, dy, vri }
+              if (flytt && !vri) ({ dx, dy, kross } = snapp(gd, dx, dy, gd.ppm))
+              const ny = { adr: gd.adr, dx, dy, vri, kross }
               draRef.current = ny
               setDra(ny)
               return
@@ -895,6 +946,8 @@ function Plater(props: {
               const paa = peikt === d.adr
               const fast = festa.has(d.adr)
               const q = dra?.adr === d.adr ? dra : null
+              // raud: ligg i ein annan — der plata la han, eller der fingeren har han no
+              const raud = d.kross || !!q?.kross
               return (
                 <g
                   key={d.adr}
@@ -1021,7 +1074,7 @@ function Plater(props: {
                     d={d.ut}
                     strokeWidth={paa || q ? 2 : 1}
                     vectorEffect="non-scaling-stroke"
-                    style={{ fill: "none", stroke: d.kross ? "var(--warn)" : "var(--ink)" }}
+                    style={{ fill: "none", stroke: raud ? "var(--warn)" : "var(--ink)" }}
                   />
                   {d.inn.map((h, j) => (
                     <path
@@ -1029,7 +1082,7 @@ function Plater(props: {
                       d={h}
                       strokeWidth={paa || q ? 2 : 1}
                       vectorEffect="non-scaling-stroke"
-                      style={{ fill: "none", stroke: d.kross ? "var(--warn)" : "var(--ink)" }}
+                      style={{ fill: "none", stroke: raud ? "var(--warn)" : "var(--ink)" }}
                     />
                   ))}
                   <title>

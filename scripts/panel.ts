@@ -705,6 +705,74 @@ async function plata(browser: Browser, feil: string[]) {
   )
 
   // Eit trykk på bert lerret over modellen slepper valet òg.
+
+  // --- RAUDT SPØKELSE OG KANTEN PÅ PLATA -----------------------------------------
+  /**
+   * Medan fingrane enno er nede: ein del som vert dregen inn i ein annan
+   * vert raud og hovudet seier det, og ein del som vert dregen ut over
+   * kanten stoggar ved henne — spøkelset ligg aldri utanfor plata.
+   */
+  const andre2 = (
+    await Promise.all(
+      (await delar.allInnerTexts()).map(async (_, i) => ((await delar.nth(i).locator("title").textContent()) ?? "").trim().split(" ")[0]),
+    )
+  ).find((a) => a && a !== adr)!
+  // Ein fri nabo er pakkinga sin — ho flyttar han. So naboen vert festa
+  // fyrst, med eit vanleg drag på éin finger: det er to FESTA i kvarandre
+  // regelen seier nei til, og det er dei som skal verte raude.
+  const nabo0 = await midt(andre2)
+  await send("touchStart", [{ x: nabo0.x, y: nabo0.y, id: 1 }])
+  for (let i = 1; i <= 8; i++) {
+    await send("touchMove", [{ x: nabo0.x, y: nabo0.y - (16 * i) / 8, id: 1 }])
+    await page.waitForTimeout(30)
+  }
+  await send("touchEnd", [])
+  await rolig(page)
+  await page.waitForTimeout(500)
+  // Draget på naboen rører ikkje valet: eit drag brukar opp trykket, so
+  // det vert aldri lese som eit trykk på han. Delen står vald enno.
+  ok("eit drag på ein annan del rører ikkje valet", (await valde()) === 1)
+  const her4 = await midt(adr)
+  const dit4 = await midt(andre2)
+  const innI = (i: number) => [
+    { x: her4.x - 20 + ((dit4.x - her4.x) * i) / 10, y: her4.y + ((dit4.y - her4.y) * i) / 10, id: 1 },
+    { x: her4.x + 20 + ((dit4.x - her4.x) * i) / 10, y: her4.y + ((dit4.y - her4.y) * i) / 10, id: 2 },
+  ]
+  await send("touchStart", innI(0))
+  for (let i = 1; i <= 10; i++) {
+    await send("touchMove", innI(i))
+    await page.waitForTimeout(30)
+  }
+  await page.waitForTimeout(150)
+  const hovud4 = await skuffa.innerText()
+  const strek4 = await svg.locator(`g[data-del='${adr}'] path`).nth(1).evaluate((el) => getComputedStyle(el).stroke)
+  const varsel = await svg.evaluate((el) => getComputedStyle(el).getPropertyValue("--warn").trim())
+  await send("touchEnd", [])
+  await rolig(page)
+  await page.waitForTimeout(500)
+  ok("ein del dregen inn i ein annan vert raud medan du dreg", strek4 !== "" && strek4 !== "rgb(0, 0, 0)", `strek ${strek4} · varsel ${varsel}`)
+  ok("og hovudet seier det medan fingrane er nede", /i ein annan/.test(hovud4))
+  ok("og etterpå seier plata at dei ligg i kvarandre", /i kvarandre/.test(await skuffa.innerText()))
+  // Attende ut i det ledige, og so langt ut til venstre at han stoggar ved kanten.
+  const her5 = await midt(adr)
+  const ut = (i: number) => [
+    { x: her5.x - 20 - (400 * i) / 10, y: her5.y, id: 1 },
+    { x: her5.x + 20 - (400 * i) / 10, y: her5.y, id: 2 },
+  ]
+  await send("touchStart", ut(0))
+  for (let i = 1; i <= 10; i++) {
+    await send("touchMove", ut(i))
+    await page.waitForTimeout(30)
+  }
+  await page.waitForTimeout(150)
+  const hovud5 = await skuffa.innerText()
+  const boks5 = (await svg.locator(`g[data-del='${adr}']`).boundingBox())!
+  const ramme5 = await ramme()
+  await send("touchEnd", [])
+  await rolig(page)
+  await page.waitForTimeout(500)
+  ok("ein del dregen ut over kanten stoggar ved henne", boks5.x >= ramme5.x - 2, `venstre kant ${boks5.x.toFixed(0)} px, plata ${ramme5.x.toFixed(0)}`)
+  ok("og hovudet seier x 0", /x 0\b/.test(hovud5), hovud5.split("\n").find((l) => l.startsWith(adr)) ?? "")
   // Lerretet står bak alt; det som er synleg av det på ein telefon med
   // skuffa open, er stripa mellom lesemåteknappane og skuffa — og modellen
   // er ramma inn midt i henne, so trykket går ved venstre kant.
@@ -1043,9 +1111,31 @@ async function benken(browser: Browser, feil: string[]) {
   await page.mouse.down()
   await page.waitForTimeout(700)
   await page.mouse.up()
-  await page.waitForTimeout(4000)
-  ok("medan søket går heiter knappen stopp", /stopp/i.test(await page.getByLabel("finn innstillingar").innerText()))
-  await page.getByLabel("finn innstillingar").click()
+  // Trykket kjem når knappen HAR vorte ein stoppknapp, og ikkje etter ei
+  // fast venting. Ei fast venting er ei tevling mot søket: han er
+  // hundre og førti snittingar delte på fleire trådar, og på ei rask
+  // maskin er han ferdig før klokka har ringt — då er det ingenting att
+  // å stogge, og prøva fell på at ho var for sein.
+  //
+  // Og prøva og trykket er DEN SAME handlinga. Ho las fyrst knappen og
+  // trykte etterpå, og imellom dei to rakk søket å verte ferdig: då var
+  // knappen ein finn-knapp att, og trykket starta eit nytt, grunt søk —
+  // tretten kandidatar utan form, og prøva såg ut til å ha stogga noko.
+  //
+  // Det lange trykket sitt EIGE klikk kjem etter at musa er lyft, og
+  // knappen slukar det: eit langt trykk skal ikkje fyre kort med. Kjem
+  // det etter stopptrykket her, er det ikkje stopptrykket som vert
+  // sluka — det er dette, og so er det klikket frå det lange trykket
+  // som gjer noko, med eit søk som alt er stogga: eit nytt, grunt søk.
+  // So det får lande fyrst.
+  await page.waitForTimeout(150)
+  const vartStopp = await page.evaluate(() => {
+    const b = document.querySelector("[aria-label='finn innstillingar']") as HTMLElement | null
+    if (!b || !/stopp/i.test(b.textContent ?? "")) return false
+    b.click()
+    return true
+  })
+  ok("medan søket går, og eit trykk stoggar han", vartStopp)
   await rolig(page)
   const kappa = await rader.count()
   ok("eit trykk til stoggar søket og held det beste so langt", kappa > 0 && kappa < heile && (await harForm()), `${kappa} rader av ${heile}`)
