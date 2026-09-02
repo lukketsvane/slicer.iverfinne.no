@@ -414,7 +414,6 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, onPlan, o
   )
   const senterPx = useRef({ x: 0, y: 0 })
   const raakar = useRef<boolean | null>(null)
-  const dregHandtak = useRef(false)
   /** skissa slik ho sist gjekk til motoren, i verda: flyttar ho seg ikkje, spør vi ikkje om att */
   const sist = useRef<{ o: THREE.Vector3; n: THREE.Vector3 } | null>(null)
   /** det siste snappet ein gest gjorde: tikken på lappen */
@@ -690,7 +689,6 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, onPlan, o
     const slepp = () => {
       mode = "none"
       tak = null
-      dregHandtak.current = false
       naa.current.onGest(null)
     }
 
@@ -911,7 +909,6 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, onPlan, o
         mode = "hVri"
       } else mode = "hFlytt"
       tak = t
-      dregHandtak.current = true
       try {
         h.setPointerCapture(e.pointerId)
       } catch {
@@ -1139,7 +1136,7 @@ function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, spok, blink
       uBlink.current.value = -1
       uBlinkT.current.value = 0
       invalidate()
-    }, seinRef.current ? 1500 : 420)
+    }, seinRef.current ? 2500 : 420)
     return () => window.clearTimeout(t)
   }, [blink, gLag, liste, invalidate])
   useFrame(() => {
