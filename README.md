@@ -161,6 +161,11 @@ so two pieces that overlap are one body where they overlap. The list is the
 `scene` string in the parameter bag, and the project file carries every
 piece's file.
 
+**The list holds 64 planes**, and says so when you reach it. That ceiling is measured, not
+picked: `pnpm tak` puts it at roughly 15 ms per plane sliced plus 1.5 ms per joint, so one
+geometry change is about 0.8 s at 32 planes and 2.0 s at 64 on a workstation — three to
+five times that on the phone. Below about forty planes an edit stays under a second there.
+
 **Symmetry is three switches on a piece**, one per axis, and they are one digit
 in that string. Each mirrors the piece across the plane through the **body's
 origin** — not the piece's own centre, where mirroring a primitive would be
@@ -298,6 +303,10 @@ parts exist · one way in for each part · every part hangs in a joint ·
 material remains at the joint · parts fit the sheet · press fit · kerf · slot
 survives the kerf · room between planes · mesh closed · resolution kept ·
 utilisation.
+
+The table has one line per reading, coloured by the rule that judges it — and under them,
+the rules that judge something the table does not show: whether the parts can be assembled
+in any order at all, and the two sliders. Those appear only when they break.
 
 Most broken rules carry their own way out: the rule that knows fifteen parts are
 too big also knows *how much*, so it offers `prøv 290 mm` and sets it. **Some
