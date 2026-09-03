@@ -197,6 +197,14 @@ is locked and the number is never reused, so `7` stays `7` while it is nudged,
 re-angled and redrawn, and the `7` engraved on a plate in a pile matches the
 row on the screen. A plane cut into several islands gets letters: `7a`, `7b`.
 
+**The split is a slider, and then a hand.** `ledd` says how far into the overlap
+two planes meet — half and half at 0.5, so the two slots are equally deep. But a
+joint is two plates, and sometimes one should carry and the other only hold. One
+joint can be set on its own, and setting it deepens one slot and shallows the
+other by itself: the bottom of A's slot and the bottom of B's are *the same
+number*, read from either side of the same line. Nothing keeps them in step; they
+are not two values.
+
 **Every kept plane is editable, down to its outline.** Nudge and re-angle with
 two fingers or the handles. Select a part and the thumb column offers **legg til
 gods** and **skjer hòl**: a rectangle that adds material, a round that cuts it
@@ -303,7 +311,7 @@ multiply in every joint.
 | `glatt` | smoothing | 0–24 Taubin passes |
 | `trekant` | triangle budget | 0.5–60 k, by vertex clustering; 40 k by default |
 | `forenkl` `hol` | cut profile | how far the cut may stray, and the smallest hole worth cutting |
-| `scene` | the body | pieces: source, place, size, turn, as a string |
+| `scene` | the body | pieces: source, place, size, turn, mirrors, as a string |
 | `plan` | the planes | name, point, normal and strokes, as a string |
 | `lause` | pieces with no joint | keep / drop |
 | `tjukn` | thickness | 1–25 mm |
@@ -313,6 +321,7 @@ multiply in every joint.
 | `fart` | cut speed | for the time estimate only |
 | `arkB/H` | sheet | up to 3000 × 2000 mm |
 | `fest` | pinned parts | where a part stands on the sheet, when the hand said so |
+| `deling` | split joints | how deep one joint cuts, `5-12-0:0.35`, when the slider is not what you want |
 
 Materials: plywood, MDF, acrylic, cardboard — density and surface.
 
