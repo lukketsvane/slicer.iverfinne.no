@@ -45,7 +45,8 @@ no radius.
    across the screen — a knife seen edge-on — with a grab handle in the middle
    and a rotation handle at the end: drag the one to move the cut across the
    object, the other to tilt it. **Two fingers on the object** work as they
-   always did: spread to size, twist to turn, drag to move the cut. Switch on
+   always did: pinch to zoom the view, twist to turn the object, drag to move
+   the cut. Switch on
    **skisse** (or press `S`) and the same two fingers work on the plane
    instead: drag moves it, twist tilts it, pinch zooms. Three fingers move the
    light. The plane swings with the view and nothing is built from it — and a

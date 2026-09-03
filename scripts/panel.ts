@@ -190,15 +190,22 @@ async function telefon(browser: Browser) {
   await vent(page, talPlan(n0))
   sjekk("og tre til er attende ved starten", plana(page).length === n0)
 
-  // --- GESTANE, SOM FØR: knip = storleik, vri = vend, dra = flytt snittet -----
+  // --- GESTANE: klyp = synet, vri = vend, dra = flytt snittet ----------------
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
+  /**
+   * KLYPET ER KAMERAET, IKKJE KROPPEN. Det skalerte objektet før: du ville
+   * sjå nærare og fekk ein større krakk. Prøva spreier fingrane og krev at
+   * kameraet kom nærare OG at storleiken står som han stod.
+   */
+  const kamDist = async () => Number((await page.locator(".handtak").getAttribute("data-avstand")) ?? 0)
   const s0 = hash(page).storleik
+  const d0 = await kamDist()
   await toFingrar(page, (t) => [[195 - 30 - 70 * t, 380], [195 + 30 + 70 * t, 380]])
-  await vent(page, (p) => p.storleik !== s0)
-  sjekk("to fingrar som spreier seg set storleiken", hash(page).storleik > s0, `${s0} → ${hash(page).storleik} mm`)
-  await page.keyboard.press("z")
-  await vent(page, (p) => p.storleik === s0)
+  await roleg(page, 600)
+  const d1 = await kamDist()
+  sjekk("to fingrar som spreier seg tek synet nærare", d1 < d0 - 0.2, `avstand ${d0.toFixed(2)} → ${d1.toFixed(2)}`)
+  sjekk("og storleiken på kroppen står", hash(page).storleik === s0, `${s0} mm`)
 
   await toFingrar(page, (t) => {
     const a = (40 * t * Math.PI) / 180
