@@ -158,6 +158,18 @@ so two pieces that overlap are one body where they overlap. The list is the
 `scene` string in the parameter bag, and the project file carries every
 piece's file.
 
+**The sheet view has a scale.** A measuring grid lies under the parts: the step
+follows the eye, not the sheet — the smallest of 1, 2, 5, 10, 20, 50, 100 … that
+still leaves nine pixels between lines — with every fifth line stronger and
+carrying its number in millimetres. It is screen-only. The cut files have two
+colours and not one more, and a helper line in one of them is a layer somebody
+eventually forgets to switch off.
+
+**The sheet is often an offcut**, so it takes the size it actually is: width and
+height go down to 100 mm in steps of 1, as does the body's size. They were steps
+of 10 from 200, which meant a 437 × 285 mm remnant did not exist — and rounding
+*up* promises the machine more material than you own.
+
 **The list holds 64 planes**, and says so when you reach it. That ceiling is measured, not
 picked: `pnpm tak` puts it at roughly 15 ms per plane sliced plus 1.5 ms per joint, so one
 geometry change is about 0.8 s at 32 planes and 2.0 s at 64 on a workstation — three to

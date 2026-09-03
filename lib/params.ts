@@ -116,7 +116,8 @@ export const LAUSE = ["ta med", "kast"] as const
  * braut det etiketten over to liner og gjorde rada halvanna gong so høg.
  */
 export const PARAM_RANGES: Record<string, Range> = {
-  storleik: { min: 40, max: 1200, step: 5, label: "storleik", unit: "mm" },
+  // og det same for kroppen: eit mål er eit mål, ikkje næraste fem
+  storleik: { min: 40, max: 1200, step: 1, label: "storleik", unit: "mm" },
   rotX: { min: -180, max: 180, step: 1, label: "vend x", unit: "°" },
   rotY: { min: -180, max: 180, step: 1, label: "vend y", unit: "°" },
   rotZ: { min: -180, max: 180, step: 1, label: "vend z", unit: "°" },
@@ -136,8 +137,14 @@ export const PARAM_RANGES: Record<string, Range> = {
   snitt: { min: 0, max: 6, step: 0.05, label: "snitt", unit: "mm" },
   snittveg: { min: 0, max: 1, step: 1, label: "snittveg", int: true, names: SNITTVEGAR },
   fart: { min: 1, max: 200, step: 1, label: "fart", unit: "mm/s", int: true },
-  arkB: { min: 200, max: 3000, step: 10, label: "breidd", unit: "mm" },
-  arkH: { min: 200, max: 2000, step: 10, label: "høgd", unit: "mm" },
+  // PLATA ER OFTE EIT RESTKAPP, og eit restkapp har det målet det har.
+  // Steget stod på ti og botnen på to hundre, so ei plate på 437 × 285 mm
+  // fanst ikkje: du måtte runde, og rundar du OPP har du lova maskina meir
+  // plate enn du eig. Millimeteren er det same steget tjukna og snittet
+  // alt har, og skyvaren aksellererer (sjå `SliderRow`), so heile bandet
+  // er framleis eit drag unna.
+  arkB: { min: 100, max: 3000, step: 1, label: "breidd", unit: "mm" },
+  arkH: { min: 100, max: 2000, step: 1, label: "høgd", unit: "mm" },
 }
 
 export const GROUPS: readonly Group[] = [

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type JSX } from "react"
 import { nn, type ArkSyn, type Delplass, type ParamBag } from "@/lib/core"
 import { lesFest, skrivFest } from "@/lib/params"
 import { CHIP, chipStyle } from "./deler"
@@ -19,6 +19,63 @@ import { CHIP, chipStyle } from "./deler"
  * dobbelttrykk syner heile plata.
  */
 const HAIR = { borderColor: "var(--rule)" }
+
+/**
+ * MÅLRUTA.
+ *
+ * Plata er der du avgjer om noko går opp: får delane plass på det
+ * restkappet du har, kor langt frå kanten ligg den delen, kor breid er
+ * luka. Det stod ingen målestokk i ruta — berre delar på eit kvitt felt —
+ * so kvart slikt spørsmål vart eit auge og ei gjetting.
+ *
+ * STEGET FYLGJER AUGET OG IKKJE PLATA. Ti millimeter på ei plate på tre
+ * meter er tre hundre liner og eit grått felt; ti millimeter på eit utsnitt
+ * du har zooma inn på er det du vil ha. Difor vert steget valt etter kor
+ * mange PIKSLAR det vert på skjermen: det minste steget som gjev minst ni
+ * pikslar mellom linene. Kvar femte line er sterkare og ber talet sitt.
+ *
+ * Ho ligg UNDER delane og tek ikkje imot fingrar. Og ho er berre på
+ * skjermen: kuttfila har to fargar og ikkje ein til, og ei hjelpeline i
+ * henne er eit lag nokon ein dag gløymer å slå av (sjå `export-svg.ts`).
+ */
+const STEG = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000] as const
+
+function Maalrute({ arkB, arkH, v, ppm }: { arkB: number; arkH: number; v: Syn; ppm: number }) {
+  if (!(ppm > 0)) return null
+  const steg = STEG.find((q) => q * ppm >= 9) ?? 1000
+  const sterk = steg * 5
+  const paa = (t: number, m: number) => Math.abs(t - Math.round(t / m) * m) < 1e-6
+  const x0 = Math.max(0, Math.floor(Math.max(0, v.x) / steg) * steg)
+  const x1 = Math.min(arkB, v.x + v.w)
+  const y0 = Math.max(0, Math.floor(Math.max(0, v.y) / steg) * steg)
+  const y1 = Math.min(arkH, v.y + v.h)
+  const tsz = 9 / ppm
+  const hår = 1 / ppm
+  const liner: JSX.Element[] = []
+  const tal: JSX.Element[] = []
+  // tala står langs den synlege kanten, ikkje langs plata: zoomar du inn
+  // på midten, skal målestokken framleis stå der du ser
+  const tx = Math.max(0, v.x) + 3 * hår
+  const ty = Math.min(arkH, v.y + v.h) - 3 * hår
+  for (let x = x0; x <= x1 + 1e-6; x += steg) {
+    const s = paa(x, sterk)
+    liner.push(<line key={`v${x}`} x1={x} y1={Math.max(0, v.y)} x2={x} y2={y1} strokeWidth={hår} opacity={s ? 0.5 : 0.18} />)
+    if (s && x > x0) tal.push(<text key={`tv${x}`} x={x + 3 * hår} y={ty} fontSize={tsz} opacity={0.55}>{x}</text>)
+  }
+  for (let y = y0; y <= y1 + 1e-6; y += steg) {
+    const s = paa(y, sterk)
+    // SVG-en har y ned og plata y opp: lina på plate-y står i `arkH − y`
+    const sy = arkH - y
+    liner.push(<line key={`h${y}`} x1={tx - 3 * hår} y1={sy} x2={x1} y2={sy} strokeWidth={hår} opacity={s ? 0.5 : 0.18} />)
+    if (s && y > y0) tal.push(<text key={`th${y}`} x={tx} y={sy - 3 * hår} fontSize={tsz} opacity={0.55}>{y}</text>)
+  }
+  return (
+    <g aria-hidden="true" pointerEvents="none" stroke="var(--ink)" fill="var(--ink)">
+      {liner}
+      <g stroke="none" className="tab">{tal}</g>
+    </g>
+  )
+}
 const CHIP_B = CHIP.replace("rounded-full", "rounded-[2px]")
 /**
  * Kor lenge eit trykk må vare for å vera langt. Klokka ser ikkje fingeren:
@@ -132,6 +189,21 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
   const grep = useRef<{ adr: string; plass: Plass; boks: Delplass["boks"]; anker: { cx: number; cy: number }; sist: number; vri: number; ppm: number; d0: number; a: { x: number; y: number }; b: { x: number; y: number }; v: Syn; modus: "uavgjort" | "del" } | null>(null)
   const tapp = useRef<{ id: number; x: number; y: number; paaDel: boolean; fleire: boolean } | null>(null)
   useEffect(() => setSyn(null), [ark?.arkB, ark?.arkH])
+  /** kor stor ruta er i pikslar. `stoda()` les DOM-en når han vert kalla og
+   *  duger til gestar; målruta må vite det medan ho vert teikna. */
+  const [pikslar, setPikslar] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const les = () => {
+      const r = el.getBoundingClientRect()
+      setPikslar((q) => (Math.abs(q.w - r.width) < 0.5 && Math.abs(q.h - r.height) < 0.5 ? q : { w: r.width, h: r.height }))
+    }
+    const ro = new ResizeObserver(les)
+    ro.observe(el)
+    les()
+    return () => ro.disconnect()
+  }, [ark])
 
   // hjulet gjer det klypet gjer. Ikkje `onWheel`: React set hjulet passivt, og passivt kan ikkje stogge rullinga.
   useEffect(() => {
@@ -168,6 +240,12 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     const h = r.height / ppm
     return { x: (arkB - w) / 2, y: (arkH - h) / 2, w, h }
   }
+  /** utsnittet og målestokken slik dei står NO, til teikninga */
+  const utsnitt: Syn = syn ?? (pikslar.w > 0 && pikslar.h > 0
+    ? (() => { const q = Math.min(pikslar.w / arkB, pikslar.h / arkH); return { x: (arkB - pikslar.w / q) / 2, y: (arkH - pikslar.h / q) / 2, w: pikslar.w / q, h: pikslar.h / q } })()
+    : { x: 0, y: 0, w: arkB, h: arkH })
+  const ppm = pikslar.w > 0 ? pikslar.w / utsnitt.w : 0
+
   const stoda = () => {
     const r = svgRef.current!.getBoundingClientRect()
     const v = synRef.current ?? heile(r)
@@ -368,6 +446,7 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
           onDoubleClick={() => setSyn(null)}
         >
           <rect x={0} y={0} width={arkB} height={arkH} vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: "var(--rule)" }} />
+          <Maalrute arkB={arkB} arkH={arkH} v={utsnitt} ppm={ppm} />
           <g ref={flata} transform={`translate(0,${arkH}) scale(1,-1)`}>
             {ark.plasser.map((d) => {
               const paa = peikt === d.adr

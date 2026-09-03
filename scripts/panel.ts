@@ -466,6 +466,22 @@ async function telefon(browser: Browser) {
   const delar = verkty.locator("g[data-del]")
   const nDel = await delar.count()
   sjekk("platene syner delane som noko du kan ta i", nDel > 0, `${nDel} delar på plata`)
+  /**
+   * MÅLRUTA. Plata er der du avgjer om noko går opp på det restkappet du
+   * har, og det stod ingen målestokk i ruta. No ligg ho under delane, med
+   * eit steg som fylgjer auget og tal på kvar femte line. Vakta krev at ho
+   * finst, at ho ber millimeter, og at ho IKKJE tek imot fingrar — ei
+   * hjelpeline som stel eit drag frå ein del er verre enn ingen målestokk.
+   */
+  const maalrute = verkty.locator("svg g[aria-hidden='true']").first()
+  const nLiner = await maalrute.locator("line").count()
+  sjekk("målruta ligg i plata", nLiner > 4, `${nLiner} liner`)
+  // `allInnerTexts` gjev undefined for SVG-tekst: han har ikkje innerText
+  // `allInnerTexts` gjev undefined for kvar SVG-tekst — han har ikkje
+  // innerText — og ei prøve på undefined kastar i staden for å seie frå
+  const merke = await maalrute.locator("text").allTextContents()
+  sjekk("og ho ber tal i millimeter", merke.length > 0 && merke.every((t) => /^\d+$/.test((t ?? "").trim())), merke.join(" "))
+  sjekk("og ho tek ikkje imot fingrar", (await maalrute.evaluate((el) => getComputedStyle(el).pointerEvents)) === "none")
   const adr = await delar.first().getAttribute("data-del")
   await delar.first().dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0, buttons: 1 })
   await page.waitForTimeout(700)
