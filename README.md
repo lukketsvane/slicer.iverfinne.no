@@ -45,11 +45,8 @@ no radius.
    piece stands as a box you can press. Two fingers on the selected one move it
    (horizontal slides it along the floor, vertical lifts it), twist it about the
    upright, and pinch it larger — and two buttons appear to duplicate or remove
-   it. That is how a seat gets on top of legs. **`x y z`** above them are the
-   symmetry: each mirrors the piece across the plane through the body's centre,
-   and they count together, so one leg placed off the corner with `x` and `y` on
-   is four legs — and they stay four while you drag it. The sketch is hidden
-   while the tool is open: one tool at a time.
+   it. That is how a seat gets on top of legs. The sketch is hidden while the
+   tool is open: one tool at a time.
 3. **Set the size.** Drag the number, or take it from the sheet.
 4. **Sketch a plane.** One finger turns the object. The sketch plane is a line
    across the screen — a knife seen edge-on — with a grab handle in the middle
@@ -166,20 +163,6 @@ picked: `pnpm tak` puts it at roughly 15 ms per plane sliced plus 1.5 ms per joi
 geometry change is about 0.8 s at 32 planes and 2.0 s at 64 on a workstation — three to
 five times that on the phone. Below about forty planes an edit stays under a second there.
 
-**Symmetry is three switches on a piece**, one per axis, and they are one digit
-in that string. Each mirrors the piece across the plane through the **body's
-origin** — not the piece's own centre, where mirroring a primitive would be
-nothing at all — and they compose: `x` gives two, `x` and `y` give four, all
-three give eight. It is a mirror and not a copy, so a leg you drag afterwards
-drags all four, and a reflection genuinely reflects: the triangles come back
-wound the other way, because a half-flipped mesh is not something anything
-downstream would catch — the rays count shells, and material would end up on
-the wrong side.
-
-Radial symmetry — *n* copies about the upright — is not here. It would need a
-count and an axis where this needs three switches, and mirrors are what a body
-with a front and two sides is made of.
-
 ## Planes
 
 A plane is a **name, a point and a normal**, in the body's own space. The
@@ -189,6 +172,20 @@ have a pole. The whole list is one string in the parameter bag, so undo, the
 link, the project file and the browser's memory all carry it with no extra
 code, and a hostile link cannot push anything but a valid plane into the
 geometry.
+
+**Symmetry is three switches above the cut button**, one per axis. They change
+what **skjer** does: one press locks the plane you are aiming *and its mirrors*
+across the body's centre planes — `x` gives two, `x` and `y` give four, all
+three give eight. A plane that is already symmetric about an axis mirrors onto
+itself and is added once, not twice, so a cut down the middle stays one part.
+
+What comes out are **ordinary planes with ordinary names**. They are not a group
+and not a copy: move one, re-angle one, draw a mask into one, delete one, and
+the others do not care. That is deliberate — a symmetry that persisted would
+have to share a name between two parts, and the name is what is engraved on the
+plate. So the switches are an aid to *placing* cuts, and then they are done. For
+the same reason they are not in the link: they say what the next cut will be,
+not what the body is.
 
 **Names belong to the part, not to its position.** A plane is numbered when it
 is locked and the number is never reused, so `7` stays `7` while it is nudged,
@@ -282,7 +279,7 @@ multiply in every joint.
 | `glatt` | smoothing | 0–24 Taubin passes |
 | `trekant` | triangle budget | 0.5–60 k, by vertex clustering; 40 k by default |
 | `forenkl` `hol` | cut profile | how far the cut may stray, and the smallest hole worth cutting |
-| `scene` | the body | pieces: source, place, size, turn, mirrors, as a string |
+| `scene` | the body | pieces: source, place, size, turn, as a string |
 | `plan` | the planes | name, point, normal and strokes, as a string |
 | `lause` | pieces with no joint | keep / drop |
 | `tjukn` | thickness | 1–25 mm |

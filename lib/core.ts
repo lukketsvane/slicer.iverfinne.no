@@ -513,7 +513,7 @@ export type BuildOut = {
    * millimeter i det felles rommet bitane står i. Begge vert rekna der
    * plasseringa vert rekna, so ingen reknar dei om att.
    */
-  bitar: { bit: number; id: string; min: Vec3; max: Vec3 }[]
+  bitar: { id: string; min: Vec3; max: Vec3 }[]
   skala: number
   /** platene i teikninga — berre «kontur» ber dei. Sjå `Plate`. */
   plater: Plate[]

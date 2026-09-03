@@ -6,7 +6,7 @@ import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, rutenett, skrivPlan, type Plan, type Strek } from "@/lib/plan"
+import { PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, rutenett, sameSnitt, spegla, speglingar, skrivPlan, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
 import { eiKjelde, lesScene, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
@@ -156,6 +156,20 @@ export function Studio() {
   const [toppH, setToppH] = useState(44)
   /** gestmodusen: «form» er dei gamle gestane på objektet, «skisse» er gestane på planet */
   const [modus, setModus] = useState<Modus>("form")
+  /**
+   * SYMMETRIEN PÅ SNITTET: tre brytarar i eitt tal (1 er x, 2 er y, 4 er z).
+   *
+   * Han høyrer til SKJER og ikkje til noko plan: eitt trykk låser snittet du
+   * siktar og spegelbileta hans om midtplana i kroppen. Det som kjem ut er
+   * heilt vanlege plan med kvart sitt namn — dei kan flyttast, vinklast,
+   * teiknast i og slettast kvar for seg etterpå. Ein symmetri som var ein
+   * eigenskap ved planet måtte ha delt namn mellom to delar, og namnet er
+   * det som står gravert på plata.
+   *
+   * Difor er han heller ikkje ein parameter: han seier kva NESTE kutt vert,
+   * ikkje kva kroppen er, og ei lenkje ber kroppen.
+   */
+  const [speil, setSpeil] = useState(0)
   /** kva ein finger held på med akkurat no, til lesing over objektet */
   const [gest, setGest] = useState<GestKva>(null)
   /** snittet skissa (eller det valde planet) ville gje, slik motoren las det */
@@ -183,8 +197,6 @@ export function Studio() {
   const kjeldeNamn = kjelde === KUBE ? "kube" : (namn[kjelde] ?? "nett")
   /** bitane kroppen er sett saman av: kjelda åleine når lista er tom */
   const bitar = useMemo(() => lesScene(String(params.scene || "") || eiKjelde(kjelde)), [params.scene, kjelde])
-  /** speglingane den valde biten ber: tre brytarar i eitt tal */
-  const valdSp = valdBit === null ? 0 : (bitar[valdBit]?.sp ?? 0)
   const plan = useMemo(() => lesPlan(params.plan), [params.plan])
   const liste = useMemo(() => tal?.liste ?? [], [tal])
 
@@ -562,7 +574,7 @@ export function Studio() {
     setParams((cur) => {
       const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
       if (l.length >= SCENE_TAK) return cur
-      const ny = [...l, { id, t: [0, 0, 0] as Vec3, s: 1, rz: 0, sp: 0 }]
+      const ny = [...l, { id, t: [0, 0, 0] as Vec3, s: 1, rz: 0 }]
       const steg = Math.min(85, 760 / Math.max(1, ny.length - 1))
       const midt = (steg * (ny.length - 1)) / 2
       return { ...cur, scene: skrivScene(ny.map((b, i) => ({ ...b, t: [+(i * steg - midt).toFixed(2), b.t[1], b.t[2]] as Vec3 }))) }
@@ -621,25 +633,6 @@ export function Studio() {
     if (!g || i === null || !Number.isFinite(faktor) || faktor <= 0) return
     skrivBit(i, { s: Math.min(5, Math.max(0.05, g.s * faktor)) })
   }, [skrivBit])
-  /**
-   * SYMMETRIEN: éin akse av gongen, og dei tel saman.
-   *
-   * Verktyet for kroppen har brytaren, av di det er DER biten står. Eitt
-   * bein sett på plass og x og y på gjev fire bein, og dei fylgjer beinet
-   * medan du dreg det — ein symmetri som var ein kopi ville stått att der
-   * kopien vart laga. Speglinga ligg i scenestrengen, so ho fylgjer angre,
-   * lenkja og prosjektfila utan ei line til.
-   */
-  const speilBit = useCallback((akse: number) => {
-    const i = bitRef.current
-    if (i === null) return
-    setParams((cur) => {
-      const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
-      if (!l[i]) return cur
-      l[i] = { ...l[i], sp: l[i].sp ^ (1 << akse) }
-      return { ...cur, scene: skrivScene(l) }
-    })
-  }, [])
   const vriBit = useCallback((grader: number) => {
     const g = grunn.current?.bit
     const i = bitRef.current
@@ -746,14 +739,31 @@ export function Studio() {
       setMelding(`taket er ${PLAN_TAK} plan`)
       return
     }
+    /**
+     * SYMMETRIEN LAGAR SNITTA, og so er ho ferdig med dei. Éin brytar gjev
+     * to snitt, to gjev fire, tre gjev åtte — spegla om midtplana i kroppen,
+     * kvart med sitt eige namn. Eit snitt som speglar seg til seg sjølv
+     * (gjennom midten, på tvers av aksen du speglar om) er éin del og ikkje
+     * to, so det vert lagt til éin gong.
+     */
+    const nye: { o: Vec3; n: Vec3 }[] = []
+    for (const akser of speglingar(speil)) {
+      let q = { o, n: s.n }
+      for (const a of akser) q = spegla(q.o, q.n, a)
+      if (!nye.some((r) => sameSnitt(r, q))) nye.push(q)
+    }
+    // Taket kappar, og seier frå om det kappa noko.
+    const tek = nye.slice(0, PLAN_TAK - naaPlan.length)
+    if (tek.length < nye.length) setMelding(`taket er ${PLAN_TAK} plan`)
     const id = nyId(naaPlan)
     setParams((cur) => {
       const l = lesPlan(cur.plan)
       if (l.length >= PLAN_TAK) return cur
-      return { ...cur, plan: skrivPlan([...l, { id: nyId(l), o, n: s.n, strek: [] }]) }
+      let i = nyId(l)
+      return { ...cur, plan: skrivPlan([...l, ...tek.map((q) => ({ id: i++, o: q.o, n: q.n, strek: [] }))].slice(0, PLAN_TAK)) }
     })
     setBlink(id)
-  }, [])
+  }, [speil])
   /** eit plan flytt eller vinkla om av fingrane — gjennom parametrane, so angre og lenkja gjeld */
   const flyttPlan = useCallback((id: number, o: Vec3, n: Vec3) => {
     setParams((cur) => {
@@ -1207,34 +1217,6 @@ export function Studio() {
               står han til å dublere eller ta bort. */}
           {modus === "bit" && valdBit !== null && (
             <>
-              {/* SYMMETRIEN: tre brytarar, ei line. Kvar akse speglar biten
-                  om planet gjennom midten av kroppen, og dei tel saman — x
-                  og y er fire bein av eitt. Ord og ikkje ikon: ein akse har
-                  eit namn, og x er kortare enn kvart bilete av x.
-
-                  Lina er BREIARE enn spalta og skal ikkje skuve henne: spalta
-                  midtstiller borna sine, so ei brei line ville flytt skjer og
-                  alt anna innover frå tommelen. Difor står ho utanfor flyten,
-                  med høgrekanten sin på linje med ikona. */}
-              <span className="relative block h-9 w-12">
-                <span className="absolute right-0 top-0 flex items-center gap-1" role="group" aria-label="symmetri">
-                  {(["x", "y", "z"] as const).map((ord, a) => (
-                    <button
-                      key={ord}
-                      type="button"
-                      aria-label={`speil ${ord}`}
-                      aria-pressed={(valdSp & (1 << a)) !== 0}
-                      title={`speil biten om ${ord}-planet gjennom midten`}
-                      onClick={() => speilBit(a)}
-                      className={CHIP + " px-2.5"}
-                      style={chipStyle((valdSp & (1 << a)) !== 0)}
-                      data-speil={ord}
-                    >
-                      {ord}
-                    </button>
-                  ))}
-                </span>
-              </span>
               <button type="button" aria-label="dubler biten" title="ein bit til, lik denne" onClick={dupliserBit} className={TUMME_BTN}>
                 {IcoDupliser}
               </button>
@@ -1242,6 +1224,37 @@ export function Studio() {
                 {IcoSlett}
               </button>
             </>
+          )}
+          {/* SYMMETRIEN PÅ SNITTET: tre brytarar, ei line, rett over skjer —
+              av di det er skjer dei endrar. Kvar akse speglar snittet om
+              midtplanet i kroppen, og dei tel saman: x og y er fire ribber av
+              ei. Ord og ikkje ikon: ein akse har eit namn, og x er kortare enn
+              kvart bilete av x.
+
+              Lina er BREIARE enn spalta og skal ikkje skuve henne: spalta
+              midtstiller borna sine, so ei brei line ville flytt skjer og alt
+              anna innover frå tommelen. Difor står ho utanfor flyten, med
+              høgrekanten sin på linje med ikona. */}
+          {vald === null && view !== "kontur" && modus !== "bit" && (
+            <span className="relative block h-9 w-12">
+              <span className="absolute right-0 top-0 flex items-center gap-1" role="group" aria-label="symmetri">
+                {(["x", "y", "z"] as const).map((ord, a) => (
+                  <button
+                    key={ord}
+                    type="button"
+                    aria-label={`speil ${ord}`}
+                    aria-pressed={(speil & (1 << a)) !== 0}
+                    title={`speil snittet om ${ord}-planet gjennom midten: skjer låser båe`}
+                    onClick={() => setSpeil((q) => q ^ (1 << a))}
+                    className={CHIP + " px-2.5"}
+                    style={chipStyle((speil & (1 << a)) !== 0)}
+                    data-speil={ord}
+                  >
+                    {ord}
+                  </button>
+                ))}
+              </span>
+            </span>
           )}
           <button
             type="button"

@@ -42,35 +42,7 @@ import type { Vec3 } from "./core"
 import type { Params } from "./params"
 
 /** ein bit av kroppen, slik han hamna: kva kjelde han er, og boksen kring han */
-export type BitBoks = {
-  /** kva for ein bit i scenelista boksen høyrer til: ei spegling har sin
-   *  eigen boks, men er den same biten, og eit trykk vel han. */
-  bit: number
-  id: string
-  min: Vec3
-  max: Vec3
-}
-
-/**
- * SPEGLINGANE EIN BIT BER MED SEG, som forteikn.
- *
- * `sp` er tre brytarar (1 = x, 2 = y, 4 = z), og kvar av dei doblar lista:
- * x åleine gjev to, x og y gjev fire — dei fire beina under ein krakk, sett
- * éin gong. Fyrste teiknet er alltid biten sjølv, so ei scene utan symmetri
- * gjer nøyaktig det ho gjorde.
- */
-function speglingar(sp: number): Vec3[] {
-  let ut: Vec3[] = [[1, 1, 1]]
-  for (let a = 0; a < 3; a++) {
-    if (!(sp & (1 << a))) continue
-    ut = ut.flatMap((q) => {
-      const k = [...q] as Vec3
-      k[a] = -k[a]
-      return [q, k]
-    })
-  }
-  return ut
-}
+export type BitBoks = { id: string; min: Vec3; max: Vec3 }
 
 export type Kropp = {
   /** nettet slik det står: vend, skalert, sentrert, på golvet */
@@ -132,11 +104,9 @@ function samlaSoup(p: Params): { soup: Soup; tris: number; bitar: BitBoks[] } {
   const delar: Float32Array[] = []
   const boksar: BitBoks[] = []
   let tris = 0
-  const lista = bitar.length ? bitar : lesScene(eiKjelde(p.kjelde))
-  lista.forEach((b, bi) => {
+  for (const b of bitar.length ? bitar : lesScene(eiKjelde(p.kjelde))) {
     const src = source(b.id)
-    const speil = speglingar(b.sp)
-    tris += src.tris * speil.length
+    tris += src.tris
     const span = Math.max(src.max[0] - src.min[0], src.max[1] - src.min[1], src.max[2] - src.min[2], 1e-6)
     const k = (100 * b.s) / span
     const cx = (src.min[0] + src.max[0]) / 2
@@ -146,9 +116,8 @@ function samlaSoup(p: Params): { soup: Soup; tris: number; bitar: BitBoks[] } {
     const c = Math.cos(a)
     const sn = Math.sin(a)
     const P = src.pos
-    const n = src.tris * 9
-    const ut = new Float32Array(n * speil.length)
-    for (let i = 0; i < n; i += 3) {
+    const ut = new Float32Array(P.length)
+    for (let i = 0; i < P.length; i += 3) {
       const x = (P[i] - cx) * k
       const y = (P[i + 1] - cy) * k
       const z = (P[i + 2] - cz) * k
@@ -156,30 +125,10 @@ function samlaSoup(p: Params): { soup: Soup; tris: number; bitar: BitBoks[] } {
       ut[i + 1] = x * sn + y * c + b.t[1]
       ut[i + 2] = z + b.t[2]
     }
-    // Ei spegling snur vindinga: eitt eller tre forteikn snudde gjer
-    // utsida til innsida, og strålane tel skal. Difor går hjørna i eit
-    // trekantpar den andre vegen når produktet er negativt. Eit heilt
-    // snudd nett vert retta av `signedVolume` seinare; eit HALVT snudd
-    // vert det ikkje, og det er nett det ei spegling ville laga.
-    for (let q = 1; q < speil.length; q++) {
-      const [fx, fy, fz] = speil[q]
-      const av = q * n
-      const snu = fx * fy * fz < 0
-      for (let t = 0; t < n; t += 9) {
-        for (let v = 0; v < 3; v++) {
-          const j = t + (snu ? 2 - v : v) * 3
-          ut[av + t + v * 3] = ut[j] * fx
-          ut[av + t + v * 3 + 1] = ut[j + 1] * fy
-          ut[av + t + v * 3 + 2] = ut[j + 2] * fz
-        }
-      }
-    }
     delar.push(ut)
-    for (let q = 0; q < speil.length; q++) {
-      const bb = bounds(ut.subarray(q * n, (q + 1) * n))
-      boksar.push({ bit: bi, id: b.id, min: bb.min, max: bb.max })
-    }
-  })
+    const bb = bounds(ut)
+    boksar.push({ id: b.id, min: bb.min, max: bb.max })
+  }
   if (delar.length === 1) return { soup: makeSoup(delar[0]), tris, bitar: boksar }
   const alle = new Float32Array(delar.reduce((n, d) => n + d.length, 0))
   let o = 0
@@ -226,7 +175,7 @@ export function makeKropp(p: Params): Kropp {
           if (q[a] > hi[a]) hi[a] = q[a]
         }
       }
-      return { bit: b.bit, id: b.id, min: lo, max: hi }
+      return { id: b.id, min: lo, max: hi }
     })
     return {
       soup,
