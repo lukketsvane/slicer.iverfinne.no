@@ -15,7 +15,7 @@ import { bbox, nn, type Fiks, type Metrics, type Rule, type Vec3 } from "./core"
 import { fitRoom } from "./pack"
 import { makeBygg, nestGap, type Bygg } from "./bygg"
 import { DETAIL, type Snitt } from "./snitt"
-import { dot, lesPlan, rutenett, skrivPlan } from "./plan"
+import { dot, lesPlan, skrivPlan } from "./plan"
 import { SNITTVEGAR, lesFest, skrivFest, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
@@ -127,20 +127,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     return ny < p.snitt ? { ord: `prøv ${mm2(ny)}`, set: { snitt: ny } } : undefined
   }
 
-  /** Ingen ledd, eller ingen delar: same tomrommet frå kvar si side. Rådet
-   *  er eit framlegg — rutenettet, som du kan ta heilt eller la liggje.
-   *
-   *  Men aldri når handa har teikna i eit plan: rutenettet BYTER UT lista,
-   *  og eit råd som kastar arbeidet ditt er ikkje eit råd. Då står regelen
-   *  med grunnen sin og utan knapp, og du gjer det du vil med han. */
-  const framlegg = (): Fiks | undefined => {
-    if (m.joints > 0 && m.parts > 0) return undefined
-    if (lesPlan(p.plan).some((q) => q.strek.length)) return undefined
-    const n = lesPlan(p.plan).length < 8 ? 6 : 8
-    const plan = skrivPlan(rutenett(n, n))
-    return plan === p.plan ? undefined : { ord: `prøv ${n}×${n}`, set: { plan, fest: "" } }
-  }
-
   /**
    * «DEL I MIDTEN» — MEN BERRE OM HAN FAKTISK DELER. `ledd` avgjer òg OM
    * leddet vert lagt, so rådet vert rekna før det vert tilbydd: eit råd
@@ -174,8 +160,7 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     hard: true,
     ok: m.joints > 0,
     value: `${nn(m.joints)} ledd`,
-    why: "Utan eit einaste kryssledd er dette ikkje eit objekt, men ein bunke laust liggjande plater. Vanlegaste grunnen er at plana ikkje kryssar kvarandre der kroppen har gods, eller at det står for få av dei til at nokon møtest.",
-    fiks: raad ? framlegg() : undefined,
+    why: "Utan eit einaste kryssledd er dette ikkje eit objekt, men ein bunke laust liggjande plater. Vanlegaste grunnen er at plana ikkje kryssar kvarandre der kroppen har gods, eller at det står for få av dei til at nokon møtest. Rutenettet på lina set kolonner og rader med to fingrar.",
   })
 
   // --- 2 delane finst (hard) --------------------------------------------------
@@ -186,8 +171,7 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     hard: true,
     ok: m.parts > 0,
     value: `${nn(m.parts)} stk`,
-    why: "Ingen plan råka nettet. Anten står plana utanfor kroppen, eller so er nettet so tynt at kvar profil fell under minstearealet — eller du har ikkje låst noko enno.",
-    fiks: raad ? framlegg() : undefined,
+    why: "Ingen plan råka nettet. Anten står plana utanfor kroppen, eller so er nettet so tynt at kvar profil fell under minstearealet — eller du har ikkje låst noko enno. Rutenettet på lina set kolonner og rader med to fingrar.",
   })
 
   // --- 3 kvar del kan skuvast inn (hard) --------------------------------------

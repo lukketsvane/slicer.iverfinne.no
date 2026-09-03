@@ -122,6 +122,16 @@ export const IcoHol = (
     <path d="M8.5 12h7" />
   </svg>
 )
+/**
+ * PENNEN OG VISKELÊRET: reiskapane i konturen.
+ *
+ * Dei to knappane under tommelen gjer to ting med kvar sin lesemåte — i
+ * rommet legg dei ein firkant eller ein ring midt i snittet, i teikninga
+ * teiknar dei og viskar dei. Ikonet fylgjer handlinga og ikkje knappen:
+ * ein penn og eit viskelêr er det du held i når plata ligg flat framfor deg.
+ */
+export const IcoPenn = ikon("M4 20l1.2-4.2L15.6 5.4a2 2 0 0 1 2.8 2.8L8.2 18.8 4 20z|m14.4 6.6 3 3", "h-5 w-5")
+export const IcoVisk = ikon("M8.5 20H20|M15.4 5.6 6.6 14.4a2 2 0 0 0 0 2.8l2.8 2.8h3.4l7.6-7.6a2 2 0 0 0 0-2.8l-2.2-2.2a2 2 0 0 0-2.8 0z|m10.6 10.4 5.6 5.6", "h-5 w-5")
 /** verktyet for kroppen: bitane som ein boks */
 export const IcoBit = ikon("M12 3 3 7.5v9L12 21l9-4.5v-9L12 3z|M3 7.5 12 12l9-4.5|M12 12v9", "h-5 w-5")
 /** ein bit til, lik den valde */

@@ -627,7 +627,7 @@ async function telefon(browser: Browser) {
   // valet fylgjer med frå rommet: slepp det fyrst, so prøva seier det ho seier
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
-  sjekk("utan ei vald plate finst ingen penn", (await pennar().count()) === 0)
+  sjekk("utan ei vald plate finst ingen reiskap", (await pennar().count()) === 0)
   // plata ligg midt i det frie bandet; skann til ho svarar
   let valdPlate: [number, number] | null = null
   for (let y = 300; y <= 520 && !valdPlate; y += 20) {
@@ -639,11 +639,14 @@ async function telefon(browser: Browser) {
   }
   sjekk("eit trykk på ei plate vel henne", !!valdPlate, valdPlate ? `${valdPlate[0]},${valdPlate[1]}` : "ingen treff")
   if (valdPlate) {
-    const hol = page.getByRole("button", { name: "skjer hòl", exact: true })
-    sjekk("og pennane står slokte", (await hol.getAttribute("aria-pressed")) === "false")
+    // i teikninga heiter dei det dei gjer: teikn og visk
+    const hol = page.getByRole("button", { name: "visk", exact: true })
+    sjekk("dei to reiskapane heiter teikn og visk i teikninga",
+      (await hol.count()) === 1 && (await page.getByRole("button", { name: "teikn", exact: true }).count()) === 1)
+    sjekk("og dei står slokte", (await hol.getAttribute("aria-pressed")) === "false")
     await hol.click()
     await page.waitForTimeout(250)
-    sjekk("eit trykk tenner pennen", (await hol.getAttribute("aria-pressed")) === "true")
+    sjekk("eit trykk tenner viskelêret", (await hol.getAttribute("aria-pressed")) === "true")
     const strekTal = (p: Params) => lesPlan(p.plan).reduce((a, q) => a + q.strek.length, 0)
     const før = strekTal(hash(page))
     // eitt fingerdrag inne i ramma
@@ -688,7 +691,7 @@ async function telefon(browser: Browser) {
     await page.keyboard.press("Escape")
     await page.waitForTimeout(300)
     const etterEsc = (await pennar().count()) ? await hol.getAttribute("aria-pressed") : "borte"
-    sjekk("esc slokkjer pennen, og plata står", etterEsc === "false", `${førEsc} → ${etterEsc}`)
+    sjekk("esc slokkjer reiskapen, og plata står", etterEsc === "false", `${førEsc} → ${etterEsc}`)
     // og eit trykk på tomt papir slepper plata: prøva ryddar etter seg.
     // Esc til hadde late arket att, og då står objektet i ei anna ramme enn
     // det gjorde for prøvene under.
