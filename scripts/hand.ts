@@ -9,11 +9,13 @@
  * ikkje er tal med eit band kring seg — dei er strengar, dei kjem frå ei
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
-import { clampParams, DEFAULT_PARAMS, reinFest } from "../lib/params"
+import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
 import { lesPlan, nyId, ramme, reinPlan, rutenett, sameSnitt, spegla, speglingar, skrivPlan, virvel, PLAN_TAK, STREK_TAK } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
+import { makeBygg } from "../lib/bygg"
+import { DETAIL } from "../lib/snitt"
 import { bbox, type ParamBag, type Pt, type Vec3 } from "../lib/core"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
@@ -381,6 +383,64 @@ console.log("\nvirvelen:")
   // r = 0 er det utarta tilfellet: alle gjennom aksen, alle langs same lina
   const null0 = virvel(8, 0, [200, 200])
   sjekk("r = 0 legg alle gjennom midten — det utarta tilfellet", null0.every((q) => Math.abs(q.o[0] - 0.5) < 1e-6 && Math.abs(q.o[1] - 0.5) < 1e-6))
+}
+
+/**
+ * DELINGA PÅ EITT LEDD.
+ *
+ * `ledd` er ein skyvar for heile objektet; denne strengen er handa på eitt
+ * einaste ledd. Nøkkelen er dei to namna i stigande rekkjefylgje og kva
+ * møte på kryssingslina det er, so det same leddet får den same nøkkelen
+ * frå kva side du enn ser det.
+ */
+console.log("\ndelinga på eitt ledd:")
+for (const [inn, vent] of [
+  ["5-12-0:0.35", "5-12-0:0.35"],
+  ["12-5-0:0.35", ""],                     // namna må stige: eitt ledd, éin nøkkel
+  ["5-5-0:0.35", ""],                      // eit plan kryssar ikkje seg sjølv
+  ["5-12-0:0.05", ""],                     // utanfor bandet skyvaren har
+  ["5-12-0:0.95", ""],
+  ["5-12-0:NaN", ""],
+  ["5-12:0.35", ""],                       // utan møtenummer er det ikkje ein nøkkel
+  ["tull", ""],
+  ["5-12-0:0.35;1-2-0:0.6", "1-2-0:0.6;5-12-0:0.35"],
+  ["5-12-0:0.35;5-12-0:0.6", "5-12-0:0.6"], // siste vinn, og det er éin oppføring
+] as const) {
+  const fekk = reinDeling(inn)
+  sjekk(`deling «${String(inn).slice(0, 24)}»`, fekk === vent, fekk)
+}
+{
+  /**
+   * OG DET SOM TEL: EITT TAL FLYTTAR TO SPOR OG INGEN FLEIRE.
+   *
+   * Botnen i sporet på A og botnen i sporet på B er det SAME talet, lese
+   * frå kvar si side av den same lina. Difor er eit djupare spor i den eine
+   * eit grunnare i den andre, utan at noko held dei i lag. Prøva set eitt
+   * ledd og tel kor mange spor i heile kroppen som rører seg.
+   */
+  const grunn = { ...DEFAULT_PARAMS, plan: skrivPlan(rutenett(3, 3)), storleik: 200, tjukn: 6 } as Params
+  const spora = (p: Params) => {
+    const { s } = makeBygg(p, DETAIL.mid)
+    const ut: string[] = []
+    for (const r of s.ribber) for (const q of r.spor) ut.push(`${r.plan.id}→${q.mot} ${q.botn.toFixed(2)} ${q.munn.toFixed(2)}`)
+    return ut.sort()
+  }
+  const utan = spora(grunn)
+  const nokk = leddNokkel(1, 4, 0)
+  const med = spora({ ...grunn, deling: skrivDeling(new Map([[nokk, 0.75]])) })
+  const ulike = utan.filter((q, i) => q !== med[i])
+  sjekk("ei hand på eitt ledd flyttar NØYAKTIG to spor", ulike.length === 2, `${ulike.length} av ${utan.length}`)
+  // og dei to er dei to halvdelane av det leddet
+  sjekk("og dei to er dei to sidene av det leddet",
+    ulike.length === 2 && ulike.every((q) => /^(1→4|4→1) /.test(q)), ulike.join(" · "))
+  // djupare frå den eine sida er grunnare frå den andre: munnane ligg i kvar sin ende
+  const par = med.filter((q) => /^(1→4|4→1) /.test(q)).map((q) => q.split(" ").slice(1).map(Number))
+  sjekk("dei har same botn, og munnane i kvar sin ende",
+    par.length === 2 && Math.abs(par[0][0] - par[1][0]) < 1e-6 && par[0][1] !== par[1][1],
+    par.map((q) => `botn ${q[0]} munn ${q[1]}`).join(" · "))
+  // eit ledd som ikkje finst rører ingenting
+  const tull = spora({ ...grunn, deling: skrivDeling(new Map([[leddNokkel(1, 2, 0), 0.75]])) })
+  sjekk("og ein nøkkel til eit ledd som ikkje finst rører ingenting", tull.every((q, i) => q === utan[i]))
 }
 
 console.log(feil ? `\n${feil} FEIL` : "\nhanda held")
