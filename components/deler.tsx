@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, type CSSProperties } from "react"
+import { useRef, type CSSProperties } from "react"
 import { feltTal, nn, snap, type ExportKind, type Metrics, type ParamBag, type Range, type Rule, type View } from "@/lib/core"
 import { RADER } from "@/lib/metrics"
 
@@ -40,44 +40,6 @@ export function stengd(x: ExportKind, m: Metrics | null): string {
   return ""
 }
 
-/**
- * EIT LANGT TRYKK. Fingeren står stille (seks pikslar), det korte fyrer
- * ikkje når det lange har fyrt, og eit klikk frå tastaturet — utan
- * pointerdown — er alltid det korte.
- */
-export function useLangtrykk(kort: () => void, langt: () => void, ms = 450) {
-  const ned = useRef<{ x: number; y: number } | null>(null)
-  const timer = useRef(0)
-  const brukt = useRef(false)
-  useEffect(() => () => window.clearTimeout(timer.current), [])
-  const stopp = useCallback(() => window.clearTimeout(timer.current), [])
-  return {
-    onPointerDown: (e: { clientX: number; clientY: number }) => {
-      ned.current = { x: e.clientX, y: e.clientY }
-      brukt.current = false
-      window.clearTimeout(timer.current)
-      timer.current = window.setTimeout(() => {
-        brukt.current = true
-        langt()
-      }, ms)
-    },
-    onPointerMove: (e: { clientX: number; clientY: number }) => {
-      const d = ned.current
-      if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) stopp()
-    },
-    onPointerUp: stopp,
-    onPointerLeave: stopp,
-    onPointerCancel: stopp,
-    onClick: () => {
-      if (brukt.current) {
-        brukt.current = false
-        return
-      }
-      kort()
-    },
-  }
-}
-
 export const DASH = "–"
 /** 2,5 mm er ikkje 3 mm: desimalen står når han finst */
 export const tjukn = (v: number) => nn(v, Number.isInteger(v) ? 0 : 1)
@@ -87,8 +49,16 @@ export const num = (p: ParamBag, k: string, fallback: number) =>
 
 export const HAIR: CSSProperties = { borderColor: "var(--rule)" }
 /* Flate knappar: fyllet byter, og ikkje noko anna — ingen skugge, ingen overgang, inga krymping under fingeren. */
+/**
+ * EIT VERKTY ER EIT IKON, og ikkje anna.
+ *
+ * Ringen og den fylte sirkelen kring kvart ikon var chrome som sa det
+ * ikonet alt sa. Treffeflata er den same — `hit` gjev fire og førti pikslar
+ * same kva — men flata er borte: full blekk når knappen gjeld, dempa når
+ * han er av eller stengd, og eit trykk dempar han eit augeblikk.
+ */
 export const ICON_BTN =
-  "hit relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border"
+  "hit ikon relative flex h-9 w-9 shrink-0 items-center justify-center"
 export const CHIP =
   "hit min-h-[36px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] disabled:opacity-30"
 export function chipStyle(active: boolean): CSSProperties {
@@ -122,8 +92,8 @@ const ikon = (d: string, k = "h-4 w-4") => (
     {d.split("|").map((q, i) => <path key={i} d={q} />)}
   </svg>
 )
-export const IcoStopp = <svg viewBox="0 0 24 24" className="h-4 w-4"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" /></svg>
-export const IcoFinn = ikon("M2 18h2.9a4 4 0 0 0 3.4-1.9l5.4-8.2A4 4 0 0 1 17.1 6H22|m18 2 4 4-4 4|M2 6h2.9a4 4 0 0 1 3.4 1.9l.5.8|m14.6 14.5.5.8a4 4 0 0 0 3.4 1.9H22|m18 14 4 4-4 4")
+/** verktyet for rutenettet: kolonner og rader */
+export const IcoRute = ikon("M3 3h18v18H3z|M9 3v18|M15 3v18|M3 9h18|M3 15h18")
 export const IcoSliders = ikon("M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4")
 export const IcoDown = ikon("m6 9 6 6 6-6")
 export const IcoAngre = ikon("M9 14 4 9l5-5|M4 9h10a6 6 0 0 1 0 12h-3", "h-3.5 w-3.5")
@@ -160,28 +130,6 @@ export const IcoDupliser = ikon("M9 9h10v10H9z|M5 15V5h10", "h-5 w-5")
 export const IcoKopier = ikon("M9 9h10v10H9z|M5 15V5h10", "h-4 w-4")
 export const IcoLimInn = ikon("M9 4h6v3H9z|M15 5h3v15H6V5h3|M12 10v7|m9 14 3 3 3-3", "h-4 w-4")
 /** dei to fyrste stega i rettleiinga: snu, og sikt */
-
-/** Ringen kring knappen: søket går, og omtrent kor langt det er att. */
-export function Ring({ del }: { del: number }) {
-  const R = 15.5
-  const O = 2 * Math.PI * R
-  return (
-    <svg viewBox="0 0 36 36" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full -rotate-90">
-      <circle cx="18" cy="18" r={R} fill="none" stroke="var(--paper)" strokeOpacity="0.25" strokeWidth="2" />
-      <circle
-        cx="18"
-        cy="18"
-        r={R}
-        fill="none"
-        stroke="var(--paper)"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeDasharray={O}
-        strokeDashoffset={O * (1 - Math.max(0.04, Math.min(1, del)))}
-      />
-    </svg>
-  )
-}
 
 /**
  * TAVLA OG REGLANE ER DEN SAME LISTA. Éi line per avlesing: verdien frå

@@ -24,7 +24,8 @@ no grid could describe is another. The tool does not care which.
 
 It opens on **3 mm MDF on a 600 × 400 mm bed** — the common "6040" CO2
 laser — with a cube and **no cuts**: the body sits there as a shell and the
-first thing you do is cut it. Want a grid, it is one press of **forslag**. Change the thickness to the sheet
+first thing you do is cut it. Want a grid, switch on **rutenett** and set the
+columns and rows with two fingers. Change the thickness to the sheet
 in your hand and the bed to your machine; the link carries both.
 
 **It is a laser tool.** No cutter diameter and no dogbones, because a beam has
@@ -50,11 +51,13 @@ no radius.
 4. **Sketch a plane.** One finger turns the object. The sketch plane is a line
    across the screen — a knife seen edge-on — with a grab handle in the middle
    and a rotation handle at the end: drag the one to move the cut across the
-   object, the other to tilt it. **Two fingers on the object** work as they
-   always did: pinch to zoom the view, twist to turn the object, drag to move
-   the cut. Switch on
-   **skisse** (or press `S`) and the same two fingers work on the plane
-   instead: drag moves it, twist tilts it, pinch zooms. Three fingers move the
+   object, the other to tilt it. **Two fingers on the object** aim the cut:
+   drag moves it, twist tilts it, pinch zooms the view. Neither the pinch nor
+   the twist touches the body — the size is a number you drag and the turn is
+   the body tool; a body that grows when you want a closer look is a body
+   doing something you did not ask for. Switch on
+   **skisse** (or press `S`) and drag, twist and pinch all work on the plane
+   at once. Three fingers move the
    light. The plane swings with the view and nothing is built from it — and a
    double-tap does nothing, because a reframe you did not ask for throws away
    the angle you were finding.
@@ -65,8 +68,9 @@ no radius.
    profile, slots against every plane it crosses, a place in the assembly and
    a row in the list. Turn the object and cut again. The cut planes stay where
    you put them while the view turns.
-6. **Or take a proposal.** **forslag** slices a dozen rib grids for real and
-   ranks them; take one whole, or as a start. Hold it for the deep search.
+6. **Or set a grid.** Switch on **rutenett** (or press `R`) and two fingers
+   set the two numbers: sideways is columns, up and down is rows. It writes
+   the whole plane list, so it is one step in undo.
 7. **Read the rules.** They say what can't be cut or assembled, and why, and
    each broken rule carries the button that fixes it.
 8. **Export ARK** and open it in LightBurn.
@@ -81,8 +85,8 @@ one thumb, a 390-point screen, the object visible while you work. The page
 itself never zooms, scrolls or lets you select anything; every gesture belongs
 to the object. A slim bar at the top carries the body you are working on
 (tap it for a primitive or another file), the three views, undo and the link.
-A sheet at the bottom has three heights: one line (the live count, proposals,
-export), the middle (size and the plane list), everything (material and thickness, the
+A sheet at the bottom has three heights: one line (the live count, the grid
+tool, export), the middle (size and the plane list), everything (material and thickness, the
 sliders, the table with the rules and their fixes, the tools). The cut button
 and the sketch toggle float above it, under the right thumb.
 
@@ -91,7 +95,8 @@ a face for that side, an edge for the 45° view between two, a corner for the
 isometric between three, and the camera swings there. It is drei's
 `GizmoViewcube` — geometry in the canvas, hit by the same raycast as everything
 else in the scene — not a hand-built one, and it is 45 px. Under it is the
-reframe button, which fits the object back into the screen. The body turns the
+reframe button, which fits the object back into the screen, and under that the
+magnifier: press and drag it up to go in, down to go out. The body turns the
 whole way round, underside included.
 
 **Dark is black.** There is no toggle: the page takes the system's setting and
@@ -116,8 +121,8 @@ in much further than the object view does — a 3 mm slot in a half-metre
 outline is four pixels on a phone, and going in close is the only way to see
 whether it is there.
 
-Keys: `L` cut, `S` sketch mode, `⌫` remove the selected plane, `F` proposals,
-`D` deep search, `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
+Keys: `L` cut, `S` sketch mode, `R` grid tool, `⌫` remove the selected plane,
+`Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 
 **Three ways to keep an afternoon's work.** The link carries every setting —
 planes included — and no mesh. **LAGRE** gives a project file carrying both.
@@ -179,23 +184,21 @@ in any order; then it is the plane, not the list, that has to change.
 `montering.txt` in the ALT bundle writes the order out, part by part, with the
 direction each comes in.
 
-## Proposals
+## The grid
 
-**forslag** takes your mesh at your size on your sheet, slices about a dozen
-rib grids **for real** — planes, joints, parts, nesting, every hard rule — and
-ranks what came out: does it hold together, how many parts, how many sheets,
-utilisation. A broken hard rule is not a deduction, it is a no.
+A rib grid is two numbers, and **rutenett** is the tool that sets them with
+your fingers: sideways is columns, up and down is rows, 44 px to a plane. It
+starts from what is already there — planes along x counted as columns, planes
+along y as rows — so it carries on where your grid left off.
 
-**Hold the button** (or press `D`) and it asks a different question: what does
-*this shape* need, for the fewest parts? It reads every rib count from 2×2 to
-32×32 by **measuring the body once** — one ray per column of a 128×128 raster
-gives volume and the cross-section profiles A(x) and A(y) in one sweep — then
-slices the front of them for real. A rib is a *sample* of A; the grid's claim
-is the step function holding that sample to the next cell; the area between
-claim and truth is the part of your shape that is not there. That is the
-`form` column. What comes back is a front, not a point: for each number of
-parts, the grid that carries the most shape. The first answer is the knee;
-press again to walk along the front. Take a proposal whole, or as a start.
+It **rewrites the list**, because a grid is a list and not an addition. That is
+one step in undo, however far the fingers went: the whole drag is one entry,
+and `Z` gives back the planes you had.
+
+There used to be a search here that sliced a dozen grids for real and ranked
+them, and a deep search that measured the body and walked a front. It answered
+a question nobody had asked — the two numbers were never the hard part, and a
+ranking is not a decision. The tool that sets them is.
 
 ## Output
 
@@ -337,21 +340,20 @@ pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps
 pnpm hand    # the plane list as a string: one edit leaves the rest, names never reused, pins hold
 pnpm enkel   # the two simplification sliders take what they say and no more
-pnpm djup    # the proposals: the profile measures shape, the answers are real
 pnpm tung    # a million triangles in, and how long that takes
 pnpm ark     # cut sheets as images
 pnpm look    # screenshots of the page, and any console errors
 pnpm panel   # the controls in a real browser: both surfaces, gestures, keys
 ```
 
-`probe` through `djup` are headless and fast. Point `look` and `panel` at
+`probe` through `enkel` are headless and fast. Point `look` and `panel` at
 `next start` on port 3210, never the dev server — they drive a real browser for
 minutes, and HMR reloading underneath produces failures that look real.
 
 | | |
 |---|---|
 | `lib/core.ts` | **start here.** The contract: parameters, metrics, rules, views |
-| `lib/plan.ts` | what a plane is: name, point, normal, strokes; the string; the grid as a proposal |
+| `lib/plan.ts` | what a plane is: name, point, normal, strokes; the string; the grid |
 | `lib/params.ts` | the parameter space and its defaults |
 | `lib/scene.ts` | the body as pieces: primitives and files, placed |
 | `lib/kropp.ts` | the body: pieces joined, weld, unflip, simplify, smooth, place — and turned along any normal |
@@ -365,7 +367,6 @@ minutes, and HMR reloading underneath produces failures that look real.
 | `lib/pack.ts` `nest.ts` | nesting |
 | `lib/metrics.ts` `rules.ts` | what is measured, and what is judged |
 | `lib/export-*.ts` `stroke.ts` `zip.ts` | the files, the single-stroke font, ZIP both ways |
-| `lib/forslag.ts` `profil.ts` | the proposals: the body measured once, the front of grids |
 | `lib/motor.ts` | the engine as one object |
 | `lib/worker.ts` | the engine in its own thread |
 | `lib/lagring.ts` | what the browser remembers between visits |

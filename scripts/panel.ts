@@ -4,7 +4,7 @@
  * Kikken (`look.ts`) ser om sida står. Dette harnesset TEK I HENNE: låser
  * og slettar plan med knapp og tast, vel eit plan i lista, skisserer med to
  * fingrar (CDP-touch: dra og vri) og ser at planet som vert låst faktisk
- * flytta seg og vinkla seg, angrar, hentar framlegg og tek eitt, opnar
+ * flytta seg og vinkla seg, angrar, set eit rutenett med to fingrar, opnar
  * platene og snur ein del, les oppsettet som tekst. Alt vert lese attende
  * frå lenkja — ho ber parameterposen, og posen er sanninga.
  *
@@ -207,14 +207,27 @@ async function telefon(browser: Browser) {
   sjekk("to fingrar som spreier seg tek synet nærare", d1 < d0 - 0.2, `avstand ${d0.toFixed(2)} → ${d1.toFixed(2)}`)
   sjekk("og storleiken på kroppen står", hash(page).storleik === s0, `${s0} mm`)
 
-  await toFingrar(page, (t) => {
-    const a = (40 * t * Math.PI) / 180
-    return [[195 - 80 * Math.cos(a), 380 - 80 * Math.sin(a)], [195 + 80 * Math.cos(a), 380 + 80 * Math.sin(a)]]
-  })
-  await vent(page, (p) => p.rotZ !== 0)
-  sjekk("to fingrar som vrir vender objektet (rotZ)", hash(page).rotZ !== 0, `rotZ ${hash(page).rotZ}°`)
+  /**
+   * VRIDINGA SIKTAR SNITTET, IKKJE KROPPEN. Ho snudde objektet på bordet
+   * før. Prøva vrir, låser, og les normalen på planet som vart til: han
+   * skal stå på skrå — og vendinga på kroppen skal stå urørt.
+   */
+  const vriFingrar = (grader: number) => (t: number) => {
+    const a = (grader * t * Math.PI) / 180
+    return [[195 - 80 * Math.cos(a), 380 - 80 * Math.sin(a)], [195 + 80 * Math.cos(a), 380 + 80 * Math.sin(a)]] as [[number, number], [number, number]]
+  }
+  await toFingrar(page, vriFingrar(40))
+  await page.waitForTimeout(300)
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
+  const vridd0 = plana(page)[plana(page).length - 1]
+  sjekk("to fingrar som vrir vinklar SNITTET", Math.abs(vridd0.n[2]) > 0.1, `n = ${vridd0.n.map((c) => c.toFixed(2)).join(",")}`)
+  sjekk("og kroppen står som han stod", hash(page).rotZ === 0, `rotZ ${hash(page).rotZ}°`)
   await page.keyboard.press("z")
-  await vent(page, (p) => p.rotZ === 0)
+  await vent(page, talPlan(n0))
+  // og attende: skissa hugsar vinkelen sin, so ho vert vridd like mykje motsett
+  await toFingrar(page, vriFingrar(-40))
+  await page.waitForTimeout(300)
 
   // Skisseplanet står gjennom midten. Dra to fingrar sidelengs over objektet,
   // lås, og planet som vart låst står ikkje i midten lenger.
@@ -386,36 +399,53 @@ async function telefon(browser: Browser) {
   await page.keyboard.press("z")
   await vent(page, talPlan(n0))
 
-  // --- framlegga ----------------------------------------------------------------
-  await midt(page)
-  await page.getByRole("button", { name: "forslag", exact: true }).click()
-  const kand = page.locator("button[aria-pressed]").filter({ hasText: /^\d+×\d+/ })
-  // søket går kandidat for kandidat; vent til knappen seier at det er ferdig
-  await page.locator("button[aria-label='forslag'][title^='(F)']").waitFor({ timeout: 90000 })
-  await kand.first().waitFor({ timeout: 10000 })
-  const tal = await kand.count()
-  sjekk("forslag gjev ei liste", tal >= 3, `${tal} sett`)
-  // det beste står alt valt når lista kjem; eit trykk på det slepper det
-  const valt = page.locator("button[aria-pressed='true']").filter({ hasText: /^\d+×\d+/ })
-  sjekk("og det beste er valt frå starten, som spøkjelsesplan", (await valt.count()) === 1)
-  if ((await valt.count()) === 0) await kand.first().click()
+  // --- RUTENETTET ---------------------------------------------------------------
+  /**
+   * VERKTYET SOM SET DEI TO TALA. Vassrett er kolonner, loddrett er rader,
+   * og fyrtifire pikslar er eitt plan. Vakta les grunnstoda av lista slik
+   * ho står, dreg til høgre, og ser at lista er eit reint rutenett med nett
+   * so mange plan fleire langs x — og ikkje eitt fleire langs y.
+   */
+  const rutAv = (p: Params) => {
+    let nx = 0
+    let ny = 0
+    for (const q of lesPlan(p.plan)) {
+      if (Math.abs(q.n[0]) > 0.999) nx++
+      else if (Math.abs(q.n[1]) > 0.999) ny++
+    }
+    return [nx, ny] as [number, number]
+  }
+  const rutTal = () => rutAv(hash(page))
+  const ruteKnapp = page.getByRole("button", { name: "rutenett", exact: true })
+  sjekk("rutenettet står på lina", (await ruteKnapp.count()) === 1)
+  await ruteKnapp.click()
   await page.waitForTimeout(200)
-  const namn = (await valt.first().innerText()).trim()
-  const m = /^(\d+)×(\d+)/.exec(namn)
-  // kva som stod FØR framlegget — det er dit Z skal ta oss, og det treng
-  // ikkje vera det same som ved starten av prøva
-  const førFramlegg = plana(page).length
-  await page.getByRole("button", { name: "ta alle", exact: true }).click()
-  await vent(page, (p) => !!m && lesPlan(p.plan).length === Number(m[1]) + Number(m[2]))
-  sjekk("«ta alle» set nett dei plana", !!m && plana(page).length === Number(m[1]) + Number(m[2]), `${namn} → ${plana(page).length} plan`)
+  sjekk("og knappen seier at han står på", (await ruteKnapp.getAttribute("aria-pressed")) === "true")
+  sjekk("skissehandtaket er borte medan han står på", !(await page.locator("[data-handtak='flytt']").isVisible()))
+  // fingrane står midt i det frie bandet: arket veks når lista veks, og eit
+  // drag som byrjar på arket er eit drag lerretet aldri ser
+  const [nx0, ny0] = rutTal()
+  await toFingrar(page, (t) => [[120 + 176 * t, 300], [120 + 176 * t, 380]])
+  await vent(page, (p) => rutAv(p)[0] >= nx0 + 3)
+  const [nx1, ny1] = rutTal()
+  sjekk("to fingrar til høgre set kolonner", nx1 >= nx0 + 3, `${nx0} → ${nx1} kolonner`)
+  sjekk("og rader står", ny1 === ny0, `${ny0} → ${ny1} rader`)
+  sjekk("og lista er eit reint rutenett", plana(page).length === nx1 + ny1 && plana(page).every((q) => Math.abs(q.n[0]) > 0.999 || Math.abs(q.n[1]) > 0.999), `${plana(page).length} plan`)
+  // draget må falle på plass i angrestakken før det neste, elles er dei to éi bokføring
+  await page.waitForTimeout(1400)
+  await toFingrar(page, (t) => [[130, 380 - 176 * t], [260, 380 - 176 * t]])
+  await vent(page, (p) => rutAv(p)[1] >= ny1 + 3)
+  const [nx2, ny2] = rutTal()
+  sjekk("to fingrar oppover set rader", ny2 >= ny1 + 3, `${ny1} → ${ny2} rader`)
+  sjekk("og kolonner står", nx2 === nx1, `${nx1} → ${nx2} kolonner`)
+  // eitt drag er éi bokføring: Z tek heile rutenettet attende, ikkje eitt plan
+  await page.waitForTimeout(1400)
   await page.keyboard.press("z")
-  await vent(page, talPlan(førFramlegg))
-  sjekk("og Z tek det attende", plana(page).length === førFramlegg, `${plana(page).length} plan`)
-  // «lat att» legg framlegga bort og syner planlista att
-  const latAtt = page.getByRole("button", { name: "lat att", exact: true })
-  if (await latAtt.count()) await latAtt.click()
-  await page.waitForTimeout(300)
-  sjekk("«lat att» syner planlista att", (await liste.count()) === 1)
+  await vent(page, talPlan(nx1 + ny1))
+  sjekk("og Z tek draget attende i eitt", plana(page).length === nx1 + ny1, `${plana(page).length} plan`)
+  await ruteKnapp.click()
+  await page.waitForTimeout(200)
+  sjekk("trykk att slepper verktyet", (await ruteKnapp.getAttribute("aria-pressed")) === "false")
 
   // --- verktya: platene, kuttlista, oppsettet ----------------------------------
   /** arket ope med «alt»: storleiken står alt i midten, verktya står i alt */
@@ -662,11 +692,10 @@ async function benk(browser: Browser) {
   await page.keyboard.press("z")
   await vent(page, (p) => p.storleik === s0b)
 
-  await page.keyboard.press("f")
-  const kand = page.locator("button[aria-pressed]").filter({ hasText: /^\d+×\d+/ })
-  await page.locator("button[aria-label='forslag'][title^='(F)']").waitFor({ timeout: 90000 })
-  await kand.first().waitFor({ timeout: 10000 })
-  sjekk("F hentar framlegg", (await kand.count()) >= 3)
+  await page.keyboard.press("r")
+  await page.waitForTimeout(200)
+  sjekk("R tek verktyet for rutenettet", (await page.locator("button[aria-label='rutenett'][aria-pressed='true']").count()) === 1)
+  await page.keyboard.press("r")
 
   sjekk("ingen konsollfeil på benken", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()

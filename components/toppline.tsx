@@ -72,8 +72,8 @@ export function Toppline({ benk, kjelde, bitar, view, onView, onFile, onLegg, on
     >
       <input ref={pick} type="file" accept={FORMAT.join(",")} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = "" }} />
       <div className="flex h-11 items-center gap-1 px-2">
-        <button type="button" onClick={onAngre} disabled={!kanAngre} aria-label="angre" title="angre siste endring (Z)" className={ICON_BTN} style={{ ...HAIR, color: "var(--ink)" }}>{IcoAngre}</button>
-        <button type="button" onClick={onGjerOm} disabled={!kanGjerOm} aria-label="gjer om" title="gjer om det du angra (⇧Z)" className={ICON_BTN} style={{ ...HAIR, color: "var(--ink)" }}>{IcoGjerOm}</button>
+        <button type="button" onClick={onAngre} disabled={!kanAngre} aria-label="angre" title="angre siste endring (Z)" className={ICON_BTN}>{IcoAngre}</button>
+        <button type="button" onClick={onGjerOm} disabled={!kanGjerOm} aria-label="gjer om" title="gjer om det du angra (⇧Z)" className={ICON_BTN}>{IcoGjerOm}</button>
         {/* KROPPEN. Brikka seier kva han er laga av og opnar lista: fem
             primitiv som vert lagde til det som alt står, og di eiga fil,
             som byrjar på nytt. Bitane står i ei rad og går i kvarandre. */}
@@ -131,7 +131,7 @@ export function Toppline({ benk, kjelde, bitar, view, onView, onFile, onLegg, on
             <button key={v.id} type="button" title={v.hint} aria-pressed={view === v.id} onClick={() => onView(v.id)} className={CHIP + " px-2"} style={chipStyle(view === v.id)}>{v.label}</button>
           ))}
         </span>
-        <button type="button" onClick={onShare} aria-label="del" title="lenkja ber innstillingane, ikkje nettet" className={ICON_BTN} style={{ ...HAIR, color: "var(--ink)" }}>{IcoShare}</button>
+        <button type="button" onClick={onShare} aria-label="del" title="lenkja ber innstillingane, ikkje nettet" className={ICON_BTN}>{IcoShare}</button>
         {benk && <a href="https://iverfinne.no" target="_blank" rel="noopener noreferrer" className="pl-2 text-[11px] tracking-wide opacity-60 hover:opacity-100">iverfinne.no</a>}
       </div>
     </header>
