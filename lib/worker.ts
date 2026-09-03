@@ -45,6 +45,9 @@ export type BuildRes = {
   del: Float32Array<ArrayBufferLike>
   lines: Float32Array<ArrayBufferLike>
   heavy: Float32Array<ArrayBufferLike>
+  /** bitane kroppen er sett saman av — berre «flate» — og skalaen mellom dei to romma */
+  bitar: { id: string; min: Vec3; max: Vec3 }[]
+  skala: number
 }
 /** Måltala kjem i eiga melding, ETTER nettet. Kuttlista fylgjer med: ho er
  *  lesen rett ut av bygget målinga alt har rekna. */

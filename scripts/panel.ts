@@ -578,6 +578,49 @@ async function telefon(browser: Browser) {
   await vent(page, (p) => !p.scene)
   sjekk("angre tek biten bort att", !hash(page).scene, `«${hash(page).scene ?? ""}»`)
 
+  // --- VERKTYET FOR KROPPEN: flytt, vri, skaler, dubler, slett --------------
+  /**
+   * Bitane er boksar du kan peike på, og dei same tre gestane gjeld dei:
+   * draget flyttar (loddrett lyfter), klypet gjer større, vridinga snur.
+   * Prøva les scenestrengen — han er sanninga om kroppen, og han ligg i
+   * lenkja.
+   */
+  const bitScene = () => hash(page).scene ?? ""
+  const bitTal = () => (bitScene() ? bitScene().split(";").length : 0)
+  await kjelde.click()
+  await page.waitForTimeout(250)
+  await meny2.getByRole("button", { name: "kule", exact: true }).click()
+  await vent(page, (p) => !!p.scene)
+  const bitVerkty = page.locator("[data-bitverkty]")
+  sjekk("verktyet for kroppen er ein knapp med tilstand", (await bitVerkty.count()) === 1 && (await bitVerkty.getAttribute("aria-pressed")) === "false")
+  await bitVerkty.click()
+  await page.waitForTimeout(500)
+  sjekk("og eit trykk slår han på", (await bitVerkty.getAttribute("aria-pressed")) === "true")
+  // kula ligg til høgre i kroppen; boksen hennar tek trykket
+  await page.touchscreen.tap(250, 430)
+  await page.waitForTimeout(500)
+  sjekk("eit trykk vel ein bit", (await page.locator("[aria-label='dubler biten']").count()) === 1)
+  const bitFør = bitScene()
+  await toFingrar(page, (t) => [[140, 430 - 90 * t], [220, 430 - 90 * t]])
+  await vent(page, (p) => (p.scene ?? "") !== bitFør)
+  const lyft = /kule@[-\d.]+,[-\d.]+,([\d.]+)/.exec(bitScene())
+  sjekk("to fingrar rett opp lyfter biten", !!lyft && Number(lyft[1]) > 5, bitScene().slice(0, 48))
+  const førKlyp = bitScene()
+  await toFingrar(page, (t) => [[180 - 30 - 60 * t, 400], [180 + 30 + 60 * t, 400]])
+  await vent(page, (p) => (p.scene ?? "") !== førKlyp)
+  const stor = /kule@[^/]+\/([\d.]+)\//.exec(bitScene())
+  sjekk("og eit klyp gjer HAN større, ikkje kroppen", !!stor && Number(stor[1]) > 1.05 && hash(page).storleik === 150, `${stor?.[1]} · kroppen ${hash(page).storleik} mm`)
+  const n1 = bitTal()
+  await page.locator("[aria-label='dubler biten']").click()
+  await vent(page, () => bitTal() === n1 + 1)
+  sjekk("dubleringa legg ein bit til", bitTal() === n1 + 1, bitScene().slice(0, 60))
+  await page.locator("[aria-label='ta biten bort']").click()
+  await vent(page, () => bitTal() === n1)
+  sjekk("og slettinga tek han bort att", bitTal() === n1, bitScene().slice(0, 60))
+  await bitVerkty.click()
+  await page.waitForTimeout(300)
+  sjekk("eit trykk til lèt verktyet att", (await bitVerkty.getAttribute("aria-pressed")) === "false" && (await page.locator("[aria-label='dubler biten']").count()) === 0)
+
   sjekk("ingen konsollfeil på telefonen", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
 }

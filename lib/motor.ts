@@ -141,10 +141,11 @@ export const MOTOR: EngineDef = {
     const k = makeKropp(p)
     if (view === "flate") {
       const m = flateMesh(k)
-      return { ...m, kant: EMPTY(), del: EMPTY(), lines: EMPTY(), heavy: EMPTY() }
+      // berre her: kroppen er ein kropp, og handa skal kunne peike på bitane
+      return { ...m, kant: EMPTY(), del: EMPTY(), lines: EMPTY(), heavy: EMPTY(), bitar: k.bitar, skala: k.skala }
     }
     const s = buildSnitt(k, p, DETAIL[detail])
-    if (view === "lag") return { ...lagMesh(s, p.tjukn), lines: EMPTY(), heavy: EMPTY() }
+    if (view === "lag") return { ...lagMesh(s, p.tjukn), lines: EMPTY(), heavy: EMPTY(), bitar: [], skala: k.skala }
     // Konturteikninga fyller eit anna rom enn objektet; boksen vert lesen
     // av linene sjølve, so kameraet rammar inn det som vert teikna.
     const c = contourLines(s, p.tjukn)
@@ -160,7 +161,7 @@ export const MOTOR: EngineDef = {
       min[0] = min[1] = min[2] = 0
       max[0] = max[1] = max[2] = 1
     }
-    return { positions: EMPTY(), normals: EMPTY(), tris: 0, kant: EMPTY(), del: EMPTY(), min, max, lines: c.lines, heavy: c.heavy }
+    return { positions: EMPTY(), normals: EMPTY(), tris: 0, kant: EMPTY(), del: EMPTY(), min, max, lines: c.lines, heavy: c.heavy, bitar: [], skala: k.skala }
   },
 
   measure: (bag) => measure(asP(bag)),

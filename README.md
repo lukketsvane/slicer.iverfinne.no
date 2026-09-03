@@ -40,8 +40,14 @@ no radius.
    side; the pill then says `kube +2`. `tøm` goes back to the source alone,
    and undo takes a piece off again. A file starts over, and a new body clears
    the planes: they were an answer about the body you had.
-2. **Set the size.** Drag the number, or take it from the sheet.
-3. **Sketch a plane.** One finger turns the object. The sketch plane is a line
+2. **Compose it.** The cube button under your thumb opens the body tool: every
+   piece stands as a box you can press. Two fingers on the selected one move it
+   (horizontal slides it along the floor, vertical lifts it), twist it about the
+   upright, and pinch it larger — and two buttons appear to duplicate or remove
+   it. That is how a seat gets on top of legs. The sketch is hidden while the
+   tool is open: one tool at a time.
+3. **Set the size.** Drag the number, or take it from the sheet.
+4. **Sketch a plane.** One finger turns the object. The sketch plane is a line
    across the screen — a knife seen edge-on — with a grab handle in the middle
    and a rotation handle at the end: drag the one to move the cut across the
    object, the other to tilt it. **Two fingers on the object** work as they
@@ -52,18 +58,18 @@ no radius.
    light. The plane swings with the view and nothing is built from it — and a
    double-tap does nothing, because a reframe you did not ask for throws away
    the angle you were finding.
-4. **Press skjer** — the big button under your right thumb. The sketch shows
+5. **Press skjer** — the big button under your right thumb. The sketch shows
    the slice it would make while you aim: the section through the body, and
    marks where it would lock into planes you already cut, with the joint
    count on its label. Cut, and the section becomes a part: a name, a
    profile, slots against every plane it crosses, a place in the assembly and
    a row in the list. Turn the object and cut again. The cut planes stay where
    you put them while the view turns.
-5. **Or take a proposal.** **forslag** slices a dozen rib grids for real and
+6. **Or take a proposal.** **forslag** slices a dozen rib grids for real and
    ranks them; take one whole, or as a start. Hold it for the deep search.
-6. **Read the rules.** They say what can't be cut or assembled, and why, and
+7. **Read the rules.** They say what can't be cut or assembled, and why, and
    each broken rule carries the button that fixes it.
-7. **Export ARK** and open it in LightBurn.
+8. **Export ARK** and open it in LightBurn.
 
 Every change is undoable and redoable: the two arrows at the top, or `Z` and
 `⇧Z`.

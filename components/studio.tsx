@@ -8,14 +8,14 @@ import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, skrivPlan, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
-import { eiKjelde, lesScene, skrivScene, SCENE_TAK } from "@/lib/scene"
+import { eiKjelde, lesScene, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Kandidat } from "@/lib/forslag"
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { HAIR, IcoFerdig, IcoGods, IcoHol, IcoSkisse, IcoSkjer, IcoSlett, chipStyle } from "./deler"
+import { HAIR, IcoBit, IcoDupliser, IcoFerdig, IcoGods, IcoHol, IcoSkisse, IcoSkjer, IcoSlett, chipStyle } from "./deler"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
 
@@ -125,6 +125,8 @@ export function Studio() {
   const [vald, setVald] = useState<number | null>(null)
   /** det valde streket i det valde planet, som plass i lista hans */
   const [valdStrek, setValdStrek] = useState<number | null>(null)
+  /** biten som er vald i verktyet for kroppen, som plass i scenelista */
+  const [valdBit, setValdBit] = useState<number | null>(null)
   /** ein verdi vert dregen i arket: angre ventar til fingeren slepper */
   const [skrubbar, setSkrubbar] = useState(false)
   const [peikt, setPeikt] = useState<string | null>(null)
@@ -399,10 +401,12 @@ export function Studio() {
    */
   useEffect(() => {
     if (!mounted || !kropp) return
+    // verktyet for kroppen snittar ingenting: der byggjer du emnet, ikkje delane
+    if (modus === "bit") return spørSkisse(null)
     if (vald !== null) return spørSkisse(plan.find((q) => q.id === vald) ?? null)
     const s = skisse.current
     spørSkisse(s ? { id: 0, o: broek(s.o, kropp.min, kropp.max), n: s.n, strek: [] } : null)
-  }, [mounted, kropp, vald, plan, params, spørSkisse])
+  }, [mounted, kropp, vald, plan, params, modus, spørSkisse])
   const harSnitt = !!snitt?.ringar.length
 
   /**
@@ -562,6 +566,90 @@ export function Studio() {
       return { ...cur, scene: skrivScene(ny.map((b, i) => ({ ...b, t: [+(i * steg - midt).toFixed(2), b.t[1], b.t[2]] as Vec3 }))) }
     })
   }, [])
+  // --- VERKTYET FOR KROPPEN --------------------------------------------------
+  /**
+   * FRÅ DET PLASSERTE ROMMET ATTENDE TIL BITANE SITT EIGE.
+   *
+   * `place` vender kroppen (X, so Y, so Z) og skalerer han. Fingeren gjev
+   * millimeter i det ferdig plasserte rommet; ein bit står i det felles
+   * rommet FØR vendinga. Difor vendinga snudd, i motsett rekkjefylgje, og
+   * so delt på skalaen motoren rapporterte. Dette er ikkje geometri som
+   * vert målt — det er ein finger som vert lesen, som skisseplanet.
+   */
+  const motVend = (d: Vec3, p: ParamBag): Vec3 => {
+    const rad = (k: string) => ((typeof p[k] === "number" ? (p[k] as number) : 0) * Math.PI) / 180
+    let [x, y, z] = d
+    let c = Math.cos(-rad("rotZ"))
+    let sn = Math.sin(-rad("rotZ"))
+    let t = x * c - y * sn
+    y = x * sn + y * c
+    x = t
+    c = Math.cos(-rad("rotY"))
+    sn = Math.sin(-rad("rotY"))
+    t = x * c + z * sn
+    z = -x * sn + z * c
+    x = t
+    c = Math.cos(-rad("rotX"))
+    sn = Math.sin(-rad("rotX"))
+    t = y * c - z * sn
+    z = y * sn + z * c
+    y = t
+    return [x, y, z]
+  }
+  /** ein bit skriven om: gjennom parametrane, so angre og lenkja gjeld */
+  const skrivBit = useCallback((i: number, endra: Partial<Bit>) => {
+    setParams((cur) => {
+      const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
+      if (!l[i]) return cur
+      l[i] = { ...l[i], ...endra }
+      return { ...cur, scene: skrivScene(l) }
+    })
+  }, [])
+  const flyttBit = useCallback((dmm: Vec3) => {
+    const g = grunn.current?.bit
+    const i = bitRef.current
+    const k = kroppRef.current?.skala ?? 1
+    if (!g || i === null || !(k > 0)) return
+    const d = motVend(dmm, naa.current)
+    skrivBit(i, { t: [g.t[0] + d[0] / k, g.t[1] + d[1] / k, g.t[2] + d[2] / k] as Vec3 })
+  }, [skrivBit])
+  const skalerBit = useCallback((faktor: number) => {
+    const g = grunn.current?.bit
+    const i = bitRef.current
+    if (!g || i === null || !Number.isFinite(faktor) || faktor <= 0) return
+    skrivBit(i, { s: Math.min(5, Math.max(0.05, g.s * faktor)) })
+  }, [skrivBit])
+  const vriBit = useCallback((grader: number) => {
+    const g = grunn.current?.bit
+    const i = bitRef.current
+    if (!g || i === null || !Number.isFinite(grader)) return
+    skrivBit(i, { rz: (((g.rz + grader) % 360) + 360) % 360 })
+  }, [skrivBit])
+  /** ein bit til, lik den valde og skoven litt til sides, og han er den valde */
+  const dupliserBit = useCallback(() => {
+    const i = bitRef.current
+    if (i === null) return
+    setParams((cur) => {
+      const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
+      const b = l[i]
+      if (!b || l.length >= SCENE_TAK) return cur
+      const ny: Bit = { ...b, t: [b.t[0] + 30 * b.s, b.t[1], b.t[2]] as Vec3 }
+      return { ...cur, scene: skrivScene([...l.slice(0, i + 1), ny, ...l.slice(i + 1)]) }
+    })
+    setValdBit(i + 1)
+  }, [])
+  /** den valde biten bort. Er han den siste, er kroppen kjelda si eiga att. */
+  const slettBit = useCallback(() => {
+    const i = bitRef.current
+    if (i === null) return
+    setParams((cur) => {
+      const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
+      if (l.length <= 1 || !l[i]) return cur
+      return { ...cur, scene: skrivScene(l.filter((_, j) => j !== i)) }
+    })
+    setValdBit(null)
+  }, [])
+
   /**
    * ATTENDE TIL KJELDA ÅLEINE. Bitane bort, og plana står. Eit plan er ein
    * brøk av boksen kring kroppen, so det fylgjer kroppen når han vert mindre
@@ -579,10 +667,14 @@ export function Studio() {
    * han sluttar. (Klypet er kameraet sitt no, og scena held den avstanden
    * sjølv — han er ikkje ein parameter.)
    */
-  const grunn = useRef<{ rotZ: number } | null>(null)
+  const grunn = useRef<{ rotZ: number; bit: Bit | null } | null>(null)
+  const bitRef = useRef<number | null>(null)
+  bitRef.current = valdBit
   const taGest = useCallback((kva: GestKva) => {
     const p = naa.current
-    grunn.current = kva === null ? null : { rotZ: typeof p.rotZ === "number" ? p.rotZ : 0 }
+    const i = bitRef.current
+    const l = i === null ? [] : lesScene(String(p.scene || "") || eiKjelde(String(p.kjelde ?? KUBE)))
+    grunn.current = kva === null ? null : { rotZ: typeof p.rotZ === "number" ? p.rotZ : 0, bit: i === null ? null : (l[i] ?? null) }
     setGest(kva)
   }, [])
   /** vendinga: objektet snur seg på bordet, og plana fylgjer ikkje med. Ho går rundt: 181° er −179°. */
@@ -597,7 +689,13 @@ export function Studio() {
   }, [])
   /** brytaren mellom form og skisse, med lina som seier kva som gjeld no */
   const vekslModus = useCallback(() => {
-    setModus((m) => (m === "form" ? "skisse" : "form"))
+    setModus((m) => (m === "skisse" ? "form" : "skisse"))
+    setValdBit(null)
+  }, [])
+  /** verktyet for kroppen: bitane står som boksar, og gestane gjeld den valde */
+  const vekslBit = useCallback(() => {
+    setModus((m) => (m === "bit" ? "form" : "bit"))
+    setValdBit(null)
   }, [])
 
   // --- PLANA -----------------------------------------------------------------
@@ -982,6 +1080,11 @@ export function Studio() {
             onVend={vendObjektet}
             onGest={taGest}
             onSkisse={skisseEndra}
+            valdBit={valdBit}
+            onValdBit={setValdBit}
+            onBitFlytt={flyttBit}
+            onBitSkala={skalerBit}
+            onBitVri={vriBit}
           />
         )}
       </div>
@@ -1027,8 +1130,33 @@ export function Studio() {
               </button>
             </>
           )}
+          {/* VERKTYET FOR KROPPEN: bitane står som boksar, trykk vel ein, og
+              to fingrar flyttar, vrir og gjer han større. Med ein bit valt
+              står han til å dublere eller ta bort. */}
+          {modus === "bit" && valdBit !== null && (
+            <>
+              <button type="button" aria-label="dubler biten" title="ein bit til, lik denne" onClick={dupliserBit} className={TUMME_BTN} style={{ ...HAIR, background: "var(--paper)", color: "var(--ink)" }}>
+                {IcoDupliser}
+              </button>
+              <button type="button" aria-label="ta biten bort" title="ta den valde biten ut av kroppen" onClick={slettBit} className={TUMME_BTN} style={{ ...HAIR, background: "var(--paper)", color: "var(--warn)" }}>
+                {IcoSlett}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            aria-pressed={modus === "bit"}
+            aria-label="kroppen"
+            title={modus === "bit" ? "verktyet for kroppen: trykk ein bit, to fingrar flyttar, vrir og skalerer han. trykk for å gå ut" : "verktyet for kroppen: flytt, vri og skaler bitane han er sett saman av"}
+            onClick={vekslBit}
+            className={TUMME_BTN}
+            style={{ ...chipStyle(modus === "bit"), background: modus === "bit" ? "var(--ink)" : "var(--paper)" }}
+            data-bitverkty=""
+          >
+            {IcoBit}
+          </button>
           {/* SKISSEMODUSEN: to fingrar arbeider på planet — dra flyttar, vri
-              vinklar, klyp zoomar. Av er «form»: klyp storleiken, vri vendinga. */}
+              vinklar, klyp zoomar. Av er «form»: klyp zoomar, vri vendinga. */}
           <button
             type="button"
             aria-pressed={modus === "skisse"}
