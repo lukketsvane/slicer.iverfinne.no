@@ -40,7 +40,7 @@ export type BuildRes = {
   lines: Float32Array<ArrayBufferLike>
   heavy: Float32Array<ArrayBufferLike>
   /** bitane kroppen er sett saman av — berre «flate» — og skalaen mellom dei to romma */
-  bitar: { id: string; min: Vec3; max: Vec3 }[]
+  bitar: { bit: number; id: string; min: Vec3; max: Vec3 }[]
   skala: number
   /** platene i teikninga — berre «kontur». Vanlege objekt, so lista over
    *  bufferar som vert flytte står urørt. */

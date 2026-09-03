@@ -554,6 +554,13 @@ const SØPPEL: unknown[] = [
   { scene: "kube@1e9,0,0/1/0" },
   { scene: "x".repeat(4000) },
   { scene: "kule@0,0,0/NaN/0;../../etc@0,0,0/1/0" },
+  // SPEGLINGANE er tre brytarar i eitt siffer, og noko anna enn eitt
+  // siffer frå null til sju er ikkje ein bit — heile leddet fell, og
+  // kroppen fell attende på kjelda si. Sju er lovleg og er åtte kopiar.
+  { scene: "kube@0,0,0/1/0/8" },
+  { scene: "kube@0,0,0/1/0/-1" },
+  { scene: "kube@0,0,0/1/0/x" },
+  { scene: "kube@0,0,0/1/0/7" },
   { plan: "1@0.5,0.5,0.5/1,0,0;1@0.5,0.5,0.5/0,1,0" },
   { plan: "x".repeat(5000) },
   { plan: "1@NaN,0,0/1,0,0;2@0.5,0.5,0.5/Infinity,0,0" },

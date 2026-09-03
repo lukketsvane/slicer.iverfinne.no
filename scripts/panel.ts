@@ -749,6 +749,36 @@ async function telefon(browser: Browser) {
   await vent(page, (p) => (p.scene ?? "") !== førKlyp)
   const stor = /kule@[^/]+\/([\d.]+)\//.exec(bitScene())
   sjekk("og eit klyp gjer HAN større, ikkje kroppen", !!stor && Number(stor[1]) > 1.05 && hash(page).storleik === 150, `${stor?.[1]} · kroppen ${hash(page).storleik} mm`)
+  /**
+   * SYMMETRIEN: tre brytarar, og dei tel saman. Prøva slår på x og ser at
+   * sifferet kjem sist i scenestrengen og at kroppen vert bygd om att, so
+   * y attpå — og so x av att, som skal la y stå. Uavhengige er heile
+   * saka: ein brytar som drog dei to andre med seg er ein annan reiskap.
+   */
+  const speil = (ord: string) => page.locator(`[data-speil='${ord}']`)
+  sjekk("den valde biten har tre brytarar for symmetri",
+    (await speil("x").count()) === 1 && (await speil("y").count()) === 1 && (await speil("z").count()) === 1)
+  sjekk("og dei står av", (await speil("x").getAttribute("aria-pressed")) === "false")
+  const sp = () => /\/(\d)$/.exec((bitScene().split(";").pop() ?? ""))?.[1] ?? "0"
+  await speil("x").click()
+  await vent(page, () => sp() === "1")
+  // og kroppen vert bygd om att på det: sifferet er geometri og ikkje pynt.
+  // Kva geometrien VART, er `pnpm probe` sin jobb — der står speglinga mot
+  // dei same bitane sette for hand, og tala er dei same til siste mm.
+  await ferdig(page)
+  sjekk("x speglar biten: sifferet står i scena", sp() === "1", bitScene().slice(-30))
+  sjekk("og brytaren lyser", (await speil("x").getAttribute("aria-pressed")) === "true")
+  await speil("y").click()
+  await vent(page, () => sp() === "3")
+  sjekk("y legg seg til x og gjev fire", sp() === "3", bitScene().slice(-30))
+  await speil("x").click()
+  await vent(page, () => sp() === "2")
+  sjekk("og eit trykk til slår x av att, utan å røre y", sp() === "2", bitScene().slice(-30))
+  await speil("y").click()
+  await vent(page, () => !/\/\d$/.test(bitScene().split(";").pop() ?? ""))
+  sjekk("og med begge av står scena som ho stod", !/\/[1-7]$/.test(bitScene().split(";").pop() ?? ""), bitScene().slice(-30))
+  await ferdig(page)
+
   const n1 = bitTal()
   await page.locator("[aria-label='dubler biten']").click()
   await vent(page, () => bitTal() === n1 + 1)
