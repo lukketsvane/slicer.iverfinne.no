@@ -6,16 +6,15 @@ import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, skrivPlan, type Plan, type Strek } from "@/lib/plan"
+import { PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, rutenett, skrivPlan, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
 import { eiKjelde, lesScene, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
-import type { Kandidat } from "@/lib/forslag"
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { HAIR, IcoBit, IcoDupliser, IcoFerdig, IcoGods, IcoHol, IcoSkisse, IcoSkjer, IcoSlett, chipStyle } from "./deler"
+import { HAIR, IcoBit, IcoDupliser, IcoFerdig, IcoGods, IcoHol, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
 
@@ -31,10 +30,22 @@ const ANGRE_DJUPN = 50
 /** kor høgt det lukka arket er med botnmargen; skuffa står over det på telefonen */
 const LUKKA_ARK = 84
 /** knappane over skjer i tommelspalta: 48 pikslar, runde, flate */
-const TUMME_BTN = "hit relative flex h-12 w-12 items-center justify-center rounded-full border"
-/** det «forslag» IKKJE rører: endrar noko av dette seg, er lista eit svar på eit anna spørsmål */
-const tuneBase = (p: ParamBag) =>
-  [p.kjelde, p.scene, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant, p.tjukn, p.klaring, p.snitt, p.arkB, p.arkH, p.lause].join("|")
+/** knappane over skjer: ikon, og ikkje anna. Tilstanden er blekk mot dempa. */
+const TUMME_BTN = "hit ikon relative flex h-12 w-12 items-center justify-center"
+/** eit steg i rutenettet: so langt fingrane må gå for éin kolonne eller éi rad */
+const RUTE_STEG = 44
+/** rutenettet lista alt er, talt: plan langs x er kolonner, plan langs y er
+ *  rader. Eit skrått plan er ikkje eit rutenett og tel ikkje — verktyet
+ *  skriv lista om, og angre er vegen attende. */
+function ruteTalde(l: readonly Plan[]): [number, number] {
+  let nx = 0
+  let ny = 0
+  for (const q of l) {
+    if (Math.abs(q.n[0]) > 0.999) nx++
+    else if (Math.abs(q.n[1]) > 0.999) ny++
+  }
+  return [nx, ny]
+}
 /** det som er KROPPEN: berre desse ber om eit nytt «flate»-bygg */
 const kroppKey = (p: ParamBag) => [p.kjelde, p.scene, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant].join("|")
 /** filnamn utan mellomrom og aksentar; desimalkomma er bråk */
@@ -132,10 +143,8 @@ export function Studio() {
   const [peikt, setPeikt] = useState<string | null>(null)
   const [steg, setSteg] = useState<Steg>("line")
   const [verkty, setVerkty] = useState<VerktyId | null>(null)
-  const [forslag, setForslag] = useState<Kandidat[]>([])
-  const [visForslag, setVisForslag] = useState(false)
-  const [synt, setSynt] = useState<number | null>(null)
-  const [tunar, setTunar] = useState<{ gjort: number; av: number } | null>(null)
+  /** kolonner og rader, medan fingrane set dei: lesinga over kroppen */
+  const [ruteTal, setRuteTal] = useState<[number, number] | null>(null)
   const [busy, setBusy] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
   const [melding, setMelding] = useState<string | null>(null)
@@ -161,8 +170,6 @@ export function Studio() {
   const sisteBygg = useRef(0)
   const naa = useRef(params)
   naa.current = params
-  const tunarRef = useRef(false)
-  const finn = useRef<{ base: string; djup: boolean } | null>(null)
   /** importar som høyrer til oppsettet som alt står (den hugsa økta) */
   const attende = useRef(new Set<number>())
   const arkVent = useRef(new Map<number, (r: ArkRes) => void>())
@@ -363,26 +370,9 @@ export function Studio() {
           pumpSkisse()
           return
         }
-        if (r.kva === "tune") {
-          tunarRef.current = false
-          setTunar(null)
-        }
-        setFeil(r.kva === "import" ? (r.kvifor ?? "ulesbar fil") : r.kva === "tune" ? "søk feila" : "uttak feila")
+        setFeil(r.kva === "import" ? (r.kvifor ?? "ulesbar fil") : "uttak feila")
         setHentar(false)
         setBusy(false)
-        return
-      }
-      if (r.kind === "tunep") {
-        setTunar({ gjort: r.gjort, av: r.av })
-        return
-      }
-      if (r.kind === "tune") {
-        tunarRef.current = false
-        setTunar(null)
-        setBusy(false)
-        setForslag(r.alle)
-        setSynt(r.alle.length ? 0 : null)
-        if (!r.alle.length) setMelding("ingen sett")
         return
       }
       void lastNed(r.text ? new Blob([r.text], { type: r.mime }) : new Blob([r.data as ArrayBuffer], { type: r.mime }), r.name)
@@ -662,35 +652,33 @@ export function Studio() {
 
   // --- GESTANE --------------------------------------------------------------
   /**
-   * VRIDINGA MÅLER FRÅ DER GESTEN BYRJA, same kor mange hendingar som kom
-   * fram undervegs. Grunnstoda vert sett når gesten melder seg og rydda når
-   * han sluttar. (Klypet er kameraet sitt no, og scena held den avstanden
-   * sjølv — han er ikkje ein parameter.)
+   * GRUNNSTODA er biten gesten tok i, slik han stod då fingrane landa: alt
+   * det to fingrar gjer med han vert målt frå det punktet. Klypet er
+   * kameraet sitt og vridinga er snittet sitt — begge held sitt eige, og
+   * ingen av dei er parametrar.
    */
-  const grunn = useRef<{ rotZ: number; bit: Bit | null } | null>(null)
+  const grunn = useRef<{ bit: Bit | null } | null>(null)
   const bitRef = useRef<number | null>(null)
   bitRef.current = valdBit
   const taGest = useCallback((kva: GestKva) => {
     const p = naa.current
     const i = bitRef.current
     const l = i === null ? [] : lesScene(String(p.scene || "") || eiKjelde(String(p.kjelde ?? KUBE)))
-    grunn.current = kva === null ? null : { rotZ: typeof p.rotZ === "number" ? p.rotZ : 0, bit: i === null ? null : (l[i] ?? null) }
+    grunn.current = kva === null ? null : { bit: i === null ? null : (l[i] ?? null) }
+    if (kva === "rute") rutGrunn.current = ruteTalde(lesPlan(p.plan))
+    else if (kva === null) setRuteTal(null)
     setGest(kva)
-  }, [])
-  /** vendinga: objektet snur seg på bordet, og plana fylgjer ikkje med. Ho går rundt: 181° er −179°. */
-  const vendObjektet = useCallback((grader: number) => {
-    if (!Number.isFinite(grader)) return
-    const g = grunn.current
-    if (!g) return
-    setParams((cur) => {
-      const v = ((((Math.round(g.rotZ + grader) + 180) % 360) + 360) % 360) - 180
-      return cur.rotZ === v ? cur : { ...cur, rotZ: v }
-    })
   }, [])
   /** brytaren mellom form og skisse, med lina som seier kva som gjeld no */
   const vekslModus = useCallback(() => {
     setModus((m) => (m === "skisse" ? "form" : "skisse"))
     setValdBit(null)
+  }, [])
+  /** rutenettet: to fingrar set kolonner og rader. Eit valt plan er ikkje eit rutenett, so valet går. */
+  const vekslRute = useCallback(() => {
+    setModus((m) => (m === "rute" ? "form" : "rute"))
+    setValdBit(null)
+    setVald(null)
   }, [])
   /** verktyet for kroppen: bitane står som boksar, og gestane gjeld den valde */
   const vekslBit = useCallback(() => {
@@ -832,48 +820,32 @@ export function Studio() {
     if (k?.ark && verkty === "ark" && ark && ark.i !== k.ark - 1) askArk(k.ark - 1)
   }, [liste, verkty, ark, askArk])
 
-  // --- FORSLAG -----------------------------------------------------------------
-  /** eit søk: eit titals sett snitta for alvor og rangerte. Djupt på det lange trykket. */
-  const finnForslag = useCallback((djup = false) => {
-    if (tunarRef.current) return
-    setVisForslag(true)
-    setSteg((s) => (s === "line" ? "midt" : s))
-    const base = tuneBase(naa.current)
-    const cur = finn.current
-    if (cur && cur.base === base && (cur.djup || !djup)) return
-    finn.current = { base, djup }
-    setForslag([])
-    setSynt(null)
-    setBusy(true)
-    tunarRef.current = true
-    setTunar({ gjort: 0, av: 0 })
-    send({ kind: "tune", id: ++reqId.current, params: naa.current, djup })
-  }, [send])
-  const avbryt = useCallback(() => {
-    if (tunarRef.current) send({ kind: "avbryt", id: ++reqId.current })
-  }, [send])
-  const taForslag = useCallback((i: number, legg: boolean) => {
-    const k = forslag[i]
-    if (!k) return
+  // --- RUTENETTET ----------------------------------------------------------------
+  /**
+   * TO TAL, OG ALT FYLGJER. Rutenettet var reiskapen denne saka byrja med,
+   * og det som mangla var ikkje eit søk som gjetta på dei to tala for deg —
+   * det var ein måte å setje dei på med fingrane. Vassrett er kolonner,
+   * loddrett er rader, og fyrtifire pikslar er eitt plan. Grunnstoda er det
+   * som ALT står: plan langs x og plan langs y, talde, so verktyet held fram
+   * der nettet ditt slutta.
+   *
+   * Han SKRIV LISTA OM, som «ta alle» gjorde: eit rutenett er ei liste, ikkje
+   * eit tillegg. Festa fylgjer med, av di dei peikar på namn som er borte.
+   * Éin skrift per steg — tala er heiltal — og eitt steg i angre for heile
+   * gesten, av di gesten melder seg til `taGest` medan han varer.
+   */
+  const rutGrunn = useRef<[number, number]>([0, 0])
+  const dragRute = useCallback((dx: number, dy: number) => {
+    const [nx0, ny0] = rutGrunn.current
+    const tak = Math.floor(PLAN_TAK / 2)
+    const nx = Math.max(0, Math.min(tak, nx0 + Math.round(dx / RUTE_STEG)))
+    const ny = Math.max(0, Math.min(tak, ny0 + Math.round(-dy / RUTE_STEG)))
+    setRuteTal([nx, ny])
     setParams((cur) => {
-      const ny = lesPlan(k.plan)
-      if (!legg) return { ...cur, plan: skrivPlan(ny), fest: "" }
-      const l = lesPlan(cur.plan)
-      let id = nyId(l)
-      return { ...cur, plan: skrivPlan([...l, ...ny.map((p) => ({ ...p, id: id++ }))].slice(0, PLAN_TAK)) }
+      const plan = skrivPlan(rutenett(nx, ny))
+      return cur.plan === plan ? cur : { ...cur, plan, fest: "" }
     })
-    setVisForslag(false)
-    setSynt(null)
-  }, [forslag])
-  const spok = useMemo(() => (visForslag && synt !== null && forslag[synt] ? lesPlan(forslag[synt].plan) : null), [visForslag, synt, forslag])
-  // ei liste for eit anna spørsmål er ikkje eit svar
-  useEffect(() => {
-    if (finn.current && finn.current.base !== tuneBase(params)) {
-      finn.current = null
-      setForslag([])
-      setSynt(null)
-    }
-  }, [params])
+  }, [])
 
   // --- FILER ---------------------------------------------------------------------
   const hentArk = useCallback((i: number) => {
@@ -1018,14 +990,12 @@ export function Studio() {
         else if (vald !== null) slett(vald)
       } else if (k === "z") (e.shiftKey ? gjerOm : angre)()
       else if (k === "s") vekslModus()
-      else if (k === "f") finnForslag(false)
-      else if (k === "d") finnForslag(true)
+      else if (k === "r") vekslRute()
       else if (k === "1") setView("flate")
       else if (k === "2") setView("lag")
       else if (k === "3") setView("kontur")
       else if (k === "escape") {
         if (verkty) setVerkty(null)
-        else if (visForslag) setVisForslag(false)
         else if (valdStrek !== null) setValdStrek(null)
         else if (vald !== null) velPlan(null)
         else setSteg("line")
@@ -1034,7 +1004,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, finnForslag, verkty, visForslag, velPlan, vekslModus])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, vekslRute, verkty, velPlan, vekslModus])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -1045,9 +1015,8 @@ export function Studio() {
   const skuffRute: CSSProperties = benk
     ? { left: 0, right: KOL, bottom: 0, height: skuffH }
     : { left: 8, right: 8, top: toppH + 8, bottom: `calc(${LUKKA_ARK}px + env(safe-area-inset-bottom))` }
-  /** kva gesten held på med, i tal: ein gest utan tal er ein gest du ikkje kan sikte med */
-  const les = (k: string) => String(typeof params[k] === "number" ? Math.round(params[k] as number) : 0)
-  const gestTekst = gest === "vend" ? `${les("rotZ")}°` : gest
+  /** kva fingrane held på med, med eitt ord — rutenettet med dei to tala sine */
+  const gestTekst = gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett") : gest
   /** ord, ikkje setningar: gestane i den rekkjefylgja du tek dei */
 
   return (
@@ -1066,7 +1035,6 @@ export function Studio() {
             liste={liste}
             plan={plan}
             vald={vald}
-            spok={spok}
             snitt={snitt}
             blink={blink}
             skisse={skisse}
@@ -1077,7 +1045,6 @@ export function Studio() {
             onPlan={flyttPlan}
             onStrek={endraStrek}
             onSynStrek={synStrek}
-            onVend={vendObjektet}
             onGest={taGest}
             onSkisse={skisseEndra}
             valdBit={valdBit}
@@ -1085,6 +1052,7 @@ export function Studio() {
             onBitFlytt={flyttBit}
             onBitSkala={skalerBit}
             onBitVri={vriBit}
+            onRute={dragRute}
           />
         )}
       </div>
@@ -1112,10 +1080,10 @@ export function Studio() {
         <div className="tumme" style={{ right: (benk ? KOL : 0) + 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}>
           {vald !== null && (
             <>
-              <button type="button" aria-label="legg til gods" title="legg til gods: ein firkant midt i snittet. flytt, vri og dra han større" onClick={() => leggStrek("gods")} className={TUMME_BTN} style={{ ...HAIR, background: "var(--paper)", color: "var(--ink)" }}>
+              <button type="button" aria-label="legg til gods" title="legg til gods: ein firkant midt i snittet. flytt, vri og dra han større" onClick={() => leggStrek("gods")} className={TUMME_BTN}>
                 {IcoGods}
               </button>
-              <button type="button" aria-label="skjer hòl" title="skjer eit hòl: ein ring midt i snittet. flytt, vri og dra han større" onClick={() => leggStrek("hol")} className={TUMME_BTN} style={{ ...HAIR, background: "var(--paper)", color: "var(--ink)" }}>
+              <button type="button" aria-label="skjer hòl" title="skjer eit hòl: ein ring midt i snittet. flytt, vri og dra han større" onClick={() => leggStrek("hol")} className={TUMME_BTN}>
                 {IcoHol}
               </button>
               <button
@@ -1124,7 +1092,7 @@ export function Studio() {
                 title={valdStrek !== null ? "ta streken bort (⌫)" : "ta det valde planet bort (⌫)"}
                 onClick={valdStrek !== null ? slettStrek : () => slett(vald)}
                 className={TUMME_BTN}
-                style={{ ...HAIR, background: "var(--paper)", color: "var(--warn)" }}
+                style={{ color: "var(--warn)" }}
               >
                 {IcoSlett}
               </button>
@@ -1135,10 +1103,10 @@ export function Studio() {
               står han til å dublere eller ta bort. */}
           {modus === "bit" && valdBit !== null && (
             <>
-              <button type="button" aria-label="dubler biten" title="ein bit til, lik denne" onClick={dupliserBit} className={TUMME_BTN} style={{ ...HAIR, background: "var(--paper)", color: "var(--ink)" }}>
+              <button type="button" aria-label="dubler biten" title="ein bit til, lik denne" onClick={dupliserBit} className={TUMME_BTN}>
                 {IcoDupliser}
               </button>
-              <button type="button" aria-label="ta biten bort" title="ta den valde biten ut av kroppen" onClick={slettBit} className={TUMME_BTN} style={{ ...HAIR, background: "var(--paper)", color: "var(--warn)" }}>
+              <button type="button" aria-label="ta biten bort" title="ta den valde biten ut av kroppen" onClick={slettBit} className={TUMME_BTN} style={{ color: "var(--warn)" }}>
                 {IcoSlett}
               </button>
             </>
@@ -1150,7 +1118,6 @@ export function Studio() {
             title={modus === "bit" ? "verktyet for kroppen: trykk ein bit, to fingrar flyttar, vrir og skalerer han. trykk for å gå ut" : "verktyet for kroppen: flytt, vri og skaler bitane han er sett saman av"}
             onClick={vekslBit}
             className={TUMME_BTN}
-            style={{ ...chipStyle(modus === "bit"), background: modus === "bit" ? "var(--ink)" : "var(--paper)" }}
             data-bitverkty=""
           >
             {IcoBit}
@@ -1164,7 +1131,6 @@ export function Studio() {
             title={modus === "skisse" ? "skissemodus (S): to fingrar dreg, vrir og zoomar snittet. trykk for form" : "form (S): to fingrar klyp storleiken, vrir vendinga, dreg snittet. trykk for skisse"}
             onClick={vekslModus}
             className={TUMME_BTN}
-            style={{ ...chipStyle(modus === "skisse"), background: modus === "skisse" ? "var(--ink)" : "var(--paper)" }}
           >
             {IcoSkisse}
           </button>
@@ -1174,11 +1140,10 @@ export function Studio() {
             disabled={view === "kontur" || (vald === null && !harSnitt)}
             aria-label={vald === null ? "skjer" : "ferdig"}
             title={vald === null ? "skjer: skissa vert ein del (L)" : "ferdig med planet (esc)"}
-            className="skjer"
-            style={{ background: "var(--ink)", color: "var(--paper)" }}
+            className="skjer ikon"
           >
             {vald === null ? IcoSkjer : IcoFerdig}
-            <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--paper)", opacity: busy && !tunar ? 1 : 0, transition: "opacity 200ms ease" }} />
+            <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--ink)", opacity: busy ? 1 : 0, transition: "opacity 200ms ease" }} />
           </button>
         </div>
       )}
@@ -1225,17 +1190,8 @@ export function Studio() {
         feil={feil}
         melding={melding}
         hentar={hentar}
-        tunar={tunar}
-        forslag={forslag}
-        visForslag={visForslag}
-        onVisForslag={setVisForslag}
-        synt={synt}
-        onSyn={setSynt}
-        onTaAlle={(i) => taForslag(i, false)}
-        onLeggTil={(i) => taForslag(i, true)}
-        onFinn={() => finnForslag(false)}
-        onFinnDjup={() => finnForslag(true)}
-        onAvbryt={avbryt}
+        rute={modus === "rute"}
+        onRute={vekslRute}
         syn={syn}
         onExport={doExport}
         onReset={() => endre({ ...MOTOR.defaults, kjelde: params.kjelde })}

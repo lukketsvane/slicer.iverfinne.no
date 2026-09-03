@@ -261,25 +261,50 @@ html {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 2px;
 }
-.synskube [data-heim] {
+/* lupa er eit drag og ikkje eit trykk: fingeren skal ikkje rulle noko */
+.synskube [data-lupe] {
+  touch-action: none;
+  cursor: ns-resize;
+}
+.synskube button {
   display: grid;
   place-items: center;
   width: 36px;
   height: 36px;
-  border: 1px solid var(--rule);
-  border-radius: 9999px;
-  background: var(--paper);
+  border: 0;
+  background: transparent;
   color: var(--ink);
 }
-.synskube [data-heim]:active {
-  background: var(--ink);
-  color: var(--paper);
+.synskube button:active {
+  opacity: 0.45;
+}
+
+/* IKONKNAPPANE. Ingen ring, ingen fylt sirkel, ingen farge: ikonet er
+   knappen. Ein brytar som er PÅ står i fullt blekk, ein som er av står
+   dempa, og eit trykk dempar eit augeblikk. Det er den same skalaen som
+   `.dim` bruker på tal, og det er den einaste tilstanden desse knappane
+   har. Treffeflata er `hit` sin, og ho er urørt. */
+.ikon {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+}
+.ikon:disabled {
+  opacity: 0.28;
+}
+.ikon:not(:disabled):active {
+  opacity: 0.45;
+}
+.ikon[aria-pressed="false"] {
+  opacity: 0.45;
 }
 
 /* TOMMELSPALTA. Handlinga står der høgre tommelen alt er: nedst til høgre,
-   over arket. Skjer er 64 pikslar og svart; streka, slett og brytaren står
-   over han. Flat, som alt anna: ingen skugge, ingen overgang. */
+   over arket. Skjer er 64 pikslar; streka, slett og brytaren står over han.
+   Flat, som alt anna: ingen skugge, ingen overgang, inga flate. */
 .tumme {
   position: absolute;
   z-index: 15;
@@ -294,8 +319,9 @@ html {
   place-items: center;
   width: 64px;
   height: 64px;
-  border-radius: 9999px;
   border: 0;
+  background: transparent;
+  color: var(--ink);
 }
 .tumme .skjer:disabled {
   opacity: 0.3;

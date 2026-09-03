@@ -24,7 +24,6 @@ import { meshToGlb } from "./export-glb"
 import { meshToUsdz } from "./export-usdz"
 import { partsToDxf } from "./export-dxf"
 import { couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
-import { bruk, djupOppgaver, prov, rangert, tune, tuneSteg, type Kandidat, type Oppgave } from "./forslag"
 import { zip } from "./zip"
 import { DEFAULT_PARAMS, GROUPS, PARAM_KEYS, PARAM_RANGES, clampParams, type Params } from "./params"
 
@@ -45,16 +44,6 @@ export type EngineDef = {
   liste(p: ParamBag): Kutt[]
   /** éi plate slik ho ligg, som SVG — den same teikninga uttaket gjev */
   arkSyn(p: ParamBag, i: number): ArkSyn
-  /** framlegg: sett av plan for det nettet som står, sorterte. `djup` er
-   *  det lange trykket: heile tavla rekna på ei måling av kroppen, og dei
-   *  beste snitta for alvor. */
-  tune(p: ParamBag, djup?: boolean): Kandidat[]
-  tuneSteg(p: ParamBag, djup?: boolean): Generator<{ gjort: number; av: number; alle: Kandidat[] }, Kandidat[], void>
-  djupOppgaver(p: ParamBag): Oppgave[]
-  prov(p: ParamBag, o: Oppgave, djup: boolean): Kandidat | null
-  rangert(alle: readonly Kandidat[], djup: boolean): Kandidat[]
-  /** det n-te framlegget frå ei liste som alt er rekna, som parametrar */
-  pick(p: ParamBag, alle: Kandidat[], nth: number): ParamBag
   /** profilane som bilete til panelet */
   preview(p: ParamBag): string
   /** skissa snitta før ho er låst: profilen og kryssa mot dei låste plana */
@@ -165,12 +154,6 @@ export const MOTOR: EngineDef = {
   },
 
   measure: (bag) => measure(asP(bag)),
-  tune: (bag, djup) => tune(asP(bag), djup),
-  tuneSteg: (bag, djup) => tuneSteg(asP(bag), djup),
-  djupOppgaver: (bag) => djupOppgaver(asP(bag)),
-  prov: (bag, o, djup) => prov(asP(bag), o, djup),
-  rangert,
-  pick: (bag, alle, nth) => bruk(asP(bag), alle, nth) as unknown as ParamBag,
   rules: (bag, m) => checkRules(asP(bag), m),
 
   exportFile(bag: ParamBag, what: ExportKind): ExportOut {

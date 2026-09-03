@@ -11,7 +11,6 @@ import { MOTOR } from "./motor"
 import { parseMesh } from "./io"
 import { forget, put, type SourceInfo } from "./sources"
 import { unzip } from "./zip"
-import type { Kandidat } from "./forslag"
 import type { Plan } from "./plan"
 import { lesScene } from "./scene"
 import type { SkisseSyn } from "./snitt"
@@ -20,17 +19,12 @@ import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rule, Vec3
 export type BuildReq = { kind: "build"; id: number; params: ParamBag; detail: DetailKey; view: View }
 export type ExportReq = { kind: "export"; id: number; params: ParamBag; what: ExportKind }
 export type ImportReq = { kind: "import"; id: number; name: string; buf: ArrayBuffer }
-/** «finn gode plan»: snittar eit titals sett og rangerer dei. `djup` er det
- *  lange trykket — kroppen målt, og dei beste snitta for alvor. */
-export type TuneReq = { kind: "tune"; id: number; params: ParamBag; djup?: boolean }
-/** «stogg søket, og gjev meg det beste du har funne» */
-export type AvbrytReq = { kind: "avbryt"; id: number }
 /** «syn meg plate nummer i» — teikninga kjem attende, ikkje ei fil */
 export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number }
 /** «snitt skissa for meg»: profilen gjennom kroppen og kryssa mot dei låste
  *  plana, medan du siktar. Ein straum av punkt; berre det siste tel. */
 export type SkisseReq = { kind: "skisse"; id: number; params: ParamBag; plan: Plan }
-export type Req = BuildReq | ExportReq | ImportReq | TuneReq | AvbrytReq | ArkReq | SkisseReq
+export type Req = BuildReq | ExportReq | ImportReq | ArkReq | SkisseReq
 
 export type BuildRes = {
   kind: "build"
@@ -60,9 +54,6 @@ export type KjeldeRes = { kind: "kjelde"; id: number; src: SourceInfo }
 export type ProsjektRes = { kind: "prosjekt"; id: number; src: SourceInfo | null; params: ParamBag }
 export type ArkRes = { kind: "ark"; id: number } & ArkSyn
 export type SkisseRes = { kind: "skisse"; id: number } & SkisseSyn
-export type TuneRes = { kind: "tune"; id: number; alle: Kandidat[] }
-/** kor langt søket er kome — MEDAN arbeidaren reknar, so ringen kan fyllast */
-export type TuneProgRes = { kind: "tunep"; id: number; gjort: number; av: number }
 /** Noko som kasta. Svaret finst av éin grunn: porten på hovudtråden slepp
  *  ikkje neste førespurnad før den førre er svara, og eit unntak utan svar
  *  ville låse appen for alltid. */
@@ -76,8 +67,6 @@ export type Res =
   | SkisseRes
   | ProsjektRes
   | KjeldeRes
-  | TuneRes
-  | TuneProgRes
   | FeilRes
 
 const post = (r: Res, transfer: Transferable[] = []) =>
@@ -126,8 +115,6 @@ function kjeldeId(b: Uint8Array): string {
  * same ville alltid vinne det kappløpet.
  */
 let newest = 0
-let tuneKøyr = 0
-let tuneGaar: { id: number; alle: Kandidat[] } | null = null
 
 self.onmessage = (e: MessageEvent<Req>) => {
   const req = e.data
@@ -171,46 +158,6 @@ self.onmessage = (e: MessageEvent<Req>) => {
       const src = put(kjeldeId(bytes), req.name, soup, bytes)
       /* scena avgjer kva som skal hugsast — sjå bygg */
       post({ kind: "kjelde", id: req.id, src })
-      return
-    }
-
-    if (req.kind === "avbryt") {
-      // Eit søk som vert stogga har svart: det beste so langt går attende
-      // som om søket var ferdig, med same melding og same id.
-      const g = tuneGaar
-      tuneGaar = null
-      tuneKøyr++
-      if (g) post({ kind: "tune", id: g.id, alle: g.alle })
-      return
-    }
-
-    if (req.kind === "tune") {
-      // EIT STEG OM GONGEN, med ein tur innom køen imellom: framdrift som
-      // vert send inni ei lang rekning kjem ikkje fram, og eit bygg som
-      // kjem medan søket går slepp til imellom.
-      const mitt = ++tuneKøyr
-      tuneGaar = { id: req.id, alle: [] }
-      const it = MOTOR.tuneSteg(req.params, req.djup)
-      const steg = () => {
-        if (mitt !== tuneKøyr) return
-        try {
-          const n = it.next()
-          if (n.done) {
-            tuneGaar = null
-            post({ kind: "tune", id: req.id, alle: n.value })
-            return
-          }
-          if (tuneGaar) tuneGaar.alle = n.value.alle
-          post({ kind: "tunep", id: req.id, gjort: n.value.gjort, av: n.value.av })
-          setTimeout(steg, 0)
-        } catch (err) {
-          // Ei tom liste er eit svar. Eit søk som kasta er noko anna.
-          console.error("slicerman: søket slo feil", err)
-          tuneGaar = null
-          post({ kind: "feil", id: req.id, kva: "tune", kvifor: err instanceof Error ? err.message : undefined })
-        }
-      }
-      steg()
       return
     }
 

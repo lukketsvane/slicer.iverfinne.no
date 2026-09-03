@@ -171,8 +171,8 @@ function Oppsett({ params, clamp, onChange }: {
       )}
       <div className="flex items-center gap-2 border-t px-3 py-2 text-[10px]" style={HAIR}>
         <span className="dim mono min-w-0 flex-1 truncate">{ord}</span>
-        <button type="button" className={ICON_BTN} style={{ ...HAIR, color: "var(--ink)" }} aria-label="kopier" title="kopier oppsettet til utklippstavla" onClick={kopier}>{IcoKopier}</button>
-        <button type="button" className={ICON_BTN} style={{ ...HAIR, color: "var(--ink)" }} aria-label="lim inn" title="lim inn eit oppsett frå utklippstavla, og set det" onClick={limInn}>{IcoLimInn}</button>
+        <button type="button" className={ICON_BTN} aria-label="kopier" title="kopier oppsettet til utklippstavla" onClick={kopier}>{IcoKopier}</button>
+        <button type="button" className={ICON_BTN} aria-label="lim inn" title="lim inn eit oppsett frå utklippstavla, og set det" onClick={limInn}>{IcoLimInn}</button>
       </div>
     </>
   )

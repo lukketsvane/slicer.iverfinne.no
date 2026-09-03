@@ -4,10 +4,9 @@ import { useEffect, useRef, useState, type JSX, type RefObject } from "react"
 import { MATERIALS, TJUKNER, klokke, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import type { Plan } from "@/lib/plan"
-import type { Kandidat } from "@/lib/forslag"
 import {
-  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoFinn, IcoReset, IcoSliders, IcoStopp, IcoUttak,
-  Ring, SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn, useLangtrykk,
+  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoReset, IcoRute, IcoSliders, IcoUttak,
+  SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
 } from "./deler"
 import type { VerktyId } from "./verkty"
 
@@ -16,8 +15,8 @@ import type { VerktyId } from "./verkty"
  * benken er det ei fast spalte til høgre med det same innhaldet.
  *
  * Lina er det som avgjer om uttaket er verdt å skjere: kor mange plan, kor
- * mange delar, kor mange plater, kor lang tid — og forslag og uttaket eitt
- * trykk unna. Sjølve handlinga, skjer, står ikkje her: ho står under høgre
+ * mange delar, kor mange plater, kor lang tid — og rutenettet og uttaket
+ * eitt trykk unna. Sjølve handlinga, skjer, står ikkje her: ho står under høgre
  * tommel, i spalta over arket (sjå studio.tsx). Midten er plana
  * du har låst — berre dei låste; eit skissa plan finst ikkje nokon annan
  * stad enn på lerretet. Alt er resten: materialet, skyvarane, tavla,
@@ -60,17 +59,9 @@ export type ArketProps = {
   feil: string | null
   melding: string | null
   hentar: boolean
-  tunar: { gjort: number; av: number } | null
-  forslag: readonly Kandidat[]
-  visForslag: boolean
-  onVisForslag: (b: boolean) => void
-  synt: number | null
-  onSyn: (i: number | null) => void
-  onTaAlle: (i: number) => void
-  onLeggTil: (i: number) => void
-  onFinn: () => void
-  onFinnDjup: () => void
-  onAvbryt: () => void
+  /** verktyet for rutenettet står på: to fingrar set kolonner og rader */
+  rute: boolean
+  onRute: () => void
   syn: string | null
   onExport: (k: ExportKind) => void
   onReset: () => void
@@ -135,55 +126,13 @@ function Plana({ p }: { p: ArketProps }) {
                 <span className="tab dim shrink-0 rounded-full border px-1.5 text-[9px] leading-[14px]" style={HAIR} title="handteikna strek i profilen">{pl.strek.length} strek</span>
               )}
             </button>
-            <button type="button" aria-label={`slett plan ${pl.id}`} title="ta planet bort" className="hit dim h-9 w-11 shrink-0 rounded-full" onClick={() => p.onSlett(pl.id)}>
+            <button type="button" aria-label={`slett plan ${pl.id}`} title="ta planet bort" className="hit dim h-9 w-11 shrink-0" onClick={() => p.onSlett(pl.id)}>
               ×
             </button>
           </li>
         )
       })}
     </ul>
-  )
-}
-
-/** svara frå søket, rangerte. Eit trykk syner kandidaten som skuggeplan. */
-function Forslaga({ p }: { p: ArketProps }) {
-  const { forslag, synt } = p
-  const form = forslag.some((k) => k.tro > 0)
-  return (
-    <div className="py-1">
-      {/* handlingane ØVST: lista er lang, og det du skal trykkje på skal ikkje rulle bort */}
-      <div className="flex items-center gap-1.5 pb-2">
-        {synt !== null && forslag[synt] && (
-          <>
-            <button type="button" className={CHIP} style={chipStyle(true)} onClick={() => p.onTaAlle(synt)} title="byt ut plana du har med desse">ta alle</button>
-            <button type="button" className={CHIP} style={chipStyle(false)} onClick={() => p.onLeggTil(synt)} title="legg desse til dei du har, med nye namn">legg til</button>
-          </>
-        )}
-        <button type="button" className={CHIP + " ml-auto"} style={chipStyle(false)} onClick={() => p.onVisForslag(false)}>lat att</button>
-      </div>
-      <div className="dim flex items-center text-[9px] uppercase tracking-[0.14em]">
-        <span className="flex-1">forslag</span>
-        {form && <span className="w-10 text-right">form</span>}
-        <span className="w-10 text-right">delar</span>
-        <span className="w-8 text-right">ark</span>
-      </div>
-      {!forslag.length && <p className="dim py-2 text-[11px]">{p.tunar ? "søkjer …" : "ingen sett"}</p>}
-      {forslag.map((k, i) => (
-        <button
-          key={i}
-          type="button"
-          onClick={() => p.onSyn(synt === i ? null : i)}
-          className="hit tab flex w-full items-baseline rounded py-1 text-[11px]"
-          style={synt === i ? { background: "var(--ink)", color: "var(--paper)" } : { color: "var(--ink)", opacity: k.held ? 1 : 0.45 }}
-          aria-pressed={synt === i}
-        >
-          <span className="flex-1 truncate text-left">{k.namn}</span>
-          {form && <span className="w-10 text-right">{n0(k.tro * 100)}%</span>}
-          <span className="w-10 text-right">{k.delar}</span>
-          <span className="w-8 text-right">{k.ark}</span>
-        </button>
-      ))}
-    </div>
   )
 }
 
@@ -228,7 +177,7 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
             aria-label={`materiale: ${MATERIALS[mk].label}`}
             title={MATERIALS[mk].label}
             onClick={() => onChange({ ...params, material: mk })}
-            className="hit flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+            className="hit flex h-9 w-9 shrink-0 items-center justify-center"
           >
             <span aria-hidden="true" className="block h-6 w-6 rounded-full border-2" style={{ backgroundColor: MATERIALS[mk].hex, borderColor: params.material === mk ? "var(--ink)" : "var(--rule)" }} />
           </button>
@@ -278,8 +227,7 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
 }
 
 export function Arket(p: ArketProps): JSX.Element {
-  const { benk, steg, onSteg, onHogd, tunar } = p
-  const langtrykk = useLangtrykk(tunar ? p.onAvbryt : p.onFinn, tunar ? p.onAvbryt : p.onFinnDjup)
+  const { benk, steg, onSteg, onHogd } = p
   const open = benk || steg !== "line"
   /** uttaka eitt trykk unna: ein liten boks over lina. I «alt» står dei alt i arket, og knappen rullar dit. */
   const [visUttak, setVisUttak] = useState(false)
@@ -331,20 +279,21 @@ export function Arket(p: ArketProps): JSX.Element {
       <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className="hit tab min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em]" aria-label="plan, delar, ark og tid">
         <Lina p={p} />
       </button>
+      {/* RUTENETTET: verktyet som let to fingrar setje kolonner og rader.
+          Knappen står ved talet han endrar. */}
       <button
         type="button"
-        {...langtrykk}
-        disabled={p.busy && !tunar}
-        aria-label="forslag"
-        title={tunar ? "søket går. trykk for å stogge og halde det beste so langt" : "(F) forslag til sett av plan. hald for djupsøket: kroppen målt, hundrevis snitta"}
-        className={ICON_BTN + " disabled:opacity-100"}
-        style={{ ...HAIR, color: "var(--ink)" }}
+        aria-pressed={p.rute}
+        aria-label="rutenett"
+        title={p.rute ? "rutenettet (R): to fingrar — vassrett er kolonner, loddrett er rader. trykk for å gå ut" : "rutenettet (R): to fingrar set kolonner og rader"}
+        onClick={p.onRute}
+        className={ICON_BTN}
+        data-ruteverkty=""
       >
-        {tunar ? IcoStopp : IcoFinn}
-        {tunar && <Ring del={tunar.av ? tunar.gjort / tunar.av : 0} />}
+        {IcoRute}
       </button>
       {!benk && (
-        <button type="button" aria-label="eksport" aria-expanded={visUttak} title="uttaka: stl, dxf, svg, ark, png, passprøve, alt, lagre" onClick={eksport} className={ICON_BTN} style={chipStyle(visUttak)} data-uttak="">
+        <button type="button" aria-label="eksport" aria-expanded={visUttak} title="uttaka: stl, dxf, svg, ark, png, passprøve, alt, lagre" onClick={eksport} className={ICON_BTN} aria-pressed={visUttak} data-uttak="">
           {IcoUttak}
         </button>
       )}
@@ -354,7 +303,7 @@ export function Arket(p: ArketProps): JSX.Element {
   const midt = (
     <>
       <SliderRow k="storleik" r={PARAM_RANGES.storleik} value={num(p.params, "storleik", 150)} benk={benk} onChange={(k, v) => p.onChange({ ...p.params, [k]: v })} onSkrubb={p.onSkrubb} bi={p.metrics ? `${n0(p.metrics.envX)}×${n0(p.metrics.envY)}×${n0(p.metrics.envZ)}` : undefined} />
-      {p.visForslag ? <Forslaga p={p} /> : <Plana p={p} />}
+      <Plana p={p} />
     </>
   )
 
