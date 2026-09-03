@@ -107,13 +107,14 @@ pnpm raad     # breaks each rule, presses the fix it offers, checks it worked
 pnpm glb      # writes GLB files with known geometry and reads them back
 pnpm pakk     # redraws every sheet and counts cells — catches overlaps
 pnpm hand     # the plane list as a string: hostile input, one edit leaves the rest, names never reused
+pnpm tak      # the plane ceiling: what 64 planes cost, and that slicing stays linear in them
 pnpm tung     # a million triangles in, and how long that takes
 pnpm ark      # cut sheets as images
 pnpm look     # screenshots of the page, and any console errors
 pnpm panel    # the controls in a real browser: both surfaces, gestures, keys
 ```
 
-The headless ones (`probe` through `hand`) are fast and must stay green. Point
+The headless ones (`probe` through `tak`) are fast and must stay green. Point
 `pnpm look` and `pnpm panel` at `next start` on port 3210, never at the dev
 server: they drive a real browser for minutes, and HMR reloading the page
 underneath produces failures that look exactly like real ones.

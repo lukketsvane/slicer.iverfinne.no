@@ -382,13 +382,14 @@ pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps
 pnpm hand    # the plane list as a string: one edit leaves the rest, names never reused, pins hold
 pnpm enkel   # the two simplification sliders take what they say and no more
+pnpm tak     # the plane ceiling: what 64 planes cost, and that slicing stays linear in them
 pnpm tung    # a million triangles in, and how long that takes
 pnpm ark     # cut sheets as images
 pnpm look    # screenshots of the page, and any console errors
 pnpm panel   # the controls in a real browser: both surfaces, gestures, keys
 ```
 
-`probe` through `enkel` are headless and fast. Point `look` and `panel` at
+`probe` through `tak` are headless and fast. Point `look` and `panel` at
 `next start` on port 3210, never the dev server — they drive a real browser for
 minutes, and HMR reloading underneath produces failures that look real.
 
