@@ -553,6 +553,12 @@ export function Studio() {
    * det scenestrengen tek imot. Steget krympar når bitane vert mange.
    */
   const leggBit = useCallback((id: string) => {
+    // og det same for bitane: seksten er taket, og det skal seiast — utanfor
+    // oppdateringa, som skal vera ei rein rekning og kan kallast to gonger
+    if (lesScene(String(naa.current.scene || "") || eiKjelde(String(naa.current.kjelde ?? KUBE))).length >= SCENE_TAK) {
+      setMelding(`taket er ${SCENE_TAK} bitar`)
+      return
+    }
     setParams((cur) => {
       const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
       if (l.length >= SCENE_TAK) return cur
@@ -731,7 +737,16 @@ export function Studio() {
       setMelding("utanfor kroppen")
       return
     }
-    const id = nyId(lesPlan(naa.current.plan))
+    // TAKET SEIER FRÅ. Lista stogga på seksti og fire og gav att posen han
+    // fekk — men blinken fyrte likevel, so eit trykk på skjer lyste opp ein
+    // del som aldri vart laga. Ein reiskap som gjer ingenting skal seie kva
+    // han ikkje gjorde.
+    const naaPlan = lesPlan(naa.current.plan)
+    if (naaPlan.length >= PLAN_TAK) {
+      setMelding(`taket er ${PLAN_TAK} plan`)
+      return
+    }
+    const id = nyId(naaPlan)
     setParams((cur) => {
       const l = lesPlan(cur.plan)
       if (l.length >= PLAN_TAK) return cur

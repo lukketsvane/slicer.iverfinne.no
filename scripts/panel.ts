@@ -12,7 +12,7 @@
  *   PW_CHROMIUM=/opt/pw-browsers/chromium pnpm panel [url]
  */
 import { chromium, type Browser, type Page } from "playwright"
-import { PUNKT_TAK, lesPlan, skrivPlan, type Strek } from "../lib/plan"
+import { PUNKT_TAK, lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
 import type { Params } from "../lib/params"
 
 const URL = process.argv[2] ?? "http://127.0.0.1:3210"
@@ -1127,10 +1127,33 @@ async function reglar(browser: Browser) {
   await page.close()
 }
 
+/**
+ * TAKET SEIER FRÅ.
+ *
+ * Lista stoggar på `PLAN_TAK`, og eit trykk på skjer gav att posen han
+ * fekk — men blinken fyrte likevel. Du trykte, noko lyste opp, og ingen
+ * del vart laga. Vakta fyller lista til taket gjennom lenkja, trykkjer
+ * skjer, og krev at TALET STÅR og at lina seier kva som ikkje hende.
+ */
+async function taket(browser: Browser) {
+  console.log("\n=== taket på plana")
+  const fullt = skrivPlan(rutenett(32, 32))
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan: fullt })), browser, 390, 844)
+  sjekk("lenkja ber taket", plana(page).length === 64, `${plana(page).length} plan`)
+  const skjer = page.getByRole("button", { name: "skjer", exact: true })
+  await skjer.click()
+  await page.waitForTimeout(900)
+  sjekk("skjer legg ikkje eit plan nummer 65", plana(page).length === 64, `${plana(page).length} plan`)
+  sjekk("og lina seier kvifor", /taket er 64 plan/.test(await lina(page)), await lina(page))
+  sjekk("ingen konsollfeil ved taket", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await page.close()
+}
+
 const main = async () => {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
   await telefon(browser)
   await reglar(browser)
+  await taket(browser)
   await flyt(browser)
   await mork(browser)
   await benk(browser)
