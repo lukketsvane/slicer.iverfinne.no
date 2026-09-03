@@ -94,6 +94,8 @@ const ikon = (d: string, k = "h-4 w-4") => (
 )
 /** verktyet for rutenettet: kolonner og rader */
 export const IcoRute = ikon("M3 3h18v18H3z|M9 3v18|M15 3v18|M3 9h18|M3 15h18")
+/** verktyet for virvelen: ribber kring ein akse, skovne ut frå han */
+export const IcoVirvel = ikon("M12 3a9 9 0 1 0 9 9|M12 7a5 5 0 1 0 5 5|M12 12h9|M12 12v9")
 export const IcoSliders = ikon("M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4")
 export const IcoDown = ikon("m6 9 6 6 6-6")
 export const IcoAngre = ikon("M9 14 4 9l5-5|M4 9h10a6 6 0 0 1 0 12h-3", "h-3.5 w-3.5")

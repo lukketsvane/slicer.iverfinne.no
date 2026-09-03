@@ -5,7 +5,7 @@ import { MATERIALS, TJUKNER, klokke, nn, type ExportKind, type Kutt, type Materi
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import type { Plan } from "@/lib/plan"
 import {
-  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoReset, IcoRute, IcoSliders, IcoUttak,
+  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoReset, IcoRute, IcoSliders, IcoUttak, IcoVirvel,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
 } from "./deler"
 import type { VerktyId } from "./verkty"
@@ -62,6 +62,9 @@ export type ArketProps = {
   /** verktyet for rutenettet står på: to fingrar set kolonner og rader */
   rute: boolean
   onRute: () => void
+  /** og virvelen: to fingrar set kor mange ribber, og kor langt ut frå aksen */
+  virvel: boolean
+  onVirvel: () => void
   syn: string | null
   onExport: (k: ExportKind) => void
   onReset: () => void
@@ -291,6 +294,18 @@ export function Arket(p: ArketProps): JSX.Element {
         data-ruteverkty=""
       >
         {IcoRute}
+      </button>
+      {/* VIRVELEN: det andre ribbespråket, ved sida av det fyrste. */}
+      <button
+        type="button"
+        aria-pressed={p.virvel}
+        aria-label="virvel"
+        title={p.virvel ? "virvelen (V): to fingrar — vassrett er kor mange ribber, loddrett kor langt ut frå aksen. trykk for å gå ut" : "virvelen (V): ribber kring loddaksen, skovne ut frå han"}
+        onClick={p.onVirvel}
+        className={ICON_BTN}
+        data-virvelverkty=""
+      >
+        {IcoVirvel}
       </button>
       {!benk && (
         <button type="button" aria-label="eksport" aria-expanded={visUttak} title="uttaka: stl, dxf, svg, ark, png, passprøve, alt, lagre" onClick={eksport} className={ICON_BTN} aria-pressed={visUttak} data-uttak="">

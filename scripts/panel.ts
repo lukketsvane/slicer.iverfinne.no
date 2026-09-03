@@ -1098,6 +1098,55 @@ async function reglar(browser: Browser) {
 }
 
 /**
+ * VIRVELEN: DET ANDRE RIBBESPRÅKET.
+ *
+ * Rutenettet gjev ribber på tvers av kvarandre; virvelen gjev dei kring
+ * loddaksen. Vassrett set kor mange, loddrett kor langt ut frå aksen — og
+ * skuvet ut er heile saka, av di ribber som alle går gjennom aksen kryssar
+ * kvarandre langs den same lina og fell frå kvarandre.
+ *
+ * Vakta dreg til høgre og krev fleire ribber, dreg opp og krev at avstanden
+ * veks utan at talet endrar seg, og ser at det som kom ut HELD SAMAN: ledd,
+ * og ingen lause stykke. Rekninga står i `pnpm hand`; her er det verktyet.
+ */
+async function virvelen(browser: Browser) {
+  console.log("\n=== virvelen")
+  const bag = { scene: "sylinder@0,0,0/1/0", storleik: 300, tjukn: 9 }
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
+  const knapp = page.locator("[data-virvelverkty]")
+  sjekk("virvelen står på lina", (await knapp.count()) === 1 && (await knapp.getAttribute("aria-pressed")) === "false")
+  await knapp.click()
+  await page.waitForTimeout(250)
+  sjekk("og eit trykk slår han på", (await knapp.getAttribute("aria-pressed")) === "true")
+  await toFingrar(page, (t) => [[110 + 200 * t, 300], [110 + 200 * t, 400]])
+  await vent(page, (p) => lesPlan(p.plan).length > 0)
+  await ferdig(page)
+  const n1 = plana(page).length
+  sjekk("to fingrar til høgre set ribber kring aksen", n1 >= 12, `${n1} ribber`)
+  const loddrett = plana(page).every((q) => Math.abs(q.n[2]) < 1e-3)
+  sjekk("og kvar ribbe står loddrett", loddrett, plana(page).slice(0, 2).map((q) => q.n.join(",")).join(" · "))
+  // ingen av dei går gjennom midten: det er skuvet som held virvelen open
+  const gjennomMidten = plana(page).filter((q) => Math.hypot(q.o[0] - 0.5, q.o[1] - 0.5) < 0.01).length
+  sjekk("og ingen av dei gjennom midten", gjennomMidten === 0, `${gjennomMidten} i midten`)
+  // at det HENG SAMAN — ledd, ingen lause — står i `pnpm probe`, som har heile
+  // målinga. Lina har berre tala sine, og dei skal vera der.
+  const l1 = await lina(page)
+  sjekk("og det vart delar av det", /[1-9]\d* delar/.test(l1), l1)
+  // opp: lenger ut frå aksen, og talet på ribber står
+  const av0 = Math.hypot(plana(page)[0].o[0] - 0.5, plana(page)[0].o[1] - 0.5)
+  await toFingrar(page, (t) => [[130, 400 - 120 * t], [260, 400 - 120 * t]])
+  await vent(page, (p) => Math.hypot(lesPlan(p.plan)[0].o[0] - 0.5, lesPlan(p.plan)[0].o[1] - 0.5) > av0 + 0.005)
+  const av1 = Math.hypot(plana(page)[0].o[0] - 0.5, plana(page)[0].o[1] - 0.5)
+  sjekk("to fingrar oppover skyv ribbene ut frå aksen", av1 > av0, `${av0.toFixed(3)} → ${av1.toFixed(3)}`)
+  sjekk("og talet på ribber står", plana(page).length === n1, `${plana(page).length} ribber`)
+  await knapp.click()
+  await page.waitForTimeout(250)
+  sjekk("trykk att slepper verktyet", (await knapp.getAttribute("aria-pressed")) === "false")
+  sjekk("ingen konsollfeil i virvelen", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await page.close()
+}
+
+/**
  * SYMMETRIEN PÅ SNITTET.
  *
  * Tre brytarar rett over skjer, og dei endrar KVA SKJER GJER: eitt trykk
@@ -1165,6 +1214,7 @@ const main = async () => {
   await telefon(browser)
   await reglar(browser)
   await symmetri(browser)
+  await virvelen(browser)
   await taket(browser)
   await flyt(browser)
   await mork(browser)
