@@ -458,48 +458,29 @@ async function telefon(browser: Browser) {
     const s = (await page.locator(".handtak").getAttribute("data-kamera")) ?? "0,0,0"
     return s.split(",").map(Number) as [number, number, number]
   }
-  const kuben = page.locator("[data-kube]")
-  sjekk("synskuben har seks sider med ni celler kvar", (await page.locator("[data-vel]").count()) === 54)
-  const paaKuben = await page.evaluate(() => {
-    const b = document.querySelector("[data-kube]")?.getBoundingClientRect()
-    if (!b) return ""
-    const e = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
-    return e?.getAttribute("data-vel") ?? e?.tagName ?? ""
-  })
-  sjekk("og cellene er det du treffer der han står", /-|topp|framme|hogre|bak|botn|venstre/.test(paaKuben), paaKuben)
-  const kubeBoks = await kuben.boundingBox()
-  // den eine kontrollen som ikkje er tommelstor skal i det minste vera ein kube
-  sjekk("kuben er stor nok til å peike på", !!kubeBoks && kubeBoks.width >= 88, `${Math.round(kubeBoks?.width ?? 0)} px`)
-  /** ei celle på kuben: flate, kant eller hjørne */
-  const velSide = async (id: string) => {
-    await page.locator(`[data-vel="${id}"]`).first().dispatchEvent("click")
-    await page.waitForTimeout(700)
-  }
-  await velSide("topp")
-  const topp = await kamera()
-  sjekk("«topp» set synet rett ovanfrå", topp[1] > Math.abs(topp[0]) && topp[1] > Math.abs(topp[2]), topp.map((c) => c.toFixed(2)).join(", "))
-  await velSide("venstre")
-  const venstre = await kamera()
-  sjekk("«venstre» set synet frå venstre", venstre[0] < -Math.abs(venstre[1]) && venstre[0] < -Math.abs(venstre[2]), venstre.map((c) => c.toFixed(2)).join(", "))
-  await velSide("botn")
-  const botn = await kamera()
-  sjekk("og «botn» kjem under objektet", botn[1] < 0, botn.map((c) => c.toFixed(2)).join(", "))
-  // KANTEN mellom to sider er synet midt imellom dei, og hjørnet mellom tre
-  await velSide("framme-topp")
-  const kant = await kamera()
-  sjekk("kanten «framme + topp» ser førti og fem grader ovanfrå", Math.abs(kant[1] - kant[2]) < 0.5 && Math.abs(kant[0]) < 0.5, kant.map((c) => c.toFixed(2)).join(", "))
-  await velSide("framme-hogre-topp")
+  /**
+   * SYNSKUBEN er geometri i lerretet no (`GizmoViewcube` frå drei) og ikkje
+   * knappar i DOM: han vert prøvd med fingeren der han står, og svaret vert
+   * lese av kameraet scena skriv i lappen. Midten av kuben er sida som
+   * vender mot deg; hjørnet hans er synet frå tre sider på ein gong.
+   */
+  const h = await page.locator("header").boundingBox()
+  const v = page.viewportSize()!
+  // dei same tala som marginen i scena: 38 px inn frå det frie bandet
+  const kx = v.width - 38
+  const ky = (h?.height ?? 44) + 38
+  await page.locator("[data-heim]").click()
+  await page.waitForTimeout(900)
+  const kubeFør = await kamera()
+  await page.touchscreen.tap(kx, ky)
+  await page.waitForTimeout(1700)
+  const framme = await kamera()
+  sjekk("eit tapp midt på synskuben ser rett framanfrå", Math.abs(framme[0]) < 0.5 && framme[2] > 10, `${kubeFør.map((c) => c.toFixed(1)).join(", ")} → ${framme.map((c) => c.toFixed(2)).join(", ")}`)
+  await page.touchscreen.tap(kx + 14, ky - 14)
+  await page.waitForTimeout(1700)
   const hjorne = await kamera()
-  sjekk("og hjørnet ser frå alle tre", Math.min(...hjorne) > 1 && Math.max(...hjorne) - Math.min(...hjorne) < 1, hjorne.map((c) => c.toFixed(2)).join(", "))
-    // og kuben skal ikkje leggje seg over innramminga: eit hjørnesyn er ein
-  // sekskant som stikk utanfor kvadratet sitt, og der låg ho før
-  const paaHeim = await page.evaluate(() => {
-    const h = document.querySelector("[data-heim]")?.getBoundingClientRect()
-    if (!h) return ""
-    const e = document.elementFromPoint(h.left + h.width / 2, h.top + h.height / 2)
-    return e?.closest("[data-heim]") ? "innramminga" : (e?.getAttribute("data-vel") ?? e?.tagName ?? "")
-  })
-  sjekk("kuben dekkjer ikkje innramminga i eit hjørnesyn", paaHeim === "innramminga", paaHeim)
+  sjekk("og eit tapp på hjørnet hans ser frå tre sider", Math.min(...hjorne) > 1 && Math.max(...hjorne) - Math.min(...hjorne) < 1, hjorne.map((c) => c.toFixed(2)).join(", "))
+
   await page.locator("[data-heim]").click()
   await page.waitForTimeout(700)
   const heim = await kamera()
@@ -751,12 +732,6 @@ async function flyt(browser: Browser) {
       const r = b.getBoundingClientRect()
       if (r.width === 0 || r.height === 0) continue
       const st = getComputedStyle(b)
-      // SYNSKUBEN ER UNNATEKEN, og berre han. Ei celle på ei side som står
-      // på skrå er tretten pikslar høg same kor stor kuben er — det fylgjer
-      // av at han er ein kube. Han er den eine kontrollen der målet ER
-      // biletet: du peikar på den flata du vil sjå, og bommar du, står du på
-      // nabosynet og trykkjer ein gong til. Alt anna på sida er tommelstort.
-      if (b.closest("[data-kube]")) continue
       // padding tel med i trykkflata; eit «hit»-pseudo-element òg, men det kan vi ikkje måle her
       if (Math.min(r.width, r.height) < 36 && !b.classList.contains("hit") && st.visibility !== "hidden") {
         ut.push(`${(b.getAttribute("aria-label") || b.textContent || b.tagName).trim().slice(0, 18)} ${Math.round(r.width)}×${Math.round(r.height)}`)
