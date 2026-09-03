@@ -291,6 +291,28 @@ async function telefon(browser: Browser) {
   const etter = plana(page)[0]
   const rørt = Math.hypot(etter.o[0] - fyrst.o[0], etter.o[1] - fyrst.o[1], etter.o[2] - fyrst.o[2]) > 0.02
   sjekk("med eit plan valt flyttar to fingrar DET planet", rørt && etter.id === fyrst.id, `o ${fyrst.o.map((c) => c.toFixed(2))} → ${etter.o.map((c) => c.toFixed(2))}`)
+  /**
+   * OG KAMERAET STÅR MEDAN DEI GJER DET.
+   *
+   * Ei hand held aldri to fingrar nøyaktig like langt frå kvarandre medan ho
+   * dreg. Prøva under dreg planet OG lèt fingrane gli frå kvarandre femten
+   * prosent — meir enn nok til å låse opp klypet — og krev at avstanden til
+   * kameraet er den same etterpå. Eit drag på planet er ikkje ein zoom.
+   */
+  const avstandNo = async () => Number((await page.locator(".handtak").getAttribute("data-avstand")) ?? 0)
+  const kamFør = await avstandNo()
+  const planStod = plana(page)[0]
+  await toFingrar(page, (t) => {
+    const glid = 50 + 7 * t
+    return [[170 + 60 * t, 380 - glid], [170 + 60 * t, 380 + glid]]
+  })
+  await page.waitForTimeout(600)
+  const kamEtter = await avstandNo()
+  const planKom = plana(page)[0]
+  const flytta = Math.hypot(planKom.o[0] - planStod.o[0], planKom.o[1] - planStod.o[1], planKom.o[2] - planStod.o[2])
+  sjekk("og eit drag som glir frå kvarandre rører ikkje kameraet", Math.abs(kamEtter - kamFør) < 1e-3 && flytta > 0.005, `avstand ${kamFør.toFixed(3)} → ${kamEtter.toFixed(3)}, planet flytta ${flytta.toFixed(3)}`)
+  await page.keyboard.press("z")
+  await roleg(page, 300)
   sjekk("og dei andre står stille", plana(page).slice(1).every((p, i) => JSON.stringify(p) === JSON.stringify(før[i + 1])))
   await page.keyboard.press("z")
   await vent(page, (p) => JSON.stringify(lesPlan(p.plan)[0]?.o) === JSON.stringify(fyrst.o))

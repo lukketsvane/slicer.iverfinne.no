@@ -59,9 +59,10 @@ type Live = { id: number; i: number; s: Strek }
  * TO GESTMODUSAR, EIN BRYTAR. «form» er dei gamle gestane: to fingrar på
  * objektet klyp storleiken, vrir vendinga og dreg snittet på tvers — éin
  * gest om gongen, den som leier vinn. «skisse» er reiskapen for sjølve
- * planet: dra flyttar det, vri vinklar det, klyp dollyar kameraet — alle
- * tre samstundes, som på eit kart. Med eit låst plan valt gjeld skisse-
- * gestane DET planet, i begge modusane.
+ * planet: dra flyttar det, vri vinklar det, og klyp — når ingen av dei to
+ * andre er i gang — dollyar kameraet. Med eit låst plan valt gjeld skisse-
+ * gestane DET planet, i begge modusane. Arbeider fingrane på planet, står
+ * kameraet: eit klyp du ikkje meinte skal ikkje flytte synet.
  */
 export type Modus = "form" | "skisse"
 type Lys = { az: number; el: number }
@@ -1000,10 +1001,22 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
         const klyp = c.d / sam.d0
         if (!sam.akt.pan && Math.hypot(panX, panY) > 6) sam.akt.pan = true
         if (!sam.akt.vri && Math.abs(sam.vri) > VRI_SAM) sam.akt.vri = true
-        if (!sam.akt.klyp && Math.abs(klyp - 1) > KLYP_SAM) sam.akt.klyp = true
-        if (sam.akt.klyp) dolly(klyp)
-        if (sam.akt.pan || sam.akt.vri) bruk(tak, sam.akt.pan ? panX : 0, sam.akt.pan ? panY : 0, sam.akt.vri ? sam.vri : 0)
-        const sagt: GestKva = sam.akt.pan || sam.akt.vri ? "snitt" : sam.akt.klyp ? "zoom" : null
+        /**
+         * PLANET VINN OVER KAMERAET.
+         *
+         * Alle tre gestane var levande på ein gong, som på eit kart. Men to
+         * fingrar held aldri nøyaktig same avstand medan dei dreg: fire
+         * prosent er nok til å låse opp klypet, og kameraet krøkte seg inn
+         * og ut medan du flytte planet. Du bad om det eine og fekk det
+         * andre. Difor: arbeider fingrane på planet, er klypet kameraet
+         * sitt og kameraet står. Klyp åleine — ingen dreg, ingen vrir —
+         * dollyar som før.
+         */
+        const arbeider = sam.akt.pan || sam.akt.vri
+        if (!arbeider && !sam.akt.klyp && Math.abs(klyp - 1) > KLYP_SAM) sam.akt.klyp = true
+        if (sam.akt.klyp && !arbeider) dolly(klyp)
+        if (arbeider) bruk(tak, sam.akt.pan ? panX : 0, sam.akt.pan ? panY : 0, sam.akt.vri ? sam.vri : 0)
+        const sagt: GestKva = arbeider ? "snitt" : sam.akt.klyp ? "zoom" : null
         if (sagt !== sam.sagt) {
           sam.sagt = sagt
           naa.current.onGest(sagt)
