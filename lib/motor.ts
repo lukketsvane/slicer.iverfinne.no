@@ -44,8 +44,6 @@ export type EngineDef = {
   liste(p: ParamBag): Kutt[]
   /** éi plate slik ho ligg, som SVG — den same teikninga uttaket gjev */
   arkSyn(p: ParamBag, i: number): ArkSyn
-  /** profilane som bilete til panelet */
-  preview(p: ParamBag): string
   /** skissa snitta før ho er låst: profilen og kryssa mot dei låste plana */
   skisse(p: ParamBag, plan: Plan): SkisseSyn
 }
@@ -272,11 +270,6 @@ export const MOTOR: EngineDef = {
       delar: sheet.placed.length,
       util: skore > 0 ? flate / skore : 0,
     }
-  },
-
-  preview(bag: ParamBag): string {
-    const p = asP(bag)
-    return profileSvg(buildSnitt(makeKropp(p), p, DETAIL.mid), kerfOf(p), true)
   },
 
   skisse(bag: ParamBag, plan: Plan): SkisseSyn {

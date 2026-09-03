@@ -142,7 +142,6 @@ export function Studio() {
   const [lag, setLag] = useState<BuildRes | null>(null)
   const [kontur, setKontur] = useState<BuildRes | null>(null)
   const [tal, setTal] = useState<MaalRes | null>(null)
-  const [syn, setSyn] = useState<string | null>(null)
   const [ark, setArk] = useState<ArkSyn | null>(null)
   /** det valde planet, og den valde delen på plata */
   const [vald, setVald] = useState<number | null>(null)
@@ -346,10 +345,6 @@ export function Studio() {
         setTal(r)
         // fyrst når rekninga for det SISTE bygget er inne, er motoren ferdig
         if (r.id >= sisteBygg.current) setBusy(false)
-        return
-      }
-      if (r.kind === "syn") {
-        setSyn(r.svg)
         return
       }
       if (r.kind === "prosjekt") {
@@ -1409,7 +1404,6 @@ export function Studio() {
         onRute={vekslRute}
         virvel={modus === "virvel"}
         onVirvel={vekslVirvel}
-        syn={syn}
         onExport={doExport}
         onReset={() => endre({ ...MOTOR.defaults, kjelde: params.kjelde })}
         verkty={verkty}

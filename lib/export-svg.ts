@@ -254,24 +254,12 @@ export function couponSvg(
  * objektet symmetrisk og ribbetalet likt, fell dei to familiane saman og
  * heile stabelen er kopiar av nokre få former.
  *
- * `syn` er den same teikninga med tjukkare strek. Ho er til skjermen i
- * panelet, der ho vert vist tjue gonger for lita: ein hårtynn strek på ei
- * teikning som er skrumpa til hundre og seksti pikslar er ingen strek i
- * det heile.
+ * Ho fanst i to utgåver: fila, og eit SYN til eit lite bilete i arket, med
+ * tjukkare strek og blekk i staden for maskinpaletten. Synet er borte —
+ * konturvisinga syner dei same profilane i heil storleik, og der kan du
+ * ta i dei. To teikningar av det same er to som kan drive frå kvarandre.
  */
-/**
- * SYNET I PANELET er ikkje ei kuttfil.
- *
- * Han er eit bilete på ein skjerm, og der er fargen ikkje ein operasjon —
- * han er berre farge. Med maskinpaletten vert heile ruta blå, av di kuttet
- * er det som fyller henne, og ei blå rute ser ut som ein feil. Difor har
- * synet blekk og grått: kuttet i blekk, adressene svakare, slik panelet
- * elles ser ut.
- */
-const SYN_KUTT = "#141414"
-const SYN_GRAV = "#9a9a9a"
-
-export function profileSvg(sn: Snitt, kerf: number, syn = false): string {
+export function profileSvg(sn: Snitt, kerf: number): string {
   const GAP = 10
   /**
    * Ribbene i rader, som på ei plate: éi ribbe etter den andre til rada
@@ -318,15 +306,9 @@ export function profileSvg(sn: Snitt, kerf: number, syn = false): string {
     W = Math.max(W, rad.reduce((a, l) => a + l.hi - l.lo + GAP, GAP))
     H += rad.reduce((a, l) => Math.max(a, l.top), 0) + GAP + 12
   }
-  // Synet i panelet er vist tjue gonger for lite. Ein strek som er rett
-  // på ei plate er ingen strek i det heile der.
-  const w = syn ? pen(Math.max(W, H)) * 2.2 : pen(Math.max(W, H))
-  const KUTT = syn
-    ? `fill="none" stroke="${SYN_KUTT}" stroke-width="${f(w)}"`
-    : kutt(w)
-  const GRAV = syn
-    ? `fill="none" stroke="${SYN_GRAV}" stroke-width="${f(w)}" stroke-linecap="round"`
-    : grav(w)
+  const w = pen(Math.max(W, H))
+  const KUTT = kutt(w)
+  const GRAV = grav(w)
 
   const out: string[] = []
   out.push(

@@ -50,8 +50,6 @@ export type BuildRes = {
  *  lesen rett ut av bygget målinga alt har rekna. */
 export type MaalRes = { kind: "maal"; id: number; metrics: Metrics; rules: Rule[]; liste: Kutt[] }
 export type ExportRes = { kind: "export"; id: number; name: string; mime: string; text?: string; data?: ArrayBuffer }
-/** profilane som bilete, etter kvar måling */
-export type SynRes = { kind: "syn"; id: number; svg: string }
 export type KjeldeRes = { kind: "kjelde"; id: number; src: SourceInfo }
 /** ei prosjektfil som er opna: nettet OG innstillingane som låg med det */
 export type ProsjektRes = { kind: "prosjekt"; id: number; src: SourceInfo | null; params: ParamBag }
@@ -65,7 +63,6 @@ export type Res =
   | BuildRes
   | MaalRes
   | ExportRes
-  | SynRes
   | ArkRes
   | SkisseRes
   | ProsjektRes
@@ -197,10 +194,6 @@ self.onmessage = (e: MessageEvent<Req>) => {
         if (newest !== req.id) return
         const rules = MOTOR.rules(req.params, metrics)
         post({ kind: "maal", id: req.id, metrics, rules, liste: MOTOR.liste(req.params) })
-        if (newest !== req.id) return
-        const svg = MOTOR.preview(req.params)
-        if (newest !== req.id || !svg) return
-        post({ kind: "syn", id: req.id, svg })
       } catch (err) {
         console.error("slicerman: målinga slo feil", err)
       }
