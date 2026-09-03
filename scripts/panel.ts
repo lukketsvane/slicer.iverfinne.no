@@ -12,7 +12,7 @@
  *   PW_CHROMIUM=/opt/pw-browsers/chromium pnpm panel [url]
  */
 import { chromium, type Browser, type Page } from "playwright"
-import { PUNKT_TAK, lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
+import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
 import type { Params } from "../lib/params"
 
 const URL = process.argv[2] ?? "http://127.0.0.1:3210"
@@ -370,7 +370,7 @@ async function telefon(browser: Browser) {
     }
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
     await cdp.detach()
-    const holX = (q?: Strek) => (q && q.form !== "bane" ? q.x : 0)
+    const holX = (q?: Strek) => q?.x ?? 0
     await vent(page, (p) => Math.abs(holX(lesPlan(p.plan)[0]?.strek[0]) - holX(medHol.strek[0])) > 0.01)
     const flytta = plana(page)[0].strek[0]
     sjekk("handtaket flyttar hòlet, og lenkja veit det", Math.abs(holX(flytta) - holX(medHol.strek[0])) > 0.01, `x ${holX(medHol.strek[0])} → ${holX(flytta)}`)
@@ -629,92 +629,35 @@ async function telefon(browser: Browser) {
   sjekk("ein tur innom «flate» let skalet stå som det stod", skalFør.equals(skalEtter), `${skalFør.length} B → ${skalEtter.length} B`)
 
   /**
-   * KONTUREN ER EI FLATE DU FORMAR PÅ.
+   * KONTUREN: PLATENE, OG EIT TRYKK VEL EI.
    *
-   * Vel ei plate, tend ein penn, og éin finger inne i ramma teiknar merket
-   * i plana si eiga liste. Utanfor ramma dreg den same fingeren teikninga
-   * som før — det er den skilnaden ramma finst for å syne.
+   * Konturvisinga syner profilane flatt. Eit trykk vel ei plate og ho står
+   * i fullt blekk med ei ramme kring seg; eit trykk på tomt papir slepper
+   * henne att. Pennen og viskelêret som teikna i henne er borte — konturen
+   * er plateflata, ikkje ei teikneflate.
    */
   await page.getByRole("button", { name: "kontur", exact: true }).click()
   await roleg(page, 900)
   await page.locator("[data-heim]").click()
   await roleg(page, 900)
-  const pennar = () => page.locator("button[data-penn]")
-  // valet fylgjer med frå rommet: slepp det fyrst, so prøva seier det ho seier
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
-  sjekk("utan ei vald plate finst ingen reiskap", (await pennar().count()) === 0)
-  // plata ligg midt i det frie bandet; skann til ho svarar
-  let valdPlate: [number, number] | null = null
-  for (let y = 300; y <= 520 && !valdPlate; y += 20) {
-    for (let x = 40; x <= 350 && !valdPlate; x += 40) {
-      await page.touchscreen.tap(x, y)
-      await page.waitForTimeout(140)
-      if (await pennar().count()) valdPlate = [x, y]
-    }
-  }
-  sjekk("eit trykk på ei plate vel henne", !!valdPlate, valdPlate ? `${valdPlate[0]},${valdPlate[1]}` : "ingen treff")
-  if (valdPlate) {
-    // i teikninga heiter dei det dei gjer: teikn og visk
-    const hol = page.getByRole("button", { name: "visk", exact: true })
-    sjekk("dei to reiskapane heiter teikn og visk i teikninga",
-      (await hol.count()) === 1 && (await page.getByRole("button", { name: "teikn", exact: true }).count()) === 1)
-    sjekk("og dei står slokte", (await hol.getAttribute("aria-pressed")) === "false")
-    await hol.click()
-    await page.waitForTimeout(250)
-    sjekk("eit trykk tenner viskelêret", (await hol.getAttribute("aria-pressed")) === "true")
-    const strekTal = (p: Params) => lesPlan(p.plan).reduce((a, q) => a + q.strek.length, 0)
-    const før = strekTal(hash(page))
-    // eitt fingerdrag inne i ramma
-    const [px, py] = valdPlate
-    const drag = async (x0: number, y0: number, dx: number, dy: number) => {
-      const cdp = await page.context().newCDPSession(page)
-      const pkt = (x: number, y: number) => [{ x, y, id: 0, radiusX: 4, radiusY: 4, force: 1 }]
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(x0, y0) })
-      for (let i = 1; i <= 14; i++) {
-        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pkt(x0 + (dx * i) / 14, y0 + (dy * i) / 14) })
-        await page.waitForTimeout(16)
+  const valdPlate = await (async () => {
+    for (let y = 300; y <= 520; y += 20) {
+      for (let x = 40; x <= 350; x += 40) {
+        await page.touchscreen.tap(x, y)
+        await page.waitForTimeout(140)
+        // ei vald plate gjev deg reiskapane for planet hennar under tommelen
+        if (await page.getByRole("button", { name: "skjer hòl", exact: true }).count()) return [x, y] as [number, number]
       }
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
-      await cdp.detach()
     }
-    await drag(px, py, 26, 14)
-    await vent(page, (p) => strekTal(p) > før)
-    const merkt = lesPlan(hash(page).plan).flatMap((q) => q.strek).filter((q) => q.form === "bane")
-    const m0 = merkt[0]
-    sjekk(
-      "eit drag inne i ramma skriv eitt merke i lista",
-      merkt.length === 1 && !!m0 && m0.form === "bane" && m0.slag === "hol" && m0.p.length >= 4 && m0.p.length / 2 <= PUNKT_TAK,
-      m0 && m0.form === "bane" ? `${m0.p.length / 2} punkt, penn ${m0.br}` : "ingen bane",
-    )
-    // eitt drag er éi bokføring: Z tek heile merket attende
-    await page.waitForTimeout(1400)
-    await page.keyboard.press("z")
-    await vent(page, (p) => strekTal(p) === før)
-    sjekk("og Z tek merket attende i eitt", strekTal(hash(page)) === før, `${strekTal(hash(page))} strek`)
-    // utanfor ramma er den same fingeren teikninga si: kameraet flyttar seg,
-    // og ingenting vert skrive
-    const kamFør = await kamera()
-    await drag(px, 120, 40, 0)
-    await page.waitForTimeout(700)
-    const kamEtter = await kamera()
-    sjekk(
-      "eit drag utanfor ramma dreg teikninga og skriv ingenting",
-      strekTal(hash(page)) === før && Math.hypot(kamEtter[0] - kamFør[0], kamEtter[1] - kamFør[1]) > 0.01,
-      `${strekTal(hash(page))} strek, kamera ${Math.hypot(kamEtter[0] - kamFør[0], kamEtter[1] - kamFør[1]).toFixed(3)}`,
-    )
-    const førEsc = (await pennar().count()) ? await hol.getAttribute("aria-pressed") : "borte"
-    await page.keyboard.press("Escape")
-    await page.waitForTimeout(300)
-    const etterEsc = (await pennar().count()) ? await hol.getAttribute("aria-pressed") : "borte"
-    sjekk("esc slokkjer reiskapen, og plata står", etterEsc === "false", `${førEsc} → ${etterEsc}`)
-    // og eit trykk på tomt papir slepper plata: prøva ryddar etter seg.
-    // Esc til hadde late arket att, og då står objektet i ei anna ramme enn
-    // det gjorde for prøvene under.
-    await page.touchscreen.tap(20, 200)
-    await page.waitForTimeout(400)
-    sjekk("og eit trykk på tomt papir slepper plata", (await pennar().count()) === 0)
-  }
+    return null
+  })()
+  sjekk("eit trykk på ei plate vel henne i konturen", !!valdPlate, valdPlate ? `${valdPlate[0]},${valdPlate[1]}` : "ingen treff")
+  sjekk("og det finst ingen penn å teikne med", (await page.locator("button[data-penn]").count()) === 0 && (await page.getByRole("button", { name: "teikn", exact: true }).count()) === 0)
+  await page.touchscreen.tap(20, 200)
+  await page.waitForTimeout(400)
+
   await page.getByRole("button", { name: "lag", exact: true }).click()
   await roleg(page, 900)
 
