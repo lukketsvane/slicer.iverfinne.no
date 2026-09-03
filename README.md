@@ -158,6 +158,13 @@ so two pieces that overlap are one body where they overlap. The list is the
 `scene` string in the parameter bag, and the project file carries every
 piece's file.
 
+**The contour view is where the plates live.** It draws every profile flat at
+full size; tap one to select it, draw or erase a mask into it, zoom in past the
+body's own limit. The sheet panel used to carry a 160-pixel thumbnail of the same
+drawing — the same picture twice, and the small one could not be worked in. It is
+gone, and with it a third slice and up to 52 kB of SVG serialised across the
+worker boundary on every parameter change.
+
 **The sheet view has a scale.** A measuring grid lies under the parts: the step
 follows the eye, not the sheet — the smallest of 1, 2, 5, 10, 20, 50, 100 … that
 still leaves nine pixels between lines — with every fifth line stronger and

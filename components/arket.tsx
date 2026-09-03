@@ -65,7 +65,6 @@ export type ArketProps = {
   /** og virvelen: to fingrar set kor mange ribber, og kor langt ut frå aksen */
   virvel: boolean
   onVirvel: () => void
-  syn: string | null
   onExport: (k: ExportKind) => void
   onReset: () => void
   verkty: VerktyId | null
@@ -211,10 +210,6 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
       <div className="mt-3 border-t pt-3" style={HAIR}>
         <Tavla metrics={metrics} rules={p.rules} busy={p.busy} params={params} onChange={onChange} />
       </div>
-      {p.syn && (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={`data:image/svg+xml;utf8,${encodeURIComponent(p.syn)}`} alt="alle profilane, slik dei ligg på plata" className="my-2 max-h-40 w-full object-contain" style={{ opacity: p.busy ? 0.5 : 1 }} />
-      )}
       <div ref={uttak} className="border-t" style={HAIR}>
         <Uttaka p={p} />
       </div>
