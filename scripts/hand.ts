@@ -10,7 +10,7 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest } from "../lib/params"
-import { lesPlan, nyId, reinPlan, rutenett, skrivPlan, PLAN_TAK } from "../lib/plan"
+import { lesPlan, nyId, reinPlan, rutenett, skrivPlan, PLAN_TAK, PUNKT_TAK, STREK_TAK } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
@@ -45,12 +45,59 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0/-o:0,0,0.1,0.1,0", "1@0.5,0.5,0.5/1,0,0/-o:0,0,0.1,0.1,0"],
   ["1@0.5,0.5,0.5/1,0,0/+r:0,0,0,0.1,0", "1@0.5,0.5,0.5/1,0,0"],  // strek utan breidd
   ["1@0.5,0.5,0.5/1,0,0/tull", "1@0.5,0.5,0.5/1,0,0"],
+  // BANEN: eit merke handa drog. Understrek inni, komma utanfor.
+  ["1@0.5,0.5,0.5/1,0,0/-b:0.04_-0.3_0.1_0.2_-0.1", "1@0.5,0.5,0.5/1,0,0/-b:0.04_-0.3_0.1_0.2_-0.1"],
+  ["1@0.5,0.5,0.5/1,0,0/+b:0.04_0_0_0.1_0.1_0.2_0", "1@0.5,0.5,0.5/1,0,0/+b:0.04_0_0_0.1_0.1_0.2_0"],
+  ["1@0.5,0.5,0.5/1,0,0/-b:0.04,-0.3,0.1,0.2,-0.1", "1@0.5,0.5,0.5/1,0,0"], // komma inni er ikkje eit merke
+  ["1@0.5,0.5,0.5/1,0,0/-b:0.04_0_0_0.1", "1@0.5,0.5,0.5/1,0,0"],           // partal: eit punkt manglar helvta
+  ["1@0.5,0.5,0.5/1,0,0/-b:0.04_0_0", "1@0.5,0.5,0.5/1,0,0"],               // eitt punkt er ikkje ei line
+  ["1@0.5,0.5,0.5/1,0,0/-b:0.04_0_0_NaN_0.1", "1@0.5,0.5,0.5/1,0,0"],
+  ["1@0.5,0.5,0.5/1,0,0/-b:0.04_0_0_Infinity_0.1", "1@0.5,0.5,0.5/1,0,0"],
+  ["1@0.5,0.5,0.5/1,0,0/-b:0_0_0_0.1_0.1", "1@0.5,0.5,0.5/1,0,0"],          // penn utan breidd
+  ["1@0.5,0.5,0.5/1,0,0/-b:3_0_0_0.1_0.1", "1@0.5,0.5,0.5/1,0,0"],          // penn breiare enn kroppen
+  ["1@0.5,0.5,0.5/1,0,0/-b:0.04_0_0_2.5_0", "1@0.5,0.5,0.5/1,0,0"],         // punkt langt utanfor
+  ["1@0.5,0.5,0.5/1,0,0/-b:0.04_-1.5_0_1.5_0", "1@0.5,0.5,0.5/1,0,0"],      // boks på tri
+  ["1@0.5,0.5,0.5/1,0,0/-b:0.04_0_0_0_0_0.1_0.1", "1@0.5,0.5,0.5/1,0,0/-b:0.04_0_0_0.1_0.1"], // like punkt fell saman
+  ["1@0.5,0.5,0.5/1,0,0/-b:0.04_0_0_0_0", "1@0.5,0.5,0.5/1,0,0"],           // og eitt punkt att er ingen bane
+  ["1@0.5,0.5,0.5/1,0,0/-b:0.04_0.00004_0_0.1_0.1", "1@0.5,0.5,0.5/1,0,0/-b:0.04_0_0_0.1_0.1"], // rundinga fyrst
+  // for lang hale: forkasta av lengdeporten, og han brukar ikkje strekplassen
+  [`1@0.5,0.5,0.5/1,0,0/-b:${Array.from({ length: 5000 }, () => "0.1").join("_")}/-o:0,0,0.1,0.1,0`,
+   "1@0.5,0.5,0.5/1,0,0/-o:0,0,0.1,0.1,0"],
+  // punktbudsjettet per plan: den fyrste får plass, den andre vert forkasta HEIL
+  [`1@0.5,0.5,0.5/1,0,0/-b:0.04_${Array.from({ length: 120 }, (_, i) => `${(i % 40) / 100}_0.1`).join("_")}`,
+   "1@0.5,0.5,0.5/1,0,0"],
   ["<script>", ""],
   [Array.from({ length: 200 }, (_, i) => `${i + 1}@0.5,0.5,0.5/1,0,0`).join(";"),
    Array.from({ length: PLAN_TAK }, (_, i) => `${i + 1}@0.5,0.5,0.5/1,0,0`).join(";")],
 ] as const) {
   const fekk = reinPlan(inn)
   sjekk(`rein «${String(inn).slice(0, 26)}»`, fekk === vent, fekk.slice(0, 40))
+  // FASTPUNKTET. `MOTOR.clamp` køyrer `reinPlan` på kvar einaste endring,
+  // og eit råd som rettar ein strengparameter må overleve det ordrett.
+  sjekk(`  og han er eit fastpunkt`, reinPlan(fekk) === fekk, reinPlan(fekk).slice(0, 40))
+}
+
+/**
+ * TAKA. Ein boks er tri og førti teikn same kva, so `STREK_TAK` heldt
+ * strengen nede av seg sjølv; ein bane er so mange tal som handa gav han,
+ * og der er det `PUNKT_TAK` som gjer det. Begge er prøvde her, av di
+ * ingen av dei var det før.
+ */
+{
+  const mange = Array.from({ length: 25 }, () => "-o:0,0,0.1,0.1,0").join("/")
+  const fekk = lesPlan(`1@0.5,0.5,0.5/1,0,0/${mange}`)
+  sjekk("fem og tjue strek på eitt plan vert fire og tjue", fekk[0]?.strek.length === STREK_TAK, `${fekk[0]?.strek.length}`)
+  const to = [
+    `-b:0.04_${Array.from({ length: 60 }, (_, i) => `${i / 100}_0`).join("_")}`,
+    `-b:0.04_${Array.from({ length: 60 }, (_, i) => `${i / 100}_0.2`).join("_")}`,
+  ].join("/")
+  const b = lesPlan(`1@0.5,0.5,0.5/1,0,0/${to}`)
+  const s0 = b[0]?.strek[0]
+  sjekk(
+    "to merke over punkttaket: det fyrste står, det andre fell heilt",
+    b[0]?.strek.length === 1 && s0?.form === "bane" && s0.p.length / 2 === 60,
+    `${b[0]?.strek.length} strek, ${s0 && s0.form === "bane" ? s0.p.length / 2 : 0} punkt av ${PUNKT_TAK}`,
+  )
 }
 
 console.log("")
@@ -127,6 +174,37 @@ console.log("")
   const hol = med([{ slag: "hol", form: "rund", x: 0, y: -0.3, w: 0.15, h: 0.15, a: 0 }])
   sjekk("gods over kanten legg til flate, og delar ikkje plata", gods.delar === utan.delar && gods.flate > utan.flate && gods.ledd === utan.ledd, `${utan.delar}→${gods.delar} delar, ${Math.round(utan.flate)}→${Math.round(gods.flate)} mm², ${gods.ledd} ledd`)
   sjekk("eit hòl tek flate og legg til ein ring", hol.delar === utan.delar && hol.flate < utan.flate && hol.nodar > utan.nodar, `${Math.round(utan.flate)}→${Math.round(hol.flate)} mm²`)
+
+  /**
+   * BANEN ER EI SAG, IKKJE EIN ANGRE. Han skil ikkje gods du la til frå
+   * gods nettet gav deg: eit merke tvers over plata deler henne i to
+   * delar, og adressene fylgjer med. Det er meininga med han, og det er
+   * grunnen til at knappen framleis heiter «skjer hòl».
+   */
+  const tvers = med([{ slag: "hol", form: "bane", br: 0.04, p: [-0.6, -0.15, 0.6, -0.15] }])
+  sjekk(
+    "eit merke tvers over plata deler henne",
+    tvers.delar > utan.delar && tvers.flate < utan.flate,
+    `${utan.delar}→${tvers.delar} delar, ${Math.round(utan.flate)}→${Math.round(tvers.flate)} mm²`,
+  )
+  const kort = med([{ slag: "hol", form: "bane", br: 0.04, p: [-0.1, -0.1, 0.1, 0.1] }])
+  sjekk(
+    "og eit merke inni ho tek berre flate",
+    kort.delar === utan.delar && kort.flate < utan.flate,
+    `${utan.delar}→${kort.delar} delar, ${Math.round(utan.flate)}→${Math.round(kort.flate)} mm²`,
+  )
+  const gBane = med([{ slag: "gods", form: "bane", br: 0.06, p: [0.4, 0.1, 0.62, 0.1] }])
+  sjekk(
+    "eit gods-merke over kanten legg til flate, og klipper ikkje plata",
+    gBane.delar === utan.delar && gBane.flate > utan.flate,
+    `${utan.delar}→${gBane.delar} delar, ${Math.round(utan.flate)}→${Math.round(gBane.flate)} mm²`,
+  )
+  // rekkjefylgja er geometrien: eit gods etter eit hòl fyller det att
+  const attfylt = med([
+    { slag: "hol", form: "bane", br: 0.04, p: [-0.1, -0.1, 0.1, 0.1] },
+    { slag: "gods", form: "bane", br: 0.06, p: [-0.1, -0.1, 0.1, 0.1] },
+  ])
+  sjekk("og eit gods etter eit hòl fyller det att", attfylt.flate > kort.flate, `${Math.round(kort.flate)}→${Math.round(attfylt.flate)} mm²`)
 }
 
 for (const [inn, vent] of [

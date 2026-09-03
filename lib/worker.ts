@@ -14,7 +14,7 @@ import { unzip } from "./zip"
 import type { Plan } from "./plan"
 import { lesScene } from "./scene"
 import type { SkisseSyn } from "./snitt"
-import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rule, Vec3, View } from "./core"
+import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Plate, Rule, Vec3, View } from "./core"
 
 export type BuildReq = { kind: "build"; id: number; params: ParamBag; detail: DetailKey; view: View }
 export type ExportReq = { kind: "export"; id: number; params: ParamBag; what: ExportKind }
@@ -42,6 +42,9 @@ export type BuildRes = {
   /** bitane kroppen er sett saman av — berre «flate» — og skalaen mellom dei to romma */
   bitar: { id: string; min: Vec3; max: Vec3 }[]
   skala: number
+  /** platene i teikninga — berre «kontur». Vanlege objekt, so lista over
+   *  bufferar som vert flytte står urørt. */
+  plater: Plate[]
 }
 /** Måltala kjem i eiga melding, ETTER nettet. Kuttlista fylgjer med: ho er
  *  lesen rett ut av bygget målinga alt har rekna. */

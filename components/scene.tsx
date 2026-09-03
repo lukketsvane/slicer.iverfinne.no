@@ -4,8 +4,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { GizmoHelper, GizmoViewcube, OrbitControls } from "@react-three/drei"
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react"
 import * as THREE from "three"
-import { MATERIALS, inRing, shoelace, type Kutt, type Material, type Pt, type Vec3, type View } from "@/lib/core"
-import { akser, broek, dot, inn, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
+import { MATERIALS, inRing, shoelace, type Kutt, type Material, type Plate, type Pt, type Vec3, type View } from "@/lib/core"
+import { PUNKT_TAK, akser, broek, dot, inn, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
 import { GROUND_Y, MAX_DIST, MIN_DIST, MIN_NAER, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { BitBoks } from "@/lib/kropp"
@@ -22,9 +22,13 @@ import type { BuildRes } from "@/lib/worker"
  * ikkje delane sine — so å låse eit plan ikkje flyttar noko.
  */
 const FRAME = 2.2
+/** ei tom liste som ikkje er ny kvar teikning */
+const TOMME: Plate[] = []
 const HEIM = { flat: [0, 0, 1] as Vec3, rom: [2.4, 1.7, 6.4] as Vec3 }
 const SKISSE = "#1f6feb"
 const VALT = "#e05a1a"
+/** kor tett pennen samlar punkt, millimeter i teikninga: under dette er det handa som skjelv */
+const TYNN_MM = 1
 
 /**
  * FARGANE SCENA TEIKNAR MED, LESNE AV CSS.
@@ -35,12 +39,12 @@ const VALT = "#e05a1a"
  * ingen brytar, og telefonen har alt valt.
  */
 function useTema() {
-  const [t, setT] = useState({ paper: "#ffffff", ink: "#141414" })
+  const [t, setT] = useState({ paper: "#ffffff", ink: "#141414", warn: "#c62828" })
   useEffect(() => {
     const les = () => {
       const s = getComputedStyle(document.documentElement)
       const f = (k: string, fall: string) => s.getPropertyValue(k).trim() || fall
-      setT({ paper: f("--paper", "#ffffff"), ink: f("--ink", "#141414") })
+      setT({ paper: f("--paper", "#ffffff"), ink: f("--ink", "#141414"), warn: f("--warn", "#c62828") })
     }
     les()
     const mq = window.matchMedia("(prefers-color-scheme: dark)")
@@ -301,11 +305,43 @@ export function snittMidt(sn: SkisseSyn): Pt {
 }
 /**
  * EIT STREK SOM PUNKT I PLANET SI RAMME, millimeter frå planet sitt punkt:
- * fire hjørne, eller ein ellipse. Same dreiing som feltet les han med i
+ * fire hjørne, ein ellipse — eller, for ein bane, eit band per segment og
+ * ein åttekant per punkt. Same dreiing som feltet les han med i
  * `snitt.ts` — mot klokka i (u, v) — so det som vert teikna her er det
  * som vert skore der.
+ *
+ * Ringane til ein bane går inn i kvarandre der segmenta møtest, og dei
+ * linene vert teikna. På eit band på seks millimeter er dei ein piksel, og
+ * dei les som eit merke ei hand har gjort — ikkje som ein feil. Fasiten
+ * ligg attmed uansett: profilen som vart skoren om att.
  */
-function strekRing(s: Strek, S: number): Pt[] {
+function strekRing(s: Strek, S: number): Pt[][] {
+  if (s.form === "bane") {
+    const r = (s.br * S) / 2
+    const P = s.p
+    const ut: Pt[][] = []
+    for (let i = 0; i + 3 < P.length; i += 2) {
+      const ax = P[i] * S
+      const ay = P[i + 1] * S
+      const bx = P[i + 2] * S
+      const by = P[i + 3] * S
+      const L = Math.hypot(bx - ax, by - ay) || 1
+      const nx = (-(by - ay) / L) * r
+      const ny = ((bx - ax) / L) * r
+      ut.push([[ax + nx, ay + ny], [bx + nx, by + ny], [bx - nx, by - ny], [ax - nx, ay - ny]])
+    }
+    for (let i = 0; i + 1 < P.length; i += 2) {
+      const cx = P[i] * S
+      const cy = P[i + 1] * S
+      const ring: Pt[] = []
+      for (let k = 0; k < 8; k++) {
+        const t = ((k + 0.5) / 8) * 2 * Math.PI
+        ring.push([cx + r * Math.cos(t), cy + r * Math.sin(t)])
+      }
+      ut.push(ring)
+    }
+    return ut
+  }
   const a = (s.a * Math.PI) / 180
   const c = Math.cos(a)
   const si = Math.sin(a)
@@ -314,17 +350,100 @@ function strekRing(s: Strek, S: number): Pt[] {
   const hw = (s.w * S) / 2
   const hh = (s.h * S) / 2
   const p = (lx: number, ly: number): Pt => [cx + lx * c - ly * si, cy + lx * si + ly * c]
-  if (s.form === "rekt") return [p(-hw, -hh), p(hw, -hh), p(hw, hh), p(-hw, hh)]
+  if (s.form === "rekt") return [[p(-hw, -hh), p(hw, -hh), p(hw, hh), p(-hw, hh)]]
   const n = 48
   const ring: Pt[] = []
   for (let i = 0; i < n; i++) {
     const t = (i / n) * 2 * Math.PI
     ring.push(p(hw * Math.cos(t), hh * Math.sin(t)))
   }
-  return ring
+  return [ring]
+}
+/**
+ * EIN FINGERSTRAUM TYNNA UT: Douglas–Peucker på ei OPA line.
+ *
+ * `simplify` i `contour.ts` er ringen sin — han gjev aldri frå seg færre
+ * enn tri punkt, av di ein ring med to er ingen ring, og eit heilt rett
+ * drag kjem difor ut med kvart einaste punkt handa gav det. Ei opa line er
+ * eit anna spørsmål, og dette er svaret på det.
+ *
+ * Å tynne ein rå fingerstraum er INNDATA og ikkje geometri: det utynna
+ * aldri når parameterposen, og taket lesinga har er berre eit vern mot ei
+ * lenkje. Er merket for langt til budsjettet på planet, vert toleransen
+ * dobla til det får plass — merket står, litt jamnare. Det er betre enn
+ * eit merke som stilt vert kappa i den andre enden.
+ */
+function tynn(p: readonly Pt[], tol: number, tak: number): Pt[] {
+  const dp = (a: number, b: number, t: number, ut: Pt[]) => {
+    let verst = 0
+    let k = -1
+    for (let i = a + 1; i < b; i++) {
+      const d = segD2(p[a][0], p[a][1], p[b][0], p[b][1], p[i][0], p[i][1])
+      if (d > verst) {
+        verst = d
+        k = i
+      }
+    }
+    if (k > 0 && verst > t * t) {
+      dp(a, k, t, ut)
+      dp(k, b, t, ut)
+    } else ut.push(p[b])
+  }
+  let t = tol
+  for (let runde = 0; runde < 12; runde++) {
+    const ut: Pt[] = [p[0]]
+    dp(0, p.length - 1, t, ut)
+    if (ut.length <= tak) return ut
+    t *= 2
+  }
+  return [p[0], p[p.length - 1]]
+}
+/** kvadrert avstand frå eit punkt til eit segment — same rekning som `baneDist` */
+function segD2(ax: number, ay: number, bx: number, by: number, x: number, y: number): number {
+  const ex = bx - ax
+  const ey = by - ay
+  const px = x - ax
+  const py = y - ay
+  const L = ex * ex + ey * ey
+  let t = L > 0 ? (px * ex + py * ey) / L : 0
+  if (t < 0) t = 0
+  else if (t > 1) t = 1
+  const dx = px - ex * t
+  const dy = py - ey * t
+  return dx * dx + dy * dy
+}
+/** midten av eit strek i planet si ramme, millimeter: der handtaket og glyfen står */
+function strekMidt(s: Strek, S: number): Pt {
+  if (s.form !== "bane") return [s.x * S, s.y * S]
+  let x0 = Infinity
+  let x1 = -Infinity
+  let y0 = Infinity
+  let y1 = -Infinity
+  for (let i = 0; i + 1 < s.p.length; i += 2) {
+    x0 = Math.min(x0, s.p[i])
+    x1 = Math.max(x1, s.p[i])
+    y0 = Math.min(y0, s.p[i + 1])
+    y1 = Math.max(y1, s.p[i + 1])
+  }
+  return [((x0 + x1) / 2) * S, ((y0 + y1) / 2) * S]
+}
+/** kor stort eit strek er, i planet si eiga eining: det minste vinn under fingeren */
+function strekAreal(s: Strek): number {
+  if (s.form !== "bane") return s.w * s.h
+  let L = 0
+  for (let i = 0; i + 3 < s.p.length; i += 2) L += Math.hypot(s.p[i + 2] - s.p[i], s.p[i + 3] - s.p[i + 1])
+  return s.br * L
 }
 /** ligg punktet (planet si ramme) i streken, med `tol` millimeter mon — fingeren er ikkje ein peikar */
 function iStrek(s: Strek, S: number, q: Pt, tol: number): boolean {
+  if (s.form === "bane") {
+    const r = (s.br * S) / 2 + tol
+    const P = s.p
+    for (let i = 0; i + 3 < P.length; i += 2) {
+      if (segD2(P[i] * S, P[i + 1] * S, P[i + 2] * S, P[i + 3] * S, q[0], q[1]) <= r * r) return true
+    }
+    return false
+  }
   const a = (s.a * Math.PI) / 180
   const dx = q[0] - s.x * S
   const dy = q[1] - s.y * S
@@ -340,7 +459,7 @@ function iStrek(s: Strek, S: number, q: Pt, tol: number): boolean {
  *  retninga dei bad om — heimvinkelen når ingen har peika på ei side */
 export type Sikt = { n: number; dir: Vec3 | null }
 
-function FitCamera({ fit, rute, flat, sikt }: { fit: Fit | null; rute: Rute; flat: boolean; sikt: Sikt }) {
+function FitCamera({ fit, rute, flat, sikt, laast }: { fit: Fit | null; rute: Rute; flat: boolean; sikt: Sikt; laast: boolean }) {
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
   const controls = useThree((s) => s.controls) as { target: THREE.Vector3; update?: () => void } | null
@@ -358,6 +477,11 @@ function FitCamera({ fit, rute, flat, sikt }: { fit: Fit | null; rute: Rute; fla
       s.r = 0
     }
     const flytta = s.rute !== nokkel
+    // EI VALD PLATE ER EI PLATE EIN FINGER STÅR PÅ. Eit merke kan endre
+    // breidda på strimmelen nok til å be om ei ny innramming, og papiret
+    // skal ikkje rykke under handa mellom to strekar. Ruta og synskuben
+    // rammar likevel inn.
+    if (laast && !flytta && !heim) return
     if (!flytta && s.r && Math.abs(fit.r - s.r) / s.r < 0.1) return
     s.r = fit.r
     s.rute = nokkel
@@ -375,7 +499,7 @@ function FitCamera({ fit, rute, flat, sikt }: { fit: Fit | null; rute: Rute; fla
     camera.position.copy(controls.target).add(dir.setLength(r.dist))
     controls.update?.()
     invalidate()
-  }, [fit, nokkel, rute, sikt, controls, camera, invalidate, flat, size])
+  }, [fit, nokkel, rute, sikt, controls, camera, invalidate, flat, size, laast])
   return null
 }
 
@@ -439,7 +563,7 @@ const SNAPP_PX = 4
 /** snittet i verda, til handtaka: midten av det største stykket, og punkta på ringane (tynna) */
 type SnittVerd = { midt: THREE.Vector3; punkt: THREE.Vector3[] }
 
-function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
+function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute, fk, plater, penn, pennBr, onBane, setBlekk, onVald }: {
   f: Ramma | null
   fri: ReturnType<typeof fritt>
   view: View
@@ -478,6 +602,18 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
   onBitVri: (grader: number) => void
   /** rutenettet: draget sidan gesten byrja, i pikslar — høgre er kolonner, opp er rader */
   onRute: (dx: number, dy: number) => void
+  /** ramma teikninga står i, og platene i henne — berre «kontur» har dei */
+  fk: Ramma | null
+  plater: readonly Plate[]
+  /** pennen som er tend, og kor brei han er som brøkdel av storleiken */
+  penn: "gods" | "hol" | null
+  pennBr: number
+  /** eit merke sleppt: eitt strek på planet, gjennom den vanlege vegen */
+  onBane: (id: number, s: Strek) => void
+  /** blekket under fingeren, i teikninga sine koordinatar */
+  setBlekk: (p: number[] | null) => void
+  /** plata som vart peika på i teikninga — det same valet som eit plan i rommet */
+  onVald: (id: number | null) => void
 }) {
   const gl = useThree((s) => s.gl)
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
@@ -556,8 +692,8 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     return { x: ((p.x + 1) / 2) * size.width, y: ((1 - p.y) / 2) * size.height }
   }
 
-  const naa = useRef({ f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute })
-  naa.current = { f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }
+  const naa = useRef({ f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute, fk, plater, penn, pennBr, onBane, setBlekk, onVald })
+  naa.current = { f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute, fk, plater, penn, pennBr, onBane, setBlekk, onVald }
 
   useFrame(() => {
     const g = gruppe.current
@@ -654,14 +790,18 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     const S = st.storleik
     const s = st.live?.s ?? (st.valt && st.valdStrek !== null ? st.valt.strek[st.valdStrek] : undefined)
     if (s && st.rValt && sFlytt && sStor && sVri) {
-      boks.dataset.strek = ""
-      const a = (s.a * Math.PI) / 180
+      // EIN BANE HAR INGA VRIDING. Ei line ber si eiga retning, og eit
+      // vinkelfelt attmed ville vera ein annan måte å seie det same på.
+      boks.dataset.strek = s.form === "bane" ? "bane" : ""
+      const bane = s.form === "bane"
+      const a = bane ? 0 : (s.a * Math.PI) / 180
       const co = Math.cos(a)
       const si = Math.sin(a)
-      const cx = s.x * S
-      const cy = s.y * S
-      const hw = (s.w * S) / 2
-      const hh = (s.h * S) / 2
+      const midt = strekMidt(s, S)
+      const cx = midt[0]
+      const cy = midt[1]
+      const hw = bane ? (s.br * S) / 2 : (s.w * S) / 2
+      const hh = bane ? (s.br * S) / 2 : (s.h * S) / 2
       const r = st.rValt
       const paa = (lx: number, ly: number) => skjerm(tilVerd(f, ut(r, [cx + lx * co - ly * si, cy + lx * si + ly * co])))
       const m = paa(0, 0)
@@ -690,9 +830,11 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       // lappen finst berre når det finst eit snitt å lese av. Ord og tal, ikkje setningar: ledda og kor langt inne — eller streken sine mål.
       merke.dataset.skisse = "snitt"
       const l = naa.current.lapp
-      const tekst = s
-        ? `${s.slag === "gods" ? "gods" : "hòl"} ${Math.round(s.w * S)}×${Math.round(s.h * S)} mm${s.a ? ` · ${Math.round(s.a)}°` : ""}`
-        : `${synleg ? "" : `${valt!.id} · `}${l ? l.ord : synleg ? "skisse" : ""}`
+      const ordStrek = (q: Strek) =>
+        q.form === "bane"
+          ? `${q.slag === "gods" ? "gods" : "hòl"} ${Math.round(q.br * S)} mm · ${q.p.length / 2} punkt`
+          : `${q.slag === "gods" ? "gods" : "hòl"} ${Math.round(q.w * S)}×${Math.round(q.h * S)} mm${q.a ? ` · ${Math.round(q.a)}°` : ""}`
+      const tekst = s ? ordStrek(s) : `${synleg ? "" : `${valt!.id} · `}${l ? l.ord : synleg ? "skisse" : ""}`
       if (ord && tekst !== skrive.current) {
         skrive.current = tekst
         ord.textContent = tekst
@@ -708,7 +850,7 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
   useEffect(() => {
     const el = gl.domElement
     const pts = new Map<number, { x: number; y: number }>()
-    type Gest = "none" | "klyp" | "vri" | "dra" | "sam" | "lys" | "hFlytt" | "hVri" | "musFlytt" | "musVri" | "sFlytt" | "sStor" | "sVri"
+    type Gest = "none" | "klyp" | "vri" | "dra" | "sam" | "lys" | "hFlytt" | "hVri" | "musFlytt" | "musVri" | "sFlytt" | "sStor" | "sVri" | "penn"
     let mode: Gest = "none"
     /** eit handtak er teke: ingen peikar når lerretet — korkje orbiten, gestmotoren eller augneblinksbiletet */
     const handtakGaar = () => mode === "hFlytt" || mode === "hVri" || mode === "sFlytt" || mode === "sStor" || mode === "sVri"
@@ -920,6 +1062,36 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       return inn(r, fraaVerd(f, camera.position.clone().addScaledVector(ray, t)))
     }
     /**
+     * TEIKNINGA ER EI FLATE, og eit punkt på henne er `fraaVerd` av der
+     * strålen råkar henne. Kvar `y` i `lines` er null, so gruppa er
+     * nøyaktig `tilVerd`, og planet i verda er `z = s·cy` — ein konstant.
+     */
+    const iTeikninga = (px: number, py: number): Pt | null => {
+      const g = naa.current.fk
+      if (!g) return null
+      const ray = straale(px, py)
+      if (Math.abs(ray.z) < 1e-6) return null
+      const t = (g.s * g.cy - camera.position.z) / ray.z
+      if (t <= 0) return null
+      const q = fraaVerd(g, camera.position.clone().addScaledVector(ray, t))
+      return [q[0], q[2]]
+    }
+    /** plata under eit punkt i teikninga: boksane fliser strimmelen, so det er høgst éi */
+    const plataVed = (q: Pt) =>
+      naa.current.plater.find((b) => q[0] >= b.min[0] && q[0] <= b.max[0] && q[1] >= b.min[1] && q[1] <= b.max[1])
+    /**
+     * EIT TRYKK I KONTUREN VEL EI PLATE. Klikket som fylgjer vert svelgt,
+     * elles ville `onPointerMissed` sleppe henne i same trykket.
+     */
+    const trykkPlate = (x: number, y: number) => {
+      if (naa.current.view !== "kontur") return
+      const q = iTeikninga(x, y)
+      const b = q && plataVed(q)
+      if (!b) return
+      if (b.id !== naa.current.vald) naa.current.onVald(b.id)
+      svelgKlikk = true
+    }
+    /**
      * EIT TRYKK MED EIT PLAN VALT: på eit strek vel det streken, på snittet
      * utanom streka slepp det streken — planet står. Lese i planet si ramme
      * med åtte pikslar mon, for fingeren er ikkje ein peikar. Klikket som
@@ -937,8 +1109,8 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       let treff = -1
       let minst = Infinity
       valt.strek.forEach((s, i) => {
-        if (iStrek(s, S, q, tol) && s.w * s.h < minst) {
-          minst = s.w * s.h
+        if (iStrek(s, S, q, tol) && strekAreal(s) < minst) {
+          minst = strekAreal(s)
           treff = i
         }
       })
@@ -957,8 +1129,70 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       }
     }
 
+    /**
+     * PENNEN. Éin finger dreg teikninga, so pennen kan ikkje ta han
+     * globalt: han tek han berre INNE I RAMMA kring den valde plata, og
+     * berre når ein penn er tend. Utanfor ramma dreg fingeren som før, og
+     * to fingrar dreg og klyp same kva. Det er den eine grunnen til at
+     * ramma må teiknast: ho er lina der fingeren skiftar meining.
+     *
+     * Punkta vert tynna ut alt her — under ein millimeter i teikninga er
+     * ikkje ei rørsle, det er handa som skjelv — og taket er det som får
+     * plass på planet. Å tynne ein rå fingerstraum er inndata og ikkje
+     * geometri; det er det same unnataket skisseplanet har.
+     */
+    let raa: number[] = []
+    let pennId = -1
+    /** der pennefingeren står på skjermen: han skal kunne overtakast av ein gest */
+    let pennXY = { x: 0, y: 0 }
+    const PENN_TAK = 600
+    const sleppPenn = (skriv: boolean) => {
+      const st = naa.current
+      const id = st.vald
+      const b = id === null ? undefined : st.plater.find((q) => q.id === id)
+      pennId = -1
+      mode = "none"
+      // Klikket nettlesaren sender etter fingeren når `onPointerMissed` og
+      // slepper plata. Pennen tok peikaren i fangstfasen, so R3F såg aldri
+      // noko trykk og reknar avstanden frå det FØRRE — trykket som valde
+      // plata. Eit merke som endar der du byrja ville difor sleppe henne i
+      // det han landa.
+      svelgKlikk = true
+      if (controls) controls.enabled = true
+      st.setBlekk(null)
+      st.onGest(null)
+      if (!skriv || !b || id === null || raa.length < 4 || !st.penn) {
+        raa = []
+        return
+      }
+      // teikninga → planet si eiga ramme, brøk av storleiken: det motsette
+      // av det `formAv` i `snitt.ts` gjer på veg inn
+      const S = st.storleik
+      const pts: Pt[] = []
+      for (let i = 0; i + 1 < raa.length; i += 2) pts.push([(raa[i] - b.nullpkt[0]) / S, (raa[i + 1] - b.nullpkt[1]) / S])
+      raa = []
+      // det som er att av punktbudsjettet på DETTE planet
+      let att = PUNKT_TAK
+      for (const q of st.valt?.strek ?? []) if (q.form === "bane") att -= q.p.length / 2
+      if (att < 2) return
+      const enkel = pts.length > 2 ? tynn(pts, TYNN_MM / S, att) : pts
+      st.onBane(id, { slag: st.penn, form: "bane", br: st.pennBr, p: enkel.flat() })
+    }
+
     const ned = (e: PointerEvent) => {
       svelgKlikk = false
+      // EIN FINGER TIL MEDAN PENNEN GÅR AVBRYT MERKET: det den fyrste
+      // fingeren gjorde før den andre landa høyrer ikkje til gesten som no
+      // byrjar. Blekket vert kasta, og orbiten får fingrane.
+      // EIN FINGER TIL MEDAN PENNEN GÅR AVBRYT MERKET, og gjev båe fingrane
+      // til gesten som no byrjar: det den fyrste gjorde før den andre landa
+      // høyrer ikkje til han.
+      if (mode === "penn") {
+        const id = pennId
+        const xy = pennXY
+        sleppPenn(false)
+        pts.set(id, xy)
+      }
       // eit handtak er teke: ein finger til på lerretet skal ikkje snu eller zoome medan det varer
       if (handtakGaar()) return e.stopImmediatePropagation()
       // trykk-kandidat for mus og finger begge: fyrste peikar, åleine
@@ -974,6 +1208,23 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
         mode = e.altKey ? "musVri" : "musFlytt"
         naa.current.onGest("snitt")
         return
+      }
+      const st = naa.current
+      if (flat && st.penn && st.vald !== null && pts.size === 0) {
+        const q = iTeikninga(e.clientX, e.clientY)
+        const b = q && plataVed(q)
+        if (q && b && b.id === st.vald) {
+          e.stopImmediatePropagation()
+          e.preventDefault()
+          if (controls) controls.enabled = false
+          mode = "penn"
+          pennId = e.pointerId
+          pennXY = { x: e.clientX, y: e.clientY }
+          raa = [q[0], q[1]]
+          st.setBlekk(raa.slice())
+          st.onGest("strek")
+          return
+        }
       }
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pts.size === 1 && controls) snap = { pos: camera.position.clone(), target: controls.target.clone() }
@@ -1009,6 +1260,19 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     }
 
     const rorsle = (e: PointerEvent) => {
+      if (mode === "penn") {
+        if (e.pointerId !== pennId) return
+        const q = iTeikninga(e.clientX, e.clientY)
+        if (!q) return
+        pennXY = { x: e.clientX, y: e.clientY }
+        const n = raa.length
+        if (Math.hypot(q[0] - raa[n - 2], q[1] - raa[n - 1]) < TYNN_MM) return
+        if (n / 2 >= PENN_TAK) return
+        raa.push(q[0], q[1])
+        naa.current.setBlekk(raa.slice())
+        invalidate()
+        return
+      }
       if (mode === "sFlytt" || mode === "sStor" || mode === "sVri") {
         if (!stak || e.pointerId !== stak.id) return
         const q = paaPlanet(e.clientX, e.clientY, stak.r)
@@ -1017,7 +1281,41 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
         const s0 = stak.s0
         const sn = { vri: false, pos: false }
         let s: Strek
-        if (mode === "sFlytt") {
+        // EIN BANE ER PUNKTA SINE: draget flyttar dei alle like langt, og
+        // storleiken er pennen. Vridinga finst ikkje på han — handtaket er
+        // gøymt (sjå `data-strek="bane"`).
+        if (s0.form === "bane") {
+          // HEILE MERKET FLYTTAR SEG LIKE LANGT. Å klemme kvart tal for seg
+          // ville skuve punkta oppå kvarandre mot kanten, og lesinga
+          // kastar like punkt — merket ville miste form og til slutt
+          // forsvinne. Difor vert SJØLVE FLYTTINGA klemt, ikkje punkta.
+          let dx = (q[0] - stak.q0[0]) / S
+          let dy = (q[1] - stak.q0[1]) / S
+          if (mode === "sFlytt") {
+            let x0 = Infinity
+            let x1 = -Infinity
+            let y0 = Infinity
+            let y1 = -Infinity
+            for (let i = 0; i + 1 < s0.p.length; i += 2) {
+              x0 = Math.min(x0, s0.p[i])
+              x1 = Math.max(x1, s0.p[i])
+              y0 = Math.min(y0, s0.p[i + 1])
+              y1 = Math.max(y1, s0.p[i + 1])
+            }
+            dx = Math.min(1.5 - x1, Math.max(-1.5 - x0, dx))
+            dy = Math.min(1.5 - y1, Math.max(-1.5 - y0, dy))
+            s = { ...s0, p: s0.p.map((c, i) => +(c + (i % 2 ? dy : dx)).toFixed(4)) }
+          } else if (mode === "sVri") {
+            // ingen vinkel å dra i: handtaket er gøymt, og eit drag som
+            // likevel når hit skal ikkje gjera noko anna i staden
+            s = s0
+          } else {
+            const midt = strekMidt(s0, S)
+            const ut0 = Math.hypot(stak.q0[0] - midt[0], stak.q0[1] - midt[1])
+            const naa2 = Math.hypot(q[0] - midt[0], q[1] - midt[1])
+            s = { ...s0, br: Math.min(2, Math.max(0.002, s0.br + (2 * (naa2 - ut0)) / S)) }
+          }
+        } else if (mode === "sFlytt") {
           s = { ...s0, x: klem(s0.x + (q[0] - stak.q0[0]) / S, 1.5), y: klem(s0.y + (q[1] - stak.q0[1]) / S, 1.5) }
         } else if (mode === "sStor") {
           // hjørnet nede til høgre fylgjer fingeren og midten står: det fingeren
@@ -1191,14 +1489,28 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     }
 
     const opp = (e: PointerEvent) => {
+      if (mode === "penn") {
+        if (e.pointerId !== pennId) return
+        tapDown = { x: 0, y: 0, t: 0, id: -1 }
+        sleppPenn(true)
+        return
+      }
       // trykket, for mus og finger begge — FØR fingerbokhaldet, av di musa aldri står i pts
       if (e.pointerId === tapDown.id) {
         // EIT TRYKK ER EIT TRYKK. Det andre i eit dobbelttrykk ramma inn på
         // nytt før, og ei ramme du ikkje bad om midt i ei sikting kastar
         // vinkelen du stod og fann. Innramminga står i synskuben no.
-        if (performance.now() - tapDown.t < 260 && Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y) < 12) {
-          if (naa.current.modus === "bit") trykkBit(e.clientX, e.clientY)
+        const flytta = Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y)
+        if (performance.now() - tapDown.t < 260 && flytta < 12) {
+          if (naa.current.view === "kontur") trykkPlate(e.clientX, e.clientY)
+          else if (naa.current.modus === "bit") trykkBit(e.clientX, e.clientY)
           else trykkStrek(e.clientX, e.clientY)
+        } else if (flytta >= 12) {
+          // EIT DRAG ER IKKJE EIT TRYKK. Nettlesaren sender eit klikk etter
+          // eit drag med fingeren òg, og det klikket når `onPointerMissed`
+          // og slepper det som er valt. Du dreg teikninga for å sjå betre,
+          // ikkje for å misse plata du står på.
+          svelgKlikk = true
         }
         tapDown = { x: 0, y: 0, t: 0, id: -1 }
       }
@@ -1267,8 +1579,9 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
         const { valt, valdStrek, rValt, storleik: S } = naa.current
         const s0 = valt && valdStrek !== null ? valt.strek[valdStrek] : undefined
         if (!valt || valdStrek === null || !s0 || !rValt) return
-        const q0 = paaPlanet(e.clientX, e.clientY, rValt) ?? [s0.x * S, s0.y * S]
-        stak = { id: e.pointerId, i: valdStrek, plan: valt.id, s0, s: null, r: rValt, q0, ang0: Math.atan2(q0[1] - s0.y * S, q0[0] - s0.x * S) }
+        const midt = strekMidt(s0, S)
+        const q0 = paaPlanet(e.clientX, e.clientY, rValt) ?? midt
+        stak = { id: e.pointerId, i: valdStrek, plan: valt.id, s0, s: null, r: rValt, q0, ang0: Math.atan2(q0[1] - midt[1], q0[0] - midt[0]) }
         mode = slag === "strek-flytt" ? "sFlytt" : slag === "strek-storleik" ? "sStor" : "sVri"
       } else {
         const t = taTak(e.clientX, e.clientY, e.pointerId)
@@ -1398,16 +1711,19 @@ function Streka({ f, r, strek, vald, live, S, farge }: { f: Ramma; r: Ramme; str
     const avst: number[] = []
     strek.forEach((s0, i) => {
       const s = i === vald && live ? live : s0
-      const ring = strekRing(s, S)
+      const ringar = strekRing(s, S)
       if (i === vald) {
-        for (let k = 0; k < ring.length; k++) heil.push(...ut(r, ring[k]), ...ut(r, ring[(k + 1) % ring.length]))
+        for (const ring of ringar) {
+          for (let k = 0; k < ring.length; k++) heil.push(...ut(r, ring[k]), ...ut(r, ring[(k + 1) % ring.length]))
+        }
         // glyfen: pluss for gods, minus for hòl, ein fjerdedel av den minste sida
-        const a = (s.a * Math.PI) / 180
+        const a = s.form === "bane" ? 0 : (s.a * Math.PI) / 180
         const c = Math.cos(a)
         const si = Math.sin(a)
-        const cx = s.x * S
-        const cy = s.y * S
-        const gl = Math.max(1.5, (Math.min(s.w, s.h) * S) / 4)
+        const midt = strekMidt(s, S)
+        const cx = midt[0]
+        const cy = midt[1]
+        const gl = Math.max(1.5, ((s.form === "bane" ? s.br : Math.min(s.w, s.h)) * S) / 4)
         const p = (lx: number, ly: number): Pt => [cx + lx * c - ly * si, cy + lx * si + ly * c]
         heil.push(...ut(r, p(-gl, 0)), ...ut(r, p(gl, 0)))
         if (s.slag === "gods") heil.push(...ut(r, p(0, -gl)), ...ut(r, p(0, gl)))
@@ -1415,13 +1731,15 @@ function Streka({ f, r, strek, vald, live, S, farge }: { f: Ramma; r: Ramme; str
       }
       // stipla: avstanden langs ringen, so mønsteret ikkje byrjar om att for kvart lille stykke av ein ellipse
       let d = 0
-      for (let k = 0; k < ring.length; k++) {
-        const a = ring[k]
-        const b = ring[(k + 1) % ring.length]
-        const L = Math.hypot(b[0] - a[0], b[1] - a[1])
-        stipla.push(...ut(r, a), ...ut(r, b))
-        avst.push(d, d + L)
-        d += L
+      for (const ring of ringar) {
+        for (let k = 0; k < ring.length; k++) {
+          const a = ring[k]
+          const b = ring[(k + 1) % ring.length]
+          const L = Math.hypot(b[0] - a[0], b[1] - a[1])
+          stipla.push(...ut(r, a), ...ut(r, b))
+          avst.push(d, d + L)
+          d += L
+        }
       }
     })
     const st = mkGeom(stipla)
@@ -1668,18 +1986,103 @@ function Bitboksar({ f, bitar, vald }: { f: Ramma; bitar: readonly BitBoks[]; va
   )
 }
 
-/** konturen: profilane flatt ved sida av kvarandre, ei teikning i blekk */
-function Konturen({ f, d, ink }: { f: Ramma; d: BuildRes; ink: string }) {
+/**
+ * KONTUREN: profilane flatt ved sida av kvarandre, ei teikning i blekk.
+ *
+ * Og ikkje berre ei teikning lenger: kvar plate ber namnet sitt og boksen
+ * sin med seg frå bygget (sjå `Plate` i `core.ts`), so eit trykk vel ei
+ * plate. Den valde står i fullt blekk med ei ramme kring seg — ramma er
+ * lina der fingeren skiftar meining, og ho skal sjåast og ikkje gjettast.
+ */
+function Konturen({ f, d, ink, vald }: { f: Ramma; d: BuildRes; ink: string; vald: number | null }) {
   const thin = useMemo(() => mkGeom(d.lines), [d])
-  const bold = useMemo(() => mkGeom(d.heavy), [d])
-  useEffect(() => () => { thin.dispose(); bold.dispose() }, [thin, bold])
+  const valdPlate = vald === null ? undefined : d.plater.find((q) => q.id === vald)
+  // ei UTSNITT av den same bufferen, ikkje ein ny sanning om profilen
+  const bold = useMemo(
+    () => mkGeom(valdPlate ? d.lines.subarray(valdPlate.fraa * 3, (valdPlate.fraa + valdPlate.tal) * 3) : d.heavy),
+    [d, valdPlate],
+  )
+  const ramma = useMemo(() => {
+    if (!valdPlate) return null
+    const [x0, y0] = valdPlate.min
+    const [x1, y1] = valdPlate.max
+    return mkGeom([x0, 0, y0, x1, 0, y0, x1, 0, y0, x1, 0, y1, x1, 0, y1, x0, 0, y1, x0, 0, y1, x0, 0, y0])
+  }, [valdPlate])
+  useEffect(() => () => thin.dispose(), [thin])
+  useEffect(() => () => bold.dispose(), [bold])
+  useEffect(() => () => ramma?.dispose(), [ramma])
   return (
     <group rotation={[-Math.PI / 2, 0, 0]} scale={f.s} position={[-f.cx * f.s, 0, f.cy * f.s]}>
-      {/* det tynne er alle profillinene, det tunge er omrisset som vert skore */}
+      {/* det tynne er alle profillinene, det tunge er plata du har valt */}
       <lineSegments geometry={thin}><lineBasicMaterial color={ink} transparent opacity={0.22} /></lineSegments>
       <lineSegments geometry={bold}><lineBasicMaterial color={ink} /></lineSegments>
+      {ramma && <lineSegments geometry={ramma}><lineBasicMaterial color={VALT} transparent opacity={0.55} /></lineSegments>}
     </group>
   )
+}
+
+/**
+ * BLEKKET: merket slik fingeren har det, før noko er skore.
+ *
+ * Ingenting vert bygd medan fingeren er nede — eit låst plan snittar heile
+ * lista om att, og det er fire bilete i sekundet under ein tumme. Blekket
+ * ER framsyninga, i den breidda merket får, teikna med den same
+ * kapselforma feltet les han med. Kva han gjer med plata ser du når du slepp.
+ */
+function Blekket({ f, p, br, farge }: { f: Ramma; p: readonly number[]; br: number; farge: string }) {
+  const g = useMemo(() => {
+    const r = br / 2
+    const a: number[] = []
+    const seg = (x0: number, y0: number, x1: number, y1: number) => a.push(x0, 0, y0, x1, 0, y1)
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const L = Math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1]) || 1
+      const nx = (-(p[i + 3] - p[i + 1]) / L) * r
+      const ny = ((p[i + 2] - p[i]) / L) * r
+      seg(p[i] + nx, p[i + 1] + ny, p[i + 2] + nx, p[i + 3] + ny)
+      seg(p[i] - nx, p[i + 1] - ny, p[i + 2] - nx, p[i + 3] - ny)
+    }
+    // ein åttekant kring kvart punkt: hjørna og enden av bandet
+    for (let i = 0; i + 1 < p.length; i += 2) {
+      for (let k = 0; k < 8; k++) {
+        const t0 = ((k + 0.5) / 8) * 2 * Math.PI
+        const t1 = ((k + 1.5) / 8) * 2 * Math.PI
+        seg(p[i] + r * Math.cos(t0), p[i + 1] + r * Math.sin(t0), p[i] + r * Math.cos(t1), p[i + 1] + r * Math.sin(t1))
+      }
+    }
+    return mkGeom(a)
+  }, [p, br])
+  useEffect(() => () => g.dispose(), [g])
+  return (
+    <group rotation={[-Math.PI / 2, 0, 0]} scale={f.s} position={[-f.cx * f.s, 0, f.cy * f.s]}>
+      <lineSegments geometry={g}><lineBasicMaterial color={farge} /></lineSegments>
+    </group>
+  )
+}
+
+/**
+ * ANKERET. Eit merke endrar profilen, og `contourLines` legg heile
+ * strimmelen ut på nytt for kvart bygg. Utan eit anker glir plata sidelengs
+ * ut under fingeren mellom to strekar. Planet sitt eige punkt står stille
+ * medan profilen veks kring det, so kameraet fylgjer DET.
+ */
+function Ankeret({ x, id }: { x: number | null; id: number | null }) {
+  const camera = useThree((s) => s.camera)
+  const controls = useThree((s) => s.controls) as { target: THREE.Vector3; update?: () => void } | null
+  const invalidate = useThree((s) => s.invalidate)
+  const sist = useRef<{ x: number; id: number } | null>(null)
+  useEffect(() => {
+    const fyrr = sist.current
+    sist.current = x === null || id === null ? null : { x, id }
+    // Ei ANNA plate er ikkje den same plata som har flytt seg: eit nytt val
+    // skal ikkje dra teikninga med seg, og du peikar på det du ser.
+    if (x === null || id === null || !fyrr || fyrr.id !== id || !controls || Math.abs(x - fyrr.x) < 1e-6) return
+    const d = x - fyrr.x
+    camera.position.x += d
+    controls.target.x += d
+    controls.update?.()
+    invalidate()
+  }, [x, id, camera, controls, invalidate])
+  return null
 }
 
 /**
@@ -1775,7 +2178,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
+export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute, penn, pennBr, onBane }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   kontur: BuildRes | null
@@ -1809,6 +2212,10 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
   onBitSkala: (faktor: number) => void
   onBitVri: (grader: number) => void
   onRute: (dx: number, dy: number) => void
+  /** pennen som er tend i konturen, og kor brei han er som brøkdel av storleiken */
+  penn: "gods" | "hol" | null
+  pennBr: number
+  onBane: (id: number, s: Strek) => void
 }) {
   const flat = view === "kontur"
   /** bitane kjem med «flate»-bygget: der er kroppen ein kropp */
@@ -1819,6 +2226,14 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
   const rValt = useMemo(() => (valt && f ? planRamme(valt, f.min, f.max) : null), [valt, f])
   const [live, setLive] = useState<Live | null>(null)
   const fk = useMemo(() => ramma(kontur), [kontur])
+  /** blekket under fingeren, i teikninga sine koordinatar */
+  const [blekk, setBlekk] = useState<number[] | null>(null)
+  /** den valde plata sitt nullpunkt i verda: ankeret kameraet fylgjer */
+  const ankerX = useMemo(() => {
+    if (!flat || vald === null || !fk || !kontur) return null
+    const q = kontur.plater.find((b) => b.id === vald)
+    return q ? tilVerd(fk, [q.nullpkt[0], 0, q.nullpkt[1]]).x : null
+  }, [flat, vald, fk, kontur])
   const fri = useMemo(() => fritt(rute), [rute])
   const [sikt, setSikt] = useState<Sikt>({ n: 0, dir: null })
   const heim = useCallback(() => setSikt((s) => ({ n: s.n + 1, dir: null })), [])
@@ -1861,18 +2276,20 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
         <directionalLight position={[0.5, -3, 2]} intensity={0.3} />
         <group position={[0, GROUND_Y, 0]}>
           {flat
-            ? fk && kontur && <Konturen f={fk} d={kontur} ink={tema.ink} />
+            ? fk && kontur && <Konturen f={fk} d={kontur} ink={tema.ink} vald={vald} />
             : f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} material={material} liste={liste} vald={vald} plan={plan} blink={blink} sein={sein} onVald={onVald} />}
           {!flat && f && modus === "bit" && bitar.length > 0 && <Bitboksar f={f} bitar={bitar} vald={valdBit} />}
           {!flat && f && snitt && snitt.ringar.length > 0 && <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />}
           {!flat && f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
+          {flat && fk && blekk && blekk.length >= 2 && <Blekket f={fk} p={blekk} br={pennBr * storleik} farge={penn === "hol" ? tema.warn : VALT} />}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[60, 60]} />
             <shadowMaterial transparent opacity={0.24} />
           </mesh>
         </group>
-        <FitCamera fit={(flat ? fk : f)?.fit ?? null} rute={rute} flat={flat} sikt={sikt} />
+        <FitCamera fit={(flat ? fk : f)?.fit ?? null} rute={rute} flat={flat} sikt={sikt} laast={flat && vald !== null} />
         <Kamerataket ut={zoom} flat={flat} />
+        <Ankeret x={ankerX} id={flat ? vald : null} />
         {/*
           SYNSKUBEN, øvst til høgre i det FRIE bandet: marginen er kanten av
           arket og kolonna, ikkje kanten av lerretet, so han står i biletet og
@@ -1895,7 +2312,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
           </GizmoHelper>
         )}
         <Demping onSein={setSein} />
-        <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
+        <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} fk={fk} plater={kontur?.plater ?? TOMME} penn={penn} pennBr={pennBr} onBane={onBane} setBlekk={setBlekk} onVald={onVald} />
         {/* Konturen er ei teikning: éin finger dreg, klypet zoomar, ingenting
             snur. Kroppen snur heile vegen rundt — undersida er der ledda sit,
             og eit syn du ikkje kjem til er ein kontroll som manglar. */}

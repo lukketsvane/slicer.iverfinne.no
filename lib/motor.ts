@@ -131,10 +131,10 @@ export const MOTOR: EngineDef = {
     if (view === "flate") {
       const m = flateMesh(k)
       // berre her: kroppen er ein kropp, og handa skal kunne peike på bitane
-      return { ...m, kant: EMPTY(), del: EMPTY(), lines: EMPTY(), heavy: EMPTY(), bitar: k.bitar, skala: k.skala }
+      return { ...m, kant: EMPTY(), del: EMPTY(), lines: EMPTY(), heavy: EMPTY(), bitar: k.bitar, skala: k.skala, plater: [] }
     }
     const s = buildSnitt(k, p, DETAIL[detail])
-    if (view === "lag") return { ...lagMesh(s, p.tjukn), lines: EMPTY(), heavy: EMPTY(), bitar: [], skala: k.skala }
+    if (view === "lag") return { ...lagMesh(s, p.tjukn), lines: EMPTY(), heavy: EMPTY(), bitar: [], skala: k.skala, plater: [] }
     // Konturteikninga fyller eit anna rom enn objektet; boksen vert lesen
     // av linene sjølve, so kameraet rammar inn det som vert teikna.
     const c = contourLines(s, p.tjukn)
@@ -150,7 +150,7 @@ export const MOTOR: EngineDef = {
       min[0] = min[1] = min[2] = 0
       max[0] = max[1] = max[2] = 1
     }
-    return { positions: EMPTY(), normals: EMPTY(), tris: 0, kant: EMPTY(), del: EMPTY(), min, max, lines: c.lines, heavy: c.heavy, bitar: [], skala: k.skala }
+    return { positions: EMPTY(), normals: EMPTY(), tris: 0, kant: EMPTY(), del: EMPTY(), min, max, lines: c.lines, heavy: c.heavy, bitar: [], skala: k.skala, plater: c.plater }
   },
 
   measure: (bag) => measure(asP(bag)),

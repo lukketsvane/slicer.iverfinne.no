@@ -457,6 +457,25 @@ export function kuttCsv(liste: readonly Kutt[]): string {
   ].join("\n")
 }
 
+/**
+ * EI PLATE I TEIKNINGA: namnet, boksen ho tek, og planet sitt eige punkt.
+ *
+ * Berre «kontur» ber dei — jamfør «berre «flate» ber bitane» under. Handa
+ * peikar på ein boks for å ta plata han er, og `nullpkt` er vegen attende
+ * frå ein stad i teikninga til planet si ramme, der eit merke bur. Begge
+ * vert rekna der plasseringa vert rekna, so ingen reknar dei om att: eit
+ * offset som vart gjetta på teiknetråden er ei ny sanning om same profilen.
+ */
+export type Plate = {
+  id: number
+  min: Pt
+  max: Pt
+  nullpkt: Pt
+  /** kva for hjørne i `lines` som er hennar — hjørne, ikkje tal */
+  fraa: number
+  tal: number
+}
+
 export type BuildOut = {
   positions: Float32Array<ArrayBufferLike>
   normals: Float32Array<ArrayBufferLike>
@@ -464,6 +483,9 @@ export type BuildOut = {
   min: Vec3
   max: Vec3
   lines: Float32Array<ArrayBufferLike>
+  /** Det tunge omrisset. Han er ALDRI skriven — `contourLines` gjev ein tom
+   *  buffer — og den valde plata vert lyft fram med eit utsnitt av `lines`
+   *  i staden, so det finst berre éin buffer og ei sanning om teikninga. */
   heavy: Float32Array<ArrayBufferLike>
   /**
    * Flate eller kant, eitt tal per hjørne: 0 er ei PLATEFLATE, 1 er eit
@@ -493,6 +515,8 @@ export type BuildOut = {
    */
   bitar: { id: string; min: Vec3; max: Vec3 }[]
   skala: number
+  /** platene i teikninga — berre «kontur» ber dei. Sjå `Plate`. */
+  plater: Plate[]
 }
 
 export type ExportOut = {

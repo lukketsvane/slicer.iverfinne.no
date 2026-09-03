@@ -31,7 +31,23 @@ import type { Pt, Vec3 } from "./core"
 /** Fleire plan enn dette er ikkje eit prosjekt, det er ei lenkje som prøver seg. */
 export const PLAN_TAK = 64
 /** og fleire strek på eitt plan er ikkje ei redigering */
-const STREK_TAK = 24
+export const STREK_TAK = 24
+/**
+ * PUNKT PER PLAN, over alle banene hans.
+ *
+ * Ein boks er fem tal og tri og førti teikn same kva du gjer med han, so
+ * `STREK_TAK` heldt strengen nede av seg sjølv. Ein bane er so mange tal
+ * som handa gav han, og då er det punkta som må teljast. Seks og nitti er
+ * seks til ti verkelege merke på éi plate etter at handa er tynna ut, og
+ * ei liste på fire og seksti plan som framleis går i ei lenkje.
+ *
+ * Ein bane som ville gå over taket vert forkasta HEIL og aldri kappa: ein
+ * kappa bane er ei anna lukka form, og geometri som er stille ulik er
+ * verre enn geometri som manglar.
+ */
+export const PUNKT_TAK = 96
+/** og eitt segment lenger enn dette er ikkje eit merke, det er ei lenkje som prøver seg */
+const BANE_TEIKN = 1600
 
 /**
  * EIN HANDTEIKNA STREK I PROFILEN.
@@ -52,19 +68,43 @@ const STREK_TAK = 24
  * kastar ikkje arbeid utan å bli beden. Han kan drive ut av lag med den
  * nye forma — og då ser du det i profilen og tek han bort sjølv.
  */
-export type Strek = {
-  /** legg til gods, eller skjer bort */
-  slag: "gods" | "hol"
-  form: "rekt" | "rund"
-  /** midten, i planet si ramme, som brøkdel av storleiken */
-  x: number
-  y: number
-  /** breidd og høgd, same eining */
-  w: number
-  h: number
-  /** dreiing kring midten, grader */
-  a: number
-}
+export type Strek =
+  | {
+      /** legg til gods, eller skjer bort */
+      slag: "gods" | "hol"
+      form: "rekt" | "rund"
+      /** midten, i planet si ramme, som brøkdel av storleiken */
+      x: number
+      y: number
+      /** breidd og høgd, same eining */
+      w: number
+      h: number
+      /** dreiing kring midten, grader */
+      a: number
+    }
+  | {
+      slag: "gods" | "hol"
+      /**
+       * BANEN: eit merke handa drog, ei broten line med ei breidd.
+       *
+       * Ein boks og ein ellipse er former du set; banen er ei rørsle du
+       * gjorde. Det er han som gjer konturen til noko du kan forme på:
+       * vel ei plate, dra ein finger, og plata vert skoren om att med
+       * merket i seg. Med minus er han ei sag — han skil ikkje gods du la
+       * til frå gods nettet gav deg, og eit merke tvers over ei plate
+       * deler henne i to delar.
+       *
+       * Han ber punkta sine og ikkje ein boks med ein vinkel: ei line har
+       * si eiga retning, og eit vinkelfelt attåt ville vera ein annan
+       * måte å seie det same på — og dei to ville drive frå kvarandre
+       * fyrste gong nokon flytte eit punkt.
+       */
+      form: "bane"
+      /** pennebreidda, same eining som resten: ein brøkdel av storleiken */
+      br: number
+      /** punkta på rad — [x0, y0, x1, y1, …] — i planet si ramme */
+      p: number[]
+    }
 
 export type Plan = {
   /** namnet som vert gravert. Eit tal, gjeve ved låsing, aldri brukt om att. */
@@ -200,8 +240,17 @@ export function kryss(a: Ramme, b: Ramme): { p: Vec3; d: Vec3; sin: number } | n
 const tal4 = (v: number) => String(+v.toFixed(4))
 const vec = (v: Vec3) => v.map(tal4).join(",")
 
+/**
+ * Ein bane skil punkta sine med understrek og ikkje komma. Komma er
+ * reservert i ei adresse og kostar tri teikn kvar; understrek kostar eitt.
+ * På eit merke med førti punkt er det seks hundre teikn mot sju hundre og
+ * seksti i lenkja — ein femdel, for eitt teikn som er uvant å sjå. Alle
+ * skiljeteikna UTANFOR banen står som dei stod.
+ */
 const skrivStrek = (s: Strek) =>
-  `${s.slag === "gods" ? "+" : "-"}${s.form === "rekt" ? "r" : "o"}:${[s.x, s.y, s.w, s.h, s.a].map(tal4).join(",")}`
+  s.form === "bane"
+    ? `${s.slag === "gods" ? "+" : "-"}b:${[s.br, ...s.p].map(tal4).join("_")}`
+    : `${s.slag === "gods" ? "+" : "-"}${s.form === "rekt" ? "r" : "o"}:${[s.x, s.y, s.w, s.h, s.a].map(tal4).join(",")}`
 
 export function skrivPlan(l: readonly Plan[]): string {
   return l
@@ -215,16 +264,77 @@ const lesVec = (s: string): Vec3 | null => {
   return [v[0], v[1], v[2]]
 }
 
-const lesStrek = (s: string): Strek | null => {
-  const m = /^([+-])([ro]):(.*)$/.exec(s)
+/**
+ * EIN BANE INN FRÅ EI LENKJE.
+ *
+ * Dei andre streka har fem tal og ei fast lengd; denne har ei hale nokon
+ * annan har skrive. Difor står LENGDA FYRST, før splittinga: eit segment
+ * som aldri vert delt kostar ingenting, medan ein million koordinatar delt
+ * fyrst og forkasta etterpå kostar alt — og eit ugyldig segment brukar
+ * korkje `STREK_TAK` eller punktbudsjettet, so utan ei O(1)-port kunne éi
+ * lenkje sende so mange den ville og betale null. Eit lovleg merke på seks
+ * og nitti punkt er under femten hundre teikn.
+ *
+ * Så vert alt RUNDA før noko vert prøvd, av di det er dei runda tala som
+ * vert skrivne attende: `reinPlan(reinPlan(s))` er `reinPlan(s)`, og
+ * `MOTOR.clamp` køyrer `reinPlan` på kvar einaste endring.
+ *
+ * Alt som ikkje går opp fell på golvet HEILT — aldri klipt, aldri kappa.
+ * Planet og dei andre streka hans står.
+ */
+function lesBane(slag: "gods" | "hol", raa: string, att: number): Strek | null {
+  if (raa.length > BANE_TEIKN) return null
+  const v = raa.split("_").map(Number)
+  // breidda og minst to punkt, og punkta går i par
+  if (v.length < 5 || v.length % 2 === 0 || !v.every(Number.isFinite)) return null
+  const br = +v[0].toFixed(4)
+  if (!(br > 0) || br > 2) return null
+  const p: number[] = []
+  let sx = NaN
+  let sy = NaN
+  let x0 = Infinity
+  let x1 = -Infinity
+  let y0 = Infinity
+  let y1 = -Infinity
+  for (let i = 1; i + 1 < v.length; i += 2) {
+    const x = +v[i].toFixed(4)
+    const y = +v[i + 1].toFixed(4)
+    // Eit punkt langt utanfor kroppen er ikkje eit merke på henne.
+    if (Math.abs(x) > 2 || Math.abs(y) > 2) return null
+    // To like punkt etter kvarandre er ikkje eit segment: rundinga over
+    // er der dei kjem frå, og eit segment utan lengd er ei rekning på
+    // null delt på null.
+    if (x === sx && y === sy) continue
+    sx = x
+    sy = y
+    p.push(x, y)
+    if (x < x0) x0 = x
+    if (x > x1) x1 = x
+    if (y < y0) y0 = y
+    if (y > y1) y1 = y
+  }
+  // eitt punkt er ikkje ei line
+  if (p.length < 4) return null
+  // Ruta i `snitt.ts` veks til det streka krev og vert so klipt ved 520
+  // celler; ein bane sin boks er sameininga av ALLE punkta hans, so han
+  // sprengjer henne mykje lettare enn eit rektangel.
+  if (x1 - x0 > 2 || y1 - y0 > 2) return null
+  if (p.length / 2 > att) return null
+  return { slag, form: "bane", br, p }
+}
+
+const lesStrek = (s: string, att: number): Strek | null => {
+  const m = /^([+-])([rob]):(.*)$/.exec(s)
   if (!m) return null
+  const slag = m[1] === "+" ? "gods" : "hol"
+  if (m[2] === "b") return lesBane(slag, m[3], att)
   const v = m[3].split(",").map(Number)
   if (v.length !== 5 || !v.every(Number.isFinite)) return null
   const [x, y, w, h, a] = v
   // Ein strek utanfor kroppen eller utan breidd er ingen strek.
   if (Math.abs(x) > 2 || Math.abs(y) > 2 || w <= 0 || h <= 0 || w > 2 || h > 2) return null
   return {
-    slag: m[1] === "+" ? "gods" : "hol",
+    slag,
     form: m[2] === "r" ? "rekt" : "rund",
     x: +x.toFixed(4),
     y: +y.toFixed(4),
@@ -254,10 +364,13 @@ export function lesPlan(s: unknown): Plan[] {
     if (o.some((c) => c < -0.5 || c > 1.5)) continue
     const n = norm3(n0).map((c) => +c.toFixed(4)) as Vec3
     const strek: Strek[] = []
+    let att = PUNKT_TAK
     for (const r of rest.slice(1)) {
       if (strek.length >= STREK_TAK) break
-      const st = lesStrek(r)
-      if (st) strek.push(st)
+      const st = lesStrek(r, att)
+      if (!st) continue
+      strek.push(st)
+      if (st.form === "bane") att -= st.p.length / 2
     }
     sett.add(id)
     ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, strek })

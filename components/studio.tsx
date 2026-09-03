@@ -145,6 +145,8 @@ export function Studio() {
   const [verkty, setVerkty] = useState<VerktyId | null>(null)
   /** kolonner og rader, medan fingrane set dei: lesinga over kroppen */
   const [ruteTal, setRuteTal] = useState<[number, number] | null>(null)
+  /** pennen som er tend i konturen: éin finger på den valde plata teiknar */
+  const [penn, setPenn] = useState<"gods" | "hol" | null>(null)
   const [busy, setBusy] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
   const [melding, setMelding] = useState<string | null>(null)
@@ -393,10 +395,12 @@ export function Studio() {
     if (!mounted || !kropp) return
     // verktyet for kroppen snittar ingenting: der byggjer du emnet, ikkje delane
     if (modus === "bit") return spørSkisse(null)
+    // og konturen teiknar ikkje snittet: der er profilen alt på papiret
+    if (view === "kontur") return spørSkisse(null)
     if (vald !== null) return spørSkisse(plan.find((q) => q.id === vald) ?? null)
     const s = skisse.current
     spørSkisse(s ? { id: 0, o: broek(s.o, kropp.min, kropp.max), n: s.n, strek: [] } : null)
-  }, [mounted, kropp, vald, plan, params, modus, spørSkisse])
+  }, [mounted, kropp, vald, plan, params, modus, view, spørSkisse])
   const harSnitt = !!snitt?.ringar.length
 
   /**
@@ -675,6 +679,10 @@ export function Studio() {
     setValdBit(null)
   }, [])
   /** rutenettet: to fingrar set kolonner og rader. Eit valt plan er ikkje eit rutenett, so valet går. */
+  /** pennen høyrer til ei vald plate i konturen: slokk han når noko av det gjeld */
+  useEffect(() => {
+    if (view !== "kontur" || vald === null) setPenn(null)
+  }, [view, vald])
   const vekslRute = useCallback(() => {
     setModus((m) => (m === "rute" ? "form" : "rute"))
     setValdBit(null)
@@ -776,6 +784,36 @@ export function Studio() {
     })
     setValdStrek(i)
   }, [vald, snitt])
+  /**
+   * PENNEN ER MATERIALET, IKKJE KAMERAET. Merket er like breitt kvar du
+   * står, av di kanten hans er der strålen går: eit hòl smalare enn snittet
+   * er ikkje eit kutt, det er ei svimerke som snittkompenseringa lukkar att,
+   * og ei ribbe tynnare enn plata er ein fyrstikk. Difor golvet — to
+   * platetjukner, og aldri under snittet — og ingen breiddeskyvar: breidda
+   * vert dregen på streken etterpå, som på kvart anna strek.
+   */
+  const pennBr = useMemo(() => {
+    const tj = typeof params.tjukn === "number" ? params.tjukn : 3
+    const sn = typeof params.snitt === "number" ? params.snitt : 0
+    const S = typeof params.storleik === "number" ? params.storleik : 150
+    return Math.max(2 * tj, sn) / Math.max(1, S)
+  }, [params.tjukn, params.snitt, params.storleik])
+  /**
+   * EIT MERKE SLEPPT: eitt strek på planet, gjennom den vanlege vegen.
+   * Ein bane vert lagd til lista og tek ikkje noko bort — å viske er å
+   * teikne med det andre forteiknet, og lista krympar berre av angre
+   * eller av ⌫. Det er det som held «når nettet endrar seg under streken,
+   * står streken» sant òg for viskinga.
+   */
+  const leggBane = useCallback((id: number, st: Strek) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const j = l.findIndex((q) => q.id === id)
+      if (j < 0) return cur
+      l[j] = { ...l[j], strek: [...l[j].strek, st] }
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [])
   /** streken slik fingrane la han frå seg: eitt steg i angre */
   const endraStrek = useCallback((id: number, i: number, s: Strek) => {
     setParams((cur) => {
@@ -995,7 +1033,10 @@ export function Studio() {
       else if (k === "2") setView("lag")
       else if (k === "3") setView("kontur")
       else if (k === "escape") {
-        if (verkty) setVerkty(null)
+        // pennen fyrst: han er det inste laget, og du skal kunne slutte å
+        // teikne utan å misse plata du teiknar på
+        if (penn) setPenn(null)
+        else if (verkty) setVerkty(null)
         else if (valdStrek !== null) setValdStrek(null)
         else if (vald !== null) velPlan(null)
         else setSteg("line")
@@ -1004,7 +1045,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, vekslRute, verkty, velPlan, vekslModus])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, vekslRute, verkty, velPlan, vekslModus, penn])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -1053,6 +1094,9 @@ export function Studio() {
             onBitSkala={skalerBit}
             onBitVri={vriBit}
             onRute={dragRute}
+            penn={penn}
+            pennBr={pennBr}
+            onBane={leggBane}
           />
         )}
       </div>
@@ -1080,10 +1124,33 @@ export function Studio() {
         <div className="tumme" style={{ right: (benk ? KOL : 0) + 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}>
           {vald !== null && (
             <>
-              <button type="button" aria-label="legg til gods" title="legg til gods: ein firkant midt i snittet. flytt, vri og dra han større" onClick={() => leggStrek("gods")} className={TUMME_BTN}>
+              {/* I KONTUREN ER DEI TO PENNAR som låser seg. Der er plata
+                  flat framfor deg, og éin finger inne i ramma teiknar merket
+                  i full breidd; trykk den andre for å byte forteikn utan å
+                  gå ut av teikninga, eller den tende for å slutte. I rommet
+                  legg dei framleis ein firkant eller ein ring midt i snittet.
+                  Dei var teikna i konturen òg før, og skreiv eit strek ingen
+                  kunne sjå — `Streka` står berre i rommet. */}
+              <button
+                type="button"
+                aria-label="legg til gods"
+                aria-pressed={view === "kontur" ? penn === "gods" : undefined}
+                title={view === "kontur" ? "gods: éin finger teiknar på plata og legg til material" : "legg til gods: ein firkant midt i snittet. flytt, vri og dra han større"}
+                onClick={() => (view === "kontur" ? setPenn((q) => (q === "gods" ? null : "gods")) : leggStrek("gods"))}
+                className={TUMME_BTN}
+                data-penn="gods"
+              >
                 {IcoGods}
               </button>
-              <button type="button" aria-label="skjer hòl" title="skjer eit hòl: ein ring midt i snittet. flytt, vri og dra han større" onClick={() => leggStrek("hol")} className={TUMME_BTN}>
+              <button
+                type="button"
+                aria-label="skjer hòl"
+                aria-pressed={view === "kontur" ? penn === "hol" : undefined}
+                title={view === "kontur" ? "hòl: éin finger teiknar på plata og skjer bort. det er ei sag, ikkje ein angre" : "skjer eit hòl: ein ring midt i snittet. flytt, vri og dra han større"}
+                onClick={() => (view === "kontur" ? setPenn((q) => (q === "hol" ? null : "hol")) : leggStrek("hol"))}
+                className={TUMME_BTN}
+                data-penn="hol"
+              >
                 {IcoHol}
               </button>
               <button
