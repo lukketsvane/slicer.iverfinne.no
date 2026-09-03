@@ -169,6 +169,76 @@ report("kube, vend 30/20/10 og 700 mm", {
   }
 }
 
+/**
+ * --- 4c SYMMETRIEN: EI SPEGLING ER EIN BIT TIL, RETT VEND --------------------
+ *
+ * Brytaren skriv eitt tal i scenestrengen, og resten skal vera nøyaktig som
+ * om du hadde sett biten sjølv. Difor vert dei to rekna og samanlikna: ein
+ * kube som står ut på minus x og er vridd tretti grader, spegla om x —
+ * mot den same kuben pluss ein til, sett på pluss x og vridd tretti grader
+ * ANDRE vegen. M·R(30)·M er R(−30), so det er den same kroppen, og alt
+ * målinga svarar med skal vera det same talet.
+ *
+ * Og det er her vindinga vert prøvd. Ei spegling snur kvar trekant, og eit
+ * halvt snudd nett vert ikkje retta av noko seinare: strålane ville telt
+ * feil, godset stått på feil side, og delane kome ut som noko anna. Ein
+ * kube vridd tretti grader er ikkje sin eigen spegelbilete-plassering, so
+ * prøva merkar det.
+ */
+{
+  const spegla = report("symmetri: éin kube, spegla om x", {
+    ...GRUNN,
+    scene: "kube@-40,0,0/1/30/1",
+  })
+  const forHand = report("symmetri: to kubar, sette for hand (fasit)", {
+    ...GRUNN,
+    scene: "kube@-40,0,0/1/30;kube@40,0,0/1/330",
+  })
+  const like = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol
+  if (
+    spegla.m.parts !== forHand.m.parts ||
+    spegla.m.joints !== forHand.m.joints ||
+    spegla.m.openEdges > 0 ||
+    !like(spegla.m.cutLen, forHand.m.cutLen, Math.max(1, forHand.m.cutLen * 0.001)) ||
+    !like(spegla.m.envX, forHand.m.envX, 0.05) ||
+    !like(spegla.m.envY, forHand.m.envY, 0.05)
+  ) {
+    bryt(
+      `speglinga er ikkje den same kroppen: ${spegla.m.parts}/${forHand.m.parts} delar, ` +
+        `${spegla.m.joints}/${forHand.m.joints} ledd, ${nn(spegla.m.cutLen)}/${nn(forHand.m.cutLen)} mm kutt, ` +
+        `${spegla.m.openEdges} opne kantar`,
+    )
+  }
+  /**
+   * OG ALLE FIRE UNDERMENGDENE. To brytarar gjev fire bitar — han sjølv,
+   * spegla om x, om y, og om begge — og den siste er ikkje ei spegling i
+   * det heile, ho er ei halvsving. Fasiten set alle fire for hand: fire
+   * bein under eit bord, av eitt.
+   */
+  const beina = report("symmetri: eitt bein, spegla om x og y", {
+    ...GRUNN,
+    scene: "kube@-40,-40,0/0.6/30/3",
+  })
+  const fireForHand = report("symmetri: fire bein, sette for hand (fasit)", {
+    ...GRUNN,
+    scene: "kube@-40,-40,0/0.6/30;kube@40,-40,0/0.6/330;kube@-40,40,0/0.6/330;kube@40,40,0/0.6/30",
+  })
+  if (
+    beina.m.parts !== fireForHand.m.parts ||
+    beina.m.joints !== fireForHand.m.joints ||
+    beina.m.openEdges > 0 ||
+    !like(beina.m.cutLen, fireForHand.m.cutLen, Math.max(1, fireForHand.m.cutLen * 0.001)) ||
+    !like(beina.m.envX, fireForHand.m.envX, 0.05) ||
+    !like(beina.m.envY, fireForHand.m.envY, 0.05)
+  ) {
+    bryt(
+      `x og y gav ikkje fire bein: ${beina.m.parts}/${fireForHand.m.parts} delar, ` +
+        `${beina.m.joints}/${fireForHand.m.joints} ledd, ${nn(beina.m.cutLen)}/${nn(fireForHand.m.cutLen)} mm kutt, ` +
+        `${nn(beina.m.envX)}×${nn(beina.m.envY)} mot ${nn(fireForHand.m.envX)}×${nn(fireForHand.m.envY)} mm`,
+    )
+  }
+}
+
 // --- 5 eit importert nett: ei kule som STL --------------------------------
 function sphereStl(r: number, seg: number): ArrayBuffer {
   const pos: number[] = []

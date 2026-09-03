@@ -14,7 +14,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { HAIR, IcoBit, IcoDupliser, IcoFerdig, IcoGods, IcoHol, IcoPenn, IcoSkisse, IcoSkjer, IcoSlett, IcoVisk } from "./deler"
+import { CHIP, chipStyle, HAIR, IcoBit, IcoDupliser, IcoFerdig, IcoGods, IcoHol, IcoPenn, IcoSkisse, IcoSkjer, IcoSlett, IcoVisk } from "./deler"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
 
@@ -183,6 +183,8 @@ export function Studio() {
   const kjeldeNamn = kjelde === KUBE ? "kube" : (namn[kjelde] ?? "nett")
   /** bitane kroppen er sett saman av: kjelda åleine når lista er tom */
   const bitar = useMemo(() => lesScene(String(params.scene || "") || eiKjelde(kjelde)), [params.scene, kjelde])
+  /** speglingane den valde biten ber: tre brytarar i eitt tal */
+  const valdSp = valdBit === null ? 0 : (bitar[valdBit]?.sp ?? 0)
   const plan = useMemo(() => lesPlan(params.plan), [params.plan])
   const liste = useMemo(() => tal?.liste ?? [], [tal])
 
@@ -554,7 +556,7 @@ export function Studio() {
     setParams((cur) => {
       const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
       if (l.length >= SCENE_TAK) return cur
-      const ny = [...l, { id, t: [0, 0, 0] as Vec3, s: 1, rz: 0 }]
+      const ny = [...l, { id, t: [0, 0, 0] as Vec3, s: 1, rz: 0, sp: 0 }]
       const steg = Math.min(85, 760 / Math.max(1, ny.length - 1))
       const midt = (steg * (ny.length - 1)) / 2
       return { ...cur, scene: skrivScene(ny.map((b, i) => ({ ...b, t: [+(i * steg - midt).toFixed(2), b.t[1], b.t[2]] as Vec3 }))) }
@@ -613,6 +615,25 @@ export function Studio() {
     if (!g || i === null || !Number.isFinite(faktor) || faktor <= 0) return
     skrivBit(i, { s: Math.min(5, Math.max(0.05, g.s * faktor)) })
   }, [skrivBit])
+  /**
+   * SYMMETRIEN: éin akse av gongen, og dei tel saman.
+   *
+   * Verktyet for kroppen har brytaren, av di det er DER biten står. Eitt
+   * bein sett på plass og x og y på gjev fire bein, og dei fylgjer beinet
+   * medan du dreg det — ein symmetri som var ein kopi ville stått att der
+   * kopien vart laga. Speglinga ligg i scenestrengen, so ho fylgjer angre,
+   * lenkja og prosjektfila utan ei line til.
+   */
+  const speilBit = useCallback((akse: number) => {
+    const i = bitRef.current
+    if (i === null) return
+    setParams((cur) => {
+      const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
+      if (!l[i]) return cur
+      l[i] = { ...l[i], sp: l[i].sp ^ (1 << akse) }
+      return { ...cur, scene: skrivScene(l) }
+    })
+  }, [])
   const vriBit = useCallback((grader: number) => {
     const g = grunn.current?.bit
     const i = bitRef.current
@@ -1171,6 +1192,34 @@ export function Studio() {
               står han til å dublere eller ta bort. */}
           {modus === "bit" && valdBit !== null && (
             <>
+              {/* SYMMETRIEN: tre brytarar, ei line. Kvar akse speglar biten
+                  om planet gjennom midten av kroppen, og dei tel saman — x
+                  og y er fire bein av eitt. Ord og ikkje ikon: ein akse har
+                  eit namn, og x er kortare enn kvart bilete av x.
+
+                  Lina er BREIARE enn spalta og skal ikkje skuve henne: spalta
+                  midtstiller borna sine, so ei brei line ville flytt skjer og
+                  alt anna innover frå tommelen. Difor står ho utanfor flyten,
+                  med høgrekanten sin på linje med ikona. */}
+              <span className="relative block h-9 w-12">
+                <span className="absolute right-0 top-0 flex items-center gap-1" role="group" aria-label="symmetri">
+                  {(["x", "y", "z"] as const).map((ord, a) => (
+                    <button
+                      key={ord}
+                      type="button"
+                      aria-label={`speil ${ord}`}
+                      aria-pressed={(valdSp & (1 << a)) !== 0}
+                      title={`speil biten om ${ord}-planet gjennom midten`}
+                      onClick={() => speilBit(a)}
+                      className={CHIP + " px-2.5"}
+                      style={chipStyle((valdSp & (1 << a)) !== 0)}
+                      data-speil={ord}
+                    >
+                      {ord}
+                    </button>
+                  ))}
+                </span>
+              </span>
               <button type="button" aria-label="dubler biten" title="ein bit til, lik denne" onClick={dupliserBit} className={TUMME_BTN}>
                 {IcoDupliser}
               </button>
