@@ -362,6 +362,23 @@ export function place(
   pos: Float32Array,
   o: { rotX: number; rotY: number; rotZ: number; storleik: number },
 ): Float32Array {
+  return plassering(pos, o).pos
+}
+
+/**
+ * Plasseringa med reknestykket sitt synleg.
+ *
+ * `place` gjev berre hjørna. Men den som skal flytte ein BIT av kroppen med
+ * fingeren treng vegen attende: eit drag på skjermen er millimeter i det
+ * plasserte rommet, og biten står i det felles. Skalaen `k` og vendinga er
+ * det som skil dei to, og dei vert rekna her — éin gong, på same staden som
+ * hjørna. `vend` er den same avbildinga for eitt punkt, so ein boks kan
+ * fylgje med utan at nokon skriv matematikken om att.
+ */
+export function plassering(
+  pos: Float32Array,
+  o: { rotX: number; rotY: number; rotZ: number; storleik: number },
+): { pos: Float32Array; k: number; vend: (p: Vec3) => Vec3 } {
   const rx = (o.rotX * Math.PI) / 180
   const ry = (o.rotY * Math.PI) / 180
   const rz = (o.rotZ * Math.PI) / 180
@@ -405,5 +422,20 @@ export function place(
     out[i + 1] = out[i + 1] * k - my
     out[i + 2] = out[i + 2] * k - mz
   }
-  return out
+  const vend = (p: Vec3): Vec3 => {
+    let x = p[0]
+    let y = p[1]
+    let z = p[2]
+    let t2 = y * cx - z * sx
+    z = y * sx + z * cx
+    y = t2
+    t2 = x * cy + z * sy
+    z = -x * sy + z * cy
+    x = t2
+    t2 = x * cz - y * sz
+    y = x * sz + y * cz
+    x = t2
+    return [x * k - mx, y * k - my, z * k - mz]
+  }
+  return { pos: out, k, vend }
 }

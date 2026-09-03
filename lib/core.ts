@@ -482,6 +482,17 @@ export type BuildOut = {
    * anna enn snittinga.
    */
   del: Float32Array<ArrayBufferLike>
+  /**
+   * Bitane kroppen er sett saman av, med boksen sin i millimeter.
+   *
+   * Berre «flate» ber dei: det er DER kroppen er ein kropp og ikkje ein
+   * stabel delar. Handa peikar på ein boks for å ta i biten han er, og
+   * `skala` er vegen attende — millimeter i det plasserte rommet per
+   * millimeter i det felles rommet bitane står i. Begge vert rekna der
+   * plasseringa vert rekna, so ingen reknar dei om att.
+   */
+  bitar: { id: string; min: Vec3; max: Vec3 }[]
+  skala: number
 }
 
 export type ExportOut = {

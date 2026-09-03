@@ -21,10 +21,11 @@
  */
 import { keep } from "./core"
 import {
+  bounds,
   flip,
   makeSoup,
   openEdges,
-  place,
+  plassering,
   shade,
   signedVolume,
   weld,
@@ -40,9 +41,23 @@ import { akser } from "./plan"
 import type { Vec3 } from "./core"
 import type { Params } from "./params"
 
+/** ein bit av kroppen, slik han hamna: kva kjelde han er, og boksen kring han */
+export type BitBoks = { id: string; min: Vec3; max: Vec3 }
+
 export type Kropp = {
   /** nettet slik det står: vend, skalert, sentrert, på golvet */
   soup: Soup
+  /**
+   * Bitane kroppen er sett saman av, med boksen sin i det PLASSERTE rommet.
+   *
+   * Dei er ikkje ein del av geometrien — dei er kvar bit vart av. Handa
+   * treng dei for å kunne peike på ein bit og flytte han, og då må dei
+   * reknast der plasseringa vert rekna. Å rekne dei om att på teiknetråden
+   * er å be om to sanningar om same kroppen.
+   */
+  bitar: BitBoks[]
+  /** millimeter i det plasserte rommet per millimeter i det felles: `place` sin k */
+  skala: number
   /** dei same trekantane med mjuke hjørnenormalar — «flate»-visinga */
   nrm: Float32Array
   net: Indexed
@@ -66,7 +81,7 @@ export type Kropp = {
  * er: hadde plasseringa kome før forenklinga, hadde dei ikkje late seg
  * skilje.
  */
-type Net = { net: Indexed; srcTris: number; openEdges: number }
+type Net = { net: Indexed; srcTris: number; openEdges: number; bitar: BitBoks[] }
 
 const NETT_NOKKEL = (p: Params) => [scenaAv(p), p.trekant, p.glatt].join("|")
 const KROPP_NOKKEL = (p: Params) =>
@@ -84,9 +99,10 @@ export const scenaAv = (p: Params) => p.scene || eiKjelde(p.kjelde)
  * lukka skal ligg oppå kvarandre er det gods, og der ingen ligg er det
  * luft. Det er nett det ein kropp bygd av klossar treng, og ikkje meir.
  */
-function samlaSoup(p: Params): { soup: Soup; tris: number } {
+function samlaSoup(p: Params): { soup: Soup; tris: number; bitar: BitBoks[] } {
   const bitar = lesScene(scenaAv(p))
   const delar: Float32Array[] = []
+  const boksar: BitBoks[] = []
   let tris = 0
   for (const b of bitar.length ? bitar : lesScene(eiKjelde(p.kjelde))) {
     const src = source(b.id)
@@ -110,15 +126,17 @@ function samlaSoup(p: Params): { soup: Soup; tris: number } {
       ut[i + 2] = z + b.t[2]
     }
     delar.push(ut)
+    const bb = bounds(ut)
+    boksar.push({ id: b.id, min: bb.min, max: bb.max })
   }
-  if (delar.length === 1) return { soup: makeSoup(delar[0]), tris }
+  if (delar.length === 1) return { soup: makeSoup(delar[0]), tris, bitar: boksar }
   const alle = new Float32Array(delar.reduce((n, d) => n + d.length, 0))
   let o = 0
   for (const d of delar) {
     alle.set(d, o)
     o += d.length
   }
-  return { soup: makeSoup(alle), tris }
+  return { soup: makeSoup(alle), tris, bitar: boksar }
 }
 
 const NETT_HUGS = keep<Net>(2)
@@ -126,23 +144,39 @@ const KROPP_HUGS = keep<Kropp>(3)
 
 function makeNet(p: Params): Net {
   return NETT_HUGS(NETT_NOKKEL(p), () => {
-    const raw = samlaSoup(p).soup
+    const samla = samlaSoup(p)
+    const raw = samla.soup
     let net = weld(raw)
     // Ut-inn fyrst, og før alt anna: er nettet snudd, er kvar einaste
     // seinare avgjerd teken på feil side av flata.
     if (signedVolume(net) < 0) net = flip(net)
     net = decimate(net, Math.max(64, Math.round(p.trekant * 1000)))
     net = taubin(net, p.glatt)
-    return { net, srcTris: raw.tris, openEdges: openEdges(net) }
+    return { net, srcTris: samla.tris, openEdges: openEdges(net), bitar: samla.bitar }
   })
 }
 
 export function makeKropp(p: Params): Kropp {
   return KROPP_HUGS(KROPP_NOKKEL(p), () => {
     const n = makeNet(p)
-    const net = { verts: place(n.net.verts, p), idx: n.net.idx }
+    const pl = plassering(n.net.verts, p)
+    const net = { verts: pl.pos, idx: n.net.idx }
     const flat = shade(net)
     const soup = makeSoup(flat.pos)
+    // boksane gjennom den same avbildinga som hjørna: ein vend boks er
+    // ingen boks, so det er dei åtte hjørna som vert vende og målte om att
+    const bitar = n.bitar.map((b) => {
+      const lo: Vec3 = [Infinity, Infinity, Infinity]
+      const hi: Vec3 = [-Infinity, -Infinity, -Infinity]
+      for (let i = 0; i < 8; i++) {
+        const q = pl.vend([i & 1 ? b.max[0] : b.min[0], i & 2 ? b.max[1] : b.min[1], i & 4 ? b.max[2] : b.min[2]])
+        for (let a = 0; a < 3; a++) {
+          if (q[a] < lo[a]) lo[a] = q[a]
+          if (q[a] > hi[a]) hi[a] = q[a]
+        }
+      }
+      return { id: b.id, min: lo, max: hi }
+    })
     return {
       soup,
       nrm: flat.nrm,
@@ -150,6 +184,8 @@ export function makeKropp(p: Params): Kropp {
       solid: makeSolid(soup),
       srcTris: n.srcTris,
       openEdges: n.openEdges,
+      bitar,
+      skala: pl.k,
     }
   })
 }

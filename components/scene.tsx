@@ -8,6 +8,7 @@ import { MATERIALS, inRing, shoelace, type Kutt, type Material, type Pt, type Ve
 import { akser, broek, dot, inn, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
 import { GROUND_Y, MAX_DIST, MIN_DIST, MIN_NAER, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
+import type { BitBoks } from "@/lib/kropp"
 import type { BuildRes } from "@/lib/worker"
 
 /**
@@ -56,15 +57,20 @@ export type GestKva = "vend" | "lys" | "snitt" | "zoom" | "strek" | null
 /** eit strek medan fingeren har det: teikna her, snitta av motoren, skrive i parametrane fyrst når det vert sleppt */
 type Live = { id: number; i: number; s: Strek }
 /**
- * TO GESTMODUSAR, EIN BRYTAR. «form» er dei gamle gestane: to fingrar på
+ * TRE GESTMODUSAR, TO BRYTARAR. «form» er dei gamle gestane: to fingrar på
  * objektet klyp storleiken, vrir vendinga og dreg snittet på tvers — éin
  * gest om gongen, den som leier vinn. «skisse» er reiskapen for sjølve
  * planet: dra flyttar det, vri vinklar det, og klyp — når ingen av dei to
  * andre er i gang — dollyar kameraet. Med eit låst plan valt gjeld skisse-
  * gestane DET planet, i begge modusane. Arbeider fingrane på planet, står
  * kameraet: eit klyp du ikkje meinte skal ikkje flytte synet.
+ *
+ * «bit» er den tredje: verktyet for KROPPEN. Bitane han er sett saman av
+ * står som boksar du kan peike på, og to fingrar på ein vald bit flyttar
+ * han (vassrett på golvet, loddrett opp), vrir han kring loddlina og gjer
+ * han større. Same gestane, eit anna emne.
  */
-export type Modus = "form" | "skisse"
+export type Modus = "form" | "skisse" | "bit"
 type Lys = { az: number; el: number }
 
 type Ramma = { cx: number; cy: number; s: number; min: Vec3; max: Vec3; midt: Vec3; fit: Fit }
@@ -151,6 +157,22 @@ const mkGeom = (a: ArrayLike<number>) => {
   if (a.length) g.setAttribute("position", new THREE.Float32BufferAttribute(a as number[], 3))
   return g
 }
+/** dei tolv kantane av ein boks, i millimeter */
+function boksKantar(boksar: readonly { min: Vec3; max: Vec3 }[]) {
+  const lin: number[] = []
+  for (const b of boksar) {
+    const h = (i: number): Vec3 => [i & 1 ? b.max[0] : b.min[0], i & 2 ? b.max[1] : b.min[1], i & 4 ? b.max[2] : b.min[2]]
+    // kvar kant er to hjørne som skil seg i nøyaktig éin bit
+    for (let i = 0; i < 8; i++) {
+      for (const bit of [1, 2, 4]) {
+        if (i & bit) continue
+        lin.push(...h(i), ...h(i | bit))
+      }
+    }
+  }
+  return mkGeom(lin)
+}
+
 /** kvadrat per plan, i millimeter: flatene som trekantar og kantane som liner */
 function kvadratar(plana: readonly Plan[], f: Ramma, fak = 1.6) {
   const side = fak * diag(f)
@@ -412,7 +434,7 @@ const SNAPP_PX = 4
 /** snittet i verda, til handtaka: midten av det største stykket, og punkta på ringane (tynna) */
 type SnittVerd = { midt: THREE.Vector3; punkt: THREE.Vector3[] }
 
-function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onVend, onLys, onGest, onSkisse }: {
+function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onVend, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri }: {
   f: Ramma | null
   fri: ReturnType<typeof fritt>
   view: View
@@ -431,6 +453,9 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
   live: Live | null
   /** det valde planet si ramme i millimeter — der streka står */
   rValt: Ramme | null
+  /** bitane kroppen er sett saman av, med boksen sin i millimeter, og den valde */
+  bitar: readonly BitBoks[]
+  valdBit: number | null
   setLive: (l: Live | null) => void
   onValdStrek: (i: number | null) => void
   /** streken sleppt: skriv han. Og medan han vert drege: snitt planet med han der han står */
@@ -442,6 +467,11 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
   onGest: (kva: GestKva) => void
   /** skissa har flytt seg: motoren skal snitte henne om att */
   onSkisse: (s: Skisse) => void
+  /** biten under fingeren, og det dei to fingrane gjer med han: totalen sidan gesten byrja */
+  onValdBit: (i: number | null) => void
+  onBitFlytt: (dmm: Vec3) => void
+  onBitSkala: (faktor: number) => void
+  onBitVri: (grader: number) => void
 }) {
   const gl = useThree((s) => s.gl)
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
@@ -456,7 +486,12 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
   const boksKant = useMemo(() => dynGeom(24), [])
   useEffect(() => () => { boksFlate.dispose(); boksKant.dispose() }, [boksFlate, boksKant])
   const valt = useMemo(() => (vald === null ? null : plan.find((q) => q.id === vald) ?? null), [vald, plan])
-  const synleg = !!f && vald === null && view !== "kontur"
+  /**
+   * Skissa er gøymd i verktyet for kroppen. Ho høyrer til det å skjere, og
+   * handtaka hennar står midt i biletet — nett der fingrane skal ta i ein
+   * bit. Eit verkty om gongen: her er det kroppen som vert bygd.
+   */
+  const synleg = !!f && vald === null && view !== "kontur" && modus !== "bit"
   /** snittet i verda: handtaka står PÅ det — flytt i midten, vri på toppen */
   const snittVerd = useMemo<SnittVerd | null>(() => {
     if (!f || !snitt?.ringar.length) return null
@@ -515,8 +550,8 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     return { x: ((p.x + 1) / 2) * size.width, y: ((1 - p.y) / 2) * size.height }
   }
 
-  const naa = useRef({ f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onVend, onLys, onGest, onSkisse })
-  naa.current = { f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onVend, onLys, onGest, onSkisse }
+  const naa = useRef({ f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onVend, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri })
+  naa.current = { f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onVend, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri }
 
   useFrame(() => {
     const g = gruppe.current
@@ -678,7 +713,9 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     /** skissemodusen: dra, vri og klyp SAMSTUNDES, kvar med si daudsone */
     let sam = { d0: 1, sistA: 0, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null as GestKva }
     /** skissegestane gjeld når brytaren står på skisse — og alltid når eit låst plan er valt */
-    const skisseStil = () => naa.current.modus === "skisse" || naa.current.valt !== null
+    /** verktyet for kroppen har fingrane når ein bit er vald; elles som før */
+    const bitStil = () => naa.current.modus === "bit" && naa.current.valdBit !== null
+    const skisseStil = () => !bitStil() && (naa.current.modus === "skisse" || naa.current.valt !== null)
     let last = { cx: 0, cy: 0, d: 0, a: 0 }
     /** stoda då gesten vart klassifisert, som klyp, vri og drag måler frå */
     let start = { cx: 0, cy: 0, d: 0, a: 0 }
@@ -801,6 +838,42 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       invalidate()
     }
     const flytt = (t: Tak, dx: number, dy: number) => bruk(t, dx, dy, 0)
+    /**
+     * BITEN UNDER FINGRANE, FLYTT.
+     *
+     * Vassrett fylgjer han det du ser som høgre — han glir bortover golvet i
+     * den retninga du står og ser frå. Loddrett går han rett opp: eit sete
+     * skal kunne lyftast over beina utan at du må snu synet fyrst. Talet er
+     * millimeter i det PLASSERTE rommet, og studioet reknar det om til
+     * bitane sitt eige rom: der ligg vendinga og skalaen, og dei er
+     * parametrar, ikkje geometri.
+     */
+    const flyttBit = (dx: number, dy: number) => {
+      const { f } = naa.current
+      if (!f) return
+      const { right, fwd } = aksar()
+      const midt = tilVerd(f, f.midt)
+      const k = pxPer(Math.max(0.1, midt.clone().sub(camera.position).dot(fwd)))
+      const v = right.clone().multiplyScalar(dx / k).add(new THREE.Vector3(0, -dy / k, 0))
+      naa.current.onBitFlytt([v.x / f.s, -v.z / f.s, v.y / f.s])
+    }
+    /** biten under trykket: den næraste boksen strålen råkar */
+    const trykkBit = (px: number, py: number) => {
+      const { f, bitar } = naa.current
+      if (!f) return
+      const ray = new THREE.Ray(camera.position.clone(), straale(px, py))
+      const treff = new THREE.Vector3()
+      let best: { i: number; d: number } | null = null
+      bitar.forEach((b, i) => {
+        const a = tilVerd(f, b.min)
+        const c2 = tilVerd(f, b.max)
+        const boks = new THREE.Box3(new THREE.Vector3(Math.min(a.x, c2.x), Math.min(a.y, c2.y), Math.min(a.z, c2.z)), new THREE.Vector3(Math.max(a.x, c2.x), Math.max(a.y, c2.y), Math.max(a.z, c2.z)))
+        if (!ray.intersectBox(boks, treff)) return
+        const d = treff.distanceTo(camera.position)
+        if (!best || d < best.d) best = { i, d }
+      })
+      naa.current.onValdBit(best === null ? null : (best as { i: number }).i)
+    }
     const vri = (t: Tak, ang: number) => bruk(t, 0, 0, ang)
     /** klypet i skissemodusen dollyar kameraet: totalen sidan gesten byrja */
     /** avstanden til kameraet då klypet vart eit klyp: totalen vert målt frå han */
@@ -1077,19 +1150,27 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
         tak = taTak(c.cx, c.cy)
         naa.current.onGest(mode === "klyp" ? "zoom" : mode === "vri" ? "vend" : "snitt")
       }
+      // VERKTYET FOR KROPPEN tek dei same tre gestane, men emnet er biten:
+      // klypet gjer han større, vridinga snur han kring loddlina, draget
+      // flyttar han — vassrett langs det du ser som høgre, loddrett opp.
+      const paaBit = bitStil()
       if (mode === "klyp") {
-        // KLYPET ER SYNET, IKKJE OBJEKTET. Det skalerte kroppen før — og eit
-        // objekt som veks når du vil sjå nærare er eit objekt som ikkje gjer
-        // det du bad om. Storleiken er eit mål du dreg i, i arket; her er
-        // klypet det klypet er alle andre stader.
-        if (start.d > 8 && c.d > 8) dolly(c.d / start.d)
+        if (start.d > 8 && c.d > 8) {
+          if (paaBit) naa.current.onBitSkala(c.d / start.d)
+          // KLYPET ER SYNET, IKKJE OBJEKTET. Det skalerte kroppen før — og
+          // eit objekt som veks når du vil sjå nærare er eit objekt som
+          // ikkje gjer det du bad om. Storleiken er eit mål du dreg i.
+          else dolly(c.d / start.d)
+        }
       } else if (mode === "vri") {
         // Skjermen har y nedover, so ein vri med klokka aukar vinkelen. Objektet
         // skal fylgje fingrane, og med klokka ovanfrå er negativt kring z.
         vridd += dv
-        naa.current.onVend((-vridd * 180) / Math.PI)
-      } else if (mode === "dra" && tak) {
-        flytt(tak, c.cx - start.cx, c.cy - start.cy)
+        if (paaBit) naa.current.onBitVri((-vridd * 180) / Math.PI)
+        else naa.current.onVend((-vridd * 180) / Math.PI)
+      } else if (mode === "dra") {
+        if (paaBit) flyttBit(c.cx - start.cx, c.cy - start.cy)
+        else if (tak) flytt(tak, c.cx - start.cx, c.cy - start.cy)
       }
       last = c
     }
@@ -1101,7 +1182,8 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
         // nytt før, og ei ramme du ikkje bad om midt i ei sikting kastar
         // vinkelen du stod og fann. Innramminga står i synskuben no.
         if (performance.now() - tapDown.t < 260 && Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y) < 12) {
-          trykkStrek(e.clientX, e.clientY)
+          if (naa.current.modus === "bit") trykkBit(e.clientX, e.clientY)
+          else trykkStrek(e.clientX, e.clientY)
         }
         tapDown = { x: 0, y: 0, t: 0, id: -1 }
       }
@@ -1563,6 +1645,28 @@ function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, spok, blink
   )
 }
 
+/**
+ * BITANE SOM BOKSAR. Verktyet for kroppen teiknar ikkje bitane om att — det
+ * teiknar KVAR dei er: boksen motoren rapporterte, i millimeter, i den same
+ * gruppa som delane. Den valde står i oransje over alt anna, som eit valt
+ * plan; dei andre er blå og bleike, som ei skisse.
+ */
+function Bitboksar({ f, bitar, vald }: { f: Ramma; bitar: readonly BitBoks[]; vald: number | null }) {
+  const andre = useMemo(() => boksKantar(bitar.filter((_, i) => i !== vald)), [bitar, vald])
+  const den = useMemo(() => (vald === null || !bitar[vald] ? null : boksKantar([bitar[vald]])), [bitar, vald])
+  useEffect(() => () => { andre.dispose(); den?.dispose() }, [andre, den])
+  return (
+    <group {...gruppa(f)}>
+      <lineSegments geometry={andre}><lineBasicMaterial color={SKISSE} transparent opacity={0.4} /></lineSegments>
+      {den && (
+        <lineSegments geometry={den} renderOrder={3}>
+          <lineBasicMaterial color={VALT} depthTest={false} />
+        </lineSegments>
+      )}
+    </group>
+  )
+}
+
 /** konturen: profilane flatt ved sida av kvarandre, ei teikning i blekk */
 function Konturen({ f, d, ink }: { f: Ramma; d: BuildRes; ink: string }) {
   const thin = useMemo(() => mkGeom(d.lines), [d])
@@ -1634,7 +1738,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, material, rute, liste, plan, vald, spok, snitt, blink, skisse, storleik, valdStrek, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onVend, onGest, onSkisse }: {
+export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, material, rute, liste, plan, vald, spok, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onVend, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   kontur: BuildRes | null
@@ -1654,6 +1758,8 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
   /** streka er brøkar av storleiken; det valde streket er ein plass i det valde planet si liste */
   storleik: number
   valdStrek: number | null
+  /** biten som er vald i verktyet for kroppen, som plass i lista */
+  valdBit: number | null
   onVald: (id: number | null) => void
   onValdStrek: (i: number | null) => void
   onPlan: (id: number, o: Vec3, n: Vec3) => void
@@ -1663,8 +1769,14 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
   onVend: (grader: number) => void
   onGest: (kva: GestKva) => void
   onSkisse: (s: Skisse) => void
+  onValdBit: (i: number | null) => void
+  onBitFlytt: (dmm: Vec3) => void
+  onBitSkala: (faktor: number) => void
+  onBitVri: (grader: number) => void
 }) {
   const flat = view === "kontur"
+  /** bitane kjem med «flate»-bygget: der er kroppen ein kropp */
+  const bitar = useMemo(() => kropp?.bitar ?? [], [kropp])
   const f = useMemo(() => ramma(kropp ?? lag), [kropp, lag])
   /** det valde planet og ramma hans i millimeter — der streka står */
   const valt = useMemo(() => (vald === null ? null : plan.find((q) => q.id === vald) ?? null), [vald, plan])
@@ -1712,6 +1824,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
           {flat
             ? fk && kontur && <Konturen f={fk} d={kontur} ink={tema.ink} />
             : f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} material={material} liste={liste} vald={vald} plan={plan} spok={spok} blink={blink} sein={sein} onVald={onVald} />}
+          {!flat && f && modus === "bit" && bitar.length > 0 && <Bitboksar f={f} bitar={bitar} vald={valdBit} />}
           {!flat && f && snitt && snitt.ringar.length > 0 && <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />}
           {!flat && f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
@@ -1742,7 +1855,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
           </GizmoHelper>
         )}
         <Demping onSein={setSein} />
-        <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onVend={onVend} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} />
+        <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onVend={onVend} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} />
         {/* Konturen er ei teikning: éin finger dreg, klypet zoomar, ingenting
             snur. Kroppen snur heile vegen rundt — undersida er der ledda sit,
             og eit syn du ikkje kjem til er ein kontroll som manglar. */}

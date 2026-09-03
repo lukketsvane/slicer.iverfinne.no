@@ -152,6 +152,10 @@ export const IcoHol = (
     <path d="M8.5 12h7" />
   </svg>
 )
+/** verktyet for kroppen: bitane som ein boks */
+export const IcoBit = ikon("M12 3 3 7.5v9L12 21l9-4.5v-9L12 3z|M3 7.5 12 12l9-4.5|M12 12v9", "h-5 w-5")
+/** ein bit til, lik den valde */
+export const IcoDupliser = ikon("M9 9h10v10H9z|M5 15V5h10", "h-5 w-5")
 /** oppsettet: kopier det ut, lim det inn */
 export const IcoKopier = ikon("M9 9h10v10H9z|M5 15V5h10", "h-4 w-4")
 export const IcoLimInn = ikon("M9 4h6v3H9z|M15 5h3v15H6V5h3|M12 10v7|m9 14 3 3 3-3", "h-4 w-4")
