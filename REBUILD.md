@@ -24,17 +24,17 @@ and a keyboard, it is not finished.
 
 **A full refactor, at a fraction of the code.** Today:
 
-    lib           9 142 lines   33 files
-    components    7 710 lines    8 files
-    app              87 lines    3 files
+    lib           8 653 lines   34 files
+    components    5 238 lines    7 files
+    app             432 lines    4 files
     -----------------------------------
-    source       16 939 lines
-    harnesses     6 294 lines   15 files
+    source       14 323 lines
+    harnesses     5 787 lines   15 files
 
 Of the source, roughly 5 400 lines are comments. That is deliberate and much of it is
 worth keeping as knowledge, but it sits on top of a structure that grew by accretion:
-one file of 2 353 lines holds the whole application state, another of 1 288 holds four
-unrelated tools. The rebuild should land far below this, and the reduction should come
+one file of 2 395 lines holds the scene and every gesture in it, another of 1 321 holds the
+whole application state. The rebuild should land far below this, and the reduction should come
 from a simpler model, not from deleting the reasoning.
 
 Aim for **under a third of the current source**. The single largest saving is item 1
@@ -94,10 +94,13 @@ what makes it a design tool rather than a converter.
 name it keeps while it is moved, re-angled and re-drawn, because that name is engraved on
 it and read off it in a pile on a workbench.
 
-**8. The automatic answers become proposals.**
-The grid and the long search stop being the thing itself and become suggestions: here is a
-set of planes, take all of it, take three of them, or start over by hand. Ranking them by
-fewest parts carrying most of the shape is worth keeping; deciding for you is not.
+**8. The automatic answers become proposals.** *— went further since: they were removed.*
+The grid and the long search were made into suggestions, and then the search was deleted
+outright. Ranking a dozen grids answered a question nobody had asked: the two numbers were
+never the hard part. What replaced it is a **tool** — two fingers set columns and rows
+directly, and the grid it writes is a list like any other, one step in undo. The principle
+holds and is stronger for it: deciding for you is not the tool's job, and neither is
+guessing what you would have decided.
 
 **9. The phone is the tool, not the preview.**
 See above. It is repeated here because it is the first thing a rebuild forgets.
@@ -126,18 +129,38 @@ inherited, not as something to redo.
 - **Nynorsk throughout.** Interface, identifiers, comments and commit messages. This file
   and the README are the exception.
 
-## Open, and worth deciding early
+## Answered since
 
 **What happens to a hand-drawn outline when the model changes underneath it?**
-Keep the edit and let it drift out of true, or re-derive and lose the work. Either answer
-is defensible; leaving it undefined is not.
+*The mark stands.* It sits in the plane's own frame as a fraction of the size, so it
+follows the body when the body is scaled — but when the *mesh* changes under it, it is
+kept exactly where you put it and allowed to drift out of true. The tool does not throw
+away work without being asked; you see the drift in the profile and remove it yourself.
+Written down in `lib/plan.ts`.
 
 **How far can a plane travel before it is a different part?**
-This decides whether names survive editing, and therefore whether a pile of cut parts can
-be matched back to the screen.
+*Any distance.* The name is a number given at the moment of locking and never reused, so
+a part keeps its name while it is moved, re-angled and redrawn. There is no threshold,
+because a threshold is the thing that would break the pile-on-a-workbench test.
 
 **How many hand-placed planes before a phone gives up?**
-Find the ceiling on real hardware early. It sets how ambitious the editing model can be.
+*Measured: around forty.* `pnpm tak` sweeps the count on a 200 mm sphere and reports two
+coefficients — roughly **15 ms per plane sliced** and **1.5 ms per joint**, the second of
+which is quadratic in the plane count because every pair that crosses must find its
+joints. So one geometry change costs about 0.8 s at 32 planes and **2.0 s at the ceiling
+of 64**, on a workstation; a phone is three to five times that. Below about forty planes
+an edit stays under a second there and remains a conversation; above it you are waiting.
+The list is capped at 64 and **says so** when you reach it. That is the number the editing
+model has to be ambitious within — and `pnpm tak` now fails if slicing ever stops being
+linear in the plane count, which is the one regression here that would look like nothing
+at all.
 
 **Does a sketch survive a reload?**
-Unlocked work is either precious or disposable. Say which before building around it.
+*No, and deliberately.* Unlocked work is disposable: it costs one gesture to make again,
+and keeping it would mean a sketch could outlive the view it was made in.
+
+## Open
+
+Nothing from the original four. They are all answered above, three of them by decisions
+already written into the code and one by measurement. A rebuild inherits the answers, not
+the questions.
