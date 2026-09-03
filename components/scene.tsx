@@ -1014,13 +1014,13 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       const ray = new THREE.Ray(camera.position.clone(), straale(px, py))
       const treff = new THREE.Vector3()
       let best: { i: number; d: number } | null = null
-      bitar.forEach((b) => {
+      bitar.forEach((b, i) => {
         const a = tilVerd(f, b.min)
         const c2 = tilVerd(f, b.max)
         const boks = new THREE.Box3(new THREE.Vector3(Math.min(a.x, c2.x), Math.min(a.y, c2.y), Math.min(a.z, c2.z)), new THREE.Vector3(Math.max(a.x, c2.x), Math.max(a.y, c2.y), Math.max(a.z, c2.z)))
         if (!ray.intersectBox(boks, treff)) return
         const d = treff.distanceTo(camera.position)
-        if (!best || d < best.d) best = { i: b.bit, d }
+        if (!best || d < best.d) best = { i, d }
       })
       naa.current.onValdBit(best === null ? null : (best as { i: number }).i)
     }
@@ -1971,11 +1971,8 @@ function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, blink, sein
  * plan; dei andre er blå og bleike, som ei skisse.
  */
 function Bitboksar({ f, bitar, vald }: { f: Ramma; bitar: readonly BitBoks[]; vald: number | null }) {
-  // Ei spegling har sin eigen boks og er den same biten: dei lyser i lag,
-  // og det er slik du ser kva symmetrien gjer før du har skore noko.
-  const andre = useMemo(() => boksKantar(bitar.filter((b) => b.bit !== vald)), [bitar, vald])
-  const mine = useMemo(() => bitar.filter((b) => b.bit === vald), [bitar, vald])
-  const den = useMemo(() => (vald === null || !mine.length ? null : boksKantar(mine)), [vald, mine])
+  const andre = useMemo(() => boksKantar(bitar.filter((_, i) => i !== vald)), [bitar, vald])
+  const den = useMemo(() => (vald === null || !bitar[vald] ? null : boksKantar([bitar[vald]])), [bitar, vald])
   useEffect(() => () => { andre.dispose(); den?.dispose() }, [andre, den])
   return (
     <group {...gruppa(f)}>

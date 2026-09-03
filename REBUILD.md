@@ -84,7 +84,11 @@ Joints come from planes meeting in space, not from rows meeting columns. Slot di
 and assembly order follow from that same web of crossings, so the tool can still say what
 goes in first when the set is irregular.
 
-**6. Every kept plane is editable, down to its outline.**
+**6. Every kept plane is editable, down to its outline.** *— and symmetry respects it.*
+The mirror switches make cuts and then let go: what they produce are ordinary planes with
+ordinary names, each movable, re-angleable, maskable and deletable on its own. A symmetry
+that stayed attached would have to share one name between two parts, and decision 7 is what
+that would break.
 Nudge it, re-angle it, and redraw the shape itself. What the mesh gives you is a starting
 proposal, not a verdict: thicken a leg, straighten a base, cut a hole for a cable. This is
 what makes it a design tool rather than a converter.

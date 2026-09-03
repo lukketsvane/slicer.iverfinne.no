@@ -749,36 +749,6 @@ async function telefon(browser: Browser) {
   await vent(page, (p) => (p.scene ?? "") !== førKlyp)
   const stor = /kule@[^/]+\/([\d.]+)\//.exec(bitScene())
   sjekk("og eit klyp gjer HAN større, ikkje kroppen", !!stor && Number(stor[1]) > 1.05 && hash(page).storleik === 150, `${stor?.[1]} · kroppen ${hash(page).storleik} mm`)
-  /**
-   * SYMMETRIEN: tre brytarar, og dei tel saman. Prøva slår på x og ser at
-   * sifferet kjem sist i scenestrengen og at kroppen vert bygd om att, so
-   * y attpå — og so x av att, som skal la y stå. Uavhengige er heile
-   * saka: ein brytar som drog dei to andre med seg er ein annan reiskap.
-   */
-  const speil = (ord: string) => page.locator(`[data-speil='${ord}']`)
-  sjekk("den valde biten har tre brytarar for symmetri",
-    (await speil("x").count()) === 1 && (await speil("y").count()) === 1 && (await speil("z").count()) === 1)
-  sjekk("og dei står av", (await speil("x").getAttribute("aria-pressed")) === "false")
-  const sp = () => /\/(\d)$/.exec((bitScene().split(";").pop() ?? ""))?.[1] ?? "0"
-  await speil("x").click()
-  await vent(page, () => sp() === "1")
-  // og kroppen vert bygd om att på det: sifferet er geometri og ikkje pynt.
-  // Kva geometrien VART, er `pnpm probe` sin jobb — der står speglinga mot
-  // dei same bitane sette for hand, og tala er dei same til siste mm.
-  await ferdig(page)
-  sjekk("x speglar biten: sifferet står i scena", sp() === "1", bitScene().slice(-30))
-  sjekk("og brytaren lyser", (await speil("x").getAttribute("aria-pressed")) === "true")
-  await speil("y").click()
-  await vent(page, () => sp() === "3")
-  sjekk("y legg seg til x og gjev fire", sp() === "3", bitScene().slice(-30))
-  await speil("x").click()
-  await vent(page, () => sp() === "2")
-  sjekk("og eit trykk til slår x av att, utan å røre y", sp() === "2", bitScene().slice(-30))
-  await speil("y").click()
-  await vent(page, () => !/\/\d$/.test(bitScene().split(";").pop() ?? ""))
-  sjekk("og med begge av står scena som ho stod", !/\/[1-7]$/.test(bitScene().split(";").pop() ?? ""), bitScene().slice(-30))
-  await ferdig(page)
-
   const n1 = bitTal()
   await page.locator("[aria-label='dubler biten']").click()
   await vent(page, () => bitTal() === n1 + 1)
@@ -1128,6 +1098,47 @@ async function reglar(browser: Browser) {
 }
 
 /**
+ * SYMMETRIEN PÅ SNITTET.
+ *
+ * Tre brytarar rett over skjer, og dei endrar KVA SKJER GJER: eitt trykk
+ * låser snittet du siktar og spegelbileta hans om midtplana i kroppen.
+ * Vakta siktar snittet til sides — eit snitt gjennom midten speglar seg
+ * til seg sjølv, og då ville prøva ikkje prøvd noko — slår på x, skjer, og
+ * krev TO plan som ligg spegelvendt om ein halv. So x av att, og eitt.
+ *
+ * Rekninga sjølv står i `pnpm hand`, rein og utan ein kropp. Her er det
+ * brytaren og skjer som vert prøvde.
+ */
+async function symmetri(browser: Browser) {
+  console.log("\n=== symmetrien på snittet")
+  const { page, konsoll } = await opne(URL, browser, 390, 844)
+  const speil = (ord: string) => page.locator(`[data-speil='${ord}']`)
+  sjekk("tre brytarar står over skjer", (await speil("x").count()) === 1 && (await speil("y").count()) === 1 && (await speil("z").count()) === 1)
+  sjekk("og dei står av", (await speil("x").getAttribute("aria-pressed")) === "false")
+  // snittet til sides, so spegelbiletet er eit anna plan enn snittet sjølv
+  await toFingrar(page, (t) => [[150 + 80 * t, 330], [150 + 80 * t, 430]])
+  await page.waitForTimeout(300)
+  await speil("x").click()
+  await page.waitForTimeout(200)
+  sjekk("brytaren lyser", (await speil("x").getAttribute("aria-pressed")) === "true")
+  const n0 = plana(page).length
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 2))
+  const nye = plana(page).slice(-2)
+  sjekk("eitt trykk på skjer låser TO plan", plana(page).length === n0 + 2, `${plana(page).length} plan`)
+  const spegla = nye.length === 2 && Math.abs(nye[0].o[0] + nye[1].o[0] - 1) < 0.01 && Math.abs(nye[0].n[0] + nye[1].n[0]) < 0.01
+  sjekk("og dei ligg spegelvendt om ein halv", spegla, nye.map((q) => `o ${q.o[0].toFixed(3)} n ${q.n[0].toFixed(3)}`).join("  ·  "))
+  sjekk("med kvart sitt namn", nye.length === 2 && nye[0].id !== nye[1].id, nye.map((q) => q.id).join(" og "))
+  await speil("x").click()
+  await page.waitForTimeout(200)
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 3))
+  sjekk("og med brytaren av er skjer eitt plan att", plana(page).length === n0 + 3, `${plana(page).length} plan`)
+  sjekk("ingen konsollfeil i symmetrien", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await page.close()
+}
+
+/**
  * TAKET SEIER FRÅ.
  *
  * Lista stoggar på `PLAN_TAK`, og eit trykk på skjer gav att posen han
@@ -1153,6 +1164,7 @@ const main = async () => {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
   await telefon(browser)
   await reglar(browser)
+  await symmetri(browser)
   await taket(browser)
   await flyt(browser)
   await mork(browser)

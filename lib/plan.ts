@@ -397,6 +397,56 @@ export const nyId = (l: readonly Plan[]) => l.reduce((m, p) => Math.max(m, p.id)
  * Namna byrjar der lista alt sluttar, so eit framlegg lagt oppå det du har
  * bygd tek ikkje namn frå det.
  */
+/**
+ * SPEGELBILETET AV EIT SNITT, om midtplanet i kroppen.
+ *
+ * Planet står som brøkdelar av boksen kring kroppen (sjå toppen av fila),
+ * so midten er ein halv på kvar akse: eit spegl om x er `o.x → 1 − o.x` og
+ * `n.x → −n.x`. Ingen geometri vert rørt og ingen kropp lesen — det er det
+ * same snittet, teke frå hi sida.
+ *
+ * Normalen SNUR, og det er ikkje ein detalj: (u, v, n) er høgrehendt, so ei
+ * snudd normal snur ramma og profilen kjem spegelvend på plata. Det er nett
+ * det ein spegel skal gjere. Ei plate og spegelbiletet hennar er to ulike
+ * delar når forma ikkje er symmetrisk, og graveringa skal stå rett veg på
+ * begge.
+ *
+ * Punktet og normalen, og ikkje eit heilt plan: eit strek ligg i planet si
+ * eiga ramme, og ei spegling som snur ramma måtte ha snudd streket med. Det
+ * er ei rekning denne funksjonen ikkje gjer, so ho lovar det ikkje heller.
+ */
+export function spegla(o: Vec3, n: Vec3, akse: number): { o: Vec3; n: Vec3 } {
+  const o2 = [...o] as Vec3
+  const n2 = [...n] as Vec3
+  o2[akse] = +(1 - o[akse]).toFixed(4)
+  n2[akse] = -n[akse] === 0 ? 0 : -n[akse]
+  return { o: o2, n: n2 }
+}
+
+/**
+ * Undermengdene av dei valde aksane, identiteten fyrst. `sp` er tre
+ * brytarar i eitt tal (1 er x, 2 er y, 4 er z), og kvar av dei doblar
+ * lista: x åleine gjev to snitt, x og y gjev fire.
+ */
+export function speglingar(sp: number): number[][] {
+  let ut: number[][] = [[]]
+  for (let a = 0; a < 3; a++) if (sp & (1 << a)) ut = ut.flatMap((q) => [q, [...q, a]])
+  return ut
+}
+
+/**
+ * To snitt er det same snittet når punktet og planet fell saman. Normalen
+ * tel med FORTEIKN OG UTAN: eit plan gjennom midten, på tvers av den aksen
+ * du speglar om, vert seg sjølv med normalen snudd — og det er éin del og
+ * ikkje to.
+ */
+export function sameSnitt(a: { o: Vec3; n: Vec3 }, b: { o: Vec3; n: Vec3 }, tol = 1e-3): boolean {
+  for (let i = 0; i < 3; i++) if (Math.abs(a.o[i] - b.o[i]) > tol) return false
+  const same = a.n.every((c, i) => Math.abs(c - b.n[i]) <= tol)
+  const motsett = a.n.every((c, i) => Math.abs(c + b.n[i]) <= tol)
+  return same || motsett
+}
+
 export function rutenett(nx: number, ny: number, fraa = 1): Plan[] {
   const ut: Plan[] = []
   let id = fraa

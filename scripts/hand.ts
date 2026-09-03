@@ -10,11 +10,11 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest } from "../lib/params"
-import { lesPlan, nyId, reinPlan, rutenett, skrivPlan, PLAN_TAK, PUNKT_TAK, STREK_TAK } from "../lib/plan"
+import { lesPlan, nyId, reinPlan, rutenett, sameSnitt, spegla, speglingar, skrivPlan, PLAN_TAK, PUNKT_TAK, STREK_TAK } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
-import { bbox, type ParamBag, type Pt } from "../lib/core"
+import { bbox, type ParamBag, type Pt, type Vec3 } from "../lib/core"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 let feil = 0
@@ -312,6 +312,59 @@ sjekk(
   toUte.sheets === 2 && plateAv(2) === 0 && plateAv(0) === 1 && plateAv(1) === 1,
   `${toUte.sheets} plater · 2@${plateAv(2)} 0@${plateAv(0)} 1@${plateAv(1)}`,
 )
+
+/**
+ * SYMMETRIEN PÅ SNITTET.
+ *
+ * Brytarane over skjer lagar spegelbileta av snittet du siktar, om
+ * midtplana i kroppen. Rekninga er heile saka og ho er rein: eit punkt som
+ * er brøk av boksen, og ei normal. Ingen kropp, ingen geometri.
+ */
+console.log("\nsymmetrien på snittet:")
+{
+  // eit skrått snitt ute på minus x
+  const o0: Vec3 = [0.25, 0.5, 0.5]
+  const n0: Vec3 = [0.7071, 0, 0.7071]
+  const x = spegla(o0, n0, 0)
+  sjekk(
+    "eit spegl om x flyttar punktet over midten og snur normalen",
+    Math.abs(x.o[0] - 0.75) < 1e-6 && Math.abs(x.n[0] + 0.7071) < 1e-6 && Math.abs(x.n[2] - 0.7071) < 1e-6,
+    `o ${x.o.join(",")} n ${x.n.join(",")}`,
+  )
+  const att = spegla(x.o, x.n, 0)
+  sjekk("og to gonger er ingen gong", sameSnitt({ o: o0, n: n0 }, att), `o ${att.o.join(",")}`)
+  const y = spegla(o0, n0, 1)
+  sjekk("ein akse snittet alt står symmetrisk om gjev det same snittet", sameSnitt({ o: o0, n: n0 }, y))
+
+  // eit snitt gjennom midten, på tvers av x: spegelbiletet er han sjølv med
+  // normalen snudd, og det er éin del og ikkje to
+  const m = { o: [0.5, 0.5, 0.5] as Vec3, n: [1, 0, 0] as Vec3 }
+  sjekk("eit snitt gjennom midten speglar seg til seg sjølv", sameSnitt(m, spegla(m.o, m.n, 0)))
+
+  sjekk("x og y gjev fire snitt, x åleine to, ingen brytar eitt",
+    speglingar(3).length === 4 && speglingar(1).length === 2 && speglingar(0).length === 1,
+    JSON.stringify(speglingar(3)))
+  sjekk("og alle tre gjev åtte", speglingar(7).length === 8)
+
+  // FIRE RIBBER AV EI — men berre når snittet er skeivt i BEGGE aksane. Eit
+  // snitt som alt står symmetrisk om y (o.y ein halv og n.y null, som det
+  // over) vert seg sjølv av eit spegl om y, og fire vert to. Det er rett,
+  // og det er verdt å prøve begge vegar.
+  const alle = (o: Vec3, n: Vec3, sp: number) => {
+    const ut: { o: Vec3; n: Vec3 }[] = []
+    for (const akser of speglingar(sp)) {
+      let q = { o, n }
+      for (const a of akser) q = spegla(q.o, q.n, a)
+      if (!ut.some((r) => sameSnitt(r, q))) ut.push(q)
+    }
+    return ut
+  }
+  const skeivt = alle([0.25, 0.3, 0.5], [0.5774, 0.5774, 0.5774], 3)
+  sjekk("eit snitt skeivt i begge aksar vert fire ulike med x og y", skeivt.length === 4, skeivt.map((q) => q.o.slice(0, 2).join(",")).join(" · "))
+  const halvskeivt = alle(o0, n0, 3)
+  sjekk("men eit som alt står symmetrisk om y vert to, ikkje fire", halvskeivt.length === 2, halvskeivt.map((q) => q.o.slice(0, 2).join(",")).join(" · "))
+  sjekk("og alle tre aksane på eit heilt skeivt snitt gjev åtte", alle([0.25, 0.3, 0.35], [0.5774, 0.5774, 0.5774], 7).length === 8)
+}
 
 console.log(feil ? `\n${feil} FEIL` : "\nhanda held")
 process.exit(feil ? 1 : 0)
