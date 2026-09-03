@@ -76,6 +76,17 @@ export type Ribbe = {
   plan: Plan
   /** ramma profilen står i: o er foten av planet, so `ut(r, q)` er punktet */
   r: Ramme
+  /**
+   * PLANET SITT EIGE PUNKT I PROFILEN SI RAMME, millimeter.
+   *
+   * Streka ligg kring dette punktet, og det er den einaste vegen frå ein
+   * stad i teikninga attende til planet si ramme. Det kan ikkje reknast om
+   * att på teiknetråden: `plan.ts` sin `ramme` har `o` som punktet sjølv,
+   * medan snittinga byggjer ramma med `o = n·d` — foten — og legg dette
+   * til for hand. Dei to er ikkje same tal, og to sanningar om same
+   * profilen er nett det denne fila finst for å hindre.
+   */
+  nullpkt: Pt
   /** ytterkantane. Meir enn éin tyder at ribba er delt i lause stykke. */
   outlines: Pt[][]
   holes: Pt[][]
@@ -196,12 +207,10 @@ function ruteAv(s: Solid, d: number, step: number, former: readonly Form[] = [])
   let z0 = s.min[1]
   let z1 = s.max[1]
   for (const f of former) {
-    const rx = f.hw * Math.abs(f.c) + f.hh * Math.abs(f.s)
-    const ry = f.hw * Math.abs(f.s) + f.hh * Math.abs(f.c)
-    t0 = Math.min(t0, f.cx - rx)
-    t1 = Math.max(t1, f.cx + rx)
-    z0 = Math.min(z0, f.cy - ry)
-    z1 = Math.max(z1, f.cy + ry)
+    t0 = Math.min(t0, f.bx0)
+    t1 = Math.max(t1, f.bx1)
+    z0 = Math.min(z0, f.by0)
+    z1 = Math.max(z1, f.by1)
   }
   t0 -= PAD
   t1 += PAD
@@ -218,15 +227,30 @@ function ruteAv(s: Solid, d: number, step: number, former: readonly Form[] = [])
   return { t0, dt, nt, z0, dz, nz, rows, cols }
 }
 
-/** ein strek i millimeter, i profilen si ramme */
-type Form = { rund: boolean; gods: boolean; cx: number; cy: number; hw: number; hh: number; c: number; s: number }
+/** ytterkanten til eit strek, millimeter: det einaste ruta treng vite om han */
+type Kasse = { bx0: number; bx1: number; by0: number; by1: number }
+/**
+ * EIN STREK I MILLIMETER, i profilen si ramme. `pts` skil dei to slaga:
+ * ein boks eller ein ellipse har ein midt og ei halvside, ein bane har
+ * punkta sine og ein halv penn.
+ */
+type Form =
+  | (Kasse & { gods: boolean; pts: null; rund: boolean; cx: number; cy: number; hw: number; hh: number; c: number; s: number })
+  | (Kasse & { gods: boolean; pts: number[]; r: number })
 
 /**
+ * EIN STREK MÅ KOME INN I FELTET SOM EI EKTE SIGNERT AVSTAND, og aldri som
+ * eit merke («inne er −e, ute er +e»). `contour` reknar ut kvar kanten går
+ * ved å INTERPOLERE mellom to hjørneverdiar; med ein konstant ±e hamnar
+ * kvar einaste kryssing midt på ein cellekant, og alt du teikna kjem ut med
+ * ei fem og førti graders trappe på kvart hjørne. Det gjeld den neste
+ * forma nokon legg til her like mykje som dei tre som står.
+ *
  * Signert avstand til ein handteikna strek: negativt inne. Rektangelet er
  * eksakt på sidene og ei tilnærming i hjørna; ellipsen er skalert radius.
  * Begge er nøyaktige der det tel — på nullstaden ruta leitar etter.
  */
-function formDist(f: Form, x: number, y: number): number {
+function formDist(f: Form & { pts: null }, x: number, y: number): number {
   const dx = x - f.cx
   const dy = y - f.cy
   const a = dx * f.c + dy * f.s
@@ -234,6 +258,89 @@ function formDist(f: Form, x: number, y: number): number {
   if (!f.rund) return Math.max(Math.abs(a) - f.hw, Math.abs(b) - f.hh)
   const r = Math.hypot(a / f.hw, b / f.hh)
   return (r - 1) * Math.min(f.hw, f.hh)
+}
+
+/**
+ * SIGNERT AVSTAND TIL EIN BANE: minste avstand til noko av segmenta hans,
+ * minus halve pennen. Eit sameina av kapslar ER `min_s(dist_s) − r`, av di
+ * minimum fordeler seg over segmenta — so denne er EKSAKT overalt, ulikt
+ * rektangelet som er ei tilnærming i hjørna. Difor hamnar merket der
+ * fingeren drog det, på kvar oppløysing og kvar storleik.
+ *
+ * Kvadrerte avstandar heile vegen og ei einaste rot til slutt, og ALDRI
+ * `Math.hypot`: han er tjue gonger dyrare enn `sqrt(x*x+y*y)` her, og
+ * dette er den innarste lykkja i heile reiskapen.
+ *
+ * `band` er segmenta som når denne raden — sjå `felt`. Utanfor boksen med
+ * mon er svaret uendeleg: `max(v, −∞)` og `min(v, +∞)` er begge `v`, so
+ * det komponerer nett som ingen strek. Monet er det som gjer at ei celle
+ * som ligg halvt utanfor får båe hjørna rekna: feltet er 1-Lipschitz langs
+ * rutelinene, og eit klemt hjørne flyttar kryssinga.
+ */
+function baneDist(f: Form & { pts: number[] }, band: Int32Array, n: number, mon: number, x: number, y: number): number {
+  if (x < f.bx0 - mon || x > f.bx1 + mon || y < f.by0 - mon || y > f.by1 + mon) return Infinity
+  const P = f.pts
+  let best = Infinity
+  for (let k = 0; k < n; k++) {
+    const i = band[k]
+    const ax = P[i]
+    const ay = P[i + 1]
+    const ex = P[i + 2] - ax
+    const ey = P[i + 3] - ay
+    const px = x - ax
+    const py = y - ay
+    const L = ex * ex + ey * ey
+    // eit segment utan lengd er eit punkt: lesinga slepp ikkje gjennom to
+    // like punkt, men ei skalering kan ha lagt dei oppå kvarandre likevel
+    let t = L > 0 ? (px * ex + py * ey) / L : 0
+    if (t < 0) t = 0
+    else if (t > 1) t = 1
+    const dx = px - ex * t
+    const dy = py - ey * t
+    const d2 = dx * dx + dy * dy
+    if (d2 < best) best = d2
+  }
+  return Math.sqrt(best) - f.r
+}
+
+/**
+ * EIN STREK UT AV PLANET SI RAMME OG INN I MILLIMETER. Streka ligg kring
+ * planet sitt eige punkt, so `ou`/`ov` er nullpunktet og `S` er storleiken
+ * dei er brøkar av. Boksen vert rekna her, éin gong, av di ruta treng han
+ * FØR feltet finst: eit merke som stikk utanfor kroppen og ikkje er med i
+ * ruta vert klipt av kanten hennar, og ei open kjede vert lukka på måfå.
+ */
+function formAv(st: Strek, ou: number, ov: number, S: number): Form {
+  const gods = st.slag === "gods"
+  if (st.form === "bane") {
+    const r = (st.br * S) / 2
+    const pts: number[] = new Array(st.p.length)
+    let x0 = Infinity
+    let x1 = -Infinity
+    let y0 = Infinity
+    let y1 = -Infinity
+    for (let i = 0; i + 1 < st.p.length; i += 2) {
+      const x = ou + st.p[i] * S
+      const y = ov + st.p[i + 1] * S
+      pts[i] = x
+      pts[i + 1] = y
+      if (x < x0) x0 = x
+      if (x > x1) x1 = x
+      if (y < y0) y0 = y
+      if (y > y1) y1 = y
+    }
+    return { gods, pts, r, bx0: x0 - r, bx1: x1 + r, by0: y0 - r, by1: y1 + r }
+  }
+  const a = (st.a * Math.PI) / 180
+  const c = Math.cos(a)
+  const si = Math.sin(a)
+  const cx = ou + st.x * S
+  const cy = ov + st.y * S
+  const hw = (st.w * S) / 2
+  const hh = (st.h * S) / 2
+  const rx = hw * Math.abs(c) + hh * Math.abs(si)
+  const ry = hw * Math.abs(si) + hh * Math.abs(c)
+  return { gods, pts: null, rund: st.form === "rund", cx, cy, hw, hh, c, s: si, bx0: cx - rx, bx1: cx + rx, by0: cy - ry, by1: cy + ry }
 }
 
 type Boks = { px: number; py: number; dx: number; dy: number; lo: number; hi: number; half: number }
@@ -260,10 +367,35 @@ function boksAv(q: Spor): Boks {
 function felt(ru: Rute, former: Form[], spor: Spor[]) {
   const { t0, dt, nt, z0, dz, nz, rows, cols } = ru
   const boksar = spor.map(boksAv)
+  /**
+   * EIN BANE KOSTAR PER SEGMENT PER CELLE, og ruta er femti tusen prøver:
+   * seksti segment er tjue millisekund per sveip, og kvar plate vert
+   * sveipa to gonger og kvart plan bygd om att. Difor eit BAND PER RAD —
+   * segmenta som når denne raden i det heile, funne éin gong for raden og
+   * lesne av kvar celle i henne. Målt på tolv plan med seks og nitti punkt
+   * på kvart: 708 ms utan bandet, 501 ms med — og eit grunnbygg utan merke
+   * er 387 ms.
+   */
+  const banar = former.filter((f): f is Form & { pts: number[] } => f.pts !== null)
+  const band = banar.map((f) => new Int32Array(Math.max(1, (f.pts.length - 2) / 2)))
+  const bandN = new Int32Array(banar.length)
+  const mon = 2 * Math.max(dt, dz)
   const g = new Float64Array((nt + 1) * (nz + 1))
   for (let j = 0; j <= nz; j++) {
     const z = z0 + j * dz
     const row = rows[j]
+    for (let b = 0; b < banar.length; b++) {
+      const f = banar[b]
+      const P = f.pts
+      const naa = f.r + mon
+      let n = 0
+      for (let i = 0; i + 3 < P.length; i += 2) {
+        const ay = P[i + 1]
+        const by = P[i + 3]
+        if (z >= Math.min(ay, by) - naa && z <= Math.max(ay, by) + naa) band[b][n++] = i
+      }
+      bandN[b] = n
+    }
     for (let i = 0; i <= nt; i++) {
       const t = t0 + i * dt
       const dh = axisDist(row, t)
@@ -273,8 +405,16 @@ function felt(ru: Rute, former: Form[], spor: Spor[]) {
       // til den næraste av dei to kantane, og aldri den fjernaste.
       const mag = Math.min(Math.abs(dh), Math.abs(dv))
       let v = dh > 0 && dv > 0 ? mag : -mag
+      // Lista står som ho står: rekkjefylgja ER geometrien — eit gods etter
+      // eit hòl fyller det att, og eit hòl etter eit gods skjer i det.
+      let bi = 0
       for (const f of former) {
-        const d = formDist(f, t, z)
+        let d: number
+        if (f.pts === null) d = formDist(f, t, z)
+        else {
+          d = baneDist(f, band[bi], bandN[bi], mon, t, z)
+          bi++
+        }
         v = f.gods ? Math.max(v, -d) : Math.min(v, d)
       }
       if (v > 0) {
@@ -368,6 +508,8 @@ export function buildSnitt(k: Kropp, p: Params, cells: number): Snitt {
 type Raa = {
   plan: Plan
   r: Ramme
+  /** planet sitt eige punkt i ramma — sjå `Ribbe.nullpkt` */
+  nullpkt: Pt
   d: number
   sol: Solid
   ru: Rute
@@ -408,22 +550,10 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     // streka ligg kring planet sitt eige punkt, i planet si ramme
     const ou = dot(o, u)
     const ov = dot(o, v)
-    const former: Form[] = pl.strek.map((st: Strek) => {
-      const a = (st.a * Math.PI) / 180
-      return {
-        rund: st.form === "rund",
-        gods: st.slag === "gods",
-        cx: ou + st.x * S,
-        cy: ov + st.y * S,
-        hw: (st.w * S) / 2,
-        hh: (st.h * S) / 2,
-        c: Math.cos(a),
-        s: Math.sin(a),
-      }
-    })
+    const former: Form[] = pl.strek.map((st: Strek) => formAv(st, ou, ov, S))
     const ru = ruteAv(sol, d, step, former)
     const ringar = felt(ru, former, []).map((l) => l.pts as Pt[])
-    return { plan: pl, r, d, sol, ru, former, ringar, spor: [] }
+    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], nullpkt: [ou, ov] as Pt }
   })
 
   // --- ledda -------------------------------------------------------------
@@ -595,6 +725,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     return {
       plan: a.plan,
       r: a.r,
+      nullpkt: a.nullpkt,
       outlines,
       holes,
       raa: a.ringar,

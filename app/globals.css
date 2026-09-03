@@ -208,6 +208,10 @@ html {
 .handtak[data-strek] [data-arm] {
   visibility: hidden;
 }
+/* Ein bane ber si eiga retning, og har difor ingen vinkel å dra i. */
+.handtak[data-strek="bane"] [data-handtak="strek-vri"] {
+  visibility: hidden;
+}
 .handtak[data-tom] [data-handtak="vri"],
 .handtak[data-tom] [data-arm],
 .handtak[data-tom] [data-merke] {

@@ -82,8 +82,32 @@ function report(name: string, p: Params) {
   console.log(
     `  nett      lag ${lag.tris} tri, flate ${flate.tris} tri, kontur ${
       (kontur.lines.length + kontur.heavy.length) / 6
-    } linjer`,
+    } linjer, ${kontur.plater.length} plater`,
   )
+  /**
+   * KVAR PLATE EIG SI EIGA SPALTE I TEIKNINGA.
+   *
+   * Handa vel ei plate ved å peike på ein boks, so boksane må flise
+   * strimmelen: kvar line i ribbe k skal liggje i boks k, og ingen line
+   * frå ei anna ribbe skal gjera det. Ingen ting i treet sa noko om dette
+   * før — konturen bar ikkje namn i det heile.
+   */
+  {
+    const L = kontur.lines
+    let ute = 0
+    let inne = 0
+    for (const q of kontur.plater) {
+      for (let i = 0; i < L.length; i += 3) {
+        const x = L[i]
+        const z = L[i + 2]
+        const mi = i / 3 >= q.fraa && i / 3 < q.fraa + q.tal
+        const iBoks = x >= q.min[0] && x <= q.max[0] && z >= q.min[1] && z <= q.max[1]
+        if (mi && !iBoks) ute++
+        else if (!mi && iBoks) inne++
+      }
+    }
+    if (ute || inne) bryt(`konturboksane held ikkje: ${ute} eigne liner utanfor, ${inne} framande inni`)
+  }
   const bytes = (o: { text?: string; data?: ArrayBuffer }) =>
     o.text?.length ?? o.data?.byteLength ?? 0
   const prove = MOTOR.exportFile(bag, "prove")

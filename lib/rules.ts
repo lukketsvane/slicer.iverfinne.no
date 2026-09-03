@@ -128,9 +128,14 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
   }
 
   /** Ingen ledd, eller ingen delar: same tomrommet frå kvar si side. Rådet
-   *  er eit framlegg — rutenettet, som du kan ta heilt eller la liggje. */
+   *  er eit framlegg — rutenettet, som du kan ta heilt eller la liggje.
+   *
+   *  Men aldri når handa har teikna i eit plan: rutenettet BYTER UT lista,
+   *  og eit råd som kastar arbeidet ditt er ikkje eit råd. Då står regelen
+   *  med grunnen sin og utan knapp, og du gjer det du vil med han. */
   const framlegg = (): Fiks | undefined => {
     if (m.joints > 0 && m.parts > 0) return undefined
+    if (lesPlan(p.plan).some((q) => q.strek.length)) return undefined
     const n = lesPlan(p.plan).length < 8 ? 6 : 8
     const plan = skrivPlan(rutenett(n, n))
     return plan === p.plan ? undefined : { ord: `prøv ${n}×${n}`, set: { plan, fest: "" } }

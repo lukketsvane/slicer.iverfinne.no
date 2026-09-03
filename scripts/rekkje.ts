@@ -24,8 +24,11 @@ import { SHEET_GAP } from "../lib/export-dxf"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
-import { rutenett, skrivPlan } from "../lib/plan"
+import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+/** eit merke lagt i eit namngjeve plan: gjennom lesinga, so strengen er den vakta ser */
+const medBane = (plan: string, id: number, st: Strek) =>
+  skrivPlan(lesPlan(plan).map((q) => (q.id === id ? { ...q, strek: [...q.strek, st] } : q)))
 
 /**
  * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
@@ -102,17 +105,26 @@ function graveringaLiggInne(namn: string, svg: string) {
     else omriss.push(pts)
   }
   if (!grav.length || !omriss.length) return
-  // Vindinga er ikkje til å stole på her; storleiken er. Eit hòl ligg
-  // inni eit omriss og er mindre, so den største banen er eit omriss, og
-  // alt som går same vegen som han er det òg.
-  const v = omriss.reduce((b, o) => (Math.abs(shoelace(o)) > Math.abs(shoelace(b)) ? o : b))
-  const vv = shoelace(v) < 0 ? -1 : 1
-  const ytre = omriss.filter((o) => shoelace(o) * vv > 0)
+  /**
+   * PARTAL OG ODDETAL, over ALLE kuttbanene på plata.
+   *
+   * Prøva las før berre om punktet låg inni eit omriss, og eit merke handa
+   * skar tvers gjennom det graverte namnet gjekk rett igjennom henne —
+   * namnet er det du finn delen att med i ein haug. Vindinga kan ikkje
+   * avgjera dette åleine heller: pakkinga legg gjerne ein liten del inni
+   * hòlet på ein stor, og då ligg graveringa hans inni eit hòl som ikkje er
+   * hans. Partal/oddetal over alle ringane svarar på begge to på ein gong,
+   * og det er den same regelen laseren sjølv fyller etter.
+   */
   let ute = 0
   for (const g of grav) {
-    for (const q of g) if (!ytre.some((o) => inRing(o, q))) ute++
+    for (const q of g) {
+      let n = 0
+      for (const o of omriss) if (inRing(o, q)) n++
+      if (n % 2 === 0) ute++
+    }
   }
-  if (ute) feil(namn, `${ute} graverte punkt ligg utanfor alle omriss`)
+  if (ute) feil(namn, `${ute} graverte punkt ligg ikkje på gods`)
 }
 
 /**
@@ -326,6 +338,14 @@ const saker: [string, Params][] = [
   // og la adressa midt på veggen mellom to spor. Ein millimeter utanfor,
   // og heilt usynleg på skjermen.
   ["torus, tett og stort", { ...GRUNN, kjelde: "torus", plan: nett(13, 13), storleik: 560 }],
+  // EIT MERKE HANDA HAR TEIKNA, HEILT INNI PLATA: han vert ein ring, og
+  // ein ring skal skjerast FØR omrisset og med hòlvindinga. Kjem han ut
+  // med omrissvindinga, vert han lesen som eit omriss til — og då ligg
+  // delen laus på plata før hòlet i han er skore.
+  ["kube, merke inni ei plate", {
+    ...GRUNN,
+    plan: medBane(nett(4, 4), 2, { slag: "hol", form: "bane", br: 0.05, p: [-0.2, -0.2, 0.1, -0.05, 0.2, 0.15] }),
+  }],
 ]
 
 /** kuttfila er éi fil per plate, so kvar plate vert prøvd for seg */

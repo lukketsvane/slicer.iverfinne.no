@@ -562,6 +562,14 @@ const SØPPEL: unknown[] = [
   // under les kvart band og ville teke det.
   { plan: ruter(1, 1) },
   { plan: Array.from({ length: 300 }, (_, i) => `${i + 1}@0.5,0.5,0.5/1,0,0`).join(";") },
+  // MERKE FRÅ EI LENKJE. Halen på ein bane er so lang som den som skreiv
+  // henne vil, so lengdeporten i `lesBane` er sjølve saka her: kjem ho
+  // etter splittinga, kostar ein million koordinatar alt og betaler null.
+  { plan: `1@0.5,0.5,0.5/1,0,0/-b:0.04_${Array.from({ length: 1000000 }, () => "0.1").join("_")}` },
+  { plan: `1@0.5,0.5,0.5/1,0,0/${Array.from({ length: 400 }, () => `-b:0.04_${"0.1_".repeat(600)}0.1`).join("/")}` },
+  { plan: "1@0.5,0.5,0.5/1,0,0/-b:Infinity_0_0_0.1_0.1" },
+  { plan: "1@0.5,0.5,0.5/1,0,0/-b:0.04_-5_-5_5_5" },
+  { plan: "1@0.5,0.5,0.5/1,0,0/-b:0.04,0,0,0.1,0.1" },
   { tjukn: "tjukk" },
   { kjelde: "../../etc/passwd" },
   { kjelde: "x".repeat(400) },
@@ -570,6 +578,7 @@ const SØPPEL: unknown[] = [
   { snittveg: -3 },
   Object.fromEntries(Object.keys(PARAM_RANGES).map((k) => [k, NaN])),
 ]
+const t0Soppel = Date.now()
 for (const s of SØPPEL) {
   const q = MOTOR.clamp(s, DEFAULT_PARAMS as unknown as ParamBag) as unknown as Params
   const daarleg = Object.entries(q).filter(
@@ -585,6 +594,13 @@ for (const s of SØPPEL) {
     feil("hash", `materialet vart «${q.material}»`)
   }
 }
+// Og HEILE lista skal vera lesen på under hundre millisekund. Porten er det
+// som vert prøvd, og ein port som ikkje er der syner seg som TID og ikkje
+// som feil: målt 10 ms med henne, 395 utan, og `MOTOR.clamp` køyrer på
+// kvar einaste endring.
+const tSoppel = Date.now() - t0Soppel
+if (tSoppel > 100) feil("hash", `søppelet tok ${tSoppel} ms å lese`)
+console.log(`  søppelet lese på ${tSoppel} ms`)
 
 // =============================================================================
 // KVAR SKYVAR MÅ RØRE NOKO

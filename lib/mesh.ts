@@ -9,7 +9,7 @@
  * Nettet og kuttfila kjem frå dei same polygona. Ein laser som fylgjer
  * konturen skjer den ribba biletet viser.
  */
-import { inRing, type Pt, type Vec3 } from "./core"
+import { inRing, type Plate, type Pt, type Vec3 } from "./core"
 import type { Kropp } from "./kropp"
 import { ut } from "./plan"
 import type { Ribbe, Snitt } from "./snitt"
@@ -231,10 +231,11 @@ export function lagMesh(sn: Snitt, t: number) {
 // =============================================================================
 // KONTUR — profilane flatt ved sida av kvarandre
 // =============================================================================
-export function contourLines(sn: Snitt, t: number): { lines: Float32Array; heavy: Float32Array } {
+export function contourLines(sn: Snitt, t: number): { lines: Float32Array; heavy: Float32Array; plater: Plate[] } {
   const thin: number[] = []
   const seg = (a: Vec3, b: Vec3) => thin.push(a[0], a[1], a[2], b[0], b[1], b[2])
   const GAP = Math.max(12, t * 3)
+  const plater: Plate[] = []
   let x = 0
   for (const r of sn.ribber) {
     // BREIDDA TIL PROFILEN, IKKJE DEN LENGSTE ARMEN HANS: venstre- og
@@ -242,14 +243,17 @@ export function contourLines(sn: Snitt, t: number): { lines: Float32Array; heavy
     let lo = Infinity
     let hi = -Infinity
     let btm = Infinity
+    let top = -Infinity
     for (const o of r.outlines) {
       for (const q of o) {
         if (q[0] < lo) lo = q[0]
         if (q[0] > hi) hi = q[0]
         if (q[1] < btm) btm = q[1]
+        if (q[1] > top) top = q[1]
       }
     }
     if (!Number.isFinite(lo)) continue
+    const fraa = thin.length / 3
     for (const ring of [...r.outlines, ...r.holes]) {
       for (let i = 0; i < ring.length; i++) {
         const a = ring[i]
@@ -257,9 +261,30 @@ export function contourLines(sn: Snitt, t: number): { lines: Float32Array; heavy
         seg([x - lo + a[0], 0, a[1] - btm], [x - lo + b[0], 0, b[1] - btm])
       }
     }
+    // NAMNET FYLGJER BOKSEN og ikkje plassen i strimmelen: ei ribbe utan
+    // omriss hoppar over utan at `x` går fram, so nummer tre i teikninga er
+    // ikkje nummer tre i lista.
+    plater.push({
+      id: r.plan.id,
+      // Boksen er profilen sin, vaksen med halve glipa: platene flisar
+      // strimmelen og går aldri over kvarandre, og kvar av dei eig
+      // spalta si heilt ut til midtlina mot naboen. Eit trykk i lufta
+      // mellom to øyer av same plate vel den plata — som er rett, for eit
+      // merke høyrer til planet, og gods teikna der er måten å binde dei.
+      min: [x - GAP / 2, -GAP / 2],
+      max: [x + (hi - lo) + GAP / 2, top - btm + GAP / 2],
+      nullpkt: [x - lo + r.nullpkt[0], r.nullpkt[1] - btm],
+      fraa,
+      tal: thin.length / 3 - fraa,
+    })
     x += hi - lo + GAP
   }
   const shift = -x / 2
   for (let i = 0; i < thin.length; i += 3) thin[i] += shift
-  return { lines: new Float32Array(thin), heavy: new Float32Array(0) }
+  for (const q of plater) {
+    q.min[0] += shift
+    q.max[0] += shift
+    q.nullpkt[0] += shift
+  }
+  return { lines: new Float32Array(thin), heavy: new Float32Array(0), plater }
 }
