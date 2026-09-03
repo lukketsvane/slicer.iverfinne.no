@@ -72,7 +72,7 @@ no radius.
    set the two numbers: sideways is columns, up and down is rows. It writes
    the whole plane list, so it is one step in undo.
 7. **Read the rules.** They say what can't be cut or assembled, and why, and
-   each broken rule carries the button that fixes it.
+   most broken rules carry the button that fixes it.
 8. **Export ARK** and open it in LightBurn.
 
 Every change is undoable and redoable: the two arrows at the top, or `Z` and
@@ -282,9 +282,13 @@ material remains at the joint · parts fit the sheet · press fit · kerf · slo
 survives the kerf · room between planes · mesh closed · resolution kept ·
 utilisation.
 
-A broken rule carries its own way out: the rule that knows fifteen parts are too
-big also knows *how much*, so it offers `prøv 290 mm` and sets it. The rule
-that finds no joints offers a grid to start from.
+Most broken rules carry their own way out: the rule that knows fifteen parts are
+too big also knows *how much*, so it offers `prøv 290 mm` and sets it. **Some
+carry none, on purpose.** «Planes grip» and «parts exist» used to offer a 6×6
+grid — one press and your plane list was replaced by a generated one. That is
+not advice, it is a different drawing; now that the grid tool sets the two
+numbers with two fingers and the pen draws into the planes, it is work a button
+has no business throwing away. Those rules state the reason and stop there.
 
 ## How it works
 

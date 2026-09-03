@@ -14,7 +14,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { HAIR, IcoBit, IcoDupliser, IcoFerdig, IcoGods, IcoHol, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
+import { HAIR, IcoBit, IcoDupliser, IcoFerdig, IcoGods, IcoHol, IcoPenn, IcoSkisse, IcoSkjer, IcoSlett, IcoVisk } from "./deler"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
 
@@ -1124,34 +1124,35 @@ export function Studio() {
         <div className="tumme" style={{ right: (benk ? KOL : 0) + 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}>
           {vald !== null && (
             <>
-              {/* I KONTUREN ER DEI TO PENNAR som låser seg. Der er plata
-                  flat framfor deg, og éin finger inne i ramma teiknar merket
-                  i full breidd; trykk den andre for å byte forteikn utan å
-                  gå ut av teikninga, eller den tende for å slutte. I rommet
-                  legg dei framleis ein firkant eller ein ring midt i snittet.
-                  Dei var teikna i konturen òg før, og skreiv eit strek ingen
-                  kunne sjå — `Streka` står berre i rommet. */}
+              {/* TO REISKAPAR MED TO LESEMÅTAR. I rommet legg dei ein
+                  firkant eller ein ring midt i snittet. I teikninga er dei
+                  ein PENN og eit VISKELÊR som låser seg: éin finger inne i
+                  ramma teiknar merket i full breidd, den andre knappen byter
+                  forteikn utan at du går ut, den tende slokner. Ordet og
+                  ikonet fylgjer handlinga, ikkje knappen. Dei var teikna i
+                  konturen òg før, og skreiv eit strek ingen kunne sjå —
+                  `Streka` står berre i rommet. */}
               <button
                 type="button"
-                aria-label="legg til gods"
+                aria-label={view === "kontur" ? "teikn" : "legg til gods"}
                 aria-pressed={view === "kontur" ? penn === "gods" : undefined}
-                title={view === "kontur" ? "gods: éin finger teiknar på plata og legg til material" : "legg til gods: ein firkant midt i snittet. flytt, vri og dra han større"}
+                title={view === "kontur" ? "teikn: éin finger på plata legg til material der du dreg" : "legg til gods: ein firkant midt i snittet. flytt, vri og dra han større"}
                 onClick={() => (view === "kontur" ? setPenn((q) => (q === "gods" ? null : "gods")) : leggStrek("gods"))}
                 className={TUMME_BTN}
                 data-penn="gods"
               >
-                {IcoGods}
+                {view === "kontur" ? IcoPenn : IcoGods}
               </button>
               <button
                 type="button"
-                aria-label="skjer hòl"
+                aria-label={view === "kontur" ? "visk" : "skjer hòl"}
                 aria-pressed={view === "kontur" ? penn === "hol" : undefined}
-                title={view === "kontur" ? "hòl: éin finger teiknar på plata og skjer bort. det er ei sag, ikkje ein angre" : "skjer eit hòl: ein ring midt i snittet. flytt, vri og dra han større"}
+                title={view === "kontur" ? "visk: éin finger på plata tek bort material der du dreg. det er ei sag og ikkje ein angre — eit merke tvers over deler plata" : "skjer eit hòl: ein ring midt i snittet. flytt, vri og dra han større"}
                 onClick={() => (view === "kontur" ? setPenn((q) => (q === "hol" ? null : "hol")) : leggStrek("hol"))}
                 className={TUMME_BTN}
                 data-penn="hol"
               >
-                {IcoHol}
+                {view === "kontur" ? IcoVisk : IcoHol}
               </button>
               <button
                 type="button"

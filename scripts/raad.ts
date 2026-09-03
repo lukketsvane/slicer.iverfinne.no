@@ -233,13 +233,23 @@ prov("godset er tynt", "gods", {
   ledd: 0.2,
 })
 
-// --- ingen ledd ------------------------------------------------------------
-prov("ingen plan møtest", "grip", {
-  ...DEFAULT_PARAMS,
-  kjelde: "torus",
-  storleik: 200,
-  plan: nett(1, 1),
-})
+/**
+ * --- INGEN LEDD, OG INGEN KNAPP ---------------------------------------------
+ *
+ * «Plana grip» og «delar å skjere» bar eit rutenett dei laga sjølve: trykk,
+ * og lista di var bytt ut med 6×6. Det er ikkje eit råd, det er ei anna
+ * teikning — og no som handa både set rutenettet med to fingrar og teiknar
+ * i plana, er det arbeid ein knapp ikkje har lov til å kaste. Reglane står
+ * med grunnen sin og utan knapp.
+ */
+{
+  const p: Params = { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 200, plan: nett(1, 1) }
+  const r = finn(p, "grip")
+  ok("ingen plan møtest: regelen står", !!r && !r.ok, r ? r.value : "regelen finst ikkje")
+  ok("og han lagar ikkje eit rutenett du ikkje bad om", !r?.fiks, r?.fiks ? `«${r.fiks.ord}»` : "ingen knapp")
+  const d = finn({ ...DEFAULT_PARAMS, plan: "" }, "delar")
+  ok("det same gjeld «delar å skjere»", !!d && !d.ok && !d.fiks, d?.fiks ? `«${d.fiks.ord}»` : "ingen knapp")
+}
 
 // =============================================================================
 // OG DER DET IKKJE FINST NOKO RÅD, SKAL DET IKKJE STÅ EIN KNAPP
