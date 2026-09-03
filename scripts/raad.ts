@@ -16,7 +16,7 @@
  *   npx tsx scripts/raad.ts
  */
 import type { ParamBag } from "../lib/core"
-import { measure } from "../lib/metrics"
+import { measure, RADER } from "../lib/metrics"
 import { checkRules } from "../lib/rules"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { MOTOR } from "../lib/motor"
@@ -265,6 +265,24 @@ prov("godset er tynt", "gods", {
     !alle.some((r) => r.ok && r.fiks),
     utan.length ? `utan råd: ${utan.join(", ")}` : "alle grøne",
   )
+}
+
+/**
+ * EIN REGEL SKAL VERA MOGLEG Å SJÅ.
+ *
+ * Tavla teiknar avlesingane, og ein regel finn lina si gjennom `rad`. Ein
+ * `rad` som ikkje finst i RADER peikar difor på ingenting: regelen vert
+ * rekna, dømd, gjeven eit råd — og teikna ingen stad. Reglane heilt UTAN
+ * ei rad har si eiga line i tavla (dei dømer ein skyvar og ikkje eit tal
+ * som står der frå før), men ein skrivefeil i ein `rad` fell mellom dei to
+ * og seier ingenting frå. Difor står han her.
+ */
+{
+  const rader = new Set(RADER.map((r) => r.id))
+  const heimlause = reglane({ ...GRUNN, klaring: 0, snitt: 0 } as Params)
+    .filter((r) => r.rad && !rader.has(r.rad))
+    .map((r) => `${r.id} → «${r.rad}»`)
+  ok("kvar regel med ei rad peikar på ei rad som finst", heimlause.length === 0, heimlause.join(", "))
 }
 
 /**
