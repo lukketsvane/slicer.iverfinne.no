@@ -15,7 +15,8 @@ import { unzip } from "../lib/zip"
 import { glb } from "./glbfil"
 import { feltTal, klokke, lesTal, snap, type ParamBag } from "../lib/core"
 import { PARAM_RANGES } from "../lib/params"
-import { rutenett, skrivPlan } from "../lib/plan"
+import { rutenett, skrivPlan, virvel } from "../lib/plan"
+import { makeKropp } from "../lib/kropp"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 /**
@@ -166,6 +167,38 @@ report("kube, vend 30/20/10 og 700 mm", {
   })
   if (sett.m.openEdges > 0 || sett.m.joints === 0 || sett.m.envZ <= sett.m.envX) {
     bryt(`scena gav ${sett.m.openEdges} opne kantar, ${sett.m.joints} ledd, ${sett.m.envX.toFixed(0)}×${sett.m.envZ.toFixed(0)} — ei kule oppå ein kube skal vera høgare enn brei`)
+  }
+}
+
+/**
+ * --- 4d VIRVELEN: RIBBER KRING EIN AKSE -------------------------------------
+ *
+ * Det andre ribbespråket møblane snakkar. n ribber kring loddaksen, kvar
+ * vridd og SKOVEN UT frå han. Skuvet er heile saka: går alle gjennom aksen,
+ * kryssar dei kvarandre langs den same lina, og då er det ikkje eit møbel.
+ * Difor står det utarta tilfellet her ved sida av det som verkar — ei grense
+ * som ikkje er prøvd er ei grense nokon flyttar.
+ */
+{
+  const kropp = { ...GRUNN, scene: "sylinder@0,0,0/1/0", storleik: 300, tjukn: 9 }
+  const vidd: [number, number] = (() => {
+    const k = makeKropp({ ...kropp, plan: "" } as Params)
+    return [k.solid.max[0] - k.solid.min[0], k.solid.max[1] - k.solid.min[1]]
+  })()
+  const paa = (n: number, r: number) => report(`virvel ${n} ribber, r ${r}`, { ...kropp, plan: skrivPlan(virvel(n, r, vidd)) } as Params)
+  const open = paa(20, 0.3)
+  if (open.m.parts === 0 || open.m.joints === 0 || open.m.loose > 0 || open.m.openEdges > 0) {
+    bryt(`virvelen heng ikkje saman: ${open.m.parts} delar, ${open.m.joints} ledd, ${open.m.loose} lause, ${open.m.openEdges} opne kantar`)
+  }
+  // og gjennom aksen fell han frå kvarandre — målt, ikkje gjetta
+  const midt = report("virvel gjennom aksen (utarta)", { ...kropp, plan: skrivPlan(virvel(20, 0, vidd)) } as Params)
+  if (midt.m.loose <= open.m.loose) {
+    bryt(`ribber gjennom aksen skulle falle frå kvarandre: ${midt.m.loose} lause mot ${open.m.loose}`)
+  }
+  // trebeint: det låge talet skal òg gje eit møbel som held
+  const tre = report("virvel 3 ribber, r 0.18", { ...kropp, plan: skrivPlan(virvel(3, 0.18, vidd)) } as Params)
+  if (tre.m.parts !== 3 || tre.m.joints === 0 || tre.m.loose > 0) {
+    bryt(`tre ribber heng ikkje saman: ${tre.m.parts} delar, ${tre.m.joints} ledd, ${tre.m.loose} lause`)
   }
 }
 

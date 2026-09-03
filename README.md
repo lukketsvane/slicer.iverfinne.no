@@ -140,7 +140,7 @@ narrower than the beam is a scorch line and a rib thinner than the plate is a
 matchstick. Erasing adds a stroke rather than removing one; the list only
 shrinks through undo or `⌫`.
 
-Keys: `L` cut, `S` sketch mode, `R` grid tool, `⌫` remove the selected plane,
+Keys: `L` cut, `S` sketch mode, `R` grid tool, `V` vortex, `⌫` remove the selected plane,
 `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 
 **Three ways to keep an afternoon's work.** The link carries every setting —
@@ -223,6 +223,27 @@ cross each other in material without sharing a common line cannot be assembled
 in any order; then it is the plane, not the list, that has to change.
 `montering.txt` in the ALT bundle writes the order out, part by part, with the
 direction each comes in.
+
+## Two rib languages
+
+Ribbed plate furniture speaks two structural languages, and the tool has a layout
+tool for each. **The grid** crosses ribs over one another. **The vortex** stands
+them around the upright axis: `n` ribs, each turned `2πi/n`, each *pushed out* so
+it is tangent to a circle rather than passing through the middle.
+
+The push is the whole thing. Ribs that all pass through the axis cross each other
+along the *same line*: measured, twenty of them collapse to two parts and
+thirty-six loose pieces. Pushed out, the same twenty give a hundred joints and
+nothing loose. So the offset is clamped above zero, and the two numbers are
+coupled — three ribs at a large offset stop meeting altogether, which is why the
+line keeps telling you how many parts came out while you drag.
+
+The offset is a fraction of the body's *narrowest* width, not of the bounding box.
+That distinction is not pedantic: a plane's point is stored as fractions of the
+box, the box is not square, and the same fraction on both axes traces an **ellipse**
+in millimetres. On a 300 × 120 mm body it swung the ribs between 21.6 and 54.0 mm
+from the axis — two and a half times — and the vortex stood lopsided. Dividing each
+axis by its own width holds it at 43.2 mm all the way round.
 
 ## The grid
 

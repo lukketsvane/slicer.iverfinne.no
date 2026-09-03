@@ -6,7 +6,7 @@ import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, rutenett, sameSnitt, spegla, speglingar, skrivPlan, type Plan, type Strek } from "@/lib/plan"
+import { PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, rutenett, sameSnitt, spegla, speglingar, skrivPlan, virvel, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
 import { eiKjelde, lesScene, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
@@ -34,9 +34,21 @@ const LUKKA_ARK = 84
 const TUMME_BTN = "hit ikon relative flex h-12 w-12 items-center justify-center"
 /** eit steg i rutenettet: so langt fingrane må gå for éin kolonne eller éi rad */
 const RUTE_STEG = 44
+/** eit steg i virvelen: so langt fingrane går for éi ribbe til, og for eit hakk ut frå aksen */
+const VIRVEL_STEG = 40
+const VIRVEL_R_STEG = 0.02
+/** kor nær aksen ribbene får koma. Null er det utarta: alle gjennom same
+ *  lina, og tjue plan vart to delar og seks og tretti lause stykke då det
+ *  vart målt. Ein halv er tangent til den innskrivne sirkelen. */
+const VIRVEL_R = { min: 0.06, max: 0.5 }
+/** kor mange ribber virvelen opnar med, og kor langt ute */
+const VIRVEL_START: [number, number] = [12, 0.26]
 /** rutenettet lista alt er, talt: plan langs x er kolonner, plan langs y er
  *  rader. Eit skrått plan er ikkje eit rutenett og tel ikkje — verktyet
  *  skriv lista om, og angre er vegen attende. */
+/** vidda til kroppen i x og y, millimeter: det virvelen treng for å stå rundt */
+const vidd = (k: { min: Vec3; max: Vec3 }): [number, number] => [k.max[0] - k.min[0], k.max[1] - k.min[1]]
+
 function ruteTalde(l: readonly Plan[]): [number, number] {
   let nx = 0
   let ny = 0
@@ -145,6 +157,8 @@ export function Studio() {
   const [verkty, setVerkty] = useState<VerktyId | null>(null)
   /** kolonner og rader, medan fingrane set dei: lesinga over kroppen */
   const [ruteTal, setRuteTal] = useState<[number, number] | null>(null)
+  /** ribber og avstand, medan fingrane set dei: lesinga over kroppen */
+  const [virvelTal, setVirvelTal] = useState<[number, number] | null>(null)
   /** pennen som er tend i konturen: éin finger på den valde plata teiknar */
   const [penn, setPenn] = useState<"gods" | "hol" | null>(null)
   const [busy, setBusy] = useState(true)
@@ -690,7 +704,11 @@ export function Studio() {
     const l = i === null ? [] : lesScene(String(p.scene || "") || eiKjelde(String(p.kjelde ?? KUBE)))
     grunn.current = kva === null ? null : { bit: i === null ? null : (l[i] ?? null) }
     if (kva === "rute") rutGrunn.current = ruteTalde(lesPlan(p.plan))
-    else if (kva === null) setRuteTal(null)
+    if (kva === "virvel") virvGrunn.current = virvNo()
+    else if (kva === null) {
+      setRuteTal(null)
+      setVirvelTal(null)
+    }
     setGest(kva)
   }, [])
   /** brytaren mellom form og skisse, med lina som seier kva som gjeld no */
@@ -705,6 +723,12 @@ export function Studio() {
   }, [view, vald])
   const vekslRute = useCallback(() => {
     setModus((m) => (m === "rute" ? "form" : "rute"))
+    setValdBit(null)
+    setVald(null)
+  }, [])
+  /** virvelen: to fingrar set kor mange ribber, og kor langt ut frå aksen */
+  const vekslVirvel = useCallback(() => {
+    setModus((m) => (m === "virvel" ? "form" : "virvel"))
     setValdBit(null)
     setVald(null)
   }, [])
@@ -904,6 +928,48 @@ export function Studio() {
     if (k?.ark && verkty === "ark" && ark && ark.i !== k.ark - 1) askArk(k.ark - 1)
   }, [liste, verkty, ark, askArk])
 
+  // --- VIRVELEN ------------------------------------------------------------------
+  /**
+   * DET ANDRE RIBBESPRÅKET. Rutenettet gjev ribber på tvers av kvarandre;
+   * virvelen gjev dei kring loddaksen — n ribber, kvar vridd `2π·i/n`, og
+   * kvar skoven ut so ho tek på ein sirkel i staden for å gå gjennom midten.
+   * Vassrett set kor mange, loddrett kor langt ut.
+   *
+   * SKUVET ER HEILE SAKA. Går alle gjennom aksen, kryssar dei kvarandre
+   * langs den same lina: tjue plan vart to delar og seks og tretti lause
+   * stykke då det vart målt. Difor er `r` klemt over null. Og dei to tala
+   * heng saman — tre ribber på 0,30 kryssar ikkje kvarandre i det heile —
+   * so lina over kroppen syner begge medan du dreg, og lina i arket syner
+   * kva som kom ut.
+   *
+   * VIDDA TIL KROPPEN GÅR MED INN, av di eit punkt i eit plan er brøkar av
+   * boksen og boksen ikkje er kvadratisk (sjå `virvel` i plan.ts).
+   */
+  const virvGrunn = useRef<[number, number]>(VIRVEL_START)
+  /** kva virvelen står på no: tala som skreiv lista, om lista er hans. Er ho
+   *  ikkje det, byrjar han der han sist stod — ein virvel lèt seg ikkje lesa
+   *  attende ut av ei vilkårleg liste slik to aksetal gjer. */
+  const virvSist = useRef<[number, number]>(VIRVEL_START)
+  const virvNo = useCallback((): [number, number] => {
+    const k = kroppRef.current
+    const [n, r] = virvSist.current
+    if (k && skrivPlan(virvel(n, r, vidd(k))) === String(naa.current.plan)) return [n, r]
+    return virvSist.current
+  }, [])
+  const dragVirvel = useCallback((dx: number, dy: number) => {
+    const k = kroppRef.current
+    if (!k) return
+    const [n0, r0] = virvGrunn.current
+    const n = Math.max(2, Math.min(PLAN_TAK, n0 + Math.round(dx / VIRVEL_STEG)))
+    const r = Math.max(VIRVEL_R.min, Math.min(VIRVEL_R.max, +(r0 + Math.round(-dy / VIRVEL_STEG) * VIRVEL_R_STEG).toFixed(3)))
+    virvSist.current = [n, r]
+    setVirvelTal([n, r])
+    setParams((cur) => {
+      const plan = skrivPlan(virvel(n, r, vidd(k)))
+      return cur.plan === plan ? cur : { ...cur, plan, fest: "" }
+    })
+  }, [])
+
   // --- RUTENETTET ----------------------------------------------------------------
   /**
    * TO TAL, OG ALT FYLGJER. Rutenettet var reiskapen denne saka byrja med,
@@ -1075,6 +1141,7 @@ export function Studio() {
       } else if (k === "z") (e.shiftKey ? gjerOm : angre)()
       else if (k === "s") vekslModus()
       else if (k === "r") vekslRute()
+      else if (k === "v") vekslVirvel()
       else if (k === "1") setView("flate")
       else if (k === "2") setView("lag")
       else if (k === "3") setView("kontur")
@@ -1091,7 +1158,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, vekslRute, verkty, velPlan, vekslModus, penn])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslModus, penn])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -1103,7 +1170,10 @@ export function Studio() {
     ? { left: 0, right: KOL, bottom: 0, height: skuffH }
     : { left: 8, right: 8, top: toppH + 8, bottom: `calc(${LUKKA_ARK}px + env(safe-area-inset-bottom))` }
   /** kva fingrane held på med, med eitt ord — rutenettet med dei to tala sine */
-  const gestTekst = gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett") : gest
+  const gestTekst =
+    gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
+    : gest === "virvel" ? (virvelTal ? `${virvelTal[0]} · ${Math.round(virvelTal[1] * 100)}%` : "virvel")
+    : gest
   /** ord, ikkje setningar: gestane i den rekkjefylgja du tek dei */
 
   return (
@@ -1139,7 +1209,7 @@ export function Studio() {
             onBitFlytt={flyttBit}
             onBitSkala={skalerBit}
             onBitVri={vriBit}
-            onRute={dragRute}
+            onRute={modus === "virvel" ? dragVirvel : dragRute}
             penn={penn}
             pennBr={pennBr}
             onBane={leggBane}
@@ -1337,6 +1407,8 @@ export function Studio() {
         hentar={hentar}
         rute={modus === "rute"}
         onRute={vekslRute}
+        virvel={modus === "virvel"}
+        onVirvel={vekslVirvel}
         syn={syn}
         onExport={doExport}
         onReset={() => endre({ ...MOTOR.defaults, kjelde: params.kjelde })}

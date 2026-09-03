@@ -57,7 +57,7 @@ function useTema() {
 /** planet slik skissa står no, i motoren sitt rom (mm, z opp) */
 export type Skisse = { o: Vec3; n: Vec3 }
 /** kva ein gest held på med, til lesing på skjermen */
-export type GestKva = "lys" | "snitt" | "zoom" | "strek" | "rute" | null
+export type GestKva = "lys" | "snitt" | "zoom" | "strek" | "rute" | "virvel" | null
 /** eit strek medan fingeren har det: teikna her, snitta av motoren, skrive i parametrane fyrst når det vert sleppt */
 type Live = { id: number; i: number; s: Strek }
 /**
@@ -74,12 +74,16 @@ type Live = { id: number; i: number; s: Strek }
  * han (vassrett på golvet, loddrett opp), vrir han kring loddlina og gjer
  * han større. Same gestane, eit anna emne.
  *
+ * «virvel» er den femte og syskenet til «rute»: det andre ribbespråket.
+ * Draget set kor mange ribber som står kring loddaksen, og kor langt ut frå
+ * han dei står. Same forma på gesten, eit anna sett plan.
+ *
  * «rute» er den fjerde, og den grovaste: rutenettet. Draget set TALET på
  * plan — vassrett er kolonner, loddrett er rader — og heile lista vert
  * skriven om av dei to tala. Difor er skissa og handtaka borte medan han
  * står på, som i «bit»: det finst ikkje eitt plan å ta i her.
  */
-export type Modus = "form" | "skisse" | "bit" | "rute"
+export type Modus = "form" | "skisse" | "bit" | "rute" | "virvel"
 type Lys = { az: number; el: number }
 
 type Ramma = { cx: number; cy: number; s: number; min: Vec3; max: Vec3; midt: Vec3; fit: Fit }
@@ -633,7 +637,7 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
    * handtaka hennar står midt i biletet — nett der fingrane skal ta i ein
    * bit. Eit verkty om gongen: her er det kroppen som vert bygd.
    */
-  const synleg = !!f && vald === null && view !== "kontur" && modus !== "bit" && modus !== "rute"
+  const synleg = !!f && vald === null && view !== "kontur" && modus !== "bit" && modus !== "rute" && modus !== "virvel"
   /** snittet i verda: handtaka står PÅ det — flytt i midten, vri på toppen */
   const snittVerd = useMemo<SnittVerd | null>(() => {
     if (!f || !snitt?.ringar.length) return null
@@ -864,7 +868,7 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     /** verktyet for kroppen har fingrane når ein bit er vald; elles som før */
     const bitStil = () => naa.current.modus === "bit" && naa.current.valdBit !== null
     /** rutenettet tek fingrane heilt: det finst ikkje eitt plan å ta i her */
-    const ruteStil = () => naa.current.modus === "rute"
+    const ruteStil = () => naa.current.modus === "rute" || naa.current.modus === "virvel"
     const skisseStil = () => !bitStil() && !ruteStil() && (naa.current.modus === "skisse" || naa.current.valt !== null)
     let last = { cx: 0, cy: 0, d: 0, a: 0 }
     /** stoda då gesten vart klassifisert, som klyp, vri og drag måler frå */
@@ -1454,7 +1458,7 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
         restore()
         dist0 = controls ? camera.position.distanceTo(controls.target) : 6
         tak = taTak(c.cx, c.cy)
-        naa.current.onGest(mode === "klyp" ? "zoom" : ruteStil() ? "rute" : "snitt")
+        naa.current.onGest(mode === "klyp" ? "zoom" : ruteStil() ? (naa.current.modus === "virvel" ? "virvel" : "rute") : "snitt")
       }
       // VERKTYET FOR KROPPEN tek dei same tre gestane, men emnet er biten:
       // klypet gjer han større, vridinga snur han kring loddlina, draget
