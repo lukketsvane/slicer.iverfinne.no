@@ -52,7 +52,7 @@ function useTema() {
 /** planet slik skissa står no, i motoren sitt rom (mm, z opp) */
 export type Skisse = { o: Vec3; n: Vec3 }
 /** kva ein gest held på med, til lesing på skjermen */
-export type GestKva = "storleik" | "vend" | "lys" | "snitt" | "zoom" | "strek" | null
+export type GestKva = "vend" | "lys" | "snitt" | "zoom" | "strek" | null
 /** eit strek medan fingeren har det: teikna her, snitta av motoren, skrive i parametrane fyrst når det vert sleppt */
 type Live = { id: number; i: number; s: Strek }
 /**
@@ -362,7 +362,9 @@ function FitCamera({ fit, rute, flat, sikt }: { fit: Fit | null; rute: Rute; fla
  * svingar med synet; eit låst plan gjer det ikkje — det er heile skilnaden.
  *
  *   éin finger        snu synet (OrbitControls)
- *   to fingrar, klyp  STORLEIKEN. Du dreg objektet stort og lite.
+ *   to fingrar, klyp  SYNET. Kameraet går nærare og lenger unna — klypet er
+ *                     det klypet er alle andre stader. Storleiken på kroppen
+ *                     er eit mål du dreg i, i arket.
  *   to fingrar, vri   VEND. Objektet snur seg på bordet, og plana fylgjer
  *                     ikkje med: du ser med det same om ei anna vending
  *                     gjev eit betre snitt.
@@ -410,7 +412,7 @@ const SNAPP_PX = 4
 /** snittet i verda, til handtaka: midten av det største stykket, og punkta på ringane (tynna) */
 type SnittVerd = { midt: THREE.Vector3; punkt: THREE.Vector3[] }
 
-function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onSkala, onVend, onLys, onGest, onSkisse }: {
+function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onVend, onLys, onGest, onSkisse }: {
   f: Ramma | null
   fri: ReturnType<typeof fritt>
   view: View
@@ -435,7 +437,6 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
   onStrek: (id: number, i: number, s: Strek) => void
   onSynStrek: (id: number, i: number, s: Strek) => void
   onPlan: (id: number, o: Vec3, n: Vec3) => void
-  onSkala: (faktor: number) => void
   onVend: (grader: number) => void
   onLys: (dx: number, dy: number) => void
   onGest: (kva: GestKva) => void
@@ -514,8 +515,8 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     return { x: ((p.x + 1) / 2) * size.width, y: ((1 - p.y) / 2) * size.height }
   }
 
-  const naa = useRef({ f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onSkala, onVend, onLys, onGest, onSkisse })
-  naa.current = { f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onSkala, onVend, onLys, onGest, onSkisse }
+  const naa = useRef({ f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onVend, onLys, onGest, onSkisse })
+  naa.current = { f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onVend, onLys, onGest, onSkisse }
 
   useFrame(() => {
     const g = gruppe.current
@@ -675,7 +676,7 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     /** eit trykk som valde eller slepte eit strek: klikket som fylgjer skal ikkje òg velje ein del eller sleppe planet */
     let svelgKlikk = false
     /** skissemodusen: dra, vri og klyp SAMSTUNDES, kvar med si daudsone */
-    let sam = { d0: 1, sistA: 0, vri: 0, dist0: 6, akt: { pan: false, vri: false, klyp: false }, sagt: null as GestKva }
+    let sam = { d0: 1, sistA: 0, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null as GestKva }
     /** skissegestane gjeld når brytaren står på skisse — og alltid når eit låst plan er valt */
     const skisseStil = () => naa.current.modus === "skisse" || naa.current.valt !== null
     let last = { cx: 0, cy: 0, d: 0, a: 0 }
@@ -802,9 +803,11 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     const flytt = (t: Tak, dx: number, dy: number) => bruk(t, dx, dy, 0)
     const vri = (t: Tak, ang: number) => bruk(t, 0, 0, ang)
     /** klypet i skissemodusen dollyar kameraet: totalen sidan gesten byrja */
+    /** avstanden til kameraet då klypet vart eit klyp: totalen vert målt frå han */
+    let dist0 = 6
     const dolly = (klyp: number) => {
       if (!controls) return
-      const dist = Math.min(MAX_DIST, Math.max(MIN_DIST, sam.dist0 / klyp))
+      const dist = Math.min(MAX_DIST, Math.max(MIN_DIST, dist0 / klyp))
       // retninga FØR kameraet vert flytt: `copy` går føre argumentet sitt, og
       // eit nullpunkt vart til eit kamera rett over objektet i azimut null
       const retn = camera.position.clone().sub(controls.target).setLength(dist)
@@ -903,7 +906,8 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
           // levande frå no, kvar med si daudsone.
           restore()
           tak = taTak(c.cx, c.cy)
-          sam = { d0: Math.max(1, c.d), sistA: c.a, vri: 0, dist0: controls ? camera.position.distanceTo(controls.target) : 6, akt: { pan: false, vri: false, klyp: false }, sagt: null }
+          dist0 = controls ? camera.position.distanceTo(controls.target) : 6
+          sam = { d0: Math.max(1, c.d), sistA: c.a, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null }
           mode = "sam"
         } else {
           mode = "none"
@@ -1069,11 +1073,16 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
         // Den fyrste fingeren rakk å snu synet litt før den andre landa.
         // Den rotasjonen høyrer ikkje til gesten, so han vert lagd attende.
         restore()
+        dist0 = controls ? camera.position.distanceTo(controls.target) : 6
         tak = taTak(c.cx, c.cy)
-        naa.current.onGest(mode === "klyp" ? "storleik" : mode === "vri" ? "vend" : "snitt")
+        naa.current.onGest(mode === "klyp" ? "zoom" : mode === "vri" ? "vend" : "snitt")
       }
       if (mode === "klyp") {
-        if (start.d > 8 && c.d > 8) naa.current.onSkala(c.d / start.d)
+        // KLYPET ER SYNET, IKKJE OBJEKTET. Det skalerte kroppen før — og eit
+        // objekt som veks når du vil sjå nærare er eit objekt som ikkje gjer
+        // det du bad om. Storleiken er eit mål du dreg i, i arket; her er
+        // klypet det klypet er alle andre stader.
+        if (start.d > 8 && c.d > 8) dolly(c.d / start.d)
       } else if (mode === "vri") {
         // Skjermen har y nedover, so ein vri med klokka aukar vinkelen. Objektet
         // skal fylgje fingrane, og med klokka ovanfrå er negativt kring z.
@@ -1129,10 +1138,11 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       e.stopPropagation()
       if (!hjulGaar) {
         hjulGaar = true
-        naa.current.onGest("storleik")
+        dist0 = controls ? camera.position.distanceTo(controls.target) : 6
+        naa.current.onGest("zoom")
       }
       hjulTotal *= Math.exp(-e.deltaY * 0.01)
-      naa.current.onSkala(hjulTotal)
+      dolly(hjulTotal)
       window.clearTimeout(hjulTimer)
       hjulTimer = window.setTimeout(() => {
         naa.current.onGest(null)
@@ -1624,7 +1634,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, material, rute, liste, plan, vald, spok, snitt, blink, skisse, storleik, valdStrek, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onSkala, onVend, onGest, onSkisse }: {
+export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, material, rute, liste, plan, vald, spok, snitt, blink, skisse, storleik, valdStrek, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onVend, onGest, onSkisse }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   kontur: BuildRes | null
@@ -1650,7 +1660,6 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
   /** eit strek sleppt — og eit strek medan det vert drege, til snittet */
   onStrek: (id: number, i: number, s: Strek) => void
   onSynStrek: (id: number, i: number, s: Strek) => void
-  onSkala: (faktor: number) => void
   onVend: (grader: number) => void
   onGest: (kva: GestKva) => void
   onSkisse: (s: Skisse) => void
@@ -1733,7 +1742,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
           </GizmoHelper>
         )}
         <Demping onSein={setSein} />
-        <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onSkala={onSkala} onVend={onVend} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} />
+        <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onVend={onVend} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} />
         {/* Konturen er ei teikning: éin finger dreg, klypet zoomar, ingenting
             snur. Kroppen snur heile vegen rundt — undersida er der ledda sit,
             og eit syn du ikkje kjem til er ein kontroll som manglar. */}

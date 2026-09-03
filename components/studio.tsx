@@ -18,7 +18,6 @@ import { Arket, KOL, type Steg } from "./arket"
 import { HAIR, IcoFerdig, IcoGods, IcoHol, IcoSkisse, IcoSkjer, IcoSlett, chipStyle } from "./deler"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
-import { PARAM_RANGES } from "@/lib/params"
 
 /**
  * STUDIOET. Ein parameterpose, ein arbeidar, og det som skal til for at
@@ -575,24 +574,16 @@ export function Studio() {
 
   // --- GESTANE --------------------------------------------------------------
   /**
-   * KLYPET OG VRIDINGA MÅLER FRÅ DER GESTEN BYRJA: fingrane som står tre
-   * gonger so langt frå kvarandre skal gje eit objekt tre gonger so stort,
-   * same kor mange hendingar som kom fram undervegs. Grunnstoda vert sett
-   * når gesten melder seg og rydda når han sluttar.
+   * VRIDINGA MÅLER FRÅ DER GESTEN BYRJA, same kor mange hendingar som kom
+   * fram undervegs. Grunnstoda vert sett når gesten melder seg og rydda når
+   * han sluttar. (Klypet er kameraet sitt no, og scena held den avstanden
+   * sjølv — han er ikkje ein parameter.)
    */
-  const grunn = useRef<{ storleik: number; rotZ: number } | null>(null)
+  const grunn = useRef<{ rotZ: number } | null>(null)
   const taGest = useCallback((kva: GestKva) => {
     const p = naa.current
-    grunn.current = kva === null ? null : { storleik: typeof p.storleik === "number" ? p.storleik : 150, rotZ: typeof p.rotZ === "number" ? p.rotZ : 0 }
+    grunn.current = kva === null ? null : { rotZ: typeof p.rotZ === "number" ? p.rotZ : 0 }
     setGest(kva)
-  }, [])
-  const skalerObjektet = useCallback((total: number) => {
-    if (!Number.isFinite(total) || total <= 0) return
-    const g = grunn.current
-    if (!g) return
-    const r = PARAM_RANGES.storleik
-    const v = Math.min(r.max, Math.max(r.min, Math.round((g.storleik * total) / r.step) * r.step))
-    setParams((cur) => (cur.storleik === v ? cur : { ...cur, storleik: v }))
   }, [])
   /** vendinga: objektet snur seg på bordet, og plana fylgjer ikkje med. Ho går rundt: 181° er −179°. */
   const vendObjektet = useCallback((grader: number) => {
@@ -958,7 +949,7 @@ export function Studio() {
     : { left: 8, right: 8, top: toppH + 8, bottom: `calc(${LUKKA_ARK}px + env(safe-area-inset-bottom))` }
   /** kva gesten held på med, i tal: ein gest utan tal er ein gest du ikkje kan sikte med */
   const les = (k: string) => String(typeof params[k] === "number" ? Math.round(params[k] as number) : 0)
-  const gestTekst = gest === "storleik" ? `${les("storleik")} mm` : gest === "vend" ? `${les("rotZ")}°` : gest
+  const gestTekst = gest === "vend" ? `${les("rotZ")}°` : gest
   /** ord, ikkje setningar: gestane i den rekkjefylgja du tek dei */
 
   return (
@@ -988,7 +979,6 @@ export function Studio() {
             onPlan={flyttPlan}
             onStrek={endraStrek}
             onSynStrek={synStrek}
-            onSkala={skalerObjektet}
             onVend={vendObjektet}
             onGest={taGest}
             onSkisse={skisseEndra}
