@@ -296,7 +296,7 @@ put("egg", "egg", kule(50, 40, 1.6))
 put("torus", "torus", torus(50, 18, 48, 24))
 
 /** eit merke lagt i eit namngjeve plan: gjennom lesinga, so strengen er den vakta ser */
-const medBane = (plan: string, id: number, st: Strek) =>
+const medStrek = (plan: string, id: number, st: Strek) =>
   skrivPlan(lesPlan(plan).map((q) => (q.id === id ? { ...q, strek: [...q.strek, st] } : q)))
 
 const SAKER: [string, Partial<Params>][] = [
@@ -317,16 +317,16 @@ const SAKER: [string, Partial<Params>][] = [
   ["firbeint, 10 ribber", { kjelde: "firbeint", plan: nett(10, 10), lause: 0 }],
   ["firbeint, tjukk plate", { kjelde: "firbeint", tjukn: 6, storleik: 300, lause: 0 }],
   ["kule, tett og tynt", { kjelde: "kule", plan: nett(24, 24), tjukn: 1 }],
-  // MERKE HANDA HAR TEIKNA. Eit hòl tvers over ei plate deler henne, og eit
+  // STREK HANDA HAR SETT. Eit hòl tvers over ei plate deler henne, og eit
   // gods legg til material der nettet ikkje gav noko — begge endrar kva som
   // står att kring spora, og det er nett det denne vakta måler.
-  ["kube, merke i to plan", {
-    plan: medBane(medBane(nett(4, 4), 2, { slag: "hol", form: "bane", br: 0.04, p: [-0.2, -0.35, 0.25, -0.3] }),
-      6, { slag: "gods", form: "bane", br: 0.06, p: [-0.2, 0.4, 0.2, 0.45] }),
+  ["kube, strek i to plan", {
+    plan: medStrek(medStrek(nett(4, 4), 2, { slag: "hol", form: "rekt", x: 0, y: -0.32, w: 0.45, h: 0.04, a: 0 }),
+      6, { slag: "gods", form: "rekt", x: 0, y: 0.42, w: 0.4, h: 0.06, a: 0 }),
   }],
-  ["kule, merke tvers over ei plate", {
+  ["kule, strek tvers over ei plate", {
     kjelde: "kule",
-    plan: medBane(nett(6, 6), 3, { slag: "hol", form: "bane", br: 0.04, p: [-0.6, 0.1, 0.6, 0.1] }),
+    plan: medStrek(nett(6, 6), 3, { slag: "hol", form: "rekt", x: 0, y: 0.1, w: 1.2, h: 0.04, a: 0 }),
   }],
 ]
 

@@ -562,9 +562,10 @@ const SØPPEL: unknown[] = [
   // under les kvart band og ville teke det.
   { plan: ruter(1, 1) },
   { plan: Array.from({ length: 300 }, (_, i) => `${i + 1}@0.5,0.5,0.5/1,0,0`).join(";") },
-  // MERKE FRÅ EI LENKJE. Halen på ein bane er so lang som den som skreiv
-  // henne vil, so lengdeporten i `lesBane` er sjølve saka her: kjem ho
-  // etter splittinga, kostar ein million koordinatar alt og betaler null.
+  // EIT MERKE FRÅ EI GAMMAL LENKJE. Handteikna baner (`b`) fanst ein
+  // periode og er borte. Ein slik hale skal difor falle på REGELEN, før
+  // noko vert splitta — ein million koordinatar kostar eitt regexbom, og
+  // tida under er det som seier frå om det ikkje er sant lenger.
   { plan: `1@0.5,0.5,0.5/1,0,0/-b:0.04_${Array.from({ length: 1000000 }, () => "0.1").join("_")}` },
   { plan: `1@0.5,0.5,0.5/1,0,0/${Array.from({ length: 400 }, () => `-b:0.04_${"0.1_".repeat(600)}0.1`).join("/")}` },
   { plan: "1@0.5,0.5,0.5/1,0,0/-b:Infinity_0_0_0.1_0.1" },

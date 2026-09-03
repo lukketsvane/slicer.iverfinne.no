@@ -27,7 +27,7 @@ import { put } from "../lib/sources"
 import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 /** eit merke lagt i eit namngjeve plan: gjennom lesinga, so strengen er den vakta ser */
-const medBane = (plan: string, id: number, st: Strek) =>
+const medStrek = (plan: string, id: number, st: Strek) =>
   skrivPlan(lesPlan(plan).map((q) => (q.id === id ? { ...q, strek: [...q.strek, st] } : q)))
 
 /**
@@ -342,9 +342,9 @@ const saker: [string, Params][] = [
   // ein ring skal skjerast FØR omrisset og med hòlvindinga. Kjem han ut
   // med omrissvindinga, vert han lesen som eit omriss til — og då ligg
   // delen laus på plata før hòlet i han er skore.
-  ["kube, merke inni ei plate", {
+  ["kube, strek inni ei plate", {
     ...GRUNN,
-    plan: medBane(nett(4, 4), 2, { slag: "hol", form: "bane", br: 0.05, p: [-0.2, -0.2, 0.1, -0.05, 0.2, 0.15] }),
+    plan: medStrek(nett(4, 4), 2, { slag: "hol", form: "rekt", x: -0.05, y: -0.05, w: 0.3, h: 0.1, a: 20 }),
   }],
 ]
 

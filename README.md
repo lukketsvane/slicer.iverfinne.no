@@ -121,25 +121,12 @@ in much further than the object view does — a 3 mm slot in a half-metre
 outline is four pixels on a phone, and going in close is the only way to see
 whether it is there.
 
-**And it is a surface you shape on.** Tap a plate: it goes to full ink with a
-frame around it, the rest stay at a whisper. Tap **skjer hòl** or **legg til
-gods** — in this view they latch — and one finger *inside that frame* draws.
-Outside the frame the same finger still drags the drawing, and two fingers
-still pan and zoom; the frame is the line where the finger changes meaning,
-which is why it is drawn and not implied. The ink follows at the width the
-mark will have, and nothing is cut until you lift: the plate is then sliced
-again with the mark in it, in one undo step. Tap the other pen to flip sign
-without leaving, the lit one or `Esc` to stop drawing, empty paper to let the
-plate go.
-
-**The mark is a saw, not an undo.** `hòl` does not distinguish material you
-added from material the mesh gave you: a mark across a plate cuts the plate,
-into two parts if it spans it, and the addresses follow. The pen is floored on
-the material — two plate thicknesses, never under the kerf — because a slit
-narrower than the beam is a scorch line and a rib thinner than the plate is a
-matchstick. Erasing adds a stroke rather than removing one; the list only
-shrinks through undo or `⌫`.
-
+**And it is the plate surface.** Tap a plate: it goes to full ink with a frame
+around it, the rest stay at a whisper. Tap empty paper to let it go. There was a
+pen and an eraser here for a while — one finger inside the frame drew a freehand
+mark into the plate — and they are gone. The contour view is where the plates
+are, not a drawing surface; marks on a plane are placed in the object view, where
+you can see what you are marking.
 Keys: `L` cut, `S` sketch mode, `R` grid tool, `V` vortex, `⌫` remove the selected plane,
 `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 
@@ -159,8 +146,7 @@ so two pieces that overlap are one body where they overlap. The list is the
 piece's file.
 
 **The contour view is where the plates live.** It draws every profile flat at
-full size; tap one to select it, draw or erase a mask into it, zoom in past the
-body's own limit. The sheet panel used to carry a 160-pixel thumbnail of the same
+full size; tap one to select it, zoom in past the body's own limit. The sheet panel used to carry a 160-pixel thumbnail of the same
 drawing — the same picture twice, and the small one could not be worked in. It is
 gone, and with it a third slice and up to 52 kB of SVG serialised across the
 worker boundary on every parameter change.
@@ -199,7 +185,7 @@ three give eight. A plane that is already symmetric about an axis mirrors onto
 itself and is added once, not twice, so a cut down the middle stays one part.
 
 What comes out are **ordinary planes with ordinary names**. They are not a group
-and not a copy: move one, re-angle one, draw a mask into one, delete one, and
+and not a copy: move one, re-angle one, mark one, delete one, and
 the others do not care. That is deliberate — a symmetry that persisted would
 have to share a name between two parts, and the name is what is engraved on the
 plate. So the switches are an aid to *placing* cuts, and then they are done. For
@@ -215,9 +201,7 @@ row on the screen. A plane cut into several islands gets letters: `7a`, `7b`.
 two fingers or the handles. Select a part and the thumb column offers **legg til
 gods** and **skjer hòl**: a rectangle that adds material, a round that cuts it
 away, dropped at the centre of the section and then moved, resized and turned
-with three handles. The third kind is the freehand mark drawn in the contour
-view — a polyline with a width, moved and re-widened with the same handles,
-minus the rotate one, because a path carries its own direction. They are cut in the same field as the slots, so a hole you
+with three handles. They are cut in the same field as the slots, so a hole you
 drew and a slot the engine cut never disagree, and the section shows the real
 result while you drag. When the model changes underneath a stroke, **the
 stroke stays**: it is what you did, and the tool does not throw work away
@@ -350,7 +334,7 @@ too big also knows *how much*, so it offers `prøv 290 mm` and sets it. **Some
 carry none, on purpose.** «Planes grip» and «parts exist» used to offer a 6×6
 grid — one press and your plane list was replaced by a generated one. That is
 not advice, it is a different drawing; now that the grid tool sets the two
-numbers with two fingers and the pen draws into the planes, it is work a button
+numbers with two fingers, it is work a button
 has no business throwing away. Those rules state the reason and stop there.
 
 ## How it works
@@ -442,7 +426,7 @@ minutes, and HMR reloading underneath produces failures that look real.
 | | |
 |---|---|
 | `lib/core.ts` | **start here.** The contract: parameters, metrics, rules, views |
-| `lib/plan.ts` | what a plane is: name, point, normal, strokes (box, ellipse, freehand mark); the string; the grid |
+| `lib/plan.ts` | what a plane is: name, point, normal, strokes (box, ellipse); the string; the grid and the vortex |
 | `lib/params.ts` | the parameter space and its defaults |
 | `lib/scene.ts` | the body as pieces: primitives and files, placed |
 | `lib/kropp.ts` | the body: pieces joined, weld, unflip, simplify, smooth, place — and turned along any normal |
