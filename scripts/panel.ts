@@ -1088,9 +1088,49 @@ async function mork(browser: Browser) {
   await side.close()
 }
 
+/**
+ * REGLANE SOM INGEN KUNNE SJÅ.
+ *
+ * Tavla teiknar avlesingane, og ein regel finn lina si gjennom `rad`. Tre
+ * reglar har inga rad å peike på — «kan monterast», klaringa og
+ * snittbreidda — og dei vart difor rekna, dømde, gjevne eit råd og teikna
+ * INGEN STAD. Den fyrste av dei er hard: delane kunne ikkje setjast saman
+ * i nokon rekkjefylgje, reiskapen visste det, reiskapen hadde knappen som
+ * retta det, og du fekk aldri sjå noko av det.
+ *
+ * Lenkja her er den same saka `pnpm raad` prøver hovudlaust: tre plan der
+ * eitt har to vegar inn. Vakta ser at lina STÅR i tavla, at ho ber knappen
+ * sin, og at knappen tek brotet bort.
+ */
+async function reglar(browser: Browser) {
+  console.log("\n=== reglane utan ei rad")
+  const bag = { plan: "1@0.2,0.5,0.5/1,0,0;2@0.5,0.5,1/0.7071,0,0.7071;3@0.5,0.5,0.5/0,1,0", klaring: 0 }
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
+  await page.locator(HOVUDLINA).click()
+  await page.waitForTimeout(400)
+  await page.getByRole("button", { name: "alle kontrollane" }).click()
+  await roleg(page, 600)
+  const tavla = page.locator("[aria-label='kontrollar'] dl").first()
+  const tekst = (await tavla.innerText()).replace(/\s+/g, " ")
+  sjekk("den harde regelen utan ei rad står i tavla", /kan monterast/.test(tekst), tekst.slice(-90))
+  sjekk("og den mjuke òg", /klaring/.test(tekst))
+  const bytt = page.locator("button[aria-label^='fiks kan monterast']")
+  sjekk("og han ber rådet sitt", (await bytt.count()) === 1)
+  const planFør = hash(page).plan
+  if (await bytt.count()) {
+    await bytt.click()
+    await vent(page, (p) => p.plan !== planFør)
+    await roleg(page, 400)
+    sjekk("og rådet tek brotet bort", !/kan monterast/.test((await tavla.innerText()).replace(/\s+/g, " ")), hash(page).plan.slice(0, 40))
+  }
+  sjekk("ingen konsollfeil i reglane", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await page.close()
+}
+
 const main = async () => {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
   await telefon(browser)
+  await reglar(browser)
   await flyt(browser)
   await mork(browser)
   await benk(browser)

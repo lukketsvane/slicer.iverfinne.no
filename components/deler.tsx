@@ -156,6 +156,22 @@ export function Tavla({ metrics, rules, busy, params, onChange }: {
   const eig = new Map<string, Rule>()
   for (const r of rules) if (r.rad) eig.set(r.rad, r)
   const rader = metrics ? metrics.list : RADER.map((r) => ({ ...r, text: DASH }))
+  /**
+   * REGLANE UTAN EI RAD, NÅR DEI RYK.
+   *
+   * Tavla teiknar avlesingane, og ein regel finn lina si gjennom `rad`.
+   * Tre reglar har inga rad å peike på — dei dømer noko som ikkje er eit
+   * tal i tavla: rekkjefylgja delane går inn i, klaringa og snittbreidda,
+   * som er skyvarar og ikkje geometri. Dei vart difor rekna, dømde, gjevne
+   * eit råd, og TEIKNA INGEN STAD. «Kan monterast» er hard og ber knappen
+   * som byter rekkjefylgja: kroppen din kunne ikkje setjast saman, reiskapen
+   * visste det, reiskapen hadde vegen ut — og du fekk aldri sjå noko av det.
+   *
+   * Dei står her, under avlesingane, og berre når dei ryk: ein regel som
+   * held har ikkje noko å seie, og ei tavle med tretten grøne liner er ei
+   * tavle ingen les.
+   */
+  const utanRad = rules.filter((r) => !r.rad && !r.ok)
   return (
     <dl
       className="grid grid-cols-2 gap-x-6 text-[11px]"
@@ -182,6 +198,15 @@ export function Tavla({ metrics, rules, busy, params, onChange }: {
           </div>
         )
       })}
+      {utanRad.map((r) => (
+        <div key={r.id} title={r.why} className="col-span-2 flex items-baseline justify-between gap-2 py-[2px] leading-4">
+          <dt className="dim shrink-0 truncate">{r.label}</dt>
+          <dd className="tab flex min-w-0 items-baseline justify-end gap-1.5 text-right" style={{ color: r.hard ? "var(--warn)" : undefined }}>
+            <span className="truncate" style={{ textDecoration: r.hard ? undefined : "underline dotted", textUnderlineOffset: 3 }}>{r.value}</span>
+            <Fiksen rule={r} params={params} onChange={onChange} />
+          </dd>
+        </div>
+      ))}
     </dl>
   )
 }
