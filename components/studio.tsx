@@ -998,9 +998,10 @@ export function Studio() {
 
       <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
 
-      {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til høgre i det frie bandet */}
+      {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til VENSTRE i
+          det frie bandet — synskuben har det høgre hjørnet */}
       {gestTekst && (
-        <div className="pointer-events-none absolute flex justify-end" style={{ top: toppH + 10, right: (benk ? KOL : 0) + 14 }} aria-hidden="true">
+        <div className="pointer-events-none absolute flex justify-start" style={{ top: toppH + 10, left: 14 }} aria-hidden="true">
           <span className="tab text-[26px] leading-none tracking-[0.02em]" style={{ opacity: 0.5 }}>{gestTekst}</span>
         </div>
       )}

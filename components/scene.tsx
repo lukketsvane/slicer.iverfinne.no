@@ -1,7 +1,7 @@
 "use client"
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
-import { OrbitControls } from "@react-three/drei"
+import { GizmoHelper, GizmoViewcube, OrbitControls } from "@react-three/drei"
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react"
 import * as THREE from "three"
 import { MATERIALS, inRing, shoelace, type Kutt, type Material, type Pt, type Vec3, type View } from "@/lib/core"
@@ -1555,94 +1555,31 @@ function Konturen({ f, d, ink }: { f: Ramma; d: BuildRes; ink: string }) {
 }
 
 /**
- * SYNSKUBEN. Ein kube du orienterer med, slik dei er i Blender og i kvar
- * CAD-pakke som finst: han svingar med kameraet, og du trykkjer på den
- * flata, den kanten eller det hjørnet du vil sjå frå.
+ * SYNSKUBEN, frå drei.
  *
- * Kvar side er delt i tre gonger tre. Midten er sida — framme, topp,
- * høgre. Kantcellene er KANTANE på kuben: retninga er summen av dei to
- * sidene som møtest der, so «topp + framme» er synet førti og fem grader
- * ovanfrå. Hjørna er summen av tre. Seks og tjue retningar i alt, og dei
- * står der du ser dei: du treffer det du peikar på, og bommar du, er du
- * eitt trykk frå nabosynet.
+ * Han var heimelaga her: seks sider av DOM, kvar delt i tre gonger tre, med
+ * ei matrise skriven kvar teikning. Han verka — og han var åtti liner
+ * CSS og TSX for noko `@react-three/drei` alt har gjort, betre: flatene,
+ * kantane og hjørna er ekte geometri i lerretet, klikket går gjennom
+ * strålekastinga som alt anna i scena, og kameraet svingar seg dit i
+ * staden for å hoppe. Vi hadde òg pakka frå før.
  *
- * Sidene som vender frå deg vert korkje teikna eller trefte
- * (`backface-visibility`), so berre det du ser kan veljast — og cellene på
- * to sider som deler ein kant fell saman i den same retninga, som på ein
- * ekte synskube.
- *
- * Retningane er verda si: y er opp, og z peikar mot deg i heimvinkelen.
- * Rett ovanfrå og rett nedanfrå står to hundredelar frå loddrett, so
- * vendinga kring loddlina er eit tal og ikkje ei deling på null.
+ * Det som står att er storleiken og fargane. Kuben til drei er seksti
+ * pikslar; her er han skalert til fem og førti, og han tek papiret og
+ * blekket frå tokena som alt anna. Sidene er ord, på nynorsk, i den
+ * rekkjefylgja drei ventar dei: høgre, venstre, topp, botn, framme, bak.
  */
-const HALV = 45
-
-/** ei side: normalen, og kva veg «høgre» og «ned» i CSS-ruta peikar i verda */
-type Side = { id: string; ord: string; css: string; n: Vec3; u: Vec3; d: Vec3 }
-const SIDER: readonly Side[] = [
-  { id: "topp", ord: "topp", css: `rotateX(90deg) translateZ(${HALV}px)`, n: [0, 1, 0], u: [1, 0, 0], d: [0, 0, 1] },
-  { id: "botn", ord: "botn", css: `rotateX(-90deg) translateZ(${HALV}px)`, n: [0, -1, 0], u: [1, 0, 0], d: [0, 0, -1] },
-  { id: "framme", ord: "framme", css: `translateZ(${HALV}px)`, n: [0, 0, 1], u: [1, 0, 0], d: [0, -1, 0] },
-  { id: "bak", ord: "bak", css: `rotateY(180deg) translateZ(${HALV}px)`, n: [0, 0, -1], u: [-1, 0, 0], d: [0, -1, 0] },
-  { id: "venstre", ord: "venstre", css: `rotateY(-90deg) translateZ(${HALV}px)`, n: [-1, 0, 0], u: [0, 0, 1], d: [0, -1, 0] },
-  { id: "hogre", ord: "høgre", css: `rotateY(90deg) translateZ(${HALV}px)`, n: [1, 0, 0], u: [0, 0, -1], d: [0, -1, 0] },
-]
-/** kva side ei retning peikar på: nøkkelen han har, og ordet han heiter */
-const SIDA = (v: Vec3) => SIDER.find((q) => q.n[0] === v[0] && q.n[1] === v[1] && q.n[2] === v[2])
-const summer = (...v: Vec3[]): Vec3 => [0, 1, 2].map((a) => v.reduce((s, q) => s + q[a], 0)) as Vec3
-const skalert = (v: Vec3, k: number): Vec3 => [v[0] * k, v[1] * k, v[2] * k]
-
+const SIDEORD = ["høgre", "venstre", "topp", "botn", "framme", "bak"]
+/** drei teiknar kuben i seksti pikslar; vi vil ha helvta av det han var */
+const KUBE_SKALA = 0.75
 /**
- * Dei ni cellene på ei side, med retninga si.
- *
- * Rad 0 er øvst i sida si eiga rute, so forskyvinga er (i − 1) gonger
- * «høgre» og (j − 1) gonger «ned». Ei celle rett ovanfrå eller nedanfrå
- * ville stått loddrett; ho får den vesle helninga mot framsida i staden.
+ * Fargen under fingeren. Materialet GONGAR teksturen, so han kan berre
+ * mørkne: ein lys grå dempar den kvite flata i lys drakt og den kvite
+ * skrifta i mørk, og gjer ingen av delane stygg. Ein finger set han utan å
+ * ta han av att — det er ikkje ein feil her, det er merket etter det siste
+ * du valde.
  */
-function celler(s: Side) {
-  const ut: { vel: string; ord: string; namn: string; dir: Vec3; slag: "side" | "kant" | "hjorne" }[] = []
-  for (let j = 0; j < 3; j++) {
-    for (let i = 0; i < 3; i++) {
-      const dx = i - 1
-      const dy = j - 1
-      const tal = Math.abs(dx) + Math.abs(dy)
-      const dir = summer(s.n, skalert(s.u, dx), skalert(s.d, dy))
-      const med = [s, dx ? SIDA(skalert(s.u, dx)) : null, dy ? SIDA(skalert(s.d, dy)) : null].filter(Boolean) as Side[]
-      // ei celle rett langs loddlina har ingen vinkel kring henne
-      const rett: Vec3 = dir[0] === 0 && dir[2] === 0 ? [0, dir[1], 0.02] : dir
-      ut.push({
-        // nøkkelen er dei same sidene same kva for ei av dei cella står på
-        vel: med.map((q) => q.id).sort().join("-"),
-        ord: tal === 0 ? s.ord : "",
-        namn: med.map((q) => q.ord).join(" "),
-        dir: rett,
-        slag: tal === 0 ? "side" : tal === 1 ? "kant" : "hjorne",
-      })
-    }
-  }
-  return ut
-}
-
-/**
- * Kuben si vending, skriven kvar teikning slik handtaka vert det.
- *
- * Kameramatrisa snudd tek verda inn i kameraet sitt rom; CSS har y nedover,
- * so ho vert spegla på begge sider (S·R·S med S = diag(1, −1, 1)) før ho
- * vert skriven. Ingen animasjon og ingen overgang: kuben ER synet, og eit
- * syn som kjem etterpå er ei løgn i to hundre millisekund.
- */
-function Vendinga({ el }: { el: HTMLElement | null }) {
-  const camera = useThree((s) => s.camera)
-  const m = useRef(new THREE.Matrix4())
-  useFrame(() => {
-    if (!el) return
-    camera.updateMatrixWorld()
-    const e = m.current.copy(camera.matrixWorld).invert().elements
-    const c = (rad: number, kol: number) => e[kol * 4 + rad] * (rad === 1 ? -1 : 1) * (kol === 1 ? -1 : 1)
-    el.style.transform = `matrix3d(${c(0, 0)},${c(1, 0)},${c(2, 0)},0,${c(0, 1)},${c(1, 1)},${c(2, 1)},0,${c(0, 2)},${c(1, 2)},${c(2, 2)},0,0,0,0,1)`
-  })
-  return null
-}
+const KUBE_HOVER = "#dcdcdc"
 
 /** ramm inn att: objektet heilt, i heimvinkelen */
 const IkonHeim = (
@@ -1714,9 +1651,7 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
   const fk = useMemo(() => ramma(kontur), [kontur])
   const fri = useMemo(() => fritt(rute), [rute])
   const [sikt, setSikt] = useState<Sikt>({ n: 0, dir: null })
-  const [kube, setKube] = useState<HTMLDivElement | null>(null)
   const heim = useCallback(() => setSikt((s) => ({ n: s.n + 1, dir: null })), [])
-  const settSide = useCallback((dir: Vec3) => setSikt((s) => ({ n: s.n + 1, dir })), [])
   const [boks, setBoks] = useState<HTMLDivElement | null>(null)
   const [sein, setSein] = useState(false)
   // Éi styrbar hovudlyskjelde på ein fast kuppel, pluss fire svake fyll:
@@ -1763,7 +1698,27 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
           </mesh>
         </group>
         <FitCamera fit={(flat ? fk : f)?.fit ?? null} rute={rute} flat={flat} sikt={sikt} />
-        <Vendinga el={kube} />
+        {/*
+          SYNSKUBEN, øvst til høgre i det FRIE bandet: marginen er kanten av
+          arket og kolonna, ikkje kanten av lerretet, so han står i biletet og
+          ikkje under kontrollane. Konturen er ei flat teikning og har inga
+          vending å syne — der er han ikkje.
+        */}
+        {!flat && (
+          <GizmoHelper alignment="top-right" margin={[rute.hogre + 38, rute.topp + 38]}>
+            <group scale={KUBE_SKALA}>
+              <GizmoViewcube
+                faces={SIDEORD}
+                color={tema.paper}
+                textColor={tema.ink}
+                strokeColor={tema.ink}
+                hoverColor={KUBE_HOVER}
+                opacity={0.92}
+                font="26px Inter, ui-sans-serif, system-ui, sans-serif"
+              />
+            </group>
+          </GizmoHelper>
+        )}
         <Demping onSein={setSein} />
         <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onSkala={onSkala} onVend={onVend} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} />
         {/* Konturen er ei teikning: éin finger dreg, klypet zoomar, ingenting
@@ -1788,42 +1743,11 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
         />
       </Canvas>
       {/*
-        SYNSKUBEN, øvst til venstre i det frie bandet. Han svingar med
-        kameraet og seier kva veg du ser frå; ei flate, ein kant eller eit
-        hjørne set synet. Under han står innramminga — den som låg i
-        dobbelttrykket før, der ho kom av seg sjølv midt i ei sikting.
-        Konturen er ei flat teikning og har inga vending å syne: der står
-        berre innramminga.
+        INNRAMMINGA, under synskuben øvst til høgre. Ho låg i dobbelttrykket
+        før, der ho kom av seg sjølv midt i ei sikting; her er ho ein knapp
+        du trykkjer på. Konturen har ingen kube, men same knappen.
       */}
-      <div className="synskube" style={{ left: rute.venstre + 16, top: rute.topp + 36 }}>
-        {!flat && (
-          <div className="bur" data-kube="">
-            <div className="vend" ref={setKube}>
-              {SIDER.map((q) => (
-                <div key={q.id} data-side={q.id} style={{ transform: q.css }}>
-                  {celler(q).map((c) => (
-                    <button
-                      key={c.vel}
-                      type="button"
-                      data-vel={c.vel}
-                      data-slag={c.slag}
-                      // Kanten og hjørnet står på to og tre sider samstundes:
-                      // dei er den same retninga, og ei tabbrekkje på fire og
-                      // femti stopp er ingen veg gjennom noko. Sidene er
-                      // vegen for eit tastatur; kantane er for ein finger.
-                      tabIndex={c.slag === "side" ? undefined : -1}
-                      aria-label={c.namn}
-                      title={`sjå objektet frå ${c.namn}`}
-                      onClick={() => settSide(c.dir)}
-                    >
-                      {c.ord}
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      <div className="synskube" style={{ right: rute.hogre + 16, top: rute.topp + (flat ? 16 : 72) }}>
         <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt" onClick={heim}>
           {IkonHeim}
         </button>

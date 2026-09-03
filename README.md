@@ -79,21 +79,13 @@ export), the middle (size and the plane list), everything (material and thicknes
 sliders, the table with the rules and their fixes, the tools). The cut button
 and the sketch toggle float above it, under the right thumb.
 
-**The view cube**, top left, turns with the camera and is how you aim it —
-the same cube every CAD package has. Each side is a three-by-three grid:
-press the middle for that side, an edge cell for the 45° view between two
-sides, a corner for the isometric view between three. Twenty-six directions,
-each one where you can see it. Sides facing away are neither drawn nor hit, so
-only what you see can be picked. Under it is the reframe button, which fits
-the object back into the screen. The body turns the whole way round, underside
-included.
-
-This is the one control on the page that is not thumb-sized, and it is the
-exception that proves the rule: a cell on a side seen at an angle is thirteen
-pixels tall no matter how big the cube is, because it is a cube. The target
-*is* the picture — you point at the face you want — and a miss puts you on the
-neighbouring view, one press away. Everything else stays 36 px, and the panel
-harness still enforces that everywhere else.
+**The view cube**, top right, turns with the camera and is how you aim it: press
+a face for that side, an edge for the 45° view between two, a corner for the
+isometric between three, and the camera swings there. It is drei's
+`GizmoViewcube` — geometry in the canvas, hit by the same raycast as everything
+else in the scene — not a hand-built one, and it is 45 px. Under it is the
+reframe button, which fits the object back into the screen. The body turns the
+whole way round, underside included.
 
 **Dark is black.** There is no toggle: the page takes the system's setting and
 inverts the four colours it is built from — paper becomes black, ink becomes
