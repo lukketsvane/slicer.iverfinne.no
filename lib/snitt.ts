@@ -36,7 +36,7 @@ import { contour, simplify } from "./contour"
 import type { Solid, Span } from "./mesh/solid"
 import { vend, type Kropp } from "./kropp"
 import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, skrivPlan, type Plan, type Ramme, type Strek } from "./plan"
-import { snittKey, type Params } from "./params"
+import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 
 /**
  * Ruter langs den lengste sida av objektet, per detaljnivå.
@@ -434,6 +434,8 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
   const span = Math.max(s.max[0] - s.min[0], s.max[1] - s.min[1], s.max[2] - s.min[2], 1)
   const step = span / cells
   const slotW = p.tjukn + p.klaring
+  /** delingar handa har sett, per ledd. Tom er «alle som skyvaren seier». */
+  const handDeling = lesDeling(p.deling)
   const plan = lesPlan(p.plan)
 
   // --- kvart plan for seg: ramma, strålane og profilen utan spor ---------
@@ -531,9 +533,22 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       const runs = felles(stykkeLangs(A.ringar, pA, dA), stykkeLangs(B.ringar, pB, dB))
       const w = slotW / x.sin
       let fann = false
+      let treff = 0
       for (const [lo, hi] of runs) {
         if (hi - lo < minLap) continue
-        const zm = lo + p.ledd * (hi - lo)
+        /**
+         * DELINGA: skyvaren for heile objektet, eller handa for DETTE
+         * leddet. Eitt tal styrer BEGGE spora — A får botnen sin her og B
+         * får den same — so eit djupare spor i den eine ER eit grunnare i
+         * den andre. Det er ikkje ein regel som held dei i lag; det er den
+         * same lina, lesen frå kvar si side.
+         *
+         * Nummeret er kva møte på kryssingslina det er, talt over dei som
+         * VART LEDD: eit overlapp som er for kort til å bere eit ledd er
+         * ikkje eit ledd, og skal ikkje flytte namnet på dei som kjem etter.
+         */
+        const kv = handDeling.get(leddNokkel(A.plan.id, B.plan.id, treff++))
+        const zm = lo + (kv ?? p.ledd) * (hi - lo)
         // B kjem inn langs retn·d: munnen hans er i den enden han går mot,
         // og A sin munn er der B kjem frå
         const munnB = retn < 0 ? lo : hi

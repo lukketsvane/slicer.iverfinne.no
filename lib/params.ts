@@ -80,6 +80,11 @@ export type Params = {
    * ville fylgt med til ein annan del. «3» er «3» so lenge planet finst.
    */
   fest: string
+  /**
+   * DELINGA PÅ EINSKILDE LEDD, sett med handa. Tom er «alle som skyvaren
+   * seier»; ein oppføring er «dette eine leddet, so djupt». Sjå `lesDeling`.
+   */
+  deling: string
 }
 
 /**
@@ -160,7 +165,7 @@ export const GROUPS: readonly Group[] = [
 export const PARAM_KEYS = GROUPS.flatMap((g) => g.keys)
 
 /** alt eit uttak er ein funksjon av, tal og namn */
-export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "scene", "material", "plan", "fest"]
+export const ALLE_KEYS: readonly string[] = [...PARAM_KEYS, "kjelde", "scene", "material", "plan", "fest", "deling"]
 
 /** Fleire feste enn dette er ikkje ei plate, det er ei lenkje som prøver seg. */
 const FEST_TAK = 128
@@ -200,6 +205,61 @@ export const skrivFest = (m: ReadonlyMap<string, Fest>): string =>
     .join(";")
 
 export const reinFest = (s: unknown) => skrivFest(lesFest(s))
+
+/**
+ * DELINGA PÅ EITT LEDD, sett med handa.
+ *
+ * `ledd` er ein skyvar for HEILE objektet: kor langt inn på overlappet dei
+ * to plana møtest. Halvt om halvt er ein halv, og då er dei to spora like
+ * djupe. Men eit ledd er to plater, og somme tider skal den eine bere og
+ * den andre berre halde: eit djupare spor i den eine er eit grunnare i den
+ * andre, og det er den avveginga denne strengen er til for.
+ *
+ * NØKKELEN ER LEDDET OG IKKJE PLATA. To plan kryssar kvarandre langs éi
+ * line, og på den lina kan dei møtast fleire stader — difor dei to namna og
+ * eit løpenummer: «5-12-0». Namna står i stigande rekkjefylgje so det same
+ * leddet får den same nøkkelen frå kva side du enn ser det.
+ *
+ * VERDIEN ER EIN BRØK av overlappet og ikkje millimeter, av same grunn som
+ * alt anna her: det du sette skal fylgje kroppen når han vert skalert.
+ */
+export type Deling = number
+const DELING_TAK = 256
+/** same bandet som skyvaren: utanfor det er leddet ikkje eit ledd lenger */
+const DELING_MIN = 0.2
+const DELING_MAX = 0.8
+
+export function lesDeling(s: unknown): Map<string, Deling> {
+  const ut = new Map<string, Deling>()
+  if (typeof s !== "string" || !s) return ut
+  for (const bit of s.split(";")) {
+    if (ut.size >= DELING_TAK) break
+    const m = /^(\d{1,5})-(\d{1,5})-(\d{1,2}):([\d.]+)$/.exec(bit)
+    if (!m) continue
+    const a = Number(m[1])
+    const b = Number(m[2])
+    const k = Number(m[3])
+    const t = Number(m[4])
+    // namna stig: eit ledd har éin nøkkel, ikkje to
+    if (!(a < b) || !Number.isFinite(t)) continue
+    if (t < DELING_MIN || t > DELING_MAX) continue
+    ut.set(`${a}-${b}-${k}`, +t.toFixed(3))
+  }
+  return ut
+}
+
+export const skrivDeling = (m: ReadonlyMap<string, Deling>): string =>
+  [...m.entries()]
+    .sort((x, y) => x[0].localeCompare(y[0], "nn", { numeric: true }))
+    .map(([k, t]) => `${k}:${+t.toFixed(3)}`)
+    .join(";")
+
+export const reinDeling = (s: unknown) => skrivDeling(lesDeling(s))
+
+/** nøkkelen til eitt ledd: dei to namna i stigande rekkjefylgje, og kva
+ *  møte på lina det er */
+export const leddNokkel = (a: number, b: number, k: number) =>
+  `${Math.min(a, b)}-${Math.max(a, b)}-${k}`
 
 /**
  * NØKLANE EIT MELLOMBYGG KAN HUGSAST PÅ.
@@ -306,6 +366,7 @@ export const DEFAULT_PARAMS: Params = {
   material: "mdf",
   plan: "",
   fest: "",
+  deling: "",
 }
 
 export function clampParams(o: unknown, prev: Params): Params {
@@ -317,6 +378,7 @@ export function clampParams(o: unknown, prev: Params): Params {
     const rec = o as Record<string, unknown>
     if (typeof rec.plan === "string") ut.plan = reinPlan(rec.plan)
     if (typeof rec.fest === "string") ut.fest = reinFest(rec.fest)
+    if (typeof rec.deling === "string") ut.deling = reinDeling(rec.deling)
     if (typeof rec.scene === "string") ut.scene = reinScene(rec.scene)
   }
   return ut

@@ -27,7 +27,7 @@ import { inRing, shoelace, type Pt } from "../lib/core"
 import { makeBygg } from "../lib/bygg"
 import { newSoup, ribSolid, soupToMesh } from "../lib/mesh"
 import { DETAIL, jointsIn, stykkeLangs, type Snitt, type Ribbe as Rib, type Spor } from "../lib/snitt"
-import { DEFAULT_PARAMS, type Params } from "../lib/params"
+import { DEFAULT_PARAMS, leddNokkel, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
 import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
@@ -323,6 +323,12 @@ const SAKER: [string, Partial<Params>][] = [
   ["kube, strek i to plan", {
     plan: medStrek(medStrek(nett(4, 4), 2, { slag: "hol", form: "rekt", x: 0, y: -0.32, w: 0.45, h: 0.04, a: 0 }),
       6, { slag: "gods", form: "rekt", x: 0, y: 0.42, w: 0.4, h: 0.06, a: 0 }),
+  }],
+  // DELINGA SETT MED HANDA på eitt ledd: spora flyttar seg, og vakta krev
+  // at dei framleis står i profilane og møtest der dei skal.
+  ["kube, eitt ledd delt for hand", {
+    plan: nett(4, 4),
+    deling: [leddNokkel(1, 5, 0), 0.72].join(":") + ";" + [leddNokkel(2, 6, 0), 0.28].join(":"),
   }],
   ["kule, strek tvers over ei plate", {
     kjelde: "kule",
