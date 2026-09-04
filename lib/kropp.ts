@@ -38,6 +38,7 @@ import { makeSolid, type Solid } from "./mesh/solid"
 import { generasjon, source } from "./sources"
 import { eiKjelde, lesScene } from "./scene"
 import { akser, avFlata, inn, type Ramme } from "./plan"
+import { PLAN_TAK } from "./plan"
 import type { Vec3 } from "./core"
 import type { Params } from "./params"
 
@@ -207,8 +208,50 @@ export function makeKropp(p: Params): Kropp {
  *
  * Vendinga er høgrehendt, so vindinga står og innsida er innsida.
  */
-const VENDT = new WeakMap<Kropp, Map<string, Solid>>()
-const VENDT_TAK = 12
+const VENDT = new WeakMap<Kropp, Map<string, { sol: Solid; b: number }>>()
+/**
+ * HUGSEN ER EIT MINNEBUDSJETT, IKKJE EIT TAL PÅ RETNINGAR.
+ *
+ * Taket stod på tolv vendingar. Eit rutenett har to, so det var rikeleg —
+ * men VIRVELEN, det andre ribbespråket i reiskapen, gjev éi eiga retning
+ * per ribbe. Over tolv av dei fall hugsen i den klassiske FIFO-fella: same
+ * bygget går gjennom retningane i same rekkjefylgja kvar gong, so den eldste
+ * vert alltid kasta rett før han skal brukast att. Målt, med tre bygg på rad:
+ *
+ *   rutenett 6x6      24 treff · 0 bom
+ *   virvel 8 ribber   16 treff · 0 bom
+ *   virvel 20 ribber   0 treff · 40 bom      ← heile nettet snudd 20 gonger
+ *   virvel 32 ribber   0 treff · 64 bom
+ *
+ * Å byte FIFO mot LRU rettar det IKKJE: ei syklisk rekkje som er lengre enn
+ * hugsen bommar like mykje med LRU. Det som rettar det er å ha plass til
+ * arbeidssettet, og då må taket telje BYTE og ikkje oppslag: ei vending
+ * kostar 0,54 MB på trekantbudsjettet som står som standard og 1,76 MB på
+ * det høgste, altso tre gonger så mykje for det same talet.
+ *
+ * Budsjettet er sett til det dei tolv kosta på det DYRASTE nettet — 21 MB —
+ * so ingen konfigurasjon brukar meir minne enn før. På standardnettet er det
+ * fire og førti vendingar i staden for tolv, og virvelen treff kvar gong.
+ * Talet står òg med eit hardt tak på plantaket: eit lite nett skal ikkje
+ * kunne samle fleire vendingar enn det finst plan.
+ */
+const VENDT_BUDSJETT = 24 * 1024 * 1024
+const VENDT_TAK = PLAN_TAK
+
+/**
+ * KOR OFTE HUGSEN SVARTE, so ei vakt kan prøve det.
+ *
+ * Ei tidsprøve på ein liten prøvekropp fangar ikkje dette: å snu fem tusen
+ * trekantar kostar knapt noko, og terskelen druknar i støy. Talet på bom
+ * gjer det, og det er det same på kvar maskin.
+ */
+let vendTreff = 0
+let vendBom = 0
+export const vendTal = () => ({ treff: vendTreff, bom: vendBom })
+export const vendNull = () => {
+  vendTreff = 0
+  vendBom = 0
+}
 
 export function vend(k: Kropp, n: Vec3): Solid {
   const key = n.map((c) => c.toFixed(4)).join(",")
@@ -218,7 +261,15 @@ export function vend(k: Kropp, n: Vec3): Solid {
     VENDT.set(k, per)
   }
   const hit = per.get(key)
-  if (hit) return hit
+  // Sett inn att på treff, so det eldste OPPSLAGET ryk og ikkje den eldste
+  // skrivinga — same LRU-en `keep()` i core.ts gjer.
+  if (hit) {
+    vendTreff++
+    per.delete(key)
+    per.set(key, hit)
+    return hit.sol
+  }
+  vendBom++
   const { u, v } = akser(n)
   const P = k.soup.pos
   const ut = new Float32Array(P.length)
@@ -231,8 +282,14 @@ export function vend(k: Kropp, n: Vec3): Solid {
     ut[i + 2] = x * n[0] + y * n[1] + z * n[2]
   }
   const sol = makeSolid(makeSoup(ut))
-  per.set(key, sol)
-  if (per.size > VENDT_TAK) per.delete(per.keys().next().value as string)
+  per.set(key, { sol, b: ut.byteLength })
+  let bruk = 0
+  for (const q of per.values()) bruk += q.b
+  while (per.size > 1 && (bruk > VENDT_BUDSJETT || per.size > VENDT_TAK)) {
+    const eldst = per.keys().next().value as string
+    bruk -= per.get(eldst)?.b ?? 0
+    per.delete(eldst)
+  }
   return sol
 }
 
