@@ -231,36 +231,21 @@ html {
   background: var(--snitt);
   opacity: 0.28;
 }
-/* lappen ved snittet: kva det er, ledda det ville fått, kvar det står. Raud
-   når det ikkje får eit einaste ledd mot plan som finst. Tikken er snappet:
-   ein kort strek når vinkelen eller plassen nett fall på plass. */
-.handtak [data-merke] {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 1px 5px;
-  border-radius: 9999px;
-  background: color-mix(in srgb, var(--paper) 62%, transparent);
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--snitt);
-  white-space: nowrap;
-}
-.handtak [data-merke][data-varsel] {
-  color: var(--warn);
-}
-.handtak [data-tikk] {
-  display: none;
-  width: 2px;
-  height: 10px;
-  border-radius: 1px;
-  background: currentColor;
-}
-.handtak [data-merke][data-snapp] [data-tikk] {
-  display: block;
-}
+/* LAPPEN ER BORTE FRÅ SKJERMEN. Ho stod midt på objektet og fortalde deg
+   det arket alt fortel — ledda og målet — medan ho dekte akkurat det du
+   sikta på. Ho står att i treet med tala sine, av di vaktene les dei der.
 
+   Handtaka er dempa til du tek i eit: du skal sjå objektet, og handtaket
+   skal finnast der du ventar det. */
+.handtak [data-merke] {
+  display: none;
+}
+.handtak [data-handtak] {
+  opacity: 0.5;
+}
+.handtak [data-handtak]:active {
+  opacity: 1;
+}
 /* INNRAMMINGA under synskuben. Kuben sjølv er geometri i lerretet no (sjå
    `GizmoViewcube`); dette er knappen som rammar objektet inn att. */
 .synskube {

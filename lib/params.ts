@@ -130,7 +130,11 @@ export const PARAM_RANGES: Record<string, Range> = {
   glatt: { min: 0, max: 24, step: 1, label: "glatting", int: true },
   trekant: { min: 0.5, max: 60, step: 0.5, label: "tak", unit: "k" },
 
-  forenkl: { min: 0, max: 2, step: 0.05, label: "toleranse", unit: "mm" },
+  // TOLERANSEN MÅ NÅ EIT PIGGETE NETT. To millimeter er ingenting på eit
+  // skann med tusen småspissar: dei står att, kvar av dei vert eit hakk i
+  // profilen, og du ser det fyrst i kuttfila. Ti gjev deg heile spennet frå
+  // «rør ingenting» til «berre forma».
+  forenkl: { min: 0, max: 10, step: 0.05, label: "toleranse", unit: "mm" },
   hol: { min: 0, max: 80, step: 1, label: "minste hòl", unit: "mm" },
 
   tjukn: { min: 1, max: 25, step: 0.1, label: "tjukn", unit: "mm" },

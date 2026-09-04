@@ -135,6 +135,18 @@ the closed end of its slot, on a hairline track showing how far it can travel.
 Drag one and that joint alone gets deeper — and the other half of the joint
 gets shallower by exactly as much, because both slots read one number off one
 line. `jamt` in the sheet's toolbar hands every joint back to the slider.
+**With a plane selected**, the two buttons under your thumb are `skjer hòl`
+and `dubler planet`. The second used to add a rectangle of material to the
+profile; it duplicates the selected plane now — same normal, same strokes,
+shifted one notch along the normal so the copy is not inside what you copied,
+and the copy is what stays selected.
+
+**Nothing sits on the object but the handles.** The label that read the joint
+count and the millimetre off the sketch is gone from the screen: the sheet
+already says both, and it covered exactly what you were aiming at. The handles
+are 22-pixel marks at half ink, full ink while you hold one; their touch
+targets are still 48.
+
 **The chrome dozes.** Two seconds without a finger and everything that is not
 the object fades away — the top line, the thumb column, the sheet, the sketch
 handles, the view cube, the cut preview — and any movement brings it back in
@@ -342,7 +354,7 @@ multiply in every joint.
 | `rotX/Y/Z` | rotation | ±180° |
 | `glatt` | smoothing | 0–24 Taubin passes |
 | `trekant` | triangle budget | 0.5–60 k, by vertex clustering; 40 k by default |
-| `forenkl` `hol` | cut profile | how far the cut may stray, and the smallest hole worth cutting |
+| `forenkl` `hol` | cut profile | how far the cut may stray (up to 10 mm — a spiky scan needs the room), and the smallest hole worth cutting |
 | `scene` | the body | pieces: source, place, size, turn, mirrors, as a string |
 | `plan` | the planes | name, point, normal and strokes, as a string |
 | `lause` | pieces with no joint | keep / drop |
