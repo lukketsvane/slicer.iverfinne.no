@@ -147,6 +147,14 @@ already says both, and it covered exactly what you were aiming at. The handles
 are 22-pixel marks at half ink, full ink while you hold one; their touch
 targets are still 48.
 
+**Two fingers, one cut.** Hold the sketch handle with your thumb and tap
+`skjer` with a finger — the plane is cut where you are holding it, and the
+handle never leaves your thumb. Browsers only synthesise a click from the
+*first* finger on the screen, so the second tap never reached the button; the
+thumb column reads the pointer itself when it is not the primary one. Let go
+outside the button you pressed and nothing happens, which is how a tap is
+cancelled.
+
 **The chrome dozes.** Two seconds without a finger and everything that is not
 the object fades away — the top line, the thumb column, the sheet, the sketch
 handles, the view cube, the cut preview — and any movement brings it back in

@@ -1109,6 +1109,8 @@ export function Studio() {
    * og det er alt det gjer.
    */
   const [sov, setSov] = useState(false)
+  /** knappen den andre fingeren tok, medan han er nede — sjå tommelspalta */
+  const andreFinger = useRef<Element | null>(null)
   const kvile =
     mounted && !verkty && steg === "line" && view !== "kontur" &&
     vald === null && valdStrek === null && valdBit === null &&
@@ -1304,7 +1306,33 @@ export function Studio() {
         i lerretet, ved kolonna.
       */}
       {mounted && (
-        <div className="tumme" style={{ right: (benk ? KOL : 0) + 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}>
+        <div
+          className="tumme"
+          style={{ right: (benk ? KOL : 0) + 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}
+          /**
+           * DEN ANDRE FINGEREN.
+           *
+           * Nettlesaren lagar berre `click` av den FYRSTE fingeren på
+           * skjermen. Held du snitthandtaket med tommelen og trykkjer skjer
+           * med peikefingeren, er det andre trykket ikkje primært — og
+           * knappen høyrer det aldri. Det er nett den gripinga verktyet er
+           * laga for: hald snittet der du vil ha det, og skjer utan å sleppe.
+           *
+           * So spalta les peikaren sjølv når han ikkje er primær. Ingen
+           * fanging: slepper du utanfor knappen du tok, skjer ingenting —
+           * det er slik eit trykk vert avlyst. Den primære fingeren går den
+           * vanlege vegen gjennom `click`, so ingenting fyrer to gonger.
+           */
+          onPointerDown={(e) => { if (!e.isPrimary) andreFinger.current = (e.target as Element).closest("button") }}
+          onPointerCancel={() => { andreFinger.current = null }}
+          onPointerUp={(e) => {
+            if (e.isPrimary) return
+            const b = (e.target as Element).closest<HTMLButtonElement>("button")
+            const same = !!b && b === andreFinger.current
+            andreFinger.current = null
+            if (same && !b.disabled) b.click()
+          }}
+        >
           {vald !== null && (
             <>
               {/* TO REISKAPAR MED TO LESEMÅTAR. I rommet legg dei ein
