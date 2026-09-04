@@ -17,6 +17,8 @@ import { feltTal, klokke, lesTal, snap, type ParamBag } from "../lib/core"
 import { PARAM_RANGES } from "../lib/params"
 import { rutenett, skrivPlan, virvel } from "../lib/plan"
 import { makeKropp } from "../lib/kropp"
+import { FILFORMER } from "../lib/scene"
+import { existsSync, readFileSync } from "node:fs"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 /**
@@ -425,6 +427,35 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
     }
   }
   console.log(`\n=== talfeltet ===\n  ${sett} verdiar over ${Object.keys(PARAM_RANGES).length} band`)
+}
+
+/**
+ * DEI INNEBYGDE FORMENE LIGG SOM FILER, og ei fil som manglar er ikkje ein
+ * feil du ser: `source` fell attende på kuben, og menyen tilbyr ei form som
+ * gjev deg noko anna enn ho seier. Vakta krev at kvar id i `FILFORMER` har
+ * fila si, at ho let seg lese, at ho har trekantar under taket bygget
+ * likevel skjer henne ned til, og at ho har ei utstrekning i alle tre
+ * retningane — ei form som er flat i ei akse er ei form som vart snudd feil
+ * på vegen ut av `scripts/former.ts`.
+ */
+{
+  console.log("\n=== dei innebygde formene ===")
+  for (const id of FILFORMER) {
+    const sti = `public/form/${id}.glb`
+    if (!existsSync(sti)) {
+      bryt(`${id}: fila finst ikkje (${sti})`)
+      continue
+    }
+    const b = readFileSync(sti)
+    const soup = parseMesh(`${id}.glb`, b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer)
+    const boks = soup.max.map((c, i) => c - soup.min[i])
+    const flat = boks.some((c) => !(c > 0))
+    const tak = DEFAULT_PARAMS.trekant * 1000
+    if (soup.tris < 1) bryt(`${id}: ingen trekantar`)
+    else if (soup.tris > tak) bryt(`${id}: ${soup.tris} trekantar, over taket på ${tak}`)
+    else if (flat) bryt(`${id}: boksen er ${boks.join(" × ")} — flat i ei akse`)
+    else console.log(`  ${id.padEnd(13)} ${String(soup.tris).padStart(6)} tri   ${(b.length / 1024).toFixed(0)} kB   ${boks.map((c) => +c.toPrecision(3)).join(" × ")}`)
+  }
 }
 
 console.log(brot ? `\n${brot} påstandar held ikkje` : "\nalle påstandar held")

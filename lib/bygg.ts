@@ -10,6 +10,7 @@
  */
 import { keep, type ParamBag } from "./core"
 import { makeKropp, type Kropp } from "./kropp"
+import { generasjon } from "./sources"
 import { buildSnitt, buildDelar, type DelListe, type Snitt } from "./snitt"
 import { nest, type Nesting } from "./nest"
 import { byggKey, lesFest, type Params } from "./params"
@@ -29,7 +30,7 @@ const HUGS = keep<Bygg>(2)
 /** `rask` er søket sitt bygg: pakkinga tek éin passasje og ikkje fire, og
  *  har sin eigen nøkkel, so eit raskt bygg aldri vert servert som det sanne. */
 export function makeBygg(p: Params, cells: number, rask = false): Bygg {
-  return HUGS(byggKey(p as unknown as ParamBag, cells) + (rask ? "|rask" : ""), () => {
+  return HUGS(byggKey(p as unknown as ParamBag, cells) + `|${generasjon()}` + (rask ? "|rask" : ""), () => {
     const k = makeKropp(p)
     const s = buildSnitt(k, p, cells)
     const dl = buildDelar(s, p)

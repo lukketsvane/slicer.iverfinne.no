@@ -208,13 +208,13 @@ async function flate(namn: string, w: number, h: number) {
    */
   await page.locator("button[data-kjelde]").click()
   await page.waitForTimeout(300)
-  await page.locator("[data-meny] button", { hasText: "kule" }).first().click()
+  await page.locator("[data-meny] button", { hasText: "kube" }).first().click()
   await ferdig(page)
   await page.waitForTimeout(1500)
   const kropp = (await page.locator("button[data-kjelde]").innerText()).trim()
   const scena = () => decodeURIComponent(page.url().split("#p=")[1] ?? "").match(/"scene":"([^"]*)"/)?.[1] ?? ""
   console.log(`  kroppen: ${kropp} — ${scena()}`)
-  if (!/\+1$/.test(kropp)) brot(`${namn}: eit primitiv til gav «${kropp}»`)
+  if (!/\+1$/.test(kropp)) brot(`${namn}: ei form til gav «${kropp}»`)
   const før4 = kropp
   const scene4 = scena()
   // utan lenkje: då er det økta i nettlesaren som gjeld, og ho ligg i IndexedDB

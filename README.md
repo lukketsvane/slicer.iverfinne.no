@@ -188,8 +188,22 @@ disposable and is not kept; it costs one gesture to make again.
 
 ## The body
 
-The body is a list of pieces, not a file: primitives made in code and files
-you dropped in, each scaled to 100 mm on its longest side times its own size,
+**The built-in shapes are furniture.** A sphere, a cylinder, a cone and a
+torus were honest mathematics and none of them said what the tool is for. Five
+stools and benches say it in one look. They live as glTF under `public/form`
+and are fetched when you touch one — 5.8 MB of textured model reduced to about
+285 kB of geometry by `scripts/former.ts`, decimated to 25k triangles, which is
+under the 40k the build cuts to anyway. Their names are stable, so a link that
+carries `stolform-03` finds the same shape tomorrow — the only source a link
+can carry, because it is the only one that exists on the server rather than in
+somebody's downloads folder.
+
+The cube stays, and it is the only one made in code: it is the default object
+and the fallback when a source is missing, so it has to be on screen before
+anything has been near a network.
+
+The body is a list of pieces, not a file: shapes made in code or fetched, and
+files you dropped in, each scaled to 100 mm on its longest side times its own size,
 turned about z and placed, then the whole list is rotated, scaled to
 `storleik` and set on the floor. Nothing is stitched: the rays count shells,
 so two pieces that overlap are one body where they overlap. The list is the
