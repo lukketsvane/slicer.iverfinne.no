@@ -52,6 +52,7 @@ export function measure(p: Params, bygg?: Bygg): Metrics {
     // eller so er dei kasta ut av snittet.
     loose: dl.lause + s.kasta,
     joints: s.ledd,
+    avvist: s.avvist,
     units: s.ribber.length,
     unitLabel: "plan",
     mass: dl.mass,
@@ -76,7 +77,11 @@ export function measure(p: Params, bygg?: Bygg): Metrics {
     if (r) list.push(metric(id, r.label, v, r.unit, text))
   }
   add("delar", m.parts, `${nn(m.parts)} · ${nn(m.unique)}`)
-  add("ledd", m.joints, nn(m.joints))
+  // AVVISTE STÅR I DEN SAME RADA. Dei er ikkje ein regel som er broten —
+  // eit møte utan skulder SKAL kastast — men eit tal du må sjå medan alt
+  // er grønt, av di det seier at ei krysning du sikta på ikkje vart eit
+  // ledd. Rada ber to tal frå før andre stader; her er det andre stille.
+  add("ledd", m.joints, m.avvist ? `${nn(m.joints)} · ${nn(m.avvist)} avviste` : nn(m.joints))
   add("lause", m.loose, nn(m.loose))
   add("tid", m.cutTime, klokke(m.cutTime))
   add("masse", m.mass, nn(m.mass, 2))

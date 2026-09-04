@@ -130,7 +130,7 @@ function volumAvvik(g: Snitt, tjukn: number): { tal: number; verst: number } {
   return { tal, verst }
 }
 
-function sjekk(namn: string, p: Params) {
+function sjekk(namn: string, p: Params): number {
   const { s: g } = makeBygg(p, DETAIL.mid)
   let ledd = 0
   let tapt = 0
@@ -250,8 +250,10 @@ function sjekk(namn: string, p: Params) {
       `${nabo} inn i nabostykket${nabo ? ` (verst ${naboVerst.toFixed(1)} mm)` : ""}` +
       `${godsOk ? "" : ` · GODS ${godsVerst.toFixed(1)} mm`}` +
       `${vol.tal ? ` · VOLUM ${vol.tal} ribber, verst ${(vol.verst * 100).toFixed(0)} %` : ""}` +
-      `${hopp ? ` · HOPP i nummereringa på ${hopp} kryssingsliner` : ""}`,
+      `${hopp ? ` · HOPP i nummereringa på ${hopp} kryssingsliner` : ""}` +
+      `${g.avvist ? ` · ${g.avvist} avviste av skuldra` : ""}`,
   )
+  return g.avvist
 }
 
 // =============================================================================
@@ -372,7 +374,28 @@ const SAKER: [string, Partial<Params>][] = [
   }],
 ]
 
-for (const [namn, over] of SAKER) sjekk(namn, { ...GRUNN, ...over })
+let avvistIAlt = 0
+for (const [namn, over] of SAKER) avvistIAlt += sjekk(namn, { ...GRUNN, ...over })
+
+/**
+ * OG TELJAREN SKAL VERA LEVANDE.
+ *
+ * «Avviste» er talet på møte som kryssa, var lange nok, og likevel ikkje
+ * fekk gods nok ved sida av sporet til å halde. Det er eit tal som SKAL
+ * vera null på ein kube — difor ser ingen det der — og som er eit kvart av
+ * alle møte på dei innebygde formene. Ein teljar som alltid står på null er
+ * ein teljar ingen oppdagar er kopla frå; dette prosjektet har nett brukt
+ * ein commit på å finne fire konstantar av det slaget.
+ *
+ * So: minst éi av sakene skal ha avvist noko. To av dei gjer det i dag —
+ * kuben med 32 plan kvar veg, og den vende kuben.
+ */
+if (avvistIAlt === 0) {
+  brot++
+  console.log("FEIL  avviste                   ingen av sakene avviste eit einaste møte — er teljaren kopla frå?")
+} else {
+  console.log(`  ok   avviste                   ${avvistIAlt} møte avviste av skuldra over alle sakene`)
+}
 
 console.log(brot ? `\n${brot} brot` : "\nalle ledd står i profilane")
 process.exit(brot ? 1 : 0)

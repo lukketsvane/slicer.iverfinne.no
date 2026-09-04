@@ -212,6 +212,9 @@ export type Metrics = {
   unique: number // kor mange av dei som er ULIKE — det er oppspenningane
   loose: number // stykke utan eit einaste ledd: kasta, eller med i lista
   joints: number // kryssledd som faktisk vart skorne
+  /** møte som kryssa og var lange nok, men der skuldra ikkje heldt — sjå
+   *  `avvist` i `Snitt`. Eit kvart av dei på ei vanleg form. */
+  avvist: number
   units: number // plan i alt
   unitLabel: string
 
