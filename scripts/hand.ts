@@ -52,6 +52,12 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0/b:0.5/g:2/-o:0,0,0.1,0.1,0", "1@0.5,0.5,0.5/1,0,0/b:0.5/g:2/-o:0,0,0.1,0.1,0"],
   ["1@0.5,0.5,0.5/1,0,0/g:0", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/g:x", "1@0.5,0.5,0.5/1,0,0"],
+  // LAGET: eit av dei handa får merkje med, C02–C29. Svart og blått er teke, og tretti finst ikkje.
+  ["1@0.5,0.5,0.5/1,0,0/c:3", "1@0.5,0.5,0.5/1,0,0/c:3"],
+  ["1@0.5,0.5,0.5/1,0,0/g:2/c:29/-o:0,0,0.1,0.1,0", "1@0.5,0.5,0.5/1,0,0/g:2/c:29/-o:0,0,0.1,0.1,0"],
+  ["1@0.5,0.5,0.5/1,0,0/c:1", "1@0.5,0.5,0.5/1,0,0"],
+  ["1@0.5,0.5,0.5/1,0,0/c:0", "1@0.5,0.5,0.5/1,0,0"],
+  ["1@0.5,0.5,0.5/1,0,0/c:30", "1@0.5,0.5,0.5/1,0,0"],
   // EIT MERKE FRÅ EI GAMMAL LENKJE. Handteikna baner fanst ein periode og
   // vart skrivne som `b`. Dei er borte, og ei lenkje som ber ein må miste
   // NETT det streket — planet og dei andre streka hans står.

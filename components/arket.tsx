@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useRef, useState, type JSX, type RefObject } from "react"
-import { MATERIALS, TJUKNER, klokke, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
+import { FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import type { Plan } from "@/lib/plan"
 import {
@@ -60,6 +60,8 @@ export type ArketProps = {
   valdGruppe: number | null
   onVelGruppe: (g: number) => void
   onSlettGruppe: (g: number) => void
+  /** laget (C02–C29) på det valde planet — eller heile den valde gruppa; 0 er ikkje noko lag */
+  onFarge: (farge: number) => void
   onSlett: (id: number) => void
   busy: boolean
   feil: string | null
@@ -154,6 +156,7 @@ function Plana({ p }: { p: ArketProps }) {
           >
             <button type="button" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => p.onVald(paa ? null : pl.id)}>
               <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>{pl.id}</span>
+              {lagFarge(pl.farge) !== null && <span aria-hidden="true" className="block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: LAG_FARGAR[pl.farge as number] }} />}
               <span className="min-w-0 flex-1 truncate">{kvaSlag(pl.n)}</span>
               {/* KVAR PLANET STÅR, SOM EIT TAL: millimeter frå midten av kroppen,
                   langs normalen. Det er inndata lese av — punktet og normalen
@@ -179,7 +182,35 @@ function Plana({ p }: { p: ArketProps }) {
           </Fragment>
         )
       })}
+      {p.vald !== null && <Laga p={p} />}
     </ul>
+  )
+}
+
+/**
+ * LAGET, SOM EI RAD MED FARGAR under det valde planet. LightBurn sine
+ * eigne, C02 til C29, i palettorden — svart og blått er graveringa og
+ * kuttet og står ikkje til val. Ringen fyrst er «ikkje noko lag»: kuttet
+ * blått som alle andre. Med ei gruppe vald gjeld valet heile gruppa, og
+ * rada syner leiaren sitt lag.
+ */
+function Laga({ p }: { p: ArketProps }) {
+  const leiar = p.plan.find((q) => q.id === p.vald)
+  const no = lagFarge(leiar?.farge) ?? 0
+  return (
+    <li role="group" aria-label="lag" data-lag="" className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 px-1.5 pb-1 pt-0.5">
+      <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">lag</span>
+      <button type="button" aria-pressed={no === 0} aria-label="ikkje noko lag" title="ikkje noko lag: kuttet er blått som dei andre" onClick={() => p.onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+        <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ borderColor: no === 0 ? "var(--ink)" : "var(--rule)" }} />
+      </button>
+      {LAG_FARGAR.map((hex, i) =>
+        i < FARGE_MIN ? null : (
+          <button key={hex} type="button" aria-pressed={no === i} aria-label={`lag C${String(i).padStart(2, "0")}`} title={`lag C${String(i).padStart(2, "0")} i LightBurn · ${hex}${p.valdGruppe !== null ? " · heile gruppa" : ""}`} onClick={() => p.onFarge(i)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+            <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ background: hex, borderColor: no === i ? "var(--ink)" : "transparent" }} />
+          </button>
+        ),
+      )}
+    </li>
   )
 }
 

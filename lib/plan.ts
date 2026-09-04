@@ -26,7 +26,7 @@
  * sitt medan han vert flytt, vinkla om og teikna om — det er det namnet
  * som er gravert på han og lese av i ein haug på ein arbeidsbenk.
  */
-import type { Pt, Vec3 } from "./core"
+import { lagFarge, type Pt, type Vec3 } from "./core"
 
 /** Fleire plan enn dette er ikkje eit prosjekt, det er ei lenkje som prøver seg. */
 export const PLAN_TAK = 64
@@ -103,6 +103,13 @@ export type Plan = {
    * kven som svarar saman når handa tek i eitt av dei.
    */
   gruppe?: number
+  /**
+   * LAGET. Eit merke frå LightBurn sin palett (C02–C29, sjå `LAG_FARGAR`
+   * i core): kuttet av dette planet går på sitt eige lag i fila, i den
+   * fargen, so det kan få si eiga fart eller skjerast sist. Utan merke er
+   * kuttet blått som alle andre. Merket seier ingenting om geometrien.
+   */
+  farge?: number
 }
 
 /** Meir enn dette er ikkje ein bøy, det er eit rør. Regelen om materialet
@@ -339,7 +346,7 @@ const skrivStrek = (s: Strek) =>
 export function skrivPlan(l: readonly Plan[]): string {
   return l
     .map((p) =>
-      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...p.strek.map(skrivStrek)].join("/"),
+      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...(p.farge ? [`c:${p.farge}`] : []), ...p.strek.map(skrivStrek)].join("/"),
     )
     .join(";")
 }
@@ -392,7 +399,14 @@ export function lesPlan(s: unknown): Plan[] {
     const strek: Strek[] = []
     let bog = 0
     let gruppe = 0
+    let farge = 0
     for (const r of rest.slice(1)) {
+      // laget: eit av dei handa får merkje med, elles ikkje noko lag
+      const c = /^c:(\d{1,2})$/.exec(r)
+      if (c) {
+        farge = lagFarge(Number(c[1])) ?? 0
+        continue
+      }
       // gruppa: eit heiltal over null, elles inga gruppe
       const g = /^g:(\d{1,5})$/.exec(r)
       if (g) {
@@ -413,7 +427,7 @@ export function lesPlan(s: unknown): Plan[] {
       strek.push(st)
     }
     sett.add(id)
-    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, strek, ...(gruppe ? { gruppe } : {}) })
+    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, strek, ...(gruppe ? { gruppe } : {}), ...(farge ? { farge } : {}) })
   }
   return ut
 }

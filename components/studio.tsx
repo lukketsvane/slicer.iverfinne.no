@@ -216,6 +216,8 @@ export function Studio() {
   const [fordel, setFordel] = useState(false)
   const gruppeNo = useRef<{ g: number | null; fordel: boolean }>({ g: null, fordel: false })
   gruppeNo.current = { g: valdGruppe, fordel }
+  const valdRef = useRef<number | null>(null)
+  valdRef.current = vald
   /** biten som er vald i verktyet for kroppen, som plass i scenelista */
   const [valdBit, setValdBit] = useState<number | null>(null)
   /** ein verdi vert dregen i arket: angre ventar til fingeren slepper */
@@ -995,6 +997,24 @@ export function Studio() {
       const m = lesFest(cur.fest)
       for (const adr of [...m.keys()]) if (bort.has(Number(/^\d+/.exec(adr)?.[0]))) m.delete(adr)
       return { ...cur, plan: skrivPlan(lesPlan(cur.plan).filter((p) => !bort.has(p.id))), fest: skrivFest(m) }
+    })
+  }, [])
+  /** laget på det valde planet — eller på heile gruppa, når ho er vald. Null tek merket bort. */
+  const setFarge = useCallback((farge: number) => {
+    const { g } = gruppeNo.current
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const v = valdRef.current
+      if (v === null) return cur
+      const q = l.find((p) => p.id === v)
+      if (!q) return cur
+      const treff = new Set(g !== null && q.gruppe === g ? iGruppa(l, g).map((p) => p.id) : [v])
+      const ny = l.map((p) => {
+        if (!treff.has(p.id)) return p
+        const { farge: _, ...utan } = p
+        return farge ? { ...utan, farge } : utan
+      })
+      return { ...cur, plan: skrivPlan(ny) }
     })
   }, [])
   /** heile gruppa bort, frå lista — utan å velje henne fyrst */
@@ -1811,6 +1831,7 @@ export function Studio() {
         valdGruppe={valdGruppe}
         onVelGruppe={velGruppe}
         onSlettGruppe={slettGruppe}
+        onFarge={setFarge}
         onSlett={slett}
         busy={busy}
         feil={feil}

@@ -51,7 +51,7 @@
  * etter. To fargar, og fargen er operasjonen: på GRAVER ligg det adresser
  * og ikkje anna.
  */
-import { offsetPoly, type Pt } from "./core"
+import { LAG_FARGAR, lagFarge, offsetPoly, type Pt } from "./core"
 import { fitSize, strokesAt } from "./stroke"
 import { placedRings, type Nesting } from "./nest"
 
@@ -61,17 +61,20 @@ export function sheetDxf(n: Nesting, i: number, kerf: number): string {
   const h = kerf / 2
   const sheet = n.sheets[i]
 
-  head(out, n.sheetW, n.sheetH)
+  // laga handa har merkt delar på denne plata med, i palettorden
+  const merkte = [...new Set((sheet?.placed ?? []).map((q) => lagFarge(q.part.farge)).filter((v): v is number => v !== null))].sort((a, b) => a - b)
+  head(out, n.sheetW, n.sheetH, merkte)
 
   if (sheet) {
+    const lag = (q: { part: { farge?: number } }) => (lagFarge(q.part.farge) !== null ? lagNamn(q.part.farge as number) : "KUTT")
     for (const q of sheet.placed) {
       mark(out, q.part.adr, q.label.p[0], q.label.p[1], q.label)
     }
     for (const q of sheet.placed) {
-      for (const hole of placedRings(q).holes) poly(out, "KUTT", offsetPoly(hole, -h))
+      for (const hole of placedRings(q).holes) poly(out, lag(q), offsetPoly(hole, -h))
     }
     for (const q of sheet.placed) {
-      poly(out, "KUTT", offsetPoly(placedRings(q).outline, +h))
+      poly(out, lag(q), offsetPoly(placedRings(q).outline, +h))
     }
   }
 
@@ -114,7 +117,41 @@ const centre = (poly: Pt[]): Pt => {
 // =============================================================================
 const f = (v: number) => (Math.abs(v) < 1e-9 ? "0.0" : v.toFixed(4))
 
-function head(out: string[], w: number, h: number) {
+/**
+ * EIT MERKT LAG I DXF-EN. Namnet er LightBurn sitt («C02»), so den som
+ * les fila kjenner det att. Fargen er vanskelegare: R12 har berre ACI, eit
+ * tal frå ein fast tabell, og dei fleste av dei tretti fargane i paletten
+ * finst ikkje der. Laget får den nærmaste av grunnfargane som ACI, og den
+ * EKSAKTE fargen som 420 (true colour) attåt — ein kode som kom seinare
+ * enn R12, som lesarar som ikkje kjenner han hoppar over, og som dei som
+ * gjer det les ordrett. SVG-en er den eksakte vegen; DXF-en gjer sitt
+ * beste.
+ */
+const lagNamn = (farge: number) => `C${String(farge).padStart(2, "0")}`
+const ACI: [number, [number, number, number]][] = [
+  [1, [255, 0, 0]], [2, [255, 255, 0]], [3, [0, 255, 0]], [4, [0, 255, 255]], [5, [0, 0, 255]], [6, [255, 0, 255]],
+  [7, [0, 0, 0]], [8, [128, 128, 128]], [9, [192, 192, 192]], [30, [255, 127, 0]],
+]
+const rgb = (hex: string): [number, number, number] => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)]
+function aci(farge: number): number {
+  const c = rgb(LAG_FARGAR[farge])
+  let best = 5
+  let d0 = Infinity
+  for (const [i, q] of ACI) {
+    const d = (q[0] - c[0]) ** 2 + (q[1] - c[1]) ** 2 + (q[2] - c[2]) ** 2
+    if (d < d0) {
+      d0 = d
+      best = i
+    }
+  }
+  return best
+}
+const trueColour = (farge: number) => {
+  const [r, g, b] = rgb(LAG_FARGAR[farge])
+  return String((r << 16) | (g << 8) | b)
+}
+
+function head(out: string[], w: number, h: number, merkte: readonly number[] = []) {
   out.push(
     "0", "SECTION", "2", "HEADER",
     "9", "$ACADVER", "1", "AC1009",
@@ -125,12 +162,14 @@ function head(out: string[], w: number, h: number) {
     "9", "$EXTMAX", "10", f(w), "20", f(h), "30", "0.0",
     "0", "ENDSEC",
     "0", "SECTION", "2", "TABLES",
-    "0", "TABLE", "2", "LAYER", "70", "2",
+    "0", "TABLE", "2", "LAYER", "70", String(2 + merkte.length),
     // GRAVER står FYRST i tabellen og har det same fargenummeret som
     // graveringa har i SVG-en. Grunnen er den same: eit program som tek
     // laga i den orden dei kjem, skal ta graveringa før kuttet.
     "0", "LAYER", "2", "GRAVER", "70", "0", "62", "7", "6", "CONTINUOUS",
     "0", "LAYER", "2", "KUTT", "70", "0", "62", "5", "6", "CONTINUOUS",
+    // og dei merkte laga etter, i palettorden
+    ...merkte.flatMap((c) => ["0", "LAYER", "2", lagNamn(c), "70", "0", "62", String(aci(c)), "420", trueColour(c), "6", "CONTINUOUS"]),
     "0", "ENDTAB", "0", "ENDSEC",
     "0", "SECTION", "2", "ENTITIES",
   )

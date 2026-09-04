@@ -33,6 +33,7 @@
  * ut i 1:1 utan at nokon må rekne om noko.
  */
 import { nn, offsetPoly, type Pt } from "./core"
+import { LAG_FARGAR, lagFarge } from "./core"
 import { fitSize, strokes, strokesAt } from "./stroke"
 import { bokstav, type Snitt } from "./snitt"
 import { placedRings, type Nesting } from "./nest"
@@ -82,7 +83,14 @@ const pen = (span: number) => Math.max(0.4, span / 1400)
 const GRAV = "#000000"
 const CUT = "#0000ff"
 
-const kutt = (w: number) => `fill="none" stroke="${CUT}" stroke-width="${f(w)}"`
+/**
+ * EIT MERKT PLAN KUTTAR PÅ SITT EIGE LAG. Fargen er LightBurn sin eigen
+ * (C02–C29), skriven ordrett, og han gjeld omrisset OG hòla i delen: eit
+ * lag er ei innstilling for ein del, ikkje for ein kant. Rekkjefylgda i
+ * fila er den same — gravering, hòl, omriss — og LightBurn tek laga i
+ * palettorden uansett, so eit merkt kutt kjem etter det blå.
+ */
+const kutt = (w: number, farge?: number) => `fill="none" stroke="${lagFarge(farge) !== null ? LAG_FARGAR[farge as number] : CUT}" stroke-width="${f(w)}"`
 const grav = (w: number) =>
   `fill="none" stroke="${GRAV}" stroke-width="${f(w)}" stroke-linecap="round"`
 
@@ -116,7 +124,6 @@ export function sheetSvg(n: Nesting, index: number, kerf: number): string {
   const W = n.sheetW
   const H = n.sheetH
   const w = pen(Math.max(W, H))
-  const KUTT = kutt(w)
   const GRAV = grav(w)
   const sheet = n.sheets[index]
 
@@ -127,6 +134,7 @@ export function sheetSvg(n: Nesting, index: number, kerf: number): string {
   const omriss: string[] = []
   for (const q of sheet?.placed ?? []) {
     const r = placedRings(q)
+    const KUTT = kutt(w, q.part.farge)
     // Snittbreidda ligg i FILA når `snittveg` seier det: den som har ein
     // laser i kjellaren har sjeldan ein CAM-pakke som kan setje
     // verktøyoffset. Tek maskina henne, kjem `kerf` inn som null.
@@ -307,7 +315,6 @@ export function profileSvg(sn: Snitt, kerf: number): string {
     H += rad.reduce((a, l) => Math.max(a, l.top), 0) + GAP + 12
   }
   const w = pen(Math.max(W, H))
-  const KUTT = kutt(w)
   const GRAV = grav(w)
 
   const out: string[] = []
@@ -328,6 +335,7 @@ export function profileSvg(sn: Snitt, kerf: number): string {
     yOff += h
     let x = GAP
     for (const { r, lo, hi } of rad) {
+      const KUTT = kutt(w, r.plan.farge)
       let btm = Infinity
       for (const o of r.outlines) for (const q of o) btm = Math.min(btm, q[1])
       // Y vert spegla: SVG reknar nedover, og ei ribbe står oppreist. Etter
