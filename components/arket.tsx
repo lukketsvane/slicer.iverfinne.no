@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState, type JSX, type RefObject } from "react"
-import { MATERIALS, TJUKNER, klokke, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
+import { Fragment, useEffect, useRef, useState, type JSX, type RefObject } from "react"
+import { FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import type { Plan } from "@/lib/plan"
 import {
@@ -50,10 +50,18 @@ export type ArketProps = {
   topp: number
   metrics: Metrics | null
   rules: readonly Rule[]
+  /** boksen kring kroppen, i millimeter: der planet står, lese av som eit tal */
+  boks: { min: Vec3; max: Vec3 } | null
   liste: readonly Kutt[]
   plan: readonly Plan[]
   vald: number | null
   onVald: (id: number | null) => void
+  /** gruppa som er vald, om nokon: trykk på gruppa i lista vel alle plana i henne */
+  valdGruppe: number | null
+  onVelGruppe: (g: number) => void
+  onSlettGruppe: (g: number) => void
+  /** laget (C02–C29) på det valde planet — eller heile den valde gruppa; 0 er ikkje noko lag */
+  onFarge: (farge: number) => void
   onSlett: (id: number) => void
   busy: boolean
   feil: string | null
@@ -104,23 +112,62 @@ function Lina({ p }: { p: ArketProps }) {
 /** Lista står der jamvel når ho er tom: ho er staden plana bur, og ei tom
  *  liste teiknar ingenting likevel. */
 function Plana({ p }: { p: ArketProps }) {
+  /** gruppene, i den rekkja dei fyrst syner seg: ei rad over det fyrste planet i kvar */
+  const sett = new Set<number>()
   return (
     <ul className="py-1" role="listbox" aria-label="plan">
       {p.plan.map((pl) => {
         const mine = p.liste.filter((k) => k.plan === pl.id)
         const ledd = mine.reduce((a, k) => a + k.joints, 0)
         const paa = p.vald === pl.id
+        const iGruppa = !!pl.gruppe && p.valdGruppe === pl.gruppe
+        const hovud = pl.gruppe && !sett.has(pl.gruppe) ? pl.gruppe : 0
+        if (hovud) sett.add(hovud)
+        const tal = hovud ? p.plan.filter((q) => q.gruppe === hovud).length : 0
         return (
+          <Fragment key={pl.id}>
+          {/* GRUPPA SOM RAD: trykk vel alle plana i henne, og leiaren er det
+              siste. Ho står over det fyrste planet sitt, og plana hennar
+              står inndregne under. × tek heile gruppa. */}
+          {hovud > 0 && (
+            <li
+              role="option"
+              aria-selected={p.valdGruppe === hovud}
+              data-gruppe={hovud}
+              className="flex items-center gap-2 rounded-lg px-1.5 text-[11px]"
+              style={p.valdGruppe === hovud ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : undefined}
+            >
+              <button type="button" aria-label={`gruppe ${hovud}`} title="vel heile gruppa: handtaka, pilene, slett og dubler tek alle plana i henne" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => (p.valdGruppe === hovud ? p.onVald(null) : p.onVelGruppe(hovud))}>
+                <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>G{hovud}</span>
+                <span className="min-w-0 flex-1 truncate">gruppe</span>
+                <span className="tab dim shrink-0">· {tal} plan</span>
+              </button>
+              <button type="button" aria-label={`slett gruppe ${hovud}`} title="ta heile gruppa bort" className="hit dim h-9 w-11 shrink-0" onClick={() => p.onSlettGruppe(hovud)}>
+                ×
+              </button>
+            </li>
+          )}
           <li
-            key={pl.id}
             role="option"
             aria-selected={paa}
-            className="flex items-center gap-2 rounded-lg px-1.5 text-[11px]"
-            style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : undefined}
+            data-plan={pl.id}
+            className={"flex items-center gap-2 rounded-lg text-[11px] " + (pl.gruppe ? "ml-3 pl-1.5 pr-1.5" : "px-1.5")}
+            style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : iGruppa ? { background: "color-mix(in srgb, var(--ink) 4%, transparent)" } : undefined}
           >
             <button type="button" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => p.onVald(paa ? null : pl.id)}>
               <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>{pl.id}</span>
+              {lagFarge(pl.farge) !== null && <span aria-hidden="true" className="block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: LAG_FARGAR[pl.farge as number] }} />}
               <span className="min-w-0 flex-1 truncate">{kvaSlag(pl.n)}</span>
+              {/* KVAR PLANET STÅR, SOM EIT TAL: millimeter frå midten av kroppen,
+                  langs normalen. Det er inndata lese av — punktet og normalen
+                  planet ER — og ikkje eit mål frå kuttet. Pilene flyttar det
+                  éin om gongen, og talet fylgjer. Berre på benken: på
+                  telefonen er rada 390 pikslar, og ledda står der alt. */}
+              {p.benk && p.boks && (
+                <span className="tab dim shrink-0" title="millimeter frå midten av kroppen, langs normalen. pilene flyttar planet éin om gongen">
+                  {fraaMidten(pl, p.boks)}
+                </span>
+              )}
               <span className="tab dim shrink-0" style={{ color: mine.length && !ledd ? "var(--warn)" : undefined }} title={`${mine.length} stykke, ${ledd} ledd`}>
                 {mine.length ? `· ${mine.length > 1 ? `${mine.length} stk · ` : ""}${ledd} ledd` : "· utanfor"}
               </span>
@@ -132,10 +179,46 @@ function Plana({ p }: { p: ArketProps }) {
               ×
             </button>
           </li>
+          </Fragment>
         )
       })}
+      {p.vald !== null && <Laga p={p} />}
     </ul>
   )
+}
+
+/**
+ * LAGET, SOM EI RAD MED FARGAR under det valde planet. LightBurn sine
+ * eigne, C02 til C29, i palettorden — svart og blått er graveringa og
+ * kuttet og står ikkje til val. Ringen fyrst er «ikkje noko lag»: kuttet
+ * blått som alle andre. Med ei gruppe vald gjeld valet heile gruppa, og
+ * rada syner leiaren sitt lag.
+ */
+function Laga({ p }: { p: ArketProps }) {
+  const leiar = p.plan.find((q) => q.id === p.vald)
+  const no = lagFarge(leiar?.farge) ?? 0
+  return (
+    <li role="group" aria-label="lag" data-lag="" className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 px-1.5 pb-1 pt-0.5">
+      <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">lag</span>
+      <button type="button" aria-pressed={no === 0} aria-label="ikkje noko lag" title="ikkje noko lag: kuttet er blått som dei andre" onClick={() => p.onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+        <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ borderColor: no === 0 ? "var(--ink)" : "var(--rule)" }} />
+      </button>
+      {LAG_FARGAR.map((hex, i) =>
+        i < FARGE_MIN ? null : (
+          <button key={hex} type="button" aria-pressed={no === i} aria-label={`lag C${String(i).padStart(2, "0")}`} title={`lag C${String(i).padStart(2, "0")} i LightBurn · ${hex}${p.valdGruppe !== null ? " · heile gruppa" : ""}`} onClick={() => p.onFarge(i)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+            <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ background: hex, borderColor: no === i ? "var(--ink)" : "transparent" }} />
+          </button>
+        ),
+      )}
+    </li>
+  )
+}
+
+/** planet sitt punkt, som avstand frå midten av kroppen langs normalen, i millimeter */
+function fraaMidten(pl: Plan, b: { min: Vec3; max: Vec3 }): string {
+  let d = 0
+  for (let a = 0; a < 3; a++) d += (pl.o[a] - 0.5) * (b.max[a] - b.min[a]) * pl.n[a]
+  return `${d < -0.05 ? "−" : "+"}${nn(Math.abs(d), 1)} mm`
 }
 
 /** uttaka: éi brikke per fil, og kva dei to fargane tyder */

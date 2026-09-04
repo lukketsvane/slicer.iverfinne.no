@@ -111,11 +111,46 @@ documents and not interface.
 
 **Over 1180 px with a mouse**, no sheet — the same controls as one column on
 the right, the top bar above the canvas, and the camera frames the object into
-whatever rectangle is left over.
+whatever rectangle is left over. The bench is where precision lives, because
+that is where the keyboard is. Every number in the column can be typed:
+double-click it (or press enter with the row focused), type, enter sets it and
+escape leaves it; arrows step it, shift-arrows step ten. A selected plane moves
+one millimetre along its normal per arrow press, ten with shift, and its row
+reads where it stands in millimetres from the centre of the body, live. `D`
+duplicates the selected plane, `H` cuts a hole in it, tab and shift-tab walk
+the plane list, `F` reframes, and the right mouse button (or the wheel pressed)
+pans the view — the reframe button puts it back. On the sheet, arrows nudge the
+selected part a millimetre, and shift-arrows ten. A phone gets none of this:
+one thumb has no arrows, and a text field there zooms the page.
 
 **With a part selected** (tap it in the object), the handles and the two-finger
 drag edit *that* plane instead of the sketch: move it along its normal, re-angle
 it. Tap empty space to deselect; the row's `slett` removes the plane.
+
+**Planes made in one action are a group.** A grid is two groups (across and
+along), a whirl is one, a mirrored cut is one, and duplicating a group makes
+another. The group has a row in the list above its planes; tap it and the
+whole group is selected, with the last plane in the row as the one your hand
+holds. Whatever you do to that plane the group does too: the handles, the
+two-finger drag, the arrow keys, `slett`, `dubler`. `fordel`, under your
+thumb while a group is selected, decides how: off, the whole row moves and
+turns as one; on, the far end stays, the plane you hold takes all of it and
+the ones between take their share, so turning the last rib fans the row
+along a curve and pushing it re-spaces the row evenly. Tap the group's row
+again, or a single plane, to let it go. The group is a tag on each plane in
+the link (`g:1`), never a thing of its own: each plane is still its own point
+and normal, and a plane you move alone stays in its group.
+
+**A plane can carry a layer.** Under a selected plane the list shows
+LightBurn's own palette, C02 to C29, and a ring for none. Pick one and every
+cut of that plane, outline and holes, is written in exactly that colour, so
+LightBurn puts it on that layer where you give it its own speed, cut it
+last, or switch it off. Black and blue are not on offer: they are the
+engrave and the cut, and the order lives in them. With a group selected the
+pick tags the whole group. The sheet draws a tagged part in its colour, the
+list shows a dot, and the DXF gets a layer named after the LightBurn colour
+with the exact value as true colour beside its nearest ACI. Untagged files
+are unchanged: two colours, as before.
 
 **The contour view IS the sheet.** It was a ribbon of profiles laid out side
 by side in the canvas — the same drawing the sheets already showed, only with

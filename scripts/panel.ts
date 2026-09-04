@@ -13,6 +13,7 @@
  */
 import { chromium, type Browser, type Page } from "playwright"
 import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
+import type { Vec3 } from "../lib/core"
 import { FORMER } from "../lib/scene"
 import type { Params } from "../lib/params"
 
@@ -205,7 +206,7 @@ async function telefon(browser: Browser) {
   sjekk("L skjer òg", plana(page).length === n0 + 2)
   await midt(page)
 
-  const rad = liste.locator("[role=option]").last()
+  const rad = liste.locator("[role=option][data-plan]").last()
   await rad.locator("button").first().click()
   await page.waitForTimeout(300)
   sjekk("eit trykk på rada vel planet", (await rad.getAttribute("aria-selected")) === "true")
@@ -387,7 +388,7 @@ async function telefon(browser: Browser) {
   await vent(page, talPlan(n0 + 1))
   await midt(page)
   const fyrst = plana(page)[0]
-  await liste.locator("[role=option]").first().locator("button").first().click()
+  await liste.locator("[role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(300)
   // lina lukkar arket utan å sleppe valet — esc ville sleppt det
   await page.locator(HOVUDLINA).click()
@@ -433,7 +434,7 @@ async function telefon(browser: Browser) {
   await page.keyboard.press("l")
   await vent(page, talPlan(n0 + 1))
   await midt(page)
-  await liste.locator("[role=option]").first().locator("button").first().click()
+  await liste.locator("[role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(300)
   const hol = page.getByRole("button", { name: "skjer hòl", exact: true })
   const dubl = page.getByRole("button", { name: "dubler planet", exact: true })
@@ -460,7 +461,7 @@ async function telefon(browser: Browser) {
     await vent(page, talPlan(fyrr.length))
     await page.waitForTimeout(300)
     await midt(page)
-    await liste.locator("[role=option]").first().locator("button").first().click()
+    await liste.locator("[role=option][data-plan]").first().locator("button").first().click()
     await page.waitForTimeout(300)
   }
   const planFør = plana(page)[0]
@@ -922,7 +923,7 @@ async function benk(browser: Browser) {
   await page.keyboard.press("l")
   await vent(page, talPlan(n0 + 1))
   sjekk("L skjer på benken", plana(page).length === n0 + 1)
-  await page.locator("[role=listbox][aria-label='plan'] [role=option]").last().locator("button").first().click()
+  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").last().locator("button").first().click()
   await page.keyboard.press("Delete")
   await vent(page, talPlan(n0))
   sjekk("Delete tek det valde bort", plana(page).length === n0)
@@ -949,7 +950,193 @@ async function benk(browser: Browser) {
   sjekk("R tek verktyet for rutenettet", (await page.locator("button[aria-label='rutenett'][aria-pressed='true']").count()) === 1)
   await page.keyboard.press("r")
 
+  // --- TALET KAN SKRIVAST: dobbeltklikk opnar eit felt, enter set, escape let stå ---
+  const tjukn = page.locator("[aria-label='tjukn, tal']")
+  await tjukn.dblclick()
+  const felt2 = page.locator("input[aria-label='tjukn, skriv']")
+  sjekk("dobbeltklikk på talet opnar eit felt", (await felt2.count()) === 1)
+  await felt2.fill("4,5")
+  await page.keyboard.press("Enter")
+  await vent(page, (p) => p.tjukn === 4.5)
+  sjekk("enter set talet, med komma", hash(page).tjukn === 4.5, String(hash(page).tjukn))
+  sjekk("og feltet er borte att", (await page.locator("input[aria-label='tjukn, skriv']").count()) === 0)
+  await tjukn.dblclick()
+  await page.locator("input[aria-label='tjukn, skriv']").fill("9")
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
+  sjekk("escape let talet stå", hash(page).tjukn === 4.5 && (await page.locator("input[aria-label='tjukn, skriv']").count()) === 0, String(hash(page).tjukn))
+  await tjukn.focus()
+  await page.keyboard.press("Shift+ArrowRight")
+  await vent(page, (p) => p.tjukn !== 4.5)
+  sjekk("skift+pil stegar ti", hash(page).tjukn === 5.5, String(hash(page).tjukn))
+  await page.keyboard.press("z")
+  await page.keyboard.press("z")
+  await vent(page, (p) => p.tjukn !== 4.5 && Math.abs(p.tjukn - 4.5) < 3)
+
+  // --- PILENE FLYTTAR DET VALDE PLANET éin millimeter langs normalen; D dublerer; tab går vidare ---
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
+  const ida = plana(page)[n0].id
+  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").last().locator("button").first().click()
+  await page.waitForTimeout(300)
+  const rad = page.locator("[role=listbox][aria-label='plan'] [role=option][aria-selected='true']")
+  const radTekst = async () => (await rad.innerText()).replace(/\s+/g, " ").trim()
+  const mm0 = (await rad.innerText()).match(/[+−]\d+,\d mm/)?.[0] ?? ""
+  sjekk("rada på benken les millimeteren frå midten", /[+−]\d+,\d mm/.test(mm0), mm0)
+  // millimeteren i rada er det pilene lovar: éin per trykk, ti med skift, og tolv tett i hop er tolv
+  const mmNo = async () => Number((await rad.innerText()).match(/[+−]\d+,\d mm/)?.[0]?.replace("−", "-").replace(",", ".").replace(" mm", "") ?? NaN)
+  const ventMm = async (v: number) => {
+    for (let i = 0; i < 60; i++) {
+      if (Math.abs((await mmNo()) - v) < 0.06) return true
+      await page.waitForTimeout(100)
+    }
+    return false
+  }
+  const m0 = await mmNo()
+  await page.keyboard.press("ArrowUp")
+  sjekk("pil opp flyttar planet éin millimeter langs normalen", await ventMm(m0 + 1), `${m0} → ${await mmNo()}`)
+  for (let i = 0; i < 11; i++) await page.keyboard.press("ArrowUp", { delay: 0 })
+  sjekk("tolv trykk tett i hop er tolv millimeter", await ventMm(m0 + 12), `${m0} → ${await mmNo()}`)
+  for (let i = 0; i < 11; i++) await page.keyboard.press("ArrowDown", { delay: 0 })
+  sjekk("og elleve attende er éin", await ventMm(m0 + 1), `${m0} → ${await mmNo()}`)
+  await page.keyboard.press("Shift+ArrowDown")
+  sjekk("skift+pil ned er ti", await ventMm(m0 - 9), `${m0} → ${await mmNo()}`)
+  await page.keyboard.press("d")
+  await vent(page, talPlan(n0 + 2))
+  sjekk("D dublerer det valde planet, og kopien er vald", plana(page).length === n0 + 2 && (await rad.innerText()).startsWith(String(plana(page)[n0 + 1].id)))
+  await page.keyboard.press("Tab")
+  await page.waitForTimeout(200)
+  sjekk("tab går til neste plan i lista", (await rad.innerText()).startsWith(String(plana(page)[0].id)), await radTekst())
+  await page.keyboard.press("Shift+Tab")
+  await page.waitForTimeout(200)
+  sjekk("skift+tab går attende", (await rad.innerText()).startsWith(String(plana(page)[n0 + 1].id)), await radTekst())
+
+  // --- F rammar inn: den same knappen som under synskuben ---
+  const boks = page.locator(".handtak")
+  const avst0 = await boks.getAttribute("data-avstand")
+  await page.mouse.move(400, 450)
+  await page.mouse.wheel(0, -600)
+  await page.waitForTimeout(400)
+  const avst1 = await boks.getAttribute("data-avstand")
+  sjekk("hjulet zoomar", avst0 !== avst1, `${avst0} → ${avst1}`)
+  await page.keyboard.press("f")
+  await page.waitForTimeout(600)
+  sjekk("F rammar inn att", (await boks.getAttribute("data-avstand")) === avst0, `${avst0} vs ${await boks.getAttribute("data-avstand")}`)
+
+  // --- PÅ PLATA: pilene flyttar den valde delen éin millimeter ---
+  await page.keyboard.press("Escape")
+  await page.keyboard.press("3")
+  await roleg(page, 600)
+  const del = page.locator("g[data-del]").first()
+  if (await del.count()) {
+    await del.click()
+    await page.waitForTimeout(300)
+    const fest0 = hash(page).fest ?? ""
+    await page.keyboard.press("ArrowRight")
+    await vent(page, (p) => (p.fest ?? "") !== fest0)
+    const f1 = hash(page).fest
+    await page.keyboard.press("Shift+ArrowUp")
+    await vent(page, (p) => p.fest !== f1)
+    sjekk("pilene festar delen ein millimeter om gongen på plata", !!hash(page).fest && hash(page).fest !== fest0, hash(page).fest.slice(0, 40))
+  } else sjekk("plata har ein del å flytte", false)
+  await page.keyboard.press("2")
+
   sjekk("ingen konsollfeil på benken", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
+  await page.close()
+}
+
+/**
+ * GRUPPENE, PÅ BENKEN.
+ *
+ * Plan som vart til i éi handling høyrer i hop. Trykk på gruppa i lista,
+ * og alt handa gjer med leiaren — pilene her, handtaka og to fingrar
+ * elles — gjer alle plana i henne: saman, eller fordelt frå den ståande
+ * enden til leiaren, so ei dreiing vert ei vifte og eit skuv eit nytt
+ * mellomrom. Prøva les lenkja og ser at rada svarar som éi.
+ */
+async function grupper(browser: Browser) {
+  console.log("\n=== grupper (benk 1400×900)")
+  const plan = skrivPlan(rutenett(0, 4))
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })), browser, 1400, 900)
+  sjekk("lista har gruppa som rad", (await page.locator("[data-gruppe='1']").count()) === 1)
+  await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
+  await page.waitForTimeout(300)
+  sjekk("trykk på gruppa vel henne", (await page.locator("[data-gruppe='1'][aria-selected='true']").count()) === 1)
+  sjekk("og det siste planet er leiaren", (await page.locator("[data-plan='4'][aria-selected='true']").count()) === 1)
+  sjekk("fordel står under tommelen", (await page.locator("[data-fordel]").count()) === 1)
+
+  const y = () => plana(page).map((p) => p.o[1])
+  const y0 = y()
+  await page.keyboard.press("ArrowUp")
+  await vent(page, (p) => lesPlan(p.plan)[3].o[1] !== y0[3])
+  const y1 = y()
+  const steg = y1.map((v, i) => v - y0[i])
+  sjekk("pil opp flyttar heile gruppa likt", steg.every((d) => Math.abs(d - steg[3]) < 2e-4) && steg[3] > 0.005, steg.map((d) => d.toFixed(4)).join(" "))
+
+  await page.locator("[data-fordel]").click()
+  await page.waitForTimeout(150)
+  sjekk("fordel er på", (await page.locator("[data-fordel][aria-pressed='true']").count()) === 1)
+  await page.keyboard.press("ArrowUp")
+  await vent(page, (p) => lesPlan(p.plan)[3].o[1] !== y1[3])
+  const y2 = y()
+  const s2 = y2.map((v, i) => v - y1[i])
+  sjekk("fordelt: det fyrste står, leiaren tek alt, dei imellom sin del", Math.abs(s2[0]) < 1e-9 && s2[3] > 0.005 && Math.abs(s2[1] - s2[3] / 3) < 3e-4 && Math.abs(s2[2] - (2 * s2[3]) / 3) < 3e-4, s2.map((d) => d.toFixed(4)).join(" "))
+
+  // ⌥-drag med musa vrir leiaren om synsaksen; fordelt er det ei vifte
+  const n0 = plana(page).map((p) => p.n)
+  await page.keyboard.down("Alt")
+  await page.mouse.move(520, 450)
+  await page.mouse.down()
+  for (let i = 1; i <= 10; i++) await page.mouse.move(520 + 8 * i, 450)
+  await page.mouse.up()
+  await page.keyboard.up("Alt")
+  await vent(page, (p) => JSON.stringify(lesPlan(p.plan)[3].n) !== JSON.stringify(n0[3]))
+  const n1 = plana(page).map((p) => p.n)
+  const vinkel = (a: Vec3, b: Vec3) => Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])))
+  const v = n1.map((n, i) => vinkel(n, n0[i]))
+  sjekk("⌥-drag vrir leiaren, og rada er ei vifte", v[0] < 1e-3 && v[3] > 0.05 && v[1] > 1e-3 && v[1] < v[2] && v[2] < v[3], v.map((a) => ((a * 180) / Math.PI).toFixed(1) + "°").join(" "))
+
+  await page.keyboard.press("d")
+  await vent(page, talPlan(8))
+  sjekk("D dublerer gruppa, og kopiane er ei ny gruppe som er vald", plana(page).slice(4).every((p) => p.gruppe === 2) && (await page.locator("[data-gruppe='2'][aria-selected='true']").count()) === 1)
+  await page.keyboard.press("Delete")
+  await vent(page, talPlan(4))
+  sjekk("Delete tek heile gruppa", plana(page).length === 4 && plana(page).every((p) => p.gruppe === 1))
+  await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
+  await page.waitForTimeout(300)
+  await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
+  await page.waitForTimeout(300)
+  sjekk("trykk att slepper gruppa", (await page.locator("[role=option][aria-selected='true']").count()) === 0)
+  await page.getByRole("button", { name: "slett gruppe 1", exact: true }).click()
+  await vent(page, talPlan(0))
+  sjekk("× på gruppa tek alle plana", plana(page).length === 0)
+
+  // --- LAGET: eit merke på eit plan, eller på heile gruppa, i LightBurn sin farge ---
+  // berre hashen byter: sida les han ved lasting, so ho må lastast om att
+  await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })))
+  await page.reload({ waitUntil: "networkidle" })
+  await roleg(page, 800)
+  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
+  await page.waitForTimeout(300)
+  sjekk("eit valt plan har laga under seg", (await page.locator("[data-lag]").count()) === 1 && (await page.locator("[data-lag] button").count()) === 29)
+  await page.getByRole("button", { name: "lag C03", exact: true }).click()
+  await vent(page, (p) => lesPlan(p.plan)[0].farge === 3)
+  sjekk("eit trykk merkjer planet med laget", plana(page)[0].farge === 3 && plana(page).slice(1).every((q) => !q.farge), plana(page).map((q) => q.farge ?? 0).join())
+  await page.keyboard.press("3")
+  await roleg(page, 800)
+  const grøn = await page.locator("g[data-del] path[style*='stroke: rgb(0, 224, 0)']").count()
+  sjekk("og plata teiknar delen i den fargen", grøn >= 1, `${grøn} baner`)
+  await page.keyboard.press("2")
+  await roleg(page, 300)
+  await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
+  await page.waitForTimeout(300)
+  await page.getByRole("button", { name: "lag C05", exact: true }).click()
+  await vent(page, (p) => lesPlan(p.plan).every((q) => q.farge === 5))
+  sjekk("med gruppa vald merkjer trykket heile gruppa", plana(page).every((q) => q.farge === 5), plana(page).map((q) => q.farge ?? 0).join())
+  await page.getByRole("button", { name: "ikkje noko lag", exact: true }).click()
+  await vent(page, (p) => lesPlan(p.plan).every((q) => !q.farge))
+  sjekk("og ringen tek merket bort att", plana(page).every((q) => !q.farge))
+  sjekk("ingen konsollfeil på gruppene", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
 }
 
@@ -1487,7 +1674,7 @@ async function skaletOgSovnen(browser: Browser) {
   await page.mouse.move(190, 700)
   await page.locator(HOVUDLINA).click()
   await page.waitForTimeout(500)
-  await page.locator("[role=listbox][aria-label='plan'] [role=option]").first().locator("button").first().click()
+  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(400)
   // arket att: eit ope ark held det vake av seg sjølv, og då prøver vi ingenting
   await page.locator(HOVUDLINA).click()
@@ -1558,7 +1745,7 @@ async function boyen(browser: Browser) {
   const plan = skrivPlan(rutenett(3, 0))
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 300, tjukn: 6, material: "finer" })), browser, 390, 844)
   await midt(page)
-  await page.locator("[role=listbox][aria-label='plan'] [role=option]").first().locator("button").first().click()
+  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await roleg(page, 600)
   const knapp = page.locator("[data-boy]")
   sjekk("eit valt plan har ein bøyeknapp", (await knapp.count()) === 1)
@@ -1629,6 +1816,7 @@ const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["flyt", flyt],
   ["mork", mork],
   ["benk", benk],
+  ["grupper", grupper],
 ]
 
 const main = async () => {

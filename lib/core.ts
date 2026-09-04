@@ -298,6 +298,31 @@ export type Kutt = {
  * i dei same koordinatane (millimeter, y opp). Det er heile poenget: det
  * du ser på skjermen er ikkje ei framsyning av plata, det ER plata.
  */
+/**
+ * LAGA I LIGHTBURN, SOM FARGAR.
+ *
+ * Ein SVG har ikkje lag; laserprogrammet les fargen og gjer henne til eit
+ * lag, og LightBurn — der ni av ti av desse filene endar — held ein
+ * palett med tretti faste verdiar (C00–C29) og krev dei EKSAKT. Dei to
+ * fyrste er teke: svart er graveringa og blått er kuttet, og rekkjefylgda
+ * ligg i dei (sjå `export-svg.ts`). Dei åtte og tjue andre er MERKE handa
+ * kan setje på eit plan eller ei gruppe: same kutt, same fil, men på sitt
+ * eige lag, so den som står ved maskina kan gje det si eiga fart, eller
+ * skjere det sist, eller slå det av. Tabellen er LightBurn sin eigen
+ * (docs.lightburnsoftware.com, «Layer Colors»), og han vert skriven
+ * ordrett: ein farge som ligg nær ein av dei er ikkje den fargen.
+ */
+export const LAG_FARGAR: readonly string[] = [
+  "#000000", "#0000ff", "#ff0000", "#00e000", "#d0d000", "#ff8000", "#00e0e0", "#ff00ff", "#b4b4b4", "#0000a0",
+  "#a00000", "#00a000", "#a0a000", "#c08000", "#00a0ff", "#a000a0", "#808080", "#7d87b9", "#bb7784", "#4a6fe3",
+  "#d33f6a", "#8cd78c", "#f0b98d", "#f6c4e1", "#fa9ed4", "#500a78", "#b45a00", "#004754", "#86fa88", "#ffdb66",
+]
+/** det fyrste laget handa kan merkje med: C00 og C01 er graveringa og kuttet */
+export const FARGE_MIN = 2
+/** eit gyldig merke, eller null: berre laga handa får bruke */
+export const lagFarge = (v: unknown): number | null =>
+  typeof v === "number" && Number.isInteger(v) && v >= FARGE_MIN && v < LAG_FARGAR.length ? v : null
+
 export type Delplass = {
   /** adressa som vert gravert — «3a». Same nøkkelen som kuttlista og
    *  objektet brukar, so ein del kan fylgjast mellom dei tre. */
@@ -322,6 +347,8 @@ export type Delplass = {
    * og ikkje berre seie det i ei regel.
    */
   kross?: boolean
+  /** laget handa merkte planet med (C02–C29), om noko: plata teiknar streken i den fargen */
+  farge?: number
   /**
    * Adressa slik ho vert GRAVERT, som ei bane.
    *

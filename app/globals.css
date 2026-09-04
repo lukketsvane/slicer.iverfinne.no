@@ -105,6 +105,32 @@ html {
   opacity: 0.6;
 }
 
+/* BENKEN: EI MUS OG EIT TASTATUR.
+   Der peikaren er fin, seier han kva han står over: ei hand på ein knapp,
+   piler på ein skrubbar (sjå `.skrubb`), grip på eit handtak. Og ein dempa
+   knapp lyser litt opp under musa — ikkje til fullt blekk, det er
+   tilstanden «gjeld», men nok til å seie «denne». Ingen overgang: ein
+   tilstand byter, han glir ikkje. Ein finger får ingenting av dette. */
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+  .ikon[aria-pressed="false"]:not(:disabled):hover,
+  .ord[aria-pressed="false"]:not(:disabled):hover,
+  .benk button.dim:not(:disabled):hover,
+  .synskube button:not(:disabled):hover {
+    opacity: 0.75;
+  }
+  .handtak [data-handtak]:not(:active):hover {
+    opacity: 0.85;
+  }
+}
+/* det einaste som får ein markør: eit talfelt som er opna for å skrive i */
+input {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* lister som rullar, rullar inni seg sjølve */
 .rull {
   overflow-y: auto;
