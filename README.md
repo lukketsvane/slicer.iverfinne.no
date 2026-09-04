@@ -127,6 +127,20 @@ one thumb has no arrows, and a text field there zooms the page.
 drag edit *that* plane instead of the sketch: move it along its normal, re-angle
 it. Tap empty space to deselect; the row's `slett` removes the plane.
 
+**Planes made in one action are a group.** A grid is two groups (across and
+along), a whirl is one, a mirrored cut is one, and duplicating a group makes
+another. The group has a row in the list above its planes; tap it and the
+whole group is selected, with the last plane in the row as the one your hand
+holds. Whatever you do to that plane the group does too: the handles, the
+two-finger drag, the arrow keys, `slett`, `dubler`. `fordel`, under your
+thumb while a group is selected, decides how: off, the whole row moves and
+turns as one; on, the far end stays, the plane you hold takes all of it and
+the ones between take their share, so turning the last rib fans the row
+along a curve and pushing it re-spaces the row evenly. Tap the group's row
+again, or a single plane, to let it go. The group is a tag on each plane in
+the link (`g:1`), never a thing of its own: each plane is still its own point
+and normal, and a plane you move alone stays in its group.
+
 **The contour view IS the sheet.** It was a ribbon of profiles laid out side
 by side in the canvas — the same drawing the sheets already showed, only with
 no way to touch it. Now the third view *is* the sheet: the parts where the

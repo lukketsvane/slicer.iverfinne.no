@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, type JSX, type RefObject } from "react"
+import { Fragment, useEffect, useRef, useState, type JSX, type RefObject } from "react"
 import { MATERIALS, TJUKNER, klokke, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import type { Plan } from "@/lib/plan"
@@ -56,6 +56,10 @@ export type ArketProps = {
   plan: readonly Plan[]
   vald: number | null
   onVald: (id: number | null) => void
+  /** gruppa som er vald, om nokon: trykk på gruppa i lista vel alle plana i henne */
+  valdGruppe: number | null
+  onVelGruppe: (g: number) => void
+  onSlettGruppe: (g: number) => void
   onSlett: (id: number) => void
   busy: boolean
   feil: string | null
@@ -106,19 +110,47 @@ function Lina({ p }: { p: ArketProps }) {
 /** Lista står der jamvel når ho er tom: ho er staden plana bur, og ei tom
  *  liste teiknar ingenting likevel. */
 function Plana({ p }: { p: ArketProps }) {
+  /** gruppene, i den rekkja dei fyrst syner seg: ei rad over det fyrste planet i kvar */
+  const sett = new Set<number>()
   return (
     <ul className="py-1" role="listbox" aria-label="plan">
       {p.plan.map((pl) => {
         const mine = p.liste.filter((k) => k.plan === pl.id)
         const ledd = mine.reduce((a, k) => a + k.joints, 0)
         const paa = p.vald === pl.id
+        const iGruppa = !!pl.gruppe && p.valdGruppe === pl.gruppe
+        const hovud = pl.gruppe && !sett.has(pl.gruppe) ? pl.gruppe : 0
+        if (hovud) sett.add(hovud)
+        const tal = hovud ? p.plan.filter((q) => q.gruppe === hovud).length : 0
         return (
+          <Fragment key={pl.id}>
+          {/* GRUPPA SOM RAD: trykk vel alle plana i henne, og leiaren er det
+              siste. Ho står over det fyrste planet sitt, og plana hennar
+              står inndregne under. × tek heile gruppa. */}
+          {hovud > 0 && (
+            <li
+              role="option"
+              aria-selected={p.valdGruppe === hovud}
+              data-gruppe={hovud}
+              className="flex items-center gap-2 rounded-lg px-1.5 text-[11px]"
+              style={p.valdGruppe === hovud ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : undefined}
+            >
+              <button type="button" aria-label={`gruppe ${hovud}`} title="vel heile gruppa: handtaka, pilene, slett og dubler tek alle plana i henne" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => (p.valdGruppe === hovud ? p.onVald(null) : p.onVelGruppe(hovud))}>
+                <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>G{hovud}</span>
+                <span className="min-w-0 flex-1 truncate">gruppe</span>
+                <span className="tab dim shrink-0">· {tal} plan</span>
+              </button>
+              <button type="button" aria-label={`slett gruppe ${hovud}`} title="ta heile gruppa bort" className="hit dim h-9 w-11 shrink-0" onClick={() => p.onSlettGruppe(hovud)}>
+                ×
+              </button>
+            </li>
+          )}
           <li
-            key={pl.id}
             role="option"
             aria-selected={paa}
-            className="flex items-center gap-2 rounded-lg px-1.5 text-[11px]"
-            style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : undefined}
+            data-plan={pl.id}
+            className={"flex items-center gap-2 rounded-lg text-[11px] " + (pl.gruppe ? "ml-3 pl-1.5 pr-1.5" : "px-1.5")}
+            style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : iGruppa ? { background: "color-mix(in srgb, var(--ink) 4%, transparent)" } : undefined}
           >
             <button type="button" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => p.onVald(paa ? null : pl.id)}>
               <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>{pl.id}</span>
@@ -144,6 +176,7 @@ function Plana({ p }: { p: ArketProps }) {
               ×
             </button>
           </li>
+          </Fragment>
         )
       })}
     </ul>

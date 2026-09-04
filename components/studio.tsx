@@ -6,7 +6,7 @@ import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { BOG_TAK, PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, rutenett, sameSnitt, spegla, speglingar, skrivPlan, virvel, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, lesScene, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
@@ -141,6 +141,36 @@ function useVindu() {
 
 type Port = { inFlight: boolean; pending: Req | null; shown: number }
 
+const INGEN: readonly number[] = []
+/** brøkane må halde seg nær boksen: eit plan langt utanfor råkar ingenting */
+const klemO = (o: Vec3): Vec3 => o.map((c) => Math.min(1.5, Math.max(-0.5, c))) as Vec3
+
+/**
+ * GRUPPA FYLGJER LEIAREN. Plan `i` i lista har fått eit nytt punkt og ei ny
+ * normal; er det i den valde gruppa, tek dei andre i gruppa det same
+ * skuvet og den same dreiinga — heilt (saman) eller sin del av det
+ * (fordelt, sjå `delAv`). Skuvet er det same for alle, so rada flyttar seg
+ * stiv; dreiinga er den minste som tek den gamle normalen til den nye, lagd
+ * på kvar si normal. Utan gruppe er det planet åleine som før.
+ */
+function medGruppa(l: Plan[], i: number, o: Vec3, n: Vec3, g: number | null, fordel: boolean): Plan[] {
+  const q = l[i]
+  const ut = [...l]
+  ut[i] = { ...q, o: klemO(o), n }
+  if (g === null || q.gruppe !== g) return ut
+  const dO = sub3(o, q.o)
+  const { akse, ang } = dreiing(q.n, n)
+  const del = delAv(iGruppa(l, g), q.id, fordel)
+  for (let j = 0; j < l.length; j++) {
+    if (j === i) continue
+    const t = del.get(l[j].id)
+    if (t === undefined) continue
+    const nn = ang ? (norm3(vriOm(l[j].n, akse, ang * t)).map((c) => +c.toFixed(4)) as Vec3) : l[j].n
+    ut[j] = { ...l[j], o: klemO(add3(l[j].o, mul3(dO, t))), n: nn }
+  }
+  return ut
+}
+
 export function Studio() {
   const [params, setParams] = useState<ParamBag>(() => ({ ...MOTOR.defaults }))
   const [view, setView] = useState<View>("lag")
@@ -175,6 +205,17 @@ export function Studio() {
   const [vald, setVald] = useState<number | null>(null)
   /** det valde streket i det valde planet, som plass i lista hans */
   const [valdStrek, setValdStrek] = useState<number | null>(null)
+  /**
+   * GRUPPA SOM ER VALD, og planet i henne handa held i (`vald`, leiaren).
+   * Trykk på gruppa i lista, og alle plana i henne svarar på det du gjer
+   * med leiaren: handtaka, to fingrar, pilene, slett, dubler. `fordel` er
+   * kva rada gjer med det: saman, eller fordelt frå den eine enden til
+   * leiaren — då er ei dreiing ei vifte og eit skuv eit nytt mellomrom.
+   */
+  const [valdGruppe, setValdGruppe] = useState<number | null>(null)
+  const [fordel, setFordel] = useState(false)
+  const gruppeNo = useRef<{ g: number | null; fordel: boolean }>({ g: null, fordel: false })
+  gruppeNo.current = { g: valdGruppe, fordel }
   /** biten som er vald i verktyet for kroppen, som plass i scenelista */
   const [valdBit, setValdBit] = useState<number | null>(null)
   /** ein verdi vert dregen i arket: angre ventar til fingeren slepper */
@@ -862,7 +903,9 @@ export function Studio() {
       const l = lesPlan(cur.plan)
       if (l.length >= PLAN_TAK) return cur
       let i = nyId(l)
-      return { ...cur, plan: skrivPlan([...l, ...tek.map((q) => ({ id: i++, o: q.o, n: q.n, bog: 0, strek: [] }))].slice(0, PLAN_TAK)) }
+      // to eller fleire snitt av éi spegling høyrer i hop: dei er ei gruppe
+      const gruppe = tek.length > 1 ? nyGruppe(l) : 0
+      return { ...cur, plan: skrivPlan([...l, ...tek.map((q) => ({ id: i++, o: q.o, n: q.n, bog: 0, strek: [], ...(gruppe ? { gruppe } : {}) }))].slice(0, PLAN_TAK)) }
     })
     setBlink(id)
   }, [speil])
@@ -884,18 +927,28 @@ export function Studio() {
     if (l.length >= PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
     const t = typeof naa.current.tjukn === "number" ? naa.current.tjukn : 6
     const q = l[j]
-    const o = q.o.map((c, a) => {
-      const vidd = Math.max(1e-6, k.max[a] - k.min[a])
-      return Math.min(1, Math.max(0, +(c + (q.n[a] * 2 * t) / vidd).toFixed(4)))
-    }) as Vec3
-    const ny = nyId(l)
+    // heile gruppa når ho er vald: kvart plan eit hakk langs si eiga normal, og kopiane er ei ny gruppe
+    const g = gruppeNo.current.g
+    const kjelde = g !== null && q.gruppe === g ? iGruppa(l, g) : [q]
+    if (l.length + kjelde.length > PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+    const skuv = (p: Plan): Vec3 =>
+      p.o.map((c, a) => {
+        const vidd = Math.max(1e-6, k.max[a] - k.min[a])
+        return Math.min(1, Math.max(0, +(c + (p.n[a] * 2 * t) / vidd).toFixed(4)))
+      }) as Vec3
+    const nyG = kjelde.length > 1 ? nyGruppe(l) : 0
+    let ny = nyId(l)
+    const leiar = ny + kjelde.findIndex((p) => p.id === id)
     setParams((cur) => {
       const m = lesPlan(cur.plan)
-      if (m.length >= PLAN_TAK) return cur
-      return { ...cur, plan: skrivPlan([...m, { id: nyId(m), o, n: q.n, bog: q.bog, strek: q.strek }]) }
+      if (m.length + kjelde.length > PLAN_TAK) return cur
+      let i = nyId(m)
+      ny = i
+      return { ...cur, plan: skrivPlan([...m, ...kjelde.map((p) => ({ id: i++, o: skuv(p), n: p.n, bog: p.bog, strek: p.strek, ...(nyG ? { gruppe: nyG } : {}) }))]) }
     })
-    setVald(ny)
-    setBlink(ny)
+    setVald(leiar)
+    setValdGruppe(nyG || null)
+    setBlink(leiar)
   }, [])
   /**
    * BØYEN PÅ EIT PLAN, sett med ein finger.
@@ -926,25 +979,56 @@ export function Studio() {
       const l = lesPlan(cur.plan)
       const i = l.findIndex((p) => p.id === id)
       if (i < 0) return cur
-      l[i] = { ...l[i], o: o.map((c) => Math.min(1.5, Math.max(-0.5, c))) as Vec3, n }
-      return { ...cur, plan: skrivPlan(l) }
+      const { g, fordel } = gruppeNo.current
+      return { ...cur, plan: skrivPlan(medGruppa(l, i, o, n, g, fordel)) }
     })
   }, [])
-  /** planet bort — og festa til delane hans, som ikkje peikar på noko lenger */
+  /** planet bort — og festa til delane hans, som ikkje peikar på noko lenger.
+   *  Er gruppa hans vald, går heile gruppa. */
   const slett = useCallback((id: number) => {
-    setVald((v) => (v === id ? null : v))
+    const l = lesPlan(naa.current.plan)
+    const q = l.find((p) => p.id === id)
+    const g = gruppeNo.current.g
+    const bort = new Set(g !== null && q?.gruppe === g ? iGruppa(l, g).map((p) => p.id) : [id])
+    setVald((v) => (v !== null && bort.has(v) ? null : v))
     setParams((cur) => {
       const m = lesFest(cur.fest)
-      for (const adr of [...m.keys()]) if (Number(/^\d+/.exec(adr)?.[0]) === id) m.delete(adr)
-      return { ...cur, plan: skrivPlan(lesPlan(cur.plan).filter((p) => p.id !== id)), fest: skrivFest(m) }
+      for (const adr of [...m.keys()]) if (bort.has(Number(/^\d+/.exec(adr)?.[0]))) m.delete(adr)
+      return { ...cur, plan: skrivPlan(lesPlan(cur.plan).filter((p) => !bort.has(p.id))), fest: skrivFest(m) }
+    })
+  }, [])
+  /** heile gruppa bort, frå lista — utan å velje henne fyrst */
+  const slettGruppe = useCallback((g: number) => {
+    const bort = new Set(iGruppa(lesPlan(naa.current.plan), g).map((p) => p.id))
+    setVald((v) => (v !== null && bort.has(v) ? null : v))
+    setParams((cur) => {
+      const m = lesFest(cur.fest)
+      for (const adr of [...m.keys()]) if (bort.has(Number(/^\d+/.exec(adr)?.[0]))) m.delete(adr)
+      return { ...cur, plan: skrivPlan(lesPlan(cur.plan).filter((p) => !bort.has(p.id))), fest: skrivFest(m) }
     })
   }, [])
   /** eit plan valt i scena eller lista; ein del valt på plata eller i kuttlista. Eit anna plan er eit anna strek, og ingen er valt. */
   const velPlan = useCallback((id: number | null) => {
     setVald(id)
+    setValdGruppe(null)
     setValdStrek(null)
     setPeikt(id === null ? null : (liste.find((k) => k.plan === id)?.adr ?? null))
   }, [liste])
+  /** gruppa vald: det siste planet i rada er leiaren handa held i */
+  const velGruppe = useCallback((g: number) => {
+    const rad = iGruppa(lesPlan(naa.current.plan), g)
+    if (!rad.length) return
+    const id = rad[rad.length - 1].id
+    setVald(id)
+    setValdGruppe(g)
+    setValdStrek(null)
+    setPeikt(liste.find((k) => k.plan === id)?.adr ?? null)
+  }, [liste])
+  // ei gruppe er vald berre so lenge leiaren står i henne: eit anna plan, eit angre, ei sletting slepper gruppa
+  useEffect(() => {
+    if (valdGruppe === null) return
+    if (vald === null || !plan.some((p) => p.id === vald && p.gruppe === valdGruppe)) setValdGruppe(null)
+  }, [vald, plan, valdGruppe])
   // eit strek som ikkje finst lenger — planet bytt, streken sletta, eit angre — er ikkje valt
   useEffect(() => {
     if (valdStrek === null) return
@@ -1315,8 +1399,8 @@ export function Studio() {
           feil = e
         }
       }
-      l[i] = { ...q, o: best }
-      return { ...cur, plan: skrivPlan(l) }
+      const { g: gruppe, fordel } = gruppeNo.current
+      return { ...cur, plan: skrivPlan(medGruppa(l, i, best, q.n, gruppe, fordel)) }
     })
   }, [])
 
@@ -1420,6 +1504,7 @@ export function Studio() {
             liste={liste}
             plan={plan}
             vald={vald}
+            gruppe={valdGruppe === null ? INGEN : plan.filter((p) => p.gruppe === valdGruppe).map((p) => p.id)}
             snitt={snitt}
             blink={blink}
             skisse={skisse}
@@ -1526,27 +1611,45 @@ export function Studio() {
                   `Streka` står berre i rommet. */}
               <button
                 type="button"
-                aria-label="dubler planet"
-                title="eitt plan til, likt dette, skuva eit hakk langs normalen"
+                aria-label={valdGruppe !== null ? "dubler gruppa" : "dubler planet"}
+                title={valdGruppe !== null ? "ei gruppe til, lik denne, kvart plan skuva eit hakk langs normalen sin (D)" : "eitt plan til, likt dette, skuva eit hakk langs normalen (D)"}
                 onClick={() => dupliserPlan(vald)}
                 className={TUMME_BTN}
               >
                 {IcoDupliser}
               </button>
-              <button
-                type="button"
-                aria-label="skjer hòl"
-                title="skjer eit hòl: ein ring midt i snittet. flytt, vri og dra han større"
-                onClick={() => leggStrek("hol")}
-                className={TUMME_BTN}
-              >
-                {IcoHol}
-              </button>
+              {valdGruppe === null && (
+                <button
+                  type="button"
+                  aria-label="skjer hòl"
+                  title="skjer eit hòl: ein ring midt i snittet. flytt, vri og dra han større (H)"
+                  onClick={() => leggStrek("hol")}
+                  className={TUMME_BTN}
+                >
+                  {IcoHol}
+                </button>
+              )}
+              {/* FORDEL: kva rada gjer med det leiaren får. Saman, eller
+                  frå den eine enden til leiaren — ei dreiing vert ei vifte,
+                  eit skuv eit nytt mellomrom. Eit ord, av di det er eit ord. */}
+              {valdGruppe !== null && (
+                <button
+                  type="button"
+                  aria-pressed={fordel}
+                  aria-label="fordel"
+                  title={fordel ? "fordelt: den eine enden står, leiaren tek alt, rada tek sin del. trykk for saman" : "saman: heile gruppa fylgjer leiaren. trykk for fordelt — vifte og mellomrom"}
+                  onClick={() => setFordel((f) => !f)}
+                  className={ORD}
+                  data-fordel=""
+                >
+                  fordel
+                </button>
+              )}
               {/* BØYEN: TRYKK OG DRA, som lupa. Ein skyvar ville teke ei
                   rad i arket for noko som gjeld eitt plan, og handtaka på
                   snittet er alt tre. Draget er buelengd og ikkje pikslar:
                   hundre pikslar er ein halv bøy same kva skjerm du held. */}
-              {valdStrek === null && (
+              {valdStrek === null && valdGruppe === null && (
                 <button
                   type="button"
                   data-boy=""
@@ -1573,8 +1676,8 @@ export function Studio() {
               )}
               <button
                 type="button"
-                aria-label={valdStrek !== null ? "slett strek" : "slett"}
-                title={valdStrek !== null ? "ta streken bort (⌫)" : "ta det valde planet bort (⌫)"}
+                aria-label={valdStrek !== null ? "slett strek" : valdGruppe !== null ? "slett gruppa" : "slett"}
+                title={valdStrek !== null ? "ta streken bort (⌫)" : valdGruppe !== null ? "ta heile gruppa bort (⌫)" : "ta det valde planet bort (⌫)"}
                 onClick={valdStrek !== null ? slettStrek : () => slett(vald)}
                 className={TUMME_BTN}
                 style={{ color: "var(--warn)" }}
@@ -1705,6 +1808,9 @@ export function Studio() {
         boks={kropp ? { min: kropp.min, max: kropp.max } : null}
         vald={vald}
         onVald={velPlan}
+        valdGruppe={valdGruppe}
+        onVelGruppe={velGruppe}
+        onSlettGruppe={slettGruppe}
         onSlett={slett}
         busy={busy}
         feil={feil}
