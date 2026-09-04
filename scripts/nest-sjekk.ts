@@ -376,19 +376,19 @@ put("egg", "egg", kule(50, 48, 1.7))
 put("torus", "torus", torus(60, 22, 64, 32))
 put("kam", "kam", kam())
 
-sjekk("kube 6x6", DEFAULT_PARAMS)
+sjekk("kube 6x6", GRUNN)
 sjekk("kube 400, 12x9 i 12 mm", {
-  ...DEFAULT_PARAMS, storleik: 400, plan: nett(12, 9), tjukn: 12,
+  ...GRUNN, storleik: 400, plan: nett(12, 9), tjukn: 12,
   arkB: 1200, arkH: 900,
 })
 sjekk("kube vend/700", {
-  ...DEFAULT_PARAMS, rotX: 30, rotY: 20, rotZ: 10, storleik: 700, tjukn: 6,
+  ...GRUNN, rotX: 30, rotY: 20, rotZ: 10, storleik: 700, tjukn: 6,
   arkB: 1200, arkH: 900,
 })
-sjekk("kule 7x7", { ...DEFAULT_PARAMS, kjelde: "kule", plan: nett(7, 7), })
-sjekk("egg 8x8", { ...DEFAULT_PARAMS, kjelde: "egg", plan: nett(8, 8), })
-sjekk("torus staaende", { ...DEFAULT_PARAMS, kjelde: "torus", rotX: 90, plan: nett(9, 9), })
-sjekk("kule stor plate", { ...DEFAULT_PARAMS, kjelde: "kule", plan: nett(10, 10), arkB: 2500, arkH: 1250 })
+sjekk("kule 7x7", { ...GRUNN, kjelde: "kule", plan: nett(7, 7), })
+sjekk("egg 8x8", { ...GRUNN, kjelde: "egg", plan: nett(8, 8), })
+sjekk("torus staaende", { ...GRUNN, kjelde: "torus", rotX: 90, plan: nett(9, 9), })
+sjekk("kule stor plate", { ...GRUNN, kjelde: "kule", plan: nett(10, 10), arkB: 2500, arkH: 1250 })
 // PLATENE MELLOM DEI TO GOLVA.
 //
 // Oppløysinga vert vald som `max(luke/3, plata/620, 1)`. Er plata stor nok
@@ -397,17 +397,17 @@ sjekk("kule stor plate", { ...DEFAULT_PARAMS, kjelde: "kule", plan: nett(10, 10)
 // på fire millimeter er det plater mellom 827 og 2480 mm — altso dei
 // fleste store laserbord, og heile finérplata på 2440. Prøvene over låg
 // tilfeldigvis på kvar si side av det vindauget: 800 under, 2500 over.
-sjekk("kule 1600x1000", { ...DEFAULT_PARAMS, kjelde: "kule", plan: nett(12, 12), storleik: 400, arkB: 1600, arkH: 1000 })
-sjekk("kube finerplate", { ...DEFAULT_PARAMS, storleik: 700, plan: nett(10, 10), arkB: 2440, arkH: 1220 })
-sjekk("egg i 6 mm", { ...DEFAULT_PARAMS, kjelde: "egg", tjukn: 6, plan: nett(7, 7), })
+sjekk("kule 1600x1000", { ...GRUNN, kjelde: "kule", plan: nett(12, 12), storleik: 400, arkB: 1600, arkH: 1000 })
+sjekk("kube finerplate", { ...GRUNN, storleik: 700, plan: nett(10, 10), arkB: 2440, arkH: 1220 })
+sjekk("egg i 6 mm", { ...GRUNN, kjelde: "egg", tjukn: 6, plan: nett(7, 7), })
 // Ein kam: tre like tindar under ein rygg. Kvar tverribbe vert delt i tre
 // stykke med NØYAKTIG same form, som ligg tre ulike stader. Det er den
 // eine forma der eit merke rekna per form kan hamne på nabodelen.
-sjekk("kam med tre tindar", { ...DEFAULT_PARAMS, kjelde: "kam", plan: nett(5, 4), lause: 0 })
+sjekk("kam med tre tindar", { ...GRUNN, kjelde: "kam", plan: nett(5, 4), lause: 0 })
 // Eit breitt snitt et av luka frå begge sider. Her var godset mellom to
 // delar minus ein komma tre millimeter: dei to kutta gjekk i kvarandre.
 sjekk("breitt snitt", {
-  ...DEFAULT_PARAMS, kjelde: "kule", snitt: 6, tjukn: 12,
+  ...GRUNN, kjelde: "kule", snitt: 6, tjukn: 12,
   storleik: 400, arkB: 1200, arkH: 900,
 })
 
@@ -428,11 +428,11 @@ sjekk("breitt snitt", {
 // for stor, og ei prøve der halvparten av delane ligg utanfor prøver
 // spilt og ikkje snittet.
 sjekk("same objekt, smalt snitt", {
-  ...DEFAULT_PARAMS, kjelde: "kule", storleik: 420, plan: nett(8, 8), snitt: 0.2,
+  ...GRUNN, kjelde: "kule", storleik: 420, plan: nett(8, 8), snitt: 0.2,
   arkB: 800, arkH: 600,
 })
 sjekk("same objekt, breitt snitt", {
-  ...DEFAULT_PARAMS, kjelde: "kule", storleik: 420, plan: nett(8, 8), snitt: 6,
+  ...GRUNN, kjelde: "kule", storleik: 420, plan: nett(8, 8), snitt: 6,
   arkB: 800, arkH: 600,
 })
 

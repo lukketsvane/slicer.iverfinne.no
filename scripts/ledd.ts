@@ -336,7 +336,7 @@ const SAKER: [string, Partial<Params>][] = [
   }],
 ]
 
-for (const [namn, over] of SAKER) sjekk(namn, { ...DEFAULT_PARAMS, ...over })
+for (const [namn, over] of SAKER) sjekk(namn, { ...GRUNN, ...over })
 
 console.log(brot ? `\n${brot} brot` : "\nalle ledd står i profilane")
 process.exit(brot ? 1 : 0)

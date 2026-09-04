@@ -63,8 +63,8 @@ const main = async () => {
 
   const filer: { namn: string; svg: string }[] = []
   const saker: [string, Params][] = [
-    ["kube", DEFAULT_PARAMS],
-    ["egg", { ...DEFAULT_PARAMS, kjelde: "egg", plan: nett(8, 8), storleik: 200 }],
+    ["kube", GRUNN],
+    ["egg", { ...GRUNN, kjelde: "egg", plan: nett(8, 8), storleik: 200 }],
   ]
 
   for (const [namn, p] of saker) {
