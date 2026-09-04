@@ -20,7 +20,7 @@ export const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[]
   { id: "stl", label: "stl", hint: "delane som trekantnett, til rendering og 3D-print" },
   { id: "glb", label: "glb", hint: "det same nettet i meter, y opp: blender, sketchfab, nettlesaren" },
   { id: "usdz", label: "usdz", hint: "montasjen i rommet: del fila på ein iphone og set han på bordet" },
-  { id: "dxf", label: "dxf", hint: "alle delane nesta på plate, med snittkompensasjon" },
+  { id: "dxf", label: "dxf", hint: "dei same platene som r12-teikning, ei fil per plate" },
   { id: "svg", label: "svg", hint: "alle profilane ved sida av kvarandre, i 1:1" },
   { id: "ark", label: "ark", hint: "platene slik dei er pakka, ei fil per plate" },
   { id: "png", label: "png", hint: "dei same platene som bilete — til meldingar, ikkje til maskina" },

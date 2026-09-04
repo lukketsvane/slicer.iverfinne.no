@@ -20,7 +20,7 @@ import { kerfOf, MOTOR } from "../lib/motor"
 import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
 import { sheetSvg } from "../lib/export-svg"
-import { SHEET_GAP } from "../lib/export-dxf"
+import { sheetDxf } from "../lib/export-dxf"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
@@ -61,7 +61,17 @@ function pathPts(d: string): Pt[] {
     .map((q) => q.split(",").map(Number) as Pt)
 }
 
-type Steg = { grav: boolean; areal: number; y: number }
+type Steg = { grav: boolean; areal: number; y: number; bb: [number, number, number, number] }
+
+const boks = (pts: Pt[]): [number, number, number, number] =>
+  pts.length
+    ? [
+        Math.min(...pts.map((q) => q[0])),
+        Math.min(...pts.map((q) => q[1])),
+        Math.max(...pts.map((q) => q[0])),
+        Math.max(...pts.map((q) => q[1])),
+      ]
+    : [0, 0, 0, 0]
 
 function svgSteg(namn: string, svg: string): Steg[] {
   const out: Steg[] = []
@@ -69,7 +79,8 @@ function svgSteg(namn: string, svg: string): Steg[] {
   for (const m of svg.matchAll(/<path d="([^"]+)"([^>]*)>/g)) {
     const grav = GRAV_FARGE.test(m[2])
     fargar.add((m[2].match(/stroke="([^"]+)"/i)?.[1] ?? "").toLowerCase())
-    out.push({ grav, areal: grav ? 0 : shoelace(pathPts(m[1])), y: 0 })
+    const pts = pathPts(m[1])
+    out.push({ grav, areal: grav ? 0 : shoelace(pts), y: 0, bb: boks(pts) })
   }
   // To fargar, og ikkje ein til. Ein tredje farge er eit tredje lag i
   // LightBurn: eitt nokon må hugse å slå av, og eitt nokon ein dag
@@ -275,6 +286,7 @@ const steg = (lag: string, pts: Pt[]): Steg => ({
   grav: lag === "GRAVER",
   areal: lag === "GRAVER" ? 0 : shoelace(pts),
   y: pts.length ? Math.min(...pts.map((q) => q[1])) : 0,
+  bb: boks(pts),
 })
 
 // =============================================================================
@@ -361,18 +373,84 @@ function arkSteg(namn: string, p: Params): Steg[][] {
 }
 
 /**
- * DXF-en har alle platene i den same fila, stabla oppover med ei luke
- * imellom. Rekkjefylgda gjeld INNANFOR ei plate: at ramma til plate to
- * kjem etter kutta i plate ein er ikkje eit brot, det er neste plate.
+ * DXF-en er éi fil per plate, som kuttarket. Difor treng ingen å gjette
+ * kva plate ein entitet høyrer til lenger — han vert lesen ut av fila si.
+ *
+ * Han vert prøvd for to ting kuttarket alt vert prøvd for: at ingenting
+ * ligg utanfor plata, og at laga står i den orden fargen lovar.
  */
-function dxfPerArk(namn: string, dxf: string, arkH: number): Steg[][] {
-  const pitch = arkH + SHEET_GAP
-  const band: Steg[][] = []
-  for (const q of dxfSteg(namn, dxf)) {
-    const i = Math.max(0, Math.floor(q.y / pitch))
-    ;(band[i] ??= []).push(q)
+function dxfSteg1(namn: string, dxf: string, arkB: number, arkH: number): Steg[] {
+  // GRAVER FØR KUTT I LAGTABELLEN. Eit program som tek laga i den orden
+  // dei kjem, skal ta graveringa medan delen framleis sit fast i plata.
+  const lagOrden = [...dxf.matchAll(/\r\n2\r\n(GRAVER|KUTT)\r\n/g)].map((m) => m[1])
+  if (lagOrden[0] !== "GRAVER" || lagOrden[1] !== "KUTT") {
+    feil(namn, `lagtabellen står ${lagOrden.slice(0, 2).join(" før ") || "tom"}`)
   }
-  return band.filter(Boolean)
+  const steg = dxfSteg(namn, dxf)
+  // ALT SOM ER TEIKNA SKAL LIGGJE PÅ PLATA. Same regelen som
+  // `innanforRamma` held kuttarket til; ein DXF har inga viewBox, so
+  // plata sjølv er ramma. Plateomrisset ligg på kanten og skal so.
+  let ute = 0
+  let verst = 0
+  const t = dxf.split(/\r\n/)
+  for (let i = 0; i < t.length - 1; i += 2) {
+    if (t[i] === "10") {
+      const x = Number(t[i + 1])
+      const y = t[i + 2] === "20" ? Number(t[i + 3]) : 0
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+      const d = Math.max(-x, -y, x - arkB, y - arkH)
+      if (d > 1e-6) {
+        ute++
+        verst = Math.max(verst, d)
+      }
+    }
+  }
+  if (ute) feil(namn, `${ute} punkt ligg opptil ${verst.toFixed(2)} mm utanfor plata`)
+  return steg
+}
+
+/**
+ * DEI TO SKRIVARANE SKAL TEIKNE DET SAME.
+ *
+ * SVG-en og DXF-en les den same nestinga og skriv kvar sin fil, og
+ * `inventar` tel at dei har like mange kuttbaner. Men eit TAL er ikkje ei
+ * form: eit forteikn snudd i kompensasjonen gjev like mange baner, kvar
+ * del ein heil snittbreidd for lita og kvart spor ein snittbreidd for
+ * smalt — og på benken held ikkje rutenettet. Prøvd: eit snudd forteikn i
+ * `sheetDxf` gjekk gjennom kvar einaste hovudlaus vakt.
+ *
+ * So banene vert samanlikna, ikkje talde. Boksen fyrst — han flyttar seg
+ * ein halv snittbreidd når forteiknet snur, og han fangar ei fil som er
+ * spegla, flytta eller skalert til tommar — og arealet etterpå.
+ *
+ * FORTEIKNET SKAL VERA DET SAME. Kuttarket speglar Y i ei gruppe og let
+ * hjørna stå, so dei to filene har den same vindinga; å normalisere det
+ * bort ville kaste den lettaste av alle prøvene.
+ *
+ * TOLEGRENSA ER KVANTISERINGA: SVG-en skriv to desimalar og DXF-en fire,
+ * og på ei ribbe med sytti hjørne er det opp mot halvanna kvadratmillimeter
+ * støy. Fem er seksti gonger over støyen og seksti gonger under signalet.
+ */
+function toSkrivarar(namn: string, svg: Steg[], dxf: Steg[]) {
+  // PARA ETTER STAD, IKKJE ETTER AREAL. Ein torus med førti ribber har
+  // mange heilt like delar: sorterer ein på areal, byter dei plass med
+  // kvarandre mellom dei to listene, og prøva samanliknar to ulike baner.
+  // Hjørnet av boksen er det same i begge filene når filene er like.
+  const kutt = (q: Steg[]) =>
+    q
+      .filter((r) => !r.grav)
+      .sort((a, b) => a.bb[0] - b.bb[0] || a.bb[1] - b.bb[1] || a.areal - b.areal)
+  const a = kutt(svg)
+  const b = kutt(dxf)
+  if (a.length !== b.length) return feil(namn, `${a.length} kuttbaner i svg, ${b.length} i dxf`)
+  let verstBoks = 0
+  let verstAreal = 0
+  for (let i = 0; i < a.length; i++) {
+    for (let j = 0; j < 4; j++) verstBoks = Math.max(verstBoks, Math.abs(a[i].bb[j] - b[i].bb[j]))
+    verstAreal = Math.max(verstAreal, Math.abs(a[i].areal - b[i].areal))
+  }
+  if (verstBoks > 0.01) feil(namn, `boksane skil ${verstBoks.toFixed(3)} mm mellom svg og dxf`)
+  else if (verstAreal > 5) feil(namn, `areala skil ${verstAreal.toFixed(2)} mm² mellom svg og dxf`)
 }
 
 // =============================================================================
@@ -445,8 +523,12 @@ for (const [namn, p] of saker) {
   const prof = MOTOR.exportFile(bag, "svg").text ?? ""
   innanforRamma(`${namn} · profilar`, prof)
   sjekkSteg(`${namn} · profilar`, svgSteg(`${namn} · profilar`, prof))
-  const dxf = dxfPerArk(`${namn} · dxf`, MOTOR.exportFile(bag, "dxf").text ?? "", p.arkH)
+  const { ns } = makeBygg(p, DETAIL.mid)
+  const dxf = ns.sheets.map((_, i) =>
+    dxfSteg1(`${namn} · dxf ${i + 1}`, sheetDxf(ns, i, kerfOf(p)), p.arkB, p.arkH),
+  )
   dxf.forEach((steg, i, all) => sjekkSteg(`${namn} · dxf ${i + 1}/${all.length}`, steg))
+  dxf.forEach((steg, i) => toSkrivarar(`${namn} · ark ${i + 1} · to skrivarar`, ark[i] ?? [], steg))
   inventar(namn, p, ark, dxf)
 }
 

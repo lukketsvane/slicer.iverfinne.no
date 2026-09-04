@@ -20,54 +20,57 @@
  * REKKJEFYLGDA: gravering fyrst, so dei innvendige kutta, og omrisset til
  * slutt. Ein del som er skoren laus før spora er skorne, ligg ikkje lenger
  * i plata når stråla kjem tilbake til han.
+ *
+ * EI PLATE, I EI FIL — same avgjerda som kuttarket tok i `export-svg.ts`,
+ * og DXF-en var den eine skrivaren som ikkje tok henne. Han stabla kvar
+ * plate 200 mm over den førre i den same teikninga, og då er ei heilt
+ * vanleg oppgåve utanfor bordet: ein kube med seks ganger seks plan på
+ * 600x400 vert 1200 mm hog, sju ganger sju vert 4200. Seks av sju plater
+ * ligg utanfor kva maskina kan setjast til, og fila seier det ingen stad.
+ * No er teikninga plata: $EXTMIN er hjørnet hennar og $EXTMAX er det andre
+ * hjørnet, og kva plate dette er, står i FILNAMNET slik det gjer for arket.
+ *
+ * Difor er overskrifta borte. Ho stod utanfor plata for ikkje å kunne
+ * brennast — men utanfor plata er òg utanfor bordet, og ho var det einaste
+ * som sa kva plate du såg på. Namnet seier det no, og seier det før du har
+ * opna fila.
+ *
+ * PLATEOMRISSET STÅR ATT, og det er skilnaden på ein DXF og ein SVG: ein
+ * SVG ber målet sitt sjølv, i `width` og `height`, so han treng ingen
+ * ramme. Ein DXF har ikkje noko laserprogram les på same viset, so ramma
+ * på GRAVER er den einaste greia i fila som seier kor plata ligg.
  */
 import { offsetPoly, type Pt } from "./core"
-import { fitSize, strokesAt, strokes } from "./stroke"
+import { fitSize, strokesAt } from "./stroke"
 import { placedRings, type Nesting } from "./nest"
 
-/** luka mellom arka i uttaket, mm */
-export const SHEET_GAP = 200
-
-export function partsToDxf(n: Nesting, plyT: number, kerf: number): string {
+/** Plate nummer `i` som ei heil R12-fil. Teikninga ER plata. */
+export function sheetDxf(n: Nesting, i: number, kerf: number): string {
   const out: string[] = []
   const h = kerf / 2
-  const pitch = n.sheetH + SHEET_GAP
+  const sheet = n.sheets[i]
 
-  head(out, n.sheetW, Math.max(1, n.sheets.length) * pitch)
+  head(out, n.sheetW, n.sheetH)
 
-  n.sheets.forEach((sheet, i) => {
-    const oy = i * pitch
-    // plateomrisset står på GRAVER: det er ei opplysning om kor plata
-    // ligg, ikkje ein kant nokon skal skjere
-    poly(out, "GRAVER", [
-      [0, oy],
-      [n.sheetW, oy],
-      [n.sheetW, oy + n.sheetH],
-      [0, oy + n.sheetH],
-    ])
-    // Overskrifta ligg UTANFOR plata. Ho er til den som opnar fila, ikkje
-    // til stråla — og ligg ho utanfor, kan ho ikkje brennast ved eit uhell.
-    for (const line of strokes(
-      `ARK ${i + 1}/${n.sheets.length}  ${fmt(plyT)} MM`,
-      0,
-      oy + n.sheetH + 24,
-      16,
-    )) {
-      poly(out, "GRAVER", line, false)
+  // plateomrisset står på GRAVER: det er ei opplysning om kor plata
+  // ligg, ikkje ein kant nokon skal skjere
+  poly(out, "GRAVER", [
+    [0, 0],
+    [n.sheetW, 0],
+    [n.sheetW, n.sheetH],
+    [0, n.sheetH],
+  ])
+  if (sheet) {
+    for (const q of sheet.placed) {
+      mark(out, q.part.adr, q.label.p[0], q.label.p[1], q.label)
     }
     for (const q of sheet.placed) {
-      mark(out, q.part.adr, q.label.p[0], q.label.p[1] + oy, q.label)
+      for (const hole of placedRings(q).holes) poly(out, "KUTT", offsetPoly(hole, -h))
     }
     for (const q of sheet.placed) {
-      for (const hole of placedRings(q).holes) {
-        poly(out, "KUTT", offsetPoly(hole.map(([x, y]) => [x, y + oy] as Pt), -h))
-      }
+      poly(out, "KUTT", offsetPoly(placedRings(q).outline, +h))
     }
-    for (const q of sheet.placed) {
-      const r = placedRings(q)
-      poly(out, "KUTT", offsetPoly(r.outline.map(([x, y]) => [x, y + oy] as Pt), +h))
-    }
-  })
+  }
 
   out.push("0", "ENDSEC", "0", "EOF")
   return out.join("\r\n") + "\r\n"
@@ -107,7 +110,6 @@ const centre = (poly: Pt[]): Pt => {
 // DXF-STILLAS
 // =============================================================================
 const f = (v: number) => (Math.abs(v) < 1e-9 ? "0.0" : v.toFixed(4))
-const fmt = (v: number) => String(+v.toFixed(2))
 
 function head(out: string[], w: number, h: number) {
   out.push(

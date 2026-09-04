@@ -182,7 +182,7 @@ async function flate(namn: string, w: number, h: number) {
     ["passprøve", /^passprove-.*\.svg$/],
     ["ark", /\.svg$|\.zip$/],
     ["png", /\.png$|\.zip$/],
-    ["dxf", /\.dxf$/],
+    ["dxf", /\.dxf$|\.zip$/],
     ["glb", /\.glb$/],
     ["usdz", /\.usdz$/],
     ["svg", /profilar\.svg$/],

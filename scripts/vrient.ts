@@ -427,10 +427,18 @@ console.log("det du lagrar er det du opnar")
     const lese = (JSON.parse(new TextDecoder().decode(opp.data)) as { p: ParamBag }).p
     const attende = parseMesh(nett.name.slice(5), new Uint8Array(nett.data).buffer.slice(0) as ArrayBuffer)
     put("v-attende", "attende", attende)
-    const b = MOTOR.exportFile({ ...lese, kjelde: "v-attende" }, "dxf").text ?? ""
-    const a = MOTOR.exportFile(bag, "dxf").text ?? ""
+    // DXF-en er éi fil per plate, og denne saka gjev sju av dei — altso
+    // ein ZIP. `.text` er tom då, og to tomme strengar er like: prøva
+    // hadde stått og sagt «same DXF: true» utan å prøve noko. So teksten
+    // vert henta ut av arkivet når det er eit arkiv, og prøva krev at ho
+    // finst.
+    const dxfTekst = (o: ReturnType<typeof MOTOR.exportFile>) =>
+      o.text ?? unzip(o.data as ArrayBuffer).map((f) => new TextDecoder().decode(f.data)).join("")
+    const b = dxfTekst(MOTOR.exportFile({ ...lese, kjelde: "v-attende" }, "dxf"))
+    const a = dxfTekst(MOTOR.exportFile(bag, "dxf"))
+    if (!a.length) feil("prosjekt", "DXF-en er tom — prøva ville ikkje prøvd noko")
     if (a !== b) feil("prosjekt", `DXF-en er ein annan etter opning (${a.length} mot ${b.length} teikn)`)
-    console.log(`  prosjekt: ${inni.length} filer, ${attende.tris} trekantar attende, same DXF: ${a === b}`)
+    console.log(`  prosjekt: ${inni.length} filer, ${attende.tris} trekantar attende, same DXF: ${a === b} (${a.length} teikn)`)
   }
 
   // og «alt» skal ha kvar einaste fil i seg
