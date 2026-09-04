@@ -35,10 +35,21 @@
  * som sa kva plate du såg på. Namnet seier det no, og seier det før du har
  * opna fila.
  *
- * PLATEOMRISSET STÅR ATT, og det er skilnaden på ein DXF og ein SVG: ein
- * SVG ber målet sitt sjølv, i `width` og `height`, so han treng ingen
- * ramme. Ein DXF har ikkje noko laserprogram les på same viset, so ramma
- * på GRAVER er den einaste greia i fila som seier kor plata ligg.
+ * OG PLATEOMRISSET ER BORTE MED HENNE. Det stod att ein runde til, med den
+ * grunngjevinga at ein DXF ikkje ber målet sitt slik ein SVG gjer det i
+ * `width` og `height`, so ramma var det einaste i fila som sa kor plata
+ * låg. Den grunnen fall same dagen: når teikninga ER plata, seier
+ * $EXTMIN og $EXTMAX kor ho ligg, og filnamnet seier kva for ei.
+ *
+ * Og ramma var ikkje ei opplysning. LightBurn kastar lagnamn og sorterer
+ * etter FARGE, so GRAVER — ACI 7, altso svart — kjem inn som C00: det
+ * fyrste laget, det fila sjølv ber om skal køyre fyrst. Ei lukka bane
+ * kring heile plata på det laget er to meter brend line rundt bordkanten
+ * til den som skjer. `export-svg.ts` argumenterte seg fram til dette tre
+ * filer unna — «eit lag nokon må hugse å slå av, og eit lag nokon ein dag
+ * gløymer å slå av» — og DXF-en var den eine skrivaren som ikkje høyrde
+ * etter. To fargar, og fargen er operasjonen: på GRAVER ligg det adresser
+ * og ikkje anna.
  */
 import { offsetPoly, type Pt } from "./core"
 import { fitSize, strokesAt } from "./stroke"
@@ -52,14 +63,6 @@ export function sheetDxf(n: Nesting, i: number, kerf: number): string {
 
   head(out, n.sheetW, n.sheetH)
 
-  // plateomrisset står på GRAVER: det er ei opplysning om kor plata
-  // ligg, ikkje ein kant nokon skal skjere
-  poly(out, "GRAVER", [
-    [0, 0],
-    [n.sheetW, 0],
-    [n.sheetW, n.sheetH],
-    [0, n.sheetH],
-  ])
   if (sheet) {
     for (const q of sheet.placed) {
       mark(out, q.part.adr, q.label.p[0], q.label.p[1], q.label)
