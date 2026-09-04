@@ -1344,16 +1344,64 @@ async function skaletOgSovnen(browser: Browser) {
    * OG BERRE I KVILE. Står eit plan valt, er du midt i noko: det som står
    * framme er det du arbeider i, og det skal ikkje forsvinne under handa.
    */
-  await page.locator("[role=listbox][aria-label='plan'] [role=option]").first().locator("button").first().click().catch(async () => {
-    await page.locator(HOVUDLINA).click()
-    await page.waitForTimeout(400)
-    await page.locator("[role=listbox][aria-label='plan'] [role=option]").first().locator("button").first().click()
-  })
+  await page.mouse.move(190, 700)
+  await page.locator(HOVUDLINA).click()
+  await page.waitForTimeout(500)
+  await page.locator("[role=listbox][aria-label='plan'] [role=option]").first().locator("button").first().click()
+  await page.waitForTimeout(400)
+  // arket att: eit ope ark held det vake av seg sjølv, og då prøver vi ingenting
+  await page.locator(HOVUDLINA).click()
   await roleg(page, 600)
   await page.waitForTimeout(3200)
   const valt = await gjennomsikt()
   sjekk("med eit plan valt søv det ikkje", valt.sov === false && valt.tumme === 1, JSON.stringify(valt))
   sjekk("ingen konsollfeil kring skalet og søvnen", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await page.close()
+}
+
+/**
+ * DEN ANDRE FINGEREN.
+ *
+ * Nettlesaren lagar berre `click` av den FYRSTE fingeren på skjermen. Held
+ * du snitthandtaket med tommelen og trykkjer skjer med peikefingeren, er
+ * det andre trykket ikkje primært, og knappen høyrde det aldri — tommelen
+ * måtte sleppe det du nett hadde sikta inn.
+ *
+ * Vakta gjer nett det: tek handtaket med finger éin, dreg det, og trykkjer
+ * skjer med finger to. Målt på koden før dette var svaret ingen plan.
+ */
+async function andreFingeren(browser: Browser) {
+  console.log("\n=== den andre fingeren")
+  const { page, konsoll } = await opne(URL, browser, 390, 844)
+  const h = await page.locator("[data-handtak='flytt']").boundingBox()
+  const k = await page.getByRole("button", { name: "skjer", exact: true }).boundingBox()
+  sjekk("handtaket og skjer står begge på skjermen", !!h && !!k)
+  if (h && k) {
+    const cdp = await page.context().newCDPSession(page)
+    const pt = (x: number, y: number, id: number) => ({ x, y, id, radiusX: 5, radiusY: 5, force: 1 })
+    const hx = h.x + h.width / 2
+    const hy = h.y + h.height / 2
+    const kx = k.x + k.width / 2
+    const ky = k.y + k.height / 2
+    // finger éin tek handtaket og dreg snittet dit han vil ha det
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pt(hx, hy, 0)] })
+    for (let i = 1; i <= 8; i++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [pt(hx + 4 * i, hy, 0)] })
+      await page.waitForTimeout(20)
+    }
+    const foer = plana(page).length
+    // finger to trykkjer skjer, medan finger éin framleis held
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pt(hx + 32, hy, 0), pt(kx, ky, 1)] })
+    await page.waitForTimeout(80)
+    // CDP kan berre sleppe alle på ein gong; det er den ANDRE fingeren sitt
+    // trykk som skal telje, og han er ikkje primær same kva
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await cdp.detach()
+    await vent(page, (p) => lesPlan(p.plan).length === foer + 1)
+    sjekk("finger to skjer medan finger éin held handtaket", plana(page).length === foer + 1, `${foer} → ${plana(page).length} plan`)
+    sjekk("og berre eitt plan, ikkje to", plana(page).length === foer + 1, `${plana(page).length} plan`)
+  }
+  sjekk("ingen konsollfeil på den andre fingeren", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
   await page.close()
 }
 
@@ -1364,6 +1412,7 @@ const main = async () => {
   await symmetri(browser)
   await virvelen(browser)
   await handtaka(browser)
+  await andreFingeren(browser)
   await skaletOgSovnen(browser)
   await taket(browser)
   await flyt(browser)
