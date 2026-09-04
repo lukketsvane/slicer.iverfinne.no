@@ -118,12 +118,21 @@ pnpm tung     # a million triangles in, and how long that takes
 pnpm ark      # cut sheets as images
 pnpm look     # screenshots of the page, and any console errors
 pnpm panel    # the controls in a real browser: both surfaces, gestures, keys
+pnpm panel boyen   # ONE section of it — the full run is 3.5 minutes, one part is seconds
 ```
 
 The headless ones (`probe` through `tak`) are fast and must stay green. Point
-`pnpm look` and `pnpm panel` at `next start` on port 3210, never at the dev
-server: they drive a real browser for minutes, and HMR reloading the page
-underneath produces failures that look exactly like real ones.
+`pnpm look` and `pnpm panel` at `next start` on port 3210 (`URL=...`), never at
+the dev server: they drive a real browser for minutes, and HMR reloading the
+page underneath produces failures that look exactly like real ones.
+
+`pnpm panel` is 3.5 minutes and `telefon` is half of it, so while you are
+iterating run the one section you touched — `pnpm panel boyen sider` — and the
+whole thing once before pushing. Each section prints what it cost; those are
+the numbers to argue from. The sections are deliberately serial: several checks
+measure TIME (a number within five seconds, a cut within two, the chrome dozing
+after two), and a tap through CDP reads as a long press when the main thread is
+behind, so parallel pages would break those on busyness rather than on code.
 
 Changing geometry, exports or rules without running the harness that covers it
 is the one thing this project has no way to catch later.

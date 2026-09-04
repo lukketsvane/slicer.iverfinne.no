@@ -18,7 +18,9 @@ import { meshToStl } from "../lib/export-stl"
 import { glb } from "./glbfil"
 import { rutenett, skrivPlan } from "../lib/plan"
 
-const URL = process.argv[2] ?? "http://127.0.0.1:3210"
+// adressa frå miljøet, som i `panel`: eitt argument som tyder to ting er
+// eitt argument for mykje
+const URL = process.env.URL ?? process.argv[2] ?? "http://127.0.0.1:3210"
 const HOVUDLINA = "[aria-label='plan, delar, ark og tid']"
 const UT = "bilete"
 

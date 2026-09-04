@@ -16,7 +16,13 @@ import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
 import { FORMER } from "../lib/scene"
 import type { Params } from "../lib/params"
 
-const URL = process.argv[2] ?? "http://127.0.0.1:3210"
+/**
+ * KVAR SIDA STÅR, og kva delar som skal køyrast. Argumenta er delenamn;
+ * adressa kjem frå miljøet, av di ho er den same kvar gong og delenamna
+ * ikkje er det. Ei adresse som fyrste argument ville tydd at «boyen» var
+ * ein tenar.
+ */
+const URL = process.env.URL ?? process.env.PANEL_URL ?? "http://127.0.0.1:3210"
 const HOVUDLINA = "[aria-label='plan, delar, ark og tid']"
 
 let feil = 0
@@ -1552,21 +1558,61 @@ async function boyen(browser: Browser) {
   await page.close()
 }
 
+/**
+ * DELANE, SOM DATA OG IKKJE SOM TOLV LINER.
+ *
+ * Panelet driv ein ekte nettlesar i minutt, og han vert køyrd om att for
+ * kvar minste endring. Å køyre ALT for å prøve éin knapp er å vente på
+ * elleve delar som ikkje vart rørte — og ventinga er lang nok til at ein
+ * sluttar å køyre han i det heile, som er den verste utgangen.
+ *
+ *   pnpm panel            heile panelet
+ *   pnpm panel boyen      berre bøyen
+ *   pnpm panel boyen sider   to delar
+ *
+ * Kvar del seier kor lang tid ho tok. Det er tala ein treng for å vite kva
+ * som er verdt å korte ned; utan dei er «panelet er treg» ei kjensle.
+ *
+ * Delane er IKKJE parallelle med vilje. Fleire av vaktene måler TID — at
+ * fyrste talet står innan fem sekund, at skjer svarar innan to, at
+ * grensesnittet søv etter to — og eit trykk gjennom CDP les seg som langt
+ * om hovudtråden ligg bak. Fire sider på ein gong deler éin prosessor, og
+ * då ryk dei vaktene av travelheita og ikkje av koden.
+ */
+const DELAR: [string, (b: Browser) => Promise<void>][] = [
+  ["telefon", telefon],
+  ["reglar", reglar],
+  ["symmetri", symmetri],
+  ["virvelen", virvelen],
+  ["handtaka", handtaka],
+  ["andrefingeren", andreFingeren],
+  ["boyen", boyen],
+  ["skalet", skaletOgSovnen],
+  ["taket", taket],
+  ["flyt", flyt],
+  ["mork", mork],
+  ["benk", benk],
+]
+
 const main = async () => {
+  const bedne = process.argv.slice(2).map((a) => a.toLowerCase())
+  const ukjend = bedne.filter((a) => !DELAR.some(([n]) => n === a))
+  if (ukjend.length) {
+    console.error(`ukjend del: ${ukjend.join(", ")}\nvel mellom: ${DELAR.map(([n]) => n).join(" ")}`)
+    process.exit(2)
+  }
+  const kjor = DELAR.filter(([n]) => !bedne.length || bedne.includes(n))
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
-  await telefon(browser)
-  await reglar(browser)
-  await symmetri(browser)
-  await virvelen(browser)
-  await handtaka(browser)
-  await andreFingeren(browser)
-  await boyen(browser)
-  await skaletOgSovnen(browser)
-  await taket(browser)
-  await flyt(browser)
-  await mork(browser)
-  await benk(browser)
+  const tider: string[] = []
+  const t00 = Date.now()
+  for (const [namn, fn] of kjor) {
+    const t0 = Date.now()
+    await fn(browser)
+    tider.push(`${namn} ${((Date.now() - t0) / 1000).toFixed(1)} s`)
+  }
   await browser.close()
+  console.log(`\n  ${tider.join("   ")}`)
+  console.log(`  til saman ${((Date.now() - t00) / 1000).toFixed(1)} s`)
   console.log(feil ? `\n${feil} FEIL` : "\npanelet held")
   process.exit(feil ? 1 : 0)
 }
