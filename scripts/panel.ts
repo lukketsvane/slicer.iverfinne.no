@@ -392,7 +392,33 @@ async function telefon(browser: Browser) {
   await liste.locator("[role=option]").first().locator("button").first().click()
   await page.waitForTimeout(300)
   const hol = page.getByRole("button", { name: "skjer hòl", exact: true })
-  sjekk("eit valt plan får «skjer hòl» og «legg til gods» under tommelen", (await hol.count()) === 1 && (await page.getByRole("button", { name: "legg til gods", exact: true }).count()) === 1)
+  const dubl = page.getByRole("button", { name: "dubler planet", exact: true })
+  sjekk("eit valt plan får «skjer hòl» og «dubler planet» under tommelen", (await hol.count()) === 1 && (await dubl.count()) === 1)
+  /**
+   * DUBLERINGA. Knappen stod for «legg til gods» og lagar no eit plan til:
+   * same normal, same strek, skuva eitt hakk langs normalen — og det NYE er
+   * det valde, av di du dublerer for å flytte kopien.
+   */
+  {
+    const fyrr = plana(page)
+    await dubl.click()
+    await vent(page, talPlan(fyrr.length + 1))
+    const etter = plana(page)
+    const ny = etter.find((q) => !fyrr.some((r) => r.id === q.id))
+    sjekk("dubleringa lagar eitt plan til", etter.length === fyrr.length + 1 && !!ny, `${fyrr.length} → ${etter.length}`)
+    if (ny) {
+      const gml = fyrr[0]
+      const same = ny.n.every((c, i) => Math.abs(c - gml.n[i]) < 1e-6)
+      const flytt = Math.hypot(...ny.o.map((c, i) => c - gml.o[i]))
+      sjekk("kopien har same normal, og ligg eit hakk unna", same && flytt > 1e-3, `flytt ${flytt.toFixed(4)}`)
+    }
+    await page.keyboard.press("z")
+    await vent(page, talPlan(fyrr.length))
+    await page.waitForTimeout(300)
+    await midt(page)
+    await liste.locator("[role=option]").first().locator("button").first().click()
+    await page.waitForTimeout(300)
+  }
   const planFør = plana(page)[0]
   await hol.click()
   await vent(page, (p) => lesPlan(p.plan)[0]?.strek.length === 1)

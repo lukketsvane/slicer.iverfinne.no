@@ -14,7 +14,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoDupliser, IcoFerdig, IcoGods, IcoHol, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
+import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoDupliser, IcoFerdig, IcoHol, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -786,6 +786,37 @@ export function Studio() {
     })
     setBlink(id)
   }, [speil])
+  /**
+   * DUPLISER DET VALDE PLANET.
+   *
+   * Same normal, same strek, skuva eitt hakk langs normalen sin so det ikkje
+   * vert liggjande oppi det du kopierte. Hakket er to platetjukner, i BRØK
+   * av kroppen — plana bur i brøk, og eit tal i millimeter ville flytta seg
+   * når du skalerte kroppen. Det nye planet vert valt: du dupliserer for å
+   * flytte kopien, ikkje for å sjå på henne.
+   */
+  const dupliserPlan = useCallback((id: number) => {
+    const k = kroppRef.current
+    if (!k) return
+    const l = lesPlan(naa.current.plan)
+    const j = l.findIndex((q) => q.id === id)
+    if (j < 0) return
+    if (l.length >= PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+    const t = typeof naa.current.tjukn === "number" ? naa.current.tjukn : 6
+    const q = l[j]
+    const o = q.o.map((c, a) => {
+      const vidd = Math.max(1e-6, k.max[a] - k.min[a])
+      return Math.min(1, Math.max(0, +(c + (q.n[a] * 2 * t) / vidd).toFixed(4)))
+    }) as Vec3
+    const ny = nyId(l)
+    setParams((cur) => {
+      const m = lesPlan(cur.plan)
+      if (m.length >= PLAN_TAK) return cur
+      return { ...cur, plan: skrivPlan([...m, { id: nyId(m), o, n: q.n, strek: q.strek }]) }
+    })
+    setVald(ny)
+    setBlink(ny)
+  }, [])
   /** eit plan flytt eller vinkla om av fingrane — gjennom parametrane, so angre og lenkja gjeld */
   const flyttPlan = useCallback((id: number, o: Vec3, n: Vec3) => {
     setParams((cur) => {
@@ -1286,12 +1317,12 @@ export function Studio() {
                   `Streka` står berre i rommet. */}
               <button
                 type="button"
-                aria-label="legg til gods"
-                title="legg til gods: ein firkant midt i snittet. flytt, vri og dra han større"
-                onClick={() => leggStrek("gods")}
+                aria-label="dubler planet"
+                title="eitt plan til, likt dette, skuva eit hakk langs normalen"
+                onClick={() => dupliserPlan(vald)}
                 className={TUMME_BTN}
               >
-                {IcoGods}
+                {IcoDupliser}
               </button>
               <button
                 type="button"
