@@ -140,6 +140,25 @@ export type Snitt = {
   k: Kropp
   ribber: Ribbe[]
   ledd: number
+  /**
+   * MØTE SOM VART NEKTA AV SKULDRA.
+   *
+   * To plan kryssar, overlappet er langt nok — og so er det ikkje gods nok
+   * ved sida av sporet til at noko held. Då vert møtet kasta, og det er
+   * rett: eit spor utan skulder er ikkje eit ledd, det er ei kløft ribba
+   * sig gjennom.
+   *
+   * Men det skjedde i STILLE. Målt på dei ti innebygde formene med eit
+   * rutenett: 272 av 1186 møte, altso 23 %, og på stolform-02 seks av ti.
+   * Eit rutenett på ein kube kastar ingen, og det er difor ingen såg det:
+   * du siktar mot ei krysning, skissa teiknar merket, og leddet finst ikkje.
+   * README seier at reiskapen skjer kva som helst men SEIER kva han skar.
+   *
+   * Berre skuldra vert talt her. Eit for kort overlapp og to plan under fem
+   * grader frå parallelle er andre avvisingar med kvar sin grunn, og tre
+   * ulike ting i eitt tal er eit tal som seier mindre enn namnet sitt.
+   */
+  avvist: number
   /** stykke som vart kasta av di dei ikkje hang i eit einaste ledd */
   kasta: number
   slotW: number
@@ -497,6 +516,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
   // den ytste ribba ut av eit stort objekt.
   const skulder = (w: number) => w / 2 + Math.min(6, Math.max(2, p.tjukn / 2))
   let ledd = 0
+  let avvist = 0
   const retning: Record<number, Vec3 | null> = {}
   const brot: number[] = []
   const til2 = (r: Ramme, q: Vec3): Pt => [dot(q, r.u), dot(q, r.v)]
@@ -599,8 +619,10 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
         // og A sin munn er der B kjem frå
         const munnB = retn < 0 ? lo : hi
         const munnA = retn < 0 ? hi : lo
-        if (!rom(A, pA, dA, (zm + munnA) / 2, skulder(w))) continue
-        if (!rom(B, pB, dB, (zm + munnB) / 2, skulder(w))) continue
+        if (!rom(A, pA, dA, (zm + munnA) / 2, skulder(w)) || !rom(B, pB, dB, (zm + munnB) / 2, skulder(w))) {
+          avvist++
+          continue
+        }
         treff++
         A.spor.push({ p: pA, d: dA, munn: munnA, botn: zm, ut: klar(A, pA, dA, munnA, munnA > zm, w), w, mot: B.plan.id, nokkel, lo, hi })
         B.spor.push({ p: pB, d: dB, munn: munnB, botn: zm, ut: klar(B, pB, dB, munnB, munnB > zm, w), w, mot: A.plan.id, nokkel, lo, hi })
@@ -714,6 +736,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     k,
     ribber,
     ledd,
+    avvist,
     kasta,
     slotW,
     minGap,

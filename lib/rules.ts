@@ -160,7 +160,7 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     hard: true,
     ok: m.joints > 0,
     value: `${nn(m.joints)} ledd`,
-    why: "Utan eit einaste kryssledd er dette ikkje eit objekt, men ein bunke laust liggjande plater. Vanlegaste grunnen er at plana ikkje kryssar kvarandre der kroppen har gods, eller at det står for få av dei til at nokon møtest. Rutenettet på lina set kolonner og rader med to fingrar.",
+    why: "Utan eit einaste kryssledd er dette ikkje eit objekt, men ein bunke laust liggjande plater. Vanlegaste grunnen er at plana ikkje kryssar kvarandre der kroppen har gods, eller at det står for få av dei til at nokon møtest. Er nokre avviste, kryssa dei — men det stod for lite gods ved sida av sporet til at noko heldt. Rutenettet på lina set kolonner og rader med to fingrar.",
   })
 
   // --- 2 delane finst (hard) --------------------------------------------------
