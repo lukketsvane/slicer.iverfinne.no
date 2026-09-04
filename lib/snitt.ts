@@ -35,7 +35,7 @@ import { bbox, inRing, MATERIALS, MIN_AREA, perimeter, shoelace, type Material, 
 import { contour, simplify } from "./contour"
 import type { Solid, Span } from "./mesh/solid"
 import { rull, vend, type Kropp } from "./kropp"
-import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, skrivPlan, type Plan, type Ramme, type Strek } from "./plan"
+import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, norm3, skrivPlan, type Plan, type Ramme, type Strek } from "./plan"
 import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 
 /**
@@ -917,6 +917,20 @@ export function skisseSyn(k: Kropp, p: Params, pl: Plan, cells: number): SkisseS
     const laast = laastSyn(k, p, pl, cells)
     if (laast) return laast
   }
+  /**
+   * SKISSA SPØR OM DEN SAME RETNINGA SOM SIST.
+   *
+   * Normalen kjem rett frå kameraet, med kvart siffer eit flyttal har, og
+   * `vend` hugsar på fire desimalar. So kvar einaste ramme medan fingeren
+   * står på skjermen var ein ny nøkkel: heile nettet snudd og to
+   * søppelrutenett bygde om att — og kvar bom kasta ei av dei retningane
+   * dei LÅSTE plana treng.
+   *
+   * Dei låste er alt runda til fire desimalar, i `lesPlan`. Skissa vert
+   * runda til det same her, so ho spør om ei retning ho kan få svar på, og
+   * so ho ikkje er ein tiandedels promille frå det ho spurde om sist.
+   */
+  pl = { ...pl, n: norm3(pl.n).map((c: number) => +c.toFixed(4)) as Vec3 }
   const s = k.solid
   const span = Math.max(s.max[0] - s.min[0], s.max[1] - s.min[1], s.max[2] - s.min[2], 1)
   const step = span / cells

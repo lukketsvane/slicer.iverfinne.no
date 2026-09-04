@@ -23,10 +23,11 @@
  *   npx tsx scripts/tak.ts
  */
 import { MOTOR } from "../lib/motor"
+import { vendNull, vendTal } from "../lib/kropp"
 import { put } from "../lib/sources"
 import { makeSoup } from "../lib/soup"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
-import { PLAN_TAK, lesPlan, rutenett, skrivPlan } from "../lib/plan"
+import { PLAN_TAK, lesPlan, rutenett, skrivPlan, virvel } from "../lib/plan"
 import type { ParamBag } from "../lib/core"
 
 let brot = 0
@@ -188,6 +189,57 @@ if (halv && siste && halv !== siste && siste.n === halv.n * 2) {
   const bag = { ...GRUNN, plan: skrivPlan(rutenett(PLAN_TAK / 2, PLAN_TAK / 2)) } as unknown as ParamBag
   const ark = MOTOR.exportFile(bag, "ark")
   ok("og kuttfila kjem ut av det", (ark.data?.byteLength ?? ark.text?.length ?? 0) > 0, `${ark.name}`)
+}
+
+/**
+ * OG VIRVELEN, SOM ER DET ANDRE RIBBESPRÅKET.
+ *
+ * Eit rutenett har TO retningar same kor mange plan det har; ein virvel har
+ * EI PER RIBBE. `vend` snur heile nettet per retning og hugsar svaret, so
+ * rutenettet betaler den snuinga to gonger og virvelen n gonger — med
+ * mindre hugsen held. Han heldt ikkje: taket stod på tolv oppslag, og over
+ * det fall han i FIFO-fella der same bygget går gjennom retningane i same
+ * rekkjefylgja og alltid kastar den eldste rett før han skal brukast att.
+ * Målt før rettinga: null treff og førti bom på tjue ribber.
+ *
+ * Vakta er difor FORMA på kostnaden per plan. Held hugsen, kostar ein
+ * virvel med fire gonger så mange ribber om lag fire gonger så mykje — det
+ * er berre fleire plan å snitte. Fell han attende i fella, betaler kvar
+ * ribbe ei heil vending av nettet, og talet per plan spring.
+ */
+{
+  const virvelMaal = (n: number) => maal(skrivPlan(virvel(n, 0.25, [1, 1])))
+  const lite = virvelMaal(8)
+  const stort = virvelMaal(32)
+  const perLite = lite.ms / Math.max(1, lite.plan)
+  const perStort = stort.ms / Math.max(1, stort.plan)
+  console.log(
+    `\n  virvel: ${lite.plan} ribber ${lite.ms} ms (${perLite.toFixed(1)} ms/plan) · ` +
+      `${stort.plan} ribber ${stort.ms} ms (${perStort.toFixed(1)} ms/plan)`,
+  )
+  /**
+   * OG PRØVA ER BOMMANE, IKKJE TIDA.
+   *
+   * Prøvekroppen her er liten med vilje, og å snu fem tusen trekantar
+   * kostar knapt noko — ein terskel på millisekund ville drukna i støy og
+   * stått grøn med heile fella attende. Talet på bom er eksakt og likt på
+   * kvar maskin: byggjer du DET SAME plansettet ein gong til, skal `vend`
+   * ikkje snu nettet ein einaste gong.
+   */
+  const plan32 = skrivPlan(virvel(32, 0.25, [1, 1]))
+  // Eit IDENTISK bygg til når aldri fram til `vend`: heile snittet er
+  // hugsa på `snittKey`. Det som skal målast er redigeringssløyfa — ein
+  // finger på tjukna, som byggjer om alt NEDANFOR vendinga men spør om
+  // nøyaktig dei same retningane.
+  MOTOR.measure({ ...GRUNN, plan: plan32 } as unknown as ParamBag)
+  vendNull()
+  MOTOR.measure({ ...GRUNN, plan: plan32, tjukn: 3.5 } as unknown as ParamBag)
+  const t = vendTal()
+  ok(
+    "eit drag i tjukna snur ikkje nettet på nytt",
+    t.bom === 0 && t.treff > 0,
+    `${t.treff} treff · ${t.bom} bom på 32 ribber`,
+  )
 }
 
 console.log(brot ? `\n${brot} brot på taket` : "\ntaket held")
