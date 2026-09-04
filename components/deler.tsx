@@ -61,6 +61,13 @@ export const ICON_BTN =
   "hit ikon relative flex h-9 w-9 shrink-0 items-center justify-center"
 export const CHIP =
   "hit min-h-[36px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] disabled:opacity-30"
+/**
+ * OG EIT ORD ER EIN KNAPP. Sjå `.ord` i `globals.css`: same tilstandane som
+ * ikonet, utan ringen og den fylte flata. Lesemåtane i toppen og
+ * speglingane over skjer er ord, ikkje piller.
+ */
+export const ORD =
+  "hit ord min-h-[36px] text-[11px] leading-none tracking-[0.04em]"
 export function chipStyle(active: boolean): CSSProperties {
   return active
     ? { background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }
@@ -122,6 +129,17 @@ export const IcoHol = (
   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
     <circle cx="12" cy="12" r="8" />
     <path d="M8.5 12h7" />
+  </svg>
+)
+/**
+ * SKALET: kroppen slik han var, teikna gjennomsiktig kring delane.
+ * Ikonet er den saka: eit stipla omriss — det som ikkje vert skore — med
+ * ribbene i fullt blekk inni.
+ */
+export const IcoSkal = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4.5" width="18" height="15" rx="1.5" strokeWidth={1.5} strokeDasharray="3 2.6" />
+    <path d="M8 8.5v7M12 8.5v7M16 8.5v7" strokeWidth={2.2} />
   </svg>
 )
 /** verktyet for kroppen: bitane som ein boks */

@@ -2,7 +2,7 @@
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { GizmoHelper, GizmoViewcube, OrbitControls } from "@react-three/drei"
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react"
 import * as THREE from "three"
 import { MATERIALS, inRing, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
 import { akser, broek, dot, inn, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
@@ -448,9 +448,11 @@ const SNAPP_PX = 4
 /** snittet i verda, til handtaka: midten av det største stykket, og punkta på ringane (tynna) */
 type SnittVerd = { midt: THREE.Vector3; punkt: THREE.Vector3[] }
 
-function Handa({ f, fri, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
+function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
   f: Ramma | null
   fri: ReturnType<typeof fritt>
+  /** grensesnittet søv: skissa fell bort med resten */
+  sov: boolean
   modus: Modus
   vald: number | null
   plan: readonly Plan[]
@@ -1336,12 +1338,14 @@ function Handa({ f, fri, modus, vald, plan, snitt, skisse, boks, storleik, valdS
   // ei tynn line. Råkar skissa ikkje kroppen, er lina alt du ser av henne.
   return (
     <group ref={gruppe} visible={false}>
-      <mesh geometry={boksFlate} renderOrder={2} frustumCulled={false}>
-        <meshBasicMaterial color={SKISSE} transparent opacity={0.06} depthWrite={false} side={THREE.DoubleSide} />
-      </mesh>
-      <lineSegments geometry={boksKant} renderOrder={3} frustumCulled={false}>
-        <lineBasicMaterial color={SKISSE} transparent opacity={0.4} depthTest={false} />
-      </lineSegments>
+      <Sovnen sov={sov}>
+        <mesh geometry={boksFlate} renderOrder={2} frustumCulled={false}>
+          <meshBasicMaterial color={SKISSE} transparent opacity={0.06} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+        <lineSegments geometry={boksKant} renderOrder={3} frustumCulled={false}>
+          <lineBasicMaterial color={SKISSE} transparent opacity={0.4} depthTest={false} />
+        </lineSegments>
+      </Sovnen>
     </group>
   )
 }
@@ -1502,11 +1506,13 @@ function Demping({ onSein }: { onSein: (sein: boolean) => void }) {
 }
 
 /** kroppen og delane, i kroppen si ramme */
-function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, blink, sein, onVald }: {
+function Kroppen({ f, kropp, lag, view, skal, material, liste, vald, plan, blink, sein, onVald }: {
   f: Ramma
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
+  /** skalet: kroppen slik han var, gjennomsiktig kring delane */
+  skal: boolean
   material: string
   liste: readonly Kutt[]
   vald: number | null
@@ -1635,7 +1641,7 @@ function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, blink, sein
         andre riven, og materialet fylgjer med.
       */}
       {gKropp && solid && <mesh geometry={gKropp} material={surf} castShadow receiveShadow />}
-      {gKropp && !solid && (
+      {gKropp && !solid && skal && (
         // skuggen av kroppen. Ikkje til å peike på: han ligg utanpå delane
         // og ville teke kvart einaste trykk.
         <mesh geometry={gKropp} raycast={() => null} renderOrder={1}>
@@ -1744,6 +1750,65 @@ function Kamerataket({ ut }: { ut: MutableRefObject<((f: number) => void) | null
   return null
 }
 
+/**
+ * SØVNEN, I LERRETET.
+ *
+ * Toppen og spaltene er DOM og fell bort med ein overgang i stilarket.
+ * Synskuben og snittet er GEOMETRI, og der finst ingen overgang: dei ville
+ * blunka bort medan alt anna glei, og eitt einaste blunk er nok til at det
+ * ser ut som ein feil og ikkje ei avgjerd.
+ *
+ * Denne gjer det same for dei. Ho går gjennom gruppa kvar teikning og
+ * skriv gjennomsikta på materiala, med dei same tidene som stilarket: eit
+ * halvt sekund ut, nitti millisekund inn. Den fyrste gjennomsikta kvart
+ * material hadde vert hugsa, so eit snitt som ALT var bleikt ikkje vert
+ * fullt blekk på vegen attende.
+ */
+function Sovnen({ sov, children }: { sov: boolean; children: ReactNode }) {
+  const grp = useRef<THREE.Group>(null)
+  const naa = useRef(1)
+  const grunn = useRef(new WeakMap<THREE.Material, number>())
+  const invalidate = useThree((s) => s.invalidate)
+  useEffect(() => { invalidate() }, [sov, invalidate])
+  useFrame((_, dt) => {
+    const g = grp.current
+    if (!g) return
+    // Ei RAMPE og ikkje ei utglatting: ei utglatting har inga slutt, og
+    // eit snitt som ligg att på ein prosent er eit snitt som står der.
+    // Tida er den same som i stilarket; kurva er `ease`, rekna på rampa.
+    const maal = sov ? 0 : 1
+    if (naa.current !== maal) {
+      const steg = Math.min(1, dt) / (sov ? 0.5 : 0.09)
+      naa.current = sov ? Math.max(0, naa.current - steg) : Math.min(1, naa.current + steg)
+      invalidate()
+    }
+    const t = naa.current
+    const a = t * t * (3 - 2 * t)
+    g.visible = a > 0.002
+    if (!g.visible) return
+    g.traverse((o) => {
+      const m = (o as THREE.Mesh).material
+      for (const q of Array.isArray(m) ? m : m ? [m] : []) {
+        let b = grunn.current.get(q)
+        if (b === undefined) {
+          b = q.opacity
+          grunn.current.set(q, b)
+        }
+        q.transparent = b < 1 || a < 1
+        q.opacity = b * a
+      }
+    })
+  })
+  return <group ref={grp}>{children}</group>
+}
+
+/** skalet: eit stipla omriss — det som ikkje vert skore — med ribbene inni */
+const IkonSkal = (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4.5" width="18" height="15" rx="1.5" strokeWidth={1.5} strokeDasharray="3 2.6" />
+    <path d="M8 8.5v7M12 8.5v7M16 8.5v7" strokeWidth={2.2} />
+  </svg>
+)
 /** lupa: dra opp og ned */
 const IkonLupe = (
   <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -1781,10 +1846,15 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
+  /** skalet kring delane, og brytaren for det */
+  skal: boolean
+  onSkal: () => void
+  /** grensesnittet søv: synskuben og snittet fell bort med resten */
+  sov: boolean
   modus: Modus
   material: string
   rute: Rute
@@ -1863,9 +1933,13 @@ export const Scene = memo(function Scene({ kropp, lag, view, modus, material, ru
         <directionalLight position={[2, 1.5, 7]} intensity={0.35} />
         <directionalLight position={[0.5, -3, 2]} intensity={0.3} />
         <group position={[0, GROUND_Y, 0]}>
-          {f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} material={material} liste={liste} vald={vald} plan={plan} blink={blink} sein={sein} onVald={onVald} />}
+          {f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} skal={skal} material={material} liste={liste} vald={vald} plan={plan} blink={blink} sein={sein} onVald={onVald} />}
           {f && modus === "bit" && bitar.length > 0 && <Bitboksar f={f} bitar={bitar} vald={valdBit} />}
-          {f && snitt && snitt.ringar.length > 0 && <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />}
+          {f && snitt && snitt.ringar.length > 0 && (
+            <Sovnen sov={sov}>
+              <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />
+            </Sovnen>
+          )}
           {f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[60, 60]} />
@@ -1880,20 +1954,22 @@ export const Scene = memo(function Scene({ kropp, lag, view, modus, material, ru
           ikkje under kontrollane.
         */}
         <GizmoHelper alignment="top-right" margin={[rute.hogre + 38, rute.topp + 38]}>
-          <group scale={KUBE_SKALA}>
-            <GizmoViewcube
-              faces={SIDEORD}
-              color={tema.paper}
-              textColor={tema.ink}
-              strokeColor={tema.ink}
-              hoverColor={KUBE_HOVER}
-              opacity={0.92}
-              font="26px Inter, ui-sans-serif, system-ui, sans-serif"
-            />
-          </group>
+          <Sovnen sov={sov}>
+            <group scale={KUBE_SKALA}>
+              <GizmoViewcube
+                faces={SIDEORD}
+                color={tema.paper}
+                textColor={tema.ink}
+                strokeColor={tema.ink}
+                hoverColor={KUBE_HOVER}
+                opacity={0.92}
+                font="26px Inter, ui-sans-serif, system-ui, sans-serif"
+              />
+            </group>
+          </Sovnen>
         </GizmoHelper>
         <Demping onSein={setSein} />
-        <Handa f={f} fri={fri} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
+        <Handa f={f} fri={fri} sov={sov} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
         {/* Kroppen snur heile vegen rundt — undersida er der ledda sit, og
             eit syn du ikkje kjem til er ein kontroll som manglar. */}
         <OrbitControls
@@ -1922,6 +1998,16 @@ export const Scene = memo(function Scene({ kropp, lag, view, modus, material, ru
         <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt" onClick={heim}>
           {IkonHeim}
         </button>
+        {/* SKALET. Kroppen slik han var ligg gjennomsiktig kring delane og
+            seier kor mykje av forma ribbene fangar. Han er òg det som står
+            mellom deg og dei når du vil sjå spora — difor ein brytar, her,
+            i spalta for det rommet SYNER. I «flate» er kroppen kroppen, og
+            då er det ingenting å slå av. */}
+        {view === "lag" && (
+          <button type="button" data-skal="" aria-pressed={skal} aria-label="skalet" title={skal ? "skalet: kroppen slik han var. trykk for å sjå berre delane" : "skalet er av: berre delane står. trykk for å sjå kroppen kring dei"} onClick={onSkal}>
+            {IkonSkal}
+          </button>
+        )}
         {/* LUPA: éin finger. Trykk og dra opp for å gå nærare, ned for å gå
             lenger unna — den same dollyen klypet gjer, for handa som held
             telefonen og berre har ein tommel ledig. */}

@@ -135,6 +135,29 @@ the closed end of its slot, on a hairline track showing how far it can travel.
 Drag one and that joint alone gets deeper — and the other half of the joint
 gets shallower by exactly as much, because both slots read one number off one
 line. `jamt` in the sheet's toolbar hands every joint back to the slider.
+**The chrome dozes.** Two seconds without a finger and everything that is not
+the object fades away — the top line, the thumb column, the sheet, the sketch
+handles, the view cube, the cut preview — and any movement brings it back in
+ninety milliseconds. Only *at rest*: with a plane or a stroke selected, a
+drawer open, the sheet up, a tool running, the sheet surface showing or the
+engine still working, you are in the middle of something and what is in front
+of you stays. While it is gone the interface takes no touches, which is why it
+only dozes at rest — the first tap then has nothing to hit on the object
+either, so it wakes and does nothing else.
+
+**Words, not pills.** The three views and the three mirror axes were rings with
+a filled pill under whichever one applied. The ring said nothing the word did
+not, and three filled shapes sat in the middle of the picture. They are words
+now, in the same ink the icons use: full ink when it applies, dimmed when it
+does not. The mirror axes moved to sit directly above `skjer`, which is what
+they change.
+
+**The shell has a switch.** In the parts view the body you started from is
+drawn transparent around the ribs, so you can see how much of the shape they
+catch. It is also what stands between you and the slots. The button under the
+reframe icon takes it away and puts it back; the link carries it, so a view you
+share is the view you sent. It changes no geometry and is not in the undo list.
+
 Keys: `L` cut, `S` sketch mode, `R` grid tool, `V` vortex, `⌫` remove the selected plane,
 `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type JSX } from "react"
 import type { View } from "@/lib/core"
 import { FORMAT } from "@/lib/io"
 import { PRIMITIV } from "@/lib/scene"
-import { CHIP, HAIR, ICON_BTN, IcoAngre, IcoGjerOm, IcoShare, VIEWS, chipStyle } from "./deler"
+import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./deler"
 
 /**
  * TOPPLINA. Det som ikkje skal ligge to steg ned i eit ark: angre og gjer
@@ -84,8 +84,7 @@ export function Toppline({ benk, kjelde, bitar, view, onView, onFile, onLegg, on
             aria-expanded={meny}
             aria-label="kroppen"
             title="kroppen: legg til eit primitiv, eller hent ei fil"
-            className={CHIP + " block max-w-[108px] truncate px-2.5 text-left"}
-            style={chipStyle(meny)}
+            className={ORD + " block max-w-[108px] truncate text-left"}
             data-kjelde=""
           >
             {bitar > 1 ? `${kjelde} +${bitar - 1}` : kjelde}
@@ -126,9 +125,12 @@ export function Toppline({ benk, kjelde, bitar, view, onView, onFile, onLegg, on
             </span>
           )}
         </span>
-        <span className="mx-auto flex items-center gap-1">
+        {/* DEI TRE LESEMÅTANE, som ord. Den som gjeld står i fullt blekk og dei
+            andre dempa — same skalaen ikona bruker. Ringen og den fylte pilla
+            var tre flater midt i biletet, og dei sa ikkje eitt ord meir. */}
+        <span className="mx-auto flex items-center">
           {VIEWS.map((v) => (
-            <button key={v.id} type="button" title={v.hint} aria-pressed={view === v.id} onClick={() => onView(v.id)} className={CHIP + " px-2"} style={chipStyle(view === v.id)}>{v.label}</button>
+            <button key={v.id} type="button" title={v.hint} aria-pressed={view === v.id} onClick={() => onView(v.id)} className={ORD}>{v.label}</button>
           ))}
         </span>
         <button type="button" onClick={onShare} aria-label="del" title="lenkja ber innstillingane, ikkje nettet" className={ICON_BTN}>{IcoShare}</button>

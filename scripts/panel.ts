@@ -59,8 +59,26 @@ const midt = async (page: Page) => {
   }
 }
 
-async function opne(url: string, browser: Browser, w: number, h: number) {
+/**
+ * EIN FINGER PÅ SKJERMEN, TIL VAKTA.
+ *
+ * Grensesnittet SØV etter to sekund utan ei rørsle, og medan det søv tek
+ * det ikkje imot fingrar — det er heile poenget med det. Ein prøvebenk har
+ * ingen finger: han ventar på eit bygg i fire sekund og trykkjer så på ein
+ * knapp som ikkje er der lenger, og då ryk hundre vakter av éi avgjerd dei
+ * ikkje prøver.
+ *
+ * Difor seier benken at handa ligg på: ei rørsle i sekundet, som ein som
+ * sit med telefonen. Søvnen sjølv vert prøvd i sin eigen del, der handa er
+ * teken bort med vilje (`opne(..., { sov: true })`).
+ */
+async function opne(url: string, browser: Browser, w: number, h: number, o?: { sov?: boolean }) {
   const page = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: w < 1180 })
+  if (!o?.sov) {
+    await page.addInitScript(`setInterval(function () {
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }))
+    }, 700)`)
+  }
   const konsoll: string[] = []
   page.on("console", (m) => {
     if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) konsoll.push(m.text())
@@ -90,6 +108,31 @@ async function toFingrar(page: Page, steg: (t: number) => [[number, number], [nu
 async function telefon(browser: Browser) {
   console.log("\n=== telefon 390×844")
   const { page, konsoll } = await opne(URL, browser, 390, 844)
+
+  /**
+   * ORD, IKKJE PILLER. Lesemåtane i toppen og speglingane over skjer stod i
+   * ringar, med ei fylt flate under den som gjaldt — chrome som sa det ordet
+   * alt sa, og tre flater midt i biletet. No er dei ord i det same blekket
+   * ikona bruker. Vakta ser etter ringen og flata, ikkje etter utsjånaden:
+   * ein kant med breidd, eller ein bakgrunn som ikkje er ingenting.
+   */
+  const pille = await page.evaluate(`(() => {
+    var ut = []
+    document.querySelectorAll("header button[aria-pressed], .tumme [data-speil]").forEach(function (e) {
+      var c = getComputedStyle(e)
+      var kant = parseFloat(c.borderTopWidth) > 0.01 || parseFloat(c.borderLeftWidth) > 0.01
+      var flate = c.backgroundColor !== "rgba(0, 0, 0, 0)" && c.backgroundColor !== "transparent"
+      if (kant || flate) ut.push((e.getAttribute("aria-label") || e.textContent || "?").trim())
+    })
+    return ut
+  })()`) as string[]
+  sjekk("lesemåtane og speglingane er ord, ikkje piller", pille.length === 0, pille.join(" · "))
+  // og speglingane står RETT OVER skjer: det er skjer dei endrar
+  {
+    const sp = await page.locator("[data-speil='z']").boundingBox()
+    const sk = await page.getByRole("button", { name: "skjer", exact: true }).boundingBox()
+    sjekk("speglingane står rett over skjer", !!sp && !!sk && sp.y < sk.y && sk.y - (sp.y + sp.height) < 40, sp && sk ? `${Math.round(sk.y - sp.y - sp.height)} px mellom` : "finst ikkje")
+  }
 
   // --- arket har tre høgder ---------------------------------------------------
   const liste = page.locator("[role=listbox][aria-label='plan']")
@@ -1197,6 +1240,97 @@ async function handtaka(browser: Browser) {
   await page.close()
 }
 
+/**
+ * SKALET, OG SØVNEN.
+ *
+ * To ting du ikkje kan lese av eit tal: at brytaren for skalet faktisk tek
+ * det gjennomsiktige omrisset bort — biletet må endre seg — og at
+ * grensesnittet fell bort av seg sjølv når ingen rører skjermen, og kjem
+ * att med det same nokon gjer.
+ */
+async function skaletOgSovnen(browser: Browser) {
+  console.log("\n=== skalet og søvnen")
+  const plan = skrivPlan(rutenett(3, 2))
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan })), browser, 390, 844, { sov: true })
+  const lerret = { x: 20, y: 240, width: 350, height: 380 }
+  /** biletet når det står stille — vakna, so ingenting glir medan vi skyt */
+  const stille = async (n = 10) => {
+    await page.mouse.move(190, 700)
+    let fyrr = await page.screenshot({ clip: lerret })
+    for (let i = 0; i < n; i++) {
+      await page.mouse.move(190 + (i % 2), 700)
+      await page.waitForTimeout(320)
+      const naa = await page.screenshot({ clip: lerret })
+      if (naa.equals(fyrr)) return naa
+      fyrr = naa
+    }
+    return fyrr
+  }
+  const skalKnapp = page.getByRole("button", { name: "skalet", exact: true })
+  sjekk("skalet har ein brytar i «lag»", (await skalKnapp.count()) === 1)
+  sjekk("og han står på", (await skalKnapp.getAttribute("aria-pressed")) === "true")
+  const med = await stille()
+  await skalKnapp.click()
+  await vent(page, (p) => (p as unknown as { skal?: boolean }).skal === false)
+  const utan = await stille()
+  sjekk("brytaren tek det gjennomsiktige omrisset bort", !med.equals(utan), `${med.length} B → ${utan.length} B`)
+  sjekk("og lenkja ber synet", (hash(page) as unknown as { skal?: boolean }).skal === false, JSON.stringify((hash(page) as unknown as { skal?: boolean }).skal))
+  await skalKnapp.click()
+  await vent(page, (p) => (p as unknown as { skal?: boolean }).skal !== false)
+  const att = await stille()
+  sjekk("og eit trykk til set det attende", med.equals(att))
+  // I «flate» ER kroppen kroppen, og då er det ingenting å slå av
+  await page.getByRole("button", { name: "flate", exact: true }).click()
+  await roleg(page, 700)
+  sjekk("i «flate» finst brytaren ikkje", (await skalKnapp.count()) === 0)
+  await page.getByRole("button", { name: "lag", exact: true }).click()
+  await roleg(page, 700)
+
+  /**
+   * SØVNEN. Etter to sekund utan ein finger fell alt som ikkje er objektet
+   * bort. Prøva les gjennomsikta, ikkje eit bilete: ho skal vera null, og
+   * grensesnittet skal ikkje ta imot fingrar medan det ligg der.
+   */
+  const gjennomsikt = async () => page.evaluate(`(() => {
+    var ut = {}
+    ;[["topp", "header"], ["tumme", ".tumme"], ["synskube", ".synskube"], ["ark", "[aria-label='kontrollar']"]].forEach(function (p) {
+      var e = document.querySelector(p[1])
+      ut[p[0]] = e ? Number(getComputedStyle(e).opacity) : -1
+    })
+    ut.peik = document.querySelector(".tumme") ? getComputedStyle(document.querySelector(".tumme")).pointerEvents : "?"
+    ut.sov = document.querySelector("main").hasAttribute("data-sov")
+    return ut
+  })()`) as Promise<Record<string, number | string | boolean>>
+  await page.mouse.move(190, 700)
+  await page.waitForTimeout(600)
+  const vaken = await gjennomsikt()
+  sjekk("grensesnittet står framme medan ein finger er på", vaken.sov === false && vaken.topp === 1 && vaken.tumme === 1, JSON.stringify(vaken))
+  await page.waitForTimeout(3200)
+  const sovande = await gjennomsikt()
+  sjekk("og fell bort etter to sekund utan ein finger", sovande.sov === true && sovande.topp === 0 && sovande.tumme === 0 && sovande.ark === 0 && sovande.synskube === 0, JSON.stringify(sovande))
+  sjekk("og tek ikkje imot fingrar medan det søv", sovande.peik === "none", String(sovande.peik))
+  await page.mouse.move(190, 700)
+  await page.waitForTimeout(400)
+  const attende = await gjennomsikt()
+  sjekk("ei rørsle hentar det att", attende.sov === false && attende.topp === 1, JSON.stringify(attende))
+
+  /**
+   * OG BERRE I KVILE. Står eit plan valt, er du midt i noko: det som står
+   * framme er det du arbeider i, og det skal ikkje forsvinne under handa.
+   */
+  await page.locator("[role=listbox][aria-label='plan'] [role=option]").first().locator("button").first().click().catch(async () => {
+    await page.locator(HOVUDLINA).click()
+    await page.waitForTimeout(400)
+    await page.locator("[role=listbox][aria-label='plan'] [role=option]").first().locator("button").first().click()
+  })
+  await roleg(page, 600)
+  await page.waitForTimeout(3200)
+  const valt = await gjennomsikt()
+  sjekk("med eit plan valt søv det ikkje", valt.sov === false && valt.tumme === 1, JSON.stringify(valt))
+  sjekk("ingen konsollfeil kring skalet og søvnen", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await page.close()
+}
+
 const main = async () => {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
   await telefon(browser)
@@ -1204,6 +1338,7 @@ const main = async () => {
   await symmetri(browser)
   await virvelen(browser)
   await handtaka(browser)
+  await skaletOgSovnen(browser)
   await taket(browser)
   await flyt(browser)
   await mork(browser)

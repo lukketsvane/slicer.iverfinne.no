@@ -185,20 +185,24 @@ html {
 .handtak [data-handtak]:active {
   cursor: grabbing;
 }
+/* MERKET ER LITE, SONA ER STOR. Handtaket er ei skive på fire og tretti
+   pikslar midt på objektet, og to av dei pluss ei lapp dekte akkurat det du
+   sikta på. Merket er tjue no og sona står urørt på åtte og førti: du treffer
+   det same, og du ser gjennom det. */
 .handtak [data-handtak] > svg {
-  width: 34px;
-  height: 34px;
-  padding: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 4px;
   border-radius: 9999px;
-  border: 2px solid var(--paper);
+  border: 1.5px solid var(--paper);
   background: var(--snitt);
 }
 .handtak [data-handtak="vri"] > svg,
 .handtak [data-handtak="strek-storleik"] > svg,
 .handtak [data-handtak="strek-vri"] > svg {
-  width: 28px;
-  height: 28px;
-  padding: 4px;
+  width: 18px;
+  height: 18px;
+  padding: 3px;
 }
 .handtak:not([data-strek]) [data-handtak^="strek-"] {
   visibility: hidden;
@@ -225,7 +229,7 @@ html {
   width: 0;
   transform-origin: 0 50%;
   background: var(--snitt);
-  opacity: 0.45;
+  opacity: 0.28;
 }
 /* lappen ved snittet: kva det er, ledda det ville fått, kvar det står. Raud
    når det ikkje får eit einaste ledd mot plan som finst. Tikken er snappet:
@@ -233,12 +237,12 @@ html {
 .handtak [data-merke] {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
+  gap: 5px;
+  padding: 1px 5px;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  background: color-mix(in srgb, var(--paper) 62%, transparent);
+  font-size: 9px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--snitt);
   white-space: nowrap;
@@ -306,6 +310,28 @@ html {
   opacity: 0.45;
 }
 
+/* EIT ORD ER EIN KNAPP, og ikkje ein pille.
+   Lesemåtane og speglingane stod i ringar med ei fylt flate under den som
+   gjaldt. Ringen sa ingenting ordet ikkje sa, og tre fylte piller midt over
+   objektet er tre flater du ser i staden for det du lagar. Same språket som
+   `.ikon` no: full blekk når han gjeld, dempa når han ikkje gjer det.
+   Treffeflata er `hit` si, og ho er urørt. */
+.ord {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0 7px;
+}
+.ord:disabled {
+  opacity: 0.28;
+}
+.ord:not(:disabled):active {
+  opacity: 0.45;
+}
+.ord[aria-pressed="false"] {
+  opacity: 0.38;
+}
+
 /* TOMMELSPALTA. Handlinga står der høgre tommelen alt er: nedst til høgre,
    over arket. Skjer er 64 pikslar; streka, slett og brytaren står over han.
    Flat, som alt anna: ingen skugge, ingen overgang, inga flate. */
@@ -329,6 +355,42 @@ html {
 }
 .tumme .skjer:disabled {
   opacity: 0.3;
+}
+
+/* skalet er ein brytar som alle andre: dempa når det er av */
+.synskube button[aria-pressed="false"] {
+  opacity: 0.45;
+}
+
+/*
+   SØVNEN.
+   Verktyet er til for å SJÅ på det du lagar, og etter to sekund utan ein
+   finger er alt anna i vegen. Då fell det bort — toppen, spaltene, arket og
+   handtaka — og ei rørsle hentar det att med det same.
+
+   Dette er den einaste overgangen i huset, og ho står her med vilje: eit
+   grensesnitt som blinkar bort ser ut som ein feil, eit som glir bort ser ut
+   som ei avgjerd. Ut tek eit halvt sekund, inn nitti millisekund — du skal
+   aldri vente på ein knapp du bad om.
+
+   Og medan det søv tek det ikkje imot fingrar. Eit trykk du ikkje ser er eit
+   trykk du ikkje bad om; det fyrste trykket vekkjer, og går elles til
+   objektet, der det ikkje har noko å ta — appen søv berre I KVILE. */
+main header,
+main .synskube,
+main .tumme,
+main .handtak,
+main [aria-label="kontrollar"] {
+  transition: opacity 90ms linear;
+}
+main[data-sov] header,
+main[data-sov] .synskube,
+main[data-sov] .tumme,
+main[data-sov] .handtak,
+main[data-sov] [aria-label="kontrollar"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 500ms ease;
 }
 
 /* tastaturet skal kunne sjåast, i same blekket som alt anna */
