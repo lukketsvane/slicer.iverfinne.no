@@ -111,7 +111,9 @@ function samlaSoup(p: Params): { soup: Soup; tris: number; bitar: BitBoks[] } {
     const src = source(b.id)
     tris += src.tris
     const span = Math.max(src.max[0] - src.min[0], src.max[1] - src.min[1], src.max[2] - src.min[2], 1e-6)
-    const k = (100 * b.s) / span
+    // ein faktor per akse, mot den SAME lengste sida: alle tre like gjev
+    // nett den same kroppen det eine talet gav, og forholdet i kjelda står
+    const k: Vec3 = [(100 * b.s[0]) / span, (100 * b.s[1]) / span, (100 * b.s[2]) / span]
     const cx = (src.min[0] + src.max[0]) / 2
     const cy = (src.min[1] + src.max[1]) / 2
     const cz = src.min[2]
@@ -121,9 +123,9 @@ function samlaSoup(p: Params): { soup: Soup; tris: number; bitar: BitBoks[] } {
     const P = src.pos
     const ut = new Float32Array(P.length)
     for (let i = 0; i < P.length; i += 3) {
-      const x = (P[i] - cx) * k
-      const y = (P[i + 1] - cy) * k
-      const z = (P[i + 2] - cz) * k
+      const x = (P[i] - cx) * k[0]
+      const y = (P[i + 1] - cy) * k[1]
+      const z = (P[i + 2] - cz) * k[2]
       ut[i] = x * c - y * sn + b.t[0]
       ut[i + 1] = x * sn + y * c + b.t[1]
       ut[i + 2] = z + b.t[2]

@@ -768,17 +768,68 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(500)
   sjekk("eit trykk vel ein bit", (await page.locator("[aria-label='dubler biten']").count()) === 1)
   const bitFør = bitScene()
-  await toFingrar(page, (t) => [[140, 430 - 90 * t], [220, 430 - 90 * t]])
+  /**
+   * TO FINGRAR PÅ BITEN, UTANOM PRIKKANE.
+   *
+   * Prikkane på sidene tek den fyrste fingeren og dreg éin akse; det er
+   * meininga. Gesten som FLYTTAR biten er to fingrar på han, og ho må
+   * byrje ein stad som ikkje er ein prikk — elles prøver vi dragingen av
+   * ein akse og kallar han ei flytting.
+   */
+  const prikkar = await page.locator(".sider button").evaluateAll((el) =>
+    el.map((e) => {
+      const r = e.getBoundingClientRect()
+      return [r.x + r.width / 2, r.y + r.height / 2] as [number, number]
+    }),
+  )
+  const fritt = (x: number, y: number) => prikkar.every(([px, py]) => Math.hypot(px - x, py - y) > 34)
+  const par = ([[140, 430], [220, 430]] as [number, number][]).map(([x, y]) => {
+    for (const dy of [0, 40, -40, 70, -70, 110]) if (fritt(x, y + dy)) return [x, y + dy] as [number, number]
+    return [x, y] as [number, number]
+  })
+  await toFingrar(page, (t) => [[par[0][0], par[0][1] - 90 * t], [par[1][0], par[1][1] - 90 * t]])
   await vent(page, (p) => (p.scene ?? "") !== bitFør)
   // den ANDRE biten i lista, ikkje eit namn: kva form han har er ei anna sak
   const andre = () => bitScene().split(";")[1] ?? ""
   const lyft = /@[-\d.]+,[-\d.]+,([\d.]+)/.exec(andre())
   sjekk("to fingrar rett opp lyfter biten", !!lyft && Number(lyft[1]) > 5, bitScene().slice(0, 48))
   const førKlyp = bitScene()
-  await toFingrar(page, (t) => [[180 - 30 - 60 * t, 400], [180 + 30 + 60 * t, 400]])
+  const klypY = fritt(180, 400) ? 400 : 470
+  await toFingrar(page, (t) => [[180 - 30 - 60 * t, klypY], [180 + 30 + 60 * t, klypY]])
   await vent(page, (p) => (p.scene ?? "") !== førKlyp)
   const stor = /@[^/]+\/([\d.]+)\//.exec(andre())
   sjekk("og eit klyp gjer HAN større, ikkje kroppen", !!stor && Number(stor[1]) > 1.05 && hash(page).storleik === 150, `${stor?.[1]} · kroppen ${hash(page).storleik} mm`)
+  /**
+   * PRIKKANE PÅ SIDENE. Klypet gjer heile biten større og let forholdet stå;
+   * ein prikk dreg éin akse. Prøva er at NØYAKTIG éin av dei tre tala rører
+   * seg — ein prikk som drog alle tre var berre eit klyp med ein annan
+   * gest, og det såg ingen på skjermen.
+   */
+  {
+    const sider = page.locator(".sider button")
+    sjekk("den valde biten har seks prikkar", (await sider.count()) === 6, `${await sider.count()}`)
+    const tal3 = (q: string) => {
+      const m = /@[^/]+\/([^/]+)\//.exec(q)
+      if (!m) return [1, 1, 1]
+      const d = m[1].split(",").map(Number)
+      return d.length === 3 ? d : [d[0], d[0], d[0]]
+    }
+    const foer = tal3(andre())
+    const d = await page.locator('.sider [data-side="0"]').boundingBox()
+    if (!d) sjekk("prikken på x-sida står på skjermen", false)
+    else {
+      const cx = d.x + d.width / 2
+      const cy = d.y + d.height / 2
+      await page.mouse.move(cx, cy)
+      await page.mouse.down()
+      await page.mouse.move(cx + 70, cy, { steps: 14 })
+      await page.mouse.up()
+      await vent(page, (p) => JSON.stringify(tal3((p.scene ?? "").split(";")[1] ?? "")) !== JSON.stringify(foer))
+      const etter = tal3(andre())
+      const rort = etter.filter((c, i) => Math.abs(c - foer[i]) > 0.01).length
+      sjekk("eit drag i prikken rører NØYAKTIG éin akse", rort === 1, `${foer.join(",")} → ${etter.join(",")}`)
+    }
+  }
   const n1 = bitTal()
   await page.locator("[aria-label='dubler biten']").click()
   await vent(page, () => bitTal() === n1 + 1)

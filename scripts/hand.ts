@@ -16,7 +16,7 @@ import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
 import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
-import { bbox, type ParamBag, type Pt, type Vec3 } from "../lib/core"
+import { bbox, nn, type ParamBag, type Pt, type Vec3 } from "../lib/core"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 let feil = 0
@@ -85,6 +85,40 @@ for (const [inn, vent] of [
   const fekk = reinScene(inn)
   sjekk(`scene «${String(inn).slice(0, 24)}»`, fekk === vent, fekk.slice(0, 40))
 }
+/**
+ * STORLEIKEN PER AKSE.
+ *
+ * Han var eitt tal og er tre. Tre like er nett det eine talet var, og vert
+ * skrivne som eitt — so ei lenkje frå i fjor opnar det same objektet, og ei
+ * lenkje frå i dag med ein kube i vert ikkje lengre for ein ting ingen har
+ * rørt.
+ */
+console.log("\nstorleiken per akse:")
+for (const [inn, vent] of [
+  ["kube@0,0,0/1/0", "kube@0,0,0/1/0"],                       // eitt tal står som eitt
+  ["kube@0,0,0/1,1,1/0", "kube@0,0,0/1/0"],                   // tre like vert eitt
+  ["kube@0,0,0/2,0.5,1/0", "kube@0,0,0/2,0.5,1/0"],           // tre ulike står
+  ["kube@0,0,0/2,0.5/0", ""],                                 // to er ikkje eit tal og ikkje tre
+  ["kube@0,0,0/2,0.5,99/0", ""],                              // ein akse over taket tek heile biten
+  ["kube@0,0,0/2,0.01,1/0", ""],                              // og ein under botnen
+  ["kube@0,0,0/2,0.5,1,3/0", ""],
+] as const) {
+  const fekk = reinScene(inn)
+  sjekk(`storleik «${String(inn).slice(5, 24)}»`, fekk === vent, fekk)
+}
+{
+  // og geometrien fylgjer: ein kube dregen breiare vert breiare, og BERRE det
+  const bag = (scene: string) => ({ ...DEFAULT_PARAMS, scene, storleik: 300, plan: nett(2, 2) }) as unknown as ParamBag
+  const a = MOTOR.measure(bag("kube@0,0,0/1/0"))
+  const b = MOTOR.measure(bag("kube@0,0,0/2,1,1/0"))
+  // storleiken normaliserer den lengste sida, so ein kube dregen dobbelt so
+  // brei vert 300 brei og 150 djup — forholdet er det som endrar seg
+  const fyrr = a.envX / a.envY
+  const etter = b.envX / b.envY
+  sjekk("ein akse dregen for seg endrar forholdet", Math.abs(fyrr - 1) < 0.02 && Math.abs(etter - 2) < 0.05, `${fyrr.toFixed(2)} → ${etter.toFixed(2)}`)
+  sjekk("og dei to andre står i forhold til kvarandre", Math.abs(b.envY - b.envZ) < 0.5, `${nn(b.envY, 1)} × ${nn(b.envZ, 1)}`)
+}
+
 const sc = clampParams({ ...DEFAULT_PARAMS, scene: "kule@0,0,0/1/0;tull" }, DEFAULT_PARAMS)
 sjekk("clampParams reinsar scena", sc.scene === "kule@0,0,0/1/0", sc.scene)
 

@@ -54,7 +54,7 @@ function useTema() {
 /** planet slik skissa står no, i motoren sitt rom (mm, z opp) */
 export type Skisse = { o: Vec3; n: Vec3 }
 /** kva ein gest held på med, til lesing på skjermen */
-export type GestKva = "lys" | "snitt" | "zoom" | "strek" | "rute" | "virvel" | null
+export type GestKva = "lys" | "snitt" | "zoom" | "strek" | "rute" | "virvel" | "side" | null
 /** eit strek medan fingeren har det: teikna her, snitta av motoren, skrive i parametrane fyrst når det vert sleppt */
 type Live = { id: number; i: number; s: Strek }
 /**
@@ -1696,6 +1696,131 @@ function Bitboksar({ f, bitar, vald }: { f: Ramma; bitar: readonly BitBoks[]; va
 }
 
 /**
+ * PRIKKANE PÅ SIDENE AV EIN BIT.
+ *
+ * Klypet gjer heile biten større og let forholdet stå. Men det du oftast
+ * treng er å gjere han BREIARE eller LÅGARE — ein krakk er ikkje ein
+ * oppblåsen kube — og då må kvar akse kunne dragast for seg. Ein prikk midt
+ * på kvar av dei seks sidene gjer det.
+ *
+ * DEI ER DOM, som handtaka på snittet, og av same grunn: ein prikk du skal
+ * treffe med tommelen må ha ei treffesone på fire og førti pikslar og eit
+ * namn ein som ikkje ser kan høyre. Ein trekant i lerretet har ingen av
+ * delane. Scena reknar berre KVAR dei står, kvar teikning, og skriv det på
+ * elementa.
+ *
+ * FRÅ PIKSLAR TIL MILLIMETER går gjennom aksen sjølv: sida vert projisert,
+ * og eit punkt éin millimeter lenger ut med. Skilnaden er kor mange pikslar
+ * ein millimeter er PÅ DEN AKSEN, der ho står no — so eit drag på ein akse
+ * som peikar mot deg flyttar lite, og det er rett: du ser henne knapt.
+ */
+type Sida = { i: 0 | 1 | 2; teikn: 1 | -1 }
+const SIDER: Sida[] = [
+  { i: 0, teikn: 1 }, { i: 0, teikn: -1 },
+  { i: 1, teikn: 1 }, { i: 1, teikn: -1 },
+  { i: 2, teikn: 1 }, { i: 2, teikn: -1 },
+]
+
+function Sidehandtak({ f, boks, boks3, onSide, onGest }: {
+  f: Ramma | null
+  boks: HTMLDivElement | null
+  boks3: BitBoks | null
+  onSide: (akse: 0 | 1 | 2, faktor: number) => void
+  /** gesten melder seg, so biten sin grunnstode vert teken før draget */
+  onGest: (kva: GestKva) => void
+}) {
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
+  const size = useThree((s) => s.size)
+  const naa = useRef({ f, boks3, onSide, onGest })
+  naa.current = { f, boks3, onSide, onGest }
+  /** kva sida stod på då fingeren tok henne: halve utstrekninga og pikslane per mm */
+  const tak = useRef<{ a: 0 | 1 | 2; ut: number; px: [number, number]; x0: number; y0: number } | null>(null)
+
+  useEffect(() => {
+    if (!boks) return
+    const knappar = SIDER.map((_, k) => boks.querySelector<HTMLElement>(`[data-side="${k}"]`))
+    const ned = (e: PointerEvent) => {
+      const el = (e.target as Element).closest<HTMLElement>("[data-side]")
+      const k = el ? Number(el.dataset.side) : -1
+      const b = naa.current.boks3
+      const g = naa.current.f
+      // BERRE DEN FYRSTE FINGEREN. To fingrar på biten er den gesten som
+      // flyttar, vrir og klyp han; landar den andre av dei på ein prikk,
+      // skal prikken la henne gå vidare til den gesten og ikkje ta henne.
+      if (!e.isPrimary || !el || k < 0 || !b || !g) return
+      e.preventDefault()
+      e.stopPropagation()
+      const sd = SIDER[k]
+      const midt: Vec3 = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2]
+      const p: Vec3 = [...midt] as Vec3
+      p[sd.i] = sd.teikn > 0 ? b.max[sd.i] : b.min[sd.i]
+      const ein: Vec3 = [...p] as Vec3
+      ein[sd.i] += sd.teikn
+      const A = tilVerd(g, p).project(camera)
+      const B = tilVerd(g, ein).project(camera)
+      const px: [number, number] = [((B.x - A.x) / 2) * size.width, (-(B.y - A.y) / 2) * size.height]
+      tak.current = { a: sd.i, ut: Math.max(1e-3, (b.max[sd.i] - b.min[sd.i]) / 2), px, x0: e.clientX, y0: e.clientY }
+      el.setPointerCapture(e.pointerId)
+      // gesten MELDER SEG: det er han som tek vare på kva biten var før
+      // draget, og utan den grunnstoda har `onSide` ingenting å rekne frå
+      naa.current.onGest("side")
+    }
+    const rorsle = (e: PointerEvent) => {
+      const t = tak.current
+      if (!t) return
+      const L = t.px[0] * t.px[0] + t.px[1] * t.px[1]
+      if (L < 1e-6) return
+      // draget projisert på aksen, i millimeter
+      const mm = ((e.clientX - t.x0) * t.px[0] + (e.clientY - t.y0) * t.px[1]) / L
+      naa.current.onSide(t.a, Math.max(0.02, (t.ut + mm) / t.ut))
+    }
+    const opp = () => {
+      if (!tak.current) return
+      tak.current = null
+      naa.current.onGest(null)
+    }
+    boks.addEventListener("pointerdown", ned)
+    window.addEventListener("pointermove", rorsle, { passive: true })
+    window.addEventListener("pointerup", opp, { passive: true })
+    window.addEventListener("pointercancel", opp, { passive: true })
+    void knappar
+    return () => {
+      boks.removeEventListener("pointerdown", ned)
+      window.removeEventListener("pointermove", rorsle)
+      window.removeEventListener("pointerup", opp)
+      window.removeEventListener("pointercancel", opp)
+    }
+  }, [boks, camera, size])
+
+  useFrame(() => {
+    if (!boks) return
+    const g = naa.current.f
+    const b = naa.current.boks3
+    if (!g || !b) {
+      boks.style.visibility = "hidden"
+      return
+    }
+    boks.style.visibility = "visible"
+    camera.updateMatrixWorld()
+    const midt: Vec3 = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2]
+    SIDER.forEach((sd, k) => {
+      const el = boks.querySelector<HTMLElement>(`[data-side="${k}"]`)
+      if (!el) return
+      const p: Vec3 = [...midt] as Vec3
+      p[sd.i] = sd.teikn > 0 ? b.max[sd.i] : b.min[sd.i]
+      const v = tilVerd(g, p).project(camera)
+      const x = ((v.x + 1) / 2) * size.width
+      const y = ((1 - v.y) / 2) * size.height
+      el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%)`
+      // sida som vender bort er framleis der, berre dempa: du skal kunne ta
+      // henne utan å snu objektet fyrst
+      el.style.opacity = v.z > 1 ? "0" : "1"
+    })
+  })
+  return null
+}
+
+/**
  * SYNSKUBEN, frå drei.
  *
  * Han var heimelaga her: seks sider av DOM, kvar delt i tre gonger tre, med
@@ -1846,7 +1971,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -1883,6 +2008,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   onBitFlytt: (dmm: Vec3) => void
   onBitSkala: (faktor: number) => void
   onBitVri: (grader: number) => void
+  /** ei side av den valde biten dregen: aksen i biten sitt rom, og faktoren */
+  onBitSide: (akse: 0 | 1 | 2, faktor: number) => void
   onRute: (dx: number, dy: number) => void
 }) {
   /** bitane kjem med «flate»-bygget: der er kroppen ein kropp */
@@ -1899,6 +2026,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   const zoom = useRef<((f: number) => void) | null>(null)
   const lupe = useRef<number | null>(null)
   const [boks, setBoks] = useState<HTMLDivElement | null>(null)
+  const [sider, setSider] = useState<HTMLDivElement | null>(null)
   const [sein, setSein] = useState(false)
   // Éi styrbar hovudlyskjelde på ein fast kuppel, pluss fire svake fyll:
   // eit uttak skal kaste éin hard skugge, slik det gjer i eit verkstadlys.
@@ -1935,6 +2063,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <group position={[0, GROUND_Y, 0]}>
           {f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} skal={skal} material={material} liste={liste} vald={vald} plan={plan} blink={blink} sein={sein} onVald={onVald} />}
           {f && modus === "bit" && bitar.length > 0 && <Bitboksar f={f} bitar={bitar} vald={valdBit} />}
+        <Sidehandtak f={f} boks={sider} boks3={modus === "bit" && valdBit !== null ? (bitar[valdBit] ?? null) : null} onSide={onBitSide} onGest={onGest} />
           {f && snitt && snitt.ringar.length > 0 && (
             <Sovnen sov={sov}>
               <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />
@@ -2040,6 +2169,23 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         `data-skisse="snitt"` nett når det finst eit snitt å lese av. Med
         eit strek valt står tre handtak på streken i staden (`data-strek`).
       */}
+      {/* PRIKKANE PÅ SIDENE: seks knappar, plasserte av scena kvar teikning.
+          Dei ligg i sitt eige lag so dei ikkje deler tilstand med handtaka
+          på snittet — dei to er aldri framme samstundes, men eit lag som
+          ber to meiningar er eit lag nokon gløymer å slå av. */}
+      <div ref={setSider} className="sider" style={{ visibility: "hidden" }}>
+        {SIDER.map((sd, k) => (
+          <button
+            key={k}
+            type="button"
+            data-side={k}
+            aria-label={`storleik ${"xyz"[sd.i]}${sd.teikn > 0 ? "+" : "−"}`}
+            title={`dra: ${"xyz"[sd.i]}-sida av biten`}
+          >
+            <span aria-hidden="true" />
+          </button>
+        ))}
+      </div>
       <div ref={setBoks} className="handtak" data-slag="skisse" style={{ visibility: "hidden" }}>
         <span data-arm="" aria-hidden="true" />
         <button type="button" data-handtak="flytt" aria-label="flytt snittet" title="dra: flytt snittet over kroppen">{IkonFlytt}</button>
