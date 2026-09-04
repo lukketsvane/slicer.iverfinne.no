@@ -86,6 +86,12 @@ function eggGlb(r: number, seg: number): Buffer {
 async function flate(namn: string, w: number, h: number) {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
   const page = await browser.newPage({ viewport: { width: w, height: h }, acceptDownloads: true, hasTouch: w < 1180 })
+  // Grensesnittet søv etter to sekund utan ei rørsle. Bileta her SKAL syne
+  // kontrollane, so kikken seier at handa ligg på — som ein som sit med
+  // telefonen. Søvnen er prøvd i `panel`, der handa er teken bort med vilje.
+  await page.addInitScript(`setInterval(function () {
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }))
+  }, 700)`)
   page.on("console", (m) => {
     if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) brot(`${namn}: konsoll: ${m.text()}`)
   })

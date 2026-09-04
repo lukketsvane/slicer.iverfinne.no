@@ -14,7 +14,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, HAIR, IcoBit, IcoDupliser, IcoFerdig, IcoGods, IcoHol, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
+import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoDupliser, IcoFerdig, IcoGods, IcoHol, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -35,6 +35,8 @@ const LUKKA_ARK = 84
 const TUMME_BTN = "hit ikon relative flex h-12 w-12 items-center justify-center"
 /** eit steg i rutenettet: so langt fingrane må gå for éin kolonne eller éi rad */
 const RUTE_STEG = 44
+/** kor lenge grensesnittet står framme etter siste rørsle, i millisekund */
+const SOV_MS = 2000
 /** eit steg i virvelen: so langt fingrane går for éi ribbe til, og for eit hakk ut frå aksen */
 const VIRVEL_STEG = 40
 const VIRVEL_R_STEG = 0.02
@@ -138,6 +140,15 @@ type Port = { inFlight: boolean; pending: Req | null; shown: number }
 export function Studio() {
   const [params, setParams] = useState<ParamBag>(() => ({ ...MOTOR.defaults }))
   const [view, setView] = useState<View>("lag")
+  /**
+   * SKALET: kroppen slik han var, teikna gjennomsiktig kring delane i «lag».
+   * Han er der for å seie kor mykje av forma ribbene fangar — og han er i
+   * vegen når du vil sjå ribbene sjølve. Difor ein brytar, og ikkje ein
+   * parameter: han endrar ingen geometri og skal ikkje stå i angrelista.
+   * Lenkja ber han like fullt, ved sida av lesemåten, so eit syn du deler
+   * er det synet du sende.
+   */
+  const [skal, setSkal] = useState(true)
   /** dei to bygga: kroppen (flate) og delane (lag). Konturen byggjer ingenting — han er plateflata. */
   const [kropp, setKropp] = useState<BuildRes | null>(null)
   const [lag, setLag] = useState<BuildRes | null>(null)
@@ -293,6 +304,7 @@ export function Studio() {
       const obj = JSON.parse(decodeURIComponent(h.slice(2))) as Record<string, unknown>
       setParams((p) => MOTOR.clamp({ ...obj, kjelde: KUBE }, p))
       if (obj.view === "lag" || obj.view === "kontur" || obj.view === "flate") setView(obj.view)
+      if (typeof obj.skal === "boolean") setSkal(obj.skal)
     } catch {
       // øydelagd hash — lat standardobjektet stå
     }
@@ -459,10 +471,10 @@ export function Studio() {
     const t = window.setTimeout(() => {
       const { kjelde: _k, ...rest } = params
       void _k
-      window.history.replaceState(null, "", "#p=" + encodeURIComponent(JSON.stringify({ ...rest, view })))
+      window.history.replaceState(null, "", "#p=" + encodeURIComponent(JSON.stringify({ ...rest, view, skal })))
     }, 500)
     return () => window.clearTimeout(t)
-  }, [params, view, mounted])
+  }, [params, view, skal, mounted])
   // og økta hugsar seg sjølv, straks. iOS drep ein PWA i bakgrunnen utan å
   // spørje, so det som står skal alt vera skrive — og skrivast ein gong til
   // i det appen går i bakgrunnen, for det som stod under ein halv sekund.
@@ -1048,6 +1060,46 @@ export function Studio() {
     if (view === "kontur") askArk(ark?.i ?? 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, tal, askArk])
+  /**
+   * SØVNEN.
+   *
+   * Verktyet er til for å SJÅ på det du lagar. Etter to sekund utan ein
+   * finger er alt anna i vegen, so det fell bort — og ei rørsle hentar det
+   * att med det same. Overgangen står i `globals.css`.
+   *
+   * BERRE I KVILE. Står eit plan eller eit strek valt, ei skuff open, arket
+   * oppe, eit verkty i gang eller plateflata framme, er du MIDT I noko: det
+   * som står framme er det du arbeider i, og det skal ikkje forsvinne under
+   * handa. Det same medan motoren reknar, og medan ei line har noko å seie.
+   *
+   * Og medan det søv tek grensesnittet ikkje imot fingrar. Eit trykk du
+   * ikkje ser er eit trykk du ikkje bad om — og av di han berre søv i kvile,
+   * har det fyrste trykket ingenting å ta på objektet heller: det vekkjer,
+   * og det er alt det gjer.
+   */
+  const [sov, setSov] = useState(false)
+  const kvile =
+    mounted && !verkty && steg === "line" && view !== "kontur" &&
+    vald === null && valdStrek === null && valdBit === null &&
+    modus !== "bit" && modus !== "rute" && modus !== "virvel" &&
+    !busy && !drag && !melding && !feil && !hentar
+  useEffect(() => {
+    if (!kvile) return setSov(false)
+    let t = 0
+    const vak = () => {
+      setSov(false)
+      window.clearTimeout(t)
+      t = window.setTimeout(() => setSov(true), SOV_MS)
+    }
+    const kva = ["pointerdown", "pointermove", "wheel", "keydown"] as const
+    for (const n of kva) window.addEventListener(n, vak, { capture: true, passive: true })
+    vak()
+    return () => {
+      window.clearTimeout(t)
+      for (const n of kva) window.removeEventListener(n, vak, true)
+    }
+  }, [kvile])
+
   useEffect(() => {
     if (!melding) return
     const t = window.setTimeout(() => setMelding(null), 4000)
@@ -1137,7 +1189,7 @@ export function Studio() {
   /** ord, ikkje setningar: gestane i den rekkjefylgja du tek dei */
 
   return (
-    <main className="fixed inset-0 overflow-hidden" style={{ background: "var(--paper)" }}>
+    <main className="fixed inset-0 overflow-hidden" data-sov={sov ? "" : undefined} style={{ background: "var(--paper)" }}>
       {/* fyrste gesten på objektet tek lina om gestane bort. Rommet vert
           GØYMT og ikkje teke ned når plateflata står framme: lerretet held
           på WebGL-samanhengen og synet sitt, og synskuben — som høyrer til
@@ -1148,6 +1200,9 @@ export function Studio() {
             kropp={kropp}
             lag={lag}
             view={romsyn.current}
+            skal={skal}
+            onSkal={() => setSkal((q) => !q)}
+            sov={sov}
             modus={modus}
             material={String(params.material ?? "finer")}
             rute={rute}
@@ -1272,37 +1327,6 @@ export function Studio() {
               </button>
             </>
           )}
-          {/* SYMMETRIEN PÅ SNITTET: tre brytarar, ei line, rett over skjer —
-              av di det er skjer dei endrar. Kvar akse speglar snittet om
-              midtplanet i kroppen, og dei tel saman: x og y er fire ribber av
-              ei. Ord og ikkje ikon: ein akse har eit namn, og x er kortare enn
-              kvart bilete av x.
-
-              Lina er BREIARE enn spalta og skal ikkje skuve henne: spalta
-              midtstiller borna sine, so ei brei line ville flytt skjer og alt
-              anna innover frå tommelen. Difor står ho utanfor flyten, med
-              høgrekanten sin på linje med ikona. */}
-          {vald === null && view !== "kontur" && modus !== "bit" && (
-            <span className="relative block h-9 w-12">
-              <span className="absolute right-0 top-0 flex items-center gap-1" role="group" aria-label="symmetri">
-                {(["x", "y", "z"] as const).map((ord, a) => (
-                  <button
-                    key={ord}
-                    type="button"
-                    aria-label={`speil ${ord}`}
-                    aria-pressed={(speil & (1 << a)) !== 0}
-                    title={`speil snittet om ${ord}-planet gjennom midten: skjer låser båe`}
-                    onClick={() => setSpeil((q) => q ^ (1 << a))}
-                    className={CHIP + " px-2.5"}
-                    style={chipStyle((speil & (1 << a)) !== 0)}
-                    data-speil={ord}
-                  >
-                    {ord}
-                  </button>
-                ))}
-              </span>
-            </span>
-          )}
           <button
             type="button"
             aria-pressed={modus === "bit"}
@@ -1326,6 +1350,42 @@ export function Studio() {
           >
             {IcoSkisse}
           </button>
+          {/* SYMMETRIEN PÅ SNITTET: tre brytarar, ei line, RETT OVER SKJER —
+              av di det er skjer dei endrar. Kvar akse speglar snittet om
+              midtplanet i kroppen, og dei tel saman: x og y er fire ribber av
+              ei. Ord og ikkje ikon: ein akse har eit namn, og x er kortare enn
+              kvart bilete av x. Og berre ordet: tre piller midt over objektet
+              var tre flater du såg i staden for det du lagar.
+
+              Lina er BREIARE enn spalta og skal ikkje skuve henne: spalta
+              midtstiller borna sine, so ei brei line ville flytt skjer og alt
+              anna innover frå tommelen. Difor står ho utanfor flyten, med
+              høgrekanten sin på linje med ikona. */}
+          {vald === null && view !== "kontur" && modus !== "bit" && (
+            <span className="relative block h-9 w-9">
+              <span className="absolute right-0 top-0 flex items-center" role="group" aria-label="symmetri">
+                {(["x", "y", "z"] as const).map((ord, a) => (
+                  <button
+                    key={ord}
+                    type="button"
+                    aria-label={`speil ${ord}`}
+                    aria-pressed={(speil & (1 << a)) !== 0}
+                    title={`speil snittet om ${ord}-planet gjennom midten: skjer låser båe`}
+                    onClick={() => setSpeil((q) => q ^ (1 << a))}
+                    // FIRE OG FØRTI PIKSLAR KVAR. `hit` blæs treffesona ut til
+                    // 44 px kring midten av knappen, og tre ord på tjue
+                    // pikslar fekk difor tre soner som låg oppå kvarandre:
+                    // «x» tok ikkje trykket sitt, «y» tok det. Ordet er
+                    // smalt, sona er ikkje — so knappen ber henne sjølv.
+                    className={ORD + " w-11 shrink-0"}
+                    data-speil={ord}
+                  >
+                    {ord}
+                  </button>
+                ))}
+              </span>
+            </span>
+          )}
           <button
             type="button"
             onClick={vald === null ? laas : () => velPlan(null)}

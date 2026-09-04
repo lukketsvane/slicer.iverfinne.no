@@ -132,9 +132,15 @@ contain), and lets nothing be selected or long-press-called-out (`user-select:
 none` everywhere; the only caret is a focused number field; the settings text
 is read-only with copy and paste buttons). A button is an icon or a word,
 never both, and it is flat: no shadow, glow, gradient, blur, pulse, scale or
-transition anywhere — a pressed state is a solid fill swap, disabled is
-opacity. The interface speaks in words and numbers, not sentences; only a
-rule's «why» gets one short sentence. `pnpm panel` checks all of it; a change
+transition on a control — no ring and no filled pill either; a state is ink
+against dimmed ink, and disabled is opacity. The interface speaks in words and
+numbers, not sentences; only a rule's «why» gets one short sentence.
+
+The one animation in the house is the **doze**: two seconds without a finger
+and everything that is not the object fades out — top line, thumb column,
+sheet, handles, view cube, sketch — and any movement brings it back. It is
+one fade over the whole chrome, not an effect on a control, and while it is
+gone the interface takes no touches. `pnpm panel` checks all of it; a change
 that breaks one of these is wrong even if it looks fine on a laptop.
 
 ## Two traps
