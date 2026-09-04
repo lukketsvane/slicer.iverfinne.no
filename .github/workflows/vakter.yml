@@ -1,0 +1,50 @@
+# VAKTENE KØYRER PÅ KVAR DYTT.
+#
+# `REBUILD.md` kallar vaktene minnet til prosjektet, og `CLAUDE.md` seier at
+# å endre geometri, uttak eller reglar utan å køyre den vakta som dekkjer
+# det er den eine tingen prosjektet ikkje har nokon måte å fange opp
+# seinare. Fram til no køyrde ingen dei utan at nokon hugsa det sjølv:
+# `vercel.json` byggjer, og eit bygg seier ingenting om geometrien.
+#
+# Berre dei HOVUDLAUSE står her. `look` og `panel` driv ein ekte nettlesar i
+# minutt, og dei høyrer heime på ei maskin nokon sit ved. `tung` måler tid
+# på ein million trekantar, og tid målt på ein leigd tenar er ikkje eit tal
+# nokon kan argumentere med.
+#
+# Kvar vakt er sitt eige steg. Ei liste med ti kommandoar bak eitt steg
+# stoggar på den fyrste som ryk, og då står det «vakter feila» og ikkje kva
+# for ei.
+name: vakter
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  hovudlause:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Bygget fyrst, av di det er det som fangar arbeidaren som vart pakka
+      # som rå TypeScript — sida sit berre der, og ingen av vaktene under
+      # ser det.
+      - run: pnpm build
+      - run: pnpm sjekk
+      - run: pnpm probe
+      - run: pnpm rekkje
+      - run: pnpm vrient
+      - run: pnpm ledd
+      - run: pnpm raad
+      - run: pnpm hand
+      - run: pnpm enkel
+      - run: pnpm pakk
+      - run: pnpm tak
+      - run: pnpm glb

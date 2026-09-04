@@ -552,7 +552,9 @@ pnpm look    # screenshots of the page, and any console errors
 pnpm panel   # the controls in a real browser: both surfaces, gestures, keys
 ```
 
-`probe` through `tak` are headless and fast. Point `look` and `panel` at
+`probe` through `tak` are headless and fast, and `.github/workflows/vakter.yml`
+runs every one of them on each push — the build first, since that is what
+catches a worker shipped as raw TypeScript. Point `look` and `panel` at
 `next start` on port 3210, never the dev server — they drive a real browser for
 minutes, and HMR reloading underneath produces failures that look real.
 
