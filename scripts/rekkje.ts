@@ -688,6 +688,34 @@ else if (iFila === nominell) feil("snitt i fila", "fila kompenserer ikkje")
 else console.log("  ok   snittveg                 fila kompenserer berre når ho skal")
 
 /**
+ * OG DÅ MÅ NAMNET SKILJE DEI.
+ *
+ * Påstanden over er at ei fil med snittet i MASKINA er den same teikninga
+ * som ei fil utan snitt i det heile. Det er meint slik — men det tyder at
+ * to jobbar som må køyrast ULIKT ikkje kan skiljast på innhaldet. Då er
+ * filnamnet den einaste staden skilnaden kan stå, og det er ikkje ein
+ * finesse: køyrer du den nominelle fila med snittoffset i maskina, er alt
+ * rett; køyrer du henne utan, er kvar del ein snittbreidd for lita.
+ */
+for (const kind of ["ark", "dxf"] as const) {
+  const iM = MOTOR.exportFile({ ...GRUNN, snitt: 0.2, snittveg: 1 } as unknown as ParamBag, kind).name
+  const iF = MOTOR.exportFile({ ...GRUNN, snitt: 0.2, snittveg: 0 } as unknown as ParamBag, kind).name
+  if (iM === iF) feil(`snittveg · ${kind}`, `same namn for båe vegar: ${iM}`)
+  else console.log(`  ok   snittveg · ${kind.padEnd(14)} ${iM} mot ${iF}`)
+}
+
+/**
+ * OG PLATA SKAL STÅ I NAMNET. Eit kuttark er ei oppskrift på ei plate, og
+ * eit ark som har lege i nedlastingsmappa i tre veker seier ikkje kva
+ * tjukn eller kva material det var meint for om namnet ikkje gjer det.
+ */
+for (const [t, mat] of [[3, "mdf"], [4, "finer"], [6, "akryl"]] as [number, string][]) {
+  const n = MOTOR.exportFile({ ...GRUNN, tjukn: t, material: mat } as unknown as ParamBag, "ark").name
+  if (!n.includes(`${t}mm`) || !n.includes(mat)) feil("plata i namnet", `${n} nemner ikkje ${t} mm ${mat}`)
+  else console.log(`  ok   plata i namnet          ${n}`)
+}
+
+/**
  * OG HAN SKAL KOMPENSERE RETT VEG.
  *
  * Prøven over spør berre om fila er ei ANNA fil. Snu forteiknet på

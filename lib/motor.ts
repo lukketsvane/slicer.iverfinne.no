@@ -161,16 +161,31 @@ export const MOTOR: EngineDef = {
     }
     const { s, ns } = makeBygg(p, DETAIL.mid)
     const kerf = kerfOf(p)
+    /**
+     * KVA PLATE FILA VART SKOREN FOR, I NAMNET.
+     *
+     * Eit kuttark er ikkje ei teikning av eit objekt, det er ei oppskrift på
+     * ei plate: tre millimeter mdf med eit snitt på to tidelar. Same objekt
+     * på fire millimeter finér er ei anna fil som ser lik ut, og eit ark som
+     * ligg i nedlastingsmappa i tre veker seier ikkje kva av dei det er.
+     *
+     * Snittvegen er den skarpaste av dei. Ligg snittet i MASKINA, skriv
+     * fila den nominelle konturen — og då er ho byte for byte den same som
+     * ei fil utan snitt i det heile. To jobbar som må køyrast ulikt og som
+     * ikkje kan skiljast på innhaldet: namnet er den einaste staden det
+     * kan stå. Passprøva gjekk føre og heiter alt `passprove-3mm-mdf.svg`.
+     */
+    const plate = `${num(p.tjukn)}mm-${p.material}-${p.snittveg ? "maskinsnitt" : `k${num(p.snitt)}`}`
     /** Éi plate = éi fil. Namnet seier kva for ei av kor mange. */
     const arkFiler = () => {
       const n = ns.sheets.length
-      return ns.sheets.map((_, i) => ({ name: n <= 1 ? `${name}-ark.svg` : `${name}-ark-${i + 1}av${n}.svg`, text: sheetSvg(ns, i, kerf) }))
+      return ns.sheets.map((_, i) => ({ name: n <= 1 ? `${name}-${plate}-ark.svg` : `${name}-${plate}-ark-${i + 1}av${n}.svg`, text: sheetSvg(ns, i, kerf) }))
     }
     /** Det same for DXF-en: han stabla platene i ei fil, og då låg dei
      *  fleste av dei utanfor kva maskina kan setjast til. */
     const dxfFiler = () => {
       const n = ns.sheets.length
-      return ns.sheets.map((_, i) => ({ name: n <= 1 ? `${name}.dxf` : `${name}-ark-${i + 1}av${n}.dxf`, text: sheetDxf(ns, i, kerf) }))
+      return ns.sheets.map((_, i) => ({ name: n <= 1 ? `${name}-${plate}.dxf` : `${name}-${plate}-ark-${i + 1}av${n}.dxf`, text: sheetDxf(ns, i, kerf) }))
     }
     /** innstillingane som tekst — det er denne fila som gjer eit prosjekt til noko du kan opne att */
     const oppsett = (utan?: string[]) =>
@@ -231,15 +246,15 @@ export const MOTOR: EngineDef = {
     if (what === "svg") return { name: `${name}-profilar.svg`, mime: "image/svg+xml", text: profileSvg(s, kerf) }
     if (what === "ark") {
       const n = ns.sheets.length
-      if (n <= 1) return { name: `${name}-ark.svg`, mime: "image/svg+xml", text: sheetSvg(ns, 0, kerf) }
-      return { name: `${name}-ark-${n}plater.zip`, mime: "application/zip", data: zip(arkFiler()) }
+      if (n <= 1) return { name: `${name}-${plate}-ark.svg`, mime: "image/svg+xml", text: sheetSvg(ns, 0, kerf) }
+      return { name: `${name}-${plate}-ark-${n}plater.zip`, mime: "application/zip", data: zip(arkFiler()) }
     }
     // `image/vnd.dxf` er den registrerte typen; `application/dxf` er han
     // ikkje, og naboane over — model/stl, model/gltf-binary, model/vnd.usdz+zip
     // — er alle registrerte.
     const dxf = dxfFiler()
-    if (dxf.length <= 1) return { name: dxf[0]?.name ?? `${name}.dxf`, mime: "image/vnd.dxf", text: dxf[0]?.text ?? sheetDxf(ns, 0, kerf) }
-    return { name: `${name}-dxf-${dxf.length}plater.zip`, mime: "application/zip", data: zip(dxf) }
+    if (dxf.length <= 1) return { name: dxf[0]?.name ?? `${name}-${plate}.dxf`, mime: "image/vnd.dxf", text: dxf[0]?.text ?? sheetDxf(ns, 0, kerf) }
+    return { name: `${name}-${plate}-dxf-${dxf.length}plater.zip`, mime: "application/zip", data: zip(dxf) }
   },
 
   liste(bag: ParamBag): Kutt[] {
