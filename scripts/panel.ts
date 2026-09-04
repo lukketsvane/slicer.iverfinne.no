@@ -815,6 +815,19 @@ async function telefon(browser: Browser) {
       return d.length === 3 ? d : [d[0], d[0], d[0]]
     }
     const foer = tal3(andre())
+    /**
+     * OG SYNET STÅR MEDAN DU REDIGERER.
+     *
+     * Ramma vart rekna av geometrien: skalaen var `FRAME / lengste sida` og
+     * midten var midten av boksen, so KVAR endring flytta og skalerte heile
+     * biletet. Dreg du ein bit ut, krympa alt anna medan fingeren stod på,
+     * og du sikta mot eit mål som gleid unna. Kameraet gjorde det same ved
+     * ti prosent. No står synet der det vart sett til nokon ber om ei ny
+     * innramming — og prøva er kameralappen scena skriv: han skal vera
+     * teikn for teikn den same før og etter.
+     */
+    const kamera = async () => (await page.locator(".handtak").getAttribute("data-kamera")) ?? "?"
+    const kamFoer = await kamera()
     const d = await page.locator('.sider [data-side="0"]').boundingBox()
     if (!d) sjekk("prikken på x-sida står på skjermen", false)
     else {
@@ -828,6 +841,12 @@ async function telefon(browser: Browser) {
       const etter = tal3(andre())
       const rort = etter.filter((c, i) => Math.abs(c - foer[i]) > 0.01).length
       sjekk("eit drag i prikken rører NØYAKTIG éin akse", rort === 1, `${foer.join(",")} → ${etter.join(",")}`)
+      await roleg(page, 900)
+      sjekk("og synet står stille medan du dreg", (await kamera()) === kamFoer, `${kamFoer} → ${await kamera()}`)
+      // og innrammingsknappen ramar framleis inn: synet er ei avgjerd, ikkje ei låsing
+      await page.locator("[data-heim]").click()
+      await roleg(page, 900)
+      sjekk("men innrammingsknappen ramar inn på nytt", (await kamera()) !== kamFoer, await kamera())
     }
   }
   const n1 = bitTal()

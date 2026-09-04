@@ -1971,7 +1971,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -2011,16 +2011,45 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   /** ei side av den valde biten dregen: aksen i biten sitt rom, og faktoren */
   onBitSide: (akse: 0 | 1 | 2, faktor: number) => void
   onRute: (dx: number, dy: number) => void
+  /** eit tal som stig når ein NY kropp kjem: då, og berre då, ramar synet inn på nytt */
+  rammInn: number
 }) {
   /** bitane kjem med «flate»-bygget: der er kroppen ein kropp */
   const bitar = useMemo(() => kropp?.bitar ?? [], [kropp])
-  const f = useMemo(() => ramma(kropp ?? lag), [kropp, lag])
+  const [sikt, setSikt] = useState<Sikt>({ n: 0, dir: null })
+  /**
+   * SYNET ER EI AVGJERD, IKKJE EI FYLGJE.
+   *
+   * `ramma` normaliserer kroppen til si eiga ramme: skalaen er
+   * `FRAME / lengste sida`, og midten er midten av boksen. Det tyder at
+   * KVAR endring i geometrien flytta og skalerte heile biletet — dreg du
+   * ein bit ut, krympar alt anna medan fingeren står på, og du siktar mot
+   * eit mål som glir unna. Det same gjaldt kameraet: ein radius som endra
+   * seg ti prosent ramma inn på nytt, midt i eit drag.
+   *
+   * No står skalaen og midten der dei vart sette, og geometrien flyttar seg
+   * INNE I den ramma. Ho vert sett på nytt berre når nokon ber om det:
+   * innrammingsknappen, ei side på synskuben, eller ein ny kropp — å opne
+   * ei fil er ikkje å redigere.
+   *
+   * Boksen (`min`, `max`) er framleis LEVANDE: brøkane til plana vert lesne
+   * mot han, og eit plan på 0,5 skal stå midt i kroppen slik han er no, ikkje
+   * slik han var. Det er berre synet som står.
+   */
+  const fRaa = useMemo(() => ramma(kropp ?? lag), [kropp, lag])
+  const syn = useRef<{ cx: number; cy: number; s: number; fit: Fit } | null>(null)
+  const synN = useRef<string>("")
+  const synNokkel = `${sikt.n}|${rammInn}`
+  if (fRaa && (!syn.current || synN.current !== synNokkel)) {
+    synN.current = synNokkel
+    syn.current = { cx: fRaa.cx, cy: fRaa.cy, s: fRaa.s, fit: fRaa.fit }
+  }
+  const f = useMemo(() => (fRaa && syn.current ? { ...fRaa, ...syn.current } : fRaa), [fRaa, synNokkel])
   /** det valde planet og ramma hans i millimeter — der streka står */
   const valt = useMemo(() => (vald === null ? null : plan.find((q) => q.id === vald) ?? null), [vald, plan])
   const rValt = useMemo(() => (valt && f ? planRamme(valt, f.min, f.max) : null), [valt, f])
   const [live, setLive] = useState<Live | null>(null)
   const fri = useMemo(() => fritt(rute), [rute])
-  const [sikt, setSikt] = useState<Sikt>({ n: 0, dir: null })
   const heim = useCallback(() => setSikt((s) => ({ n: s.n + 1, dir: null })), [])
   /** lupa: scena legg dollyen sin her, knappen under kuben dreg i han */
   const zoom = useRef<((f: number) => void) | null>(null)

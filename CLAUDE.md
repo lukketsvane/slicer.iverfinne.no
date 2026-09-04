@@ -90,7 +90,8 @@ that finder is not written; a hard rule says so.
 
 Read `README.md` and `REBUILD.md` before changing behaviour. The decisions in
 them are decisions, not accidents — the phone is the tool, a sketched plane is
-invisible until locked, a locked plane stays where you put it, names belong to
+invisible until locked, a locked plane stays where you put it, the view is a
+decision and never a consequence of the geometry, names belong to
 the part and never get reused, it is a laser tool with no cutter diameter,
 colour is the operation and carries the order, kerf is taken exactly once,
 slots are cut in the field and not in the polygon, and there are two colours

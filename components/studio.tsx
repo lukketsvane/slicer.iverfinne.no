@@ -379,6 +379,7 @@ export function Studio() {
         return
       }
       if (r.kind === "prosjekt") {
+        setRammInn((n) => n + 1)
         // nettet OG innstillingane i eitt steg
         setHentar(false)
         setFeil(null)
@@ -404,6 +405,7 @@ export function Studio() {
       }
       if (r.kind === "kjelde") {
         setNamn((m) => ({ ...m, [r.src.id]: r.src.label }))
+        setRammInn((n) => n + 1)
         // EI FORM ER IKKJE EIN IMPORT. Ho vart beden om av di noko på
         // skjermen alt PEIKAR på henne — ein bit i scena, eller ei lenkje
         // som ber henne — so ho skal ikkje byte kjelde og ikkje tømme plana.
@@ -761,6 +763,8 @@ export function Studio() {
    */
   const tomScene = useCallback(() => {
     setParams((cur) => ({ ...cur, scene: "" }))
+    // attende til kjelda åleine er ein annan kropp, ikkje ei redigering
+    setRammInn((n) => n + 1)
   }, [])
 
   // --- GESTANE --------------------------------------------------------------
@@ -1209,6 +1213,15 @@ export function Studio() {
   const andreFinger = useRef<Element | null>(null)
   /** kvar fingeren stod sist medan han bøygde eit plan */
   const boy = useRef<number | null>(null)
+  /**
+   * EIN NY KROPP RAMMAR INN, EI REDIGERING GJER DET IKKJE.
+   *
+   * Synet i scena står der du sette det (sjå `Scene`), so ein bit som vert
+   * dregen ikkje flyttar heile biletet under fingeren. Men ei NY fil, eit
+   * nytt prosjekt eller ei tømd scene er ikkje ei redigering — det er eit
+   * anna objekt, og det skal du sjå. Talet stig, og scena rammar inn.
+   */
+  const [rammInn, setRammInn] = useState(0)
   const kvile =
     mounted && !verkty && steg === "line" && view !== "kontur" &&
     vald === null && valdStrek === null && valdBit === null &&
@@ -1358,6 +1371,7 @@ export function Studio() {
             onBitSkala={skalerBit}
             onBitVri={vriBit}
             onBitSide={sideBit}
+            rammInn={rammInn}
             onRute={modus === "virvel" ? dragVirvel : dragRute}
           />
         )}
