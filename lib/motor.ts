@@ -23,7 +23,7 @@ import { apply } from "./pack"
 import { meshToStl } from "./export-stl"
 import { meshToGlb } from "./export-glb"
 import { meshToUsdz } from "./export-usdz"
-import { partsToDxf } from "./export-dxf"
+import { sheetDxf } from "./export-dxf"
 import { couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
 import { zip } from "./zip"
 import { DEFAULT_PARAMS, GROUPS, PARAM_KEYS, PARAM_RANGES, clampParams, type Params } from "./params"
@@ -166,6 +166,12 @@ export const MOTOR: EngineDef = {
       const n = ns.sheets.length
       return ns.sheets.map((_, i) => ({ name: n <= 1 ? `${name}-ark.svg` : `${name}-ark-${i + 1}av${n}.svg`, text: sheetSvg(ns, i, kerf) }))
     }
+    /** Det same for DXF-en: han stabla platene i ei fil, og då låg dei
+     *  fleste av dei utanfor kva maskina kan setjast til. */
+    const dxfFiler = () => {
+      const n = ns.sheets.length
+      return ns.sheets.map((_, i) => ({ name: n <= 1 ? `${name}.dxf` : `${name}-ark-${i + 1}av${n}.dxf`, text: sheetDxf(ns, i, kerf) }))
+    }
     /** innstillingane som tekst — det er denne fila som gjer eit prosjekt til noko du kan opne att */
     const oppsett = () => JSON.stringify({ reiskap: "slicer.iverfinne", utgåve: 2, kjelde: srcLabel(p.kjelde), p }, null, 1)
 
@@ -177,7 +183,7 @@ export const MOTOR: EngineDef = {
         mime: "application/zip",
         data: zip([
           { name: `${name}.stl`, data: meshToStl(lagMesh(s, p.tjukn), name) },
-          { name: `${name}.dxf`, text: partsToDxf(ns, p.tjukn, kerf) },
+          ...dxfFiler(),
           { name: `${name}-profilar.svg`, text: profileSvg(s, kerf) },
           ...arkFiler(),
           { name: `passprove-${num(p.tjukn)}mm-${p.material}.svg`, text: couponSvg(p.tjukn, kerf, p.snitt, p.material) },
@@ -204,7 +210,12 @@ export const MOTOR: EngineDef = {
       if (n <= 1) return { name: `${name}-ark.svg`, mime: "image/svg+xml", text: sheetSvg(ns, 0, kerf) }
       return { name: `${name}-ark-${n}plater.zip`, mime: "application/zip", data: zip(arkFiler()) }
     }
-    return { name: `${name}.dxf`, mime: "application/dxf", text: partsToDxf(ns, p.tjukn, kerf) }
+    // `image/vnd.dxf` er den registrerte typen; `application/dxf` er han
+    // ikkje, og naboane over — model/stl, model/gltf-binary, model/vnd.usdz+zip
+    // — er alle registrerte.
+    const dxf = dxfFiler()
+    if (dxf.length <= 1) return { name: dxf[0]?.name ?? `${name}.dxf`, mime: "image/vnd.dxf", text: dxf[0]?.text ?? sheetDxf(ns, 0, kerf) }
+    return { name: `${name}-dxf-${dxf.length}plater.zip`, mime: "application/zip", data: zip(dxf) }
   },
 
   liste(bag: ParamBag): Kutt[] {
