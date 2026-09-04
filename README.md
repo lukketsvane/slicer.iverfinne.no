@@ -403,7 +403,7 @@ ranking is not a decision. The tool that sets them is.
 | **STL** | the assembled stack |
 | **GLB** | the same stack as glTF binary — metres, Y up, flat-shaded: Blender, Sketchfab, a browser |
 | **USDZ** | the same again for AR Quick Look: share it on an iPhone and the assembly stands on the table in front of you, at size |
-| **DXF** | R12 ASCII, mm, layers `KUTT` and `GRAVER`, kerf-compensated — one file per nested sheet, zipped when there is more than one |
+| **DXF** | R12 ASCII, mm, layers `KUTT` and `GRAVER`, kerf-compensated — one file per nested sheet, zipped when there is more than one. The plate is the drawing: `$EXTMIN`/`$EXTMAX`, not a burnable rectangle |
 | **SVG** | every profile side by side, 1:1 |
 | **ARK** | one file per nested sheet, 1:1 — zipped when there is more than one |
 | **PNG** | the same sheets as pictures, for messages and the wall — not for the machine |

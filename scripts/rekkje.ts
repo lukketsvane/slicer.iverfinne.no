@@ -387,6 +387,60 @@ function dxfSteg1(namn: string, dxf: string, arkB: number, arkH: number): Steg[]
     feil(namn, `lagtabellen står ${lagOrden.slice(0, 2).join(" før ") || "tom"}`)
   }
   const steg = dxfSteg(namn, dxf)
+  /**
+   * INGEN LUKKA BANE PÅ GRAVER.
+   *
+   * Plateomrisset låg her — ei lukka bane kring heile plata, på det laget
+   * LightBurn tek fyrst — og grunngjevinga var at ein DXF ikkje ber målet
+   * sitt slik ein SVG gjer. Han gjer det no, i $EXTMIN/$EXTMAX, so ramma
+   * var berre to meter brend line rundt bordkanten. På GRAVER ligg det
+   * adresser: opne strekar, aldri ein lukka ring.
+   */
+  const t0 = dxf.split(/\r\n/)
+  for (let i = 0; i < t0.length - 1; i += 2) {
+    if (t0[i] === "0" && t0[i + 1] === "POLYLINE" && t0[i + 3] === "GRAVER" && t0[i + 7] === "1") {
+      feil(namn, "ei LUKKA bane på GRAVER — er plateramma attende?")
+      break
+    }
+  }
+  /**
+   * OG GRAVERINGA SKAL LIGGJE PÅ GODS.
+   *
+   * Same regelen som `graveringaLiggInne` held kuttarket til, og han kunne
+   * ikkje porterast hit før: plateramma låg på GRAVER og utanfor kvar
+   * einaste del, so prøva ville ropt på henne kvar gong. Med ramma borte
+   * er GRAVER berre adresser, og då gjeld regelen ordrett — partal og
+   * oddetal over alle kuttbanene, av di pakkinga gjerne legg ein liten del
+   * inni hòlet på ein stor.
+   */
+  const omriss: Pt[][] = []
+  const grav: Pt[][] = []
+  {
+    let lag = ""
+    let pts: Pt[] | null = null
+    let x = 0
+    const lukk = () => { if (pts && pts.length) (lag === "GRAVER" ? grav : omriss).push(pts) }
+    for (let i = 0; i < t0.length - 1; i += 2) {
+      if (t0[i] !== "0") continue
+      if (t0[i + 1] === "POLYLINE") { lukk(); lag = t0[i + 3] ?? ""; pts = [] }
+      else if (t0[i + 1] === "VERTEX" && pts) {
+        for (let j = i; j < i + 14; j++) {
+          if (t0[j] === "10") x = Number(t0[j + 1])
+          if (t0[j] === "20") { pts.push([x, Number(t0[j + 1])]); break }
+        }
+      }
+    }
+    lukk()
+  }
+  if (grav.length && omriss.length) {
+    let ute = 0
+    for (const g of grav) for (const q of g) {
+      let n = 0
+      for (const o of omriss) if (inRing(o, q)) n++
+      if (n % 2 === 0) ute++
+    }
+    if (ute) feil(namn, `${ute} graverte punkt ligg ikkje på gods`)
+  }
   // ALT SOM ER TEIKNA SKAL LIGGJE PÅ PLATA. Same regelen som
   // `innanforRamma` held kuttarket til; ein DXF har inga viewBox, so
   // plata sjølv er ramma. Plateomrisset ligg på kanten og skal so.
