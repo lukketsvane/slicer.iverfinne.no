@@ -309,6 +309,7 @@ export const MOTOR: EngineDef = {
             hi: apply(q.slot.m, langs(v, v.hi)),
           })),
           ...(q.slot.kross ? { kross: true } : {}),
+          ...(q.part.farge ? { farge: q.part.farge } : {}),
         }
       }),
       arkB: ns.sheetW,

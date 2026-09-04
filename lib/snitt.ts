@@ -173,6 +173,8 @@ export type Del = {
   /** det som vert gravert: namnet på planet, med bokstav om planet er delt — «3», «3a» */
   adr: string
   plan: number
+  /** laget planet er merkt med, om noko — kuttfilene skriv delen i den fargen */
+  farge?: number
   outline: Pt[]
   holes: Pt[][]
   t: number
@@ -842,6 +844,7 @@ export function buildDelar(sn: Snitt, p: Params): DelListe {
         id,
         adr: String(r.plan.id) + (fleire ? bokstav(k) : ""),
         plan: r.plan.id,
+        ...(r.plan.farge ? { farge: r.plan.farge } : {}),
         outline: o,
         holes: mine,
         t,

@@ -141,6 +141,17 @@ again, or a single plane, to let it go. The group is a tag on each plane in
 the link (`g:1`), never a thing of its own: each plane is still its own point
 and normal, and a plane you move alone stays in its group.
 
+**A plane can carry a layer.** Under a selected plane the list shows
+LightBurn's own palette, C02 to C29, and a ring for none. Pick one and every
+cut of that plane, outline and holes, is written in exactly that colour, so
+LightBurn puts it on that layer where you give it its own speed, cut it
+last, or switch it off. Black and blue are not on offer: they are the
+engrave and the cut, and the order lives in them. With a group selected the
+pick tags the whole group. The sheet draws a tagged part in its colour, the
+list shows a dot, and the DXF gets a layer named after the LightBurn colour
+with the exact value as true colour beside its nearest ACI. Untagged files
+are unchanged: two colours, as before.
+
 **The contour view IS the sheet.** It was a ribbon of profiles laid out side
 by side in the canvas — the same drawing the sheets already showed, only with
 no way to touch it. Now the third view *is* the sheet: the parts where the

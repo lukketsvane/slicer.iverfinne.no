@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useRef, useState, type JSX } from "react"
-import { nn, type ArkSyn, type Delplass, type ParamBag } from "@/lib/core"
+import { LAG_FARGAR, lagFarge, nn, type ArkSyn, type Delplass, type ParamBag } from "@/lib/core"
 import { DELING_MAX, DELING_MIN, lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
 import { CHIP, chipStyle } from "./deler"
 
@@ -593,7 +593,8 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
               const paa = peikt === d.adr
               const fast = festa.has(d.adr)
               const q = dra?.adr === d.adr ? dra : null
-              const strek = d.kross ? "var(--warn)" : "var(--ink)"
+              // eit merkt plan står i laget sin farge på plata òg: same fargen som i fila
+              const strek = d.kross ? "var(--warn)" : lagFarge(d.farge) !== null ? LAG_FARGAR[d.farge as number] : "var(--ink)"
               return (
                 <g
                   key={d.adr}
