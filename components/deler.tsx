@@ -1,7 +1,7 @@
 "use client"
 
-import { useRef, type CSSProperties } from "react"
-import { feltTal, nn, snap, type ExportKind, type Metrics, type ParamBag, type Range, type Rule, type View } from "@/lib/core"
+import { useRef, useState, type CSSProperties } from "react"
+import { feltTal, lesTal, nn, snap, type ExportKind, type Metrics, type ParamBag, type Range, type Rule, type View } from "@/lib/core"
 import { RADER } from "@/lib/metrics"
 
 /**
@@ -239,8 +239,16 @@ export function Tavla({ metrics, rules, busy, params, onChange }: {
  * peikar ned og vassrett drag, eitt steg per seks pikslar, ti steg per steg
  * forbi hundre og tjue, so du treffer fint nær og kjem langt ute. Eit trykk
  * utan drag gjer ingenting, og tastaturet kjem aldri; på benken stegar
- * pilene. Verdien går live medan du dreg, og sleppet er eitt steg i angre.
- * Lina og prikken er lesing, ikkje handtak: ho seier kvar i bandet du står.
+ * pilene, ti om gongen med skift. Verdien går live medan du dreg, og
+ * sleppet er eitt steg i angre. Lina og prikken er lesing, ikkje handtak:
+ * ho seier kvar i bandet du står.
+ *
+ * PÅ BENKEN KAN TALET SKRIVAST. Der finst det eit tastatur og inga
+ * zooming: eit dobbeltklikk på rada (eller enter med rada i fokus) opnar
+ * talet som eit felt, enter set det, escape let det stå. Feltet finst
+ * berre medan du skriv — elles er rada den same skrubbaren som på
+ * telefonen, og eit felt som stod der heile tida ville teke fokus frå
+ * tastane som styrer rommet.
  */
 export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
   k: string
@@ -257,6 +265,19 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
   const shown = r.names ? (r.names[Math.round(value)] ?? String(value)) : feltTal(value, r.step).replace(".", ",")
   const tak = useRef<{ id: number; x0: number; v0: number; sist: number } | null>(null)
   const del = Math.max(0, Math.min(1, (value - r.min) / (r.max - r.min || 1)))
+  /** talet medan det vert skrive; null er ikkje-skriv */
+  const [skriv, setSkriv] = useState<string | null>(null)
+  const kanSkrive = !!benk && !r.names
+  const opneFelt = () => setSkriv(feltTal(value, r.step).replace(".", ","))
+  /** eitt send per felt: enter tek feltet bort, og blur-en som fylgjer skal ikkje sende att */
+  const sendt = useRef(false)
+  const send = (s: string) => {
+    if (sendt.current) return
+    sendt.current = true
+    setSkriv(null)
+    const v = lesTal(s)
+    if (s.trim() !== "" && Number.isFinite(v)) onChange(k, snap(v, r))
+  }
   const slepp = (e: React.PointerEvent) => {
     const t = tak.current
     if (!t || e.pointerId !== t.id) return
@@ -272,9 +293,11 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
       aria-valuemin={r.min}
       aria-valuemax={r.max}
       aria-valuetext={`${shown}${r.unit ? " " + r.unit : ""}`}
-      title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra sidelengs`}
+      title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra sidelengs${kanSkrive ? " · dobbeltklikk: skriv" : ""}`}
       className="skrubb flex min-h-[44px] items-center gap-3"
+      onDoubleClick={() => { if (kanSkrive && skriv === null) { sendt.current = false; opneFelt() } }}
       onPointerDown={(e) => {
+        if (skriv !== null) return
         if (e.pointerType === "mouse" && e.button !== 0) return
         tak.current = { id: e.pointerId, x0: e.clientX, v0: value, sist: value }
         e.currentTarget.setPointerCapture(e.pointerId)
@@ -294,10 +317,16 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
       onPointerUp={slepp}
       onPointerCancel={slepp}
       onKeyDown={(e) => {
+        if (skriv !== null) return
+        if (kanSkrive && e.key === "Enter") {
+          e.preventDefault()
+          sendt.current = false
+          return opneFelt()
+        }
         const steg = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : e.key === "PageUp" ? 10 : e.key === "PageDown" ? -10 : 0
         if (!steg) return
         e.preventDefault()
-        onChange(k, snap(value + steg * r.step, r))
+        onChange(k, snap(value + steg * (e.shiftKey ? 10 : 1) * r.step, r))
       }}
     >
       <span className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]" style={{ color: "var(--ink)" }}>
@@ -308,7 +337,29 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
         <span className="absolute top-1/2 block h-[13px] w-[13px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px]" style={{ left: `${del * 100}%`, background: "var(--ink)", borderColor: "var(--paper)" }} />
       </span>
       <span className="tab flex w-[68px] shrink-0 items-baseline justify-end text-[11px]" style={{ color: "var(--ink)" }}>
-        <span className="truncate">{shown}</span>
+        {skriv !== null ? (
+          <input
+            aria-label={`${r.label}, skriv`}
+            className="tab w-full min-w-0 border-0 border-b bg-transparent p-0 text-right text-[11px] outline-none"
+            style={{ color: "var(--ink)", borderColor: "var(--ink)" }}
+            inputMode="decimal"
+            autoFocus
+            value={skriv}
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => setSkriv(e.target.value)}
+            onBlur={(e) => send(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === "Enter") send(e.currentTarget.value)
+              else if (e.key === "Escape") {
+                sendt.current = true
+                setSkriv(null)
+              }
+            }}
+          />
+        ) : (
+          <span className="truncate">{shown}</span>
+        )}
         {r.unit && <span className="dim shrink-0 pl-0.5">{r.unit}</span>}
       </span>
     </div>

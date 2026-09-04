@@ -111,7 +111,17 @@ documents and not interface.
 
 **Over 1180 px with a mouse**, no sheet — the same controls as one column on
 the right, the top bar above the canvas, and the camera frames the object into
-whatever rectangle is left over.
+whatever rectangle is left over. The bench is where precision lives, because
+that is where the keyboard is. Every number in the column can be typed:
+double-click it (or press enter with the row focused), type, enter sets it and
+escape leaves it; arrows step it, shift-arrows step ten. A selected plane moves
+one millimetre along its normal per arrow press, ten with shift, and its row
+reads where it stands in millimetres from the centre of the body, live. `D`
+duplicates the selected plane, `H` cuts a hole in it, tab and shift-tab walk
+the plane list, `F` reframes, and the right mouse button (or the wheel pressed)
+pans the view — the reframe button puts it back. On the sheet, arrows nudge the
+selected part a millimetre, and shift-arrows ten. A phone gets none of this:
+one thumb has no arrows, and a text field there zooms the page.
 
 **With a part selected** (tap it in the object), the handles and the two-finger
 drag edit *that* plane instead of the sketch: move it along its normal, re-angle
