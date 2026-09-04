@@ -35,7 +35,7 @@ import {
 import { decimate } from "./mesh/simplify"
 import { taubin } from "./mesh/smooth"
 import { makeSolid, type Solid } from "./mesh/solid"
-import { source } from "./sources"
+import { generasjon, source } from "./sources"
 import { eiKjelde, lesScene } from "./scene"
 import { akser } from "./plan"
 import type { Vec3 } from "./core"
@@ -83,9 +83,12 @@ export type Kropp = {
  */
 type Net = { net: Indexed; srcTris: number; openEdges: number; bitar: BitBoks[] }
 
-const NETT_NOKKEL = (p: Params) => [scenaAv(p), p.trekant, p.glatt].join("|")
+// `generasjon` står i nøkkelen av di scena namngjev nett og ikkje ber dei:
+// eit nett som kjem inn etter at scena peika på det ville elles aldri verte
+// bygd. Sjå `sources.ts`.
+const NETT_NOKKEL = (p: Params) => [scenaAv(p), generasjon(), p.trekant, p.glatt].join("|")
 const KROPP_NOKKEL = (p: Params) =>
-  [scenaAv(p), p.trekant, p.glatt, p.storleik, p.rotX, p.rotY, p.rotZ].join("|")
+  [scenaAv(p), generasjon(), p.trekant, p.glatt, p.storleik, p.rotX, p.rotY, p.rotZ].join("|")
 
 /** scena som gjeld: lista, eller kjelda åleine når lista er tom */
 export const scenaAv = (p: Params) => p.scene || eiKjelde(p.kjelde)

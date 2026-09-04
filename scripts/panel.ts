@@ -13,6 +13,7 @@
  */
 import { chromium, type Browser, type Page } from "playwright"
 import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
+import { FORMER } from "../lib/scene"
 import type { Params } from "../lib/params"
 
 const URL = process.argv[2] ?? "http://127.0.0.1:3210"
@@ -711,10 +712,34 @@ async function telefon(browser: Browser) {
   await kjelde.click()
   await page.waitForTimeout(250)
   const meny2 = page.locator("[data-meny]")
-  sjekk("og opnar lista med dei fem primitiva og fila", (await meny2.count()) === 1 && (await meny2.getByRole("button").count()) === 6)
-  await meny2.getByRole("button", { name: "kule", exact: true }).click()
+  sjekk("og opnar lista med formene og fila", (await meny2.count()) === 1 && (await meny2.getByRole("button").count()) === FORMER.length + 1)
+  /**
+   * EI INNEBYGD FORM ER EI FIL. Kuben er laga i koden; dei fem andre ligg
+   * under `public/form` og vert henta når du tek i dei. Prøva er at biletet
+   * ENDRAR SEG: eit nett som kom inn etter at scena peika på det endra ikkje
+   * eit teikn i byggjenøkkelen, og kuben som stod der medan det lasta vart
+   * servert for alltid. Det såg ut som ein kube ingen hadde bede om.
+   */
+  {
+    const klipp = { x: 40, y: 200, width: 310, height: 380 }
+    const fyrr = await page.screenshot({ clip: klipp })
+    await meny2.getByRole("button", { name: "stolform-01", exact: true }).click()
+    await vent(page, (p) => /stolform-01/.test(String(p.scene ?? "")))
+    await roleg(page, 2500)
+    const etter = await page.screenshot({ clip: klipp })
+    sjekk("ei innebygd form vert henta og bygd", !fyrr.equals(etter), `${fyrr.length} B → ${etter.length} B`)
+    sjekk("og ho står i lenkja, so ho fylgjer med", /stolform-01/.test(String(hash(page).scene ?? "")), String(hash(page).scene ?? "").slice(0, 40))
+    await page.keyboard.press("z")
+    await roleg(page, 600)
+    // eit val lèt menyen att; neste prøve tek han fram att
+    await kjelde.click()
+    await page.waitForTimeout(300)
+  }
+  await meny2.getByRole("button", { name: "kube", exact: true }).click()
   await vent(page, (p) => !!p.scene)
-  sjekk("ein kule vert lagd til kroppen", /kube@.*;kule@/.test(hash(page).scene ?? ""), (hash(page).scene ?? "").slice(0, 40))
+  // Ein kube til, og ikkje ei form: bitane vert prøvde her, ikkje henting,
+  // og ei form på tjuefem tusen trekantar for kvar gest er berre venting.
+  sjekk("ein bit til vert lagd til kroppen", /kube@.*;kube@/.test(hash(page).scene ?? ""), (hash(page).scene ?? "").slice(0, 40))
   sjekk("og brikka seier kor mange bitar han er", (await kjelde.innerText()).trim() === "kube +1")
   await page.keyboard.press("z")
   await vent(page, (p) => !p.scene)
@@ -731,26 +756,28 @@ async function telefon(browser: Browser) {
   const bitTal = () => (bitScene() ? bitScene().split(";").length : 0)
   await kjelde.click()
   await page.waitForTimeout(250)
-  await meny2.getByRole("button", { name: "kule", exact: true }).click()
+  await meny2.getByRole("button", { name: "kube", exact: true }).click()
   await vent(page, (p) => !!p.scene)
   const bitVerkty = page.locator("[data-bitverkty]")
   sjekk("verktyet for kroppen er ein knapp med tilstand", (await bitVerkty.count()) === 1 && (await bitVerkty.getAttribute("aria-pressed")) === "false")
   await bitVerkty.click()
   await page.waitForTimeout(500)
   sjekk("og eit trykk slår han på", (await bitVerkty.getAttribute("aria-pressed")) === "true")
-  // kula ligg til høgre i kroppen; boksen hennar tek trykket
+  // den andre biten ligg til høgre i kroppen; boksen hans tek trykket
   await page.touchscreen.tap(250, 430)
   await page.waitForTimeout(500)
   sjekk("eit trykk vel ein bit", (await page.locator("[aria-label='dubler biten']").count()) === 1)
   const bitFør = bitScene()
   await toFingrar(page, (t) => [[140, 430 - 90 * t], [220, 430 - 90 * t]])
   await vent(page, (p) => (p.scene ?? "") !== bitFør)
-  const lyft = /kule@[-\d.]+,[-\d.]+,([\d.]+)/.exec(bitScene())
+  // den ANDRE biten i lista, ikkje eit namn: kva form han har er ei anna sak
+  const andre = () => bitScene().split(";")[1] ?? ""
+  const lyft = /@[-\d.]+,[-\d.]+,([\d.]+)/.exec(andre())
   sjekk("to fingrar rett opp lyfter biten", !!lyft && Number(lyft[1]) > 5, bitScene().slice(0, 48))
   const førKlyp = bitScene()
   await toFingrar(page, (t) => [[180 - 30 - 60 * t, 400], [180 + 30 + 60 * t, 400]])
   await vent(page, (p) => (p.scene ?? "") !== førKlyp)
-  const stor = /kule@[^/]+\/([\d.]+)\//.exec(bitScene())
+  const stor = /@[^/]+\/([\d.]+)\//.exec(andre())
   sjekk("og eit klyp gjer HAN større, ikkje kroppen", !!stor && Number(stor[1]) > 1.05 && hash(page).storleik === 150, `${stor?.[1]} · kroppen ${hash(page).storleik} mm`)
   const n1 = bitTal()
   await page.locator("[aria-label='dubler biten']").click()

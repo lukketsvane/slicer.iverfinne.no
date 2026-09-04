@@ -105,6 +105,7 @@ pnpm vrient   # meshes that aren't meshes, sliders at both ends, a hostile URL
 pnpm ledd     # every joint the panel counted, found again in the cut profiles — grids and oblique planes
 pnpm raad     # breaks each rule, presses the fix it offers, checks it worked
 pnpm glb      # writes GLB files with known geometry and reads them back
+npx tsx scripts/former.ts <namn>=<fil>   # a heavy model becomes a built-in form
 pnpm pakk     # redraws every sheet and counts cells — catches overlaps
 pnpm hand     # the plane list as a string: hostile input, one edit leaves the rest, names never reused
 pnpm tak      # the plane ceiling: what 64 planes cost, and that slicing stays linear in them

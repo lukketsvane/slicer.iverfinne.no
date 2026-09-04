@@ -23,6 +23,8 @@
  *   npx tsx scripts/tak.ts
  */
 import { MOTOR } from "../lib/motor"
+import { put } from "../lib/sources"
+import { makeSoup } from "../lib/soup"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { PLAN_TAK, lesPlan, rutenett, skrivPlan } from "../lib/plan"
 import type { ParamBag } from "../lib/core"
@@ -43,7 +45,33 @@ const ok = (namn: string, sant: boolean, kva = "") => {
  * dei same plana kvar gong, so tala kan samanliknast frå køyring til
  * køyring — det er utviklinga i dei som er saka, ikkje talet i seg sjølv.
  */
-const GRUNN = { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 200 } as Params
+/**
+ * Kula vert laga her og ikkje henta: dei innebygde formene er filer no, og
+ * ein prøvebenk som må over nettet for å måle er ein prøvebenk som måler
+ * nettet. Same kula som `vrient` bruker, og ho står i minnet under sitt
+ * eige namn so ingen ting anna kan koma til å svare på det.
+ */
+function kuleSuppe(r: number, seg: number): Float32Array {
+  const p: number[] = []
+  const at = (i: number, j: number): [number, number, number] => {
+    const th = (i / seg) * Math.PI * 2
+    const ph = (j / seg) * Math.PI
+    return [r * Math.sin(ph) * Math.cos(th), r * Math.sin(ph) * Math.sin(th), r + r * Math.cos(ph)]
+  }
+  for (let i = 0; i < seg; i++) {
+    for (let j = 0; j < seg; j++) {
+      const a = at(i, j)
+      const b = at(i + 1, j)
+      const c = at(i + 1, j + 1)
+      const d = at(i, j + 1)
+      p.push(...a, ...c, ...b, ...a, ...d, ...c)
+    }
+  }
+  return new Float32Array(p)
+}
+put("t-kule", "kule", makeSoup(kuleSuppe(50, 48)))
+
+const GRUNN = { ...DEFAULT_PARAMS, kjelde: "t-kule", storleik: 200 } as Params
 
 /** eitt mål, med nettet varmt: det er snittinga som skal målast, ikkje sveisinga */
 function maal(plan: string): { ms: number; delar: number; ledd: number; plan: number } {

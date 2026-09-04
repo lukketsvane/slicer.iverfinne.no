@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type JSX } from "react"
 import type { View } from "@/lib/core"
 import { FORMAT } from "@/lib/io"
-import { PRIMITIV } from "@/lib/scene"
+import { FORMER } from "@/lib/scene"
 import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./deler"
 
 /**
@@ -83,7 +83,7 @@ export function Toppline({ benk, kjelde, bitar, view, onView, onFile, onLegg, on
             onClick={() => setMeny((m) => !m)}
             aria-expanded={meny}
             aria-label="kroppen"
-            title="kroppen: legg til eit primitiv, eller hent ei fil"
+            title="kroppen: legg til ei form, eller hent ei fil"
             className={ORD + " block max-w-[108px] truncate text-left"}
             data-kjelde=""
           >
@@ -91,7 +91,7 @@ export function Toppline({ benk, kjelde, bitar, view, onView, onFile, onLegg, on
           </button>
           {meny && (
             <span className="absolute left-0 top-[calc(100%+6px)] z-40 flex w-36 flex-col border" style={{ ...HAIR, background: "var(--paper)" }} data-meny="">
-              {PRIMITIV.map((id) => (
+              {FORMER.map((id) => (
                 <button
                   key={id}
                   type="button"

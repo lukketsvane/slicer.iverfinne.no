@@ -10,6 +10,7 @@
  * og han vert laga i koden i staden for lasta ned, so fyrste biletet står
  * på skjermen før noko nett har vore i nærleiken av eit nettverk.
  */
+import { erFilform } from "./scene"
 import { makeSoup, type Soup } from "./soup"
 
 export type SourceInfo = {
@@ -81,50 +82,34 @@ const MAX_RAW = 96 * 1024 * 1024
 
 const RAW = new Map<string, { soup: Soup; label: string; fil?: Uint8Array }>()
 
+/**
+ * KVA NETT SOM LIGG I MINNET, som eit tal.
+ *
+ * Nøklane til dei hugsa bygga er skrivne av PARAMETRANE, og ein parameter
+ * seier kva kjelde som GJELD — ikkje kva nett som ligg bak namnet hennar.
+ * Ei form som kjem inn etter at scena alt peika på henne endrar ikkje eit
+ * einaste teikn i nøkkelen, og då vert kuben som stod der medan ho lasta
+ * servert for alltid. Talet her endrar seg kvar gong eit nett kjem inn, og
+ * det står i nøklane.
+ */
+let gen = 0
+export const generasjon = (): number => gen
+
 export const KUBE = "kube"
 
 /**
- * DEI FEM PRIMITIVA, laga i koden og ikkje lasta: kube, kule, sylinder,
- * kjegle, torus. Alle hundre millimeter på det lengste, sentrerte i planet
- * og med botnen på z = 0, vindinga mot klokka sedd utanfrå. Ein kropp du
- * byggjer av dei treng ikkje ei fil i det heile.
+ * KUBEN, laga i koden og ikkje lasta: hundre millimeter, sentrert i planet
+ * og med botnen på z = 0, vindinga mot klokka sedd utanfrå. Han er
+ * standardobjektet, og det einaste som står på skjermen utan at eit nett
+ * har vore i nærleiken av eit nettverk. Dei andre formene er filer — sjå
+ * `FILFORMER` i `scene.ts`.
+ *
+ * Her stod ei kule, ein sylinder, ei kjegle og ein torus òg, laga av ein
+ * rotasjonsprofil. Dei var ærleg matematikk, og ingen av dei fortalde kva
+ * verktyet er til.
  */
-function rotasjonsSoup(
-  profil: (v: number) => [number, number],
-  n: number,
-  m: number,
-  lukka = false,
-): Soup {
-  // profil(v) gjev (radius, z) for v i [0, 1]; lukka tyder at profilen er
-  // ein ring (torus) og ikkje ein boge frå topp til botn
-  const pos: number[] = []
-  const at = (i: number, j: number): [number, number, number] => {
-    const th = (i / n) * Math.PI * 2
-    const [r, z] = profil(lukka ? (j / m) % 1 : Math.min(1, j / m))
-    return [r * Math.cos(th), r * Math.sin(th), z]
-  }
-  for (let i = 0; i < n; i++) {
-    for (let j = 0; j < m; j++) {
-      const a = at(i, j)
-      const b = at(i + 1, j)
-      const c = at(i + 1, j + 1)
-      const d = at(i, j + 1)
-      pos.push(...a, ...b, ...c, ...a, ...c, ...d)
-    }
-  }
-  return makeSoup(new Float32Array(pos))
-}
-
 const PRIMITIV: Record<string, () => Soup> = {
   kube: () => cubeSoup(),
-  // v går frå toppen (0) til botnen (1) med polane som nullradius, so
-  // skalet lukkar seg der og trekantane i polen fell saman utan hòl
-  kule: () => rotasjonsSoup((v) => [50 * Math.sin(v * Math.PI), 50 + 50 * Math.cos(v * Math.PI)], 48, 24),
-  sylinder: () =>
-    rotasjonsSoup((v) => (v < 0.05 ? [(v / 0.05) * 40, 100] : v > 0.95 ? [((1 - v) / 0.05) * 40, 0] : [40, 100 - ((v - 0.05) / 0.9) * 100]), 48, 40),
-  kjegle: () =>
-    rotasjonsSoup((v) => (v > 0.95 ? [((1 - v) / 0.05) * 50, 0] : [(v / 0.95) * 50, 100 - (v / 0.95) * 100]), 48, 40),
-  torus: () => rotasjonsSoup((v) => [35 + 15 * Math.cos(v * Math.PI * 2), 15 + 15 * Math.sin(v * Math.PI * 2)], 48, 24, true),
 }
 
 export const erPrimitiv = (id: string) => id in PRIMITIV
@@ -141,6 +126,7 @@ export function source(id: string): Soup {
 
 export function put(id: string, label: string, soup: Soup, fil?: Uint8Array): SourceInfo {
   RAW.set(id, { soup, label, fil: fil && fil.byteLength <= MAX_RAW ? fil : undefined })
+  gen++
   return { id, label, tris: soup.tris }
 }
 
@@ -158,6 +144,9 @@ export function label(id: string): string {
 export function forget(keep: string | readonly string[]) {
   const hald = new Set(typeof keep === "string" ? [keep] : keep)
   for (const id of [...RAW.keys()]) {
-    if (!hald.has(id) && !(id in PRIMITIV)) RAW.delete(id)
+    // FORMENE STÅR. Dei er fem og små, og eit fall attende på kuben av di
+    // ho vart gløymd mellom to bygg er ei anna form på skjermen enn den du
+    // valde — utan at noko sa frå.
+    if (!hald.has(id) && !(id in PRIMITIV) && !erFilform(id)) RAW.delete(id)
   }
 }

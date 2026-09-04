@@ -16,8 +16,22 @@
 import type { Vec3 } from "./core"
 
 export const SCENE_TAK = 16
-/** dei fem som finst utan ei fil */
-export const PRIMITIV = ["kube", "kule", "sylinder", "kjegle", "torus"] as const
+/**
+ * DEI INNEBYGDE FORMENE.
+ *
+ * Kula, sylinderen, kjegla og torusen var matematikk du kunne skjere i, og
+ * det var ærleg nok — men ingen av dei fortalde kva verktyet er til. Ein
+ * krakk gjer det. Dei fem formene her er møblar, forenkla ned til
+ * trekanttaket og lagde med `scripts/former.ts`; dei ligg som glTF under
+ * `public/form` og vert HENTA når du tek i dei.
+ *
+ * Kuben står att, og han er den einaste som er laga i koden. Han er
+ * standardobjektet og fallet når ei kjelde manglar, so han må stå på
+ * skjermen før noko nett har vore i nærleiken av eit nettverk.
+ */
+export const FILFORMER = ["stolform-01", "stolform-02", "stolform-03", "stolform-04", "stolform-05"] as const
+export const FORMER = ["kube", ...FILFORMER] as const
+export const erFilform = (id: string): boolean => (FILFORMER as readonly string[]).includes(id)
 
 export type Bit = {
   /** kjelde-id: eit primitiv, eller ei importert fil */

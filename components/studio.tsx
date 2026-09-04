@@ -8,7 +8,7 @@ import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, rutenett, sameSnitt, spegla, speglingar, skrivPlan, virvel, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
-import { eiKjelde, lesScene, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
+import { eiKjelde, erFilform, lesScene, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
@@ -149,6 +149,19 @@ export function Studio() {
    * er det synet du sende.
    */
   const [skal, setSkal] = useState(true)
+  /**
+   * DEI INNEBYGDE FORMENE ER FILER, og filer må hentast.
+   *
+   * Kuben er laga i koden og står på skjermen med det same; dei fem andre
+   * ligg under `public/form` og kjem når noko tek i dei — anten du vel ei
+   * frå menyen, eller ei lenkje du opna ber henne. `formLasta` er dei vi
+   * har bede om, `formSvar` er dei som er i lufta, og `formTal` er det
+   * bygget lyttar på: eit nett som kjem inn ETTER at scena peika på det,
+   * må byggjast på nytt, elles står biten som ein kube som ingen bad om.
+   */
+  const formLasta = useRef(new Set<string>())
+  const formSvar = useRef(new Set<number>())
+  const [formTal, setFormTal] = useState(0)
   /** dei to bygga: kroppen (flate) og delane (lag). Konturen byggjer ingenting — han er plateflata. */
   const [kropp, setKropp] = useState<BuildRes | null>(null)
   const [lag, setLag] = useState<BuildRes | null>(null)
@@ -302,7 +315,12 @@ export function Studio() {
         return
       }
       const obj = JSON.parse(decodeURIComponent(h.slice(2))) as Record<string, unknown>
-      setParams((p) => MOTOR.clamp({ ...obj, kjelde: KUBE }, p))
+      // EI LENKJE BER IKKJE EIT NETT — men ho ber godt eit NAMN som tyder
+      // det same overalt. Ei importert fil har eit namn av bytane sine og
+      // er borte for den som opnar lenkja; ei innebygd form ligg på tenaren
+      // og kjem når nokon spør. Difor: forma står, alt anna fell til kuben.
+      const kj = typeof obj.kjelde === "string" && erFilform(obj.kjelde) ? obj.kjelde : KUBE
+      setParams((p) => MOTOR.clamp({ ...obj, kjelde: kj }, p))
       if (obj.view === "lag" || obj.view === "kontur" || obj.view === "flate") setView(obj.view)
       if (typeof obj.skal === "boolean") setSkal(obj.skal)
     } catch {
@@ -382,6 +400,15 @@ export function Studio() {
       }
       if (r.kind === "kjelde") {
         setNamn((m) => ({ ...m, [r.src.id]: r.src.label }))
+        // EI FORM ER IKKJE EIN IMPORT. Ho vart beden om av di noko på
+        // skjermen alt PEIKAR på henne — ein bit i scena, eller ei lenkje
+        // som ber henne — so ho skal ikkje byte kjelde og ikkje tømme plana.
+        // Ho skal berre byggjast, no som nettet er framme.
+        if (formSvar.current.delete(r.id)) {
+          setFormTal((n) => n + 1)
+          setHentar(false)
+          return
+        }
         // EIT NYTT NETT TEK PLANA OG FESTA MED SEG UT: båe er svar om den
         // kroppen du hadde. Den hugsa økta går fri — ho er skriven for dette nettet.
         const eiga = attende.current.delete(r.id)
@@ -453,7 +480,7 @@ export function Studio() {
   const kk = kroppKey(params)
   useEffect(() => {
     if (mounted) bygg("flate", "lav")
-  }, [kk, mounted, bygg])
+  }, [kk, mounted, formTal, bygg])
   useEffect(() => {
     if (!mounted) return
     setBusy(true)
@@ -463,15 +490,39 @@ export function Studio() {
       bygg("lag", detail)
     }, 300)
     return () => window.clearTimeout(t)
-  }, [params, detail, view, mounted, bygg])
+  }, [params, detail, view, mounted, formTal, bygg])
+
+  /** hent dei formene som står på skjermen og ikkje er bedne om før */
+  useEffect(() => {
+    if (!mounted) return
+    const vil = new Set<string>([String(params.kjelde ?? ""), ...bitar.map((b) => b.id)].filter(erFilform))
+    for (const id of vil) {
+      if (formLasta.current.has(id)) continue
+      formLasta.current.add(id)
+      setHentar(true)
+      void fetch(`/form/${id}.glb`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((buf) => {
+          const q = ++reqId.current
+          formSvar.current.add(q)
+          send({ kind: "import", id: q, name: `${id}.glb`, buf, som: id }, [buf])
+        })
+        .catch(() => {
+          // ei form som ikkje kom er ei form du kan be om att
+          formLasta.current.delete(id)
+          setHentar(false)
+          setFeil("fekk ikkje forma")
+        })
+    }
+  }, [params.kjelde, bitar, mounted, send])
 
   // lenkja kodar alltid det som står på skjermen — bortsett frå nettet
   useEffect(() => {
     if (!mounted) return
     const t = window.setTimeout(() => {
       const { kjelde: _k, ...rest } = params
-      void _k
-      window.history.replaceState(null, "", "#p=" + encodeURIComponent(JSON.stringify({ ...rest, view, skal })))
+      const kj = typeof _k === "string" && erFilform(_k) ? { kjelde: _k } : {}
+      window.history.replaceState(null, "", "#p=" + encodeURIComponent(JSON.stringify({ ...rest, ...kj, view, skal })))
     }, 500)
     return () => window.clearTimeout(t)
   }, [params, view, skal, mounted])

@@ -630,7 +630,11 @@ const RØRER: Rørt[] = [
   { k: "material", v: "papp", les: (m) => m.mass },
   { k: "tjukn", v: 6, les: (m) => m.slotW },
   { k: "plan", v: ruter(9, 9), les: (m) => m.parts },
-  { k: "scene", v: "kube@0,0,0/1/0;kule@0,0,80/0.6/0", les: (m) => m.envZ },
+  // TO KUBAR VED SIDA AV KVARANDRE, og ikkje oppå: `storleik` normaliserer
+  // den LENGSTE sida, so ein stabel er like høg som éin kube er. Legg du dei
+  // langs x, er x det lengste, og då fell høgda — det er den einaste vegen
+  // scena kan syne seg i eit einaste tal.
+  { k: "scene", v: "kube@0,0,0/1/0;kube@200,0,0/1/0", les: (m) => m.envZ },
   { k: "plan", v: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.5/0,0.7071,0.7071", les: (m) => m.parts },
   { k: "storleik", v: 300, les: (m) => m.envX },
   { k: "klaring", v: 0.4, les: (m) => m.slotW },
