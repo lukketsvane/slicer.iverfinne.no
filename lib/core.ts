@@ -517,6 +517,9 @@ export type ExportOut = {
   mime: string
   text?: string
   data?: ArrayBuffer
+  /** Noko fila IKKJE bar. Ei fil som manglar noko og ikkje seier det, er
+   *  verre enn ei fil som feila: du finn det ut når du opnar henne att. */
+  merknad?: string
 }
 
 // =============================================================================

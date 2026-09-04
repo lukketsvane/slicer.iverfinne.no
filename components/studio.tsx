@@ -443,6 +443,9 @@ export function Studio() {
         return
       }
       void lastNed(r.text ? new Blob([r.text], { type: r.mime }) : new Blob([r.data as ArrayBuffer], { type: r.mime }), r.name)
+      // Ei fil som ikkje bar alt ho lova, skal seie det MEDAN du står der.
+      // Finn du det ut når du opnar henne att, er arbeidet borte.
+      if (r.merknad) setMelding(r.merknad)
       setBusy(false)
     }
     return () => {
