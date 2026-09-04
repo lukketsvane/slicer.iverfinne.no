@@ -190,7 +190,37 @@ export function flateMesh(k: Kropp) {
 export function ribSolid(s: Soup, r: Ribbe, t: number, del0 = -1) {
   const h = t / 2
   const put = (q: Pt, off: number): Vec3 => ut(r.r, q, off)
+  const boygd = !!r.r.k
   const nBack: Vec3 = [-r.r.n[0], -r.r.n[1], -r.r.n[2]]
+  /**
+   * EI BØYGD RIBBE MÅ DELAST FØR HO VERT LAGD UT.
+   *
+   * Profilen er eit flatt polygon, og øyreklippet gjev store trekantar av
+   * han. Store trekantar lagde ut på ein sylinder er korder: dei skjer av
+   * buen og ribba ser ut som ei kasse som påstår at ho er bøygd. Same
+   * grensa som utrullinga bruker — `√(8·R·tol)` — og same grunnen.
+   *
+   * Normalen fylgjer med: ei bøygd flate har inga einaste normal, so han
+   * vert rekna per trekant i staden for gjeven.
+   */
+  const lim = boygd ? Math.sqrt(8 * Math.abs(1 / r.r.k) * 0.05) : Infinity
+  const flate = (a: Pt, b: Pt, c: Pt, off: number, n: Vec3 | undefined, djup: number) => {
+    const lang =
+      djup < 5 &&
+      Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), Math.hypot(c[0] - b[0], c[1] - b[1]), Math.hypot(a[0] - c[0], a[1] - c[1])) > lim
+    if (!lang) {
+      tri(s, put(a, off), put(b, off), put(c, off), n)
+      return
+    }
+    const m = (x: Pt, y: Pt): Pt => [(x[0] + y[0]) / 2, (x[1] + y[1]) / 2]
+    const ab = m(a, b)
+    const bc = m(b, c)
+    const ca = m(c, a)
+    flate(a, ab, ca, off, n, djup + 1)
+    flate(ab, b, bc, off, n, djup + 1)
+    flate(ca, bc, c, off, n, djup + 1)
+    flate(ab, bc, ca, off, n, djup + 1)
+  }
   for (let oi = 0; oi < r.outlines.length; oi++) {
     const o = r.outlines[oi]
     // Same rekkjefylgje som `buildDelar` går omrissa i, so dette er det
@@ -200,8 +230,8 @@ export function ribSolid(s: Soup, r: Ribbe, t: number, del0 = -1) {
     const merged = mine.length ? bridge(o, mine) : o
     s.k = 0
     for (const [a, b, c] of earClip(merged)) {
-      tri(s, put(a, h), put(b, h), put(c, h), r.r.n)
-      tri(s, put(c, -h), put(b, -h), put(a, -h), nBack)
+      flate(a, b, c, h, boygd ? undefined : r.r.n, 0)
+      flate(c, b, a, -h, boygd ? undefined : nBack, 0)
     }
     s.k = 1
     // Hòlveggen med SAME vinding som ytterkanten: `contour` gjev hòl med
@@ -211,6 +241,8 @@ export function ribSolid(s: Soup, r: Ribbe, t: number, del0 = -1) {
       for (let i = 0; i < ring.length; i++) {
         const a = ring[i]
         const b = ring[(i + 1) % ring.length]
+        // kanten er alt korte bitar: konturen fylgjer ruta, og ho er finare
+        // enn grensa over
         tri(s, put(a, -h), put(b, -h), put(b, h))
         tri(s, put(a, -h), put(b, h), put(a, h))
       }

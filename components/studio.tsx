@@ -6,7 +6,7 @@ import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, rutenett, sameSnitt, spegla, speglingar, skrivPlan, virvel, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, rutenett, sameSnitt, spegla, speglingar, skrivPlan, virvel, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
 import { eiKjelde, erFilform, lesScene, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
@@ -14,7 +14,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoDupliser, IcoFerdig, IcoHol, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
+import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoFerdig, IcoHol, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -35,6 +35,8 @@ const LUKKA_ARK = 84
 const TUMME_BTN = "hit ikon relative flex h-12 w-12 items-center justify-center"
 /** eit steg i rutenettet: so langt fingrane må gå for éin kolonne eller éi rad */
 const RUTE_STEG = 44
+/** kor mykje bøy éin piksel drag er verd: hundre pikslar er ein halv bøy */
+const BOY_STEG = 0.005
 /** kor lenge grensesnittet står framme etter siste rørsle, i millisekund */
 const SOV_MS = 2000
 /** eit steg i virvelen: so langt fingrane går for éi ribbe til, og for eit hakk ut frå aksen */
@@ -292,7 +294,7 @@ export function Studio() {
   /** skissa flytta seg i scena: punktet som brøk av boksen, og normalen som han er */
   const skisseEndra = useCallback((s: Skisse) => {
     const k = kroppRef.current
-    if (k) spørSkisse({ id: 0, o: broek(s.o, k.min, k.max), n: s.n, strek: [] })
+    if (k) spørSkisse({ id: 0, o: broek(s.o, k.min, k.max), n: s.n, bog: 0, strek: [] })
   }, [spørSkisse])
 
   // Hashen er ikkje til å stole på: kvart felt vert klemt av motoren sin eigen clamp.
@@ -458,7 +460,7 @@ export function Studio() {
     if (view === "kontur") return spørSkisse(null)
     if (vald !== null) return spørSkisse(plan.find((q) => q.id === vald) ?? null)
     const s = skisse.current
-    spørSkisse(s ? { id: 0, o: broek(s.o, kropp.min, kropp.max), n: s.n, strek: [] } : null)
+    spørSkisse(s ? { id: 0, o: broek(s.o, kropp.min, kropp.max), n: s.n, bog: 0, strek: [] } : null)
   }, [mounted, kropp, vald, plan, params, modus, view, spørSkisse])
   const harSnitt = !!snitt?.ringar.length
 
@@ -833,7 +835,7 @@ export function Studio() {
       const l = lesPlan(cur.plan)
       if (l.length >= PLAN_TAK) return cur
       let i = nyId(l)
-      return { ...cur, plan: skrivPlan([...l, ...tek.map((q) => ({ id: i++, o: q.o, n: q.n, strek: [] }))].slice(0, PLAN_TAK)) }
+      return { ...cur, plan: skrivPlan([...l, ...tek.map((q) => ({ id: i++, o: q.o, n: q.n, bog: 0, strek: [] }))].slice(0, PLAN_TAK)) }
     })
     setBlink(id)
   }, [speil])
@@ -863,10 +865,33 @@ export function Studio() {
     setParams((cur) => {
       const m = lesPlan(cur.plan)
       if (m.length >= PLAN_TAK) return cur
-      return { ...cur, plan: skrivPlan([...m, { id: nyId(m), o, n: q.n, strek: q.strek }]) }
+      return { ...cur, plan: skrivPlan([...m, { id: nyId(m), o, n: q.n, bog: q.bog, strek: q.strek }]) }
     })
     setVald(ny)
     setBlink(ny)
+  }, [])
+  /**
+   * BØYEN PÅ EIT PLAN, sett med ein finger.
+   *
+   * Talet er krumming gonge storleik (sjå `Plan.bog`), so det du bøygde
+   * fylgjer kroppen når han vert skalert. Draget går oppover for meir bøy
+   * mot normalen og nedover for meir mot den andre vegen, med null i
+   * midten — og null er flatt, ikkje ein grense du må treffe.
+   *
+   * Kva materialet TOLER er ikkje klemt her: regelen `bog` reknar radien i
+   * millimeter mot tjukna og seier frå, med eit råd som rettar ut til det
+   * som går. Ein skyvar som stogga deg ville ikkje kunna seie kvifor.
+   */
+  const boyPlan = useCallback((id: number, d: number) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const i = l.findIndex((q) => q.id === id)
+      if (i < 0) return cur
+      const b = Math.max(-BOG_TAK, Math.min(BOG_TAK, l[i].bog + d))
+      if (Math.abs(b - l[i].bog) < 1e-6) return cur
+      l[i] = { ...l[i], bog: Math.abs(b) < 0.01 ? 0 : +b.toFixed(4) }
+      return { ...cur, plan: skrivPlan(l) }
+    })
   }, [])
   /** eit plan flytt eller vinkla om av fingrane — gjennom parametrane, so angre og lenkja gjeld */
   const flyttPlan = useCallback((id: number, o: Vec3, n: Vec3) => {
@@ -1162,6 +1187,8 @@ export function Studio() {
   const [sov, setSov] = useState(false)
   /** knappen den andre fingeren tok, medan han er nede — sjå tommelspalta */
   const andreFinger = useRef<Element | null>(null)
+  /** kvar fingeren stod sist medan han bøygde eit plan */
+  const boy = useRef<number | null>(null)
   const kvile =
     mounted && !verkty && steg === "line" && view !== "kontur" &&
     vald === null && valdStrek === null && valdBit === null &&
@@ -1412,6 +1439,35 @@ export function Studio() {
               >
                 {IcoHol}
               </button>
+              {/* BØYEN: TRYKK OG DRA, som lupa. Ein skyvar ville teke ei
+                  rad i arket for noko som gjeld eitt plan, og handtaka på
+                  snittet er alt tre. Draget er buelengd og ikkje pikslar:
+                  hundre pikslar er ein halv bøy same kva skjerm du held. */}
+              {valdStrek === null && (
+                <button
+                  type="button"
+                  data-boy=""
+                  aria-label="bøy planet"
+                  title="dra opp og ned: bøy planet. materialet set grensa, og regelen seier kvar ho går"
+                  className={TUMME_BTN}
+                  style={{ touchAction: "none", cursor: "ns-resize" }}
+                  onPointerDown={(e) => {
+                    e.currentTarget.setPointerCapture(e.pointerId)
+                    boy.current = e.clientY
+                    setSkrubbar(true)
+                  }}
+                  onPointerMove={(e) => {
+                    if (boy.current === null || vald === null) return
+                    const dy = e.clientY - boy.current
+                    boy.current = e.clientY
+                    boyPlan(vald, -dy * BOY_STEG)
+                  }}
+                  onPointerUp={() => { boy.current = null; setSkrubbar(false) }}
+                  onPointerCancel={() => { boy.current = null; setSkrubbar(false) }}
+                >
+                  {IcoBoy}
+                </button>
+              )}
               <button
                 type="button"
                 aria-label={valdStrek !== null ? "slett strek" : "slett"}

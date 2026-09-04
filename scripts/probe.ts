@@ -15,9 +15,10 @@ import { unzip } from "../lib/zip"
 import { glb } from "./glbfil"
 import { feltTal, klokke, lesTal, snap, type ParamBag } from "../lib/core"
 import { PARAM_RANGES } from "../lib/params"
-import { rutenett, skrivPlan, virvel } from "../lib/plan"
+import { lesPlan, rutenett, skrivPlan, virvel } from "../lib/plan"
 import { makeKropp } from "../lib/kropp"
 import { FILFORMER } from "../lib/scene"
+import { KUBE } from "../lib/sources"
 import { existsSync, readFileSync } from "node:fs"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
@@ -456,6 +457,46 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
     else if (flat) bryt(`${id}: boksen er ${boks.join(" × ")} — flat i ei akse`)
     else console.log(`  ${id.padEnd(13)} ${String(soup.tris).padStart(6)} tri   ${(b.length / 1024).toFixed(0)} kB   ${boks.map((c) => +c.toPrecision(3)).join(" × ")}`)
   }
+}
+
+/**
+ * BØYEN: BUELENGDA ER LENGDA.
+ *
+ * Ei bøygd ribbe vert skoren FLAT og bøygd ved montering, so det flate
+ * mønsteret må vera flata rulla ut — buelengda, ikkje korda. Går det gale,
+ * kjem delen ut for kort, og ingenting på skjermen seier frå: profilen ser
+ * heilt rett ut, plata ser heilt rett ut, og du finn det når delen ikkje
+ * når fram.
+ *
+ * Difor eit tal som kan reknast for hand. Ein kube på 300 mm, kutta av ein
+ * sylinder med radius R gjennom midten: korda er 300, halvvinkelen er
+ * asin(150/R), og buen er 2·R·asin(150/R). Ved R = 600 er det 303,3 mm.
+ */
+{
+  console.log("\n=== bøyen ===")
+  const S = 300
+  const grunn = { ...DEFAULT_PARAMS, kjelde: KUBE, storleik: S, tjukn: 6, plan: skrivPlan(rutenett(1, 0)) } as Params
+  for (const bog of [0, 0.25, 0.5, 1]) {
+    const l = lesPlan(grunn.plan).map((q) => ({ ...q, bog }))
+    const bag = { ...grunn, plan: skrivPlan(l) } as unknown as ParamBag
+    const k = MOTOR.liste(bag)[0]
+    if (!k) {
+      bryt(`bog ${bog}: ingen del`)
+      continue
+    }
+    const R = bog ? S / bog : Infinity
+    const vent = bog ? 2 * R * Math.asin(Math.min(1, S / 2 / R)) : S
+    const av = Math.abs(k.w - vent)
+    // ei cellebreidd mon: profilen vert lesen av ei rute, ikkje av formelen
+    if (av > 3) bryt(`bog ${bog}: mønsteret er ${nn(k.w, 2)} mm breitt, buen er ${nn(vent, 2)} mm`)
+    else console.log(`  bog ${String(bog).padEnd(5)} R ${bog ? nn(R, 0).padStart(5) : " flat"} mm   mønster ${nn(k.w, 1)} mm, bue ${nn(vent, 1)} mm`)
+  }
+  // og ein bøy som ikkje er der skal gje NØYAKTIG det same som ingen bøy:
+  // eit tal som snik seg inn i nøkkelen er eit bygg som vert rekna om att
+  const flat = MOTOR.measure({ ...grunn } as unknown as ParamBag)
+  const null0 = MOTOR.measure({ ...grunn, plan: skrivPlan(lesPlan(grunn.plan).map((q) => ({ ...q, bog: 0 }))) } as unknown as ParamBag)
+  if (flat.cutLen !== null0.cutLen || flat.parts !== null0.parts) bryt("bog 0 gjev eit anna svar enn ingen bog")
+  else console.log(`  bog 0 er det same som ingen bog: ${nn(flat.cutLen, 0)} mm kutt`)
 }
 
 console.log(brot ? `\n${brot} påstandar held ikkje` : "\nalle påstandar held")

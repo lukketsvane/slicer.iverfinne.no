@@ -73,8 +73,31 @@ export type Plan = {
   o: Vec3
   /** einingsnormalen, i kroppen sitt rom */
   n: Vec3
+  /**
+   * BØYEN. Eit plan treng ikkje vera flatt.
+   *
+   * Ei plate av finér kan bøyast, og ei ribbe som bøyer seg fylgjer forma
+   * tettare enn ei som ikkje kan. Flata vert ein SYLINDER: rett langs `v`,
+   * krum langs `u`, med aksen parallell med `v`. Ein sylinder er utrullbar
+   * — han rullar ut til eit flatt ark utan å strekkjast — so delen vert
+   * framleis skoren flat, og du bøyer han ved montering. Det er heile
+   * grunnen til at det er ein sylinder og ikkje ei kule.
+   *
+   * TALET ER KRUMMING GONGE STORLEIK, ikkje ein radius i millimeter. Same
+   * grunn som alt anna her: det du bøygde skal fylgje kroppen når han vert
+   * skalert. Radien i millimeter er `storleik / bog`, og DEN er det
+   * materialet har ei meining om — sjå `bogMin` i `rules.ts`.
+   *
+   * Positivt bøyer flata mot +n. Null er flatt, og eit flatt plan skriv
+   * ingen bøy i strengen i det heile.
+   */
+  bog: number
   strek: Strek[]
 }
+
+/** Meir enn dette er ikkje ein bøy, det er eit rør. Regelen om materialet
+ *  klemmer hardare enn dette lenge før du kjem hit. */
+export const BOG_TAK = 4
 
 // =============================================================================
 // VEKTORAR — det vesle som trengst
@@ -104,7 +127,14 @@ export const mul3 = (a: Vec3, k: number): Vec3 => [a[0] * k, a[1] * k, a[2] * k]
  * nokon treng spørje kva akse planet står på — det var det Y-familien
  * måtte snu vindinga for før.
  */
-export type Ramme = { o: Vec3; n: Vec3; u: Vec3; v: Vec3 }
+export type Ramme = {
+  o: Vec3
+  n: Vec3
+  u: Vec3
+  v: Vec3
+  /** krumming i 1/mm, med teiknet til bøyen. Null er ei flat ramme. Sjå `bogUt`. */
+  k: number
+}
 
 /**
  * u og v gjevne av normalen åleine: v er so nær «opp» som planet tillèt.
@@ -122,27 +152,94 @@ export function akser(n: Vec3): { u: Vec3; v: Vec3 } {
   return { u: cross(v, n), v }
 }
 
-export function ramme(pl: { o: Vec3; n: Vec3 }, min: Vec3, max: Vec3): Ramme {
+/** den lengste sida av boksen: same lengda `storleik` er, og det bøyen vert målt mot */
+export const lengste = (min: Vec3, max: Vec3) => Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2], 1e-6)
+
+export function ramme(pl: { o: Vec3; n: Vec3; bog?: number }, min: Vec3, max: Vec3): Ramme {
   const n = norm3(pl.n)
   const o: Vec3 = [
     min[0] + pl.o[0] * (max[0] - min[0]),
     min[1] + pl.o[1] * (max[1] - min[1]),
     min[2] + pl.o[2] * (max[2] - min[2]),
   ]
-  return { o, n, ...akser(n) }
+  return { o, n, ...akser(n), k: (pl.bog ?? 0) / lengste(min, max) }
 }
 
-/** frå planet si ramme ut i rommet, `off` millimeter langs normalen */
-export const ut = (r: Ramme, q: Pt, off = 0): Vec3 => [
-  r.o[0] + q[0] * r.u[0] + q[1] * r.v[0] + off * r.n[0],
-  r.o[1] + q[0] * r.u[1] + q[1] * r.v[1] + off * r.n[1],
-  r.o[2] + q[0] * r.u[2] + q[1] * r.v[2] + off * r.n[2],
-]
+/**
+ * BØYEN, REKNA.
+ *
+ * Ramma er flat i `v` og krum i `u`, med sylinderaksen parallell med `v`.
+ * Punktet `u` millimeter ut langs buen ligg på
+ *
+ *   o + û·sin(k·u)/k + n̂·(1 − cos(k·u))/k
+ *
+ * og det er BUELENGDA `u` er, ikkje ei rett line: eit ark som vert rulla
+ * strekkjer seg ikkje. Difor er profilen i ramma alt det flate
+ * kuttmønsteret, og difor er ein sylinder det einaste som duger — ei kule
+ * kan ikkje rullast ut utan å rive.
+ *
+ * Går k mot null, går sin(ku)/k mot u og (1−cos(ku))/k mot null, og heile
+ * uttrykket vert den flate ramma att. Rekkja under gjer det same der talet
+ * elles hadde vore null delt på null.
+ */
+const bogPar = (k: number, u: number): [number, number] => {
+  const a = k * u
+  if (Math.abs(a) < 1e-6) return [u * (1 - (a * a) / 6), (u * a) / 2]
+  return [Math.sin(a) / k, (1 - Math.cos(a)) / k]
+}
 
-/** frå rommet inn i planet si ramme — komponenten langs normalen fell bort */
+/** frå planet si ramme ut i rommet, `off` millimeter langs flatenormalen */
+export const ut = (r: Ramme, q: Pt, off = 0): Vec3 => {
+  if (!r.k) {
+    return [
+      r.o[0] + q[0] * r.u[0] + q[1] * r.v[0] + off * r.n[0],
+      r.o[1] + q[0] * r.u[1] + q[1] * r.v[1] + off * r.n[1],
+      r.o[2] + q[0] * r.u[2] + q[1] * r.v[2] + off * r.n[2],
+    ]
+  }
+  // NORMALEN VRIR SEG MED FLATA: tjukna på ei bøygd ribbe står vinkelrett
+  // på ho der ho er, ikkje der ho byrja. Elles vart plata tjukkare i den
+  // eine enden enn i den andre.
+  const a = r.k * q[0]
+  const [su, sn] = bogPar(r.k, q[0])
+  const c = Math.cos(a)
+  const si = Math.sin(a)
+  // `off` går langs +n̂ der buen byrjar, og fylgjer flata derifrå: innover
+  // mot aksen. Punktet ligg då nøyaktig |R − off| frå aksen same kvar på
+  // buen det står, og det er DET som gjer plata like tjukk heile vegen.
+  const du = su - off * si
+  const dn = sn + off * c
+  return [
+    r.o[0] + du * r.u[0] + q[1] * r.v[0] + dn * r.n[0],
+    r.o[1] + du * r.u[1] + q[1] * r.v[1] + dn * r.n[1],
+    r.o[2] + du * r.u[2] + q[1] * r.v[2] + dn * r.n[2],
+  ]
+}
+
+/**
+ * Frå rommet inn i planet si ramme. Flat: komponenten langs normalen fell
+ * bort. Bøygd: vinkelen kring sylinderaksen vert buelengd, og avstanden
+ * frå aksen seier kor langt frå flata punktet ligg — det siste fell bort
+ * her, som normalkomponenten gjer i det flate tilfellet.
+ */
 export const inn = (r: Ramme, p: Vec3): Pt => {
   const d = sub3(p, r.o)
-  return [dot(d, r.u), dot(d, r.v)]
+  const a = dot(d, r.u)
+  const c = dot(d, r.v)
+  if (!r.k) return [a, c]
+  const R = 1 / r.k
+  const b = dot(d, r.n)
+  // teiknet på R inn i atan2, so vinkelen vert den same kva veg buen går
+  const sg = Math.sign(R)
+  return [Math.atan2(sg * a, sg * (R - b)) * R, c]
+}
+
+/** kor langt frå den bøygde flata eit punkt ligg, i millimeter langs normalen */
+export const avFlata = (r: Ramme, p: Vec3): number => {
+  const d = sub3(p, r.o)
+  if (!r.k) return dot(d, r.n)
+  const R = 1 / r.k
+  return R - Math.hypot(dot(d, r.u), R - dot(d, r.n)) * Math.sign(R)
 }
 
 /** eit punkt i millimeter attende til brøkdelar av boksen */
@@ -205,7 +302,9 @@ const skrivStrek = (s: Strek) =>
 
 export function skrivPlan(l: readonly Plan[]): string {
   return l
-    .map((p) => [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...p.strek.map(skrivStrek)].join("/"))
+    .map((p) =>
+      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...p.strek.map(skrivStrek)].join("/"),
+    )
     .join(";")
 }
 
@@ -255,14 +354,23 @@ export function lesPlan(s: unknown): Plan[] {
     if (o.some((c) => c < -0.5 || c > 1.5)) continue
     const n = norm3(n0).map((c) => +c.toFixed(4)) as Vec3
     const strek: Strek[] = []
+    let bog = 0
     for (const r of rest.slice(1)) {
+      // bøyen står før streka og ber sitt eige teikn, so han ikkje kan
+      // lesast som eit av dei
+      const b = /^b:(-?[\d.]+)$/.exec(r)
+      if (b) {
+        const v = Number(b[1])
+        if (Number.isFinite(v)) bog = Math.max(-BOG_TAK, Math.min(BOG_TAK, +v.toFixed(4)))
+        continue
+      }
       if (strek.length >= STREK_TAK) break
       const st = lesStrek(r)
       if (!st) continue
       strek.push(st)
     }
     sett.add(id)
-    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, strek })
+    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, strek })
   }
   return ut
 }
@@ -374,7 +482,7 @@ export function virvel(n: number, r: number, vidd: readonly [number, number], fr
       id: id++,
       o: [+(0.5 + (d * nv[0]) / W).toFixed(4), +(0.5 + (d * nv[1]) / D).toFixed(4), 0.5],
       n: nv,
-      strek: [],
+      bog: 0, strek: [],
     })
   }
   return ut
@@ -384,10 +492,10 @@ export function rutenett(nx: number, ny: number, fraa = 1): Plan[] {
   const ut: Plan[] = []
   let id = fraa
   for (let i = 0; i < nx; i++) {
-    ut.push({ id: id++, o: [(i + 0.5) / nx, 0.5, 0.5], n: [1, 0, 0], strek: [] })
+    ut.push({ id: id++, o: [(i + 0.5) / nx, 0.5, 0.5], n: [1, 0, 0], bog: 0, strek: [] })
   }
   for (let j = 0; j < ny; j++) {
-    ut.push({ id: id++, o: [0.5, (j + 0.5) / ny, 0.5], n: [0, 1, 0], strek: [] })
+    ut.push({ id: id++, o: [0.5, (j + 0.5) / ny, 0.5], n: [0, 1, 0], bog: 0, strek: [] })
   }
   return ut
 }

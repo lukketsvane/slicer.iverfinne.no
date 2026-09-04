@@ -155,6 +155,34 @@ thumb column reads the pointer itself when it is not the primary one. Let go
 outside the button you pressed and nothing happens, which is how a tap is
 cancelled.
 
+**A plane does not have to be flat.** Select one and drag the bend button
+under your thumb: the cutting surface becomes a cylinder, straight along `v`
+and curved along `u`. A cylinder is developable — it unrolls to a flat sheet
+without stretching — so the part is still cut flat and you bend it on
+assembly. That is why it is a cylinder and not a sphere.
+
+The number stored is curvature times size, not a radius in millimetres, so a
+bend follows the body when you scale it. The radius in millimetres is what the
+material has an opinion about: bending strains the outer fibre by `t/2R`, and
+past what the material takes, the sheet splits — in the workshop, not on the
+screen. So it is a hard rule, not a hint: plywood 100×t, MDF 200×t, acrylic
+230×t cold, cardboard 10×t. 6 mm plywood bends to 600 mm and no tighter; 3 mm
+to 300. The rule offers to straighten to exactly what will go.
+
+Inside, a bent plane does not slice the body — it unrolls the *space*. The
+cylinder becomes a plane again in the unrolled space, the slice is the same
+z-slice as any other, and the profile that comes out is already the flat
+pattern, because unrolling turns arc length into length. Straight triangle
+edges become curves on the way, so edges longer than `√(8·R·tol)` are split
+first; without that a cube would come out as a box with straight sides
+claiming to be bent.
+
+**Bent planes carry no joints yet.** Two planes cross along a line, and the
+whole slot machinery is built on that; two bent surfaces cross along a curve,
+and that finder is not written. Slicing therefore skips joints on a bent
+plane, and a hard rule says so instead of letting you find it in the box. That
+is the next step.
+
 **The chrome dozes.** Two seconds without a finger and everything that is not
 the object fades away — the top line, the thumb column, the sheet, the sketch
 handles, the view cube, the cut preview — and any movement brings it back in

@@ -81,8 +81,12 @@ English one would read better to you.
 metric is, what a rule is, and the geometry the slicing, the measuring and the
 cut files all share. It knows nothing about planes, cube or STL. A change that
 teaches it about one of those is in the wrong file. `lib/plan.ts` is what a
-cutting plane is — a name, a point and a normal in the body's space, encoded as
-the `plan` string in the parameter bag — and it knows nothing about meshes.
+cutting plane is — a name, a point, a normal and a bend in the body's space,
+encoded as the `plan` string in the parameter bag — and it knows nothing about
+meshes. A bent plane is a cylinder, not a plane: developable, so the part is
+still cut flat, and the radius is limited by what the material takes. Bent
+planes do not carry joints yet — two bent surfaces cross along a curve, and
+that finder is not written; a hard rule says so.
 
 Read `README.md` and `REBUILD.md` before changing behaviour. The decisions in
 them are decisions, not accidents — the phone is the tool, a sketched plane is
