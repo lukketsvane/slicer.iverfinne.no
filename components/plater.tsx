@@ -214,6 +214,41 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     onArk(til)
   }
 
+  /**
+   * PILENE FLYTTAR DEN VALDE DELEN, ein millimeter per trykk og ti med
+   * skift — for benken, der ein drar han om lag rett og set han nøyaktig
+   * etterpå. Same veg som draget: innanfor plata, med margen, og festa.
+   * Lyttaren står på vindauget medan plata står framme, og les det
+   * nyaste gjennom ein ref: eit tastetrykk skal ikkje flytte ein del slik
+   * han stod for ein render sidan.
+   */
+  const stegDel = (dx: number, dy: number) => {
+    const d = peikt ? ark?.plasser.find((q) => q.adr === peikt) : undefined
+    if (!d || !ark) return
+    const no = plassAv(d.adr) ?? d.plass
+    const marg = Math.max(0, d.boks.x - d.plass.x)
+    const snudd = no.rot % 2 === 1
+    const W = (snudd ? d.boks.h : d.boks.w) + 2 * marg
+    const H = (snudd ? d.boks.w : d.boks.h) + 2 * marg
+    flyttDel(d.adr, { ...no, sheet: ark.i, x: klem(no.x + dx, ark.arkB - W), y: klem(no.y + dy, ark.arkH - H) })
+  }
+  const stegRef = useRef(stegDel)
+  stegRef.current = stegDel
+  useEffect(() => {
+    const tast = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.getAttribute("role") === "slider" || /^(input|textarea|select)$/i.test(t.tagName))) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const s = e.shiftKey ? 10 : 1
+      const d = e.key === "ArrowLeft" ? [-s, 0] : e.key === "ArrowRight" ? [s, 0] : e.key === "ArrowUp" ? [0, s] : e.key === "ArrowDown" ? [0, -s] : null
+      if (!d) return
+      e.preventDefault()
+      stegRef.current(d[0], d[1])
+    }
+    window.addEventListener("keydown", tast)
+    return () => window.removeEventListener("keydown", tast)
+  }, [])
+
   /** menyen over delen: der fingeren står, ikkje i ein vegg */
   const [meny, setMeny] = useState<{ adr: string; x: number; y: number } | null>(null)
   const menyRef = useRef<HTMLDivElement | null>(null)

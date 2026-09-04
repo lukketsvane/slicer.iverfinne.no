@@ -50,6 +50,8 @@ export type ArketProps = {
   topp: number
   metrics: Metrics | null
   rules: readonly Rule[]
+  /** boksen kring kroppen, i millimeter: der planet står, lese av som eit tal */
+  boks: { min: Vec3; max: Vec3 } | null
   liste: readonly Kutt[]
   plan: readonly Plan[]
   vald: number | null
@@ -121,6 +123,16 @@ function Plana({ p }: { p: ArketProps }) {
             <button type="button" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => p.onVald(paa ? null : pl.id)}>
               <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>{pl.id}</span>
               <span className="min-w-0 flex-1 truncate">{kvaSlag(pl.n)}</span>
+              {/* KVAR PLANET STÅR, SOM EIT TAL: millimeter frå midten av kroppen,
+                  langs normalen. Det er inndata lese av — punktet og normalen
+                  planet ER — og ikkje eit mål frå kuttet. Pilene flyttar det
+                  éin om gongen, og talet fylgjer. Berre på benken: på
+                  telefonen er rada 390 pikslar, og ledda står der alt. */}
+              {p.benk && p.boks && (
+                <span className="tab dim shrink-0" title="millimeter frå midten av kroppen, langs normalen. pilene flyttar planet éin om gongen">
+                  {fraaMidten(pl, p.boks)}
+                </span>
+              )}
               <span className="tab dim shrink-0" style={{ color: mine.length && !ledd ? "var(--warn)" : undefined }} title={`${mine.length} stykke, ${ledd} ledd`}>
                 {mine.length ? `· ${mine.length > 1 ? `${mine.length} stk · ` : ""}${ledd} ledd` : "· utanfor"}
               </span>
@@ -136,6 +148,13 @@ function Plana({ p }: { p: ArketProps }) {
       })}
     </ul>
   )
+}
+
+/** planet sitt punkt, som avstand frå midten av kroppen langs normalen, i millimeter */
+function fraaMidten(pl: Plan, b: { min: Vec3; max: Vec3 }): string {
+  let d = 0
+  for (let a = 0; a < 3; a++) d += (pl.o[a] - 0.5) * (b.max[a] - b.min[a]) * pl.n[a]
+  return `${d < -0.05 ? "−" : "+"}${nn(Math.abs(d), 1)} mm`
 }
 
 /** uttaka: éi brikke per fil, og kva dei to fargane tyder */

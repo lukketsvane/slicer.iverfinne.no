@@ -413,6 +413,9 @@ function FitCamera({ fit, rute, sikt }: { fit: Fit | null; rute: Rute; sikt: Sik
  *   tre fingrar       hovudlyset
  *   handtaka          éin finger på det runde flyttar, på det vesle vrir
  *   ⇧ dra / ⌥ dra     det same for ei mus: flytt, vri. ⌃ hjul er klypet.
+ *   høgre knapp       (benken) panorerer synet — OrbitControls, ikkje her
+ *   pilene            (benken) eit valt plan eitt millimeter langs normalen,
+ *                     ti med skift — i studio, der tastane bur
  *
  * Klassifiseringa skjer ÉIN gong, etter ei daudsone, og alle fire kandidatar
  * (klyp, vri, dra loddrett, dra vassrett) vert målte i same eining: pikslar.
@@ -1996,7 +1999,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -2038,6 +2041,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   onRute: (dx: number, dy: number) => void
   /** eit tal som stig når ein NY kropp kjem: då, og berre då, ramar synet inn på nytt */
   rammInn: number
+  /** ei mus og eit tastatur: høgre museknapp panorerer synet. Ein finger gjer det aldri. */
+  benk: boolean
 }) {
   /** bitane kjem med «flate»-bygget: der er kroppen ein kropp */
   const bitar = useMemo(() => kropp?.bitar ?? [], [kropp])
@@ -2158,7 +2163,12 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             eit syn du ikkje kjem til er ein kontroll som manglar. */}
         <OrbitControls
           target={[0, 0.35, 0]}
-          enablePan={false}
+          // PANORERINGA ER MUSA SI. Synet er ei avgjerd, og på benken er
+          // høgre knapp (eller hjulet trykt ned) den avgjerda: dra, og
+          // objektet flyttar seg i ruta. Innramminga set det midt att.
+          // To fingrar gjer det aldri — dei har snittet.
+          enablePan={benk}
+          mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN }}
           enableRotate
           screenSpacePanning
           touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}
@@ -2179,7 +2189,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         du trykkjer på.
       */}
       <div className="synskube" style={{ right: rute.hogre + 16, top: rute.topp + 72 }}>
-        <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt" onClick={heim}>
+        <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt (F)" onClick={heim}>
           {IkonHeim}
         </button>
         {/* SKALET. Kroppen slik han var ligg gjennomsiktig kring delane og

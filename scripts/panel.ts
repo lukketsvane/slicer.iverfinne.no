@@ -949,6 +949,97 @@ async function benk(browser: Browser) {
   sjekk("R tek verktyet for rutenettet", (await page.locator("button[aria-label='rutenett'][aria-pressed='true']").count()) === 1)
   await page.keyboard.press("r")
 
+  // --- TALET KAN SKRIVAST: dobbeltklikk opnar eit felt, enter set, escape let stå ---
+  const tjukn = page.locator("[aria-label='tjukn, tal']")
+  await tjukn.dblclick()
+  const felt2 = page.locator("input[aria-label='tjukn, skriv']")
+  sjekk("dobbeltklikk på talet opnar eit felt", (await felt2.count()) === 1)
+  await felt2.fill("4,5")
+  await page.keyboard.press("Enter")
+  await vent(page, (p) => p.tjukn === 4.5)
+  sjekk("enter set talet, med komma", hash(page).tjukn === 4.5, String(hash(page).tjukn))
+  sjekk("og feltet er borte att", (await page.locator("input[aria-label='tjukn, skriv']").count()) === 0)
+  await tjukn.dblclick()
+  await page.locator("input[aria-label='tjukn, skriv']").fill("9")
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
+  sjekk("escape let talet stå", hash(page).tjukn === 4.5 && (await page.locator("input[aria-label='tjukn, skriv']").count()) === 0, String(hash(page).tjukn))
+  await tjukn.focus()
+  await page.keyboard.press("Shift+ArrowRight")
+  await vent(page, (p) => p.tjukn !== 4.5)
+  sjekk("skift+pil stegar ti", hash(page).tjukn === 5.5, String(hash(page).tjukn))
+  await page.keyboard.press("z")
+  await page.keyboard.press("z")
+  await vent(page, (p) => p.tjukn !== 4.5 && Math.abs(p.tjukn - 4.5) < 3)
+
+  // --- PILENE FLYTTAR DET VALDE PLANET éin millimeter langs normalen; D dublerer; tab går vidare ---
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
+  const ida = plana(page)[n0].id
+  await page.locator("[role=listbox][aria-label='plan'] [role=option]").last().locator("button").first().click()
+  await page.waitForTimeout(300)
+  const rad = page.locator("[role=listbox][aria-label='plan'] [role=option][aria-selected='true']")
+  const radTekst = async () => (await rad.innerText()).replace(/\s+/g, " ").trim()
+  const mm0 = (await rad.innerText()).match(/[+−]\d+,\d mm/)?.[0] ?? ""
+  sjekk("rada på benken les millimeteren frå midten", /[+−]\d+,\d mm/.test(mm0), mm0)
+  // millimeteren i rada er det pilene lovar: éin per trykk, ti med skift, og tolv tett i hop er tolv
+  const mmNo = async () => Number((await rad.innerText()).match(/[+−]\d+,\d mm/)?.[0]?.replace("−", "-").replace(",", ".").replace(" mm", "") ?? NaN)
+  const ventMm = async (v: number) => {
+    for (let i = 0; i < 60; i++) {
+      if (Math.abs((await mmNo()) - v) < 0.06) return true
+      await page.waitForTimeout(100)
+    }
+    return false
+  }
+  const m0 = await mmNo()
+  await page.keyboard.press("ArrowUp")
+  sjekk("pil opp flyttar planet éin millimeter langs normalen", await ventMm(m0 + 1), `${m0} → ${await mmNo()}`)
+  for (let i = 0; i < 11; i++) await page.keyboard.press("ArrowUp", { delay: 0 })
+  sjekk("tolv trykk tett i hop er tolv millimeter", await ventMm(m0 + 12), `${m0} → ${await mmNo()}`)
+  for (let i = 0; i < 11; i++) await page.keyboard.press("ArrowDown", { delay: 0 })
+  sjekk("og elleve attende er éin", await ventMm(m0 + 1), `${m0} → ${await mmNo()}`)
+  await page.keyboard.press("Shift+ArrowDown")
+  sjekk("skift+pil ned er ti", await ventMm(m0 - 9), `${m0} → ${await mmNo()}`)
+  await page.keyboard.press("d")
+  await vent(page, talPlan(n0 + 2))
+  sjekk("D dublerer det valde planet, og kopien er vald", plana(page).length === n0 + 2 && (await rad.innerText()).startsWith(String(plana(page)[n0 + 1].id)))
+  await page.keyboard.press("Tab")
+  await page.waitForTimeout(200)
+  sjekk("tab går til neste plan i lista", (await rad.innerText()).startsWith(String(plana(page)[0].id)), await radTekst())
+  await page.keyboard.press("Shift+Tab")
+  await page.waitForTimeout(200)
+  sjekk("skift+tab går attende", (await rad.innerText()).startsWith(String(plana(page)[n0 + 1].id)), await radTekst())
+
+  // --- F rammar inn: den same knappen som under synskuben ---
+  const boks = page.locator(".handtak")
+  const avst0 = await boks.getAttribute("data-avstand")
+  await page.mouse.move(400, 450)
+  await page.mouse.wheel(0, -600)
+  await page.waitForTimeout(400)
+  const avst1 = await boks.getAttribute("data-avstand")
+  sjekk("hjulet zoomar", avst0 !== avst1, `${avst0} → ${avst1}`)
+  await page.keyboard.press("f")
+  await page.waitForTimeout(600)
+  sjekk("F rammar inn att", (await boks.getAttribute("data-avstand")) === avst0, `${avst0} vs ${await boks.getAttribute("data-avstand")}`)
+
+  // --- PÅ PLATA: pilene flyttar den valde delen éin millimeter ---
+  await page.keyboard.press("Escape")
+  await page.keyboard.press("3")
+  await roleg(page, 600)
+  const del = page.locator("g[data-del]").first()
+  if (await del.count()) {
+    await del.click()
+    await page.waitForTimeout(300)
+    const fest0 = hash(page).fest ?? ""
+    await page.keyboard.press("ArrowRight")
+    await vent(page, (p) => (p.fest ?? "") !== fest0)
+    const f1 = hash(page).fest
+    await page.keyboard.press("Shift+ArrowUp")
+    await vent(page, (p) => p.fest !== f1)
+    sjekk("pilene festar delen ein millimeter om gongen på plata", !!hash(page).fest && hash(page).fest !== fest0, hash(page).fest.slice(0, 40))
+  } else sjekk("plata har ein del å flytte", false)
+  await page.keyboard.press("2")
+
   sjekk("ingen konsollfeil på benken", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
 }

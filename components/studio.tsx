@@ -1273,6 +1273,53 @@ export function Studio() {
     }
   }, [])
 
+  /**
+   * EIT VALT PLAN, EITT STEG LANGS NORMALEN SIN. Handtaket gjev deg
+   * planet om lag der du vil ha det; pilene gjev deg det nøyaktig: ein
+   * millimeter per trykk, ti med skift. Boksen er i millimeter alt, so
+   * steget er millimeteren delt på vidda i kvar akse.
+   *
+   * Punktet vert skrive med fire desimalar av boksen — 0,015 mm per akse
+   * på ein kropp på 150 — og det nettet treff sjeldan millimeteren langs
+   * ei skrå normal: kvart trykk vart 0,99 mm, og tolv trykk las 11,9.
+   * So steget siktar på AVSTANDEN: målet er der planet står pluss
+   * millimeteren, og av cella nærast det nøyaktige punktet og dei
+   * seks-og-tjue kring henne vinn den som les nærast målet. Ei celle til
+   * sides er ein hundredels millimeter inne i planet, og planet er det
+   * same planet.
+   *
+   * Steget vert lagt på det som STÅR, ikkje på det som stod ved siste
+   * teikning: ei tast som held seg nede sender tretti trykk i sekundet,
+   * og to av dei mellom to teikningar skal vera to millimeter, ikkje éin.
+   */
+  const stegPlan = useCallback((id: number, mm: number) => {
+    const k = kroppRef.current
+    if (!k) return
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const i = l.findIndex((p) => p.id === id)
+      if (i < 0) return cur
+      const q = l[i]
+      const vidd = [0, 1, 2].map((a) => Math.max(1e-6, k.max[a] - k.min[a]))
+      const les = (o: Vec3) => o.reduce((s, c, a) => s + (c - 0.5) * vidd[a] * q.n[a], 0)
+      const maal = les(q.o) + mm
+      const rund = (c: number) => Math.min(1.5, Math.max(-0.5, +c.toFixed(4)))
+      const g = q.o.map((c, a) => rund(c + (q.n[a] * mm) / vidd[a])) as Vec3
+      let best = g
+      let feil = Math.abs(les(g) - maal)
+      for (let j = 0; j < 27; j++) {
+        const c: Vec3 = [rund(g[0] + ((j % 3) - 1) * 1e-4), rund(g[1] + ((Math.floor(j / 3) % 3) - 1) * 1e-4), rund(g[2] + (Math.floor(j / 9) - 1) * 1e-4)]
+        const e = Math.abs(les(c) - maal)
+        if (e < feil - 1e-9) {
+          best = c
+          feil = e
+        }
+      }
+      l[i] = { ...q, o: best }
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [])
+
   // TASTANE. Eit felt som er teke eig sine eigne.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1299,7 +1346,24 @@ export function Studio() {
       else if (k === "1") setView("flate")
       else if (k === "2") setView("lag")
       else if (k === "3") setView("kontur")
-      else if (k === "escape") {
+      // den same knappen som under synskuben: innramminga er éi handling, og tasten er vegen til henne
+      else if (k === "f") document.querySelector<HTMLButtonElement>("[data-heim]")?.click()
+      else if (k === "d" && vald !== null) dupliserPlan(vald)
+      else if (k === "h" && vald !== null && view !== "kontur") leggStrek("hol")
+      // PILENE FLYTTAR DET VALDE PLANET, ikkje synet: opp og høgre er langs
+      // normalen, ned og venstre er mot. Ein skrubbar i fokus eig pilene
+      // sine sjølv, og på plata er det delen pilene flyttar (sjå `Plater`).
+      else if (k.startsWith("arrow") && vald !== null && valdStrek === null && view !== "kontur" && t?.getAttribute("role") !== "slider") {
+        const retn = k === "arrowup" || k === "arrowright" ? 1 : -1
+        stegPlan(vald, retn * (e.shiftKey ? 10 : 1))
+      }
+      // TAB GÅR TIL NESTE PLAN når eitt er valt: gjennom lista, og rundt.
+      // Skift går attende. Står fokus på ein skrubbar, er tab framleis
+      // tab — elles kom ein aldri til neste skrubbar med tastaturet.
+      else if (k === "tab" && vald !== null && plan.length > 1 && t?.getAttribute("role") !== "slider") {
+        const i = plan.findIndex((p) => p.id === vald)
+        velPlan(plan[(i + (e.shiftKey ? plan.length - 1 : 1)) % plan.length].id)
+      } else if (k === "escape") {
         if (verkty) setVerkty(null)
         else if (valdStrek !== null) setValdStrek(null)
         else if (vald !== null) velPlan(null)
@@ -1309,7 +1373,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslModus])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslModus, dupliserPlan, leggStrek, stegPlan, plan, view])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -1376,6 +1440,7 @@ export function Studio() {
             onBitSide={sideBit}
             rammInn={rammInn}
             onRute={modus === "virvel" ? dragVirvel : dragRute}
+            benk={benk}
           />
         )}
       </div>
@@ -1637,6 +1702,7 @@ export function Studio() {
         rules={tal?.rules ?? []}
         liste={liste}
         plan={plan}
+        boks={kropp ? { min: kropp.min, max: kropp.max } : null}
         vald={vald}
         onVald={velPlan}
         onSlett={slett}
