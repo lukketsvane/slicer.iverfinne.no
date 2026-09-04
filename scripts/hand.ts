@@ -10,7 +10,7 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
-import { lesPlan, nyId, ramme, reinPlan, rutenett, sameSnitt, spegla, speglingar, skrivPlan, virvel, PLAN_TAK, STREK_TAK } from "../lib/plan"
+import { delAv, dreiing, lesPlan, nyId, ramme, reinPlan, rutenett, sameSnitt, spegla, speglingar, skrivPlan, virvel, vriOm, PLAN_TAK, STREK_TAK } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
@@ -47,6 +47,11 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0/-o:0,0,0.1,0.1,0", "1@0.5,0.5,0.5/1,0,0/-o:0,0,0.1,0.1,0"],
   ["1@0.5,0.5,0.5/1,0,0/+r:0,0,0,0.1,0", "1@0.5,0.5,0.5/1,0,0"],  // strek utan breidd
   ["1@0.5,0.5,0.5/1,0,0/tull", "1@0.5,0.5,0.5/1,0,0"],
+  // GRUPPA: eit heiltal over null, elles inga gruppe. Ho står etter bøyen og før streka.
+  ["1@0.5,0.5,0.5/1,0,0/g:3", "1@0.5,0.5,0.5/1,0,0/g:3"],
+  ["1@0.5,0.5,0.5/1,0,0/b:0.5/g:2/-o:0,0,0.1,0.1,0", "1@0.5,0.5,0.5/1,0,0/b:0.5/g:2/-o:0,0,0.1,0.1,0"],
+  ["1@0.5,0.5,0.5/1,0,0/g:0", "1@0.5,0.5,0.5/1,0,0"],
+  ["1@0.5,0.5,0.5/1,0,0/g:x", "1@0.5,0.5,0.5/1,0,0"],
   // EIT MERKE FRÅ EI GAMMAL LENKJE. Handteikna baner fanst ein periode og
   // vart skrivne som `b`. Dei er borte, og ei lenkje som ber ein må miste
   // NETT det streket — planet og dei andre streka hans står.
@@ -61,6 +66,30 @@ for (const [inn, vent] of [
   // FASTPUNKTET. `MOTOR.clamp` køyrer `reinPlan` på kvar einaste endring,
   // og eit råd som rettar ein strengparameter må overleve det ordrett.
   sjekk(`  og han er eit fastpunkt`, reinPlan(fekk) === fekk, reinPlan(fekk).slice(0, 40))
+}
+
+/**
+ * GRUPPENE. Eit rutenett er to rekkjer, ein virvel éi; og det ei rad gjer
+ * med det leiaren fekk er eit tal per plan: alt (saman), eller sin del av
+ * vegen frå den ståande enden til leiaren (fordelt).
+ */
+{
+  const r22 = rutenett(2, 2)
+  sjekk("rutenettet er to grupper: tvers og langs", r22.map((p) => p.gruppe).join() === "1,1,2,2", r22.map((p) => p.gruppe).join())
+  sjekk("berre rader er éi gruppe", rutenett(0, 3).every((p) => p.gruppe === 1))
+  sjekk("virvelen er éi gruppe", virvel(5, 0.3, [100, 100]).every((p) => p.gruppe === 1))
+  sjekk("og gruppa overlever strengen", lesPlan(skrivPlan(r22)).map((p) => p.gruppe).join() === "1,1,2,2")
+  const rad = rutenett(0, 4)
+  const del = (leiar: number, fordel: boolean) => [...delAv(rad, leiar, fordel).values()].map((v) => nn(v, 2)).join(" ")
+  sjekk("saman: alle tek alt", del(4, false) === "1,00 1,00 1,00 1,00", del(4, false))
+  sjekk("fordelt frå den siste: fyrste står, leiaren tek alt", del(4, true) === "0,00 0,33 0,67 1,00", del(4, true))
+  sjekk("fordelt frå den fyrste: den andre enden står", del(1, true) === "1,00 0,67 0,33 0,00", del(1, true))
+  sjekk("leiaren midt i: dei forbi tek meir enn alt", del(2, true) === "0,00 1,00 2,00 3,00", del(2, true))
+  const d = dreiing([1, 0, 0], [0, 1, 0])
+  const v = vriOm([1, 0, 0], d.akse, d.ang)
+  sjekk("dreiinga frå x til y er ein kvart om z", Math.abs(d.ang - Math.PI / 2) < 1e-9 && d.akse[2] === 1 && Math.hypot(v[0], v[1] - 1, v[2]) < 1e-9, `${nn(d.ang, 3)} om ${d.akse.join()}`)
+  sjekk("same normal er inga dreiing", dreiing([0, 0, 1], [0, 0, 1]).ang === 0)
+  sjekk("motsett normal er ein halv", Math.abs(dreiing([0, 0, 1], [0, 0, -1]).ang - Math.PI) < 1e-9)
 }
 
 /** TAKET: eit strek er tri og førti teikn same kva, so `STREK_TAK` held strengen nede. */

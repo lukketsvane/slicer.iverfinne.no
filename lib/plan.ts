@@ -93,6 +93,16 @@ export type Plan = {
    */
   bog: number
   strek: Strek[]
+  /**
+   * GRUPPA. Plan som vart til i éi handling — eit rutenett, ein virvel,
+   * ei spegling, ei dublering av ei gruppe — høyrer i hop, og det er
+   * gruppa du tek i når du vil flytte, vinkle eller slette dei alle på ein
+   * gong. Eit tal, gjeve når gruppa vert laga, aldri brukt om att; utan
+   * gruppe står planet for seg. Gruppa seier ikkje noko om geometrien —
+   * kvart plan er framleis sitt eige punkt og si eiga normal — ho seier
+   * kven som svarar saman når handa tek i eitt av dei.
+   */
+  gruppe?: number
 }
 
 /** Meir enn dette er ikkje ein bøy, det er eit rør. Regelen om materialet
@@ -116,6 +126,32 @@ export const norm3 = (a: Vec3): Vec3 => {
 export const add3 = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 export const sub3 = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 export const mul3 = (a: Vec3, k: number): Vec3 => [a[0] * k, a[1] * k, a[2] * k]
+/** v dreia `ang` radianar om einingsaksen `akse` (Rodrigues) */
+export function vriOm(v: Vec3, akse: Vec3, ang: number): Vec3 {
+  const c = Math.cos(ang)
+  const s = Math.sin(ang)
+  const k = cross(akse, v)
+  const d = dot(akse, v) * (1 - c)
+  return [v[0] * c + k[0] * s + akse[0] * d, v[1] * c + k[1] * s + akse[1] * d, v[2] * c + k[2] * s + akse[2] * d]
+}
+/**
+ * Den minste dreiinga som tek `fraa` til `til`: aksen og vinkelen. To like
+ * normalar er inga dreiing, og to motsette har inga eintydig akse — då
+ * vert ei akse på tvers vald, og det er like rett som ei kvar anna.
+ */
+export function dreiing(fraa: Vec3, til: Vec3): { akse: Vec3; ang: number } {
+  const a = norm3(fraa)
+  const b = norm3(til)
+  const k = cross(a, b)
+  const s = len3(k)
+  const c = Math.max(-1, Math.min(1, dot(a, b)))
+  if (s < 1e-9) {
+    if (c > 0) return { akse: [0, 0, 1], ang: 0 }
+    const tvers: Vec3 = Math.abs(a[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]
+    return { akse: norm3(cross(a, tvers)), ang: Math.PI }
+  }
+  return { akse: mul3(k, 1 / s), ang: Math.atan2(s, c) }
+}
 
 // =============================================================================
 // RAMMA — planet i millimeter, med sine to aksar
@@ -303,7 +339,7 @@ const skrivStrek = (s: Strek) =>
 export function skrivPlan(l: readonly Plan[]): string {
   return l
     .map((p) =>
-      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...p.strek.map(skrivStrek)].join("/"),
+      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...p.strek.map(skrivStrek)].join("/"),
     )
     .join(";")
 }
@@ -355,7 +391,14 @@ export function lesPlan(s: unknown): Plan[] {
     const n = norm3(n0).map((c) => +c.toFixed(4)) as Vec3
     const strek: Strek[] = []
     let bog = 0
+    let gruppe = 0
     for (const r of rest.slice(1)) {
+      // gruppa: eit heiltal over null, elles inga gruppe
+      const g = /^g:(\d{1,5})$/.exec(r)
+      if (g) {
+        gruppe = Number(g[1])
+        continue
+      }
       // bøyen står før streka og ber sitt eige teikn, so han ikkje kan
       // lesast som eit av dei
       const b = /^b:(-?[\d.]+)$/.exec(r)
@@ -370,9 +413,34 @@ export function lesPlan(s: unknown): Plan[] {
       strek.push(st)
     }
     sett.add(id)
-    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, strek })
+    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, strek, ...(gruppe ? { gruppe } : {}) })
   }
   return ut
+}
+
+/** neste gruppenamn: eitt over det største som finst, aldri brukt om att */
+export const nyGruppe = (l: readonly Plan[]) => l.reduce((m, p) => Math.max(m, p.gruppe ?? 0), 0) + 1
+/** plana i ei gruppe, i namnerekkjefylgje — det er rekkja i rada */
+export const iGruppa = (l: readonly Plan[], g: number) => l.filter((p) => p.gruppe === g).sort((a, b) => a.id - b.id)
+/**
+ * KOR MYKJE KVART PLAN I RADA SKAL TA av det leiaren fekk. Saman: alle
+ * tek alt. Fordelt: det fyrste står, leiaren tek alt, og dei imellom tek
+ * sin del av vegen — so ei dreiing på leiaren vert ei vifte over rada, og
+ * eit skuv vert ei jamn endring av mellomrommet. Står leiaren fyrst, er
+ * det den andre enden som står. Plan forbi leiaren tek meir enn alt: dreg
+ * du det tredje av seks, går det sjette dobbelt so langt, og rada er
+ * framleis jamn.
+ */
+export function delAv(rad: readonly Plan[], leiar: number, fordel: boolean): Map<number, number> {
+  const m = new Map<number, number>()
+  const L = rad.findIndex((p) => p.id === leiar)
+  const N = rad.length
+  rad.forEach((p, k) => {
+    if (!fordel || N < 2 || L < 0) m.set(p.id, 1)
+    else if (L > 0) m.set(p.id, k / L)
+    else m.set(p.id, (N - 1 - k) / (N - 1))
+  })
+  return m
 }
 
 /** ein streng inn, den same lista ut i normalform */
@@ -469,6 +537,7 @@ export function sameSnitt(a: { o: Vec3; n: Vec3 }, b: { o: Vec3; n: Vec3 }, tol 
  * same valet som streken i eit plan tek (sjå toppen av fila): reiskapen
  * kastar ikkje arbeid utan å bli beden, og du køyrer verktyet om att.
  */
+/** ein virvel er éi gruppe: ribbene kring aksen svarar saman */
 export function virvel(n: number, r: number, vidd: readonly [number, number], fraa = 1): Plan[] {
   const W = Math.max(1e-6, vidd[0])
   const D = Math.max(1e-6, vidd[1])
@@ -482,20 +551,21 @@ export function virvel(n: number, r: number, vidd: readonly [number, number], fr
       id: id++,
       o: [+(0.5 + (d * nv[0]) / W).toFixed(4), +(0.5 + (d * nv[1]) / D).toFixed(4), 0.5],
       n: nv,
-      bog: 0, strek: [],
+      bog: 0, strek: [], gruppe: 1,
     })
   }
   return ut
 }
 
+/** eit rutenett er to grupper: rada på tvers og rada på langs, kvar si rekkje */
 export function rutenett(nx: number, ny: number, fraa = 1): Plan[] {
   const ut: Plan[] = []
   let id = fraa
   for (let i = 0; i < nx; i++) {
-    ut.push({ id: id++, o: [(i + 0.5) / nx, 0.5, 0.5], n: [1, 0, 0], bog: 0, strek: [] })
+    ut.push({ id: id++, o: [(i + 0.5) / nx, 0.5, 0.5], n: [1, 0, 0], bog: 0, strek: [], gruppe: 1 })
   }
   for (let j = 0; j < ny; j++) {
-    ut.push({ id: id++, o: [0.5, (j + 0.5) / ny, 0.5], n: [0, 1, 0], bog: 0, strek: [] })
+    ut.push({ id: id++, o: [0.5, (j + 0.5) / ny, 0.5], n: [0, 1, 0], bog: 0, strek: [], gruppe: nx ? 2 : 1 })
   }
   return ut
 }
