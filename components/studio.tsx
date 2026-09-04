@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
-import type { ArkSyn, ExportKind, DetailKey, ParamBag, Vec3, View } from "@/lib/core"
+import type { ArkSyn, ExportKind, DetailKey, ParamBag, Rom, Vec3, View } from "@/lib/core"
 import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { zip } from "@/lib/zip"
@@ -15,6 +15,7 @@ import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worke
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
 import { CHIP, chipStyle, HAIR, IcoBit, IcoDupliser, IcoFerdig, IcoGods, IcoHol, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
+import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
 
@@ -137,10 +138,9 @@ type Port = { inFlight: boolean; pending: Req | null; shown: number }
 export function Studio() {
   const [params, setParams] = useState<ParamBag>(() => ({ ...MOTOR.defaults }))
   const [view, setView] = useState<View>("lag")
-  /** dei tre bygga: kroppen (flate), delane (lag) og teikninga (kontur) */
+  /** dei to bygga: kroppen (flate) og delane (lag). Konturen byggjer ingenting — han er plateflata. */
   const [kropp, setKropp] = useState<BuildRes | null>(null)
   const [lag, setLag] = useState<BuildRes | null>(null)
-  const [kontur, setKontur] = useState<BuildRes | null>(null)
   const [tal, setTal] = useState<MaalRes | null>(null)
   const [ark, setArk] = useState<ArkSyn | null>(null)
   /** det valde planet, og den valde delen på plata */
@@ -216,19 +216,18 @@ export function Studio() {
    * enn motoren byggjer dei; med porten vert eit uteståande punkt berre
    * BYTT UT til bygget i lufta er ferdig, og draget går i motoren si takt.
    */
-  const portar = useRef<Record<View, Port>>({
+  const portar = useRef<Record<Rom, Port>>({
     flate: { inFlight: false, pending: null, shown: 0 },
     lag: { inFlight: false, pending: null, shown: 0 },
-    kontur: { inFlight: false, pending: null, shown: 0 },
   })
-  const pump = useCallback((v: View) => {
+  const pump = useCallback((v: Rom) => {
     const p = portar.current[v]
     if (p.inFlight || !p.pending) return
     p.inFlight = true
     worker.current?.postMessage(p.pending)
     p.pending = null
   }, [])
-  const bygg = useCallback((v: View, detail: DetailKey) => {
+  const bygg = useCallback((v: Rom, detail: DetailKey) => {
     const id = ++reqId.current
     sisteBygg.current = id
     portar.current[v].pending = { kind: "build", id, params: naa.current, detail, view: v }
@@ -323,7 +322,7 @@ export function Studio() {
         pump(r.view)
         if (r.id < p.shown) return
         p.shown = r.id
-        ;(r.view === "flate" ? setKropp : r.view === "lag" ? setLag : setKontur)(r)
+        ;(r.view === "flate" ? setKropp : setLag)(r)
         return
       }
       if (r.kind === "skisse") {
@@ -416,7 +415,7 @@ export function Studio() {
     if (!mounted || !kropp) return
     // verktyet for kroppen snittar ingenting: der byggjer du emnet, ikkje delane
     if (modus === "bit") return spørSkisse(null)
-    // og konturen teiknar ikkje snittet: der er profilen alt på papiret
+    // og konturen snittar ingenting: der ligg delane alt på plata
     if (view === "kontur") return spørSkisse(null)
     if (vald !== null) return spørSkisse(plan.find((q) => q.id === vald) ?? null)
     const s = skisse.current
@@ -448,10 +447,8 @@ export function Studio() {
     setBusy(true)
     setFeil(null)
     bygg("lag", "lav")
-    if (view === "kontur") bygg("kontur", "lav")
     const t = window.setTimeout(() => {
       bygg("lag", detail)
-      if (view === "kontur") bygg("kontur", detail)
     }, 300)
     return () => window.clearTimeout(t)
   }, [params, detail, view, mounted, bygg])
@@ -884,8 +881,8 @@ export function Studio() {
     const k = adr ? liste.find((q) => q.adr === adr) : undefined
     setVald(k ? k.plan : null)
     // plata fylgjer den du vel
-    if (k?.ark && verkty === "ark" && ark && ark.i !== k.ark - 1) askArk(k.ark - 1)
-  }, [liste, verkty, ark, askArk])
+    if (k?.ark && view === "kontur" && ark && ark.i !== k.ark - 1) askArk(k.ark - 1)
+  }, [liste, view, ark, askArk])
 
   // --- VIRVELEN ------------------------------------------------------------------
   /**
@@ -1045,13 +1042,12 @@ export function Studio() {
     setVerkty((v) => (v === id ? null : id))
     // på telefonen deler arket og skuffa den same kanten: arket går til lina
     if (!benk) setSteg("line")
-    if (id === "ark") askArk(0)
-  }, [askArk, benk])
-  // står plata open og noko flyttar seg, skal teikninga fylgje med
+  }, [benk])
+  // står plateflata framme og noko flyttar seg, skal ho fylgje med
   useEffect(() => {
-    if (verkty === "ark") askArk(ark?.i ?? 0)
+    if (view === "kontur") askArk(ark?.i ?? 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verkty, tal, askArk])
+  }, [view, tal, askArk])
   useEffect(() => {
     if (!melding) return
     const t = window.setTimeout(() => setMelding(null), 4000)
@@ -1118,6 +1114,14 @@ export function Studio() {
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
+  /**
+   * SYNET ROMMET STÅR I. Konturen er ikkje eit romsyn lenger — han er
+   * plateflata — so rommet held på det synet det hadde medan ho står
+   * framme. Å sende «lag» inn i staden ville bytt nettet under eit lerret
+   * ingen ser, og bytt det attende, for ingenting.
+   */
+  const romsyn = useRef<Rom>("lag")
+  if (view !== "kontur") romsyn.current = view
   const rute: Rute = useMemo(
     () => ({ W: vindu.w, H: vindu.h, venstre: 0, hogre: benk ? KOL : 0, topp: toppH, botn: benk ? (verkty ? skuffH : 0) : arkH }),
     [vindu, benk, verkty, skuffH, arkH, toppH],
@@ -1134,14 +1138,16 @@ export function Studio() {
 
   return (
     <main className="fixed inset-0 overflow-hidden" style={{ background: "var(--paper)" }}>
-      {/* fyrste gesten på objektet tek lina om gestane bort */}
-      <div className="absolute inset-0">
+      {/* fyrste gesten på objektet tek lina om gestane bort. Rommet vert
+          GØYMT og ikkje teke ned når plateflata står framme: lerretet held
+          på WebGL-samanhengen og synet sitt, og synskuben — som høyrer til
+          rommet — fylgjer med i gøymsla. */}
+      <div className="absolute inset-0" style={{ visibility: view === "kontur" ? "hidden" : undefined }}>
         {mounted && (
           <Scene
             kropp={kropp}
             lag={lag}
-            kontur={kontur}
-            view={view}
+            view={romsyn.current}
             modus={modus}
             material={String(params.material ?? "finer")}
             rute={rute}
@@ -1169,6 +1175,28 @@ export function Studio() {
           />
         )}
       </div>
+
+      {/*
+        PLATEFLATA. «Kontur» var ei stripe med profilane ved sida av kvarandre
+        i lerretet — den same teikninga som platene alt syner, berre utan å
+        kunne røre ved henne. No ER konturen platene: same delane, i den
+        rekkjefylgja og på dei arka fila vert skoren på, der ein finger flyttar
+        dei. Rommet står att under henne med synet det hadde, so eit steg ut og
+        inn att ikkje nullstiller kameraet.
+      */}
+      {mounted && view === "kontur" && (
+        <section
+          aria-label="plateflata"
+          // UTAN z: flata skal stable seg som DOM-en seier — over rommet, som
+          // står før henne, og under tommelspalta og toppen, som står etter.
+          // Eit z-tal her ville laga ein stabel av henne, og menyen over ein
+          // del — som skal liggje over ALT medan han står — vart fanga i han.
+          className="absolute flex flex-col"
+          style={{ left: 0, right: rute.hogre, top: rute.topp, bottom: benk ? rute.botn : `calc(${arkH}px + env(safe-area-inset-bottom))`, background: "var(--paper)" }}
+        >
+          <Plater ark={ark} params={params} onChange={endre} onArk={askArk} peikt={peikt} onPeik={velDel} />
+        </section>
+      )}
 
       <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
 
@@ -1322,12 +1350,10 @@ export function Studio() {
         open={verkty}
         rute={skuffRute}
         liste={liste}
-        ark={ark}
         params={params}
         clamp={(o, prev) => MOTOR.clamp(o, prev)}
         peikt={peikt}
         onPeik={velDel}
-        onArk={askArk}
         onChange={endre}
         onBytt={opneVerkty}
         onClose={() => setVerkty(null)}

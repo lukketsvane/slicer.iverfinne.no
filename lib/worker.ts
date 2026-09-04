@@ -14,9 +14,9 @@ import { unzip } from "./zip"
 import type { Plan } from "./plan"
 import { lesScene } from "./scene"
 import type { SkisseSyn } from "./snitt"
-import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Plate, Rule, Vec3, View } from "./core"
+import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rom, Rule, Vec3 } from "./core"
 
-export type BuildReq = { kind: "build"; id: number; params: ParamBag; detail: DetailKey; view: View }
+export type BuildReq = { kind: "build"; id: number; params: ParamBag; detail: DetailKey; view: Rom }
 export type ExportReq = { kind: "export"; id: number; params: ParamBag; what: ExportKind }
 export type ImportReq = { kind: "import"; id: number; name: string; buf: ArrayBuffer }
 /** «syn meg plate nummer i» — teikninga kjem attende, ikkje ei fil */
@@ -29,7 +29,7 @@ export type Req = BuildReq | ExportReq | ImportReq | ArkReq | SkisseReq
 export type BuildRes = {
   kind: "build"
   id: number
-  view: View
+  view: Rom
   positions: Float32Array<ArrayBufferLike>
   normals: Float32Array<ArrayBufferLike>
   tris: number
@@ -37,14 +37,9 @@ export type BuildRes = {
   max: Vec3
   kant: Float32Array<ArrayBufferLike>
   del: Float32Array<ArrayBufferLike>
-  lines: Float32Array<ArrayBufferLike>
-  heavy: Float32Array<ArrayBufferLike>
   /** bitane kroppen er sett saman av — berre «flate» — og skalaen mellom dei to romma */
   bitar: { id: string; min: Vec3; max: Vec3 }[]
   skala: number
-  /** platene i teikninga — berre «kontur». Vanlege objekt, so lista over
-   *  bufferar som vert flytte står urørt. */
-  plater: Plate[]
 }
 /** Måltala kjem i eiga melding, ETTER nettet. Kuttlista fylgjer med: ho er
  *  lesen rett ut av bygget målinga alt har rekna. */
@@ -58,7 +53,7 @@ export type SkisseRes = { kind: "skisse"; id: number } & SkisseSyn
 /** Noko som kasta. Svaret finst av éin grunn: porten på hovudtråden slepp
  *  ikkje neste førespurnad før den førre er svara, og eit unntak utan svar
  *  ville låse appen for alltid. */
-export type FeilRes = { kind: "feil"; id: number; kva: string; view?: View; kvifor?: string }
+export type FeilRes = { kind: "feil"; id: number; kva: string; view?: Rom; kvifor?: string }
 export type Res =
   | BuildRes
   | MaalRes
@@ -78,7 +73,7 @@ function build(req: BuildReq) {
   // Berre bufferar med innhald, og kvar berre éin gong: same buffer to
   // gonger i lista er ein DataCloneError som tek heile meldinga.
   const transfer: Transferable[] = []
-  for (const a of [out.positions, out.normals, out.kant, out.del, out.lines, out.heavy]) {
+  for (const a of [out.positions, out.normals, out.kant, out.del]) {
     if (a.byteLength && !transfer.includes(a.buffer)) transfer.push(a.buffer)
   }
   return { res, transfer }

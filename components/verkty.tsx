@@ -1,22 +1,20 @@
 "use client"
 
 /**
- * VERKTYA: det du slår opp i. Kuttlista, platene og oppsettet treng brei
- * plass og skal ikkje stå framme heile tida, so dei bur i ei skuff over
- * lerretet, eitt om gongen. Ingen av dei reknar noko: kuttlista er bygget
- * lese line for line, plata er den same SVG-en uttaket skriv, oppsettet er
- * parametrane du alt står i.
+ * VERKTYA: det du slår opp i. Kuttlista og oppsettet treng brei plass og
+ * skal ikkje stå framme heile tida, so dei bur i ei skuff over lerretet,
+ * eitt om gongen. Ingen av dei reknar noko: kuttlista er bygget lese line
+ * for line, oppsettet er parametrane du alt står i. Platene er ikkje her —
+ * dei er konturvisinga, som er heile flata og ikkje ei skuff.
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from "react"
-import { kuttCsv, nn, type ArkSyn, type Kutt, type ParamBag } from "@/lib/core"
+import { kuttCsv, nn, type Kutt, type ParamBag } from "@/lib/core"
 import { ALLE_KEYS, PARAM_RANGES } from "@/lib/params"
 import { CHIP, HAIR, ICON_BTN, IcoKopier, IcoLimInn, chipStyle } from "./deler"
-import { Plater } from "./plater"
 
-export type VerktyId = "kuttliste" | "ark" | "oppsett"
+export type VerktyId = "kuttliste" | "oppsett"
 export const VERKTY: { id: VerktyId; ord: string }[] = [
   { id: "kuttliste", ord: "kuttliste" },
-  { id: "ark", ord: "plater" },
   { id: "oppsett", ord: "oppsett" },
 ]
 
@@ -186,12 +184,10 @@ export function Skuff(props: {
   /** kvar skuffa står, i CSS-pikslar */
   rute: CSSProperties
   liste: readonly Kutt[]
-  ark: ArkSyn | null
   params: ParamBag
   clamp: (o: unknown, prev: ParamBag) => ParamBag
   peikt: string | null
   onPeik: (adr: string | null) => void
-  onArk: (i: number) => void
   onChange: (p: ParamBag) => void
   onBytt: (id: VerktyId) => void
   onClose: () => void
@@ -210,7 +206,6 @@ export function Skuff(props: {
         <button type="button" className="hit dim shrink-0 px-1.5" onClick={props.onClose} aria-label="lat att verktyet" title="lat att (esc)">lat att</button>
       </div>
       {open === "kuttliste" && <Kuttliste liste={props.liste} peikt={props.peikt} onPeik={props.onPeik} onOrd={props.onOrd} />}
-      {open === "ark" && <Plater ark={props.ark} params={props.params} onChange={props.onChange} onArk={props.onArk} peikt={props.peikt} onPeik={props.onPeik} />}
       {open === "oppsett" && <Oppsett params={props.params} clamp={props.clamp} onChange={props.onChange} />}
     </section>
   )

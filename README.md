@@ -115,18 +115,26 @@ whatever rectangle is left over.
 drag edit *that* plane instead of the sketch: move it along its normal, re-angle
 it. Tap empty space to deselect; the row's `slett` removes the plane.
 
-**The contour view is a drawing, so it is a canvas**: one finger drags it,
-pinch zooms, nothing turns, and the reframe button takes you home. It zooms
-in much further than the object view does — a 3 mm slot in a half-metre
-outline is four pixels on a phone, and going in close is the only way to see
-whether it is there.
+**The contour view IS the sheet.** It was a ribbon of profiles laid out side
+by side in the canvas — the same drawing the sheets already showed, only with
+no way to touch it. Now the third view *is* the sheet: the parts where the
+laser will cut them, one finger to drag a part, hold for its menu (pin, turn,
+next sheet), two fingers to drag and turn a selected one, one finger on bare
+board to pan, double-tap for the whole sheet. Tapping a part selects the plane
+it was cut from, so the profile tools sit under your thumb as they do in the
+object view. There was a pen and an eraser here for a while — one finger inside
+the frame drew a freehand mark into the plate — and they are gone; marks on a
+plane are placed in the object view, where you can see what you are marking.
 
-**And it is the plate surface.** Tap a plate: it goes to full ink with a frame
-around it, the rest stay at a whisper. Tap empty paper to let it go. There was a
-pen and an eraser here for a while — one finger inside the frame drew a freehand
-mark into the plate — and they are gone. The contour view is where the plates
-are, not a drawing surface; marks on a plane are placed in the object view, where
-you can see what you are marking.
+The 3D room stays mounted behind it, hidden rather than torn down, so stepping
+out and back does not reset the camera. "plater" is no longer a drawer tool —
+it is the same surface, and showing it twice was the whole complaint.
+
+**Slot ends are handles.** Select a part and every joint on it gets a dot at
+the closed end of its slot, on a hairline track showing how far it can travel.
+Drag one and that joint alone gets deeper — and the other half of the joint
+gets shallower by exactly as much, because both slots read one number off one
+line. `jamt` in the sheet's toolbar hands every joint back to the slider.
 Keys: `L` cut, `S` sketch mode, `R` grid tool, `V` vortex, `⌫` remove the selected plane,
 `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 
@@ -145,10 +153,11 @@ so two pieces that overlap are one body where they overlap. The list is the
 `scene` string in the parameter bag, and the project file carries every
 piece's file.
 
-**The contour view is where the plates live.** It draws every profile flat at
-full size; tap one to select it, zoom in past the body's own limit. The sheet panel used to carry a 160-pixel thumbnail of the same
-drawing — the same picture twice, and the small one could not be worked in. It is
-gone, and with it a third slice and up to 52 kB of SVG serialised across the
+**One drawing of the plates, not three.** The sheet panel used to carry a
+160-pixel thumbnail of the same drawing, and the contour view a WebGL ribbon of
+the same profiles again — the same picture three times, and only one of them
+could be worked in. Both copies are gone, and with them a third slice, a
+`contourLines` pass over every rib, and up to 52 kB of SVG serialised across the
 worker boundary on every parameter change.
 
 **The sheet view has a scale.** A measuring grid lies under the parts: the step
@@ -321,7 +330,7 @@ multiply in every joint.
 | `fart` | cut speed | for the time estimate only |
 | `arkB/H` | sheet | up to 3000 × 2000 mm |
 | `fest` | pinned parts | where a part stands on the sheet, when the hand said so |
-| `deling` | split joints | how deep one joint cuts, `5-12-0:0.35`, when the slider is not what you want |
+| `deling` | split joints | how deep one joint cuts, `5-12-0:0.35`, written by dragging its slot end on the sheet |
 
 Materials: plywood, MDF, acrylic, cardboard — density and surface.
 

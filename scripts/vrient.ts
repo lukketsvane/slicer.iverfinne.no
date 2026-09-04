@@ -191,7 +191,7 @@ function sjekk(namn: string, p: Params, vis = false) {
     if (/NaN|Infinity|undefined/.test(q.value)) feil(namn, `regelen «${q.label}» står som «${q.value}»`)
   }
 
-  for (const view of ["flate", "lag", "kontur"] as const) {
+  for (const view of ["flate", "lag"] as const) {
     try {
       const b = MOTOR.build(bag, "mid", view)
       for (let i = 0; i < 3; i++) {
