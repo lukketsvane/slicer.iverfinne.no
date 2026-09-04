@@ -15,7 +15,7 @@
  *
  *   npx tsx scripts/rekkje.ts
  */
-import { inRing, shoelace, type ParamBag, type Pt } from "../lib/core"
+import { inRing, LAG_FARGAR, shoelace, type ParamBag, type Pt } from "../lib/core"
 import { kerfOf, MOTOR } from "../lib/motor"
 import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
@@ -25,8 +25,12 @@ import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
 import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
+import { placedRings } from "../lib/nest"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 /** eit merke lagt i eit namngjeve plan: gjennom lesinga, so strengen er den vakta ser */
+/** planet `id` merkt med laget `farge` */
+const medFarge = (plan: string, id: number, farge: number) =>
+  skrivPlan(lesPlan(plan).map((p) => (p.id === id ? { ...p, farge } : p)))
 const medStrek = (plan: string, id: number, st: Strek) =>
   skrivPlan(lesPlan(plan).map((q) => (q.id === id ? { ...q, strek: [...q.strek, st] } : q)))
 
@@ -50,6 +54,8 @@ const feil = (namn: string, kva: string) => {
 /** Graveringa er svart (C00) og kuttet blått (C01). Sjå export-svg.ts:
  *  fargen ber rekkjefylgda, av di LightBurn tek laga i palettorden. */
 const GRAV_FARGE = /stroke="#000000"/i
+/** graveringa, kuttet, og laga handa kan merkje med: LightBurn sin palett */
+const LOVLEG = new Set(LAG_FARGAR)
 
 /** hjørna i eit «d»-attributt — banene her er berre M, L og Z */
 function pathPts(d: string): Pt[] {
@@ -82,11 +88,13 @@ function svgSteg(namn: string, svg: string): Steg[] {
     const pts = pathPts(m[1])
     out.push({ grav, areal: grav ? 0 : shoelace(pts), y: 0, bb: boks(pts) })
   }
-  // To fargar, og ikkje ein til. Ein tredje farge er eit tredje lag i
-  // LightBurn: eitt nokon må hugse å slå av, og eitt nokon ein dag
-  // gløymer. Fyllingar er same saka: ei fylling ber maskina brenne heile
+  // To fargar, og ikkje ein til — utan at handa har bede om det. Ein
+  // tredje farge er eit tredje lag i LightBurn: eitt nokon må hugse å slå
+  // av, og eitt nokon ein dag gløymer. Den einaste vegen til eit lag til
+  // er eit MERKE på planet, og då er fargen ein av LightBurn sine eigne,
+  // ordrett. Fyllingar er same saka: ei fylling ber maskina brenne heile
   // flata.
-  const ulovleg = [...fargar].filter((f) => f !== "#000000" && f !== "#0000ff")
+  const ulovleg = [...fargar].filter((f) => !LOVLEG.has(f))
   if (ulovleg.length) feil(namn, `framande fargar: ${ulovleg.join(", ")}`)
   if (/fill="(?!none)/i.test(svg)) feil(namn, "noko er fylt")
   return out
@@ -240,6 +248,9 @@ function sjekkSteg(namn: string, steg: Steg[]) {
  * ENTITIES skal vera POLYLINE, VERTEX og SEQEND.
  */
 const DXF_LAG = new Set(["GRAVER", "KUTT"])
+/** og eit merkt lag: LightBurn sitt namn på det, C02 til C29 */
+const MERKT_LAG = /^C(0[2-9]|[12]\d)$/
+const lovlegLag = (l: string) => DXF_LAG.has(l) || MERKT_LAG.test(l)
 const DXF_ENT = new Set(["POLYLINE", "VERTEX", "SEQEND"])
 
 /** entitetane i ei R12-fil, i den orden dei står: lag og areal */
@@ -264,7 +275,7 @@ function dxfSteg(namn: string, dxf: string): Steg[] {
     if (kind === "POLYLINE") {
       if (pts) out.push(steg(lag, pts))
       lag = t[i + 3] === undefined ? "" : t[i + 3]
-      if (!DXF_LAG.has(lag)) framandeLag.add(lag)
+      if (!lovlegLag(lag)) framandeLag.add(lag)
       pts = []
     } else if (kind === "VERTEX" && pts) {
       for (let j = i; j < i + 14; j++) {
@@ -358,6 +369,10 @@ const saker: [string, Params][] = [
     ...GRUNN,
     plan: medStrek(nett(4, 4), 2, { slag: "hol", form: "rekt", x: -0.05, y: -0.05, w: 0.3, h: 0.1, a: 20 }),
   }],
+  // TO PLAN MERKTE MED KVART SITT LAG. Rekkjefylgda i fila skal stå som
+  // før — gravering, hòl, omriss — sjølv om to av delane er i ein annan
+  // farge. Kva fargen gjeld, prøver `merkteLag` under.
+  ["kube, to plan merkte", { ...GRUNN, plan: medFarge(medFarge(nett(4, 4), 2, 3), 5, 5) }],
 ]
 
 /** kuttfila er éi fil per plate, so kvar plate vert prøvd for seg */
@@ -462,6 +477,54 @@ function dxfSteg1(namn: string, dxf: string, arkB: number, arkH: number): Steg[]
   if (ute) feil(namn, `${ute} punkt ligg opptil ${verst.toFixed(2)} mm utanfor plata`)
   return steg
 }
+
+/**
+ * EIT MERKT PLAN KUTTAR I SIN FARGE, OG BERRE DET.
+ *
+ * Merket er laget i LightBurn: omrisset og hòla i kvar del av planet går
+ * i den fargen, ordrett frå paletten, og ingenting anna gjer det. I
+ * DXF-en er det eit lag med LightBurn sitt namn, etter KUTT i tabellen,
+ * med den eksakte fargen som 420 attåt ACI-en. Vakta tel banene i kvar
+ * farge mot delane på plata, og ser at graveringa framleis er svart.
+ */
+function merkteLag(namn: string, p: Params) {
+  const { ns } = makeBygg(p, DETAIL.mid)
+  const kerf = kerfOf(p)
+  ns.sheets.forEach((sheet, i) => {
+    const svg = sheetSvg(ns, i, kerf)
+    const dxf = sheetDxf(ns, i, kerf)
+    const vent = new Map<number, number>()
+    for (const q of sheet.placed) {
+      if (!q.part.farge) continue
+      vent.set(q.part.farge, (vent.get(q.part.farge) ?? 0) + 1 + placedRings(q).holes.length)
+    }
+    for (const [farge, tal] of vent) {
+      const hex = LAG_FARGAR[farge]
+      const iSvg = (svg.match(new RegExp(`stroke="${hex}"`, "g")) ?? []).length
+      if (iSvg !== tal) feil(`${namn} · ark ${i + 1}`, `lag C${farge}: ${iSvg} baner i ${hex}, venta ${tal}`)
+      const lagNamn = `C${String(farge).padStart(2, "0")}`
+      const iDxf = (dxf.match(new RegExp(`\\r\\n0\\r\\nPOLYLINE\\r\\n8\\r\\n${lagNamn}\\r\\n`, "g")) ?? []).length
+      if (iDxf !== tal) feil(`${namn} · dxf ${i + 1}`, `lag ${lagNamn}: ${iDxf} baner, venta ${tal}`)
+      const hexTal = String(parseInt(hex.slice(1), 16))
+      if (!dxf.includes(`\r\n2\r\n${lagNamn}\r\n70\r\n0\r\n62\r\n`) || !dxf.includes(`\r\n420\r\n${hexTal}\r\n`)) feil(`${namn} · dxf ${i + 1}`, `laget ${lagNamn} står ikkje i tabellen med ${hex}`)
+    }
+    // kuttet elles er blått, graveringa svart, og ikkje noko anna
+    const blaa = (svg.match(/stroke="#0000ff"/g) ?? []).length
+    const alle = sheet.placed.reduce((a, q) => a + 1 + placedRings(q).holes.length, 0)
+    const merkte = [...vent.values()].reduce((a, b) => a + b, 0)
+    if (blaa !== alle - merkte) feil(`${namn} · ark ${i + 1}`, `${blaa} blå baner, venta ${alle - merkte}`)
+    const lagOrden = [...dxf.matchAll(/\r\n2\r\n(GRAVER|KUTT|C\d\d)\r\n70\r\n/g)].map((m) => m[1])
+    if (lagOrden.slice(0, 2).join(",") !== "GRAVER,KUTT" || lagOrden.length !== 2 + vent.size) feil(`${namn} · dxf ${i + 1}`, `lagtabellen: ${lagOrden.join(" ")}`)
+  })
+  // profilarket: dei same delane, dei same fargane
+  const prof = MOTOR.exportFile(p as unknown as ParamBag, "svg").text ?? ""
+  for (const pl of lesPlan(p.plan)) {
+    if (!pl.farge) continue
+    if (!prof.includes(`stroke="${LAG_FARGAR[pl.farge]}"`)) feil(`${namn} · profilar`, `plan ${pl.id} har ikkje laget sitt i profilarket`)
+  }
+  console.log(`  ${namn}: merkte lag står i kuttarket, dxf-en og profilarket`)
+}
+merkteLag("kube, to plan merkte", { ...GRUNN, plan: medFarge(medFarge(nett(4, 4), 2, 3), 5, 5) })
 
 /**
  * DEI TO SKRIVARANE SKAL TEIKNE DET SAME.

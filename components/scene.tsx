@@ -413,6 +413,9 @@ function FitCamera({ fit, rute, sikt }: { fit: Fit | null; rute: Rute; sikt: Sik
  *   tre fingrar       hovudlyset
  *   handtaka          éin finger på det runde flyttar, på det vesle vrir
  *   ⇧ dra / ⌥ dra     det same for ei mus: flytt, vri. ⌃ hjul er klypet.
+ *   høgre knapp       (benken) panorerer synet — OrbitControls, ikkje her
+ *   pilene            (benken) eit valt plan eitt millimeter langs normalen,
+ *                     ti med skift — i studio, der tastane bur
  *
  * Klassifiseringa skjer ÉIN gong, etter ei daudsone, og alle fire kandidatar
  * (klyp, vri, dra loddrett, dra vassrett) vert målte i same eining: pikslar.
@@ -1506,8 +1509,10 @@ function Demping({ onSein }: { onSein: (sein: boolean) => void }) {
 }
 
 /** kroppen og delane, i kroppen si ramme */
-function Kroppen({ f, kropp, lag, view, skal, material, liste, vald, plan, blink, sein, onVald }: {
+function Kroppen({ f, kropp, lag, view, skal, material, liste, vald, gruppe, plan, blink, sein, onVald }: {
   f: Ramma
+  /** plana i den valde gruppa: omrissa deira står òg, dempa, kring leiaren sitt */
+  gruppe: readonly number[]
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -1563,6 +1568,12 @@ function Kroppen({ f, kropp, lag, view, skal, material, liste, vald, plan, blink
   useEffect(() => () => gKropp?.dispose(), [gKropp])
   useEffect(() => () => gLag?.dispose(), [gLag])
   useEffect(() => () => { gVald?.flate.dispose(); gVald?.kant.dispose() }, [gVald])
+  // gruppa kring leiaren: berre kantane, dempa — du skal sjå kven som fylgjer, ikkje kva
+  const gGruppe = useMemo(
+    () => gruppe.filter((id) => id !== vald).map((id) => plan.find((q) => q.id === id)).filter((q): q is Plan => !!q).map((q) => polygonGeom(planIBoks(planRamme(q, f.min, f.max), f.min, f.max))),
+    [gruppe, vald, plan, f],
+  )
+  useEffect(() => () => { for (const g of gGruppe) { g.flate.dispose(); g.kant.dispose() } }, [gGruppe])
 
   const mat = (material in MATERIALS ? material : "finer") as Material
   const surf = useMemo(() => makeWood(MATERIALS[mat].hex, 0.9, uKorn.current, uVald.current, uBlink.current, uBlinkT.current), [mat])
@@ -1658,6 +1669,11 @@ function Kroppen({ f, kropp, lag, view, skal, material, liste, vald, plan, blink
           onClick={pluk}
         />
       )}
+      {gGruppe.map((g, i) => (
+        <lineSegments key={i} geometry={g.kant} renderOrder={3}>
+          <lineBasicMaterial color={VALT} transparent opacity={0.45} depthTest={false} />
+        </lineSegments>
+      ))}
       {gVald && (
         <>
           {/* det valde planet: omrisset lyft fram, og flata so vidt synleg — same språk som skissa */}
@@ -1996,7 +2012,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -2038,6 +2054,10 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   onRute: (dx: number, dy: number) => void
   /** eit tal som stig når ein NY kropp kjem: då, og berre då, ramar synet inn på nytt */
   rammInn: number
+  /** ei mus og eit tastatur: høgre museknapp panorerer synet. Ein finger gjer det aldri. */
+  benk: boolean
+  /** plana i den valde gruppa — tom når inga gruppe er vald */
+  gruppe: readonly number[]
 }) {
   /** bitane kjem med «flate»-bygget: der er kroppen ein kropp */
   const bitar = useMemo(() => kropp?.bitar ?? [], [kropp])
@@ -2115,7 +2135,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <directionalLight position={[2, 1.5, 7]} intensity={0.35} />
         <directionalLight position={[0.5, -3, 2]} intensity={0.3} />
         <group position={[0, GROUND_Y, 0]}>
-          {f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} skal={skal} material={material} liste={liste} vald={vald} plan={plan} blink={blink} sein={sein} onVald={onVald} />}
+          {f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} skal={skal} material={material} liste={liste} vald={vald} gruppe={gruppe} plan={plan} blink={blink} sein={sein} onVald={onVald} />}
           {f && modus === "bit" && bitar.length > 0 && <Bitboksar f={f} bitar={bitar} vald={valdBit} />}
         <Sidehandtak f={f} boks={sider} boks3={modus === "bit" && valdBit !== null ? (bitar[valdBit] ?? null) : null} onSide={onBitSide} onGest={onGest} />
           {f && snitt && snitt.ringar.length > 0 && (
@@ -2158,7 +2178,12 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             eit syn du ikkje kjem til er ein kontroll som manglar. */}
         <OrbitControls
           target={[0, 0.35, 0]}
-          enablePan={false}
+          // PANORERINGA ER MUSA SI. Synet er ei avgjerd, og på benken er
+          // høgre knapp (eller hjulet trykt ned) den avgjerda: dra, og
+          // objektet flyttar seg i ruta. Innramminga set det midt att.
+          // To fingrar gjer det aldri — dei har snittet.
+          enablePan={benk}
+          mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN }}
           enableRotate
           screenSpacePanning
           touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}
@@ -2179,7 +2204,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         du trykkjer på.
       */}
       <div className="synskube" style={{ right: rute.hogre + 16, top: rute.topp + 72 }}>
-        <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt" onClick={heim}>
+        <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt (F)" onClick={heim}>
           {IkonHeim}
         </button>
         {/* SKALET. Kroppen slik han var ligg gjennomsiktig kring delane og
