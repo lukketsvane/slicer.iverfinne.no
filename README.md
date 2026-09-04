@@ -155,6 +155,20 @@ thumb column reads the pointer itself when it is not the primary one. Let go
 outside the button you pressed and nothing happens, which is how a tap is
 cancelled.
 
+**Each side of a piece has a dot.** In the body tool, a selected piece shows
+six small dots, one on the middle of each face of its box. Drag one and that
+axis alone stretches — a cube becomes a plate, a cylinder an oval. The pinch
+still scales all three at once and keeps the proportions; the dot is for when
+you want a stool and not an inflated cube.
+
+The size of a piece used to be one number. It is three now, one per axis, and
+three equal ones are written as the single number they used to be — so a link
+from last year opens the same object, and a link with a plain cube in it does
+not grow for something nobody touched. The dots are DOM, like the sketch
+handles and for the same reason: a 44-pixel target you can hit with a thumb
+and a name a screen reader can say. The scene only works out *where* they go,
+every frame.
+
 **A plane does not have to be flat.** Select one and drag the bend button
 under your thumb: the cutting surface becomes a cylinder, straight along `v`
 and curved along `u`. A cylinder is developable — it unrolls to a flat sheet

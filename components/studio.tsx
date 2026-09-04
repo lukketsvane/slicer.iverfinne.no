@@ -8,7 +8,7 @@ import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { BOG_TAK, PLAN_TAK, broek, dot, lesPlan, nyId, ramme as planRamme, rutenett, sameSnitt, spegla, speglingar, skrivPlan, virvel, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
-import { eiKjelde, erFilform, lesScene, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
+import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, lesScene, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
@@ -35,6 +35,8 @@ const LUKKA_ARK = 84
 const TUMME_BTN = "hit ikon relative flex h-12 w-12 items-center justify-center"
 /** eit steg i rutenettet: so langt fingrane må gå for éin kolonne eller éi rad */
 const RUTE_STEG = 44
+/** storleiken på ein bit, klemt til det lista tek imot */
+const klemBit = (v: number) => Math.min(BIT_MAX, Math.max(BIT_MIN, v))
 /** kor mykje bøy éin piksel drag er verd: hundre pikslar er ein halv bøy */
 const BOY_STEG = 0.005
 /** kor lenge grensesnittet står framme etter siste rørsle, i millisekund */
@@ -643,7 +645,7 @@ export function Studio() {
     setParams((cur) => {
       const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
       if (l.length >= SCENE_TAK) return cur
-      const ny = [...l, { id, t: [0, 0, 0] as Vec3, s: 1, rz: 0 }]
+      const ny = [...l, { id, t: [0, 0, 0] as Vec3, s: [1, 1, 1] as Vec3, rz: 0 }]
       const steg = Math.min(85, 760 / Math.max(1, ny.length - 1))
       const midt = (steg * (ny.length - 1)) / 2
       return { ...cur, scene: skrivScene(ny.map((b, i) => ({ ...b, t: [+(i * steg - midt).toFixed(2), b.t[1], b.t[2]] as Vec3 }))) }
@@ -696,11 +698,29 @@ export function Studio() {
     const d = motVend(dmm, naa.current)
     skrivBit(i, { t: [g.t[0] + d[0] / k, g.t[1] + d[1] / k, g.t[2] + d[2] / k] as Vec3 })
   }, [skrivBit])
+  /** klypet: alle tre aksane like mykje, so forholdet i biten står */
   const skalerBit = useCallback((faktor: number) => {
     const g = grunn.current?.bit
     const i = bitRef.current
     if (!g || i === null || !Number.isFinite(faktor) || faktor <= 0) return
-    skrivBit(i, { s: Math.min(5, Math.max(0.05, g.s * faktor)) })
+    skrivBit(i, { s: g.s.map((c) => klemBit(c * faktor)) as Vec3 })
+  }, [skrivBit])
+  /**
+   * OG EI SIDE ÅLEINE: prikkane på boksen.
+   *
+   * Klypet gjer heile biten større og let forholdet stå. Prikken på ei side
+   * dreg den EINE aksen, so ein kube vert ei plate og ein sylinder ein
+   * oval. `akse` er 0, 1 eller 2 i biten sitt eige rom — det same rommet
+   * `s` bur i — og faktoren er kor mykje sida har flytt seg, delt på kor
+   * brei ho var.
+   */
+  const sideBit = useCallback((akse: 0 | 1 | 2, faktor: number) => {
+    const g = grunn.current?.bit
+    const i = bitRef.current
+    if (!g || i === null || !Number.isFinite(faktor) || faktor <= 0) return
+    const s2 = [...g.s] as Vec3
+    s2[akse] = klemBit(g.s[akse] * faktor)
+    skrivBit(i, { s: s2 })
   }, [skrivBit])
   const vriBit = useCallback((grader: number) => {
     const g = grunn.current?.bit
@@ -716,7 +736,7 @@ export function Studio() {
       const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
       const b = l[i]
       if (!b || l.length >= SCENE_TAK) return cur
-      const ny: Bit = { ...b, t: [b.t[0] + 30 * b.s, b.t[1], b.t[2]] as Vec3 }
+      const ny: Bit = { ...b, t: [b.t[0] + 30 * b.s[0], b.t[1], b.t[2]] as Vec3 }
       return { ...cur, scene: skrivScene([...l.slice(0, i + 1), ny, ...l.slice(i + 1)]) }
     })
     setValdBit(i + 1)
@@ -1337,6 +1357,7 @@ export function Studio() {
             onBitFlytt={flyttBit}
             onBitSkala={skalerBit}
             onBitVri={vriBit}
+            onBitSide={sideBit}
             onRute={modus === "virvel" ? dragVirvel : dragRute}
           />
         )}

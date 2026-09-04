@@ -246,6 +246,46 @@ html {
 .handtak [data-handtak]:active {
   opacity: 1;
 }
+/* PRIKKANE PÅ SIDENE AV EIN BIT.
+   Prikken er liten — han skal seie kvar sida er, ikkje dekkje henne — og
+   treffesona er fire og førti pikslar, som alle andre handtak. Scena skriv
+   `transform` på knappen kvar teikning; her står berre utsjånaden. */
+.sider {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+.sider button {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+}
+.sider button:active {
+  cursor: grabbing;
+}
+.sider button > span {
+  width: 11px;
+  height: 11px;
+  border-radius: 9999px;
+  border: 2px solid var(--paper);
+  background: #e05a1a;
+}
+/* trykt er eit fyll som byter, ikkje ein prikk som veks */
+.sider button:active > span {
+  background: var(--ink);
+}
+
 /* INNRAMMINGA under synskuben. Kuben sjølv er geometri i lerretet no (sjå
    `GizmoViewcube`); dette er knappen som rammar objektet inn att. */
 .synskube {
@@ -365,6 +405,7 @@ main header,
 main .synskube,
 main .tumme,
 main .handtak,
+main .sider,
 main [aria-label="kontrollar"] {
   transition: opacity 90ms linear;
 }
@@ -372,6 +413,7 @@ main[data-sov] header,
 main[data-sov] .synskube,
 main[data-sov] .tumme,
 main[data-sov] .handtak,
+main[data-sov] .sider,
 main[data-sov] [aria-label="kontrollar"] {
   opacity: 0;
   pointer-events: none;
