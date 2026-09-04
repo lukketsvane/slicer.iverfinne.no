@@ -403,6 +403,12 @@ console.log("det du lagrar er det du opnar")
   // det kom av. Ei kjelde utan bytar — kuben, eller eit nett laga i koden —
   // ber seg sjølv i `kjelde`, og då er oppsettet heile prosjektet.
   saker++
+  /** kva prosjektfila seier ho IKKJE bar */
+  const lesUtan = (filer: { name: string; data: Uint8Array }[]): string[] => {
+    const o = filer.find((f) => f.name === "oppsett.json")
+    if (!o) return []
+    return (JSON.parse(new TextDecoder().decode(o.data)) as { utan?: string[] }).utan ?? []
+  }
   const soup = makeSoup(kule(50, 24))
   const nrm = new Float32Array(soup.pos.length)
   for (let i = 0; i < nrm.length; i += 3) {
@@ -440,6 +446,32 @@ console.log("det du lagrar er det du opnar")
     if (a !== b) feil("prosjekt", `DXF-en er ein annan etter opning (${a.length} mot ${b.length} teikn)`)
     console.log(`  prosjekt: ${inni.length} filer, ${attende.tris} trekantar attende, same DXF: ${a === b} (${a.length} teikn)`)
   }
+
+  /**
+   * EI PROSJEKTFIL SOM IKKJE BAR NETTET, SKAL SEIE DET.
+   *
+   * `put` slepp bytane når fila er over taket på 96 MB, og reiskapen tek
+   * imot filer på 220. I bandet imellom lasta nettet, skar seg og
+   * eksporterte — og prosjektfila kom ut med berre eit oppsett i seg, under
+   * eit namn som lova nettet med. Det er den verste forma ein feil kan ha:
+   * du finn han ikkje før du opnar fila att, og då er arbeidet borte.
+   *
+   * Og det negative med: saka over ligg under taket, so ho skal framleis
+   * heite `-prosjekt.zip` og ikkje ha noko `utan` i seg. Utan den halvdelen
+   * hadde prøva stått grøn av di ho aldri bar noko.
+   */
+  saker++
+  if (pro.name.endsWith("-oppsett.zip")) feil("prosjekt", "eit nett under taket vart meldt som for stort")
+  if (lesUtan(inni).length) feil("prosjekt", "eit nett under taket står i «utan»")
+  const digerFil = new Uint8Array(97 * 1024 * 1024)
+  put("v-diger", "diger.stl", lest, digerFil)
+  const dig = MOTOR.exportFile({ ...p, kjelde: "v-diger" } as unknown as ParamBag, "prosjekt")
+  const digInni = unzip(dig.data as ArrayBuffer)
+  if (!dig.name.endsWith("-oppsett.zip")) feil("prosjekt", `bar ikkje nettet, men heiter ${dig.name}`)
+  if (digInni.some((f) => f.name.startsWith("nett/"))) feil("prosjekt", "eit nett over taket kom likevel med")
+  if (!dig.merknad) feil("prosjekt", "bar ikkje nettet og sa det ikkje")
+  if (!lesUtan(digInni).includes("diger.stl")) feil("prosjekt", "«utan» nemner ikkje fila som fall bort")
+  console.log(`  prosjekt over taket: ${dig.name} — «${dig.merknad}»`)
 
   // og «alt» skal ha kvar einaste fil i seg
   saker++

@@ -8,9 +8,9 @@
  */
 import { bbox, kuttCsv, MATERIALS, nn, offsetPoly, type Material, type Pt } from "./core"
 import type { BuildOut, DetailKey, ExportKind, ExportOut, Group, ArkSyn, Kutt, Metrics, ParamBag, Range, Rom, Rule, Vec3 } from "./core"
-import { label as srcLabel, raw as srcRaw } from "./sources"
+import { erPrimitiv, label as srcLabel, raw as srcRaw } from "./sources"
 import { makeKropp, scenaAv } from "./kropp"
-import { lesScene } from "./scene"
+import { erFilform, lesScene } from "./scene"
 import { buildSnitt, DETAIL, skisseSyn, type SkisseSyn, type Snitt } from "./snitt"
 import type { Plan } from "./plan"
 import { flateMesh, lagMesh } from "./mesh"
@@ -173,7 +173,8 @@ export const MOTOR: EngineDef = {
       return ns.sheets.map((_, i) => ({ name: n <= 1 ? `${name}.dxf` : `${name}-ark-${i + 1}av${n}.dxf`, text: sheetDxf(ns, i, kerf) }))
     }
     /** innstillingane som tekst — det er denne fila som gjer eit prosjekt til noko du kan opne att */
-    const oppsett = () => JSON.stringify({ reiskap: "slicer.iverfinne", utgåve: 2, kjelde: srcLabel(p.kjelde), p }, null, 1)
+    const oppsett = (utan?: string[]) =>
+      JSON.stringify({ reiskap: "slicer.iverfinne", utgåve: 2, kjelde: srcLabel(p.kjelde), ...(utan?.length ? { utan } : {}), p }, null, 1)
 
     if (what === "alt") {
       // HEILE JOBBEN I EI NEDLASTING: alt som høyrer til det same objektet
@@ -196,13 +197,36 @@ export const MOTOR: EngineDef = {
     if (what === "prosjekt") {
       // Lenkja ber kvar innstilling utan om nettet. Denne fila ber begge —
       // kvar fil i scena, med id-en sin i namnet, so scena finn dei att.
-      const filer = [{ name: "oppsett.json", text: oppsett() }]
       const idar = [...new Set([String(p.kjelde), ...lesScene(scenaAv(p)).map((b) => b.id)])]
+      /**
+       * KVA SOM MÅTTE BERAST, OG KVA SOM VART BORE.
+       *
+       * Eit primitiv er laga i koden og ei innebygd form ligg på tenaren:
+       * ei prosjektfil utan dei er komplett, av di scena hentar dei att på
+       * namn. Det er berre dei INNDRAGNE filene som må liggje i arkivet.
+       *
+       * `put` slepp bytane når fila er over taket på 96 MB, og reiskapen
+       * tek imot filer på 220. I bandet imellom lasta nettet, skar seg og
+       * eksporterte — og prosjektfila var tom for det utan å seie det.
+       * `sources.ts` skreiv alt ned at ho skulle seie frå; no gjer ho det.
+       */
+      const kravde = idar.filter((id) => !erPrimitiv(id) && !erFilform(id))
+      const utan = kravde.filter((id) => !srcRaw(id)).map((id) => srcLabel(id))
+      const filer = [{ name: "oppsett.json", text: oppsett(utan) }]
       for (const id of idar) {
         const bytes = srcRaw(id)
         if (bytes) filer.push({ name: `nett/${id}__${srcLabel(id)}`, data: bytes } as never)
       }
-      return { name: `${name}-prosjekt.zip`, mime: "application/zip", data: zip(filer) }
+      // Bar ho ikkje eitt einaste nett ho skulle bore, er ho ikkje ei
+      // prosjektfil. Då heiter ho det ho er, og namnet seier det før du
+      // opnar henne.
+      const tomt = kravde.length > 0 && utan.length === kravde.length
+      return {
+        name: `${name}-${tomt ? "oppsett" : "prosjekt"}.zip`,
+        mime: "application/zip",
+        data: zip(filer),
+        ...(utan.length ? { merknad: `nettet er for stort til å leggjast ved: ${utan.join(", ")}` } : {}),
+      }
     }
     if (what === "svg") return { name: `${name}-profilar.svg`, mime: "image/svg+xml", text: profileSvg(s, kerf) }
     if (what === "ark") {

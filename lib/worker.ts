@@ -47,7 +47,7 @@ export type BuildRes = {
 /** Måltala kjem i eiga melding, ETTER nettet. Kuttlista fylgjer med: ho er
  *  lesen rett ut av bygget målinga alt har rekna. */
 export type MaalRes = { kind: "maal"; id: number; metrics: Metrics; rules: Rule[]; liste: Kutt[] }
-export type ExportRes = { kind: "export"; id: number; name: string; mime: string; text?: string; data?: ArrayBuffer }
+export type ExportRes = { kind: "export"; id: number; name: string; mime: string; text?: string; data?: ArrayBuffer; merknad?: string }
 export type KjeldeRes = { kind: "kjelde"; id: number; src: SourceInfo }
 /** ei prosjektfil som er opna: nettet OG innstillingane som låg med det */
 export type ProsjektRes = { kind: "prosjekt"; id: number; src: SourceInfo | null; params: ParamBag }
