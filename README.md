@@ -155,6 +155,20 @@ thumb column reads the pointer itself when it is not the primary one. Let go
 outside the button you pressed and nothing happens, which is how a tap is
 cancelled.
 
+**The view is a decision, not a consequence.** The frame used to be worked
+out from the geometry: the scale was `FRAME / longest side` and the centre was
+the centre of the box, so *every* change moved and rescaled the whole picture.
+Drag a piece out and everything else shrank while your finger was still on it,
+and you were aiming at a target that slid away. The camera did the same thing
+whenever the radius moved 10 %. Now the scale and the centre stay where they
+were set, and the geometry moves inside that frame. It is set again only when
+somebody asks: the reframe button, a face of the view cube, or a new body —
+opening a file is not editing.
+
+The box itself is still live. A plane's origin is a fraction of it, and a
+plane at 0.5 has to sit in the middle of the body as it is now, not as it was.
+Only the view holds still.
+
 **Each side of a piece has a dot.** In the body tool, a selected piece shows
 six small dots, one on the middle of each face of its box. Drag one and that
 axis alone stretches — a cube becomes a plate, a cylinder an oval. The pinch
