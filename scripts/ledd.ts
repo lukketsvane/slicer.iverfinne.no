@@ -188,6 +188,41 @@ function sjekk(namn: string, p: Params) {
     }
   }
 
+  /**
+   * NUMMERET I NØKKELEN TEL LEDD, IKKJE FORSØK.
+   *
+   * Tredje feltet i ein leddnøkkel er kva møte på kryssingslina det er, og
+   * `snitt.ts` seier i sin eigen kommentar at det er talt over dei som VART
+   * LEDD. Det er handa si adresse: `deling` skriv «5-12-1:0.35», og hoppar
+   * nummeret over eit møte som fall på skuldra, landar brøken på eit anna
+   * ledd enn det du stilte — eitt spor djupt og makkeren grunn, som er nett
+   * det den delte nøkkelen finst for å hindre.
+   *
+   * So numra på kvar kryssingsline skal vera 0, 1, 2 … utan hopp. Prøva er
+   * billeg og fangar heile klassen; ho stod ikkje her før, og det er difor
+   * teljinga kunne stå på feil side av to prøver utan at nokon såg det.
+   */
+  const liner = new Map<string, number[]>()
+  for (const r of g.ribber) {
+    for (const q of r.spor) {
+      if (!r.outlines.some((o) => jointsIn([q], o) > 0)) continue
+      const i = q.nokkel.lastIndexOf("-")
+      const line = q.nokkel.slice(0, i)
+      const nr = Number(q.nokkel.slice(i + 1))
+      const a = liner.get(line) ?? []
+      if (!a.includes(nr)) a.push(nr)
+      liner.set(line, a)
+    }
+  }
+  let hopp = 0
+  for (const [line, nr] of liner) {
+    nr.sort((a, b) => a - b)
+    if (nr.some((v, i) => v !== i)) {
+      hopp++
+      if (hopp <= 3) console.log(`      kryssingslina ${line}: nummer ${nr.join(",")} — ikkje 0..${nr.length - 1}`)
+    }
+  }
+
   // GODSET ER EI LENGD, OG EI LENGD ER IKKJE NEGATIV.
   //
   // «Minste gods» er det tynnaste som står att i eit ledd, og panelet
@@ -206,7 +241,7 @@ function sjekk(namn: string, p: Params) {
 
   const vol = volumAvvik(g, p.tjukn)
 
-  const ok = tapt === 0 && uteneskulder === 0 && nabo === 0 && godsOk && vol.tal === 0
+  const ok = tapt === 0 && uteneskulder === 0 && nabo === 0 && godsOk && vol.tal === 0 && hopp === 0
   if (!ok) brot++
   console.log(
     `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ` +
@@ -214,7 +249,8 @@ function sjekk(namn: string, p: Params) {
       `${tapt} tapte · ${uteneskulder} utan gods på begge sider · ` +
       `${nabo} inn i nabostykket${nabo ? ` (verst ${naboVerst.toFixed(1)} mm)` : ""}` +
       `${godsOk ? "" : ` · GODS ${godsVerst.toFixed(1)} mm`}` +
-      `${vol.tal ? ` · VOLUM ${vol.tal} ribber, verst ${(vol.verst * 100).toFixed(0)} %` : ""}`,
+      `${vol.tal ? ` · VOLUM ${vol.tal} ribber, verst ${(vol.verst * 100).toFixed(0)} %` : ""}` +
+      `${hopp ? ` · HOPP i nummereringa på ${hopp} kryssingsliner` : ""}`,
   )
 }
 

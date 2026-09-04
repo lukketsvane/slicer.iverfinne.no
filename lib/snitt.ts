@@ -583,8 +583,16 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
          * Nummeret er kva møte på kryssingslina det er, talt over dei som
          * VART LEDD: eit overlapp som er for kort til å bere eit ledd er
          * ikkje eit ledd, og skal ikkje flytte namnet på dei som kjem etter.
+         *
+         * Difor tel `treff` fyrst NEDANFOR skuldreprøvene. Nøkkelen må
+         * reknast her — han slår opp handdelinga, og ho set `zm`, som er
+         * eit av tala prøvene les — men han skal ikkje BRUKE opp eit
+         * nummer før møtet er eit ledd. Eit møte som klarer overlappet og
+         * fell på skuldra åt elles nummeret til dei som kom etter, og eit
+         * «5-12-1» sett med handa ville lande på eit anna ledd enn det du
+         * stilte: eitt spor djupt og makkeren grunn.
          */
-        const nokkel = leddNokkel(A.plan.id, B.plan.id, treff++)
+        const nokkel = leddNokkel(A.plan.id, B.plan.id, treff)
         const kv = handDeling.get(nokkel)
         const zm = lo + (kv ?? p.ledd) * (hi - lo)
         // B kjem inn langs retn·d: munnen hans er i den enden han går mot,
@@ -593,6 +601,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
         const munnA = retn < 0 ? hi : lo
         if (!rom(A, pA, dA, (zm + munnA) / 2, skulder(w))) continue
         if (!rom(B, pB, dB, (zm + munnB) / 2, skulder(w))) continue
+        treff++
         A.spor.push({ p: pA, d: dA, munn: munnA, botn: zm, ut: klar(A, pA, dA, munnA, munnA > zm, w), w, mot: B.plan.id, nokkel, lo, hi })
         B.spor.push({ p: pB, d: dB, munn: munnB, botn: zm, ut: klar(B, pB, dB, munnB, munnB > zm, w), w, mot: A.plan.id, nokkel, lo, hi })
         ledd++
