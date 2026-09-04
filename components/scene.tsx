@@ -4,9 +4,9 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { GizmoHelper, GizmoViewcube, OrbitControls } from "@react-three/drei"
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react"
 import * as THREE from "three"
-import { MATERIALS, inRing, shoelace, type Kutt, type Material, type Plate, type Pt, type Vec3, type View } from "@/lib/core"
+import { MATERIALS, inRing, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
 import { akser, broek, dot, inn, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
-import { GROUND_Y, MAX_DIST, MIN_DIST, MIN_NAER, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
+import { GROUND_Y, MAX_DIST, MIN_DIST, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { BitBoks } from "@/lib/kropp"
 import type { BuildRes } from "@/lib/worker"
@@ -22,9 +22,8 @@ import type { BuildRes } from "@/lib/worker"
  * ikkje delane sine — so å låse eit plan ikkje flyttar noko.
  */
 const FRAME = 2.2
-/** ei tom liste som ikkje er ny kvar teikning */
-const TOMME: Plate[] = []
-const HEIM = { flat: [0, 0, 1] as Vec3, rom: [2.4, 1.7, 6.4] as Vec3 }
+/** heimvinkelen: kvar kameraet står når ingen har peika på ei side */
+const HEIM: Vec3 = [2.4, 1.7, 6.4]
 const SKISSE = "#1f6feb"
 const VALT = "#e05a1a"
 
@@ -354,47 +353,41 @@ function iStrek(s: Strek, S: number, q: Pt, tol: number): boolean {
  *  retninga dei bad om — heimvinkelen når ingen har peika på ei side */
 export type Sikt = { n: number; dir: Vec3 | null }
 
-function FitCamera({ fit, rute, flat, sikt, laast }: { fit: Fit | null; rute: Rute; flat: boolean; sikt: Sikt; laast: boolean }) {
+function FitCamera({ fit, rute, sikt }: { fit: Fit | null; rute: Rute; sikt: Sikt }) {
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
   const controls = useThree((s) => s.controls) as { target: THREE.Vector3; update?: () => void } | null
   const invalidate = useThree((s) => s.invalidate)
-  const sist = useRef({ r: 0, rute: "", n: 0, flat: null as boolean | null })
+  const sist = useRef({ r: 0, rute: "", n: 0 })
   const nokkel = `${rute.W}|${rute.H}|${rute.venstre}|${rute.hogre}|${rute.topp}|${rute.botn}`
   useEffect(() => {
     if (!fit || !controls) return
     const s = sist.current
-    // synskuben, eller byte mellom teikning og objekt: ramm inn, uansett
-    const heim = s.n !== sikt.n || s.flat !== flat
+    // synskuben: ramm inn, uansett
+    const heim = s.n !== sikt.n
     if (heim) {
       s.n = sikt.n
-      s.flat = flat
       s.r = 0
     }
     const flytta = s.rute !== nokkel
-    // EI VALD PLATE ER EI PLATE EIN FINGER STÅR PÅ. Eit merke kan endre
-    // breidda på strimmelen nok til å be om ei ny innramming, og papiret
-    // skal ikkje rykke under handa mellom to strekar. Ruta og synskuben
-    // rammar likevel inn.
-    if (laast && !flytta && !heim) return
     if (!flytta && s.r && Math.abs(fit.r - s.r) / s.r < 0.1) return
     s.r = fit.r
     s.rute = nokkel
     const persp = camera as THREE.PerspectiveCamera
     // rekninga står i lib/ramme.ts, der ho kan prøvast utanfor ein nettlesar
-    const r = ramme(fit, { rute, fovDeg: persp.fov ?? 30, flat })
+    const r = ramme(fit, { rute, fovDeg: persp.fov ?? 30 })
     // objektet står midt i det FRIE bandet: ei forskyving av projeksjonen,
     // ikkje av siktepunktet — elles snurrar objektet kring eit punkt utanfor seg
     persp.aspect = r.fri.w / r.fri.h
     persp.setViewOffset(r.fri.w, r.fri.h, -r.fri.L, -r.fri.T, size.width, size.height)
     controls.target.set(0, r.y, 0)
-    const h = sikt.dir ?? (flat ? HEIM.flat : HEIM.rom)
+    const h = sikt.dir ?? HEIM
     const dir = heim ? new THREE.Vector3(...h) : camera.position.clone().sub(controls.target)
     if (dir.lengthSq() < 1e-6) dir.set(...h)
     camera.position.copy(controls.target).add(dir.setLength(r.dist))
     controls.update?.()
     invalidate()
-  }, [fit, nokkel, rute, sikt, controls, camera, invalidate, flat, size, laast])
+  }, [fit, nokkel, rute, sikt, controls, camera, invalidate, size])
   return null
 }
 
@@ -427,9 +420,6 @@ function FitCamera({ fit, rute, flat, sikt, laast }: { fit: Fit | null; rute: Ru
  * to fingrar tett i hop ikkje skuggar for eit drag. Klyp og vri gjev TOTALEN
  * sidan gesten byrja, ikkje eit steg per hending: nettlesaren slår saman
  * rørsler når hovudtråden er oppteken, og eit bygg tek hundre millisekund.
- *
- * Konturen er ei teikning og ikkje eit objekt: der er to fingrar det eit
- * lerret alltid har brukt dei til — flytte og zoome — og skissa er gøymd.
  */
 /** daudsona i pikslar, og kor klårt leiaren må leie */
 const DAUD = 8
@@ -458,10 +448,9 @@ const SNAPP_PX = 4
 /** snittet i verda, til handtaka: midten av det største stykket, og punkta på ringane (tynna) */
 type SnittVerd = { midt: THREE.Vector3; punkt: THREE.Vector3[] }
 
-function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute, fk, plater, onVald }: {
+function Handa({ f, fri, modus, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
   f: Ramma | null
   fri: ReturnType<typeof fritt>
-  view: View
   modus: Modus
   vald: number | null
   plan: readonly Plan[]
@@ -497,12 +486,6 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
   onBitVri: (grader: number) => void
   /** rutenettet: draget sidan gesten byrja, i pikslar — høgre er kolonner, opp er rader */
   onRute: (dx: number, dy: number) => void
-  /** ramma teikninga står i, og platene i henne — berre «kontur» har dei */
-  fk: Ramma | null
-  plater: readonly Plate[]
-  /** eit merke sleppt: eitt strek på planet, gjennom den vanlege vegen */
-  /** plata som vart peika på i teikninga — det same valet som eit plan i rommet */
-  onVald: (id: number | null) => void
 }) {
   const gl = useThree((s) => s.gl)
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
@@ -522,7 +505,7 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
    * handtaka hennar står midt i biletet — nett der fingrane skal ta i ein
    * bit. Eit verkty om gongen: her er det kroppen som vert bygd.
    */
-  const synleg = !!f && vald === null && view !== "kontur" && modus !== "bit" && modus !== "rute" && modus !== "virvel"
+  const synleg = !!f && vald === null && modus !== "bit" && modus !== "rute" && modus !== "virvel"
   /** snittet i verda: handtaka står PÅ det — flytt i midten, vri på toppen */
   const snittVerd = useMemo<SnittVerd | null>(() => {
     if (!f || !snitt?.ringar.length) return null
@@ -581,17 +564,17 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     return { x: ((p.x + 1) / 2) * size.width, y: ((1 - p.y) / 2) * size.height }
   }
 
-  const naa = useRef({ f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute, fk, plater, onVald })
-  naa.current = { f, vald, valt, view, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute, fk, plater, onVald }
+  const naa = useRef({ f, vald, valt, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute })
+  naa.current = { f, vald, valt, modus, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }
 
   useFrame(() => {
     const g = gruppe.current
     if (!g) return
     g.visible = synleg
     // KAMERAET, TIL LESING UTANFRÅ, og før alt anna: eit drag på eit handtak
-    // skal ikkje flytte det, og konturen — som ikkje har handtak i det heile
-    // — skal likevel kunne seiast noko om. Avstanden er kor nær du har fått
-    // kome; ho er det einaste zoomen kan lesast av på.
+    // skal ikkje flytte det, og synet skal likevel kunne seiast noko om.
+    // Avstanden er kor nær du har fått kome; ho er det einaste zoomen kan
+    // lesast av på.
     if (boks) {
       boks.dataset.kamera = [camera.position.x, camera.position.y, camera.position.z].map((c) => c.toFixed(6)).join(",")
       if (controls) boks.dataset.avstand = camera.position.distanceTo(controls.target).toFixed(3)
@@ -601,7 +584,7 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       boks.style.visibility = "hidden"
       if (delar?.merke) delete delar.merke.dataset.skisse
     }
-    if (!f || view === "kontur" || (!synleg && !valt)) {
+    if (!f || (!synleg && !valt)) {
       sist.current = null
       gøym()
       return
@@ -946,36 +929,6 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       return inn(r, fraaVerd(f, camera.position.clone().addScaledVector(ray, t)))
     }
     /**
-     * TEIKNINGA ER EI FLATE, og eit punkt på henne er `fraaVerd` av der
-     * strålen råkar henne. Kvar `y` i `lines` er null, so gruppa er
-     * nøyaktig `tilVerd`, og planet i verda er `z = s·cy` — ein konstant.
-     */
-    const iTeikninga = (px: number, py: number): Pt | null => {
-      const g = naa.current.fk
-      if (!g) return null
-      const ray = straale(px, py)
-      if (Math.abs(ray.z) < 1e-6) return null
-      const t = (g.s * g.cy - camera.position.z) / ray.z
-      if (t <= 0) return null
-      const q = fraaVerd(g, camera.position.clone().addScaledVector(ray, t))
-      return [q[0], q[2]]
-    }
-    /** plata under eit punkt i teikninga: boksane fliser strimmelen, so det er høgst éi */
-    const plataVed = (q: Pt) =>
-      naa.current.plater.find((b) => q[0] >= b.min[0] && q[0] <= b.max[0] && q[1] >= b.min[1] && q[1] <= b.max[1])
-    /**
-     * EIT TRYKK I KONTUREN VEL EI PLATE. Klikket som fylgjer vert svelgt,
-     * elles ville `onPointerMissed` sleppe henne i same trykket.
-     */
-    const trykkPlate = (x: number, y: number) => {
-      if (naa.current.view !== "kontur") return
-      const q = iTeikninga(x, y)
-      const b = q && plataVed(q)
-      if (!b) return
-      if (b.id !== naa.current.vald) naa.current.onVald(b.id)
-      svelgKlikk = true
-    }
-    /**
      * EIT TRYKK MED EIT PLAN VALT: på eit strek vel det streken, på snittet
      * utanom streka slepp det streken — planet står. Lese i planet si ramme
      * med åtte pikslar mon, for fingeren er ikkje ein peikar. Klikket som
@@ -983,8 +936,8 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
      * planet. Utanfor snittet går trykket sin vanlege veg.
      */
     const trykkStrek = (x: number, y: number) => {
-      const { f, valt, valdStrek, rValt, storleik: S, snitt, view, onValdStrek } = naa.current
-      if (!f || !valt || !rValt || view === "kontur" || (!valt.strek.length && valdStrek === null)) return
+      const { f, valt, valdStrek, rValt, storleik: S, snitt, onValdStrek } = naa.current
+      if (!f || !valt || !rValt || (!valt.strek.length && valdStrek === null)) return
       const q = paaPlanet(x, y, rValt)
       if (!q) return
       const { fwd } = aksar()
@@ -1019,9 +972,8 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       if (handtakGaar()) return e.stopImmediatePropagation()
       // trykk-kandidat for mus og finger begge: fyrste peikar, åleine
       tapDown = pts.size === 0 && e.isPrimary ? { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId } : { x: 0, y: 0, t: 0, id: -1 }
-      const flat = naa.current.view === "kontur"
       if (e.pointerType !== "touch") {
-        if (flat || !(e.shiftKey || e.altKey) || e.button !== 0) return
+        if (!(e.shiftKey || e.altKey) || e.button !== 0) return
         // musa: same gesten, éin peikar. Orbiten skal ikkje òg starte.
         e.stopImmediatePropagation()
         e.preventDefault()
@@ -1033,7 +985,7 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
       }
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pts.size === 1 && controls) snap = { pos: camera.position.clone(), target: controls.target.clone() }
-      if (pts.size === 2 && mode !== "lys" && !flat) {
+      if (pts.size === 2 && mode !== "lys") {
         if (controls) controls.enabled = false
         const c = measure2()
         last = c
@@ -1131,7 +1083,7 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
         last = { cx: c.x, cy: c.y, d: 0, a: 0 }
         return
       }
-      if (pts.size !== 2 || naa.current.view === "kontur") return
+      if (pts.size !== 2) return
       const c = measure2()
       if (mode === "sam") {
         if (!tak) return
@@ -1254,8 +1206,7 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
         // vinkelen du stod og fann. Innramminga står i synskuben no.
         const flytta = Math.hypot(e.clientX - tapDown.x, e.clientY - tapDown.y)
         if (performance.now() - tapDown.t < 260 && flytta < 12) {
-          if (naa.current.view === "kontur") trykkPlate(e.clientX, e.clientY)
-          else if (naa.current.modus === "bit") trykkBit(e.clientX, e.clientY)
+          if (naa.current.modus === "bit") trykkBit(e.clientX, e.clientY)
           else trykkStrek(e.clientX, e.clientY)
         } else if (flytta >= 12) {
           // EIT DRAG ER IKKJE EIT TRYKK. Nettlesaren sender eit klikk etter
@@ -1294,7 +1245,7 @@ function Handa({ f, fri, view, modus, vald, plan, snitt, skisse, boks, storleik,
     let hjulTotal = 1
     let hjulGaar = false
     const hjul = (e: WheelEvent) => {
-      if (!e.ctrlKey || naa.current.view === "kontur") return
+      if (!e.ctrlKey) return
       e.preventDefault()
       e.stopPropagation()
       if (!hjulGaar) {
@@ -1555,7 +1506,7 @@ function Kroppen({ f, kropp, lag, view, material, liste, vald, plan, blink, sein
   f: Ramma
   kropp: BuildRes | null
   lag: BuildRes | null
-  view: View
+  view: Rom
   material: string
   liste: readonly Kutt[]
   vald: number | null
@@ -1739,68 +1690,6 @@ function Bitboksar({ f, bitar, vald }: { f: Ramma; bitar: readonly BitBoks[]; va
 }
 
 /**
- * KONTUREN: profilane flatt ved sida av kvarandre, ei teikning i blekk.
- *
- * Og ikkje berre ei teikning lenger: kvar plate ber namnet sitt og boksen
- * sin med seg frå bygget (sjå `Plate` i `core.ts`), so eit trykk vel ei
- * plate. Den valde står i fullt blekk med ei ramme kring seg — ramma er
- * lina der fingeren skiftar meining, og ho skal sjåast og ikkje gjettast.
- */
-function Konturen({ f, d, ink, vald }: { f: Ramma; d: BuildRes; ink: string; vald: number | null }) {
-  const thin = useMemo(() => mkGeom(d.lines), [d])
-  const valdPlate = vald === null ? undefined : d.plater.find((q) => q.id === vald)
-  // ei UTSNITT av den same bufferen, ikkje ein ny sanning om profilen
-  const bold = useMemo(
-    () => mkGeom(valdPlate ? d.lines.subarray(valdPlate.fraa * 3, (valdPlate.fraa + valdPlate.tal) * 3) : d.heavy),
-    [d, valdPlate],
-  )
-  const ramma = useMemo(() => {
-    if (!valdPlate) return null
-    const [x0, y0] = valdPlate.min
-    const [x1, y1] = valdPlate.max
-    return mkGeom([x0, 0, y0, x1, 0, y0, x1, 0, y0, x1, 0, y1, x1, 0, y1, x0, 0, y1, x0, 0, y1, x0, 0, y0])
-  }, [valdPlate])
-  useEffect(() => () => thin.dispose(), [thin])
-  useEffect(() => () => bold.dispose(), [bold])
-  useEffect(() => () => ramma?.dispose(), [ramma])
-  return (
-    <group rotation={[-Math.PI / 2, 0, 0]} scale={f.s} position={[-f.cx * f.s, 0, f.cy * f.s]}>
-      {/* det tynne er alle profillinene, det tunge er plata du har valt */}
-      <lineSegments geometry={thin}><lineBasicMaterial color={ink} transparent opacity={0.22} /></lineSegments>
-      <lineSegments geometry={bold}><lineBasicMaterial color={ink} /></lineSegments>
-      {ramma && <lineSegments geometry={ramma}><lineBasicMaterial color={VALT} transparent opacity={0.55} /></lineSegments>}
-    </group>
-  )
-}
-
-
-/**
- * ANKERET. Eit merke endrar profilen, og `contourLines` legg heile
- * strimmelen ut på nytt for kvart bygg. Utan eit anker glir plata sidelengs
- * ut under fingeren mellom to strekar. Planet sitt eige punkt står stille
- * medan profilen veks kring det, so kameraet fylgjer DET.
- */
-function Ankeret({ x, id }: { x: number | null; id: number | null }) {
-  const camera = useThree((s) => s.camera)
-  const controls = useThree((s) => s.controls) as { target: THREE.Vector3; update?: () => void } | null
-  const invalidate = useThree((s) => s.invalidate)
-  const sist = useRef<{ x: number; id: number } | null>(null)
-  useEffect(() => {
-    const fyrr = sist.current
-    sist.current = x === null || id === null ? null : { x, id }
-    // Ei ANNA plate er ikkje den same plata som har flytt seg: eit nytt val
-    // skal ikkje dra teikninga med seg, og du peikar på det du ser.
-    if (x === null || id === null || !fyrr || fyrr.id !== id || !controls || Math.abs(x - fyrr.x) < 1e-6) return
-    const d = x - fyrr.x
-    camera.position.x += d
-    controls.target.x += d
-    controls.update?.()
-    invalidate()
-  }, [x, id, camera, controls, invalidate])
-  return null
-}
-
-/**
  * SYNSKUBEN, frå drei.
  *
  * Han var heimelaga her: seks sider av DOM, kvar delt i tre gonger tre, med
@@ -1835,15 +1724,14 @@ const KUBE_HOVER = "#dcdcdc"
  * dra — og ho må nå kameraet frå DOM. Difor denne: ho legg funksjonen i ein
  * ref når scena er oppe, og tek han att når ho er borte.
  */
-function Kamerataket({ ut, flat }: { ut: MutableRefObject<((f: number) => void) | null>; flat: boolean }) {
+function Kamerataket({ ut }: { ut: MutableRefObject<((f: number) => void) | null> }) {
   const camera = useThree((s) => s.camera)
   const controls = useThree((s) => s.controls) as { target: THREE.Vector3; update?: () => void } | null
   const invalidate = useThree((s) => s.invalidate)
   useEffect(() => {
     ut.current = (f: number) => {
       if (!controls || !Number.isFinite(f) || f <= 0) return
-      const naer = flat ? MIN_NAER : MIN_DIST
-      const d = Math.min(MAX_DIST, Math.max(naer, camera.position.distanceTo(controls.target) / f))
+      const d = Math.min(MAX_DIST, Math.max(MIN_DIST, camera.position.distanceTo(controls.target) / f))
       const retn = camera.position.clone().sub(controls.target).setLength(d)
       camera.position.copy(controls.target).add(retn)
       controls.update?.()
@@ -1852,7 +1740,7 @@ function Kamerataket({ ut, flat }: { ut: MutableRefObject<((f: number) => void) 
     return () => {
       ut.current = null
     }
-  }, [camera, controls, invalidate, ut, flat])
+  }, [camera, controls, invalidate, ut])
   return null
 }
 
@@ -1893,11 +1781,10 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
+export const Scene = memo(function Scene({ kropp, lag, view, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
   kropp: BuildRes | null
   lag: BuildRes | null
-  kontur: BuildRes | null
-  view: View
+  view: Rom
   modus: Modus
   material: string
   rute: Rute
@@ -1928,7 +1815,6 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
   onBitVri: (grader: number) => void
   onRute: (dx: number, dy: number) => void
 }) {
-  const flat = view === "kontur"
   /** bitane kjem med «flate»-bygget: der er kroppen ein kropp */
   const bitar = useMemo(() => kropp?.bitar ?? [], [kropp])
   const f = useMemo(() => ramma(kropp ?? lag), [kropp, lag])
@@ -1936,13 +1822,6 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
   const valt = useMemo(() => (vald === null ? null : plan.find((q) => q.id === vald) ?? null), [vald, plan])
   const rValt = useMemo(() => (valt && f ? planRamme(valt, f.min, f.max) : null), [valt, f])
   const [live, setLive] = useState<Live | null>(null)
-  const fk = useMemo(() => ramma(kontur), [kontur])
-  /** den valde plata sitt nullpunkt i verda: ankeret kameraet fylgjer */
-  const ankerX = useMemo(() => {
-    if (!flat || vald === null || !fk || !kontur) return null
-    const q = kontur.plater.find((b) => b.id === vald)
-    return q ? tilVerd(fk, [q.nullpkt[0], 0, q.nullpkt[1]]).x : null
-  }, [flat, vald, fk, kontur])
   const fri = useMemo(() => fritt(rute), [rute])
   const [sikt, setSikt] = useState<Sikt>({ n: 0, dir: null })
   const heim = useCallback(() => setSikt((s) => ({ n: s.n + 1, dir: null })), [])
@@ -1984,55 +1863,47 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
         <directionalLight position={[2, 1.5, 7]} intensity={0.35} />
         <directionalLight position={[0.5, -3, 2]} intensity={0.3} />
         <group position={[0, GROUND_Y, 0]}>
-          {flat
-            ? fk && kontur && <Konturen f={fk} d={kontur} ink={tema.ink} vald={vald} />
-            : f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} material={material} liste={liste} vald={vald} plan={plan} blink={blink} sein={sein} onVald={onVald} />}
-          {!flat && f && modus === "bit" && bitar.length > 0 && <Bitboksar f={f} bitar={bitar} vald={valdBit} />}
-          {!flat && f && snitt && snitt.ringar.length > 0 && <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />}
-          {!flat && f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
+          {f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} material={material} liste={liste} vald={vald} plan={plan} blink={blink} sein={sein} onVald={onVald} />}
+          {f && modus === "bit" && bitar.length > 0 && <Bitboksar f={f} bitar={bitar} vald={valdBit} />}
+          {f && snitt && snitt.ringar.length > 0 && <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />}
+          {f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[60, 60]} />
             <shadowMaterial transparent opacity={0.24} />
           </mesh>
         </group>
-        <FitCamera fit={(flat ? fk : f)?.fit ?? null} rute={rute} flat={flat} sikt={sikt} laast={flat && vald !== null} />
-        <Kamerataket ut={zoom} flat={flat} />
-        <Ankeret x={ankerX} id={flat ? vald : null} />
+        <FitCamera fit={f?.fit ?? null} rute={rute} sikt={sikt} />
+        <Kamerataket ut={zoom} />
         {/*
           SYNSKUBEN, øvst til høgre i det FRIE bandet: marginen er kanten av
           arket og kolonna, ikkje kanten av lerretet, so han står i biletet og
-          ikkje under kontrollane. Konturen er ei flat teikning og har inga
-          vending å syne — der er han ikkje.
+          ikkje under kontrollane.
         */}
-        {!flat && (
-          <GizmoHelper alignment="top-right" margin={[rute.hogre + 38, rute.topp + 38]}>
-            <group scale={KUBE_SKALA}>
-              <GizmoViewcube
-                faces={SIDEORD}
-                color={tema.paper}
-                textColor={tema.ink}
-                strokeColor={tema.ink}
-                hoverColor={KUBE_HOVER}
-                opacity={0.92}
-                font="26px Inter, ui-sans-serif, system-ui, sans-serif"
-              />
-            </group>
-          </GizmoHelper>
-        )}
+        <GizmoHelper alignment="top-right" margin={[rute.hogre + 38, rute.topp + 38]}>
+          <group scale={KUBE_SKALA}>
+            <GizmoViewcube
+              faces={SIDEORD}
+              color={tema.paper}
+              textColor={tema.ink}
+              strokeColor={tema.ink}
+              hoverColor={KUBE_HOVER}
+              opacity={0.92}
+              font="26px Inter, ui-sans-serif, system-ui, sans-serif"
+            />
+          </group>
+        </GizmoHelper>
         <Demping onSein={setSein} />
-        <Handa f={f} fri={fri} view={view} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} fk={fk} plater={kontur?.plater ?? TOMME} onVald={onVald} />
-        {/* Konturen er ei teikning: éin finger dreg, klypet zoomar, ingenting
-            snur. Kroppen snur heile vegen rundt — undersida er der ledda sit,
-            og eit syn du ikkje kjem til er ein kontroll som manglar. */}
+        <Handa f={f} fri={fri} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
+        {/* Kroppen snur heile vegen rundt — undersida er der ledda sit, og
+            eit syn du ikkje kjem til er ein kontroll som manglar. */}
         <OrbitControls
           target={[0, 0.35, 0]}
-          enablePan={flat}
-          enableRotate={!flat}
+          enablePan={false}
+          enableRotate
           screenSpacePanning
-          mouseButtons={flat ? { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN } : undefined}
-          touches={flat ? { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN } : { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}
+          touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}
           enableZoom
-          minDistance={flat ? MIN_NAER : MIN_DIST}
+          minDistance={MIN_DIST}
           maxDistance={MAX_DIST}
           rotateSpeed={0.9}
           enableDamping={!sein}
@@ -2045,9 +1916,9 @@ export const Scene = memo(function Scene({ kropp, lag, kontur, view, modus, mate
       {/*
         INNRAMMINGA, under synskuben øvst til høgre. Ho låg i dobbelttrykket
         før, der ho kom av seg sjølv midt i ei sikting; her er ho ein knapp
-        du trykkjer på. Konturen har ingen kube, men same knappen.
+        du trykkjer på.
       */}
-      <div className="synskube" style={{ right: rute.hogre + 16, top: rute.topp + (flat ? 16 : 72) }}>
+      <div className="synskube" style={{ right: rute.hogre + 16, top: rute.topp + 72 }}>
         <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt" onClick={heim}>
           {IkonHeim}
         </button>

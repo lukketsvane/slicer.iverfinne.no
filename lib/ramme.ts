@@ -41,17 +41,6 @@ export const FIT_MARGIN = 1.35
  *  stig i takt med kameraavstanden, so vinkelen ned mot golvet er fast. */
 export const FLOOR_TAN = 0.1637
 export const MIN_DIST = 3.2
-/**
- * Kor nær kameraet får kome i KONTUREN.
- *
- * Eit objekt kan ein ikkje gå inn i — der er tre komma to den avstanden
- * som held heile kroppen framfor deg. Men konturen er ei teikning, og ei
- * teikning ser ein på tett: eit spor på tre millimeter i eit omriss på ein
- * halvmeter er fire pikslar på ein telefon, og då er «zoom» det einaste
- * som seier om det er der. Innramminga brukar framleis MIN_DIST; dette er
- * berre kor langt fingrane får dra.
- */
-export const MIN_NAER = 0.45
 export const MAX_DIST = 18
 /**
  * Kor lite det frie bandet får verte før innramminga sluttar å ta omsyn.
@@ -84,29 +73,22 @@ export function fritt(rute: Rute) {
 
 export function ramme(
   fit: Fit,
-  o: { rute: Rute; fovDeg: number; /** konturvisinga: flat teikning */ flat: boolean },
+  o: { rute: Rute; fovDeg: number },
 ): { dist: number; y: number; fri: ReturnType<typeof fritt> } {
   const fri = fritt(o.rute)
   const vHalf = (o.fovDeg * Math.PI) / 360
   const hHalf = Math.atan(Math.tan(vHalf) * (fri.w / fri.h))
   // Eit objekt kan snuast, og då må innramminga halde same kva veg det
-  // står: difor radien, som er den same frå alle kantar. Ei teikning kan
-  // ikkje snuast, og då er radien altfor raus: ein lang, låg rad ville stå
-  // og fylle halve ruta med luft over og under. Ho vert difor ramma inn i
-  // breidda og i høgda kvar for seg, og den strengaste vinn.
-  const raw = o.flat
-    ? Math.max(fit.w / 2 / Math.tan(hHalf), fit.h / 2 / Math.tan(vHalf)) * FIT_MARGIN
-    : (fit.r * FIT_MARGIN) / Math.tan(Math.min(vHalf, hHalf))
+  // står: difor radien, som er den same frå alle kantar.
+  const raw = (fit.r * FIT_MARGIN) / Math.tan(Math.min(vHalf, hHalf))
   const dist = Math.min(MAX_DIST, Math.max(MIN_DIST, raw))
   // Golvpinninga held golvlina i same skjermhøgd, men berre så lenge ho
   // ikkje kastar sikta over objektet. På eit høgt og smalt lerret vert
   // avstanden stor, og då ville siktepunktet flyge opp i lause lufta med
-  // objektet langt nede. Difor eit tak på objektet si eiga midje. Ei
-  // teikning har inga golvline å pinne mot: ho skal stå midt i bandet.
-  const mid = GROUND_Y + fit.cy
+  // objektet langt nede. Difor eit tak på objektet si eiga midje.
   return {
     dist,
-    y: o.flat ? mid : Math.min(GROUND_Y + dist * FLOOR_TAN, mid),
+    y: Math.min(GROUND_Y + dist * FLOOR_TAN, GROUND_Y + fit.cy),
     fri,
   }
 }

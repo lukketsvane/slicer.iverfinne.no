@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type JSX } from "react"
 import { nn, type ArkSyn, type Delplass, type ParamBag } from "@/lib/core"
-import { lesFest, skrivFest } from "@/lib/params"
+import { DELING_MAX, DELING_MIN, lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
 import { CHIP, chipStyle } from "./deler"
 
 /**
@@ -76,6 +76,38 @@ function Maalrute({ arkB, arkH, v, ppm }: { arkB: number; arkH: number; v: Syn; 
     </g>
   )
 }
+/**
+ * EIT SPOR-ENDE, SOM HANDTAK.
+ *
+ * Prikken står på den lukka enden av sporet; streken bak henne er kor langt
+ * ho kan gå — bandet lesinga tek imot, og ikkje ein millimeter meir. Begge
+ * er rekna i PIKSLAR og delte på målestokken, so handtaket er like stort
+ * anten du ser heile plata eller står tett på eitt spor. Treffesona er
+ * større enn prikken: fingeren er ikkje ein peikar.
+ */
+function Sporende({ v, ppm, t, ned }: {
+  v: Delplass["spor"][number]
+  ppm: number
+  /** brøken fingeren har han på no, eller null når han står der han står */
+  t: number | null
+  ned: (e: React.PointerEvent, v: Delplass["spor"][number]) => void
+}) {
+  const paa = (u: number): [number, number] => [v.lo[0] + (v.hi[0] - v.lo[0]) * u, v.lo[1] + (v.hi[1] - v.lo[1]) * u]
+  const [bx, by] = t === null ? v.botn : paa(t)
+  const [ax, ay] = paa(DELING_MIN)
+  const [cx, cy] = paa(DELING_MAX)
+  const r = 5 / ppm
+  const djup = Math.hypot(bx - v.munn[0], by - v.munn[1])
+  return (
+    <g data-spor={v.nokkel} style={{ cursor: "grab" }} onPointerDown={(e) => ned(e, v)}>
+      <line x1={ax} y1={ay} x2={cx} y2={cy} strokeWidth={1} vectorEffect="non-scaling-stroke" style={{ stroke: "var(--ink)", opacity: 0.3 }} />
+      <circle cx={bx} cy={by} r={12 / ppm} style={{ fill: "transparent" }} />
+      <circle cx={bx} cy={by} r={r} strokeWidth={2} vectorEffect="non-scaling-stroke" style={{ fill: "var(--paper)", stroke: "var(--ink)" }} />
+      <title>{`ledd ${v.nokkel} · ${nn(djup, 0)} mm djupt`}</title>
+    </g>
+  )
+}
+
 const CHIP_B = CHIP.replace("rounded-full", "rounded-[2px]")
 /**
  * Kor lenge eit trykk må vare for å vera langt. Klokka ser ikkje fingeren:
@@ -124,6 +156,31 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     }
     skriv(m)
   }
+  // --- delinga: kor djupt eitt ledd går ----------------------------------
+  /**
+   * SPOR-ENDANE ER HANDTAK.
+   *
+   * Skyvaren «deling» flyttar botnen i ALLE ledd på ein gong; ho er eitt
+   * tal for heile kroppen. Men eit ledd er to delar som deler ei line, og
+   * kva for ein av dei som skal bere mest er ei avgjerd per ledd: ribba
+   * som ber vekta skal ha mest gods att, og naboen mindre.
+   *
+   * Her er den avgjerda der ho høyrer heime — på plata, med fingeren på
+   * den lukka enden av sporet. Botnen fylgjer lina leddet ligg på, og
+   * `deling` i posen tek imot brøken. Den ANDRE delen i leddet les den
+   * same brøken frå si side og vert grunnare av seg sjølv: det er éi line,
+   * ikkje to tal som må haldast i lag.
+   */
+  const setjDeling = (nokkel: string, t: number) => {
+    const m = new Map(lesDeling(params.deling))
+    m.set(nokkel, +t.toFixed(3))
+    onChange({ ...params, deling: skrivDeling(m) })
+  }
+  /** botnen der fingeren har han, medan han dreg: brøken langs lo→hi */
+  const [sporDra, setSporDra] = useState<{ nokkel: string; t: number } | null>(null)
+  const sporDraRef = useRef(sporDra)
+  sporDraRef.current = sporDra
+
   /** eit drag er òg eit feste: ein del flytt for hand og pakka om att er ein del som ikkje vart flytt */
   const flyttDel = (adr: string, plass: Plass) => {
     const m = new Map(festa)
@@ -224,6 +281,44 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     return () => el.removeEventListener("wheel", paa)
   }, [ark])
 
+  /**
+   * Å TA I EIT SPOR-ENDE. Fingeren vert fylgd i millimeter på plata og
+   * projisert ned på lina leddet ligg på: brøken er kor langt ut på det
+   * strekket han står. Klemt til det same bandet lesinga tek imot, so eit
+   * drag ut i lause lufta ikkje vert stille kasta.
+   */
+  const taSpor = (e: React.PointerEvent, v: Delplass["spor"][number]) => {
+    e.stopPropagation()
+    if (!e.isPrimary) return
+    const el = e.currentTarget as SVGGElement
+    el.setPointerCapture(e.pointerId)
+    const dx = v.hi[0] - v.lo[0]
+    const dy = v.hi[1] - v.lo[1]
+    const len2 = dx * dx + dy * dy
+    if (len2 < 1e-9) return
+    const broek = (cx: number, cy: number): number | null => {
+      const q = mm(cx, cy)
+      if (!q) return null
+      const t = ((q[0] - v.lo[0]) * dx + (q[1] - v.lo[1]) * dy) / len2
+      return Math.min(DELING_MAX, Math.max(DELING_MIN, t))
+    }
+    const flytt = (h: PointerEvent) => {
+      const t = broek(h.clientX, h.clientY)
+      if (t !== null) setSporDra({ nokkel: v.nokkel, t })
+    }
+    const slepp = (h: PointerEvent) => {
+      el.removeEventListener("pointermove", flytt)
+      el.removeEventListener("pointerup", slepp)
+      el.removeEventListener("pointercancel", slepp)
+      const t = sporDraRef.current?.nokkel === v.nokkel ? sporDraRef.current.t : broek(h.clientX, h.clientY)
+      setSporDra(null)
+      if (t !== null) setjDeling(v.nokkel, t)
+    }
+    el.addEventListener("pointermove", flytt)
+    el.addEventListener("pointerup", slepp)
+    el.addEventListener("pointercancel", slepp)
+  }
+
   /** frå skjermpikslar til millimeter på plata, gjennom den same spegelen teikninga ligg i */
   const mm = (cx: number, cy: number): [number, number] | null => {
     const ctm = flata.current?.getScreenCTM()
@@ -316,6 +411,7 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
   const faste = ark.plasser.filter((d) => festa.has(d.adr)).length
   const vald = peikt ? ark.plasser.find((d) => d.adr === peikt) : undefined
   const kryss = ark.plasser.filter((d) => d.kross).length
+  const delingar = lesDeling(params.deling)
   const sleppFinger = (e: React.PointerEvent) => {
     fingrar.current.delete(e.pointerId)
     if (fingrar.current.size < 2) { klyp.current = null; slepp() }
@@ -332,13 +428,23 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
           <button type="button" className={CHIP_B + " uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onChange({ ...params, fest: "" })} title="slepp alle festa delar: pakkinga legg dei der ho vil att">slepp</button>
         )}
         {kryss > 0 && <span className="mono text-[10px]" style={{ color: "var(--warn)" }}>{kryss} overlapp</span>}
+        {delingar.size > 0 && (
+          <button type="button" className={CHIP_B + " uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onChange({ ...params, deling: "" })} title="alle ledd like djupe att: skyvaren styrer dei igjen">jamt</button>
+        )}
         {dra && (() => {
           const d = ark.plasser.find((q) => q.adr === dra.adr)
           return d ? (
             <span className="mono basis-full truncate text-[10px]">{dra.adr} · {nn(Math.max(0, d.plass.x + dra.dx), 0)} · {nn(Math.max(0, d.plass.y + dra.dy), 0)} mm{dra.vri ? ` · ${nn(dra.vri, 0)}°` : ""}</span>
           ) : null
         })()}
-        {!dra && vald && (
+        {sporDra && (() => {
+          const v = vald?.spor.find((q) => q.nokkel === sporDra.nokkel)
+          if (!v) return null
+          const bx = v.lo[0] + (v.hi[0] - v.lo[0]) * sporDra.t
+          const by = v.lo[1] + (v.hi[1] - v.lo[1]) * sporDra.t
+          return <span className="mono basis-full truncate text-[10px]">ledd {v.nokkel} · {nn(Math.hypot(bx - v.munn[0], by - v.munn[1]), 0)} mm</span>
+        })()}
+        {!dra && !sporDra && vald && (
           <span className="dim basis-full truncate text-[10px] tracking-[0.04em]">{vald.adr} · {nn(vald.boks.w, 0)} × {nn(vald.boks.h, 0)} mm</span>
         )}
       </div>
@@ -525,6 +631,9 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
                   {/* adressa slik laseren skriv henne — berre når du har klypt deg nærare */}
                   {syn && d.merke && <path d={d.merke} data-merke="" vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: "var(--ink)", opacity: 0.55 }} />}
                   <title>{d.adr}{fast ? " · fast" : ""}{d.kross ? " · ligg i ein annan" : ""}</title>
+                  {/* handtaka står berre på den delen du har peikt på: alle
+                      spor på alle delar på ein gong er ei plate full av prikkar */}
+                  {paa && ppm > 0 && d.spor.map((v) => <Sporende key={v.nokkel} v={v} ppm={ppm} t={sporDra?.nokkel === v.nokkel ? sporDra.t : null} ned={taSpor} />)}
                 </g>
               )
             })}

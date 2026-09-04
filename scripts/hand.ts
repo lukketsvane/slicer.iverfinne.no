@@ -443,5 +443,65 @@ for (const [inn, vent] of [
   sjekk("og ein nøkkel til eit ledd som ikkje finst rører ingenting", tull.every((q, i) => q === utan[i]))
 }
 
+/**
+ * OG HANDTAKA: EIT SPOR-ENDE PÅ PLATA ER EIT LEDD I POSEN.
+ *
+ * Handtaka i plateflata les tre ting rett ut av `arkSyn`: nøkkelen på
+ * leddet, og dei to endane av strekket det kan delast på — alt i
+ * millimeter på plata, gjennom den same plasseringa som omrisset. Fingeren
+ * projiserer seg på det strekket og skriv brøken.
+ *
+ * Prøva er RUNDTUREN, og ho er den einaste vakta som kan fange at
+ * handtaket peikar ein annan stad enn sporet: les eit handtak av plata,
+ * skriv brøken, les plata att — botnen skal stå der brøken seier. Står
+ * plasseringa i vegen, står han ein annan stad, og ingen ville sett det
+ * på eit tal.
+ */
+console.log("\nhandtaka på spor-endane:")
+{
+  const grunn = { ...DEFAULT_PARAMS, plan: nett(3, 3), storleik: 200, tjukn: 6 } as unknown as ParamBag
+  const arket = (p: ParamBag, i = 0) => MOTOR.arkSyn(p, i)
+  const a0 = arket(grunn)
+  const paaBroek = (v: { lo: Pt; hi: Pt }, t: number): Pt => [v.lo[0] + (v.hi[0] - v.lo[0]) * t, v.lo[1] + (v.hi[1] - v.lo[1]) * t]
+  const langt = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1])
+
+  const medSpor = a0.plasser.filter((d) => d.spor.length)
+  sjekk("plata gjev spor-endar på delane", medSpor.length > 0, `${medSpor.length} av ${a0.plasser.length} delar`)
+
+  // Skyvaren står på 0,5, og botnen skal stå midt på strekket — same kva
+  // veg pakkinga har snutt delen.
+  const skeivt = medSpor.flatMap((d) => d.spor.filter((v) => langt(v.botn, paaBroek(v, 0.5)) > 0.5).map((v) => `${d.adr} ${v.nokkel}`))
+  sjekk("botnen står der skyvaren seier, i plata sine koordinatar", skeivt.length === 0, skeivt.slice(0, 4).join(" · "))
+
+  // Og strekket er så langt som sporet er djupt: munnen ligg i den eine
+  // enden av det, ikkje ein tilfeldig stad.
+  const laus = medSpor.flatMap((d) => d.spor.filter((v) => Math.min(langt(v.munn, v.lo), langt(v.munn, v.hi)) > 0.5).map((v) => `${d.adr} ${v.nokkel}`))
+  sjekk("og munnen ligg i den eine enden av strekket", laus.length === 0, laus.slice(0, 4).join(" · "))
+
+  // RUNDTUREN.
+  const v0 = medSpor[0].spor[0]
+  const adr = medSpor[0].adr
+  const T = 0.72
+  const a1 = arket({ ...grunn, deling: skrivDeling(new Map([[v0.nokkel, T]])) } as ParamBag)
+  const d1 = a1.plasser.find((d) => d.adr === adr)
+  const v1 = d1?.spor.find((q) => q.nokkel === v0.nokkel)
+  sjekk("delen og leddet finst att etter at brøken er skriven", !!v1, `${adr} · ${v0.nokkel}`)
+  if (v1) {
+    const av = langt(v1.botn, paaBroek(v1, T))
+    sjekk("og botnen står der handtaket vart sleppt", av < 0.5, `${av.toFixed(2)} mm frå brøken`)
+    const flytta = langt(v1.botn, v0.botn)
+    sjekk("og han flytte seg", flytta > 1, `${flytta.toFixed(1)} mm`)
+  }
+
+  // Begge sidene av leddet ber den same nøkkelen: det er slik den eine vert
+  // grunnare når den andre vert djupare.
+  const alle = new Map<string, string[]>()
+  for (let i = 0; i < a0.tal; i++) {
+    for (const d of arket(grunn, i).plasser) for (const v of d.spor) alle.set(v.nokkel, [...(alle.get(v.nokkel) ?? []), d.adr])
+  }
+  const eine = [...alle.entries()].filter(([, d]) => d.length !== 2)
+  sjekk("kvart ledd har handtak på nøyaktig to delar", eine.length === 0, eine.slice(0, 4).map(([k, d]) => `${k}:${d.length}`).join(" · "))
+}
+
 console.log(feil ? `\n${feil} FEIL` : "\nhanda held")
 process.exit(feil ? 1 : 0)

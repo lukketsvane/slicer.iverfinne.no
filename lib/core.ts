@@ -330,6 +330,20 @@ export type Delplass = {
    * streksettet. Tom når delen er for liten til å merkjast, som i fila.
    */
   merke: string
+  /**
+   * LEDDA HANS, DER DEI LIGG PÅ PLATA.
+   *
+   * Eit spor er ikkje berre eit hakk i omrisset — det er eit LEDD, delt med
+   * ein annan del, og kor djupt det går er ei avgjerd. Difor kjem endane
+   * med hit: `botn` er den lukka enden, `lo` og `hi` er heile strekket
+   * leddet kan delast på, og `nokkel` er namnet på leddet i `deling`. Alt i
+   * millimeter på plata, gjennom den same plasseringa som omrisset — ein
+   * finger på handtaket dreg i den same geometrien fila vert skoren av.
+   *
+   * Begge delane i eit ledd har SAMA nøkkel og same strekket: dreg du den
+   * eine botnen djupare, vert den andre grunnare, av seg sjølv.
+   */
+  spor: { nokkel: string; munn: Pt; botn: Pt; lo: Pt; hi: Pt }[]
 }
 
 /** Ei plate slik ho ligg, til skjermen: teikninga og dei to tala som høyrer
@@ -415,8 +429,13 @@ export type DetailKey = "lav" | "mid" | "hog"
 /** Dei tre lesemåtane av eitt og same objekt:
  *   flate   nettet slik det kom inn — etter forenkling og glatting
  *   lag     ribbene slik dei faktisk står, med spor
- *   kontur  dei flate kuttprofilane, lagde ved sida av kvarandre */
+ *   kontur  delane liggjande på plata, der dei vert skorne ut
+ *
+ * Dei to fyrste er ROM og vert bygde av motoren. Konturen er PLATA, og ho
+ * kjem av nestinga («ark»), ikkje av eit nett — difor `Rom` under: det
+ * `build` svarar for. */
 export type View = "flate" | "lag" | "kontur"
+export type Rom = Exclude<View, "kontur">
 
 export type ExportKind =
   | "stl"
@@ -457,36 +476,12 @@ export function kuttCsv(liste: readonly Kutt[]): string {
   ].join("\n")
 }
 
-/**
- * EI PLATE I TEIKNINGA: namnet, boksen ho tek, og planet sitt eige punkt.
- *
- * Berre «kontur» ber dei — jamfør «berre «flate» ber bitane» under. Handa
- * peikar på ein boks for å ta plata han er, og `nullpkt` er vegen attende
- * frå ein stad i teikninga til planet si ramme, der eit merke bur. Begge
- * vert rekna der plasseringa vert rekna, so ingen reknar dei om att: eit
- * offset som vart gjetta på teiknetråden er ei ny sanning om same profilen.
- */
-export type Plate = {
-  id: number
-  min: Pt
-  max: Pt
-  nullpkt: Pt
-  /** kva for hjørne i `lines` som er hennar — hjørne, ikkje tal */
-  fraa: number
-  tal: number
-}
-
 export type BuildOut = {
   positions: Float32Array<ArrayBufferLike>
   normals: Float32Array<ArrayBufferLike>
   tris: number
   min: Vec3
   max: Vec3
-  lines: Float32Array<ArrayBufferLike>
-  /** Det tunge omrisset. Han er ALDRI skriven — `contourLines` gjev ein tom
-   *  buffer — og den valde plata vert lyft fram med eit utsnitt av `lines`
-   *  i staden, so det finst berre éin buffer og ei sanning om teikninga. */
-  heavy: Float32Array<ArrayBufferLike>
   /**
    * Flate eller kant, eitt tal per hjørne: 0 er ei PLATEFLATE, 1 er eit
    * KUTT gjennom plata. Skiljet er noko berre byggjaren veit — ei loddrett
@@ -515,8 +510,6 @@ export type BuildOut = {
    */
   bitar: { id: string; min: Vec3; max: Vec3 }[]
   skala: number
-  /** platene i teikninga — berre «kontur» ber dei. Sjå `Plate`. */
-  plater: Plate[]
 }
 
 export type ExportOut = {

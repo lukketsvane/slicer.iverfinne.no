@@ -7,18 +7,19 @@
  * ein skrue eller ei oppspenning i heile stabelen.
  */
 import { bbox, kuttCsv, MATERIALS, nn, offsetPoly, type Material, type Pt } from "./core"
-import type { BuildOut, DetailKey, ExportKind, ExportOut, Group, ArkSyn, Kutt, Metrics, ParamBag, Range, Rule, Vec3, View } from "./core"
+import type { BuildOut, DetailKey, ExportKind, ExportOut, Group, ArkSyn, Kutt, Metrics, ParamBag, Range, Rom, Rule, Vec3 } from "./core"
 import { label as srcLabel, raw as srcRaw } from "./sources"
 import { makeKropp, scenaAv } from "./kropp"
 import { lesScene } from "./scene"
 import { buildSnitt, DETAIL, skisseSyn, type SkisseSyn, type Snitt } from "./snitt"
 import type { Plan } from "./plan"
-import { contourLines, flateMesh, lagMesh } from "./mesh"
+import { flateMesh, lagMesh } from "./mesh"
 import { measure } from "./metrics"
 import { checkRules } from "./rules"
 import { makeBygg } from "./bygg"
 import { fitSize, strokesAt } from "./stroke"
 import { placedRings } from "./nest"
+import { apply } from "./pack"
 import { meshToStl } from "./export-stl"
 import { meshToGlb } from "./export-glb"
 import { meshToUsdz } from "./export-usdz"
@@ -36,7 +37,7 @@ export type EngineDef = {
   keys: readonly string[]
   defaults: ParamBag
   clamp(o: unknown, prev: ParamBag): ParamBag
-  build(p: ParamBag, detail: DetailKey, view: View): BuildOut
+  build(p: ParamBag, detail: DetailKey, view: Rom): BuildOut
   measure(p: ParamBag): Metrics
   rules(p: ParamBag, m: Metrics): Rule[]
   exportFile(p: ParamBag, what: ExportKind): ExportOut
@@ -123,32 +124,16 @@ export const MOTOR: EngineDef = {
 
   clamp: (o, prev) => clampParams(o, asP(prev)) as unknown as ParamBag,
 
-  build(bag: ParamBag, detail: DetailKey, view: View): BuildOut {
+  build(bag: ParamBag, detail: DetailKey, view: Rom): BuildOut {
     const p = asP(bag)
     const k = makeKropp(p)
     if (view === "flate") {
       const m = flateMesh(k)
       // berre her: kroppen er ein kropp, og handa skal kunne peike på bitane
-      return { ...m, kant: EMPTY(), del: EMPTY(), lines: EMPTY(), heavy: EMPTY(), bitar: k.bitar, skala: k.skala, plater: [] }
+      return { ...m, kant: EMPTY(), del: EMPTY(), bitar: k.bitar, skala: k.skala }
     }
     const s = buildSnitt(k, p, DETAIL[detail])
-    if (view === "lag") return { ...lagMesh(s, p.tjukn), lines: EMPTY(), heavy: EMPTY(), bitar: [], skala: k.skala, plater: [] }
-    // Konturteikninga fyller eit anna rom enn objektet; boksen vert lesen
-    // av linene sjølve, so kameraet rammar inn det som vert teikna.
-    const c = contourLines(s, p.tjukn)
-    const min: Vec3 = [Infinity, Infinity, Infinity]
-    const max: Vec3 = [-Infinity, -Infinity, -Infinity]
-    for (let i = 0; i < c.lines.length; i += 3) {
-      for (let j = 0; j < 3; j++) {
-        if (c.lines[i + j] < min[j]) min[j] = c.lines[i + j]
-        if (c.lines[i + j] > max[j]) max[j] = c.lines[i + j]
-      }
-    }
-    if (!Number.isFinite(min[0])) {
-      min[0] = min[1] = min[2] = 0
-      max[0] = max[1] = max[2] = 1
-    }
-    return { positions: EMPTY(), normals: EMPTY(), tris: 0, kant: EMPTY(), del: EMPTY(), min, max, lines: c.lines, heavy: c.heavy, bitar: [], skala: k.skala, plater: c.plater }
+    return { ...lagMesh(s, p.tjukn), bitar: [], skala: k.skala }
   },
 
   measure: (bag) => measure(asP(bag)),
@@ -236,6 +221,8 @@ export const MOTOR: EngineDef = {
   },
 
   arkSyn(bag: ParamBag, i: number): ArkSyn {
+    /** eit punkt på sporlina, som avstand langs `d` frå `p` */
+    const langs = (v: { p: Pt; d: Pt }, t: number): Pt => [v.p[0] + v.d[0] * t, v.p[1] + v.d[1] * t]
     const p = asP(bag)
     const { ns } = makeBygg(p, DETAIL.mid)
     const tal = ns.sheets.length
@@ -262,6 +249,15 @@ export const MOTOR: EngineDef = {
           boks: { x: bb.x0, y: bb.y0, w: bb.x1 - bb.x0, h: bb.y1 - bb.y0 },
           plass: { sheet: q.slot.sheet, rot: q.slot.rot, x: q.slot.sx, y: q.slot.sy },
           merke: merket(q.part.adr, q.label),
+          // spora gjennom den same plasseringa som omrisset: handtaka står
+          // på den geometrien fila vert skoren av, ikkje ved sida av henne
+          spor: q.part.spor.map((v) => ({
+            nokkel: v.nokkel,
+            munn: apply(q.slot.m, langs(v, v.munn)),
+            botn: apply(q.slot.m, langs(v, v.botn)),
+            lo: apply(q.slot.m, langs(v, v.lo)),
+            hi: apply(q.slot.m, langs(v, v.hi)),
+          })),
           ...(q.slot.kross ? { kross: true } : {}),
         }
       }),

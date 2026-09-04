@@ -225,9 +225,10 @@ export const reinFest = (s: unknown) => skrivFest(lesFest(s))
  */
 export type Deling = number
 const DELING_TAK = 256
-/** same bandet som skyvaren: utanfor det er leddet ikkje eit ledd lenger */
-const DELING_MIN = 0.2
-const DELING_MAX = 0.8
+/** same bandet som skyvaren: utanfor det er leddet ikkje eit ledd lenger.
+ *  Handtaka på plata klemmer mot det same bandet. */
+export const DELING_MIN = 0.2
+export const DELING_MAX = 0.8
 
 export function lesDeling(s: unknown): Map<string, Deling> {
   const ut = new Map<string, Deling>()

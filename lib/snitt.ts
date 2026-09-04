@@ -70,6 +70,19 @@ export type Spor = {
   w: number
   /** planet på den andre sida av leddet */
   mot: number
+  /**
+   * LEDDET SITT NAMN, og heile strekket det kan delast på.
+   *
+   * `nokkel` er den same nøkkelen `deling` i posen brukar, so ein finger på
+   * eit spor-ende veit kva ledd han flyttar. `lo` og `hi` er overlappet
+   * ledda vart funne i, langs `d` frå `p`: botnen står på `lo + t·(hi−lo)`,
+   * og det er DET t-et som vert skrive. Begge spora i eit ledd har same
+   * strekket og same t — difor er eit djupare spor i den eine eit grunnare
+   * i den andre, utan at nokon reknar det om.
+   */
+  nokkel: string
+  lo: number
+  hi: number
 }
 
 export type Ribbe = {
@@ -149,6 +162,8 @@ export type Del = {
   cutLen: number
   /** kor mange ledd som fell innanfor akkurat dette stykket */
   joints: number
+  /** dei same ledda, kvart med lina si — det handa dreg i. Sjå `Spor`. */
+  spor: Spor[]
 }
 
 export type DelListe = {
@@ -547,7 +562,8 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
          * VART LEDD: eit overlapp som er for kort til å bere eit ledd er
          * ikkje eit ledd, og skal ikkje flytte namnet på dei som kjem etter.
          */
-        const kv = handDeling.get(leddNokkel(A.plan.id, B.plan.id, treff++))
+        const nokkel = leddNokkel(A.plan.id, B.plan.id, treff++)
+        const kv = handDeling.get(nokkel)
         const zm = lo + (kv ?? p.ledd) * (hi - lo)
         // B kjem inn langs retn·d: munnen hans er i den enden han går mot,
         // og A sin munn er der B kjem frå
@@ -555,8 +571,8 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
         const munnA = retn < 0 ? hi : lo
         if (!rom(A, pA, dA, (zm + munnA) / 2, skulder(w))) continue
         if (!rom(B, pB, dB, (zm + munnB) / 2, skulder(w))) continue
-        A.spor.push({ p: pA, d: dA, munn: munnA, botn: zm, ut: klar(A, pA, dA, munnA, munnA > zm, w), w, mot: B.plan.id })
-        B.spor.push({ p: pB, d: dB, munn: munnB, botn: zm, ut: klar(B, pB, dB, munnB, munnB > zm, w), w, mot: A.plan.id })
+        A.spor.push({ p: pA, d: dA, munn: munnA, botn: zm, ut: klar(A, pA, dA, munnA, munnA > zm, w), w, mot: B.plan.id, nokkel, lo, hi })
+        B.spor.push({ p: pB, d: dB, munn: munnB, botn: zm, ut: klar(B, pB, dB, munnB, munnB > zm, w), w, mot: A.plan.id, nokkel, lo, hi })
         ledd++
         fann = true
       }
@@ -675,21 +691,24 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
 }
 
 /**
- * Kor mange ledd som fell innanfor EITT stykke av ei ribbe. Punktet er eit
- * hakk FORBI sporbotnen, der godset stykket skal bera på står.
+ * Spora som fell innanfor EITT stykke av ei ribbe. Punktet er eit hakk
+ * FORBI sporbotnen, der godset stykket skal bera på står.
  */
-export function jointsIn(spor: readonly Spor[], outline: Pt[]): number {
+export function sporIn(spor: readonly Spor[], outline: Pt[]): Spor[] {
   const b = bbox(outline)
-  let n = 0
+  const ut: Spor[] = []
   for (const q of spor) {
     const t = q.botn + (q.munn > q.botn ? -0.3 : 0.3)
     const x = q.p[0] + q.d[0] * t
     const y = q.p[1] + q.d[1] * t
     if (x < b.x0 - 0.6 || x > b.x1 + 0.6 || y < b.y0 - 0.6 || y > b.y1 + 0.6) continue
-    if (inRing(outline, [x, y])) n++
+    if (inRing(outline, [x, y])) ut.push(q)
   }
-  return n
+  return ut
 }
+
+/** og kor mange dei er — det tavla og reglane spør om */
+export const jointsIn = (spor: readonly Spor[], outline: Pt[]): number => sporIn(spor, outline).length
 
 // =============================================================================
 // DELANE
@@ -757,6 +776,7 @@ export function buildDelar(sn: Snitt, p: Params): DelListe {
         cut += perimeter(h)
       }
       const b = bbox(o)
+      const mineSpor = sporIn(r.spor, o)
       const key = [ringSig(o, b.x0, b.y0), ...mine.map((h) => ringSig(h, b.x0, b.y0))].join("|")
       let id = seen.get(key)
       if (!id) {
@@ -774,7 +794,8 @@ export function buildDelar(sn: Snitt, p: Params): DelListe {
         area,
         mass: (area * t * rho) / 1e9,
         cutLen: cut,
-        joints: jointsIn(r.spor, o),
+        joints: mineSpor.length,
+        spor: mineSpor,
       })
     })
   }

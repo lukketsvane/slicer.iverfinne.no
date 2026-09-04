@@ -214,7 +214,7 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
         <Uttaka p={p} />
       </div>
       <div className="flex flex-wrap items-center gap-1.5 py-1">
-        {([["kuttliste", "kuttliste", "kvar del, med adresse, mål og plate"], ["ark", "plater", "kvar plate slik ho ligg — dra og fest delane"], ["oppsett", "oppsett", "alle innstillingane som tekst"]] as const).map(([id, ord, hint]) => (
+        {([["kuttliste", "kuttliste", "kvar del, med adresse, mål og plate"], ["oppsett", "oppsett", "alle innstillingane som tekst"]] as const).map(([id, ord, hint]) => (
           <button key={id} type="button" title={hint} aria-pressed={p.verkty === id} onClick={() => p.onVerkty(id)} className={CHIP + " uppercase tracking-[0.1em]"} style={chipStyle(p.verkty === id)}>
             {ord}
           </button>

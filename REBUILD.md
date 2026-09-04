@@ -123,7 +123,8 @@ inherited, not as something to redo.
 - **Colour is the operation.** Two colours, no more: one cuts, one engraves, and the order
   is in the colour.
 - **The sheet is the file.** What you see on screen is what the machine gets, engraved
-  names included.
+  names included. It is a full view and not a panel: laying out the parts is the design
+  work, so it gets the whole screen, and it is the only place the plates are drawn.
 - **Every number is measured.** Parts, joints, cut length, how much of the shape survives:
   read off the geometry, never estimated.
 - **Geometry never runs on the drawing thread.** A frozen screen reads as a crash, and

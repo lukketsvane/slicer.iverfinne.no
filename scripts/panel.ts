@@ -448,22 +448,29 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(200)
   sjekk("trykk att slepper verktyet", (await ruteKnapp.getAttribute("aria-pressed")) === "false")
 
-  // --- verktya: platene, kuttlista, oppsettet ----------------------------------
+  // --- PLATEFLATA: konturvisinga ER platene ------------------------------------
+  /**
+   * «Kontur» var ei stripe med profilane ved sida av kvarandre i lerretet,
+   * og platene låg i ei skuff. No er dei det same: trykk «kontur» og du står
+   * på arket delane vert skorne ut av, med fingrane på dei. Skuffa har ikkje
+   * platene lenger — det står i vakta under, med talet på verkty.
+   */
   /** arket ope med «alt»: storleiken står alt i midten, verktya står i alt */
   const alt = async () => {
     await midt(page)
-    if ((await page.getByRole("button", { name: "plater", exact: true }).count()) === 0) {
+    if ((await page.getByRole("button", { name: "kuttliste", exact: true }).count()) === 0) {
       await page.getByRole("button", { name: "alle kontrollane" }).click()
       await page.waitForTimeout(400)
     }
   }
   await alt()
-  sjekk("arket er ope med alt", (await page.getByRole("button", { name: "plater", exact: true }).count()) === 1)
-  await page.getByRole("button", { name: "plater", exact: true }).click()
-  const verkty = page.locator("section[aria-label='verkty']")
-  await verkty.waitFor({ timeout: 10000 })
+  sjekk("arket er ope med alt", (await page.getByRole("button", { name: "kuttliste", exact: true }).count()) === 1)
+  sjekk("og platene er ikkje eit verkty i skuffa lenger", (await page.getByRole("button", { name: "plater", exact: true }).count()) === 0)
+  await page.getByRole("button", { name: "kontur", exact: true }).click()
+  const flata = page.locator("section[aria-label='plateflata']")
+  await flata.waitFor({ timeout: 10000 })
   await roleg(page)
-  const delar = verkty.locator("g[data-del]")
+  const delar = flata.locator("g[data-del]")
   const nDel = await delar.count()
   sjekk("platene syner delane som noko du kan ta i", nDel > 0, `${nDel} delar på plata`)
   /**
@@ -473,7 +480,7 @@ async function telefon(browser: Browser) {
    * finst, at ho ber millimeter, og at ho IKKJE tek imot fingrar — ei
    * hjelpeline som stel eit drag frå ein del er verre enn ingen målestokk.
    */
-  const maalrute = verkty.locator("svg g[aria-hidden='true']").first()
+  const maalrute = flata.locator("svg g[aria-hidden='true']").first()
   const nLiner = await maalrute.locator("line").count()
   sjekk("målruta ligg i plata", nLiner > 4, `${nLiner} liner`)
   // `allInnerTexts` gjev undefined for SVG-tekst: han har ikkje innerText
@@ -482,6 +489,24 @@ async function telefon(browser: Browser) {
   const merke = await maalrute.locator("text").allTextContents()
   sjekk("og ho ber tal i millimeter", merke.length > 0 && merke.every((t) => /^\d+$/.test((t ?? "").trim())), merke.join(" "))
   sjekk("og ho tek ikkje imot fingrar", (await maalrute.evaluate((el) => getComputedStyle(el).pointerEvents)) === "none")
+  /**
+   * EIN DEL ER EIT PLAN. Eit trykk på ein del i plata vel planet han vart
+   * skoren av — det same valet eit trykk i rommet gjev — og då står
+   * reiskapane for profilen hans under tommelen.
+   */
+  // Trykket må kome når hovudtråden er ledig. Eit trykk gjennom CDP ber
+  // klokka si frå då det vart sendt, ikkje frå då fingeren letta, so eit
+  // svar som ligg i kø bak eit bygg les seg som eit LANGT trykk — og då
+  // opnar menyen i staden for å velje. Ein finger av kjøt og blod har
+  // maskinvara si eiga klokke og møter det aldri.
+  await roleg(page, 700)
+  await delar.first().click()
+  const skjerHol = page.getByRole("button", { name: "skjer hòl", exact: true })
+  await skjerHol.waitFor({ timeout: 5000 }).catch(() => {})
+  sjekk("eit trykk på ein del vel planet hans", (await skjerHol.count()) === 1, `${await skjerHol.count()} knapp`)
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
+
   const adr = await delar.first().getAttribute("data-del")
   await delar.first().dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0, buttons: 1 })
   await page.waitForTimeout(700)
@@ -500,10 +525,11 @@ async function telefon(browser: Browser) {
   const bak = page.locator("div[aria-hidden='true'].fixed.inset-0")
   if (await bak.count()) await bak.dispatchEvent("pointerdown")
   await page.waitForTimeout(200)
-  await page.getByRole("button", { name: "lat att verktyet" }).click()
-  await page.waitForTimeout(300)
-  sjekk("«lat att» stengjer verktyet", (await verkty.count()) === 0)
+  await page.getByRole("button", { name: "lag", exact: true }).click()
+  await page.waitForTimeout(400)
+  sjekk("og «lag» tek deg attende til rommet", (await flata.count()) === 0)
 
+  const verkty = page.locator("section[aria-label='verkty']")
   await alt()
   await page.getByRole("button", { name: "oppsett", exact: true }).click()
   await verkty.waitFor({ timeout: 10000 })
@@ -570,30 +596,6 @@ async function telefon(browser: Browser) {
   const kSprang = Math.hypot(kEtter[0] - heim[0], kEtter[1] - heim[1], kEtter[2] - heim[2])
   sjekk("eit dobbelttrykk rammar IKKJE inn på nytt", kSprang < 1e-3, `${kSprang.toFixed(4)} frå der det stod`)
 
-  // --- KONTUREN ER EI TEIKNING, OG EI TEIKNING SER EIN PÅ TETT ---------------
-  /**
-   * I kroppen står kameraet aldri nærare enn MIN_DIST — nærare er inni
-   * objektet. Konturen er flat, og der er den same grensa berre ein grense:
-   * eit spor på tre millimeter i eit omriss på ein halvmeter er fire pikslar,
-   * og då må ein kunne gå heilt inn. Avstanden står i lappen scena skriv.
-   */
-  const avstand = async () => Number((await page.locator(".handtak").getAttribute("data-avstand")) ?? 0)
-  await page.getByRole("button", { name: "kontur", exact: true }).click()
-  await roleg(page, 900)
-  const naerFør = await avstand()
-  await page.mouse.move(195, 380)
-  for (let i = 0; i < 60; i++) {
-    await page.mouse.wheel(0, -90)
-    await page.waitForTimeout(20)
-  }
-  await page.waitForTimeout(900)
-  const naerEtter = await avstand()
-  // MIN_DIST er 3,2 og MIN_NAER 0,45: heilt inn, og ikkje forbi
-  sjekk("konturen kan zoomast inn forbi kroppen si grense", naerEtter < 1 && naerEtter >= 0.4, `${naerFør.toFixed(2)} → ${naerEtter.toFixed(2)}`)
-
-  await page.getByRole("button", { name: "lag", exact: true }).click()
-  await roleg(page, 900)
-
   // --- SKALET ER GJENNOMSIKTIG, OG BLIR VERANDE DET -------------------------
   /**
    * Kroppen er den same geometrien i «flate» og i «lag», men med materialet
@@ -629,37 +631,10 @@ async function telefon(browser: Browser) {
   sjekk("ein tur innom «flate» let skalet stå som det stod", skalFør.equals(skalEtter), `${skalFør.length} B → ${skalEtter.length} B`)
 
   /**
-   * KONTUREN: PLATENE, OG EIT TRYKK VEL EI.
-   *
-   * Konturvisinga syner profilane flatt. Eit trykk vel ei plate og ho står
-   * i fullt blekk med ei ramme kring seg; eit trykk på tomt papir slepper
-   * henne att. Pennen og viskelêret som teikna i henne er borte — konturen
-   * er plateflata, ikkje ei teikneflate.
+   * OG PLATEFLATA HAR INGEN PENN. Pennen og viskelêret som teikna i den
+   * gamle stripa er borte — konturen er plateflata, ikkje ei teikneflate.
    */
-  await page.getByRole("button", { name: "kontur", exact: true }).click()
-  await roleg(page, 900)
-  await page.locator("[data-heim]").click()
-  await roleg(page, 900)
-  await page.keyboard.press("Escape")
-  await page.waitForTimeout(300)
-  const valdPlate = await (async () => {
-    for (let y = 300; y <= 520; y += 20) {
-      for (let x = 40; x <= 350; x += 40) {
-        await page.touchscreen.tap(x, y)
-        await page.waitForTimeout(140)
-        // ei vald plate gjev deg reiskapane for planet hennar under tommelen
-        if (await page.getByRole("button", { name: "skjer hòl", exact: true }).count()) return [x, y] as [number, number]
-      }
-    }
-    return null
-  })()
-  sjekk("eit trykk på ei plate vel henne i konturen", !!valdPlate, valdPlate ? `${valdPlate[0]},${valdPlate[1]}` : "ingen treff")
-  sjekk("og det finst ingen penn å teikne med", (await page.locator("button[data-penn]").count()) === 0 && (await page.getByRole("button", { name: "teikn", exact: true }).count()) === 0)
-  await page.touchscreen.tap(20, 200)
-  await page.waitForTimeout(400)
-
-  await page.getByRole("button", { name: "lag", exact: true }).click()
-  await roleg(page, 900)
+  sjekk("det finst ingen penn å teikne med", (await page.locator("button[data-penn]").count()) === 0 && (await page.getByRole("button", { name: "teikn", exact: true }).count()) === 0)
 
   // --- KROPPEN ER EI LISTE: menyen legg til eit primitiv ----------------------
   const kjelde = page.locator("button[data-kjelde]")
@@ -1168,12 +1143,67 @@ async function taket(browser: Browser) {
   await page.close()
 }
 
+/**
+ * HANDTAKA PÅ SPOR-ENDANE.
+ *
+ * `hand` prøver rekninga: at brøken som vert skriven set botnen der
+ * handtaket vart sleppt, i plata sine eigne koordinatar. Det denne prøver
+ * er det andre halve: at ein FINGER på prikken skriv den brøken — at
+ * handtaket tek imot trykket sitt sjølv i staden for å sende det vidare til
+ * delen under, som ville dregi heile delen i staden for eitt spor.
+ */
+async function handtaka(browser: Browser) {
+  console.log("\n=== handtaka på spor-endane")
+  const plan = skrivPlan(rutenett(2, 2))
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan })), browser, 390, 844)
+  await page.getByRole("button", { name: "kontur", exact: true }).click()
+  const flata = page.locator("section[aria-label='plateflata']")
+  await flata.waitFor({ timeout: 10000 })
+  await roleg(page, 900)
+  const handtak = flata.locator("g[data-spor]")
+  sjekk("ingen handtak før du har peikt på ein del", (await handtak.count()) === 0)
+  await flata.locator("g[data-del]").first().click()
+  await roleg(page, 600)
+  const n = await handtak.count()
+  sjekk("den valde delen har eitt handtak per ledd", n > 0, `${n} handtak`)
+  if (n > 0) {
+    // RETNINGA STÅR I TEIKNINGA. Sporet ligg langs éi line, og eit drag på
+    // tvers av henne projiserer seg til ingenting. Streken bak prikken er
+    // den lina: er han høgare enn han er brei, går draget opp og ned.
+    const spor = handtak.first()
+    const bane = await spor.locator("line").boundingBox()
+    const prikk = await spor.locator("circle").last().boundingBox()
+    if (bane && prikk) {
+      const cx = prikk.x + prikk.width / 2
+      const cy = prikk.y + prikk.height / 2
+      const loddrett = bane.height > bane.width
+      const steg = Math.max(24, Math.round((loddrett ? bane.height : bane.width) * 0.25))
+      await page.mouse.move(cx, cy)
+      await page.mouse.down()
+      await page.mouse.move(loddrett ? cx : cx + steg, loddrett ? cy + steg : cy, { steps: 10 })
+      await page.mouse.up()
+      await vent(page, (p) => !!p.deling)
+      const d = String(hash(page).deling ?? "")
+      const t = Number(d.split(":")[1])
+      sjekk("eit drag på handtaket skriv delinga på det leddet", /^\d+-\d+-\d+:[\d.]+$/.test(d), d)
+      sjekk("og brøken er ikkje midt på lenger", Number.isFinite(t) && Math.abs(t - 0.5) > 0.03, String(t))
+      sjekk("og delen vart ikkje dregen med", !hash(page).fest, String(hash(page).fest ?? ""))
+      await page.getByRole("button", { name: "jamt", exact: true }).click()
+      await vent(page, (p) => !p.deling)
+      sjekk("og «jamt» tek delinga bort att", !hash(page).deling)
+    }
+  }
+  sjekk("ingen konsollfeil på handtaka", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await page.close()
+}
+
 const main = async () => {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
   await telefon(browser)
   await reglar(browser)
   await symmetri(browser)
   await virvelen(browser)
+  await handtaka(browser)
   await taket(browser)
   await flyt(browser)
   await mork(browser)
