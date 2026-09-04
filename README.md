@@ -96,7 +96,9 @@ isometric between three, and the camera swings there. It is drei's
 `GizmoViewcube` — geometry in the canvas, hit by the same raycast as everything
 else in the scene — not a hand-built one, and it is 45 px. Under it is the
 reframe button, which fits the object back into the screen, and under that the
-magnifier: press and drag it up to go in, down to go out. The body turns the
+magnifier: press and drag it up to go in, down to go out. Out is 3.4 times
+the framed distance — the ceiling was one and a quarter, which is not enough
+to see a body with many planes in it. The body turns the
 whole way round, underside included.
 
 **Dark is black.** There is no toggle: the page takes the system's setting and

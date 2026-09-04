@@ -41,7 +41,38 @@ export const FIT_MARGIN = 1.35
  *  stig i takt med kameraavstanden, so vinkelen ned mot golvet er fast. */
 export const FLOOR_TAN = 0.1637
 export const MIN_DIST = 3.2
-export const MAX_DIST = 18
+/**
+ * KOR LANGT ATTENDE DU FÅR KOME.
+ *
+ * Taket stod på 18. Innramminga treng aldri meir enn 14,5 av dei — det er
+ * det verste tilfellet, ein like brei som høg kropp på ein telefonskjerm —
+ * so ho var aldri i vegen. Men handa var: hadde du fyrst ramma inn, var det
+ * berre 1,27 gonger att å dra seg attende på, og på ein kropp med mange
+ * plan er det for lite til å sjå kva du held på med.
+ *
+ * No er det 3,4 gonger. Kroppen fyller 41 % av det frie bandet innramma og
+ * 12 % heilt ute; under det er han ein prikk, og eit tak som slepper deg
+ * til ein prikk er eit tak som ikkje gjer nytte.
+ *
+ * DETTE TALET HENG SAMAN MED SKODDA. Ho stod på faste tal, 22 til 48, og
+ * eit kamera forbi 22 tynna kroppen ut mot bakgrunnen. Taket på 18 låg
+ * akkurat under den kanten, so ingen fann det. Skal taket opp, må skodda
+ * fylgje kameraet — sjå `SKODDE_NAER`.
+ */
+export const MAX_DIST = 48
+/**
+ * SKODDA LIGG EI FAST DJUPN BAK KROPPEN, ikkje på ein fast avstand frå null.
+ *
+ * Same lufta bak objektet kvar du enn står. Tala er dei same som dei faste
+ * var på den innramma avstanden på ein telefon — 14,1 pluss 7,9 og 33,9 —
+ * so synet er uendra der du alt var, og kroppen kan ikkje lenger tynnast
+ * ut av å verte sett på frå langt unna.
+ *
+ * Kroppen sin eigen radius er kring 1,6; `SKODDE_NAER` må vera større enn
+ * han, elles byrjar skodda inne i det ho skulle liggje bak.
+ */
+export const SKODDE_NAER = 8
+export const SKODDE_FJERN = 34
 /**
  * Kor lite det frie bandet får verte før innramminga sluttar å ta omsyn.
  *

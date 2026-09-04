@@ -6,7 +6,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRe
 import * as THREE from "three"
 import { MATERIALS, inRing, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
 import { akser, broek, dot, inn, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
-import { GROUND_Y, MAX_DIST, MIN_DIST, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
+import { GROUND_Y, MAX_DIST, MIN_DIST, SKODDE_FJERN, SKODDE_NAER, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { BitBoks } from "@/lib/kropp"
 import type { BuildRes } from "@/lib/worker"
@@ -1855,6 +1855,31 @@ const KUBE_HOVER = "#dcdcdc"
  * dra — og ho må nå kameraet frå DOM. Difor denne: ho legg funksjonen i ein
  * ref når scena er oppe, og tek han att når ho er borte.
  */
+/**
+ * SKODDA FYLGJER KAMERAET.
+ *
+ * Ho stod på to faste tal, og dei var eit tak på zoomen som ingen hadde
+ * skrive ned: eit kamera forbi 22 tynna kroppen ut mot bakgrunnen, og ved
+ * 48 var han borte. Taket på avstanden låg akkurat under den kanten, so
+ * skodda var aldri synleg — og kunne heller aldri sleppe nokon lenger ut.
+ *
+ * No ligg ho ei fast djupn BAK kroppen. Same lufta same kvar du står, og
+ * det er avstanden som avgjer kor ho er, ikkje null.
+ */
+function Skodda() {
+  const scene = useThree((s) => s.scene)
+  const camera = useThree((s) => s.camera)
+  const controls = useThree((s) => s.controls) as { target: THREE.Vector3 } | null
+  useFrame(() => {
+    const f = scene.fog as THREE.Fog | null
+    if (!f || !controls) return
+    const d = camera.position.distanceTo(controls.target)
+    f.near = d + SKODDE_NAER
+    f.far = d + SKODDE_FJERN
+  })
+  return null
+}
+
 function Kamerataket({ ut }: { ut: MutableRefObject<((f: number) => void) | null> }) {
   const camera = useThree((s) => s.camera)
   const controls = useThree((s) => s.controls) as { target: THREE.Vector3; update?: () => void } | null
@@ -2106,6 +2131,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         </group>
         <FitCamera fit={f?.fit ?? null} rute={rute} sikt={sikt} />
         <Kamerataket ut={zoom} />
+        <Skodda />
         {/*
           SYNSKUBEN, øvst til høgre i det FRIE bandet: marginen er kanten av
           arket og kolonna, ikkje kanten av lerretet, so han står i biletet og

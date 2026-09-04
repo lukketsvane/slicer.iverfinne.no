@@ -258,6 +258,43 @@ async function telefon(browser: Browser) {
   sjekk("og storleiken på kroppen står", hash(page).storleik === s0, `${s0} mm`)
 
   /**
+   * OG DU SKAL KOME LANGT NOK ATTENDE.
+   *
+   * Taket stod på 18. Innramminga tek 14,1 av dei på ein telefon, so det var
+   * 1,27 gonger att å dra seg attende på — for lite til å sjå ein kropp med
+   * mange plan. Prøva rammar inn, dreg forstørraren heilt ned, og krev at
+   * ho kjem minst tre gonger så langt ut som innramminga stod.
+   *
+   * Ho krev òg at det ER eit tak: eit kamera som kan dra i veg for alltid
+   * er ein kropp du aldri finn att.
+   */
+  await page.locator("[data-heim]").click()
+  await roleg(page, 600)
+  const innramma = await kamDist()
+  const lupe = page.locator("[aria-label='zoom']")
+  for (let i = 0; i < 6; i++) {
+    const b = await lupe.boundingBox()
+    if (!b) break
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2 + 220, { steps: 12 })
+    await page.mouse.up()
+    await roleg(page, 250)
+  }
+  const ute = await kamDist()
+  sjekk(
+    "og forstørraren kjem minst tre gonger så langt ut som innramminga",
+    ute > innramma * 3,
+    `innramma ${innramma.toFixed(1)} → ute ${ute.toFixed(1)} (${(ute / innramma).toFixed(2)}×)`,
+  )
+  sjekk("og stoggar der: eit kamera utan tak finn ingen att", ute <= 48.001, `avstand ${ute.toFixed(2)}`)
+  // og attende dit vi stod: resten av seksjonen siktar med fingrane på
+  // kroppen, og ein kropp langt borte er ein kropp fingrane bommar på
+  await page.locator("[data-heim]").click()
+  await roleg(page, 600)
+  sjekk("og innramminga tek deg attende", Math.abs((await kamDist()) - innramma) < 0.5, `avstand ${(await kamDist()).toFixed(2)}`)
+
+  /**
    * VRIDINGA SIKTAR SNITTET, IKKJE KROPPEN. Ho snudde objektet på bordet
    * før. Prøva vrir, låser, og les normalen på planet som vart til: han
    * skal stå på skrå — og vendinga på kroppen skal stå urørt.
