@@ -189,7 +189,7 @@ disposable and is not kept; it costs one gesture to make again.
 ## The body
 
 **The built-in shapes are furniture.** A sphere, a cylinder, a cone and a
-torus were honest mathematics and none of them said what the tool is for. Five
+torus were honest mathematics and none of them said what the tool is for. Ten
 stools and benches say it in one look. They live as glTF under `public/form`
 and are fetched when you touch one — 5.8 MB of textured model reduced to about
 285 kB of geometry by `scripts/former.ts`, decimated to 25k triangles, which is
