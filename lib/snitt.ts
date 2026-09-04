@@ -34,7 +34,7 @@
 import { bbox, inRing, MATERIALS, MIN_AREA, perimeter, shoelace, type Material, type ParamBag, type Pt, type Vec3 } from "./core"
 import { contour, simplify } from "./contour"
 import type { Solid, Span } from "./mesh/solid"
-import { vend, type Kropp } from "./kropp"
+import { rull, vend, type Kropp } from "./kropp"
 import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, skrivPlan, type Plan, type Ramme, type Strek } from "./plan"
 import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 
@@ -433,6 +433,8 @@ type Raa = {
   /** ringane utan spor: det ledda vert lesne av */
   ringar: Pt[][]
   spor: Spor[]
+  /** flata er ein sylinder og ikkje eit plan — sjå `Plan.bog` */
+  boygd: boolean
 }
 
 /** fyrste komponenten som ikkje er null skal vera positiv, so den same
@@ -462,16 +464,26 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       s.min[2] + pl.o[2] * (s.max[2] - s.min[2]),
     ]
     const d = dot(o, pl.n)
-    const r: Ramme = { o: mul3(pl.n, d), n: pl.n, u, v }
-    const sol = vend(k, pl.n)
+    /**
+     * BØYEN: KRUMMING I 1/MM, mot den lengste sida av kroppen. Er han null,
+     * er alt som før. Er han det ikkje, vert ROMMET rulla ut i staden for
+     * berre vendt (`rull` i `kropp.ts`): flata er eit plan i det utrulla
+     * rommet, snittet er det same z-snittet som alle andre, og profilen
+     * som kjem ut er alt det flate kuttmønsteret.
+     */
+    const kurv = (pl.bog || 0) / Math.max(1e-6, s.max[0] - s.min[0], s.max[1] - s.min[1], s.max[2] - s.min[2])
+    const r: Ramme = { o: mul3(pl.n, d), n: pl.n, u, v, k: kurv }
+    const boygd = !!kurv
+    const sol = boygd ? rull(k, r) : vend(k, pl.n)
     const S = p.storleik
     // streka ligg kring planet sitt eige punkt, i planet si ramme
     const ou = dot(o, u)
     const ov = dot(o, v)
     const former: Form[] = pl.strek.map((st: Strek) => formAv(st, ou, ov, S))
-    const ru = ruteAv(sol, d, step, former)
+    // det utrulla rommet har flata på null; det vendte har henne på `d`
+    const ru = ruteAv(sol, boygd ? 0 : d, step, former)
     const ringar = felt(ru, former, []).map((l) => l.pts as Pt[])
-    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], nullpkt: [ou, ov] as Pt }
+    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], nullpkt: [ou, ov] as Pt, boygd }
   })
 
   // --- ledda -------------------------------------------------------------
@@ -533,8 +545,18 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
   for (let j = 1; j < raa.length; j++) {
     const B = raa[j]
     let felt3: Vec3 | null = null
+    // STEG EIN: EIT BØYGT PLAN BER IKKJE LEDD ENNO.
+    //
+    // `kryssAv` er kryssinga mellom to PLAN, og svaret er ei rett line. To
+    // bøygde flater kryssar langs ei kurve, og dei bur i kvar sitt utrulla
+    // rom — heile spor-maskineriet under (`p`, `d`, `munn`, `botn`, og
+    // delinga som styrer båe sidene med eitt tal) byggjer på at det er ei
+    // line. Å late det stå ville gjeve eit spor som ligg feil på plata og
+    // ingen som sa frå. Regelen `bogledd` seier frå i staden.
+    if (B.boygd) continue
     for (let i = 0; i < j; i++) {
       const A = raa[i]
+      if (A.boygd) continue
       const x = kryssAv(A.r, B.r)
       if (!x) continue
       const d3 = kanonisk(x.d)
@@ -873,7 +895,8 @@ export function skisseSyn(k: Kropp, p: Params, pl: Plan, cells: number): SkisseS
     s.min[2] + pl.o[2] * (s.max[2] - s.min[2]),
   ]
   const d = dot(o, pl.n)
-  const r: Ramme = { o: mul3(pl.n, d), n: pl.n, u, v }
+  // skissa er ikkje låst enno, og bøyen vert sett på eit plan som ER låst
+  const r: Ramme = { o: mul3(pl.n, d), n: pl.n, u, v, k: 0 }
   const sol = vend(k, pl.n)
   const ru = ruteAv(sol, d, step)
   const tol = Math.max(Math.min(0.25, step / 8), p.forenkl)

@@ -24,7 +24,7 @@ import { meshToStl } from "../lib/export-stl"
 import { parseMesh } from "../lib/io"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
-import { rutenett, skrivPlan } from "../lib/plan"
+import { lesPlan, rutenett, skrivPlan } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 /**
@@ -297,6 +297,39 @@ prov("godset er tynt", "gods", {
  * brot til tre — av di `ledd` ikkje berre flyttar sporbotnen, han
  * avgjer om leddet i det heile vert lagt.
  */
+/**
+ * BØYEN, BROTEN MED VILJE. Ein halv meter kropp i seks millimeter finér
+ * toler seks hundre millimeter radius; `bog` på 1,5 gjev to hundre, og
+ * begge bøyereglane skal seie frå — den om materialet og den om at eit
+ * bøygt plan ikkje ber ledd enno.
+ */
+const boygd = (bog: number): Params =>
+  ({
+    ...DEFAULT_PARAMS,
+    kjelde: "kule",
+    storleik: 300,
+    tjukn: 6,
+    material: "finer",
+    plan: skrivPlan(lesPlan(nett(3, 0)).map((q, i) => (i === 1 ? { ...q, bog } : q))),
+  }) as Params
+
+{
+  const p = boygd(1.5)
+  const r = reglane(p)
+  const bogR = r.find((q) => q.id === "bog")
+  const leddR = r.find((q) => q.id === "bogledd")
+  ok("ein for stram bøy er eit hardt brot", !!bogR && bogR.hard && !bogR.ok, bogR?.value)
+  ok("og eit bøygt plan seier at det ikkje ber ledd", !!leddR && leddR.hard && !leddR.ok, leddR?.value)
+  for (const q of [bogR, leddR]) {
+    if (!q?.fiks) { ok(`${q?.id} har eit råd`, false); continue }
+    const etter = reglane({ ...p, ...q.fiks.set } as Params).find((x) => x.id === q.id)
+    ok(`rådet «${q.fiks.ord}» rettar ${q.id}`, !!etter?.ok, etter?.value)
+  }
+  // og ein bøy som GÅR skal ikkje seie frå om materialet
+  const mild = reglane(boygd(0.4)).find((q) => q.id === "bog")
+  ok("ein bøy innanfor det materialet toler er ok", !!mild?.ok, mild?.value)
+}
+
 {
   const saker: Params[] = [
     { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 100, tjukn: 10, plan: nett(10, 10), ledd: 0.2 },
@@ -306,6 +339,7 @@ prov("godset er tynt", "gods", {
     { ...DEFAULT_PARAMS, storleik: 1200, plan: nett(3, 3), arkB: 300, arkH: 200 },
     { ...DEFAULT_PARAMS, tjukn: 1, snitt: 6 },
     { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 60, plan: nett(30, 30), },
+    boygd(1.5),
   ]
   const harde = (p: Params) => reglane(p).filter((r) => !r.ok && r.hard).length
   let verre: string[] = []

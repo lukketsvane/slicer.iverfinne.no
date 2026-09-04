@@ -612,7 +612,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       const s = sist.current
       if (!s || s.o.distanceToSquared(o) > 1e-8 || s.n.distanceToSquared(n) > 1e-8) {
         sist.current = { o: o.clone(), n: n.clone() }
-        skrivPolygon(boksFlate, boksKant, planIBoks({ o: oM, n: nM, ...akser(nM) }, f.min, f.max).map((q) => tilVerd(f, q)))
+        skrivPolygon(boksFlate, boksKant, planIBoks({ o: oM, n: nM, ...akser(nM), k: 0 }, f.min, f.max).map((q) => tilVerd(f, q)))
         onSkisse(skisse.current)
       }
       eige = skjerm(o)

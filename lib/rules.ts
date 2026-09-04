@@ -314,6 +314,76 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     why: "Meir enn to tredelar av plata går i søppelbøtta. Prøv ei anna plate, eller færre og større delar. Pakkinga fylgjer omrisset og reknar hòla som ledig plass, so det som står att er luft ho ikkje fann nokon del til.",
   })
 
+  /**
+   * BØYEN, MOT DET MATERIALET FAKTISK TOLER (hard).
+   *
+   * Ei plate som vert bøygd strekkjer ytterfiberen: `ε = t / 2R`. Går han
+   * forbi det materialet toler, sprekk plata — og ho sprekk i verkstaden,
+   * ikkje på skjermen. Difor er dette ein HARD regel og ikkje eit råd.
+   *
+   * Faktorane er `R_min / t`, og dei er kaldbøying utan damp:
+   *
+   *   kryssfinér  100   ε 0,5 %   på tvers av fiberen i ytterlaget
+   *   mdf         200   ε 0,25 %  sprøtt, og bøyer seg dårleg utan snitt
+   *   akryl       230   ε 0,2 %   kaldt krakelerer han; varmt er ei anna sak
+   *   papp         10   ε 5 %
+   *
+   * Talet er konservativt med vilje: langs fiberen toler finéren under
+   * halvparten av det han gjer på tvers, og verkstaden veit ikkje kva veg
+   * plata ligg. Bøyeplate («wiggle board») og kerfsnitt kjem under dette —
+   * og det er den vegen steg to går.
+   */
+  const BOG_FAKTOR: Record<string, number> = { finer: 100, mdf: 200, akryl: 230, papp: 10 }
+  const bogFaktor = BOG_FAKTOR[String(p.material)] ?? 100
+  const bogMin = bogFaktor * p.tjukn
+  const boygde = lesPlan(p.plan).filter((q) => q.bog)
+  /** den strammaste radien i lista, i millimeter */
+  const strammast = boygde.reduce((m, q) => Math.min(m, p.storleik / Math.abs(q.bog)), Infinity)
+  add({
+    id: "bog",
+    label: "bøyeradius",
+    hard: boygde.length > 0 && strammast < bogMin,
+    ok: !boygde.length || strammast >= bogMin,
+    value: boygde.length ? `${mm1(strammast)} av minst ${mm1(bogMin)}` : "ingen bøygde plan",
+    why: `Ei plate som vert bøygd strekkjer ytterfiberen med t/2R. ${nn(p.tjukn, 1)} mm ${p.material} toler ned til ${mm1(bogMin)}; strammare enn det sprekk ho. Rett ut bøyen, eller ta ei tynnare plate — halv tjukn er halv radius.`,
+    fiks:
+      boygde.length && strammast < bogMin
+        ? {
+            ord: `rett ut til ${nn(bogMin)} mm`,
+            set: {
+              plan: skrivPlan(
+                lesPlan(p.plan).map((q) =>
+                  q.bog && p.storleik / Math.abs(q.bog) < bogMin
+                    ? { ...q, bog: +(Math.sign(q.bog) * (p.storleik / bogMin)).toFixed(4) }
+                    : q,
+                ),
+              ),
+            },
+          }
+        : undefined,
+  })
+
+  /**
+   * OG EIT BØYGT PLAN BER IKKJE LEDD ENNO (hard).
+   *
+   * To plan kryssar langs ei LINE, og heile spor-maskineriet byggjer på
+   * det. To bøygde flater kryssar langs ei kurve, og den finnaren er ikkje
+   * skriven. Snittinga hoppar difor over ledd på eit bøygt plan — og ei
+   * ribbe utan ledd heng ikkje i noko. Regelen seier det rett ut i staden
+   * for å late deg finne det i eska.
+   */
+  add({
+    id: "bogledd",
+    label: "ledd på bøygde plan",
+    hard: boygde.length > 0,
+    ok: boygde.length === 0,
+    value: boygde.length ? `${nn(boygde.length)} plan utan ledd` : "ingen",
+    why: "Eit bøygt plan vert skore rett, men det får ingen spor: kryssinga mellom to bøygde flater er ei kurve, og den finnaren er ikkje skriven enno. Ribba kjem ut som ei laus plate du må feste sjølv. Rett ut bøyen om delen skal gripe i noko.",
+    fiks: boygde.length
+      ? { ord: "rett ut alle", set: { plan: skrivPlan(lesPlan(p.plan).map((q) => (q.bog ? { ...q, bog: 0 } : q))) } }
+      : undefined,
+  })
+
   return out
 }
 

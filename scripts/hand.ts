@@ -367,7 +367,7 @@ console.log("\nvirvelen:")
   // og det er ikkje sjølvsagt: den naive brøken sprikjer på den same boksen
   const naiv = Array.from({ length: 20 }, (_, i) => {
     const t = (2 * Math.PI * i) / 20
-    return { id: i + 1, o: [0.5 + 0.18 * Math.cos(t), 0.5 + 0.18 * Math.sin(t), 0.5] as Vec3, n: [+Math.cos(t).toFixed(4), +Math.sin(t).toFixed(4), 0] as Vec3, strek: [] }
+    return { id: i + 1, o: [0.5 + 0.18 * Math.cos(t), 0.5 + 0.18 * Math.sin(t), 0.5] as Vec3, n: [+Math.cos(t).toFixed(4), +Math.sin(t).toFixed(4), 0] as Vec3, bog: 0, strek: [] }
   })
   const b2 = avstandar(naiv, skeiv)
   sjekk("og ein brøk av boksen ville sprike — det er heile grunnen", spenn(b2) > 2, `${Math.min(...b2).toFixed(1)}–${Math.max(...b2).toFixed(1)} mm (${spenn(b2).toFixed(2)}×)`)
@@ -393,6 +393,38 @@ console.log("\nvirvelen:")
  * møte på kryssingslina det er, so det same leddet får den same nøkkelen
  * frå kva side du enn ser det.
  */
+/**
+ * BØYEN I STRENGEN.
+ *
+ * Han står mellom normalen og streka, med sitt eige teikn, so han ikkje
+ * kan lesast som eit strek og eit strek ikkje kan lesast som han. Eit flatt
+ * plan skriv ingen bøy i det heile — elles ville kvar einaste lenkje i
+ * verda vorte lengre for ein ting ingen har rørt.
+ */
+console.log("\nbøyen i plana:")
+for (const [inn, vent] of [
+  ["1@0.5,0.5,0.5/0,1,0/b:0.5", "1@0.5,0.5,0.5/0,1,0/b:0.5"],
+  ["1@0.5,0.5,0.5/0,1,0/b:-0.5", "1@0.5,0.5,0.5/0,1,0/b:-0.5"],
+  ["1@0.5,0.5,0.5/0,1,0/b:0", "1@0.5,0.5,0.5/0,1,0"],           // flatt skriv ingen bøy
+  ["1@0.5,0.5,0.5/0,1,0/b:99", "1@0.5,0.5,0.5/0,1,0/b:4"],      // taket klemmer
+  ["1@0.5,0.5,0.5/0,1,0/b:-99", "1@0.5,0.5,0.5/0,1,0/b:-4"],
+  ["1@0.5,0.5,0.5/0,1,0/b:NaN", "1@0.5,0.5,0.5/0,1,0"],
+  ["1@0.5,0.5,0.5/0,1,0/b:tull", "1@0.5,0.5,0.5/0,1,0"],
+  // bøyen og eit strek på det same planet, kvar for seg
+  ["1@0.5,0.5,0.5/0,1,0/b:0.3/+r:0.1,0.2,0.3,0.4,0", "1@0.5,0.5,0.5/0,1,0/b:0.3/+r:0.1,0.2,0.3,0.4,0"],
+] as const) {
+  const fekk = reinPlan(inn)
+  sjekk(`bøy «${String(inn).slice(-14)}»`, fekk === vent, fekk)
+}
+{
+  // og bøyen fylgjer planet gjennom ei redigering av eit anna plan
+  const to = "1@0.5,0.5,0.5/0,1,0/b:0.4;2@0.6,0.5,0.5/1,0,0"
+  const l = lesPlan(to)
+  l[1] = { ...l[1], o: [0.7, 0.5, 0.5] }
+  const ut2 = lesPlan(skrivPlan(l))
+  sjekk("ei endring på eitt plan lèt bøyen på det andre stå", ut2[0].bog === 0.4 && ut2[1].bog === 0, `${ut2[0].bog} / ${ut2[1].bog}`)
+}
+
 console.log("\ndelinga på eitt ledd:")
 for (const [inn, vent] of [
   ["5-12-0:0.35", "5-12-0:0.35"],

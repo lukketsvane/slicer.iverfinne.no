@@ -1432,6 +1432,56 @@ async function andreFingeren(browser: Browser) {
   await page.close()
 }
 
+/**
+ * BØYEN, MED EIN FINGER.
+ *
+ * Eit plan treng ikkje vera flatt. Knappen under tommelen er eit DRAG som
+ * lupa er: opp bøyer den eine vegen, ned den andre, og null i midten er
+ * flatt. Prøva les lenkja — bøyen står i plan-strengen — og ser at
+ * regelen om materialet fylgjer med når han vert for stram.
+ */
+async function boyen(browser: Browser) {
+  console.log("\n=== bøyen")
+  const plan = skrivPlan(rutenett(3, 0))
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 300, tjukn: 6, material: "finer" })), browser, 390, 844)
+  await midt(page)
+  await page.locator("[role=listbox][aria-label='plan'] [role=option]").first().locator("button").first().click()
+  await roleg(page, 600)
+  const knapp = page.locator("[data-boy]")
+  sjekk("eit valt plan har ein bøyeknapp", (await knapp.count()) === 1)
+  const b = await knapp.boundingBox()
+  const bogAv = (i = 0) => lesPlan(hash(page).plan)[i]?.bog ?? 0
+  sjekk("og planet er flatt til nokon dreg i han", bogAv() === 0, String(bogAv()))
+  if (b) {
+    const cx = b.x + b.width / 2
+    const cy = b.y + b.height / 2
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    await page.mouse.move(cx, cy - 120, { steps: 12 })
+    await page.mouse.up()
+    await vent(page, (p) => (lesPlan(p.plan)[0]?.bog ?? 0) > 0)
+    const opp = bogAv()
+    sjekk("eit drag opp bøyer planet", opp > 0.2, `bog ${opp}`)
+    sjekk("og dei andre plana står flate", lesPlan(hash(page).plan).slice(1).every((q) => q.bog === 0))
+    // og ned att, forbi null, til andre vegen. FØR arket vert opna: escape
+    // slepper planet, og då er knappen borte.
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    await page.mouse.move(cx, cy + 260, { steps: 20 })
+    await page.mouse.up()
+    await vent(page, (p) => (lesPlan(p.plan)[0]?.bog ?? 0) < 0)
+    sjekk("og eit drag ned bøyer han andre vegen", bogAv() < 0, `bog ${bogAv()}`)
+    // regelen om materialet: 300 mm kropp, 6 mm finér toler 600 mm radius
+    await midt(page)
+    await page.getByRole("button", { name: "alle kontrollane" }).click()
+    await roleg(page, 900)
+    const tekst = (await page.locator("[aria-label='kontrollar']").innerText()).replace(/\s+/g, " ")
+    sjekk("bøyeradien står i tavla", /bøyeradius/.test(tekst), (tekst.match(/bøyeradius[^·]{0,44}/) ?? [""])[0])
+  }
+  sjekk("ingen konsollfeil på bøyen", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await page.close()
+}
+
 const main = async () => {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
   await telefon(browser)
@@ -1440,6 +1490,7 @@ const main = async () => {
   await virvelen(browser)
   await handtaka(browser)
   await andreFingeren(browser)
+  await boyen(browser)
   await skaletOgSovnen(browser)
   await taket(browser)
   await flyt(browser)

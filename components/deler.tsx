@@ -142,6 +142,16 @@ export const IcoSkal = (
     <path d="M8 8.5v7M12 8.5v7M16 8.5v7" strokeWidth={2.2} />
   </svg>
 )
+/**
+ * BØYEN: ei plate sedd frå enden, krum. Streken over er den flate ho var —
+ * det er skilnaden knappen set.
+ */
+export const IcoBoy = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round">
+    <path d="M3 7h18" strokeWidth={1.2} opacity={0.45} />
+    <path d="M3 17c4.5-7 13.5-7 18 0" strokeWidth={2.4} />
+  </svg>
+)
 /** verktyet for kroppen: bitane som ein boks */
 export const IcoBit = ikon("M12 3 3 7.5v9L12 21l9-4.5v-9L12 3z|M3 7.5 12 12l9-4.5|M12 12v9", "h-5 w-5")
 /** ein bit til, lik den valde */

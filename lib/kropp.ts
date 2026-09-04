@@ -37,7 +37,7 @@ import { taubin } from "./mesh/smooth"
 import { makeSolid, type Solid } from "./mesh/solid"
 import { generasjon, source } from "./sources"
 import { eiKjelde, lesScene } from "./scene"
-import { akser } from "./plan"
+import { akser, avFlata, inn, type Ramme } from "./plan"
 import type { Vec3 } from "./core"
 import type { Params } from "./params"
 
@@ -231,5 +231,77 @@ export function vend(k: Kropp, n: Vec3): Solid {
   const sol = makeSolid(makeSoup(ut))
   per.set(key, sol)
   if (per.size > VENDT_TAK) per.delete(per.keys().next().value as string)
+  return sol
+}
+
+/**
+ * OG DET SAME FOR EIN BØYGD PLAN: RULL ROMMET UT.
+ *
+ * `vend` snur nettet so eit skrått plan vert eit z-snitt. Ein bøygd plan er
+ * ingen plan, so vendinga duger ikkje — men det same trikset gjer det.
+ * Rullar du ROMMET ut kring sylinderaksen, vert den bøygde flata eit plan
+ * att, og då er snittet det same z-snittet som alle andre: same rader, same
+ * kolonnar, same marsjerande rute. Og profilen som kjem ut er alt det flate
+ * kuttmønsteret, av di utrullinga tek buelengd til lengd — det er nett det
+ * ei plate gjer når du bøyer henne.
+ *
+ * EI RETT LINE VERT EI KURVE PÅ VEGEN. Ein trekant har rette kantar, og
+ * utrulla er dei det ikkje lenger; held vi dei rette, kuttar korda av
+ * buen. Feilen er `Δu²/8R`, so kantar lengre enn `√(8·R·tol)` vert delte
+ * til dei er korte nok. Ein krakk på tjuefem tusen trekantar har kantar på
+ * ti millimeter og vert knapt rørt; ein KUBE har kantar på hundre og seks
+ * sider, og utan delinga hadde han vore ei kasse med rette sider som
+ * påstod at ho var bøygd.
+ */
+const RULLA = new WeakMap<Kropp, Map<string, Solid>>()
+const RULLA_TAK = 8
+/** kor langt korda får skjere av buen, i millimeter */
+const RULL_TOL = 0.05
+
+export function rull(k: Kropp, r: Ramme): Solid {
+  const key = [r.o, r.n, r.u].flat().map((c) => c.toFixed(4)).join(",") + "|" + r.k.toFixed(8)
+  let per = RULLA.get(k)
+  if (!per) {
+    per = new Map()
+    RULLA.set(k, per)
+  }
+  const hit = per.get(key)
+  if (hit) return hit
+  const P = k.soup.pos
+  const lim = Math.sqrt(8 * Math.abs(1 / r.k) * RULL_TOL)
+  const ut: number[] = []
+  const flat = (p: Vec3): Vec3 => {
+    const q = inn(r, p)
+    return [q[0], q[1], avFlata(r, p)]
+  }
+  // deling i fire, om att til kantane er korte nok. Djupna er kappa: eit
+  // nett med ein einaste diger trekant skal ikkje kunne be om ein million.
+  const del = (a: Vec3, b: Vec3, c: Vec3, djup: number) => {
+    const lang =
+      djup < 6 &&
+      Math.max(
+        Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]),
+        Math.hypot(c[0] - b[0], c[1] - b[1], c[2] - b[2]),
+        Math.hypot(a[0] - c[0], a[1] - c[1], a[2] - c[2]),
+      ) > lim
+    if (!lang) {
+      ut.push(...flat(a), ...flat(b), ...flat(c))
+      return
+    }
+    const m = (x: Vec3, y: Vec3): Vec3 => [(x[0] + y[0]) / 2, (x[1] + y[1]) / 2, (x[2] + y[2]) / 2]
+    const ab = m(a, b)
+    const bc = m(b, c)
+    const ca = m(c, a)
+    del(a, ab, ca, djup + 1)
+    del(ab, b, bc, djup + 1)
+    del(ca, bc, c, djup + 1)
+    del(ab, bc, ca, djup + 1)
+  }
+  for (let i = 0; i < P.length; i += 9) {
+    del([P[i], P[i + 1], P[i + 2]], [P[i + 3], P[i + 4], P[i + 5]], [P[i + 6], P[i + 7], P[i + 8]], 0)
+  }
+  const sol = makeSolid(makeSoup(new Float32Array(ut)))
+  per.set(key, sol)
+  if (per.size > RULLA_TAK) per.delete(per.keys().next().value as string)
   return sol
 }
