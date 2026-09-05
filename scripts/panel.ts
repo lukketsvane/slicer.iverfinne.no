@@ -904,6 +904,58 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(300)
   sjekk("eit trykk til lèt verktyet att", (await bitVerkty.getAttribute("aria-pressed")) === "false" && (await page.locator("[aria-label='dubler biten']").count()) === 0)
 
+  /**
+   * VERKTYA STÅR SAMLA TIL VENSTRE, OG DEI FYLGJER SYNET.
+   *
+   * Eit verkty er ein tilstand to fingrar arbeider i — kroppen, rutenettet,
+   * virvelen — og dei stod tre ulike stader: eitt under tommelen mellom
+   * handlingane, to i talelina. No er dei éi spalte, nedst til venstre, i
+   * den same bogen som tommelen: venstre er kva fingrane ER, høgre er kva
+   * du GJER. Og på plateflata er det ingen kropp å ta i og inga skisse å
+   * sikte, so dei står ikkje der — heller ikkje skissebrytaren og skjer.
+   */
+  const verktya = page.locator("[role=group][aria-label='verktya']")
+  sjekk("verktya står i ei eiga spalte", (await verktya.count()) === 1)
+  for (const namn of ["kroppen", "rutenett", "virvel"]) {
+    sjekk(`  «${namn}» står i henne`, (await verktya.getByRole("button", { name: namn, exact: true }).count()) === 1)
+  }
+  {
+    const v = await verktya.boundingBox()
+    const s = await page.getByRole("button", { name: "skjer", exact: true }).boundingBox()
+    sjekk(
+      "til venstre for tommelen, og like lågt",
+      !!v && !!s && v.x + v.width < 390 * 0.4 && v.y + v.height > 844 * 0.6,
+      v && s ? `verkty ${Math.round(v.x)}–${Math.round(v.x + v.width)} px, skjer ${Math.round(s.x)}` : "finst ikkje",
+    )
+  }
+  // eit verkty som stod på då synet skifta, står ikkje på når du kjem attende
+  await page.getByRole("button", { name: "rutenett", exact: true }).click()
+  await page.waitForTimeout(250)
+  sjekk("rutenettet slår seg på", (await page.getByRole("button", { name: "rutenett", exact: true }).getAttribute("aria-pressed")) === "true")
+  await page.getByRole("button", { name: "kontur", exact: true }).click()
+  await roleg(page, 700)
+  sjekk("plateflata har inga verktyspalte", (await verktya.count()) === 0)
+  for (const namn of ["skisse", "skjer"]) {
+    sjekk(`  og «${namn}» står ikkje der`, (await page.getByRole("button", { name: namn, exact: true }).count()) === 0)
+  }
+  // og INGENTING av rommet ligg att over plata: snitthandtaket sette
+  // `visibility: visible` på seg sjølv og stod som ein blå prikk midt på
+  // dei delane du dreg — eit handtak til noko du ikkje ser
+  {
+    const synlege = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>("[data-handtak], .sider button")].filter((e) => e.getBoundingClientRect().width > 0 && getComputedStyle(e).visibility === "visible").length,
+    )
+    sjekk("og ikkje eit handtak frå rommet ligg over plata", synlege === 0, `${synlege} synlege`)
+  }
+  await page.getByRole("button", { name: "lag", exact: true }).click()
+  await roleg(page, 700)
+  sjekk("spalta er der att i rommet", (await verktya.count()) === 1)
+  {
+    const synlege = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-handtak]")].filter((e) => getComputedStyle(e).visibility === "visible").length)
+    sjekk("og handtaka er der att i rommet", synlege > 0, `${synlege} synlege`)
+  }
+  sjekk("og rutenettet vart sleppt av synet", (await page.getByRole("button", { name: "rutenett", exact: true }).getAttribute("aria-pressed")) === "false")
+
   sjekk("ingen konsollfeil på telefonen", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
 }
@@ -1361,7 +1413,7 @@ async function mork(browser: Browser) {
   // tone nokon har skrive i ein komponent.
   const graa = await side.evaluate(() => {
     const ut: string[] = []
-    for (const e of document.querySelectorAll<HTMLElement>("header, [aria-label='kontrollar'], section[aria-label='verkty'], .tumme button, [data-kjelde], [data-heim]")) {
+    for (const e of document.querySelectorAll<HTMLElement>("header, [aria-label='kontrollar'], section[aria-label='verkty'], .tumme button, .verktya button, [data-kjelde], [data-heim]")) {
       const bg = getComputedStyle(e).backgroundColor
       const m = /^rgba?\((\d+), (\d+), (\d+)/.exec(bg)
       if (!m) continue

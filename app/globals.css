@@ -171,6 +171,24 @@ input {
   min-width: 0;
 }
 
+/*
+   ROMMET ER BORTE MEDAN PLATEFLATA STÅR FRAMME, og det held ikkje å gøyme
+   foreldra. Scena skriv `visibility` rett på handtaka og sideprikkane kvar
+   teikning, og eit barn som seier «visible» sjølv kjem attende gjennom
+   gøymsla til foreldra sine — so snitthandtaket vart ståande som ein blå
+   prikk midt på plata, over delane du dreg, og tok fingeren din.
+
+   Difor eit hardt nei her. Det er den same avgjerda som `visibility:
+   hidden` på rommet, berre sagt so sterkt at scena si eiga skriving ikkje
+   kjem forbi. Rommet er framleis MONTERT: lerretet held på
+   WebGL-samanhengen og synet sitt, og eit steg ut og inn att nullstiller
+   ikkje kameraet.
+*/
+.borte .handtak,
+.borte .sider {
+  visibility: hidden !important;
+}
+
 /* HANDTAKA PÅ SNITTET. DOM over lerretet, skrivne av scena kvar teikning:
    det runde flyttar og står i midten av snittet, det vesle vrir og står på
    toppen av det, og ein tynn arm bind dei saman. Same blått som skissa;
@@ -386,7 +404,11 @@ input {
 /* TOMMELSPALTA. Handlinga står der høgre tommelen alt er: nedst til høgre,
    over arket. Skjer er 64 pikslar; streka, slett og brytaren står over han.
    Flat, som alt anna: ingen skugge, ingen overgang, inga flate. */
-.tumme {
+/* VERKTYSPALTA til venstre og TOMMELSPALTA til høgre er den same spalta:
+   same breidd, same luft, same høgd over arket. Venstre er kva fingrane
+   er, høgre er kva du gjer. */
+.tumme,
+.verktya {
   position: absolute;
   z-index: 15;
   display: flex;
@@ -430,6 +452,7 @@ input {
 main header,
 main .synskube,
 main .tumme,
+main .verktya,
 main .handtak,
 main .sider,
 main [aria-label="kontrollar"] {
@@ -438,6 +461,7 @@ main [aria-label="kontrollar"] {
 main[data-sov] header,
 main[data-sov] .synskube,
 main[data-sov] .tumme,
+main[data-sov] .verktya,
 main[data-sov] .handtak,
 main[data-sov] .sider,
 main[data-sov] [aria-label="kontrollar"] {

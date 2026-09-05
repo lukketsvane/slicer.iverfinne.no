@@ -14,7 +14,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoFerdig, IcoHol, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
+import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoFerdig, IcoHol, IcoRute, IcoSkisse, IcoSkjer, IcoSlett, IcoVirvel } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -1351,6 +1351,23 @@ export function Studio() {
     }
   }, [kvile])
 
+  /**
+   * VERKTYA FYLGJER SYNET.
+   *
+   * Eit verkty er noko to fingrar arbeider MED, og på plateflata er det
+   * ingen kropp å ta i, inga skisse å sikte og ingen ribber å telje — dei
+   * tre verktya og skissebrytaren står ikkje der. Stod eit av dei på då du
+   * gjekk inn i konturen, ville du kome ut att i ein modus du ikkje ser at
+   * du er i; difor slepper synet det. Det som står att på plateflata er
+   * det som gjeld ein DEL du har peikt på, og det er med vilje: du vel
+   * planet ved å trykkje delen, og profilverktya står under tommelen.
+   */
+  useEffect(() => {
+    if (view !== "kontur") return
+    setModus((m) => (m === "bit" || m === "rute" || m === "virvel" ? "form" : m))
+    setValdBit(null)
+  }, [view])
+
   useEffect(() => {
     if (!melding) return
     const t = window.setTimeout(() => setMelding(null), 4000)
@@ -1509,7 +1526,7 @@ export function Studio() {
           GØYMT og ikkje teke ned når plateflata står framme: lerretet held
           på WebGL-samanhengen og synet sitt, og synskuben — som høyrer til
           rommet — fylgjer med i gøymsla. */}
-      <div className="absolute inset-0" style={{ visibility: view === "kontur" ? "hidden" : undefined }}>
+      <div className={"absolute inset-0" + (view === "kontur" ? " borte" : "")} style={{ visibility: view === "kontur" ? "hidden" : undefined }}>
         {mounted && (
           <Scene
             kropp={kropp}
@@ -1719,29 +1736,23 @@ export function Studio() {
               </button>
             </>
           )}
-          <button
-            type="button"
-            aria-pressed={modus === "bit"}
-            aria-label="kroppen"
-            title={modus === "bit" ? "verktyet for kroppen: trykk ein bit, to fingrar flyttar, vrir og skalerer han. trykk for å gå ut" : "verktyet for kroppen: flytt, vri og skaler bitane han er sett saman av"}
-            onClick={vekslBit}
-            className={TUMME_BTN}
-            data-bitverkty=""
-          >
-            {IcoBit}
-          </button>
           {/* SKISSEMODUSEN: to fingrar arbeider på planet — dra flyttar, vri
-              vinklar, klyp zoomar. Av er «form»: klyp zoomar, vri vendinga. */}
-          <button
-            type="button"
-            aria-pressed={modus === "skisse"}
-            aria-label="skisse"
-            title={modus === "skisse" ? "skissemodus (S): to fingrar dreg, vrir og zoomar snittet. trykk for form" : "form (S): to fingrar klyp storleiken, vrir vendinga, dreg snittet. trykk for skisse"}
-            onClick={vekslModus}
-            className={TUMME_BTN}
-          >
-            {IcoSkisse}
-          </button>
+              vinklar, klyp zoomar. Av er «form»: klyp zoomar, vri vendinga.
+              Han er ikkje eit verkty i spalta til venstre: han er dei to
+              vanlege arbeidsmåtane, og han står ved skjer av di det er
+              snittet han gjeld. */}
+          {view !== "kontur" && (
+            <button
+              type="button"
+              aria-pressed={modus === "skisse"}
+              aria-label="skisse"
+              title={modus === "skisse" ? "skissemodus (S): to fingrar dreg, vrir og zoomar snittet. trykk for form" : "form (S): to fingrar klyp storleiken, vrir vendinga, dreg snittet. trykk for skisse"}
+              onClick={vekslModus}
+              className={TUMME_BTN}
+            >
+              {IcoSkisse}
+            </button>
+          )}
           {/* SYMMETRIEN PÅ SNITTET: tre brytarar, ei line, RETT OVER SKJER —
               av di det er skjer dei endrar. Kvar akse speglar snittet om
               midtplanet i kroppen, og dei tel saman: x og y er fire ribber av
@@ -1778,16 +1789,80 @@ export function Studio() {
               </span>
             </span>
           )}
+          {/* SKJER er skissa si, og skissa finst ikkje på plateflata. Der
+              stod han berre og var dempa — ein knapp som seier nei er ein
+              knapp for mykje. Med eit plan valt er den same knappen
+              «ferdig», og DEN gjeld på plateflata òg: det er slik du
+              slepper delen du peika på. */}
+          {(view !== "kontur" || vald !== null) && (
+            <button
+              type="button"
+              onClick={vald === null ? laas : () => velPlan(null)}
+              disabled={vald === null && !harSnitt}
+              aria-label={vald === null ? "skjer" : "ferdig"}
+              title={vald === null ? "skjer: skissa vert ein del (L)" : "ferdig med planet (esc)"}
+              className="skjer ikon"
+            >
+              {vald === null ? IcoSkjer : IcoFerdig}
+              <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--ink)", opacity: busy ? 1 : 0, transition: "opacity 200ms ease" }} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/*
+        VERKTYSPALTA, NEDST TIL VENSTRE.
+
+        Eit verkty er ikkje ei handling: det er ein tilstand du går inn i og
+        ut av, og medan det står på tyder to fingrar noko anna enn elles.
+        Kroppen, rutenettet og virvelen er dei tre, og dei er det same
+        slaget — berre eitt om gongen, kvart med si tilstand. Dei stod tre
+        ulike stader: kroppen under tommelen mellom handlingane, dei to
+        andre i talelina, ved sida av tal dei ikkje er.
+
+        No står dei saman, til venstre, mot handlingane til høgre: venstre
+        er kva fingrane ER, høgre er kva du GJER. Same høgda som tommelen,
+        so båe spaltene ligg i den same bogen, og same fadinga i søvnen.
+      */}
+      {mounted && view !== "kontur" && (
+        <div
+          className="verktya"
+          role="group"
+          aria-label="verktya"
+          style={{ left: 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}
+        >
           <button
             type="button"
-            onClick={vald === null ? laas : () => velPlan(null)}
-            disabled={view === "kontur" || (vald === null && !harSnitt)}
-            aria-label={vald === null ? "skjer" : "ferdig"}
-            title={vald === null ? "skjer: skissa vert ein del (L)" : "ferdig med planet (esc)"}
-            className="skjer ikon"
+            aria-pressed={modus === "bit"}
+            aria-label="kroppen"
+            title={modus === "bit" ? "verktyet for kroppen: trykk ein bit, to fingrar flyttar, vrir og skalerer han. trykk for å gå ut" : "verktyet for kroppen: flytt, vri og skaler bitane han er sett saman av"}
+            onClick={vekslBit}
+            className={TUMME_BTN}
+            data-bitverkty=""
           >
-            {vald === null ? IcoSkjer : IcoFerdig}
-            <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--ink)", opacity: busy ? 1 : 0, transition: "opacity 200ms ease" }} />
+            {IcoBit}
+          </button>
+          <button
+            type="button"
+            aria-pressed={modus === "rute"}
+            aria-label="rutenett"
+            title={modus === "rute" ? "rutenettet (R): to fingrar — vassrett er kolonner, loddrett er rader. trykk for å gå ut" : "rutenettet (R): to fingrar set kolonner og rader"}
+            onClick={vekslRute}
+            className={TUMME_BTN}
+            data-ruteverkty=""
+          >
+            {IcoRute}
+          </button>
+          <button
+            type="button"
+            aria-pressed={modus === "virvel"}
+            aria-label="virvel"
+            title={modus === "virvel" ? "virvelen (V): to fingrar — vassrett er kor mange ribber, loddrett kor langt ut frå aksen. trykk for å gå ut" : "virvelen (V): ribber kring loddaksen, skovne ut frå han"}
+            onClick={vekslVirvel}
+            className={TUMME_BTN}
+            data-virvelverkty=""
+          >
+            {IcoVirvel}
           </button>
         </div>
       )}
@@ -1837,10 +1912,6 @@ export function Studio() {
         feil={feil}
         melding={melding}
         hentar={hentar}
-        rute={modus === "rute"}
-        onRute={vekslRute}
-        virvel={modus === "virvel"}
-        onVirvel={vekslVirvel}
         onExport={doExport}
         onReset={() => endre({ ...MOTOR.defaults, kjelde: params.kjelde })}
         verkty={verkty}

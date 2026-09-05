@@ -178,6 +178,22 @@ profile; it duplicates the selected plane now — same normal, same strokes,
 shifted one notch along the normal so the copy is not inside what you copied,
 and the copy is what stays selected.
 
+**A tool is not an action, and it lives on the left.** Three of the controls
+are states you enter and leave, and while one is on, two fingers mean
+something else: the body tool, the grid and the whirl. They used to sit in
+three different places — the body under the thumb between the actions, the
+other two in the readout line beside numbers they are not. They are one
+column now, bottom left, in the same reach as the thumb: the left is what
+your fingers *are*, the right is what you *do*. Only one can be on.
+
+**What is under your thumb depends on which view you are in.** The sheet has
+no body to grab, no sketch to aim and no ribs to count, so the tool column,
+the sketch toggle and `skjer` are not there — a control that can only say no
+is one control too many. What stays is what acts on a part you tapped: the
+plane's own tools, and `ferdig` to let it go. A tool that was on when you
+stepped into the sheet is off when you come back, because a mode you cannot
+see is a mode you did not choose.
+
 **Nothing sits on the object but the handles.** The label that read the joint
 count and the millimetre off the sketch is gone from the screen: the sheet
 already says both, and it covered exactly what you were aiming at. The handles
