@@ -10,7 +10,7 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
-import { delAv, dreiing, lesPlan, nyId, ramme, reinPlan, rutenett, sameSnitt, spegla, speglingar, skrivPlan, virvel, vriOm, PLAN_TAK, STREK_TAK } from "../lib/plan"
+import { delAv, dreiing, lesPlan, nyGruppe, nyId, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, virvel, vriOm, PLAN_TAK, STREK_TAK } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
@@ -403,6 +403,70 @@ console.log("\nsymmetrien på snittet:")
   const halvskeivt = alle(o0, n0, 3)
   sjekk("men eit som alt står symmetrisk om y vert to, ikkje fire", halvskeivt.length === 2, halvskeivt.map((q) => q.o.slice(0, 2).join(",")).join(" · "))
   sjekk("og alle tre aksane på eit heilt skeivt snitt gjev åtte", alle([0.25, 0.3, 0.35], [0.5774, 0.5774, 0.5774], 7).length === 8)
+}
+
+/**
+ * KVA VERKTYET FOR RUTENETTET EIG.
+ *
+ * Han skreiv lista OM, og ti plan sette for hand var borte i det du tok i
+ * han. No eig han berre dei plana eit rutenett ville laga, kjende att på
+ * geometrien. Vakta prøver båe vegar: at eit heilt rutenett vert kjent att
+ * med rett tal, og at alt som IKKJE er det — eit skrått plan, ei ribbe
+ * flytt ut av rekkja, eit plan med eit strek, eit med bøy, eit med lag —
+ * står att som ditt.
+ */
+console.log("\nrutenettet og det som er ditt:")
+{
+  const rute = rutenett(3, 2)
+  const hand = (id: number, o: Vec3, n: Vec3, meir: Partial<ReturnType<typeof lesPlan>[number]> = {}) =>
+    ({ id, o, n, bog: 0, strek: [], ...meir }) as ReturnType<typeof lesPlan>[number]
+
+  const reint = skilRute(rute)
+  sjekk("eit heilt rutenett er verktyet sitt", reint.andre.length === 0 && reint.nx === 3 && reint.ny === 2, `${reint.nx}×${reint.ny}, ${reint.andre.length} andre`)
+
+  const tomt = skilRute([])
+  sjekk("ei tom liste er null og null", tomt.nx === 0 && tomt.ny === 0 && tomt.rute.length === 0)
+
+  /** eitt plan av kvart slag som verktyet IKKJE skal ta */
+  const mine: [string, ReturnType<typeof lesPlan>[number]][] = [
+    ["eit skrått plan", hand(90, [0.5, 0.5, 0.5], [0.7071, 0.7071, 0])],
+    ["eit vassrett plan", hand(91, [0.5, 0.5, 0.4], [0, 0, 1])],
+    ["eit plan med eit strek", hand(92, [0.25, 0.5, 0.5], [1, 0, 0], { strek: [{ slag: "hol", form: "rund", x: 0, y: 0, w: 0.1, h: 0.1, a: 0 }] })],
+    ["eit bøygt plan", hand(93, [0.75, 0.5, 0.5], [1, 0, 0], { bog: 0.5 })],
+    ["eit plan med lag", hand(94, [0.25, 0.5, 0.5], [0, 1, 0], { farge: 5 })],
+    ["ei ribbe skoven ut av rekkja", hand(95, [0.31, 0.5, 0.5], [1, 0, 0])],
+  ]
+  for (const [ord, q] of mine) {
+    // planet står ÅLEINE med rutenettet, so det er berre det eine som vert prøvt
+    const r = skilRute([...rute, q])
+    const eig = r.andre.some((p) => p.id === q.id)
+    // ei ribbe i rekkja gjer heile rada til di: fire punkt er ikkje eit nett på tre
+    const heil = q.id === 95 ? r.nx === 0 && r.andre.filter((p) => Math.abs(p.n[0]) > 0.999).length === 4 : r.nx === 3
+    sjekk(`${ord} står att som ditt`, eig && heil, `${r.nx}×${r.ny}, ${r.andre.length} andre`)
+  }
+
+  /**
+   * OG DET VIKTIGE: EIT NYTT NETT TEK IKKJE DEI ANDRE MED SEG.
+   *
+   * Det er nett den rekninga verktyet gjer for kvart bilete av eit drag.
+   */
+  {
+    const eigne = mine.map(([, q]) => q)
+    const foer = [...rute, ...eigne]
+    // rada langs x er broten av plan 95, so ho er DI og fylgjer med i «andre»
+    const { rute: eigd, andre } = skilRute(foer)
+    const nytt = [...andre, ...rutenett(5, 5, nyId(andre), nyGruppe(andre))]
+    const att = new Set(nytt.map((q) => q.id))
+    sjekk("alle plana du sette står att", eigne.every((q) => att.has(q.id)), `${eigne.filter((q) => att.has(q.id)).length} av ${eigne.length}`)
+    sjekk("og ei broten rad er di og står ho òg", rute.filter((q) => Math.abs(q.n[0]) > 0.999).every((q) => att.has(q.id)), `${andre.length} andre`)
+    sjekk("men det verktyet eigde er borte", eigd.length > 0 && !eigd.some((q) => att.has(q.id)), `${eigd.length} eigde`)
+    sjekk("namna er kvar sitt", new Set(nytt.map((q) => q.id)).size === nytt.length, `${nytt.length} plan`)
+    const gRute = new Set(nytt.slice(andre.length).map((q) => q.gruppe))
+    const gAndre = new Set(andre.map((q) => q.gruppe).filter(Boolean))
+    sjekk("og gruppene til nettet krasjar ikkje med dei andre", [...gRute].every((g) => !gAndre.has(g)), `nett ${[...gRute].join(",")} · andre ${[...gAndre].join(",") || "ingen"}`)
+    // og strengen ber alt saman
+    sjekk("lista går gjennom strengen som ho er", reinPlan(skrivPlan(nytt)) === skrivPlan(nytt), `${skrivPlan(nytt).length} teikn`)
+  }
 }
 
 /**

@@ -77,8 +77,9 @@ no radius.
    a row in the list. Turn the object and cut again. The cut planes stay where
    you put them while the view turns.
 6. **Or set a grid.** Switch on **rutenett** (or press `R`) and two fingers
-   set the two numbers: sideways is columns, up and down is rows. It writes
-   the whole plane list, so it is one step in undo.
+   set the two numbers: sideways is columns, up and down is rows. It replaces
+   the grid and leaves everything you cut by hand, and the whole drag is one
+   step in undo.
 7. **Read the rules.** They say what can't be cut or assembled, and why, and
    most broken rules carry the button that fixes it.
 8. **Export ARK** and open it in LightBurn.
@@ -450,12 +451,23 @@ axis by its own width holds it at 43.2 mm all the way round.
 
 A rib grid is two numbers, and **rutenett** is the tool that sets them with
 your fingers: sideways is columns, up and down is rows, 44 px to a plane. It
-starts from what is already there — planes along x counted as columns, planes
-along y as rows — so it carries on where your grid left off.
+starts from the grid that is already there, so it carries on where yours left
+off.
 
-It **rewrites the list**, because a grid is a list and not an addition. That is
-one step in undo, however far the fingers went: the whole drag is one entry,
-and `Z` gives back the planes you had.
+**It only ever takes its own.** It owns the planes a grid would have made, and
+it recognises them by their geometry alone: normal along x or y, centred on the
+other two axes, and the n of them spaced evenly on `(i + ½)/n`, with no bend, no
+stroke and no layer. Everything else in the list is yours and stays — its name,
+its strokes, its layer, its place on the sheet. It is all or nothing per axis:
+move one rib out of the row and the whole row is yours, because n ribs unevenly
+spaced are not a grid of n; the tool then starts from zero on that axis and lays
+its own beside them. So the grid's names and groups begin after yours, and its
+ceiling is what is left of the 64.
+
+It used to rewrite the list — a grid was a list and not an addition — and ten
+planes you had cut by hand were gone the moment you touched the tool. Either
+way the whole drag is one entry in undo, however far the fingers went, and `Z`
+gives back the planes you had.
 
 There used to be a search here that sliced a dozen grids for real and ranked
 them, and a deep search that measured the body and walked a front. It answered

@@ -6,7 +6,7 @@ import { KUBE } from "@/lib/sources"
 import { hent, lagre } from "@/lib/lagring"
 import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { BOG_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
@@ -50,21 +50,8 @@ const VIRVEL_R_STEG = 0.02
 const VIRVEL_R = { min: 0.06, max: 0.5 }
 /** kor mange ribber virvelen opnar med, og kor langt ute */
 const VIRVEL_START: [number, number] = [12, 0.26]
-/** rutenettet lista alt er, talt: plan langs x er kolonner, plan langs y er
- *  rader. Eit skrått plan er ikkje eit rutenett og tel ikkje — verktyet
- *  skriv lista om, og angre er vegen attende. */
 /** vidda til kroppen i x og y, millimeter: det virvelen treng for å stå rundt */
 const vidd = (k: { min: Vec3; max: Vec3 }): [number, number] => [k.max[0] - k.min[0], k.max[1] - k.min[1]]
-
-function ruteTalde(l: readonly Plan[]): [number, number] {
-  let nx = 0
-  let ny = 0
-  for (const q of l) {
-    if (Math.abs(q.n[0]) > 0.999) nx++
-    else if (Math.abs(q.n[1]) > 0.999) ny++
-  }
-  return [nx, ny]
-}
 /** det som er KROPPEN: berre desse ber om eit nytt «flate»-bygg */
 const kroppKey = (p: ParamBag) => [p.kjelde, p.scene, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant].join("|")
 /** filnamn utan mellomrom og aksentar; desimalkomma er bråk */
@@ -886,7 +873,10 @@ export function Studio() {
     const i = bitRef.current
     const l = i === null ? [] : lesScene(String(p.scene || "") || eiKjelde(String(p.kjelde ?? KUBE)))
     grunn.current = kva === null ? null : { bit: i === null ? null : (l[i] ?? null) }
-    if (kva === "rute") rutGrunn.current = ruteTalde(lesPlan(p.plan))
+    if (kva === "rute") {
+      const r = skilRute(lesPlan(p.plan))
+      rutGrunn.current = [r.nx, r.ny]
+    }
     if (kva === "virvel") virvGrunn.current = virvNo()
     else if (kva === null) {
       setRuteTal(null)
@@ -1243,23 +1233,51 @@ export function Studio() {
    * som ALT står: plan langs x og plan langs y, talde, so verktyet held fram
    * der nettet ditt slutta.
    *
-   * Han SKRIV LISTA OM, som «ta alle» gjorde: eit rutenett er ei liste, ikkje
-   * eit tillegg. Festa fylgjer med, av di dei peikar på namn som er borte.
+   * HAN TEK BERRE SITT EIGE. Han skreiv lista OM før — eit rutenett var ei
+   * liste og ikkje eit tillegg — og ti plan du hadde sett for hand var borte
+   * i det du tok i han. No eig han dei plana eit rutenett ville laga, kjende
+   * att på geometrien (`skilRute` i `plan.ts`), og alt anna står: namnet
+   * sitt, streka sine, laget sitt og plassen sin på plata.
+   *
+   * Difor byrjar namna og gruppene der DEI ANDRE sluttar, og taket er det
+   * som er att av dei seksti og fire. Festa til dei som står, står; berre
+   * dei som peika på ei ribbe som gjekk, går.
+   *
    * Éin skrift per steg — tala er heiltal — og eitt steg i angre for heile
    * gesten, av di gesten melder seg til `taGest` medan han varer.
    */
   const rutGrunn = useRef<[number, number]>([0, 0])
-  const dragRute = useCallback((dx: number, dy: number) => {
+  /** rein rekning, so oppdateringa kan kallast to gonger: lista med det nye
+   *  nettet i, og dei to tala han vart */
+  const ruteSteg = useCallback((cur: ParamBag, dx: number, dy: number) => {
     const [nx0, ny0] = rutGrunn.current
-    const tak = Math.floor(PLAN_TAK / 2)
-    const nx = Math.max(0, Math.min(tak, nx0 + Math.round(dx / RUTE_STEG)))
-    const ny = Math.max(0, Math.min(tak, ny0 + Math.round(-dy / RUTE_STEG)))
+    const { andre } = skilRute(lesPlan(cur.plan))
+    const rom = Math.max(0, PLAN_TAK - andre.length)
+    const tak = Math.min(Math.floor(PLAN_TAK / 2), rom)
+    let nx = Math.max(0, Math.min(tak, nx0 + Math.round(dx / RUTE_STEG)))
+    let ny = Math.max(0, Math.min(tak, ny0 + Math.round(-dy / RUTE_STEG)))
+    // dei to saman skal heller ikkje sprengje taket; den sist rørte vik
+    if (nx + ny > rom) {
+      if (Math.abs(dy) > Math.abs(dx)) ny = Math.max(0, rom - nx)
+      else nx = Math.max(0, rom - ny)
+    }
+    return { nx, ny, liste: [...andre, ...rutenett(nx, ny, nyId(andre), nyGruppe(andre))] }
+  }, [])
+  const dragRute = useCallback((dx: number, dy: number) => {
+    const { nx, ny } = ruteSteg(naa.current, dx, dy)
     setRuteTal([nx, ny])
     setParams((cur) => {
-      const plan = skrivPlan(rutenett(nx, ny))
-      return cur.plan === plan ? cur : { ...cur, plan, fest: "" }
+      const { liste } = ruteSteg(cur, dx, dy)
+      const plan = skrivPlan(liste)
+      if (cur.plan === plan) return cur
+      // festa til dei som står, står. Nøkkelen er adressa til delen, og ho
+      // byrjar på namnet til planet — «3» eller «3a».
+      const att = new Set(liste.map((q) => q.id))
+      const m = lesFest(cur.fest)
+      for (const adr of [...m.keys()]) if (!att.has(Number(/^\d+/.exec(adr)?.[0]))) m.delete(adr)
+      return { ...cur, plan, fest: skrivFest(m) }
     })
-  }, [])
+  }, [ruteSteg])
 
   // --- FILER ---------------------------------------------------------------------
   const hentArk = useCallback((i: number) => {
