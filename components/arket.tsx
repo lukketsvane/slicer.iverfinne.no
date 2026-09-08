@@ -5,7 +5,7 @@ import { FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge, nn, type E
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import type { Plan } from "@/lib/plan"
 import {
-  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoReset, IcoRute, IcoSliders, IcoUttak, IcoVirvel,
+  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, IcoVirvel,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
 } from "./deler"
 import type { VerktyId } from "./verkty"
@@ -67,10 +67,7 @@ export type ArketProps = {
   feil: string | null
   melding: string | null
   hentar: boolean
-  /** verktyet for rutenettet står på: to fingrar set kolonner og rader */
-  rute: boolean
-  onRute: () => void
-  /** og virvelen: to fingrar set kor mange ribber, og kor langt ut frå aksen */
+  /** virvelen: to fingrar set kor mange ribber, og kor langt ut frå aksen */
   virvel: boolean
   onVirvel: () => void
   onExport: (k: ExportKind) => void
@@ -360,20 +357,8 @@ export function Arket(p: ArketProps): JSX.Element {
       <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className="hit tab min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em]" aria-label="plan, delar, ark og tid">
         <Lina p={p} />
       </button>
-      {/* RUTENETTET: verktyet som let to fingrar setje kolonner og rader.
-          Knappen står ved talet han endrar. */}
-      <button
-        type="button"
-        aria-pressed={p.rute}
-        aria-label="rutenett"
-        title={p.rute ? "rutenettet (R): to fingrar — vassrett er kolonner, loddrett er rader. trykk for å gå ut" : "rutenettet (R): to fingrar set kolonner og rader"}
-        onClick={p.onRute}
-        className={ICON_BTN}
-        data-ruteverkty=""
-      >
-        {IcoRute}
-      </button>
-      {/* VIRVELEN: det andre ribbespråket, ved sida av det fyrste. */}
+      {/* VIRVELEN. Rutenettet stod her, ved talet det endrar; no står det i
+          tommelspalta, saman med dei andre reiskapane. */}
       <button
         type="button"
         aria-pressed={p.virvel}
