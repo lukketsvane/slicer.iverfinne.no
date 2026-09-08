@@ -19,8 +19,14 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, onFile, onLeg
   kjelde: string
   /** kor mange bitar kroppen er sett saman av: eitt er ei kjelde åleine */
   bitar: number
-  /** ein bit står vald: det du vel er eit BYTE av han, og ikkje ein bit til */
-  byt: boolean
+  /**
+   * FAMILIEN TIL DEN VALDE BITEN, og tom streng når ingen bit står vald.
+   *
+   * Det er han som avgjer kva ei line i menyen gjer: ingen bit vald legg
+   * ein til, ein annan familie byter forma i den valde, og DEN SAME
+   * familien blar til den neste utgåva hennar.
+   */
+  byt: string
   view: View
   onView: (v: View) => void
   onFile: (f: File) => void
@@ -98,7 +104,7 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, onFile, onLeg
                   key={id}
                   type="button"
                   onClick={() => { onLegg(id); setMeny(false) }}
-                  title={byt ? `byt den valde biten til ${id}` : `legg ${id} til kroppen`}
+                  title={byt === id ? `neste ${id}` : byt ? `byt den valde biten til ${id}` : `legg ${id} til kroppen`}
                   className="hit border-b px-3 py-2.5 text-left text-[11px] leading-none"
                   style={HAIR}
                 >

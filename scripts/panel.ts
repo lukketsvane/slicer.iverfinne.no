@@ -788,9 +788,12 @@ async function telefon(browser: Browser) {
   await kjelde.click()
   await page.waitForTimeout(250)
   const meny2 = page.locator("[data-meny]")
-  sjekk("og opnar lista med formene og fila", (await meny2.count()) === 1 && (await meny2.getByRole("button").count()) === FORMER.length + 1)
+  /** ÉI LINE PER FAMILIE, ikkje per utgåve: ti stolformer var ti liner i ein
+   *  meny som dekte objektet. Lista er familiane pluss fila. */
+  sjekk("og opnar lista med familiane og fila", (await meny2.count()) === 1 && (await meny2.getByRole("button").count()) === FORMER.length + 1, `${FORMER.join(" ")} + fil`)
+  sjekk("og ingen utgåve står i henne", (await meny2.getByRole("button", { name: /-\d\d$/ }).count()) === 0)
   /**
-   * EI INNEBYGD FORM ER EI FIL. Kuben er laga i koden; dei fem andre ligg
+   * EI INNEBYGD FORM ER EI FIL. Kuben er laga i koden; dei andre ligg
    * under `public/form` og vert henta når du tek i dei. Prøva er at biletet
    * ENDRAR SEG: eit nett som kom inn etter at scena peika på det endra ikkje
    * eit teikn i byggjenøkkelen, og kuben som stod der medan det lasta vart
@@ -799,12 +802,12 @@ async function telefon(browser: Browser) {
   {
     const klipp = { x: 40, y: 200, width: 310, height: 380 }
     const fyrr = await page.screenshot({ clip: klipp })
-    await meny2.getByRole("button", { name: "stolform-01", exact: true }).click()
+    await meny2.getByRole("button", { name: "stolform", exact: true }).click()
     await vent(page, (p) => /stolform-01/.test(String(p.scene ?? "")))
     await roleg(page, 2500)
     const etter = await page.screenshot({ clip: klipp })
     sjekk("ei innebygd form vert henta og bygd", !fyrr.equals(etter), `${fyrr.length} B → ${etter.length} B`)
-    sjekk("og ho står i lenkja, so ho fylgjer med", /stolform-01/.test(String(hash(page).scene ?? "")), String(hash(page).scene ?? "").slice(0, 40))
+    sjekk("familien gjev den fyrste utgåva si", /stolform-01/.test(String(hash(page).scene ?? "")), String(hash(page).scene ?? "").slice(0, 40))
     await page.keyboard.press("z")
     await roleg(page, 600)
     // eit val lèt menyen att; neste prøve tek han fram att
@@ -849,24 +852,41 @@ async function telefon(browser: Browser) {
    *
    * Du peika på ein bit; det du vel etterpå er eit svar om HAN, ikkje ein
    * bit til. Prøva er scenestrengen: talet på bitar står, plassen og
-   * storleiken hans står, og berre namnet på forma er eit anna. So attende
-   * med angre, so gestane under prøver den kroppen dei alltid har prøvd.
+   * storleiken hans står, og berre namnet på forma er eit anna.
+   *
+   * OG DET ER FAMILIEN DU VEL: den same lina om att blar til den neste
+   * utgåva, ein annan familie byrjar på si eiga fyrste. So attende med
+   * angre, so gestane under prøver den kroppen dei alltid har prøvd.
    */
   {
     const foer = bitScene().split(";")
+    const valdBit = () => bitScene().split(";")[1] ?? ""
     const hale = (q: string) => q.slice(q.indexOf("@"))
-    await kjelde.click()
-    await page.waitForTimeout(250)
-    await meny2.getByRole("button", { name: "stolform-01", exact: true }).click()
+    const vel = async (namn: string) => {
+      await kjelde.click()
+      await page.waitForTimeout(250)
+      await meny2.getByRole("button", { name: namn, exact: true }).click()
+    }
+    await vel("stolform")
     await vent(page, (p) => /stolform-01/.test(String(p.scene ?? "")))
     const etter = bitScene().split(";")
     sjekk("eit val med ein bit vald legg ingen bit til", etter.length === foer.length, `${foer.length} → ${etter.length} bitar`)
     sjekk("det byter forma i den valde biten", /^stolform-01@/.test(etter[1] ?? ""), (etter[1] ?? "").slice(0, 40))
     sjekk("og plassen, storleiken og vendinga hans står", hale(etter[1] ?? "") === hale(foer[1] ?? ""), `${foer[1]} → ${etter[1]}`)
     sjekk("og dei andre bitane står urørte", etter[0] === foer[0], `${foer[0]} → ${etter[0]}`)
-    await page.keyboard.press("z")
-    await vent(page, (p) => !/stolform-01/.test(String(p.scene ?? "")))
-    sjekk("og angre tek byttet attende", bitScene() === foer.join(";"), bitScene().slice(0, 48))
+    await vel("stolform")
+    await vent(page, (p) => /stolform-02/.test(String(p.scene ?? "")), 20000)
+    sjekk("den same familien om att blar til den neste utgåva", /^stolform-02@/.test(valdBit()), valdBit().slice(0, 40))
+    sjekk("og han står framleis der han stod", hale(valdBit()) === hale(foer[1] ?? ""), valdBit())
+    await vel("sau")
+    await vent(page, (p) => /sau-01/.test(String(p.scene ?? "")), 20000)
+    sjekk("ein annan familie byrjar på si eiga fyrste", /^sau-01@/.test(valdBit()), valdBit().slice(0, 40))
+    // tre endringar, og angre kan ha slege nokon av dei saman
+    for (let i = 0; i < 5 && bitScene() !== foer.join(";"); i++) {
+      await page.keyboard.press("z")
+      await roleg(page, 500)
+    }
+    sjekk("og angre tek bytta attende", bitScene() === foer.join(";"), bitScene().slice(0, 48))
   }
 
   /**

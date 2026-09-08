@@ -8,7 +8,7 @@ import { zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { BOG_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
-import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, lesScene, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
+import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
@@ -716,8 +716,14 @@ export function Studio() {
    * bit; det du vel etterpå er eit svar om HAN. Plassen, storleiken og
    * vendinga står — det er den same klossen med ei anna form i seg — og
    * valet står, so du kan bla gjennom formene og sjå kva som passar.
+   *
+   * OG DET ER FAMILIEN DU VEL, ikkje utgåva: menyen har éi line per familie
+   * (sjå `scene.ts`). Ein ny bit vert den fyrste utgåva. Står biten alt i
+   * den familien, tek det same valet deg til den NESTE — det er slik du
+   * blar gjennom dei ti stolformene med kroppen framme i staden for i ei
+   * liste som dekkjer han.
    */
-  const leggBit = useCallback((id: string) => {
+  const leggBit = useCallback((val: string) => {
     const byt = bitRef.current
     // og det same for bitane: seksten er taket, og det skal seiast — utanfor
     // oppdateringa, som skal vera ei rein rekning og kan kallast to gonger.
@@ -729,12 +735,15 @@ export function Studio() {
     setParams((cur) => {
       const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
       if (byt !== null) {
-        if (!l[byt] || l[byt].id === id) return cur
-        l[byt] = { ...l[byt], id }
+        const no = l[byt]
+        if (!no) return cur
+        const id = familien(no.id) === val ? nesteForm(no.id) : fyrsteForm(val)
+        if (id === no.id) return cur
+        l[byt] = { ...no, id }
         return { ...cur, scene: skrivScene(l) }
       }
       if (l.length >= SCENE_TAK) return cur
-      const ny = [...l, { id, t: [0, 0, 0] as Vec3, s: [1, 1, 1] as Vec3, rz: 0 }]
+      const ny = [...l, { id: fyrsteForm(val), t: [0, 0, 0] as Vec3, s: [1, 1, 1] as Vec3, rz: 0 }]
       const steg = Math.min(85, 760 / Math.max(1, ny.length - 1))
       const midt = (steg * (ny.length - 1)) / 2
       return { ...cur, scene: skrivScene(ny.map((b, i) => ({ ...b, t: [+(i * steg - midt).toFixed(2), b.t[1], b.t[2]] as Vec3 }))) }
@@ -1615,7 +1624,7 @@ export function Studio() {
         </section>
       )}
 
-      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
+      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
 
       {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til VENSTRE i
           det frie bandet — synskuben har det høgre hjørnet */}
