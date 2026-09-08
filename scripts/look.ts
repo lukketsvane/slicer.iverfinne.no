@@ -39,6 +39,23 @@ const ferdig = (page: Page) =>
   )
 const lina = async (page: Page) => (await page.locator(HOVUDLINA).innerText()).replace(/\s+/g, " ").trim()
 const planTal = (s: string) => Number(/(\d+) plan/.exec(s)?.[1] ?? NaN)
+/**
+ * LINA SEIER EIT ORD FØR HO SEIER TALA.
+ *
+ * «prosjekt ope», «fann ikkje nettet», «kopiert» — ei melding står i lina i
+ * fire sekund og dekkjer tala medan ho står. Ei vakt som les i det vindauget
+ * les eit ord der ho venta eit tal, og fell på tidspunktet sitt og ikkje på
+ * koden. Difor: vent til tala er der att.
+ */
+const talLina = async (page: Page, ms = 8000) => {
+  const t0 = Date.now()
+  let s = await lina(page)
+  while (Date.now() - t0 < ms && Number.isNaN(planTal(s))) {
+    await page.waitForTimeout(200)
+    s = await lina(page)
+  }
+  return s
+}
 
 function kuleStl(r: number, seg: number): Buffer {
   const pos: number[] = []
@@ -158,7 +175,7 @@ async function flate(namn: string, w: number, h: number) {
     await page.setInputFiles("input[type=file]", sti)
     await ferdig(page)
     await page.waitForTimeout(1500)
-    const l = await lina(page)
+    const l = await talLina(page)
     const kjelde = (await page.locator("button[data-kjelde]").innerText()).trim()
     console.log(`  import ${fil}: ${kjelde} — ${l}`)
     if (!kjelde.toLowerCase().includes(fil.toLowerCase())) brot(`${fil}: filnamnet kom ikkje fram («${kjelde}»)`)
@@ -203,10 +220,16 @@ async function flate(namn: string, w: number, h: number) {
   // --- KROPPEN ER EI LISTE, OG HAN OVERLEVER EI NY ØKT ---------------------
   /**
    * Menyen legg eit primitiv til det som alt står, og brikka tel bitane.
-   * So vert sida opna på nytt UTAN lenkje — det PWA-en gjer når han vert
-   * teken fram att — og kroppen skal vera den same. Han er det berre om
-   * kjelda heiter det bytane heiter: var namnet ein teljar, ville fila fått
-   * eit nytt eit ved importen, og biten i scena peikt på ingenting.
+   * So vert sida opna på nytt, og kroppen skal vera den same. Han er det
+   * berre om kjelda heiter det bytane heiter: var namnet ein teljar, ville
+   * fila fått eit nytt eit ved importen, og biten i scena peikt på ingenting.
+   *
+   * TO GONGER, OG DET ER POENGET. MED lenkja i adressefeltet — det appen
+   * sjølv legg der, og difor det som faktisk skjer når nokon lastar om — og
+   * UTAN, som når ein PWA vert teken fram att. Lenkja og økta er ikkje to
+   * vegar inn: lenkja ber innstillingane, økta ber nettet, og båe måtte
+   * lesast. Vart berre den fyrste lesen, kom du attende til ribbene dine på
+   * ein kube, og det var nett det som hende.
    */
   await page.locator("button[data-kjelde]").click()
   await page.waitForTimeout(300)
@@ -219,21 +242,100 @@ async function flate(namn: string, w: number, h: number) {
   if (!/\+1$/.test(kropp)) brot(`${namn}: ei form til gav «${kropp}»`)
   const før4 = kropp
   const scene4 = scena()
-  // utan lenkje: då er det økta i nettlesaren som gjeld, og ho ligg i IndexedDB
+  const attKropp = async (kva: string) => {
+    await ferdig(page)
+    // nettet vert lese om att i arbeidaren: vent på at kroppen er der, i
+    // staden for på ei klokke
+    await page
+      .waitForFunction(() => (document.querySelector("button[data-kjelde]")?.textContent ?? "").includes("+"), undefined, { timeout: 20000 })
+      .catch(() => undefined)
+    await ferdig(page)
+    await page.waitForTimeout(600)
+    const att = (await page.locator("button[data-kjelde]").innerText()).trim()
+    console.log(`  ${kva.padEnd(8)} ${att} — ${scena()}`)
+    if (att !== før4 || scena() !== scene4) {
+      brot(`${namn}: ${kva} kom attende som «${att}» (${scena()}) og ikkje «${før4}» (${scene4})`)
+    }
+  }
+  await page.reload({ waitUntil: "networkidle" })
+  await attKropp("med lenkje")
   await page.evaluate(() => { window.location.hash = "" })
   await page.reload({ waitUntil: "networkidle" })
-  await ferdig(page)
-  // nettet vert lese om att i arbeidaren: vent på at kroppen er der, i
-  // staden for på ei klokke
-  await page
-    .waitForFunction(() => (document.querySelector("button[data-kjelde]")?.textContent ?? "").includes("+"), undefined, { timeout: 20000 })
-    .catch(() => undefined)
-  await ferdig(page)
-  await page.waitForTimeout(600)
-  const attKropp = (await page.locator("button[data-kjelde]").innerText()).trim()
-  console.log(`  ny økt:  ${attKropp} — ${scena()}`)
-  if (attKropp !== før4 || scena() !== scene4) {
-    brot(`${namn}: økta kom attende som «${attKropp}» (${scena()}) og ikkje «${før4}» (${scene4})`)
+  await attKropp("utan")
+
+  /**
+   * OG EI LENKJE FRÅ EIN ANNAN DREG INGENTING UT AV BASEN DIN.
+   *
+   * Ho må be om nøyaktig dei id-ane du har, og eit namn er bytane til fila.
+   * Ber ho om eit du ikkje har, fell kroppen til kuben som han alltid har
+   * gjort — og lina SEIER at det var eit nett ho ikkje fann, i staden for å
+   * la deg tru at kuben er det nokon laga.
+   */
+  {
+    const framand = "#p=" + encodeURIComponent(JSON.stringify({ kjelde: "fikkjemitt", storleik: 150 }))
+    // ein hash åleine er inga ny side: `goto` til den same adressa byter
+    // berre hashen, og då køyrer ingenting om att. Omlastinga er prøva.
+    await page.goto(URL + framand, { waitUntil: "networkidle" })
+    await page.reload({ waitUntil: "networkidle" })
+    await ferdig(page)
+    await page.waitForTimeout(2500)
+    const l = await lina(page)
+    console.log(`  framand: ${(await page.locator("button[data-kjelde]").innerText()).trim()} — ${l}`)
+    if (!/fann ikkje nettet/.test(l)) brot(`${namn}: ei lenkje til eit nett du ikkje har sa «${l}»`)
+  }
+
+  /**
+   * PROSJEKTFILA ER EI ØKT SOM ALLE ANDRE.
+   *
+   * «lagre» skriv oppsettet og kvart nett i scena i eitt arkiv; slepp du det
+   * inn att, står du der du gjekk frå. Men arkivet gjekk berre inn i
+   * ARBEIDAREN, so ei omlasting etter «opna prosjekt» tok deg attende til
+   * ein kube: fila du nett opna låg ikkje i basen. Prøva er difor ikkje at
+   * ho opnar seg — det er at ho står der etter ei omlasting.
+   */
+  {
+    // ein kropp med eit importert nett i, og eitt plan å kjenne han att på
+    await page.goto(URL, { waitUntil: "networkidle" })
+    await ferdig(page)
+    await page.waitForTimeout(1200)
+    await importer("prosjekt.stl", kuleStl(70, 32))
+    await page.getByRole("button", { name: "skjer", exact: true }).click()
+    await ferdig(page)
+    await page.waitForTimeout(800)
+    // uttaka står i «alt» på telefonen; på benken står dei i kolonna
+    if (!benk) {
+      await page.locator(HOVUDLINA).click()
+      await page.waitForTimeout(400)
+      await page.getByRole("button", { name: "alle kontrollane" }).click()
+      await page.waitForTimeout(500)
+    }
+    const [dl] = await Promise.all([
+      page.waitForEvent("download", { timeout: 30000 }),
+      page.getByRole("button", { name: "lagre", exact: true }).click(),
+    ])
+    const sti = join(UT, dl.suggestedFilename())
+    await dl.saveAs(sti)
+    console.log(`  prosjekt: ${dl.suggestedFilename()} (${statSync(sti).size} B)`)
+
+    // tøm nettlesaren heilt, og opne arkivet på nytt
+    await page.evaluate(() => new Promise<void>((ok) => { const r = indexedDB.deleteDatabase("slicer"); r.onsuccess = () => ok(); r.onerror = () => ok(); r.onblocked = () => ok() }))
+    await page.goto(URL, { waitUntil: "networkidle" })
+    await ferdig(page)
+    await page.waitForTimeout(1200)
+    await page.setInputFiles("input[type=file]", sti)
+    await ferdig(page)
+    await page.waitForTimeout(2500)
+    const ope = await talLina(page)
+    console.log(`  opna:    ${(await page.locator("button[data-kjelde]").innerText()).trim()} — ${ope}`)
+    if (planTal(ope) !== 1) brot(`${namn}: prosjektfila opna med ${planTal(ope)} plan`)
+
+    await page.reload({ waitUntil: "networkidle" })
+    await ferdig(page)
+    await page.waitForTimeout(3000)
+    const att = await talLina(page)
+    const kj = (await page.locator("button[data-kjelde]").innerText()).trim()
+    console.log(`  omlasta: ${kj} — ${att}`)
+    if (planTal(att) !== 1 || /^kube$/.test(kj)) brot(`${namn}: prosjektet overlevde ikkje ei omlasting — «${kj}», «${att}»`)
   }
 
   // --- BLINDGATA HAR EIN VEG UT: ei lenkje med for stort objekt -------------

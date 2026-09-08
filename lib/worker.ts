@@ -18,10 +18,17 @@ import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rom, Rule,
 
 export type BuildReq = { kind: "build"; id: number; params: ParamBag; detail: DetailKey; view: Rom }
 export type ExportReq = { kind: "export"; id: number; params: ParamBag; what: ExportKind }
-/** `som` gjev nettet eit FAST namn i staden for eit av bytane sine: dei
- *  innebygde formene skal heite det same kvar gong, so ei lenkje som ber
- *  «stolform-03» finn den same forma i morgon. */
-export type ImportReq = { kind: "import"; id: number; name: string; buf: ArrayBuffer; som?: string }
+/**
+ * `som` gjev nettet eit FAST namn i staden for eit av bytane sine: dei
+ * innebygde formene skal heite det same kvar gong, so ei lenkje som ber
+ * «stolform-03» finn den same forma i morgon.
+ *
+ * `etikett` er kva det skal HEITE for den som ser på skjermen. Dei to fall
+ * saman før, og ei økt som vart henta inn att kom difor tilbake med
+ * «fqf8szf1v» på brikka i staden for «hunden.stl»: nettet hadde rett namn
+ * og feil etikett. Ei innebygd form treng ingen — der er namnet etiketten.
+ */
+export type ImportReq = { kind: "import"; id: number; name: string; buf: ArrayBuffer; som?: string; etikett?: string }
 /** «syn meg plate nummer i» — teikninga kjem attende, ikkje ei fil */
 export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number }
 /** «snitt skissa for meg»: profilen gjennom kroppen og kryssa mot dei låste
@@ -153,7 +160,7 @@ self.onmessage = (e: MessageEvent<Req>) => {
         post({ kind: "feil", id: req.id, kva: "import", kvifor: "fann ingen trekantar i fila" })
         return
       }
-      const src = put(req.som ?? kjeldeId(bytes), req.som ?? req.name, soup, bytes)
+      const src = put(req.som ?? kjeldeId(bytes), req.etikett ?? req.som ?? req.name, soup, bytes)
       /* scena avgjer kva som skal hugsast — sjå bygg */
       post({ kind: "kjelde", id: req.id, src })
       return

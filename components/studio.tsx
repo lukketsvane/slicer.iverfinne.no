@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import type { ArkSyn, ExportKind, DetailKey, ParamBag, Rom, Vec3, View } from "@/lib/core"
-import { KUBE } from "@/lib/sources"
-import { hent, lagre } from "@/lib/lagring"
-import { zip } from "@/lib/zip"
+import { erPrimitiv, KUBE } from "@/lib/sources"
+import { gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
+import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { BOG_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
@@ -257,8 +257,16 @@ export function Studio() {
   const sisteBygg = useRef(0)
   const naa = useRef(params)
   naa.current = params
-  /** importar som høyrer til oppsettet som alt står (den hugsa økta) */
-  const attende = useRef(new Set<number>())
+  /**
+   * BYTANE MEDAN SVARET ER I LUFTA.
+   *
+   * Eit nett får namnet sitt av arbeidaren — det er bytane sine — so kopien
+   * må liggje att her til svaret kjem og seier kva han skal heite i basen.
+   * Han går i det same steget han vert skriven ned.
+   */
+  const bytar = useRef(new Map<number, { namn: string; buf: ArrayBuffer }>())
+  /** det gamle eine nettet er henta inn og skal ryddast ut av luka si */
+  const gamaltNett = useRef(false)
   /**
    * IMPORTAR SOM SKAL BYTE EIN BIT, og kva bit dei skal byte.
    *
@@ -341,34 +349,81 @@ export function Studio() {
     if (k) spørSkisse({ id: 0, o: broek(s.o, k.min, k.max), n: s.n, bog: 0, strek: [] })
   }, [spørSkisse])
 
-  // Hashen er ikkje til å stole på: kvart felt vert klemt av motoren sin eigen clamp.
+  /**
+   * DER DU SLAPP, UTAN AT DU BAD OM DET.
+   *
+   * Lenkja og økta er ikkje to vegar inn — dei er to HALVDELAR av den same.
+   * Lenkja ber innstillingane (ho står alt i adressefeltet, appen skriv
+   * henne sjølv), og økta ber nettet. Dei vart lesne som eit anten–eller
+   * før, og av di appen alltid har lagt ei lenkje i adressefeltet, tok
+   * omlastinga alltid lenkjevegen: nettet du drog inn låg i basen og vart
+   * aldri spurt om. Du fekk ribbene dine attende på ein kube.
+   *
+   * No les vi lenkja fyrst og hentar so KVART nett ho peikar på — kjelda og
+   * kvar bit i scena — under id-en sin. Namnet på eit importert nett er
+   * bytane sine, so oppslaget er eintydig, og det held difor på tvers av
+   * fanar og omstartar.
+   *
+   * EI LENKJE FRÅ EIN ANNAN kan ikkje dra nett ut av basen din: ho må be om
+   * nøyaktig dei id-ane du har. Har du dei ikkje, fell kroppen til kuben som
+   * han alltid har gjort — og lina seier at det var eit nett ho ikkje fann,
+   * i staden for å la deg tru at kuben er det du laga.
+   */
   useEffect(() => {
     setMounted(true)
+    const hentInn = (obj: Record<string, unknown>) => {
+      const kj = typeof obj.kjelde === "string" ? obj.kjelde : KUBE
+      const idar = [...new Set([kj, ...lesScene(obj.scene).map((b) => b.id)])].filter((id) => !erPrimitiv(id) && !erFilform(id))
+      if (!idar.length) return
+      setHentar(true)
+      void hentNett(idar).then((funne) => {
+        for (const v of funne) {
+          const id = ++reqId.current
+          formSvar.current.add(id)
+          setNamn((m) => ({ ...m, [v.id]: v.label }))
+          // `som` gjev nettet det FASTE namnet det hadde; utan det ville det
+          // fått eit av bytane sine — same talet, men rekna på nytt — og
+          // scena peikar alt på namnet.
+          send({ kind: "import", id, name: v.label, buf: v.bytes, som: v.id, etikett: v.label }, [v.bytes])
+        }
+        if (funne.length === idar.length) return setHentar(false)
+        // det gamle eine nettet, frå den tida ein kropp var éi fil
+        void hent().then((g) => {
+          if (!g?.nett) {
+            setHentar(false)
+            setMelding(funne.length ? "eitt nett mangla" : "fann ikkje nettet")
+            return
+          }
+          const id = ++reqId.current
+          formSvar.current.add(id)
+          gamaltNett.current = true
+          // ein kopi att, so det gamle nettet kan skrivast ned under namnet
+          // sitt i den nye butikken og luka det låg i kan tømast
+          bytar.current.set(id, { namn: g.filnamn ?? "nett.stl", buf: g.nett.slice(0) })
+          send({ kind: "import", id, name: g.filnamn ?? "nett.stl", buf: g.nett, som: idar.find((q) => !funne.some((f) => f.id === q)), etikett: g.filnamn ?? "nett" }, [g.nett])
+        })
+      })
+    }
     try {
       const h = window.location.hash.slice(1)
       if (!h.startsWith("p=")) {
-        // inga lenkje: tak det du hadde. Nettet kjem inn den vanlege vegen,
-        // men det høyrer til oppsettet, so importen skal ikkje tøme plana.
+        // inga lenkje: tak det du hadde, innstillingar og nett i lag
         void hent().then((v) => {
           if (!v) return
-          setParams((q) => MOTOR.clamp({ ...v.params, kjelde: KUBE }, q))
-          if (!v.nett) return
-          setHentar(true)
-          const id = ++reqId.current
-          attende.current.add(id)
-          send({ kind: "import", id, name: v.filnamn ?? "nett.stl", buf: v.nett }, [v.nett])
+          setParams((q) => MOTOR.clamp(v.params, q))
+          hentInn(v.params)
         })
         return
       }
       const obj = JSON.parse(decodeURIComponent(h.slice(2))) as Record<string, unknown>
       // EI LENKJE BER IKKJE EIT NETT — men ho ber godt eit NAMN som tyder
-      // det same overalt. Ei importert fil har eit namn av bytane sine og
-      // er borte for den som opnar lenkja; ei innebygd form ligg på tenaren
-      // og kjem når nokon spør. Difor: forma står, alt anna fell til kuben.
-      const kj = typeof obj.kjelde === "string" && erFilform(obj.kjelde) ? obj.kjelde : KUBE
-      setParams((p) => MOTOR.clamp({ ...obj, kjelde: kj }, p))
+      // det same overalt. Ei innebygd form ligg på tenaren og kjem når nokon
+      // spør; ei importert fil ligg i din eigen base, under det same namnet,
+      // og `hentInn` spør etter henne der.
+      setParams((p) => MOTOR.clamp(obj, p))
       if (obj.view === "lag" || obj.view === "kontur" || obj.view === "flate") setView(obj.view)
       if (typeof obj.skal === "boolean") setSkal(obj.skal)
+      hentInn(obj)
     } catch {
       // øydelagd hash — lat standardobjektet stå
     }
@@ -430,6 +485,30 @@ export function Studio() {
         setParams((p) => MOTOR.clamp({ ...r.params, kjelde: kj }, { ...p, kjelde: kj }))
         setVald(null)
         setMelding(r.src ? "prosjekt ope" : "oppsett sett")
+        /**
+         * OG EIT OPE PROSJEKT ER EI ØKT SOM ALLE ANDRE.
+         *
+         * Arkivet ber KVART nett i scena; luka i basen bar eitt, so ei
+         * omlasting etter «opna prosjekt» tok deg attende til ein kube. Her
+         * vert arkivet pakka opp her på tråden — berre pakka opp, ikkje
+         * tolka; nettet er alt lese i arbeidaren — og kvar fil skriven ned
+         * under id-en som står i namnet hennar. Det er den same id-en scena
+         * peikar på, av di det var slik ho vart skriven.
+         */
+        const bs = bytar.current.get(r.id)
+        bytar.current.delete(r.id)
+        if (bs) {
+          try {
+            for (const f of unzip(bs.buf)) {
+              const m = /^nett\/([a-z0-9_-]{1,40})__(.*)$/i.exec(f.name)
+              if (!m || !f.data.byteLength) continue
+              void lagreNett(m[1], m[2], f.data.buffer.slice(f.data.byteOffset, f.data.byteOffset + f.data.byteLength) as ArrayBuffer)
+            }
+          } catch {
+            // eit arkiv som ikkje let seg pakke opp her, er alt lese der det
+            // tel — økta er det einaste som går tapt, og ho seier ikkje frå
+          }
+        }
         return
       }
       if (r.kind === "ark") {
@@ -448,6 +527,31 @@ export function Studio() {
       if (r.kind === "kjelde") {
         setNamn((m) => ({ ...m, [r.src.id]: r.src.label }))
         setRammInn((n) => n + 1)
+        /**
+         * NED I BASEN, UNDER NAMNET SITT.
+         *
+         * Bytane låg der før òg, men i ei einaste luke og utan namn: det
+         * sist importerte nettet, og ferdig med det. Ein kropp av tre
+         * importerte figurar kom difor attende som ein kube og to til. Her
+         * går kvart nett ned under den id-en arbeidaren nett gav det — den
+         * same id-en scena og lenkja peikar på — og eit oppslag ved neste
+         * opning finn nøyaktig rett fil.
+         *
+         * Eit nett som er for stort til å hugsast er ikkje ein feil, men det
+         * er noko den som står med fila må VITE: utan prosjektfila kostar
+         * ei omlasting henne arbeidet.
+         */
+        const bs = bytar.current.get(r.id)
+        bytar.current.delete(r.id)
+        if (bs) {
+          void lagreNett(r.src.id, r.src.label, bs.buf).then((ok) => {
+            if (!ok) setMelding("for stort å hugse — lagre prosjektfila")
+          })
+        }
+        if (gamaltNett.current) {
+          gamaltNett.current = false
+          void gløymGamaltNett()
+        }
         // EI FORM ER IKKJE EIN IMPORT. Ho vart beden om av di noko på
         // skjermen alt PEIKAR på henne — ein bit i scena, eller ei lenkje
         // som ber henne — so ho skal ikkje byte kjelde og ikkje tømme plana.
@@ -475,9 +579,10 @@ export function Studio() {
           return
         }
         // EIT NYTT NETT TEK PLANA OG FESTA MED SEG UT: båe er svar om den
-        // kroppen du hadde. Den hugsa økta går fri — ho er skriven for dette nettet.
-        const eiga = attende.current.delete(r.id)
-        setParams((p) => (eiga ? { ...p, kjelde: r.src.id } : { ...p, kjelde: r.src.id, scene: "", plan: "", fest: "" }))
+        // kroppen du hadde. Ei økt som vert henta inn att går ikkje denne
+        // vegen i det heile — ho er skriven for dette nettet, og går ut over
+        // `formSvar` ovanfor.
+        setParams((p) => ({ ...p, kjelde: r.src.id, scene: "", plan: "", fest: "" }))
         setVald(null)
         setFeil(null)
         setHentar(false)
@@ -496,6 +601,8 @@ export function Studio() {
           pumpSkisse()
           return
         }
+        // ei fil som kasta har ingen kopi å hugse
+        bytar.current.delete(r.id)
         setFeil(r.kva === "import" ? (r.kvifor ?? "ulesbar fil") : "uttak feila")
         setHentar(false)
         setBusy(false)
@@ -584,13 +691,21 @@ export function Studio() {
     }
   }, [params.kjelde, bitar, mounted, send])
 
-  // lenkja kodar alltid det som står på skjermen — bortsett frå nettet
+  /**
+   * LENKJA KODAR ALT SOM STÅR PÅ SKJERMEN — bortsett frå bytane i nettet.
+   *
+   * NAMNET på nettet står, og det gjorde det ikkje før: eit importert nett
+   * vart stroke ut av lenkja, av di det ikkje tyder noko for den som opnar
+   * henne på ei anna maskin. Men det tyder alt for DEG: det er oppslaget som
+   * hentar nettet ditt attende ut av basen etter ei omlasting, og utan det
+   * kom du attende til ribbene dine på ein kube. Namnet er bytane sine, so
+   * det seier ingenting om deg og opnar ingenting for den som ikkje alt har
+   * fila.
+   */
   useEffect(() => {
     if (!mounted) return
     const t = window.setTimeout(() => {
-      const { kjelde: _k, ...rest } = params
-      const kj = typeof _k === "string" && erFilform(_k) ? { kjelde: _k } : {}
-      window.history.replaceState(null, "", "#p=" + encodeURIComponent(JSON.stringify({ ...rest, ...kj, view, skal })))
+      window.history.replaceState(null, "", "#p=" + encodeURIComponent(JSON.stringify({ ...params, view, skal })))
     }, 500)
     return () => window.clearTimeout(t)
   }, [params, view, skal, mounted])
@@ -598,10 +713,24 @@ export function Studio() {
   // spørje, so det som står skal alt vera skrive — og skrivast ein gong til
   // i det appen går i bakgrunnen, for det som stod under ein halv sekund.
   const skrivOkta = useCallback(() => {
-    const { kjelde: _k, ...rest } = naa.current
-    void _k
-    void lagre({ params: rest as Record<string, number | string> })
+    void lagre(naa.current as Record<string, number | string>)
   }, [])
+  /**
+   * OG DET KROPPEN IKKJE PEIKAR PÅ LENGER, GÅR.
+   *
+   * Same regelen som `forget` i `sources.ts`, berre på disken: ein brukar
+   * som har prøvd seks filer treng ikkje dei fem fyrste, og eit skann er
+   * lett hundre megabyte. Han går ved sida av skrivinga av innstillingane,
+   * so det er alltid nøyaktig kroppen som står, som ligg der.
+   */
+  useEffect(() => {
+    if (!mounted) return
+    const t = window.setTimeout(() => {
+      const idar = [String(params.kjelde ?? ""), ...bitar.map((b) => b.id)].filter((id) => id && !erPrimitiv(id) && !erFilform(id))
+      void ryddNett(idar)
+    }, 1500)
+    return () => window.clearTimeout(t)
+  }, [params.kjelde, bitar, mounted])
   useEffect(() => {
     if (!mounted) return
     const t = window.setTimeout(skrivOkta, 150)
@@ -1327,7 +1456,12 @@ export function Studio() {
     if (navigator.share) return void navigator.share({ url })
     void navigator.clipboard?.writeText(url).then(() => setMelding("lenkje kopiert")).catch(() => setMelding("ikkje kopiert"))
   }, [])
-  /** fila inn: lesen her, tolka i arbeidaren, bufferen overført og ikkje kopiert */
+  /**
+   * FILA INN: lesen her, tolka i arbeidaren, bufferen overført og ikkje
+   * kopiert. Ein KOPI vert liggjande att her medan svaret er i lufta, av di
+   * det er fyrst i svaret nettet får namnet sitt — og namnet er det basen
+   * skal leggje henne under. Kopien går so snart ho er skriven ned.
+   */
   const takeFile = useCallback(async (f: File) => {
     if (f.size > MAX_FIL) return setFeil("for stor")
     setFeil(null)
@@ -1335,9 +1469,8 @@ export function Studio() {
     setHentar(true)
     try {
       const buf = await f.arrayBuffer()
-      // ned i basen FØR bufferen vert overført. Ei prosjektfil er eit oppsett, ikkje eit nett.
-      if (!/\.zip$/i.test(f.name)) await lagre({ filnamn: f.name, nett: buf.slice(0) })
       const id = ++reqId.current
+      bytar.current.set(id, { namn: f.name, buf: buf.slice(0) })
       // ein bit vald: fila byter HAN. Ei prosjektfil er eit heilt oppsett og
       // byter ingen bit — ho kjem attende som «prosjekt» og les seg sjølv.
       if (bitRef.current !== null && !/\.zip$/i.test(f.name)) bytSvar.current.set(id, bitRef.current)
