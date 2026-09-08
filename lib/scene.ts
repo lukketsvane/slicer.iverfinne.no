@@ -17,24 +17,55 @@ import type { Vec3 } from "./core"
 
 export const SCENE_TAK = 16
 /**
- * DEI INNEBYGDE FORMENE.
+ * DEI INNEBYGDE FORMENE, I FAMILIAR.
  *
  * Kula, sylinderen, kjegla og torusen var matematikk du kunne skjere i, og
  * det var ærleg nok — men ingen av dei fortalde kva verktyet er til. Ein
- * krakk gjer det. Formene her er møblar, forenkla ned til trekanttaket og
- * lagde med `scripts/former.ts`; dei ligg som glTF under `public/form` og
- * vert HENTA når du tek i dei.
+ * krakk gjer det. Formene her er møblar og dyr, forenkla ned til
+ * trekanttaket og lagde med `scripts/former.ts`; dei ligg som glTF under
+ * `public/form` og vert HENTA når du tek i dei.
  *
- * Kuben står att, og han er den einaste som er laga i koden. Han er
- * standardobjektet og fallet når ei kjelde manglar, so han må stå på
- * skjermen før noko nett har vore i nærleiken av eit nettverk.
+ * MENYEN LISTAR FAMILIEN OG IKKJE UTGÅVENE. Ti stolformer var ti liner i
+ * ein meny som dekte objektet, og du måtte velje mellom ti ting du ikkje
+ * hadde sett. Éi line seier «stolform», og du får den fyrste; er ho ikkje
+ * den du ville ha, tek det same valet deg til den neste. Det er å BLA
+ * gjennom utgåvene med kroppen framme i staden for å velje i ei liste med
+ * kroppen dekt — og det einaste ein utgåve-id tyder er kva fil som vert
+ * henta.
+ *
+ * Kuben står att, og han er den einaste som er laga i koden — og den
+ * einaste familien med berre ei utgåve. Han er standardobjektet og fallet
+ * når ei kjelde manglar, so han må stå på skjermen før noko nett har vore i
+ * nærleiken av eit nettverk.
  */
-export const FILFORMER = [
-  "stolform-01", "stolform-02", "stolform-03", "stolform-04", "stolform-05",
-  "stolform-06", "stolform-07", "stolform-08", "stolform-09", "stolform-10",
-] as const
-export const FORMER = ["kube", ...FILFORMER] as const
-export const erFilform = (id: string): boolean => (FILFORMER as readonly string[]).includes(id)
+export const FAMILIAR: readonly { namn: string; tal: number }[] = [
+  { namn: "kube", tal: 1 },
+  { namn: "stolform", tal: 10 },
+  { namn: "sau", tal: 4 },
+]
+/** utgåve nummer `n` i familien, ein-indeksert: «stolform», 3 → «stolform-03» */
+const utgaave = (namn: string, n: number) => `${namn}-${String(n).padStart(2, "0")}`
+export const FILFORMER: readonly string[] = FAMILIAR.filter((f) => f.tal > 1).flatMap((f) =>
+  Array.from({ length: f.tal }, (_, i) => utgaave(f.namn, i + 1)),
+)
+/** det menyen listar: éi line per familie */
+export const FORMER: readonly string[] = FAMILIAR.map((f) => f.namn)
+export const erFilform = (id: string): boolean => FILFORMER.includes(id)
+/** familien ei form høyrer til, eller forma sjølv når ho er heile familien */
+export const familien = (id: string): string => id.replace(/-\d+$/, "")
+/** den fyrste utgåva i ein familie: det du får når du vel henne */
+export const fyrsteForm = (namn: string): string => {
+  const f = FAMILIAR.find((q) => q.namn === namn)
+  return !f ? namn : f.tal > 1 ? utgaave(namn, 1) : namn
+}
+/** den neste utgåva, rundt att på den fyrste. Ein familie på éi er seg sjølv. */
+export const nesteForm = (id: string): string => {
+  const namn = familien(id)
+  const f = FAMILIAR.find((q) => q.namn === namn)
+  if (!f || f.tal < 2) return id
+  const no = Number(id.slice(namn.length + 1))
+  return utgaave(namn, (Number.isFinite(no) ? no % f.tal : 0) + 1)
+}
 
 export type Bit = {
   /** kjelde-id: eit primitiv, eller ei importert fil */

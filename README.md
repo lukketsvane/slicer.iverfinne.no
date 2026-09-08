@@ -33,14 +33,22 @@ no radius.
 
 ## Use it
 
-1. **Pick a body.** The pill at the top opens the body: five primitives
-   (cube, sphere, cylinder, cone, torus) and your own files — `.glb`, `.gltf`,
-   `.stl`, `.obj`, `.ply`, up to 220 MB, or a `.zip` saved by **LAGRE**. A
-   primitive is *added* beside what is already there, overlapping it, so the
-   body is all of them together — a sphere next to a cube, a cylinder into its
-   side; the pill then says `kube +2`. `tøm` goes back to the source alone,
+1. **Pick a body.** The pill at the top opens the body: one line per family of
+   built-in shape (`kube`, `stolform`, `sau`) and your own files — `.glb`,
+   `.gltf`, `.stl`, `.obj`, `.ply`, up to 220 MB, or a `.zip` saved by
+   **LAGRE**. A shape is *added* beside what is already there, overlapping it,
+   so the body is all of them together — a sheep next to a cube, a stool into
+   its side; the pill then says `kube +2`. `tøm` goes back to the source alone,
    and undo takes a piece off again. A file starts over, and a new body clears
    the planes: they were an answer about the body you had.
+
+   **With a piece selected, a choice swaps it instead of adding one.** Pick a
+   piece in the body tool and the same menu changes *that* piece: another
+   family swaps its shape and keeps its place, size and rotation, and the same
+   family again steps to the next version of it. That is how you page through
+   the ten stools with the body in front of you instead of choosing from a
+   list that covers it. A file you fetch goes into the selected piece too, and
+   the source, the other pieces and the planes stay where they are.
 2. **Compose it.** The cube button under your thumb opens the body tool: every
    piece stands as a box you can press. Two fingers on the selected one move it
    (horizontal slides it along the floor, vertical lifts it), twist it about the
@@ -281,15 +289,22 @@ disposable and is not kept; it costs one gesture to make again.
 
 ## The body
 
-**The built-in shapes are furniture.** A sphere, a cylinder, a cone and a
-torus were honest mathematics and none of them said what the tool is for. Ten
-stools and benches say it in one look. They live as glTF under `public/form`
-and are fetched when you touch one — 5.8 MB of textured model reduced to about
-285 kB of geometry by `scripts/former.ts`, decimated to 25k triangles, which is
-under the 40k the build cuts to anyway. Their names are stable, so a link that
-carries `stolform-03` finds the same shape tomorrow — the only source a link
-can carry, because it is the only one that exists on the server rather than in
-somebody's downloads folder.
+**The built-in shapes are furniture and animals.** A sphere, a cylinder, a
+cone and a torus were honest mathematics and none of them said what the tool
+is for. Ten stools and four sheep say it in one look. They live as glTF under
+`public/form` and are fetched when you touch one — 5.8 MB of textured model
+reduced to about 285 kB of geometry by `scripts/former.ts`, decimated to 25k
+triangles, which is under the 40k the build cuts to anyway. Their names are
+stable, so a link that carries `stolform-03` finds the same shape tomorrow —
+the only source a link can carry, because it is the only one that exists on
+the server rather than in somebody's downloads folder.
+
+**The menu lists the family, not the version.** Ten stools were ten lines
+covering the object, and you had to choose between ten things you had not
+seen. One line says `stolform` and gives you the first; if it is not the one
+you wanted, the same line takes you to the next. A version id (`sau-03`) only
+ever means which file to fetch — it is what the scene string and the link
+carry, and `lib/scene.ts` is where a family turns into one.
 
 The cube stays, and it is the only one made in code: it is the default object
 and the fallback when a source is missing, so it has to be on screen before
