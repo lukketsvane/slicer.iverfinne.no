@@ -284,10 +284,30 @@ share is the view you sent. It changes no geometry and is not in the undo list.
 Keys: `L` cut, `S` sketch mode, `R` grid tool, `V` vortex, `⌫` remove the selected plane,
 `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 
-**Three ways to keep an afternoon's work.** The link carries every setting —
-planes included — and no mesh. **LAGRE** gives a project file carrying both.
-And the browser remembers by itself, in IndexedDB. The unlocked sketch is
-disposable and is not kept; it costs one gesture to make again.
+**Three ways to keep an afternoon's work, and you press none of them.** The
+link carries every setting — planes included — and no mesh. **LAGRE** gives a
+project file carrying both. And the browser remembers by itself, in IndexedDB:
+the settings on every change, the meshes as they come in, one per source under
+the name its bytes give it — the same names the scene string and the project
+archive use. The unlocked sketch is disposable and is not kept; it costs one
+gesture to make again.
+
+**The link and the session are two halves of one thing, not two doors.** The
+link holds the settings and the session holds the meshes, and reopening reads
+both: the settings from wherever they came, then every mesh they name, looked
+up by id. They used to be an either-or, and since the app writes a link into
+the address bar itself, a reload always took the link door — so the file you
+dragged in sat in the database and was never asked for, and you came back to
+your ribs on a cube. Opening a project file has the same ending now: its
+meshes go into the session as they are read, so the reload after it keeps
+them too.
+
+A link from someone else cannot pull meshes out of your database. It has to
+name the exact ids you have, and a name is the file's own bytes. When it names
+one you do not have, the body falls back to the cube as it always has — and the
+line *says* a mesh was missing, rather than letting you believe the cube is
+what somebody built. What the body no longer points at is dropped, so the
+database holds what is on screen and not the six files you tried before it.
 
 ## The body
 
@@ -369,7 +389,7 @@ link, the project file and the browser's memory all carry it with no extra
 code, and a hostile link cannot push anything but a valid plane into the
 geometry.
 
-**Symmetry is three switches above the cut button**, one per axis. They change
+**Symmetry is three switches at the top centre**, one per axis. They change
 what **skjer** does: one press locks the plane you are aiming *and its mirrors*
 across the body's centre planes — `x` gives two, `x` and `y` give four, all
 three give eight. A plane that is already symmetric about an axis mirrors onto
