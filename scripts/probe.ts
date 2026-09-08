@@ -145,6 +145,59 @@ report("kube, vend 30/20/10 og 700 mm", {
 }
 
 /**
+ * --- 4c LAGET SOM BAND: EIT PLAN SOM HØYRER TIL EIN BIT ---------------------
+ *
+ * To figurar som går i kvarandre er éin kropp, og eit plan tvers gjennom gav
+ * éi ribbe som strekte seg frå den eine, over glipa, og inn i den andre —
+ * éin del som held to figurar i hop der du ville hatt to.
+ *
+ * Merkjer du biten med eit lag og planet med det same laget, høyrer planet
+ * til biten: profilen vert klipt til boksen hans. Vakta måler BREIDDA på
+ * delen, av di det er ho spørsmålet handlar om — og ho krev at eit umerkt
+ * plan, og eit plan merkt med eit lag ingen bit har, er nøyaktig som før.
+ */
+{
+  // to kubar på hundre millimeter som overlappar ti: éin kropp, 190 brei
+  const scene = (a: string, b: string) => `kube@-45,0,0/1/0${a};kube@45,0,0/1/0${b}`
+  const langs = skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5], n: [0, 1, 0], bog: 0, strek: [] }])
+  const merkt = skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5], n: [0, 1, 0], bog: 0, strek: [], farge: 3 }])
+  const breidd = (p: Params) => {
+    const l = MOTOR.liste(p as unknown as ParamBag)
+    return { n: l.length, w: Math.max(0, ...l.map((q) => q.w)), areal: l.reduce((s, q) => s + q.area, 0) }
+  }
+  const heil = breidd({ ...GRUNN, storleik: 190, plan: langs, scene: scene("", "") } as Params)
+  console.log(`\n=== laget som band ===\n  utan merke        ${heil.n} del, ${heil.w.toFixed(0)} mm brei`)
+  if (heil.n !== 1 || heil.w < 150) bryt(`to kubar som overlappar skulle gje éi brei ribbe, fekk ${heil.n} delar på ${heil.w.toFixed(0)} mm`)
+
+  // planet merkt, men ingen bit ber laget: alt står som før
+  const utan = breidd({ ...GRUNN, storleik: 190, plan: merkt, scene: scene("", "") } as Params)
+  if (utan.n !== heil.n || Math.abs(utan.w - heil.w) > 0.01) {
+    bryt(`eit lag ingen bit har skulle ikkje klippe noko: ${utan.w.toFixed(1)} mot ${heil.w.toFixed(1)} mm`)
+  } else console.log(`  lag utan eigar    ${utan.n} del, ${utan.w.toFixed(0)} mm brei — urørt`)
+
+  // biten merkt, men ikkje planet: heller ikkje noko klipp
+  const berreBit = breidd({ ...GRUNN, storleik: 190, plan: langs, scene: scene("/c:3", "") } as Params)
+  if (berreBit.n !== heil.n || Math.abs(berreBit.w - heil.w) > 0.01) {
+    bryt(`eit umerkt plan skulle skjere heile kroppen: ${berreBit.w.toFixed(1)} mot ${heil.w.toFixed(1)} mm`)
+  } else console.log(`  berre biten merkt ${berreBit.n} del, ${berreBit.w.toFixed(0)} mm brei — urørt`)
+
+  // begge merkte: ribba vert klipt til den eine boksen
+  const bunde = breidd({ ...GRUNN, storleik: 190, plan: merkt, scene: scene("/c:3", "") } as Params)
+  console.log(`  begge merkte      ${bunde.n} del, ${bunde.w.toFixed(0)} mm brei`)
+  if (bunde.w > heil.w * 0.62 || bunde.w < heil.w * 0.4) {
+    bryt(`ribba skulle klippast til den eine boksen (kring halve breidda), fekk ${bunde.w.toFixed(1)} av ${heil.w.toFixed(1)} mm`)
+  }
+  if (bunde.areal >= heil.areal) bryt(`ei klipt ribbe skal ha mindre flate enn ei heil: ${bunde.areal.toFixed(0)} mot ${heil.areal.toFixed(0)} mm²`)
+
+  // og ber BEGGE bitane laget, eig laget båe: ribba er heil att
+  const to = breidd({ ...GRUNN, storleik: 190, plan: merkt, scene: scene("/c:3", "/c:3") } as Params)
+  console.log(`  begge bitane      ${to.n} del, ${to.w.toFixed(0)} mm brei`)
+  if (Math.abs(to.w - heil.w) > heil.w * 0.02) {
+    bryt(`to bitar på same laget skulle gje heile ribba att: ${to.w.toFixed(1)} mot ${heil.w.toFixed(1)} mm`)
+  }
+}
+
+/**
  * --- 4d VIRVELEN: RIBBER KRING EIN AKSE -------------------------------------
  *
  * Det andre ribbespråket møblane snakkar. n ribber kring loddaksen, kvar

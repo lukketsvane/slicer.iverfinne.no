@@ -990,6 +990,33 @@ async function telefon(browser: Browser) {
       sjekk("men innrammingsknappen ramar inn på nytt", (await kamera()) !== kamFoer, await kamera())
     }
   }
+  /**
+   * LAGET BITEN EIG, og det plana kjenner han att på.
+   *
+   * Rada er den same fargerada plana har, og ho står under storleiken når
+   * ein bit er vald. Prøva er at valet hamnar i SCENESTRENGEN — han er
+   * sanninga om kroppen, og han ligg i lenkja — og at biten sin farge og
+   * planet sin er den same paletten, so eit merkt plan finn den merkte
+   * biten. Sjølve klippet vert målt i `pnpm probe`, der ei ribbe kan
+   * målast i millimeter i staden for på skjermen.
+   */
+  {
+    await midt(page)
+    const rad = page.locator("[data-lag]")
+    sjekk("ein vald bit får laget sitt under storleiken", (await rad.count()) === 1)
+    const merke = rad.locator("[aria-label='lag C03']")
+    await merke.click()
+    await vent(page, (p) => /\/c:3/.test(String(p.scene ?? "")))
+    sjekk("og merket hamnar i scenestrengen", /\/c:3(;|$)/.test(bitScene()), bitScene().slice(0, 60))
+    sjekk("på den valde biten og ikkje ein annan", /^[a-z0-9-]+@[^;]*\/c:3$/.test(bitScene().split(";")[1] ?? ""), bitScene().split(";")[1] ?? "")
+    sjekk("og knappen lyser", (await merke.getAttribute("aria-pressed")) === "true")
+    await page.locator("[data-lag] [aria-label='ikkje noko lag']").click()
+    await vent(page, (p) => !/\/c:3/.test(String(p.scene ?? "")))
+    sjekk("ringen tek merket av att", !/c:/.test(bitScene()), bitScene().slice(0, 60))
+    await page.locator(HOVUDLINA).click()
+    await page.waitForTimeout(400)
+  }
+
   const n1 = bitTal()
   await page.locator("[aria-label='dubler biten']").click()
   await vent(page, () => bitTal() === n1 + 1)

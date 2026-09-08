@@ -21,7 +21,6 @@
  */
 import { keep } from "./core"
 import {
-  bounds,
   flip,
   makeSoup,
   openEdges,
@@ -36,14 +35,15 @@ import { decimate } from "./mesh/simplify"
 import { taubin } from "./mesh/smooth"
 import { makeSolid, type Solid } from "./mesh/solid"
 import { generasjon, source } from "./sources"
-import { eiKjelde, lesScene } from "./scene"
+import { eiKjelde, lesScene, SCENE_TAK } from "./scene"
 import { akser, avFlata, inn, type Ramme } from "./plan"
 import { PLAN_TAK } from "./plan"
 import type { Vec3 } from "./core"
 import type { Params } from "./params"
 
-/** ein bit av kroppen, slik han hamna: kva kjelde han er, og boksen kring han */
-export type BitBoks = { id: string; min: Vec3; max: Vec3 }
+/** ein bit av kroppen, slik han hamna: kva kjelde han er, laget han er
+ *  merkt med, og boksen kring han */
+export type BitBoks = { id: string; farge?: number; min: Vec3; max: Vec3 }
 
 export type Kropp = {
   /** nettet slik det står: vend, skalert, sentrert, på golvet */
@@ -95,22 +95,108 @@ const KROPP_NOKKEL = (p: Params) =>
 export const scenaAv = (p: Params) => p.scene || eiKjelde(p.kjelde)
 
 /**
+ * SVEISEN, SNUINGA, FORENKLINGA OG GLATTINGA HØYRER TIL KJELDA — ikkje til
+ * kroppen ho står i.
+ *
+ * Dei fire fyrste stega les geometrien i ei form og seier ingenting om kvar
+ * ho står. Dei låg likevel på den SAMLA kroppen, og då kosta kvart einaste
+ * bilete av eit drag på ein bit ein ny sveis og ei ny forenkling av alle
+ * bitane — same forma, om att, av di ein annan bit hadde flytt seg fire
+ * millimeter. Målt på ein kropp av fire former: 23 ms sveis og 20 ms
+ * forenkling per bilete, av 65.
+ *
+ * Her ligg dei per KJELDE, i kjelda sitt eige rom, og vert hugsa der. Eit
+ * drag har att transformasjonen og samanlegginga, og dei er lineære i
+ * trekantane som ER att etter forenklinga — ikkje i dei som kom inn.
+ *
+ * DET FLYTTAR FORENKLINGA FØR PLASSERINGA, og det er rett veg: kommentaren
+ * øvst i fila seier at «tjue tusen trekantar» skal tyde det same uansett kva
+ * rotasjon som står, og no tyder det same uansett kvar biten står òg. Ein
+ * bit som vert dregen breiare får ikkje eit anna nett enn den same biten
+ * smal.
+ *
+ * SNUINGA VART BETRE PÅ VEGEN: eit ut-inn nett vart før lese på den samla
+ * kroppen, so éi vrang form av fire kunne ikkje rettast utan å snu dei tre
+ * andre med. No svarar kvar kjelde for si eiga vinding.
+ */
+type Kjeldenett = { net: Indexed; tris: number; opne: number }
+const KJELDE_HUGS = keep<Kjeldenett>(SCENE_TAK + 4)
+
+/**
+ * KOR OFTE HUGSEN SVARTE, so ei vakt kan prøve det — same grunnen som
+ * `vendTal` nedanfor: ei tidsprøve på ein liten prøvekropp fangar ikkje at
+ * ein sveis vart gjord om att, av di ein kube sveisar seg på ingen tid.
+ * Talet på bom gjer det, og det er det same på kvar maskin.
+ */
+let kjeldeTreff = 0
+let kjeldeBom = 0
+export const kjeldeTal = () => ({ treff: kjeldeTreff, bom: kjeldeBom })
+export const kjeldeNull = () => {
+  kjeldeTreff = 0
+  kjeldeBom = 0
+}
+
+function kjeldenett(id: string, tak: number, glatt: number): Kjeldenett {
+  let bom = false
+  const ut = KJELDE_HUGS([id, generasjon(), tak, glatt].join("|"), () => {
+    bom = true
+    const src = source(id)
+    let net = weld(src)
+    // Ut-inn fyrst, og før alt anna: er nettet snudd, er kvar einaste
+    // seinare avgjerd teken på feil side av flata.
+    if (signedVolume(net) < 0) net = flip(net)
+    net = decimate(net, tak)
+    net = taubin(net, glatt)
+    return { net, tris: src.tris, opne: openEdges(net) }
+  })
+  if (bom) kjeldeBom++
+  else kjeldeTreff++
+  return ut
+}
+
+/**
+ * TREKANTBUDSJETTET DELT MELLOM KJELDENE, etter kor mange dei har med inn.
+ *
+ * Taket er eitt tal for heile kroppen, og det skal halde fram med å vera
+ * det: fire former deler dei førti tusen. Delt LIKT hadde ein kube på tolv
+ * trekantar fått ti tusen han ikkje har bruk for, medan skannet ved sida av
+ * han svelt. Delt etter kva kvar har med inn, går budsjettet dit detaljen
+ * er — og med éi kjelde er det heile taket, som før.
+ *
+ * Talet endrar seg berre når SETTET av kjelder gjer det. Å flytte, vri
+ * eller dra ein bit rører det ikkje, so eit drag treff hugsen kvar gong.
+ */
+function budsjett(idar: readonly string[], tak: number): Map<string, number> {
+  const eine = [...new Set(idar)]
+  const inn = eine.map((id) => source(id).tris)
+  const sum = inn.reduce((a, c) => a + c, 0) || 1
+  return new Map(eine.map((id, i) => [id, Math.max(64, Math.round((tak * inn[i]) / sum))]))
+}
+
+/**
  * BITANE LAGDE SAMAN TIL EITT NETT.
  *
  * Kvar bit vert skalert til hundre millimeter på det lengste gonger sin
- * eigen storleik, vend kring z, flytt, og so lagd rett inn i den same
- * trekantsuppa. Ingen boolsk operasjon: strålane tel skal, so der to
- * lukka skal ligg oppå kvarandre er det gods, og der ingen ligg er det
- * luft. Det er nett det ein kropp bygd av klossar treng, og ikkje meir.
+ * eigen storleik, vend kring z, flytt, og so lagd rett inn i det same
+ * nettet. Ingen boolsk operasjon: strålane tel skal, so der to lukka skal
+ * ligg oppå kvarandre er det gods, og der ingen ligg er det luft. Det er
+ * nett det ein kropp bygd av klossar treng, og ikkje meir.
  */
-function samlaSoup(p: Params): { soup: Soup; tris: number; bitar: BitBoks[] } {
-  const bitar = lesScene(scenaAv(p))
-  const delar: Float32Array[] = []
+function samlaNett(p: Params): Net {
+  const lest = lesScene(scenaAv(p))
+  const bitar = lest.length ? lest : lesScene(eiKjelde(p.kjelde))
+  const tak = budsjett(bitar.map((b) => b.id), Math.max(64, Math.round(p.trekant * 1000)))
   const boksar: BitBoks[] = []
+  const delar: { verts: Float32Array; idx: Uint32Array }[] = []
   let tris = 0
-  for (const b of bitar.length ? bitar : lesScene(eiKjelde(p.kjelde))) {
+  let opne = 0
+  let nv = 0
+  let ni = 0
+  for (const b of bitar) {
+    const kj = kjeldenett(b.id, tak.get(b.id) ?? 64, p.glatt)
     const src = source(b.id)
-    tris += src.tris
+    tris += kj.tris
+    opne += kj.opne
     const span = Math.max(src.max[0] - src.min[0], src.max[1] - src.min[1], src.max[2] - src.min[2], 1e-6)
     // ein faktor per akse, mot den SAME lengste sida: alle tre like gjev
     // nett den same kroppen det eine talet gav, og forholdet i kjelda står
@@ -121,45 +207,52 @@ function samlaSoup(p: Params): { soup: Soup; tris: number; bitar: BitBoks[] } {
     const a = (b.rz * Math.PI) / 180
     const c = Math.cos(a)
     const sn = Math.sin(a)
-    const P = src.pos
+    const P = kj.net.verts
     const ut = new Float32Array(P.length)
+    const lo: Vec3 = [Infinity, Infinity, Infinity]
+    const hi: Vec3 = [-Infinity, -Infinity, -Infinity]
     for (let i = 0; i < P.length; i += 3) {
       const x = (P[i] - cx) * k[0]
       const y = (P[i + 1] - cy) * k[1]
       const z = (P[i + 2] - cz) * k[2]
-      ut[i] = x * c - y * sn + b.t[0]
-      ut[i + 1] = x * sn + y * c + b.t[1]
-      ut[i + 2] = z + b.t[2]
+      const qx = x * c - y * sn + b.t[0]
+      const qy = x * sn + y * c + b.t[1]
+      const qz = z + b.t[2]
+      ut[i] = qx
+      ut[i + 1] = qy
+      ut[i + 2] = qz
+      if (qx < lo[0]) lo[0] = qx
+      if (qy < lo[1]) lo[1] = qy
+      if (qz < lo[2]) lo[2] = qz
+      if (qx > hi[0]) hi[0] = qx
+      if (qy > hi[1]) hi[1] = qy
+      if (qz > hi[2]) hi[2] = qz
     }
-    delar.push(ut)
-    const bb = bounds(ut)
-    boksar.push({ id: b.id, min: bb.min, max: bb.max })
+    delar.push({ verts: ut, idx: kj.net.idx })
+    boksar.push({ id: b.id, farge: b.farge, min: lo, max: hi })
+    nv += ut.length
+    ni += kj.net.idx.length
   }
-  if (delar.length === 1) return { soup: makeSoup(delar[0]), tris, bitar: boksar }
-  const alle = new Float32Array(delar.reduce((n, d) => n + d.length, 0))
-  let o = 0
+  if (delar.length === 1) return { net: { verts: delar[0].verts, idx: delar[0].idx }, srcTris: tris, openEdges: opne, bitar: boksar }
+  const verts = new Float32Array(nv)
+  const idx = new Uint32Array(ni)
+  let vo = 0
+  let io = 0
   for (const d of delar) {
-    alle.set(d, o)
-    o += d.length
+    verts.set(d.verts, vo)
+    const off = vo / 3
+    for (let i = 0; i < d.idx.length; i++) idx[io + i] = d.idx[i] + off
+    vo += d.verts.length
+    io += d.idx.length
   }
-  return { soup: makeSoup(alle), tris, bitar: boksar }
+  return { net: { verts, idx }, srcTris: tris, openEdges: opne, bitar: boksar }
 }
 
 const NETT_HUGS = keep<Net>(2)
 const KROPP_HUGS = keep<Kropp>(3)
 
 function makeNet(p: Params): Net {
-  return NETT_HUGS(NETT_NOKKEL(p), () => {
-    const samla = samlaSoup(p)
-    const raw = samla.soup
-    let net = weld(raw)
-    // Ut-inn fyrst, og før alt anna: er nettet snudd, er kvar einaste
-    // seinare avgjerd teken på feil side av flata.
-    if (signedVolume(net) < 0) net = flip(net)
-    net = decimate(net, Math.max(64, Math.round(p.trekant * 1000)))
-    net = taubin(net, p.glatt)
-    return { net, srcTris: samla.tris, openEdges: openEdges(net), bitar: samla.bitar }
-  })
+  return NETT_HUGS(NETT_NOKKEL(p), () => samlaNett(p))
 }
 
 export function makeKropp(p: Params): Kropp {
@@ -181,7 +274,7 @@ export function makeKropp(p: Params): Kropp {
           if (q[a] > hi[a]) hi[a] = q[a]
         }
       }
-      return { id: b.id, min: lo, max: hi }
+      return { id: b.id, farge: b.farge, min: lo, max: hi }
     })
     return {
       soup,

@@ -158,7 +158,8 @@ engrave and the cut, and the order lives in them. With a group selected the
 pick tags the whole group. The sheet draws a tagged part in its colour, the
 list shows a dot, and the DXF gets a layer named after the LightBurn colour
 with the exact value as true colour beside its nearest ACI. Untagged files
-are unchanged: two colours, as before.
+are unchanged: two colours, as before. The same layer on a *piece* of the body
+also binds the plane to that piece — see **The body**.
 
 **The contour view IS the sheet.** It was a ribbon of profiles laid out side
 by side in the canvas — the same drawing the sheets already showed, only with
@@ -305,6 +306,21 @@ seen. One line says `stolform` and gives you the first; if it is not the one
 you wanted, the same line takes you to the next. A version id (`sau-03`) only
 ever means which file to fetch — it is what the scene string and the link
 carry, and `lib/scene.ts` is where a family turns into one.
+
+**A layer is the bond between a piece and its planes.** Two figures that
+overlap are one body, and a plane through both gave one rib reaching out of
+the first, across the air, and into the second — a single part holding two
+figures together where you wanted two. Give the piece a layer (the row of
+LightBurn colours under the size, with the piece selected) and give a plane
+the same layer, and the plane belongs to that piece: its profile is cut to
+that piece's box and stops there. The box is the one already drawn around the
+piece, and a marked piece is drawn in its layer's colour so you can see what
+belongs to what.
+
+Several pieces can carry one layer — then the planes on it are cut to all of
+them. A layer no piece carries clips nothing, and an unmarked plane cuts the
+whole body: that is what every link written before this still does, and what
+the layer has always meant on its own — a colour in the cut file.
 
 The cube stays, and it is the only one made in code: it is the default object
 and the fallback when a source is missing, so it has to be on screen before
@@ -523,11 +539,12 @@ has no business throwing away. Those rules state the reason and stop there.
 ## How it works
 
 ```
-GLB / glTF / STL / OBJ / PLY
+GLB / glTF / STL / OBJ / PLY          per source, cached
   ├── weld        loose triangles become vertices with neighbours
   ├── unflip      an inside-out mesh is turned right side out
   ├── simplify    vertex clustering down to the triangle budget
   ├── smooth      Taubin low-pass — volume stays, noise goes
+  ├── assemble    each piece scaled, turned and moved into one mesh
   ├── place       rotate, scale, centre, set on the floor
   ├── rays        which points are inside the solid?
   ├── planes      for each plane: turn the body so the plane is an axis,
@@ -566,6 +583,22 @@ pass, because the sheet count has to keep up with a gesture.
 
 **Addresses are engraved as strokes, not text.** A `TEXT` entity is a question
 about fonts, and the answer is often no.
+
+**The first four steps belong to the source, not to the body it stands in.**
+They read the geometry of one shape and say nothing about where it is, so they
+are done once per source and kept. It matters when you drag a piece: every
+frame is a new body, and welding and simplifying all of them again because one
+moved four millimetres was 43 ms of the 65 a frame cost. It also makes the
+triangle budget mean the same thing wherever a piece stands, and it lets each
+source answer for its own winding — one inside-out shape of four used to be
+unfixable without turning the other three with it. The budget is split between
+the sources in proportion to what each brings in, so a cube of twelve triangles
+does not sit on ten thousand it has no use for, and one source is the whole
+ceiling exactly as before. Clustering per source is also finer than clustering
+the union, whose grid has to span the whole scene: two figures side by side
+now keep 19 700 triangles of their 40 000 where the old path kept 13 100.
+`pnpm tak` counts the cache misses during a drag — the number is exact on every
+machine, where a millisecond threshold is not.
 
 ## Develop
 

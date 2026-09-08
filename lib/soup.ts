@@ -137,9 +137,24 @@ export function shade(m: Indexed, creaseDeg = 40): { pos: Float32Array; nrm: Flo
   const nv = V.length / 3
   const cosMin = Math.cos((creaseDeg * Math.PI) / 180)
 
+  /**
+   * MATEMATIKKEN ER DEN SAME, REKNINGA ER DET IKKJE.
+   *
+   * `Math.hypot` er korrekt avrunda og handterer overflyt, og det kostar:
+   * han er variadisk og skalerer argumenta før han kvadrerer dei. I den
+   * indre lykkja under vart han kalla éin gong per NABOFLATE per hjørne per
+   * trekant — nokre hundre tusen gonger for eitt bygg — og lengda han rekna
+   * var den same for den same flata kvar gong.
+   *
+   * So lengdene står her, éi per flate, rekna med `sqrt` av kvadratsummen.
+   * Ein trekantnormal på ein kropp i millimeter kan korkje flyte over eller
+   * under, so svaret er det same talet; den indre lykkja har att ein
+   * prikk og ei samanlikning. Målt på ein kropp av fire bitar: 24 ms → 4.
+   */
   // flatenormalane, ikkje normaliserte: lengda er dobbelt arealet, og det
   // er nett den vektinga ein vil ha når fleire flater møtest i eit hjørne
   const fn = new Float32Array(nf * 3)
+  const fl = new Float32Array(nf)
   for (let t = 0; t < nf; t++) {
     const ia = m.idx[t * 3] * 3
     const ib = m.idx[t * 3 + 1] * 3
@@ -150,9 +165,13 @@ export function shade(m: Indexed, creaseDeg = 40): { pos: Float32Array; nrm: Flo
     const vx = V[ic] - V[ia]
     const vy = V[ic + 1] - V[ia + 1]
     const vz = V[ic + 2] - V[ia + 2]
-    fn[t * 3] = uy * vz - uz * vy
-    fn[t * 3 + 1] = uz * vx - ux * vz
-    fn[t * 3 + 2] = ux * vy - uy * vx
+    const nx = uy * vz - uz * vy
+    const ny = uz * vx - ux * vz
+    const nz = ux * vy - uy * vx
+    fn[t * 3] = nx
+    fn[t * 3 + 1] = ny
+    fn[t * 3 + 2] = nz
+    fl[t] = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1
   }
 
   // kva trekantar kvart hjørne høyrer til, pakka (CSR)
@@ -171,7 +190,10 @@ export function shade(m: Indexed, creaseDeg = 40): { pos: Float32Array; nrm: Flo
     const ax = fn[t * 3]
     const ay = fn[t * 3 + 1]
     const az = fn[t * 3 + 2]
-    const aL = Math.hypot(ax, ay, az) || 1
+    const aL = fl[t]
+    // grensa flytt ut av lykkja: `a·b / (aL·bL) < cosMin` er det same som
+    // `a·b < cosMin·aL·bL`, og då står berre eitt gonge att per nabo
+    const grense = cosMin * aL
     for (let c = 0; c < 3; c++) {
       const v = m.idx[t * 3 + c]
       const src = v * 3
@@ -183,17 +205,17 @@ export function shade(m: Indexed, creaseDeg = 40): { pos: Float32Array; nrm: Flo
       let sy = 0
       let sz = 0
       for (let i = start[v]; i < start[v + 1]; i++) {
-        const g = faces[i] * 3
+        const nb = faces[i]
+        const g = nb * 3
         const bx = fn[g]
         const by = fn[g + 1]
         const bz = fn[g + 2]
-        const bL = Math.hypot(bx, by, bz) || 1
-        if ((ax * bx + ay * by + az * bz) / (aL * bL) < cosMin) continue
+        if (ax * bx + ay * by + az * bz < grense * fl[nb]) continue
         sx += bx
         sy += by
         sz += bz
       }
-      const L = Math.hypot(sx, sy, sz)
+      const L = Math.sqrt(sx * sx + sy * sy + sz * sz)
       if (L > 1e-12) {
         nrm[dst] = sx / L
         nrm[dst + 1] = sy / L

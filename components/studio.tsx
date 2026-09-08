@@ -820,6 +820,16 @@ export function Studio() {
     s2[akse] = klemBit(g.s[akse] * faktor)
     skrivBit(i, { s: s2 })
   }, [skrivBit])
+  /**
+   * LAGET BITEN EIG. Same paletten plana merkjer seg med, og det er
+   * meininga: eit plan med det same laget høyrer til denne biten og vert
+   * skore inne i boksen hans. Sjå `klippDist` i `snitt.ts`.
+   */
+  const fargBit = useCallback((farge: number) => {
+    const i = bitRef.current
+    if (i === null) return
+    skrivBit(i, { farge: farge || undefined })
+  }, [skrivBit])
   const vriBit = useCallback((grader: number) => {
     const g = grunn.current?.bit
     const i = bitRef.current
@@ -1900,6 +1910,8 @@ export function Studio() {
         onVelGruppe={velGruppe}
         onSlettGruppe={slettGruppe}
         onFarge={setFarge}
+        bitFarge={valdBit !== null ? (bitar[valdBit]?.farge ?? 0) : null}
+        onBitFarge={fargBit}
         onSlett={slett}
         busy={busy}
         feil={feil}
