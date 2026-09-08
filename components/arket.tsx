@@ -200,14 +200,14 @@ function Plana({ p }: { p: ArketProps }) {
  */
 function Lagrad({ no, ord, tittel, onFarge }: {
   no: number
-  /** ordet i margen: kva det er som får laget */
+  /** ordet i margen: kva det er som får laget — og kva rada er, for vaktene */
   ord: string
   /** eitt kort tillegg til kvar farge si forklaring, om det trengst */
   tittel: string
   onFarge: (farge: number) => void
 }) {
   return (
-    <li role="group" aria-label="lag" data-lag="" className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 px-1.5 pb-1 pt-0.5">
+    <li role="group" aria-label="lag" data-lag={ord} className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 px-1.5 pb-1 pt-0.5">
       <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">{ord}</span>
       <button type="button" aria-pressed={no === 0} aria-label="ikkje noko lag" title="ikkje noko lag: kuttet er blått som dei andre" onClick={() => onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
         <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ borderColor: no === 0 ? "var(--ink)" : "var(--rule)" }} />

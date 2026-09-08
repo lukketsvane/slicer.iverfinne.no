@@ -550,8 +550,11 @@ async function telefon(browser: Browser) {
   /**
    * VERKTYET SOM SET DEI TO TALA. Vassrett er kolonner, loddrett er rader,
    * og fyrtifire pikslar er eitt plan. Vakta les grunnstoda av lista slik
-   * ho står, dreg til høgre, og ser at lista er eit reint rutenett med nett
-   * so mange plan fleire langs x — og ikkje eitt fleire langs y.
+   * ho står, dreg til høgre, og ser at lista har nett so mange plan fleire
+   * langs x — og ikkje eitt fleire langs y.
+   *
+   * Verktyet tek berre SITT EIGE: dei plana eit rutenett ville laga. Alt
+   * anna i lista står, so vakta reknar med dei og ikkje i staden for dei.
    */
   const rutAv = (p: Params) => {
     let nx = 0
@@ -572,12 +575,18 @@ async function telefon(browser: Browser) {
   // fingrane står midt i det frie bandet: arket veks når lista veks, og eit
   // drag som byrjar på arket er eit drag lerretet aldri ser
   const [nx0, ny0] = rutTal()
+  /** dei som ikkje er nettet: dei skal stå der etterpå, kvar og ein */
+  const utanfor = plana(page).filter((q) => Math.abs(q.n[0]) <= 0.999 && Math.abs(q.n[1]) <= 0.999)
   await toFingrar(page, (t) => [[120 + 176 * t, 300], [120 + 176 * t, 380]])
   await vent(page, (p) => rutAv(p)[0] >= nx0 + 3)
   const [nx1, ny1] = rutTal()
   sjekk("to fingrar til høgre set kolonner", nx1 >= nx0 + 3, `${nx0} → ${nx1} kolonner`)
   sjekk("og rader står", ny1 === ny0, `${ny0} → ${ny1} rader`)
-  sjekk("og lista er eit reint rutenett", plana(page).length === nx1 + ny1 && plana(page).every((q) => Math.abs(q.n[0]) > 0.999 || Math.abs(q.n[1]) > 0.999), `${plana(page).length} plan`)
+  sjekk(
+    "og lista er nettet pluss det som stod der",
+    plana(page).length === utanfor.length + nx1 + ny1 && utanfor.every((q) => plana(page).some((p) => p.id === q.id)),
+    `${plana(page).length} plan = ${utanfor.length} + ${nx1}×${ny1}`,
+  )
   // draget må falle på plass i angrestakken før det neste, elles er dei to éi bokføring
   await page.waitForTimeout(1400)
   await toFingrar(page, (t) => [[130, 380 - 176 * t], [260, 380 - 176 * t]])
@@ -588,11 +597,46 @@ async function telefon(browser: Browser) {
   // eitt drag er éi bokføring: Z tek heile rutenettet attende, ikkje eitt plan
   await page.waitForTimeout(1400)
   await page.keyboard.press("z")
-  await vent(page, talPlan(nx1 + ny1))
-  sjekk("og Z tek draget attende i eitt", plana(page).length === nx1 + ny1, `${plana(page).length} plan`)
+  await vent(page, talPlan(utanfor.length + nx1 + ny1))
+  sjekk("og Z tek draget attende i eitt", plana(page).length === utanfor.length + nx1 + ny1, `${plana(page).length} plan`)
   await ruteKnapp.click()
   await page.waitForTimeout(200)
   sjekk("trykk att slepper verktyet", (await ruteKnapp.getAttribute("aria-pressed")) === "false")
+
+  /**
+   * OG VERKTYET TEK IKKJE DET DU HAR SETT.
+   *
+   * Han skreiv lista om før: eit plan du hadde skore for hand var borte i
+   * det du drog i rutenettet. Vakta skjer eit SKRÅTT plan — eit rutenett har
+   * ingen slike, so det kan ikkje forvekslast med hans eigne — dreg nettet,
+   * og krev at planet står der med namnet sitt etterpå.
+   */
+  {
+    // eit skrått snitt: to fingrar som vrir, so skjer
+    await toFingrar(page, (t) => [[150, 330 + 60 * t], [230, 430 - 60 * t]])
+    await roleg(page, 400)
+    await page.keyboard.press("l")
+    await vent(page, talPlan(plana(page).length + 1))
+    const mitt = plana(page).find((q) => Math.abs(q.n[0]) < 0.999 && Math.abs(q.n[1]) < 0.999)
+    sjekk("eit skrått plan skore for hand", !!mitt, mitt ? `namn ${mitt.id}, n ${mitt.n.map((c) => c.toFixed(2)).join(",")}` : "fann ikkje eitt")
+    await ruteKnapp.click()
+    await page.waitForTimeout(200)
+    const foer = plana(page).length
+    await toFingrar(page, (t) => [[120 + 132 * t, 300], [120 + 132 * t, 380]])
+    await vent(page, (p) => lesPlan(p.plan).length !== foer)
+    const etter = plana(page)
+    const staar = mitt ? etter.find((q) => q.id === mitt.id) : undefined
+    sjekk("rutenettet tek det ikkje bort", !!staar, `${foer} → ${etter.length} plan`)
+    sjekk("og det står uendra, med namnet sitt", !!staar && !!mitt && JSON.stringify(staar) === JSON.stringify(mitt), JSON.stringify(staar ?? null).slice(0, 60))
+    sjekk("nettet kom i tillegg", etter.length > (mitt ? 1 : 0), `${etter.length} plan`)
+    await ruteKnapp.click()
+    await page.waitForTimeout(200)
+    // attende til det vakta under ventar seg
+    for (let i = 0; i < 4 && plana(page).length > utanfor.length + nx1 + ny1; i++) {
+      await page.keyboard.press("z")
+      await roleg(page, 500)
+    }
+  }
 
   // --- PLATEFLATA: konturvisinga ER platene ------------------------------------
   /**
@@ -1002,7 +1046,7 @@ async function telefon(browser: Browser) {
    */
   {
     await midt(page)
-    const rad = page.locator("[data-lag]")
+    const rad = page.locator("[data-lag='bit']")
     sjekk("ein vald bit får laget sitt under storleiken", (await rad.count()) === 1)
     const merke = rad.locator("[aria-label='lag C03']")
     await merke.click()
@@ -1010,7 +1054,7 @@ async function telefon(browser: Browser) {
     sjekk("og merket hamnar i scenestrengen", /\/c:3(;|$)/.test(bitScene()), bitScene().slice(0, 60))
     sjekk("på den valde biten og ikkje ein annan", /^[a-z0-9-]+@[^;]*\/c:3$/.test(bitScene().split(";")[1] ?? ""), bitScene().split(";")[1] ?? "")
     sjekk("og knappen lyser", (await merke.getAttribute("aria-pressed")) === "true")
-    await page.locator("[data-lag] [aria-label='ikkje noko lag']").click()
+    await page.locator("[data-lag='bit'] [aria-label='ikkje noko lag']").click()
     await vent(page, (p) => !/\/c:3/.test(String(p.scene ?? "")))
     sjekk("ringen tek merket av att", !/c:/.test(bitScene()), bitScene().slice(0, 60))
     await page.locator(HOVUDLINA).click()
@@ -1242,7 +1286,7 @@ async function grupper(browser: Browser) {
   await roleg(page, 800)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(300)
-  sjekk("eit valt plan har laga under seg", (await page.locator("[data-lag]").count()) === 1 && (await page.locator("[data-lag] button").count()) === 29)
+  sjekk("eit valt plan har laga under seg", (await page.locator("[data-lag='lag']").count()) === 1 && (await page.locator("[data-lag='lag'] button").count()) === 29)
   await page.getByRole("button", { name: "lag C03", exact: true }).click()
   await vent(page, (p) => lesPlan(p.plan)[0].farge === 3)
   sjekk("eit trykk merkjer planet med laget", plana(page)[0].farge === 3 && plana(page).slice(1).every((q) => !q.farge), plana(page).map((q) => q.farge ?? 0).join())

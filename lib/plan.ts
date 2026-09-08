@@ -572,14 +572,63 @@ export function virvel(n: number, r: number, vidd: readonly [number, number], fr
 }
 
 /** eit rutenett er to grupper: rada på tvers og rada på langs, kvar si rekkje */
-export function rutenett(nx: number, ny: number, fraa = 1): Plan[] {
+export function rutenett(nx: number, ny: number, fraa = 1, gFraa = 1): Plan[] {
   const ut: Plan[] = []
   let id = fraa
   for (let i = 0; i < nx; i++) {
-    ut.push({ id: id++, o: [(i + 0.5) / nx, 0.5, 0.5], n: [1, 0, 0], bog: 0, strek: [], gruppe: 1 })
+    ut.push({ id: id++, o: [(i + 0.5) / nx, 0.5, 0.5], n: [1, 0, 0], bog: 0, strek: [], gruppe: gFraa })
   }
   for (let j = 0; j < ny; j++) {
-    ut.push({ id: id++, o: [0.5, (j + 0.5) / ny, 0.5], n: [0, 1, 0], bog: 0, strek: [], gruppe: nx ? 2 : 1 })
+    ut.push({ id: id++, o: [0.5, (j + 0.5) / ny, 0.5], n: [0, 1, 0], bog: 0, strek: [], gruppe: nx ? gFraa + 1 : gFraa })
   }
   return ut
+}
+
+/**
+ * KVA AV LISTA ER RUTENETTET, OG KVA ER DITT.
+ *
+ * Verktyet skreiv lista OM: eit rutenett var ei liste og ikkje eit tillegg,
+ * so ti plan du hadde sett for hand var borte i det du tok i han. Det er
+ * feil veg av same grunn som alt anna her — reiskapen kastar ikkje arbeid
+ * utan å bli beden.
+ *
+ * So verktyet må vite kva som er hans. Han eig dei plana eit rutenett VILLE
+ * LAGA, kjende att på geometrien og ingenting anna: normalen langs x eller
+ * y, punktet i midten på dei to andre aksane, og dei n punkta jamt fordelte
+ * på (i + ½)/n. Ingen bøy, ingen strek, ikkje noko lag — eit plan du har
+ * arbeidd i er ditt, kvar det so står.
+ *
+ * KJENNEMERKET ER GEOMETRIEN og ikkje eit flagg i strengen. Eit flagg måtte
+ * skrivast, lesast og tolast, og det ville vore ein ny ting i lenkja som
+ * seier noko om eit VERKTY og ikkje om eit plan. Geometrien seier det same,
+ * ho står alt i strengen, og ho held for ei lenkje frå i fjor.
+ *
+ * ALT ELLER INGENTING PER AKSE. Rada langs x er eit rutenett berre om HEILE
+ * rada er det: flyttar du ei ribbe ut av rekkja, er ho di, og då er dei
+ * andre i rada det òg — dei er ikkje lenger eit rutenett med n ribber. Då
+ * held verktyet fram frå null på den aksen og legg sitt oppå.
+ */
+const naerNok = (a: number, b: number) => Math.abs(a - b) < 1e-3
+/** ei rad er eit rutenett berre om alle n punkta står på kvar sin (i + ½)/n */
+function radStaar(rad: readonly Plan[], akse: 0 | 1): boolean {
+  const n = rad.length
+  if (!n) return false
+  const brukt = new Set<number>()
+  for (const q of rad) {
+    const i = Math.round(q.o[akse] * n - 0.5)
+    if (i < 0 || i >= n || brukt.has(i) || !naerNok(q.o[akse], (i + 0.5) / n)) return false
+    brukt.add(i)
+  }
+  return true
+}
+
+export function skilRute(l: readonly Plan[]): { rute: Plan[]; andre: Plan[]; nx: number; ny: number } {
+  const rein = (q: Plan) => !q.bog && q.strek.length === 0 && !q.farge
+  const kx = l.filter((q) => rein(q) && Math.abs(q.n[0]) > 0.999 && naerNok(q.o[1], 0.5) && naerNok(q.o[2], 0.5))
+  const ky = l.filter((q) => rein(q) && Math.abs(q.n[1]) > 0.999 && naerNok(q.o[0], 0.5) && naerNok(q.o[2], 0.5))
+  const okx = radStaar(kx, 0)
+  const oky = radStaar(ky, 1)
+  const rute = [...(okx ? kx : []), ...(oky ? ky : [])]
+  const mine = new Set(rute.map((q) => q.id))
+  return { rute, andre: l.filter((q) => !mine.has(q.id)), nx: okx ? kx.length : 0, ny: oky ? ky.length : 0 }
 }
