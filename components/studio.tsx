@@ -14,7 +14,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoFerdig, IcoHol, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
+import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoFerdig, IcoHol, IcoRute, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -220,6 +220,8 @@ export function Studio() {
   valdRef.current = vald
   /** biten som er vald i verktyet for kroppen, som plass i scenelista */
   const [valdBit, setValdBit] = useState<number | null>(null)
+  const bitRef = useRef<number | null>(null)
+  bitRef.current = valdBit
   /** ein verdi vert dregen i arket: angre ventar til fingeren slepper */
   const [skrubbar, setSkrubbar] = useState(false)
   const [peikt, setPeikt] = useState<string | null>(null)
@@ -270,6 +272,16 @@ export function Studio() {
   naa.current = params
   /** importar som høyrer til oppsettet som alt står (den hugsa økta) */
   const attende = useRef(new Set<number>())
+  /**
+   * IMPORTAR SOM SKAL BYTE EIN BIT, og kva bit dei skal byte.
+   *
+   * Ein import er ei ny kjelde, og ei ny kjelde er ein annan kropp: plana
+   * fylgjer ikkje med. Men står ein bit vald, er fila eit svar om HAN — ho
+   * skal inn i klossen du peika på, ikkje i staden for heile kroppen. Kva
+   * nettet kjem til å heite veit vi ikkje før arbeidaren har lese bytane,
+   * so meininga må berast av førespurnaden fram til svaret.
+   */
+  const bytSvar = useRef(new Map<number, number>())
   const arkVent = useRef(new Map<number, (r: ArkRes) => void>())
   /** skisseplanet slik det står no, skrive av scena kvar teikning */
   const skisse = useRef<Skisse | null>(null)
@@ -455,6 +467,23 @@ export function Studio() {
         // Ho skal berre byggjast, no som nettet er framme.
         if (formSvar.current.delete(r.id)) {
           setFormTal((n) => n + 1)
+          setHentar(false)
+          return
+        }
+        // OG EIN IMPORT MED EIN BIT VALD ER EIT BYTE. Nettet går inn i den
+        // klossen du peika på og let plassen, storleiken og vendinga hans
+        // stå — kroppen er den same kroppen, med ei anna form i éin bit, so
+        // korkje kjelda eller plana skal røre seg.
+        const byt = bytSvar.current.get(r.id)
+        bytSvar.current.delete(r.id)
+        if (byt !== undefined) {
+          setParams((p) => {
+            const l = lesScene(String(p.scene || "") || eiKjelde(String(p.kjelde ?? KUBE)))
+            if (!l[byt]) return p
+            l[byt] = { ...l[byt], id: r.src.id }
+            return { ...p, scene: skrivScene(l) }
+          })
+          setFeil(null)
           setHentar(false)
           return
         }
@@ -682,16 +711,28 @@ export function Studio() {
    * plassering nokon har valt — det finst ikkje eit handtak å flytte ein
    * bit med enno — men ho er den same kvar gong, og ho held seg innanfor
    * det scenestrengen tek imot. Steget krympar når bitane vert mange.
+   *
+   * MED EIN BIT VALD ER DET EIT BYTE OG IKKJE EIT TILLEGG. Du peika på ein
+   * bit; det du vel etterpå er eit svar om HAN. Plassen, storleiken og
+   * vendinga står — det er den same klossen med ei anna form i seg — og
+   * valet står, so du kan bla gjennom formene og sjå kva som passar.
    */
   const leggBit = useCallback((id: string) => {
+    const byt = bitRef.current
     // og det same for bitane: seksten er taket, og det skal seiast — utanfor
-    // oppdateringa, som skal vera ei rein rekning og kan kallast to gonger
-    if (lesScene(String(naa.current.scene || "") || eiKjelde(String(naa.current.kjelde ?? KUBE))).length >= SCENE_TAK) {
+    // oppdateringa, som skal vera ei rein rekning og kan kallast to gonger.
+    // Eit byte legg ingen bit til og har ikkje noko tak å nå.
+    if (byt === null && lesScene(String(naa.current.scene || "") || eiKjelde(String(naa.current.kjelde ?? KUBE))).length >= SCENE_TAK) {
       setMelding(`taket er ${SCENE_TAK} bitar`)
       return
     }
     setParams((cur) => {
       const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
+      if (byt !== null) {
+        if (!l[byt] || l[byt].id === id) return cur
+        l[byt] = { ...l[byt], id }
+        return { ...cur, scene: skrivScene(l) }
+      }
       if (l.length >= SCENE_TAK) return cur
       const ny = [...l, { id, t: [0, 0, 0] as Vec3, s: [1, 1, 1] as Vec3, rz: 0 }]
       const steg = Math.min(85, 760 / Math.max(1, ny.length - 1))
@@ -821,8 +862,6 @@ export function Studio() {
    * ingen av dei er parametrar.
    */
   const grunn = useRef<{ bit: Bit | null } | null>(null)
-  const bitRef = useRef<number | null>(null)
-  bitRef.current = valdBit
   const taGest = useCallback((kva: GestKva) => {
     const p = naa.current
     const i = bitRef.current
@@ -1261,7 +1300,11 @@ export function Studio() {
       const buf = await f.arrayBuffer()
       // ned i basen FØR bufferen vert overført. Ei prosjektfil er eit oppsett, ikkje eit nett.
       if (!/\.zip$/i.test(f.name)) await lagre({ filnamn: f.name, nett: buf.slice(0) })
-      send({ kind: "import", id: ++reqId.current, name: f.name, buf }, [buf])
+      const id = ++reqId.current
+      // ein bit vald: fila byter HAN. Ei prosjektfil er eit heilt oppsett og
+      // byter ingen bit — ho kjem attende som «prosjekt» og les seg sjølv.
+      if (bitRef.current !== null && !/\.zip$/i.test(f.name)) bytSvar.current.set(id, bitRef.current)
+      send({ kind: "import", id, name: f.name, buf }, [buf])
     } catch {
       setFeil("ulesbar fil")
       setHentar(false)
@@ -1572,13 +1615,50 @@ export function Studio() {
         </section>
       )}
 
-      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
+      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
 
       {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til VENSTRE i
           det frie bandet — synskuben har det høgre hjørnet */}
       {gestTekst && (
         <div className="pointer-events-none absolute flex justify-start" style={{ top: toppH + 10, left: 14 }} aria-hidden="true">
           <span className="tab text-[26px] leading-none tracking-[0.02em]" style={{ opacity: 0.5 }}>{gestTekst}</span>
+        </div>
+      )}
+
+      {/* SYMMETRIEN PÅ SNITTET: tre brytarar, ei line, ØVST I MIDTEN. Kvar
+          akse speglar snittet om midtplanet i kroppen, og dei tel saman: x og
+          y er fire ribber av ei. Ord og ikkje ikon: ein akse har eit namn, og
+          x er kortare enn kvart bilete av x. Og berre ordet: tre piller midt
+          over objektet var tre flater du såg i staden for det du lagar.
+
+          Dei stod i tommelspalta, rett over skjer. Spalta midtstiller borna
+          sine, so ei line på tre ord måtte stå utanfor flyten for ikkje å
+          skuve skjer innover — og ho tok ei høgd tommelen kunne brukt. Midt
+          i det frie bandet står ho for seg sjølv: gesttalet har venstre
+          hjørnet, synskuben det høgre. Bandet tek ingen fingrar; berre orda
+          gjer det — og orda ligg UNDER handtaka, so eit handtak som kjem
+          til å stå oppå eit av dei tek fingeren sin (sjå `.speil`). */}
+      {mounted && vald === null && view !== "kontur" && modus !== "bit" && (
+        <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="symmetri">
+          {(["x", "y", "z"] as const).map((ord, a) => (
+            <button
+              key={ord}
+              type="button"
+              aria-label={`speil ${ord}`}
+              aria-pressed={(speil & (1 << a)) !== 0}
+              title={`speil snittet om ${ord}-planet gjennom midten: skjer låser båe`}
+              onClick={() => setSpeil((q) => q ^ (1 << a))}
+              // FIRE OG FØRTI PIKSLAR KVAR. `hit` blæs treffesona ut til
+              // 44 px kring midten av knappen, og tre ord på tjue pikslar
+              // fekk difor tre soner som låg oppå kvarandre: «x» tok ikkje
+              // trykket sitt, «y» tok det. Ordet er smalt, sona er ikkje —
+              // so knappen ber henne sjølv.
+              className={ORD + " w-11 shrink-0"}
+              data-speil={ord}
+            >
+              {ord}
+            </button>
+          ))}
         </div>
       )}
 
@@ -1619,6 +1699,21 @@ export function Studio() {
             if (same && !b.disabled) b.click()
           }}
         >
+          {/* RUTENETTET. Han stod i lina på arket, ved talet han endrar. Men
+              han er ein REISKAP og ikkje eit tal: to fingrar set kolonner og
+              rader, som skissa og kroppen gjer det, og reiskapane bur i denne
+              spalta. Difor øvst her, over dei andre. */}
+          <button
+            type="button"
+            aria-pressed={modus === "rute"}
+            aria-label="rutenett"
+            title={modus === "rute" ? "rutenettet (R): to fingrar — vassrett er kolonner, loddrett er rader. trykk for å gå ut" : "rutenettet (R): to fingrar set kolonner og rader"}
+            onClick={vekslRute}
+            className={TUMME_BTN}
+            data-ruteverkty=""
+          >
+            {IcoRute}
+          </button>
           {vald !== null && (
             <>
               {/* TO REISKAPAR MED TO LESEMÅTAR. I rommet legg dei ein
@@ -1742,42 +1837,6 @@ export function Studio() {
           >
             {IcoSkisse}
           </button>
-          {/* SYMMETRIEN PÅ SNITTET: tre brytarar, ei line, RETT OVER SKJER —
-              av di det er skjer dei endrar. Kvar akse speglar snittet om
-              midtplanet i kroppen, og dei tel saman: x og y er fire ribber av
-              ei. Ord og ikkje ikon: ein akse har eit namn, og x er kortare enn
-              kvart bilete av x. Og berre ordet: tre piller midt over objektet
-              var tre flater du såg i staden for det du lagar.
-
-              Lina er BREIARE enn spalta og skal ikkje skuve henne: spalta
-              midtstiller borna sine, so ei brei line ville flytt skjer og alt
-              anna innover frå tommelen. Difor står ho utanfor flyten, med
-              høgrekanten sin på linje med ikona. */}
-          {vald === null && view !== "kontur" && modus !== "bit" && (
-            <span className="relative block h-9 w-9">
-              <span className="absolute right-0 top-0 flex items-center" role="group" aria-label="symmetri">
-                {(["x", "y", "z"] as const).map((ord, a) => (
-                  <button
-                    key={ord}
-                    type="button"
-                    aria-label={`speil ${ord}`}
-                    aria-pressed={(speil & (1 << a)) !== 0}
-                    title={`speil snittet om ${ord}-planet gjennom midten: skjer låser båe`}
-                    onClick={() => setSpeil((q) => q ^ (1 << a))}
-                    // FIRE OG FØRTI PIKSLAR KVAR. `hit` blæs treffesona ut til
-                    // 44 px kring midten av knappen, og tre ord på tjue
-                    // pikslar fekk difor tre soner som låg oppå kvarandre:
-                    // «x» tok ikkje trykket sitt, «y» tok det. Ordet er
-                    // smalt, sona er ikkje — so knappen ber henne sjølv.
-                    className={ORD + " w-11 shrink-0"}
-                    data-speil={ord}
-                  >
-                    {ord}
-                  </button>
-                ))}
-              </span>
-            </span>
-          )}
           <button
             type="button"
             onClick={vald === null ? laas : () => velPlan(null)}
@@ -1837,8 +1896,6 @@ export function Studio() {
         feil={feil}
         melding={melding}
         hentar={hentar}
-        rute={modus === "rute"}
-        onRute={vekslRute}
         virvel={modus === "virvel"}
         onVirvel={vekslVirvel}
         onExport={doExport}

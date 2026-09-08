@@ -14,11 +14,13 @@ import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./del
  * over sida, so lina tek den tryggje sona som luft over seg. Ein knapp er
  * eit ikon eller eit ord, aldri begge; filnamnet er innhald og står som det er.
  */
-export function Toppline({ benk, kjelde, bitar, view, onView, onFile, onLegg, onTom, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, onHogd }: {
+export function Toppline({ benk, kjelde, bitar, byt, view, onView, onFile, onLegg, onTom, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, onHogd }: {
   benk: boolean
   kjelde: string
   /** kor mange bitar kroppen er sett saman av: eitt er ei kjelde åleine */
   bitar: number
+  /** ein bit står vald: det du vel er eit BYTE av han, og ikkje ein bit til */
+  byt: boolean
   view: View
   onView: (v: View) => void
   onFile: (f: File) => void
@@ -83,7 +85,7 @@ export function Toppline({ benk, kjelde, bitar, view, onView, onFile, onLegg, on
             onClick={() => setMeny((m) => !m)}
             aria-expanded={meny}
             aria-label="kroppen"
-            title="kroppen: legg til ei form, eller hent ei fil"
+            title={byt ? "kroppen: byt forma i den valde biten, eller hent ei fil i han" : "kroppen: legg til ei form, eller hent ei fil"}
             className={ORD + " block max-w-[108px] truncate text-left"}
             data-kjelde=""
           >
@@ -96,7 +98,7 @@ export function Toppline({ benk, kjelde, bitar, view, onView, onFile, onLegg, on
                   key={id}
                   type="button"
                   onClick={() => { onLegg(id); setMeny(false) }}
-                  title={`legg ${id} til kroppen`}
+                  title={byt ? `byt den valde biten til ${id}` : `legg ${id} til kroppen`}
                   className="hit border-b px-3 py-2.5 text-left text-[11px] leading-none"
                   style={HAIR}
                 >
@@ -106,7 +108,7 @@ export function Toppline({ benk, kjelde, bitar, view, onView, onFile, onLegg, on
               <button
                 type="button"
                 onClick={() => { pick.current?.click(); setMeny(false) }}
-                title={`hent eit nett: ${FORMAT.join(" ")}`}
+                title={byt ? `hent eit nett i den valde biten: ${FORMAT.join(" ")}` : `hent eit nett: ${FORMAT.join(" ")}`}
                 className="hit px-3 py-2.5 text-left text-[11px] leading-none"
               >
                 fil

@@ -118,15 +118,15 @@ async function telefon(browser: Browser) {
   const { page, konsoll } = await opne(URL, browser, 390, 844)
 
   /**
-   * ORD, IKKJE PILLER. Lesemåtane i toppen og speglingane over skjer stod i
-   * ringar, med ei fylt flate under den som gjaldt — chrome som sa det ordet
+   * ORD, IKKJE PILLER. Lesemåtane i toppen og speglingane øvst i midten stod
+   * i ringar, med ei fylt flate under den som gjaldt — chrome som sa det ordet
    * alt sa, og tre flater midt i biletet. No er dei ord i det same blekket
    * ikona bruker. Vakta ser etter ringen og flata, ikkje etter utsjånaden:
    * ein kant med breidd, eller ein bakgrunn som ikkje er ingenting.
    */
   const pille = await page.evaluate(`(() => {
     var ut = []
-    document.querySelectorAll("header button[aria-pressed], .tumme [data-speil]").forEach(function (e) {
+    document.querySelectorAll("header button[aria-pressed], [data-speil]").forEach(function (e) {
       var c = getComputedStyle(e)
       var kant = parseFloat(c.borderTopWidth) > 0.01 || parseFloat(c.borderLeftWidth) > 0.01
       var flate = c.backgroundColor !== "rgba(0, 0, 0, 0)" && c.backgroundColor !== "transparent"
@@ -135,11 +135,43 @@ async function telefon(browser: Browser) {
     return ut
   })()`) as string[]
   sjekk("lesemåtane og speglingane er ord, ikkje piller", pille.length === 0, pille.join(" · "))
-  // og speglingane står RETT OVER skjer: det er skjer dei endrar
+  /**
+   * OG SPEGLINGANE STÅR ØVST I MIDTEN. Dei låg i tommelspalta før, og tok
+   * ei høgd tommelen kunne brukt. No er dei ei line for seg i det frie
+   * bandet: midtstilte om skjermen, oppe under topplina — og bandet slepper
+   * fingrar gjennom, so ein tur på objektet der oppe er objektet sin.
+   */
   {
-    const sp = await page.locator("[data-speil='z']").boundingBox()
-    const sk = await page.getByRole("button", { name: "skjer", exact: true }).boundingBox()
-    sjekk("speglingane står rett over skjer", !!sp && !!sk && sp.y < sk.y && sk.y - (sp.y + sp.height) < 40, sp && sk ? `${Math.round(sk.y - sp.y - sp.height)} px mellom` : "finst ikkje")
+    const x = await page.locator("[data-speil='x']").boundingBox()
+    const z = await page.locator("[data-speil='z']").boundingBox()
+    const midt = x && z ? (x.x + z.x + z.width) / 2 : 0
+    sjekk("speglingane står midtstilte", !!x && !!z && Math.abs(midt - 195) < 12, x && z ? `midten ${Math.round(midt)} av 390` : "finst ikkje")
+    sjekk("og øvst, under topplina", !!z && z.y < 120, z ? `${Math.round(z.y)} px ned` : "finst ikkje")
+    const kven = await page.evaluate(`(() => {
+      var el = document.querySelector("[data-speil='z']")
+      var b = el.getBoundingClientRect()
+      var ute = document.elementFromPoint(20, b.y + b.height / 2)
+      var paa = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)
+      return {
+        ute: ute ? (ute.closest(".speil") ? "speil" : ute.tagName.toLowerCase()) : "?",
+        paa: paa === el || el.contains(paa) ? "ordet" : (paa ? paa.tagName.toLowerCase() : "?"),
+      }
+    })()`) as { ute: string; paa: string }
+    sjekk("og lina tek ingen fingrar utanom orda", kven.ute !== "speil" && kven.ute !== "?", kven.ute)
+    sjekk("men ordet tek sitt eige", kven.paa === "ordet", kven.paa)
+  }
+
+  /**
+   * RUTENETTET ER EIN REISKAP, og reiskapane bur i tommelspalta. Han stod i
+   * lina på arket, ved talet han endrar; no står han øvst i spalta, over dei
+   * andre — same språket som verktyet for kroppen og skissebrytaren.
+   */
+  {
+    const r = await page.locator("[data-ruteverkty]").boundingBox()
+    const b = await page.locator("[data-bitverkty]").boundingBox()
+    sjekk("rutenettet står i tommelspalta", (await page.locator(".tumme [data-ruteverkty]").count()) === 1)
+    sjekk("og over dei andre reiskapane", !!r && !!b && r.y + r.height <= b.y + 1, r && b ? `${Math.round(r.y)} over ${Math.round(b.y)}` : "finst ikkje")
+    sjekk("og ikkje i lina på arket lenger", (await page.locator("[aria-label='kontrollar'] [data-ruteverkty]").count()) === 0)
   }
 
   // --- arket har tre høgder ---------------------------------------------------
@@ -811,6 +843,51 @@ async function telefon(browser: Browser) {
   await page.touchscreen.tap(250, 430)
   await page.waitForTimeout(500)
   sjekk("eit trykk vel ein bit", (await page.locator("[aria-label='dubler biten']").count()) === 1)
+
+  /**
+   * MED EIN BIT VALD BYTER EIT VAL HAN UT.
+   *
+   * Du peika på ein bit; det du vel etterpå er eit svar om HAN, ikkje ein
+   * bit til. Prøva er scenestrengen: talet på bitar står, plassen og
+   * storleiken hans står, og berre namnet på forma er eit anna. So attende
+   * med angre, so gestane under prøver den kroppen dei alltid har prøvd.
+   */
+  {
+    const foer = bitScene().split(";")
+    const hale = (q: string) => q.slice(q.indexOf("@"))
+    await kjelde.click()
+    await page.waitForTimeout(250)
+    await meny2.getByRole("button", { name: "stolform-01", exact: true }).click()
+    await vent(page, (p) => /stolform-01/.test(String(p.scene ?? "")))
+    const etter = bitScene().split(";")
+    sjekk("eit val med ein bit vald legg ingen bit til", etter.length === foer.length, `${foer.length} → ${etter.length} bitar`)
+    sjekk("det byter forma i den valde biten", /^stolform-01@/.test(etter[1] ?? ""), (etter[1] ?? "").slice(0, 40))
+    sjekk("og plassen, storleiken og vendinga hans står", hale(etter[1] ?? "") === hale(foer[1] ?? ""), `${foer[1]} → ${etter[1]}`)
+    sjekk("og dei andre bitane står urørte", etter[0] === foer[0], `${foer[0]} → ${etter[0]}`)
+    await page.keyboard.press("z")
+    await vent(page, (p) => !/stolform-01/.test(String(p.scene ?? "")))
+    sjekk("og angre tek byttet attende", bitScene() === foer.join(";"), bitScene().slice(0, 48))
+  }
+
+  /**
+   * OG EI FIL GJER DET SAME. Ein import er elles ein annan kropp — plana
+   * fylgjer ikkje med — men med ein bit vald er fila eit svar om HAN: ho
+   * går inn i klossen du peika på, og kroppen elles står.
+   */
+  {
+    const foer = bitScene().split(";")
+    const planFoer = plana(page).length
+    const obj = "v 0 0 0\nv 40 0 0\nv 0 40 0\nv 0 0 40\nf 1 3 2\nf 1 2 4\nf 2 3 4\nf 1 4 3\n"
+    await page.locator("header input[type=file]").setInputFiles({ name: "prove.obj", mimeType: "text/plain", buffer: Buffer.from(obj) })
+    await vent(page, (p) => (String(p.scene ?? "").split(";")[1] ?? "") !== foer[1], 20000)
+    const etter = bitScene().split(";")
+    sjekk("ei fil med ein bit vald går inn i HAN", etter.length === foer.length && !/^kube@/.test(etter[1] ?? ""), (etter[1] ?? "").slice(0, 40))
+    sjekk("og lèt kroppen elles stå", etter[0] === foer[0] && plana(page).length === planFoer, `${foer[0]} → ${etter[0]} · ${planFoer} plan`)
+    await page.keyboard.press("z")
+    await vent(page, (p) => (String(p.scene ?? "").split(";")[1] ?? "") === foer[1])
+    sjekk("og angre tek fila attende", bitScene() === foer.join(";"), bitScene().slice(0, 48))
+  }
+
   const bitFør = bitScene()
   /**
    * TO FINGRAR PÅ BITEN, UTANOM PRIKKANE.

@@ -408,6 +408,25 @@ input {
   opacity: 0.3;
 }
 
+/* SPEGLINGANE, øvst i midten av det frie bandet. Bandet er så breitt som
+   lerretet, so det må sleppe fingrar gjennom: berre orda tek trykk.
+
+   OG DEI LIGG UNDER HANDTAKA (4, mot 5 og 6). Midt i biletet er der snittet
+   står, so eit handtak kan kome til å liggje på eit av orda. Handtaket er
+   det du siktar på når det er der — du ser det, og du kan flytte det — so
+   det tek fingeren; orda tek alt anna. Andre vegen var eit drag i vrien
+   eit speil du slo på utan å be om det. */
+.speil {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.speil button {
+  pointer-events: auto;
+}
+
 /* skalet er ein brytar som alle andre: dempa når det er av */
 .synskube button[aria-pressed="false"] {
   opacity: 0.45;
@@ -430,6 +449,7 @@ input {
 main header,
 main .synskube,
 main .tumme,
+main .speil,
 main .handtak,
 main .sider,
 main [aria-label="kontrollar"] {
@@ -438,6 +458,7 @@ main [aria-label="kontrollar"] {
 main[data-sov] header,
 main[data-sov] .synskube,
 main[data-sov] .tumme,
+main[data-sov] .speil,
 main[data-sov] .handtak,
 main[data-sov] .sider,
 main[data-sov] [aria-label="kontrollar"] {
