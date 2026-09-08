@@ -23,7 +23,7 @@
  *   npx tsx scripts/tak.ts
  */
 import { MOTOR } from "../lib/motor"
-import { vendNull, vendTal } from "../lib/kropp"
+import { kjeldeNull, kjeldeTal, vendNull, vendTal } from "../lib/kropp"
 import { put } from "../lib/sources"
 import { makeSoup } from "../lib/soup"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
@@ -240,6 +240,47 @@ if (halv && siste && halv !== siste && siste.n === halv.n * 2) {
     t.bom === 0 && t.treff > 0,
     `${t.treff} treff · ${t.bom} bom på 32 ribber`,
   )
+}
+
+/**
+ * --- EIN GEST PÅ EIN BIT, OG KVA HAN KOSTAR --------------------------------
+ *
+ * Det dyraste ein finger kan gjere er å vri ein bit i ein kropp av fleire:
+ * kvart einaste bilete er ein ny kropp, og han vert bygd om att medan
+ * fingeren står på. Sveisen, snuinga, forenklinga og glattinga høyrer til
+ * KJELDA og ikkje til kroppen ho står i, so dei skal ikkje gjerast om att av
+ * di ein annan bit flytta seg fire millimeter — og det er bommane som seier
+ * det, ikkje tida: eit prøvenett er lite, og ei tidsgrense ville drukna i
+ * støy og stått grøn med heile fella attende.
+ *
+ * Tida står likevel, som opplysning. Det er ho ein argumenterer frå når
+ * nokon spør om reiskapen held på ein telefon.
+ */
+{
+  console.log("\n=== ein gest på ein bit ===")
+  const plan = skrivPlan(rutenett(3, 3))
+  const scene = (rz: number) =>
+    [`t-kule@-60,0,0/1/0`, `t-kule@60,0,0/1/${rz.toFixed(1)}`, `kube@0,0,0/0.6/0`].join(";")
+  const frame = (rz: number) => {
+    const p = { ...GRUNN, plan, scene: scene(rz) } as unknown as ParamBag
+    const t0 = Date.now()
+    // det appen gjer per bilete: skalet fyrst, so ribbene
+    MOTOR.build(p, "lav", "flate")
+    MOTOR.build(p, "lav", "lag")
+    return Date.now() - t0
+  }
+  frame(0)
+  frame(1)
+  kjeldeNull()
+  const tider: number[] = []
+  for (let i = 2; i <= 7; i++) tider.push(frame(i * 3))
+  const k = kjeldeTal()
+  ok(
+    "eit drag på ein bit sveisar ikkje kjeldene om att",
+    k.bom === 0 && k.treff > 0,
+    `${k.treff} treff · ${k.bom} bom over ${tider.length} bilete`,
+  )
+  console.log(`  gest: ${Math.min(...tider)}–${Math.max(...tider)} ms per bilete, tre bitar`)
 }
 
 console.log(brot ? `\n${brot} brot på taket` : "\ntaket held")

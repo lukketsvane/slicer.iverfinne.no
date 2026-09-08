@@ -131,6 +131,37 @@ export type Solid = {
 const E1 = 1.7e-4
 const E2 = 1.0513e-4
 
+/**
+ * SKRAPEPLASSEN, DELT AV ALLE STRÅLANE.
+ *
+ * `runs` er den innarste funksjonen i heile reiskapen: eit snitt av eit
+ * rutenett er eit par tusen kall, og eit drag på ein bit er eit snitt per
+ * bilete. Han la før opp fire lister per kall — treffa, retningane,
+ * rekkjefylgja og svaret — og sorterte den tredje med `Array.sort` og ein
+ * lukking. Tre av dei fire er MELLOMREKNING som ingen ser etterpå, so dei
+ * ligg her i staden, éin gong, og veks berre når ein stråle treffer meir
+ * enn dei har plass til.
+ *
+ * Svaret sjølv (`Span[]`) vert framleis lagt opp på nytt kvar gong: det er
+ * det som vert teke vare på i ruta, og eit delt svar ville vore det same
+ * svaret for alle strålane.
+ *
+ * Sorteringa er innsetjing og ikkje `Array.sort`. Ein stråle gjennom ein
+ * kropp treffer ti–tjue trekantar; på slike lengder er innsetjing raskare
+ * enn eit kall per samanlikning, og ho er stabil, so lik djupn med lik
+ * retning står i den rekkjefylgja ho alltid har stått i.
+ */
+let sHit = new Float64Array(64)
+let sDir = new Int8Array(64)
+let sOrd = new Int32Array(64)
+const skrapePlass = (n: number) => {
+  if (n <= sHit.length) return
+  const m = 1 << (32 - Math.clz32(n - 1))
+  sHit = new Float64Array(m)
+  sDir = new Int8Array(m)
+  sOrd = new Int32Array(m)
+}
+
 export function makeSolid(soup: Soup): Solid {
   const buckets: (Bucket | null)[] = [null, null, null]
   const P = soup.pos
@@ -151,8 +182,10 @@ export function makeSolid(soup: Soup): Solid {
     const s1 = bk.start[j * bk.nu + i + 1]
     if (s1 <= s0) return []
 
-    const hit: number[] = []
-    const dir: number[] = []
+    skrapePlass(s1 - s0)
+    const hit = sHit
+    const dir = sDir
+    let nh = 0
     for (let s = s0; s < s1; s++) {
       const o = bk.items[s] * 9
       const au = P[o + u]
@@ -183,11 +216,12 @@ export function makeSolid(soup: Soup): Solid {
       // nok til at to ribber som skal vera identiske får kvar sin profil i
       // fjerde desimal — og då står det to delar i kuttlista der det er
       // éin. Difor denne lina.
-      hit.push(aw === bw && bw === cw ? aw : (w0 * aw + w1 * bw + w2 * cw) / d)
+      hit[nh] = aw === bw && bw === cw ? aw : (w0 * aw + w1 * bw + w2 * cw) / d
       // vender trekanten MOT strålen, er han ein veg INN
-      dir.push(d < 0 ? 1 : -1)
+      dir[nh] = d < 0 ? 1 : -1
+      nh++
     }
-    if (!hit.length) return []
+    if (!nh) return []
 
     /**
      * LIKT DJUP: INN FØR UT.
@@ -209,11 +243,22 @@ export function makeSolid(soup: Soup): Solid {
      * Går inngangen fyrst, kan djupna aldri falle til null i eit punkt der
      * noko byrjar, og svaret sluttar å henge på fillekkjefylgja.
      */
-    const ord = hit.map((_, k) => k).sort((a, b) => hit[a] - hit[b] || dir[b] - dir[a])
+    const ord = sOrd
+    for (let k = 0; k < nh; k++) {
+      const kk = k
+      const hk = hit[kk]
+      const dk = dir[kk]
+      let q = k - 1
+      // «djupare fyrst, og ved same djupn inngang før utgang» — same
+      // ordninga som før, sett opp med innsetjing
+      for (; q >= 0 && (hit[ord[q]] > hk || (hit[ord[q]] === hk && dir[ord[q]] < dk)); q--) ord[q + 1] = ord[q]
+      ord[q + 1] = kk
+    }
     const out: Span[] = []
     let depth = 0
     let open = 0
-    for (const k of ord) {
+    for (let q = 0; q < nh; q++) {
+      const k = ord[q]
       const was = depth
       depth += dir[k]
       if (was <= 0 && depth > 0) open = hit[k]

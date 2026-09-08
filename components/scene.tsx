@@ -4,7 +4,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { GizmoHelper, GizmoViewcube, OrbitControls } from "@react-three/drei"
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react"
 import * as THREE from "three"
-import { MATERIALS, inRing, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
+import { LAG_FARGAR, MATERIALS, inRing, lagFarge, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
 import { akser, broek, dot, inn, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
 import { GROUND_Y, MAX_DIST, MIN_DIST, SKODDE_FJERN, SKODDE_NAER, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
@@ -543,6 +543,8 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
     [boks],
   )
   const senterPx = useRef({ x: 0, y: 0 })
+  /** kameraet slik lappen sist las han: er talet det same, vert han ikkje skriven om att */
+  const kamSist = useRef({ x: NaN, y: NaN, z: NaN, d: NaN })
   /** skissa slik ho sist gjekk til motoren, i verda: flyttar ho seg ikkje, spør vi ikkje om att */
   const sist = useRef<{ o: THREE.Vector3; n: THREE.Vector3 } | null>(null)
   /** det siste snappet ein gest gjorde: tikken på lappen */
@@ -580,9 +582,20 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
     // skal ikkje flytte det, og synet skal likevel kunne seiast noko om.
     // Avstanden er kor nær du har fått kome; ho er det einaste zoomen kan
     // lesast av på.
+    // ... men berre når han HAR flytt seg. Lappen er to attributt på eit
+    // element, og eit attributt som vert skrive er ein stil som må reknast
+    // om att. Under eit drag på ein bit står kameraet bom stille, og då var
+    // dette tre `toFixed`, ei samanskøyting og to skrivingar per bilete for
+    // å setje det same talet på nytt.
     if (boks) {
-      boks.dataset.kamera = [camera.position.x, camera.position.y, camera.position.z].map((c) => c.toFixed(6)).join(",")
-      if (controls) boks.dataset.avstand = camera.position.distanceTo(controls.target).toFixed(3)
+      const c = camera.position
+      const d = controls ? c.distanceTo(controls.target) : 0
+      const k = kamSist.current
+      if (k.x !== c.x || k.y !== c.y || k.z !== c.z || k.d !== d) {
+        kamSist.current = { x: c.x, y: c.y, z: c.z, d }
+        boks.dataset.kamera = `${c.x.toFixed(6)},${c.y.toFixed(6)},${c.z.toFixed(6)}`
+        if (controls) boks.dataset.avstand = d.toFixed(3)
+      }
     }
     const gøym = () => {
       if (!boks) return
@@ -1696,12 +1709,36 @@ function Kroppen({ f, kropp, lag, view, skal, material, liste, vald, gruppe, pla
  * plan; dei andre er blå og bleike, som ei skisse.
  */
 function Bitboksar({ f, bitar, vald }: { f: Ramma; bitar: readonly BitBoks[]; vald: number | null }) {
-  const andre = useMemo(() => boksKantar(bitar.filter((_, i) => i !== vald)), [bitar, vald])
+  /**
+   * OG EIN MERKT BIT STÅR I SITT EIGE LAG SIN FARGE.
+   *
+   * Laget er bandet mellom ein bit og plana som høyrer til han, og eit band
+   * du ikkje ser er eit band du ikkje trur på: du merkjer ein bit gul,
+   * merkjer eit plan gult, og ribba sluttar plutseleg midt i lufta utan at
+   * noko på skjermen sa kvifor. Boksane er samla per farge — dei umerkte
+   * blå og bleike som ei skisse — so ein figur og ribbene hans lyser likt.
+   */
+  const flokkar = useMemo(() => {
+    const m = new Map<string, BitBoks[]>()
+    bitar.forEach((b, i) => {
+      if (i === vald) return
+      const f2 = lagFarge(b.farge)
+      const key = f2 === null ? "" : LAG_FARGAR[f2]
+      const l = m.get(key)
+      if (l) l.push(b)
+      else m.set(key, [b])
+    })
+    return [...m.entries()].map(([farge, l]) => ({ farge, g: boksKantar(l) }))
+  }, [bitar, vald])
   const den = useMemo(() => (vald === null || !bitar[vald] ? null : boksKantar([bitar[vald]])), [bitar, vald])
-  useEffect(() => () => { andre.dispose(); den?.dispose() }, [andre, den])
+  useEffect(() => () => { for (const q of flokkar) q.g.dispose(); den?.dispose() }, [flokkar, den])
   return (
     <group {...gruppa(f)}>
-      <lineSegments geometry={andre}><lineBasicMaterial color={SKISSE} transparent opacity={0.4} /></lineSegments>
+      {flokkar.map((q) => (
+        <lineSegments key={q.farge || "u"} geometry={q.g}>
+          <lineBasicMaterial color={q.farge || SKISSE} transparent opacity={q.farge ? 0.85 : 0.4} />
+        </lineSegments>
+      ))}
       {den && (
         <lineSegments geometry={den} renderOrder={3}>
           <lineBasicMaterial color={VALT} depthTest={false} />
@@ -1751,10 +1788,20 @@ function Sidehandtak({ f, boks, boks3, onSide, onGest }: {
   naa.current = { f, boks3, onSide, onGest }
   /** kva sida stod på då fingeren tok henne: halve utstrekninga og pikslane per mm */
   const tak = useRef<{ a: 0 | 1 | 2; ut: number; px: [number, number]; x0: number; y0: number } | null>(null)
+  /** dei seks knappane, slegne opp éin gong — sjå teikninga nedanfor */
+  const knappar = useRef<(HTMLElement | null)[]>([])
+  /** eitt punkt, brukt om att: seks nye tabellar per bilete er seks for mykje */
+  const punkt = useMemo<Vec3>(() => [0, 0, 0], [])
+  /** kvar kvar prikk sist vart skriven: same tal, inga skriving */
+  const skrive = useRef<string[]>([])
 
   useEffect(() => {
     if (!boks) return
-    const knappar = SIDER.map((_, k) => boks.querySelector<HTMLElement>(`[data-side="${k}"]`))
+    // Knappane slås opp ÉIN GONG. Dei stod i teikninga før — seks
+    // `querySelector` per bilete for seks element som aldri byter ut — og
+    // eit oppslag i DOM-en er det dyraste ein teiknelykkje kan gjere av
+    // ting ho ikkje treng gjere i det heile.
+    knappar.current = SIDER.map((_, k) => boks.querySelector<HTMLElement>(`[data-side="${k}"]`))
     const ned = (e: PointerEvent) => {
       const el = (e.target as Element).closest<HTMLElement>("[data-side]")
       const k = el ? Number(el.dataset.side) : -1
@@ -1799,7 +1846,6 @@ function Sidehandtak({ f, boks, boks3, onSide, onGest }: {
     window.addEventListener("pointermove", rorsle, { passive: true })
     window.addEventListener("pointerup", opp, { passive: true })
     window.addEventListener("pointercancel", opp, { passive: true })
-    void knappar
     return () => {
       boks.removeEventListener("pointerdown", ned)
       window.removeEventListener("pointermove", rorsle)
@@ -1818,20 +1864,31 @@ function Sidehandtak({ f, boks, boks3, onSide, onGest }: {
     }
     boks.style.visibility = "visible"
     camera.updateMatrixWorld()
-    const midt: Vec3 = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2]
-    SIDER.forEach((sd, k) => {
-      const el = boks.querySelector<HTMLElement>(`[data-side="${k}"]`)
-      if (!el) return
-      const p: Vec3 = [...midt] as Vec3
+    const mx = (b.min[0] + b.max[0]) / 2
+    const my = (b.min[1] + b.max[1]) / 2
+    const mz = (b.min[2] + b.max[2]) / 2
+    for (let k = 0; k < SIDER.length; k++) {
+      const sd = SIDER[k]
+      const el = knappar.current[k]
+      if (!el) continue
+      const p = punkt
+      p[0] = mx
+      p[1] = my
+      p[2] = mz
       p[sd.i] = sd.teikn > 0 ? b.max[sd.i] : b.min[sd.i]
       const v = tilVerd(g, p).project(camera)
       const x = ((v.x + 1) / 2) * size.width
       const y = ((1 - v.y) / 2) * size.height
-      el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%)`
+      const t = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -50%)`
+      if (skrive.current[k] !== t) {
+        skrive.current[k] = t
+        el.style.transform = t
+      }
       // sida som vender bort er framleis der, berre dempa: du skal kunne ta
       // henne utan å snu objektet fyrst
-      el.style.opacity = v.z > 1 ? "0" : "1"
-    })
+      const o = v.z > 1 ? "0" : "1"
+      if (el.style.opacity !== o) el.style.opacity = o
+    }
   })
   return null
 }
@@ -1933,6 +1990,8 @@ function Kamerataket({ ut }: { ut: MutableRefObject<((f: number) => void) | null
 function Sovnen({ sov, children }: { sov: boolean; children: ReactNode }) {
   const grp = useRef<THREE.Group>(null)
   const naa = useRef(1)
+  /** gjennomsikta slik ho sist vart skriven ut i scena */
+  const skrive = useRef(NaN)
   const grunn = useRef(new WeakMap<THREE.Material, number>())
   const invalidate = useThree((s) => s.invalidate)
   useEffect(() => { invalidate() }, [sov, invalidate])
@@ -1952,6 +2011,19 @@ function Sovnen({ sov, children }: { sov: boolean; children: ReactNode }) {
     const a = t * t * (3 - 2 * t)
     g.visible = a > 0.002
     if (!g.visible) return
+    /**
+     * OG BERRE MEDAN HO FALL. Vandringa gjekk gjennom heile scena og skreiv
+     * to felt på kvart material — kvar einaste teikning, òg dei tusen der
+     * grensesnittet stod heilt vake og talet var det same eitt. Under eit
+     * drag på ein bit er det ei vandring per bilete for ingenting.
+     *
+     * Eit material som kjem til MEDAN det står på ein: gjennomsikta det
+     * skal ha er den det alt har, so ingen treng skrive henne. Fyrst når
+     * rampa rører seg att går vandringa, og då vert grunnverdien hans lesen
+     * som han skulle.
+     */
+    if (a === skrive.current) return
+    skrive.current = a
     g.traverse((o) => {
       const m = (o as THREE.Mesh).material
       for (const q of Array.isArray(m) ? m : m ? [m] : []) {

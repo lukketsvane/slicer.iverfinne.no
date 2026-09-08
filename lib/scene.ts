@@ -13,7 +13,7 @@
  * som før. Ein streng i parameterposen, som plana: angre, lenkje,
  * prosjektfil og økt fylgjer med utan ei ny line.
  */
-import type { Vec3 } from "./core"
+import { lagFarge, type Vec3 } from "./core"
 
 export const SCENE_TAK = 16
 /**
@@ -87,6 +87,20 @@ export type Bit = {
   s: Vec3
   /** vending kring z, grader */
   rz: number
+  /**
+   * LAGET BITEN EIG (C02–C29, sjå `LAG_FARGAR` i core), om noko.
+   *
+   * Det er den same paletten plana merkjer seg med, og det er MEININGA:
+   * fargen er bandet mellom dei. Eit plan merkt med same laget som ein bit
+   * HØYRER TIL den biten, og vert skore inne i boksen hans åleine — sjå
+   * `snitt.ts`. Ein kropp av fleire figurar fekk elles ribber som strekte
+   * seg frå den eine tvers over lufta og inn i den andre: éin del som held
+   * to figurar i hop, der du ville hatt to.
+   *
+   * Utan merke eig biten ingenting, og eit umerkt plan skjer heile kroppen
+   * som før. Merket seier ikkje noko om geometrien til biten sjølv.
+   */
+  farge?: number
 }
 
 /** bandet kvar akse bur i: under dette er biten borte, over er han ikkje ein bit */
@@ -98,8 +112,12 @@ const tal = (v: number, d = 2) => String(+v.toFixed(d))
 const skrivS = (s: Vec3) =>
   s[0] === s[1] && s[1] === s[2] ? tal(s[0], 3) : s.map((c) => tal(c, 3)).join(",")
 
+/** laget står sist og berre når det finst, so ein streng utan lag er teikn
+ *  for teikn den same strengen han alltid har vore */
 export const skrivScene = (l: readonly Bit[]): string =>
-  l.map((b) => `${b.id}@${b.t.map((c) => tal(c)).join(",")}/${skrivS(b.s)}/${tal(b.rz, 1)}`).join(";")
+  l
+    .map((b) => `${b.id}@${b.t.map((c) => tal(c)).join(",")}/${skrivS(b.s)}/${tal(b.rz, 1)}${b.farge ? `/c:${b.farge}` : ""}`)
+    .join(";")
 
 /** Lesinga er den einaste vegen inn: alt som ikkje er ein bit fell på golvet. */
 export function lesScene(s: unknown): Bit[] {
@@ -107,13 +125,15 @@ export function lesScene(s: unknown): Bit[] {
   if (typeof s !== "string" || !s) return ut
   for (const del of s.split(";")) {
     if (ut.length >= SCENE_TAK) break
-    // storleiken er anten eitt tal (som før) eller tre, eitt per akse
-    const m = /^([a-z0-9_-]{1,40})@(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)\/([\d.]+(?:,[\d.]+,[\d.]+)?)\/(-?[\d.]+)$/i.exec(del)
+    // storleiken er anten eitt tal (som før) eller tre, eitt per akse;
+    // laget står sist og treng ikkje stå
+    const m = /^([a-z0-9_-]{1,40})@(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)\/([\d.]+(?:,[\d.]+,[\d.]+)?)\/(-?[\d.]+)(?:\/c:(\d{1,2}))?$/i.exec(del)
     if (!m) continue
     const t = [Number(m[2]), Number(m[3]), Number(m[4])] as Vec3
     const sd = m[5].split(",").map(Number)
     const sk: Vec3 = sd.length === 3 ? [sd[0], sd[1], sd[2]] : [sd[0], sd[0], sd[0]]
     const rz = Number(m[6])
+    const farge = m[7] === undefined ? 0 : (lagFarge(Number(m[7])) ?? 0)
     if (!t.every(Number.isFinite) || !sk.every(Number.isFinite) || !Number.isFinite(rz)) continue
     if (t.some((c) => Math.abs(c) > 400) || sk.some((c) => c < BIT_MIN || c > BIT_MAX)) continue
     ut.push({
@@ -121,6 +141,7 @@ export function lesScene(s: unknown): Bit[] {
       t: t.map((c) => +c.toFixed(2)) as Vec3,
       s: sk.map((c) => +c.toFixed(3)) as Vec3,
       rz: +((((rz % 360) + 360) % 360)).toFixed(1),
+      ...(farge ? { farge } : {}),
     })
   }
   return ut

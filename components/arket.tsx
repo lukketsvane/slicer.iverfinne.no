@@ -62,6 +62,9 @@ export type ArketProps = {
   onSlettGruppe: (g: number) => void
   /** laget (C02–C29) på det valde planet — eller heile den valde gruppa; 0 er ikkje noko lag */
   onFarge: (farge: number) => void
+  /** laget på den valde biten, eller null når ingen bit står vald */
+  bitFarge: number | null
+  onBitFarge: (farge: number) => void
   onSlett: (id: number) => void
   busy: boolean
   feil: string | null
@@ -185,29 +188,50 @@ function Plana({ p }: { p: ArketProps }) {
 }
 
 /**
- * LAGET, SOM EI RAD MED FARGAR under det valde planet. LightBurn sine
- * eigne, C02 til C29, i palettorden — svart og blått er graveringa og
- * kuttet og står ikkje til val. Ringen fyrst er «ikkje noko lag»: kuttet
- * blått som alle andre. Med ei gruppe vald gjeld valet heile gruppa, og
- * rada syner leiaren sitt lag.
+ * LAGET, SOM EI RAD MED FARGAR. LightBurn sine eigne, C02 til C29, i
+ * palettorden — svart og blått er graveringa og kuttet og står ikkje til
+ * val. Ringen fyrst er «ikkje noko lag»: kuttet blått som alle andre.
+ *
+ * Rada står under det valde PLANET, og under den valde BITEN, og ho er den
+ * same rada båe stader — av di fargen er den same fargen. Merkjer du ein
+ * bit og eit plan med det same laget, høyrer planet til biten og vert
+ * skore inne i han åleine; det er heile grunnen til at biten har eit lag i
+ * det heile. Med ei gruppe vald gjeld valet heile gruppa.
  */
-function Laga({ p }: { p: ArketProps }) {
-  const leiar = p.plan.find((q) => q.id === p.vald)
-  const no = lagFarge(leiar?.farge) ?? 0
+function Lagrad({ no, ord, tittel, onFarge }: {
+  no: number
+  /** ordet i margen: kva det er som får laget */
+  ord: string
+  /** eitt kort tillegg til kvar farge si forklaring, om det trengst */
+  tittel: string
+  onFarge: (farge: number) => void
+}) {
   return (
     <li role="group" aria-label="lag" data-lag="" className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 px-1.5 pb-1 pt-0.5">
-      <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">lag</span>
-      <button type="button" aria-pressed={no === 0} aria-label="ikkje noko lag" title="ikkje noko lag: kuttet er blått som dei andre" onClick={() => p.onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+      <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">{ord}</span>
+      <button type="button" aria-pressed={no === 0} aria-label="ikkje noko lag" title="ikkje noko lag: kuttet er blått som dei andre" onClick={() => onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
         <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ borderColor: no === 0 ? "var(--ink)" : "var(--rule)" }} />
       </button>
       {LAG_FARGAR.map((hex, i) =>
         i < FARGE_MIN ? null : (
-          <button key={hex} type="button" aria-pressed={no === i} aria-label={`lag C${String(i).padStart(2, "0")}`} title={`lag C${String(i).padStart(2, "0")} i LightBurn · ${hex}${p.valdGruppe !== null ? " · heile gruppa" : ""}`} onClick={() => p.onFarge(i)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+          <button key={hex} type="button" aria-pressed={no === i} aria-label={`lag C${String(i).padStart(2, "0")}`} title={`lag C${String(i).padStart(2, "0")} i LightBurn · ${hex}${tittel}`} onClick={() => onFarge(i)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
             <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ background: hex, borderColor: no === i ? "var(--ink)" : "transparent" }} />
           </button>
         ),
       )}
     </li>
+  )
+}
+
+function Laga({ p }: { p: ArketProps }) {
+  const leiar = p.plan.find((q) => q.id === p.vald)
+  return (
+    <Lagrad
+      no={lagFarge(leiar?.farge) ?? 0}
+      ord="lag"
+      tittel={p.valdGruppe !== null ? " · heile gruppa" : ""}
+      onFarge={p.onFarge}
+    />
   )
 }
 
@@ -381,6 +405,15 @@ export function Arket(p: ArketProps): JSX.Element {
   const midt = (
     <>
       <SliderRow k="storleik" r={PARAM_RANGES.storleik} value={num(p.params, "storleik", 150)} benk={benk} onChange={(k, v) => p.onChange({ ...p.params, [k]: v })} onSkrubb={p.onSkrubb} bi={p.metrics ? `${n0(p.metrics.envX)}×${n0(p.metrics.envY)}×${n0(p.metrics.envZ)}` : undefined} />
+      {/* BITEN SITT LAG. Same rada som planet sitt, av di det er den same
+          fargen: eit plan merkt likt høyrer til biten og vert skore inne i
+          han. Ho står her og ikkje i tommelspalta — spalta er ikon, og eit
+          lag er åtte og tjue fargar. */}
+      {p.bitFarge !== null && (
+        <ul className="pt-1">
+          <Lagrad no={p.bitFarge} ord="bit" tittel=" · plan med same laget vert skore inne i denne biten" onFarge={p.onBitFarge} />
+        </ul>
+      )}
       <Plana p={p} />
     </>
   )

@@ -34,8 +34,8 @@
 import { bbox, inRing, MATERIALS, MIN_AREA, perimeter, shoelace, type Material, type ParamBag, type Pt, type Vec3 } from "./core"
 import { contour, simplify } from "./contour"
 import type { Solid, Span } from "./mesh/solid"
-import { rull, vend, type Kropp } from "./kropp"
-import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, norm3, skrivPlan, type Plan, type Ramme, type Strek } from "./plan"
+import { rull, vend, type BitBoks, type Kropp } from "./kropp"
+import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, norm3, skrivPlan, ut, type Plan, type Ramme, type Strek } from "./plan"
 import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 
 /**
@@ -205,10 +205,17 @@ export type DelListe = {
  * inne, negativt ute, og talet er avstanden til NÆRASTE kant langs den
  * aksen — langs ein rutekant er dette talet eksakt.
  */
+/** To kall per rutepunkt, og eit felt er tjue tusen av dei: lykkja går på
+ *  indeks og ikkje gjennom ein itererar med utpakking i kvart steg. Talet
+ *  er det same. */
 function axisDist(spans: Span[], t: number): number {
-  if (!spans.length) return -1e9
+  const n = spans.length
+  if (!n) return -1e9
   let best = -Infinity
-  for (const [a, b] of spans) {
+  for (let i = 0; i < n; i++) {
+    const s = spans[i]
+    const a = s[0]
+    const b = s[1]
     const d = t >= a && t <= b ? Math.min(t - a, b - t) : -Math.min(Math.abs(t - a), Math.abs(t - b))
     if (d > best) best = d
   }
@@ -332,7 +339,42 @@ function boksAv(q: Spor): Boks {
  * gjennom gods du la til, og eit hòl du skar skal ikkje fyllast att av
  * eit spor.
  */
-function felt(ru: Rute, former: Form[], spor: Spor[]) {
+/**
+ * KLIPPET: BOKSANE EIT PLAN HØYRER TIL.
+ *
+ * Ein kropp av fleire figurar gav ribber som strekte seg frå den eine,
+ * tvers over lufta mellom dei, og inn i den andre — éin del som held to
+ * figurar i hop der du ville hatt to. Merkjer du ein bit med eit lag og eit
+ * plan med det same laget, høyrer planet til biten, og profilen vert klipt
+ * til boksen hans. Fleire bitar kan bera det same laget; då er klippet
+ * unionen av boksane deira.
+ *
+ * KLIPPET ER EI EKTE SIGNERT AVSTAND og ikkje eit merke, av same grunn som
+ * streka: `contour` interpolerer mellom to hjørneverdiar, og ein konstant
+ * ±e legg kvar einaste kryssing midt på ein cellekant. Avstanden til ein
+ * boks er eksakt langs kvar side og den verkelege avstanden utanfor eit
+ * hjørne, so kanten hamnar der boksen faktisk sluttar.
+ *
+ * Punktet vert rekna med `ut`, so ein BØYGD plan vert klipt der flata hans
+ * faktisk ligg i rommet og ikkje der det utrulla mønsteret hans ville lege.
+ */
+export type Klipp = { r: Ramme; boksar: readonly { min: Vec3; max: Vec3 }[] }
+
+function klippDist(kl: Klipp, t: number, z: number): number {
+  const p = ut(kl.r, [t, z])
+  let best = Infinity
+  for (const b of kl.boksar) {
+    const dx = Math.max(b.min[0] - p[0], p[0] - b.max[0])
+    const dy = Math.max(b.min[1] - p[1], p[1] - b.max[1])
+    const dz = Math.max(b.min[2] - p[2], p[2] - b.max[2])
+    const ute = Math.hypot(Math.max(dx, 0), Math.max(dy, 0), Math.max(dz, 0))
+    const d = ute + Math.min(Math.max(dx, dy, dz), 0)
+    if (d < best) best = d
+  }
+  return best
+}
+
+function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp) {
   const { t0, dt, nt, z0, dz, nz, rows, cols } = ru
   const boksar = spor.map(boksAv)
   const g = new Float64Array((nt + 1) * (nz + 1))
@@ -348,6 +390,16 @@ function felt(ru: Rute, former: Form[], spor: Spor[]) {
       // til den næraste av dei to kantane, og aldri den fjernaste.
       const mag = Math.min(Math.abs(dh), Math.abs(dv))
       let v = dh > 0 && dv > 0 ? mag : -mag
+      // KLIPPET FYRST, og som eit hòl: det biten ikkje eig, er luft. Det
+      // står før streka av di eit strek er noko du teikna PÅ delen, og ein
+      // del som ikkje finst der har ingenting å teikne på.
+      // Hòlet er det som ligg UTANFOR boksen, so avstanden vert snudd:
+      // negativ ute, positiv inne, og `min` skjer henne inn i feltet nett
+      // som eit teikna hòl.
+      if (klipp) {
+        const d = -klippDist(klipp, t, z)
+        if (d < v) v = d
+      }
       // Lista står som ho står: rekkjefylgja ER geometrien — eit gods etter
       // eit hòl fyller det att, og eit hòl etter eit gods skjer i det.
       for (const f of former) {
@@ -456,6 +508,8 @@ type Raa = {
   spor: Spor[]
   /** flata er ein sylinder og ikkje eit plan — sjå `Plan.bog` */
   boygd: boolean
+  /** boksane planet er lenkt til gjennom laget sitt, om nokon */
+  klipp?: Klipp
 }
 
 /** fyrste komponenten som ikkje er null skal vera positiv, so den same
@@ -475,6 +529,19 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
   /** delingar handa har sett, per ledd. Tom er «alle som skyvaren seier». */
   const handDeling = lesDeling(p.deling)
   const plan = lesPlan(p.plan)
+  /**
+   * KVA BITAR KVART LAG EIG. Eit lag utan ein einaste bit eig ingenting, og
+   * eit plan med det laget skjer heile kroppen som det alltid har gjort:
+   * merket er framleis berre eit lag i LightBurn til nokon knyter det til
+   * noko. Det er difor lenkjer frå i fjor opnar det same objektet.
+   */
+  const eigd = new Map<number, BitBoks[]>()
+  for (const b of k.bitar) {
+    if (!b.farge) continue
+    const l = eigd.get(b.farge)
+    if (l) l.push(b)
+    else eigd.set(b.farge, [b])
+  }
 
   // --- kvart plan for seg: ramma, strålane og profilen utan spor ---------
   const raa: Raa[] = plan.map((pl) => {
@@ -501,10 +568,12 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     const ou = dot(o, u)
     const ov = dot(o, v)
     const former: Form[] = pl.strek.map((st: Strek) => formAv(st, ou, ov, S))
+    const mine = pl.farge ? eigd.get(pl.farge) : undefined
+    const klipp: Klipp | undefined = mine ? { r, boksar: mine } : undefined
     // det utrulla rommet har flata på null; det vendte har henne på `d`
     const ru = ruteAv(sol, boygd ? 0 : d, step, former)
-    const ringar = felt(ru, former, []).map((l) => l.pts as Pt[])
-    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], nullpkt: [ou, ov] as Pt, boygd }
+    const ringar = felt(ru, former, [], klipp).map((l) => l.pts as Pt[])
+    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], nullpkt: [ou, ov] as Pt, boygd, klipp }
   })
 
   // --- ledda -------------------------------------------------------------
@@ -654,7 +723,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
 
   const ribber: Ribbe[] = raa.map((a) => {
     a.spor.sort((u, v) => u.munn - v.munn)
-    const loops = felt(a.ru, a.former, a.spor)
+    const loops = felt(a.ru, a.former, a.spor, a.klipp)
     let outlines: Pt[][] = []
     let holes: Pt[][] = []
     for (const l of loops) {
