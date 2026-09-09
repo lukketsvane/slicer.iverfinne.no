@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState, type JSX, type RefObject } from "react"
 import { FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
-import type { Plan } from "@/lib/plan"
+import { MJUK_TAK, type Plan } from "@/lib/plan"
 import {
   CHIP, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, IcoVirvel, UTTAK,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
@@ -72,6 +72,17 @@ export type ArketProps = {
   valdGruppe: number | null
   onVelGruppe: (g: number) => void
   onSlettGruppe: (g: number) => void
+  /**
+   * DEI TO OPERATORANE PÅ PROFILEN til det valde planet — eller til heile
+   * den valde gruppa. Dei bur i arket og ikkje i tommelspalta: spalta er
+   * reiskapar du tek i medan du ser på kroppen, og ho var full. Ein brytar
+   * og eit tal høyrer heime på ei rad, saman med laget.
+   */
+  firkant: boolean
+  onFirkant: () => void
+  /** mjukinga som brøkdel av den lengste sida; rada syner henne i millimeter */
+  mjuk: number
+  onMjuk: (v: number) => void
   /** laget (C02–C29) på det valde planet — eller heile den valde gruppa; 0 er ikkje noko lag */
   onFarge: (farge: number) => void
   /** laget på den valde biten, eller null når ingen bit står vald */
@@ -124,6 +135,33 @@ function Lina({ p }: { p: ArketProps }) {
 /** Lista står der jamvel når ho er tom: ho er staden plana bur, og ei tom
  *  liste teiknar ingenting likevel. */
 function Plana({ p }: { p: ArketProps }) {
+  /**
+   * EI GRUPPE LIGG BRETTA. Eit rutenett er tretti plan i lista, og lista er
+   * det meste av det du ser på ein telefon — so gruppa er si eine rad til
+   * du ber om noko anna. Trykket på henne gjer det han alltid har gjort —
+   * han TEK henne, so handtaka, pilene, slett og dubler gjeld alle plana i
+   * henne — og han brettar henne ut medan han gjer det. Trykk att, og ho
+   * vert sleppt og lagd saman.
+   *
+   * Det du HELD står likevel: planet som er valt er med i lista jamvel om
+   * gruppa hans ligg saman, av di lista alltid skal syne kva handa har.
+   *
+   * Bretten fylgjer trykket og ikkje valet: vel du ei anna gruppe, ligg den
+   * fyrste open vidare. Gruppetalet vert aldri brukt om att (`nyGruppe`),
+   * so eit tal som ligg att her etter ei sletta gruppe kan aldri treffe ei ny.
+   */
+  const [utbretta, setUtbretta] = useState<ReadonlySet<number>>(() => new Set())
+  const brett = (g: number) => {
+    const paa = p.valdGruppe === g
+    setUtbretta((s) => {
+      const n = new Set(s)
+      if (paa) n.delete(g)
+      else n.add(g)
+      return n
+    })
+    if (paa) p.onVald(null)
+    else p.onVelGruppe(g)
+  }
   /** gruppene, i den rekkja dei fyrst syner seg: ei rad over det fyrste planet i kvar */
   const sett = new Set<number>()
   return (
@@ -136,11 +174,12 @@ function Plana({ p }: { p: ArketProps }) {
         const hovud = pl.gruppe && !sett.has(pl.gruppe) ? pl.gruppe : 0
         if (hovud) sett.add(hovud)
         const tal = hovud ? p.plan.filter((q) => q.gruppe === hovud).length : 0
+        const att = !!pl.gruppe && !utbretta.has(pl.gruppe) && !paa
         return (
           <Fragment key={pl.id}>
-          {/* GRUPPA SOM RAD: trykk vel alle plana i henne, og leiaren er det
-              siste. Ho står over det fyrste planet sitt, og plana hennar
-              står inndregne under. × tek heile gruppa. */}
+          {/* GRUPPA SOM RAD: ho ligg saman, og trykket brettar henne ut og
+              vel alle plana i henne, med det siste som leiar. Plana hennar
+              står inndregne under henne. × tek heile gruppa. */}
           {hovud > 0 && (
             <li
               role="option"
@@ -149,7 +188,7 @@ function Plana({ p }: { p: ArketProps }) {
               className="flex items-center gap-2 rounded-lg px-1.5 text-[11px]"
               style={p.valdGruppe === hovud ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : undefined}
             >
-              <button type="button" aria-label={`gruppe ${hovud}`} title="vel heile gruppa: handtaka, pilene, slett og dubler tek alle plana i henne" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => (p.valdGruppe === hovud ? p.onVald(null) : p.onVelGruppe(hovud))}>
+              <button type="button" aria-label={`gruppe ${hovud}`} aria-expanded={utbretta.has(hovud)} title="brett gruppa ut og tak henne: handtaka, pilene, slett og dubler tek alle plana i henne. trykk att slepper henne og legg henne saman att" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => brett(hovud)}>
                 <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>G{hovud}</span>
                 <span className="min-w-0 flex-1 truncate">gruppe</span>
                 <span className="tab dim shrink-0">· {tal} plan</span>
@@ -159,41 +198,44 @@ function Plana({ p }: { p: ArketProps }) {
               </button>
             </li>
           )}
-          <li
-            role="option"
-            aria-selected={paa}
-            data-plan={pl.id}
-            className={"flex items-center gap-2 rounded-lg text-[11px] " + (pl.gruppe ? "ml-3 pl-1.5 pr-1.5" : "px-1.5")}
-            style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : iGruppa ? { background: "color-mix(in srgb, var(--ink) 4%, transparent)" } : undefined}
-          >
-            <button type="button" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => p.onVald(paa ? null : pl.id)}>
-              <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>{pl.id}</span>
-              {lagFarge(pl.farge) !== null && <span aria-hidden="true" className="block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: LAG_FARGAR[pl.farge as number] }} />}
-              <span className="min-w-0 flex-1 truncate">{kvaSlag(pl.n)}</span>
-              {/* KVAR PLANET STÅR, SOM EIT TAL: millimeter frå midten av kroppen,
-                  langs normalen. Det er inndata lese av — punktet og normalen
-                  planet ER — og ikkje eit mål frå kuttet. Pilene flyttar det
-                  éin om gongen, og talet fylgjer. Berre på benken: på
-                  telefonen er rada 390 pikslar, og ledda står der alt. */}
-              {p.benk && p.boks && (
-                <span className="tab dim shrink-0" title="millimeter frå midten av kroppen, langs normalen. pilene flyttar planet éin om gongen">
-                  {fraaMidten(pl, p.boks)}
+          {!att && (
+            <li
+              role="option"
+              aria-selected={paa}
+              data-plan={pl.id}
+              className={"flex items-center gap-2 rounded-lg text-[11px] " + (pl.gruppe ? "ml-3 pl-1.5 pr-1.5" : "px-1.5")}
+              style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : iGruppa ? { background: "color-mix(in srgb, var(--ink) 4%, transparent)" } : undefined}
+            >
+              <button type="button" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => p.onVald(paa ? null : pl.id)}>
+                <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>{pl.id}</span>
+                {lagFarge(pl.farge) !== null && <span aria-hidden="true" className="block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: LAG_FARGAR[pl.farge as number] }} />}
+                <span className="min-w-0 flex-1 truncate">{kvaSlag(pl.n)}</span>
+                {/* KVAR PLANET STÅR, SOM EIT TAL: millimeter frå midten av kroppen,
+                    langs normalen. Det er inndata lese av — punktet og normalen
+                    planet ER — og ikkje eit mål frå kuttet. Pilene flyttar det
+                    éin om gongen, og talet fylgjer. Berre på benken: på
+                    telefonen er rada 390 pikslar, og ledda står der alt. */}
+                {p.benk && p.boks && (
+                  <span className="tab dim shrink-0" title="millimeter frå midten av kroppen, langs normalen. pilene flyttar planet éin om gongen">
+                    {fraaMidten(pl, p.boks)}
+                  </span>
+                )}
+                <span className="tab dim shrink-0" style={{ color: mine.length && !ledd ? "var(--warn)" : undefined }} title={`${mine.length} stykke, ${ledd} ledd`}>
+                  {mine.length ? `· ${mine.length > 1 ? `${mine.length} stk · ` : ""}${ledd} ledd` : "· utanfor"}
                 </span>
-              )}
-              <span className="tab dim shrink-0" style={{ color: mine.length && !ledd ? "var(--warn)" : undefined }} title={`${mine.length} stykke, ${ledd} ledd`}>
-                {mine.length ? `· ${mine.length > 1 ? `${mine.length} stk · ` : ""}${ledd} ledd` : "· utanfor"}
-              </span>
-              {pl.strek.length > 0 && (
-                <span className="tab dim shrink-0 rounded-full border px-1.5 text-[9px] leading-[14px]" style={HAIR} title="handteikna strek i profilen">{pl.strek.length} strek</span>
-              )}
-            </button>
-            <button type="button" aria-label={`slett plan ${pl.id}`} title="ta planet bort" className="hit dim h-9 w-11 shrink-0" onClick={() => p.onSlett(pl.id)}>
-              ×
-            </button>
-          </li>
+                {pl.strek.length > 0 && (
+                  <span className="tab dim shrink-0 rounded-full border px-1.5 text-[9px] leading-[14px]" style={HAIR} title="handteikna strek i profilen">{pl.strek.length} strek</span>
+                )}
+              </button>
+              <button type="button" aria-label={`slett plan ${pl.id}`} title="ta planet bort" className="hit dim h-9 w-11 shrink-0" onClick={() => p.onSlett(pl.id)}>
+                ×
+              </button>
+            </li>
+          )}
           </Fragment>
         )
       })}
+      {p.vald !== null && <Profilen p={p} />}
       {p.vald !== null && <Laga p={p} />}
     </ul>
   )
@@ -219,18 +261,69 @@ function Lagrad({ no, ord, tittel, onFarge }: {
   onFarge: (farge: number) => void
 }) {
   return (
-    <li role="group" aria-label="lag" data-lag={ord} className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 px-1.5 pb-1 pt-0.5">
+    /* ÉI RAD, OG HO RULLAR. Åtte og tjue fargar braut i tre rader og tok
+       ein tredjedel av arket for eit val du gjer sjeldan. No er det éi
+       line som rullar sidelengs inni seg sjølv: like mange fargar, og
+       arket får høgda si attende. Prikkane kunne ikkje krympast i staden
+       — tolv pikslar kvar er tolv pikslar med treffesoner som ligg oppå
+       kvarandre, og då tek feil farge trykket. */
+    <li role="group" aria-label="lag" data-lag={ord} className="flex items-center gap-1 px-1.5 pb-1 pt-0.5">
       <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">{ord}</span>
-      <button type="button" aria-pressed={no === 0} aria-label="ikkje noko lag" title="ikkje noko lag: kuttet er blått som dei andre" onClick={() => onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
-        <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ borderColor: no === 0 ? "var(--ink)" : "var(--rule)" }} />
-      </button>
-      {LAG_FARGAR.map((hex, i) =>
-        i < FARGE_MIN ? null : (
-          <button key={hex} type="button" aria-pressed={no === i} aria-label={`lag C${String(i).padStart(2, "0")}`} title={`lag C${String(i).padStart(2, "0")} i LightBurn · ${hex}${tittel}`} onClick={() => onFarge(i)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
-            <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ background: hex, borderColor: no === i ? "var(--ink)" : "transparent" }} />
-          </button>
-        ),
-      )}
+      <span className="rull-x flex min-w-0 flex-1 items-center gap-x-0.5 overflow-x-auto overscroll-contain">
+        <button type="button" aria-pressed={no === 0} aria-label="ikkje noko lag" title="ikkje noko lag: kuttet er blått som dei andre" onClick={() => onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+          <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ borderColor: no === 0 ? "var(--ink)" : "var(--rule)" }} />
+        </button>
+        {LAG_FARGAR.map((hex, i) =>
+          i < FARGE_MIN ? null : (
+            <button key={hex} type="button" aria-pressed={no === i} aria-label={`lag C${String(i).padStart(2, "0")}`} title={`lag C${String(i).padStart(2, "0")} i LightBurn · ${hex}${tittel}`} onClick={() => onFarge(i)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+              <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ background: hex, borderColor: no === i ? "var(--ink)" : "transparent" }} />
+            </button>
+          ),
+        )}
+      </span>
+    </li>
+  )
+}
+
+/**
+ * PROFILEN: KVA SOM SKJER MED KANTEN FØR SPORA VERT SKORNE.
+ *
+ * Firkanten gjer profilen til boksen kring seg sjølv — plata i staden for
+ * konturen — og mjukinga rundar av hakket trekantane i nettet la att.
+ * Begge tek heile gruppa når ho er vald, som laget under.
+ *
+ * Mjukinga står i MILLIMETER her og som ein brøk i strengen: brøken
+ * fylgjer kroppen når han vert skalert, og millimeteren er det du ser på
+ * plata. Rada er den same skrubbaren som alle andre tal — drag, piler,
+ * hjul, og skriving på benken.
+ */
+function Profilen({ p }: { p: ArketProps }) {
+  const S = num(p.params, "storleik", 150)
+  const tak = +(MJUK_TAK * S).toFixed(1)
+  return (
+    <li role="group" aria-label="profil" data-profil="" className="px-1.5 pb-0.5 pt-1">
+      <div className="flex items-center gap-2">
+        <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">profil</span>
+        <button
+          type="button"
+          aria-pressed={p.firkant}
+          title={p.firkant ? "firkanten: profilen er boksen kring seg sjølv. trykk for konturen attende" : "firkanten: gjer profilen til boksen kring seg sjølv — plata i staden for konturen"}
+          onClick={p.onFirkant}
+          className={CHIP + " uppercase tracking-[0.1em]"}
+          style={chipStyle(p.firkant)}
+          data-firkant=""
+        >
+          firkant
+        </button>
+      </div>
+      <SliderRow
+        k="mjuk"
+        r={{ label: "mjuk", min: 0, max: tak, step: 0.5, unit: "mm" }}
+        value={Math.min(tak, +(p.mjuk * S).toFixed(1))}
+        benk={p.benk}
+        onChange={(_, v) => p.onMjuk(S > 0 ? v / S : 0)}
+        onSkrubb={p.onSkrubb}
+      />
     </li>
   )
 }
@@ -307,6 +400,14 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
   const { params, onChange, metrics } = p
   const setParam = (k: string, v: number) => onChange({ ...params, [k]: v })
   const naaTjukn = num(params, "tjukn", TJUKNER[0])
+  /** bolkane du har bretta saman: overskrifta er knappen, som gruppa i planlista */
+  const [bretta, setBretta] = useState<ReadonlySet<string>>(() => new Set())
+  const brett = (id: string) =>
+    setBretta((s) => {
+      const n = new Set(s)
+      if (!n.delete(id)) n.add(id)
+      return n
+    })
   return (
     <>
       {/* materialet og tjukna på éi rad der det er plass, og på to der det ikkje er */}
@@ -335,13 +436,22 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
       {["arkB", "arkH"].map((k) => (
         <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(params, k, PARAM_RANGES[k].min)} benk={p.benk} onChange={setParam} onSkrubb={p.onSkrubb} />
       ))}
+      {/* BOLKANE BRETTAR SEG. Sju overskrifter og tjue skyvarar er meir enn
+          ein telefon syner på ein gong, og du arbeider i éin bolk om gongen.
+          Overskrifta er knappen: trykk henne, og skyvarane under henne fell
+          bort til du trykkjer att. */}
       {GROUPS.map((g) => {
         const keys = g.keys.filter((k) => !FRAMME.has(k))
         if (!keys.length) return null
+        const att = bretta.has(g.id)
         return (
           <div key={g.id} className="pt-3">
-            <h3 className="dim pb-0.5 text-[10px] uppercase leading-none tracking-[0.24em]">{g.label}</h3>
-            {keys.map((k) => (
+            <h3>
+              <button type="button" aria-expanded={!att} title={att ? `syn ${g.label}` : `brett ${g.label} saman`} onClick={() => brett(g.id)} className="hit dim block w-full pb-0.5 text-left text-[10px] uppercase leading-none tracking-[0.24em]" data-bolk={g.id}>
+                {g.label}
+              </button>
+            </h3>
+            {!att && keys.map((k) => (
               <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(params, k, PARAM_RANGES[k].min)} benk={p.benk} onChange={setParam} onSkrubb={p.onSkrubb} />
             ))}
           </div>

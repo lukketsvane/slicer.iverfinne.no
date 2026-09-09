@@ -59,6 +59,19 @@ const vent = async (page: Page, f: (p: Params) => boolean, ms = 10000) => {
   await roleg(page, 200)
 }
 const talPlan = (n: number) => (p: Params) => lesPlan(p.plan).length === n
+/**
+ * GRUPPENE LIGG SAMAN, so ei rad i lista er ikkje der før nokon ber om
+ * henne. Eit trykk på gruppa brettar henne ut (og tek henne, som før);
+ * eit trykk på eit plan etterpå slepper gruppa att.
+ */
+const utbrett = async (page: Page) => {
+  const rader = page.locator("[role=listbox][aria-label='plan'] [data-gruppe] button[aria-expanded='false']")
+  for (let vakt = 0; vakt < 8 && (await rader.count()) > 0; vakt++) {
+    await rader.first().click()
+    await page.waitForTimeout(200)
+  }
+}
+
 /** arket i midten, med planlista synleg */
 const midt = async (page: Page) => {
   if ((await page.locator("[role=listbox][aria-label='plan']").count()) === 0) {
@@ -195,6 +208,20 @@ async function telefon(browser: Browser) {
   // zoomar sida. Difor `[aria-label$=", tal"]` og ikkje `input[…]`.
   const felt = await page.locator("[aria-label$=', tal'][role=slider]").count()
   sjekk("«alle kontrollane» syner skyvarane", felt >= 12, `${felt} dragskiver`)
+  /**
+   * OG BOLKANE BRETTAR SEG. Sju overskrifter og tjue skyvarar er meir enn
+   * eit ark på ein telefon syner, og du arbeider i éin bolk om gongen:
+   * overskrifta er knappen, og skyvarane under henne fell bort til du
+   * trykkjer att.
+   */
+  const bolk = page.locator("[data-bolk='kutt']")
+  await bolk.click()
+  await page.waitForTimeout(300)
+  const felt2 = await page.locator("[aria-label$=', tal'][role=slider]").count()
+  sjekk("eit trykk på overskrifta brettar bolken saman", felt2 < felt && (await bolk.getAttribute("aria-expanded")) === "false", `${felt} → ${felt2} dragskiver`)
+  await bolk.click()
+  await page.waitForTimeout(300)
+  sjekk("og eit trykk til brettar han ut att", (await page.locator("[aria-label$=', tal'][role=slider]").count()) === felt)
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
   sjekk("esc stengjer arket til lina", (await liste.count()) === 0)
@@ -242,7 +269,10 @@ async function telefon(browser: Browser) {
   await rad.locator("button").first().click()
   await page.waitForTimeout(300)
   sjekk("eit trykk på rada vel planet", (await rad.getAttribute("aria-selected")) === "true")
-  sjekk("og den store knappen seier «ferdig»", (await page.getByRole("button", { name: "ferdig", exact: true }).count()) === 1)
+  // DEN STORE KNAPPEN STÅR TOM med eit plan valt: det er ingenting å skjere,
+  // og «ferdig» var ein knapp for å slutte å gjere noko — eit trykk utanfor,
+  // eit trykk på rada eller escape slepper planet frå før.
+  sjekk("og den store knappen står tom", (await page.getByRole("button", { name: "ferdig", exact: true }).count()) === 0 && (await page.getByRole("button", { name: "skjer", exact: true }).count()) === 0)
   await page.keyboard.press("Backspace")
   await vent(page, talPlan(n0 + 1))
   sjekk("⌫ tek det valde planet bort", plana(page).length === n0 + 1)
@@ -922,11 +952,28 @@ async function telefon(browser: Browser) {
     await vent(page, (p) => /stolform-02/.test(String(p.scene ?? "")), 20000)
     sjekk("den same familien om att blar til den neste utgåva", /^stolform-02@/.test(valdBit()), valdBit().slice(0, 40))
     sjekk("og han står framleis der han stod", hale(valdBit()) === hale(foer[1] ?? ""), valdBit())
+    /**
+     * OG BLADREN GJER DET I EITT TRYKK, NEDST TIL VENSTRE.
+     *
+     * Menyen er to trykk med kroppen dekt, kvar gong, for det eine
+     * spørsmålet «er denne stolen den rette?». Knappen står motsett veg av
+     * reiskapane — venstre tommelen — og han går den same vegen inn, so
+     * plassen, storleiken og angre er dei same.
+     */
+    const bla = page.locator("[data-bla]")
+    const bx = await bla.boundingBox()
+    const tx = await page.locator("[data-bitverkty]").boundingBox()
+    sjekk("bladeren står med ein bit som har fleire utgåver", (await bla.count()) === 1)
+    sjekk("og han står motsett veg av reiskapane", !!bx && !!tx && bx.x + bx.width < tx.x, `${bx ? Math.round(bx.x) : "–"} mot ${tx ? Math.round(tx.x) : "–"} px`)
+    await bla.click()
+    await vent(page, (p) => /stolform-03/.test(String(p.scene ?? "")), 20000)
+    sjekk("eitt trykk blar til den neste utgåva", /^stolform-03@/.test(valdBit()), valdBit().slice(0, 40))
+    sjekk("og plassen, storleiken og vendinga står", hale(valdBit()) === hale(foer[1] ?? ""), valdBit())
     await vel("sau")
     await vent(page, (p) => /sau-01/.test(String(p.scene ?? "")), 20000)
     sjekk("ein annan familie byrjar på si eiga fyrste", /^sau-01@/.test(valdBit()), valdBit().slice(0, 40))
-    // tre endringar, og angre kan ha slege nokon av dei saman
-    for (let i = 0; i < 5 && bitScene() !== foer.join(";"); i++) {
+    // fire endringar, og angre kan ha slege nokon av dei saman
+    for (let i = 0; i < 6 && bitScene() !== foer.join(";"); i++) {
       await page.keyboard.press("z")
       await roleg(page, 500)
     }
@@ -1227,9 +1274,18 @@ async function grupper(browser: Browser) {
   const plan = skrivPlan(rutenett(0, 4))
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })), browser, 1400, 900)
   sjekk("lista har gruppa som rad", (await page.locator("[data-gruppe='1']").count()) === 1)
+  /**
+   * OG HO LIGG SAMAN. Eit rutenett er tretti plan i lista, og lista er det
+   * meste av det ein telefon syner: gruppa er si eine rad til du ber om
+   * noko anna. Trykket brettar henne ut OG tek henne — leiaren er det siste
+   * planet, som før.
+   */
+  const iLista = page.locator("[role=listbox][aria-label='plan'] [data-plan]")
+  sjekk("og plana hennar ligg saman frå fyrst av", (await iLista.count()) === 0, `${await iLista.count()} av 4 plan i lista`)
   await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
   await page.waitForTimeout(300)
   sjekk("trykk på gruppa vel henne", (await page.locator("[data-gruppe='1'][aria-selected='true']").count()) === 1)
+  sjekk("og brettar henne ut", (await iLista.count()) === 4 && (await page.getByRole("button", { name: "gruppe 1", exact: true }).getAttribute("aria-expanded")) === "true", `${await iLista.count()} av 4 plan i lista`)
   sjekk("og det siste planet er leiaren", (await page.locator("[data-plan='4'][aria-selected='true']").count()) === 1)
   sjekk("fordel står under tommelen", (await page.locator("[data-fordel]").count()) === 1)
 
@@ -1275,6 +1331,7 @@ async function grupper(browser: Browser) {
   await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
   await page.waitForTimeout(300)
   sjekk("trykk att slepper gruppa", (await page.locator("[role=option][aria-selected='true']").count()) === 0)
+  sjekk("og legg henne saman att", (await iLista.count()) === 0, `${await iLista.count()} av 4 plan i lista`)
   await page.getByRole("button", { name: "slett gruppe 1", exact: true }).click()
   await vent(page, talPlan(0))
   sjekk("× på gruppa tek alle plana", plana(page).length === 0)
@@ -1284,6 +1341,9 @@ async function grupper(browser: Browser) {
   await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })))
   await page.reload({ waitUntil: "networkidle" })
   await roleg(page, 800)
+  // gruppa ligg saman etter ei omlasting: brett henne ut for å nå eit plan
+  await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
+  await page.waitForTimeout(300)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(300)
   sjekk("eit valt plan har laga under seg", (await page.locator("[data-lag='lag']").count()) === 1 && (await page.locator("[data-lag='lag'] button").count()) === 29)
@@ -1304,6 +1364,38 @@ async function grupper(browser: Browser) {
   await page.getByRole("button", { name: "ikkje noko lag", exact: true }).click()
   await vent(page, (p) => lesPlan(p.plan).every((q) => !q.farge))
   sjekk("og ringen tek merket bort att", plana(page).every((q) => !q.farge))
+
+  /**
+   * OG EIT PLAN MED FLEIRE STYKKE ER EI GRUPPE I KUTTLISTA.
+   *
+   * Same saka ei rad ned: overskrifta «plan 1 · 2 stykke» samlar dei, og ho
+   * brettar dei saman. To kubar med luft imellom og eitt vassrett plan gjev
+   * nett det — eitt snitt, to stykke — og det er den einaste kroppen som
+   * gjev det utan å hente eit nett.
+   */
+  await page.goto(
+    URL + "#p=" + encodeURIComponent(JSON.stringify({
+      scene: "kube@-90,0,0/1/0;kube@90,0,0/1/0",
+      plan: skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] }]),
+      storleik: 150,
+    })),
+  )
+  await page.reload({ waitUntil: "networkidle" })
+  await roleg(page, 800)
+  await page.getByRole("button", { name: "kuttliste", exact: true }).click()
+  const verkty = page.locator("section[aria-label='verkty']")
+  await verkty.waitFor({ timeout: 10000 })
+  const bolk = verkty.locator("[data-bolk='plan-1']")
+  const rader = verkty.locator("tbody tr")
+  const rad0 = await rader.count()
+  sjekk("kuttlista samlar dei to stykka under planet sitt", (await bolk.count()) === 1 && rad0 === 3, `${rad0} rader`)
+  await bolk.click()
+  await page.waitForTimeout(250)
+  sjekk("og overskrifta brettar dei saman", (await rader.count()) === 1 && (await bolk.getAttribute("aria-expanded")) === "false", `${await rader.count()} rader`)
+  await bolk.click()
+  await page.waitForTimeout(250)
+  sjekk("og eit trykk til brettar dei ut att", (await rader.count()) === rad0, `${await rader.count()} rader`)
+
   sjekk("ingen konsollfeil på gruppene", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
 }
@@ -1904,6 +1996,7 @@ async function skaletOgSovnen(browser: Browser) {
   await page.mouse.move(190, 700)
   await page.locator(HOVUDLINA).click()
   await page.waitForTimeout(500)
+  await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(400)
   // arket att: eit ope ark held det vake av seg sjølv, og då prøver vi ingenting
@@ -1975,6 +2068,7 @@ async function boyen(browser: Browser) {
   const plan = skrivPlan(rutenett(3, 0))
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 300, tjukn: 6, material: "finer" })), browser, 390, 844)
   await midt(page)
+  await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await roleg(page, 600)
   const knapp = page.locator("[data-boy]")
@@ -2008,6 +2102,49 @@ async function boyen(browser: Browser) {
     const tekst = (await page.locator("[aria-label='kontrollar']").innerText()).replace(/\s+/g, " ")
     sjekk("bøyeradien står i tavla", /bøyeradius/.test(tekst), (tekst.match(/bøyeradius[^·]{0,44}/) ?? [""])[0])
   }
+
+  /**
+   * DEI TO ANDRE OPERATORANE PÅ PROFILEN: firkanten og mjukinga.
+   *
+   * Dei står under den same tommelen som bøyen og går den same vegen inn —
+   * plan-strengen — so prøva er den same: trykk, og les lenkja. Firkanten
+   * er eit merke (`f:1`), mjukinga eit drag som bøyen (`m:`), og båe tek
+   * heile gruppa når ho er vald.
+   */
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
+  await midt(page)
+  await utbrett(page)
+  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
+  await roleg(page, 500)
+  const firkant = page.locator("[data-firkant]")
+  const mjuk = page.locator("[aria-label='mjuk, tal']")
+  sjekk("eit valt plan har firkanten og mjukinga i arket", (await firkant.count()) === 1 && (await mjuk.count()) === 1)
+  await firkant.click()
+  await vent(page, (p) => !!lesPlan(p.plan)[0]?.firkant)
+  sjekk("firkanten står i lenkja", lesPlan(hash(page).plan)[0]?.firkant === true && !lesPlan(hash(page).plan)[1]?.firkant, hash(page).plan.slice(0, 44))
+  await firkant.click()
+  await vent(page, (p) => !lesPlan(p.plan)[0]?.firkant)
+  sjekk("og eit trykk til tek han attende", !lesPlan(hash(page).plan)[0]?.firkant)
+  // rada er den same skrubbaren som alle andre tal: eit vassrett drag
+  const dra = async (dx: number) => {
+    const mb = await mjuk.boundingBox()
+    if (!mb) return
+    const y = mb.y + mb.height / 2
+    await page.mouse.move(mb.x + mb.width / 2, y)
+    await page.mouse.down()
+    await page.mouse.move(mb.x + mb.width / 2 + dx, y, { steps: 12 })
+    await page.mouse.up()
+  }
+  await dra(60)
+  await vent(page, (p) => (lesPlan(p.plan)[0]?.mjuk ?? 0) > 0)
+  const m0 = lesPlan(hash(page).plan)[0]?.mjuk ?? 0
+  sjekk("eit drag mjukar kanten", m0 > 0 && m0 <= 0.02, `mjuk ${m0}`)
+  sjekk("og dei andre plana står skarpe", lesPlan(hash(page).plan).slice(1).every((q) => !q.mjuk))
+  await dra(-160)
+  await vent(page, (p) => !(lesPlan(p.plan)[0]?.mjuk ?? 0))
+  sjekk("og eit drag attende tek henne heilt bort", !(lesPlan(hash(page).plan)[0]?.mjuk ?? 0), hash(page).plan.slice(0, 44))
+
   sjekk("ingen konsollfeil på bøyen", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
   await page.close()
 }

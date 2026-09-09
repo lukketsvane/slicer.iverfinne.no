@@ -374,7 +374,60 @@ function klippDist(kl: Klipp, t: number, z: number): number {
   return best
 }
 
-function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp) {
+/**
+ * SLØRET: EIN KASSE OVER FELTET, med radius i celler.
+ *
+ * Mjukinga rundar hjørne ved å sløre AVSTANDEN og ikkje polygonet. Ei rett
+ * side er ein rett rampe i feltet, og ein rampe slørt er den same rampen —
+ * so ei rett kant står urørt, medan eit hjørne, der to rampar møtest,
+ * vert runda. Det er nett det ein vil av «mjukare»: hakket frå trekantane
+ * i nettet forsvinn, og forma står.
+ *
+ * To vendingar av ein kasse i staden for éin: éin kasse er ein trekant av
+ * eit slør, og trekanten har eit knekk i seg som du ser att i konturen.
+ * Springande sum, so kostnaden er den same kor brei kassen er.
+ *
+ * Kanten vert halden fast (klemt indeks). Ruta har alt eit belte luft
+ * kring profilen (`PAD` i `ruteAv`), so det er luft som vert gjenteken.
+ */
+const SLOER_VENDER = 2
+function sloer(g: Float64Array, w: number, h: number, kx: number, kz: number) {
+  const tmp = new Float64Array(g.length)
+  for (let v = 0; v < SLOER_VENDER; v++) {
+    if (kx > 0) {
+      const n = 2 * kx + 1
+      for (let j = 0; j < h; j++) {
+        const rad = j * w
+        let sum = 0
+        for (let i = -kx; i <= kx; i++) sum += g[rad + Math.min(w - 1, Math.max(0, i))]
+        for (let i = 0; i < w; i++) {
+          tmp[rad + i] = sum / n
+          sum += g[rad + Math.min(w - 1, i + kx + 1)] - g[rad + Math.min(w - 1, Math.max(0, i - kx))]
+        }
+      }
+      g.set(tmp)
+    }
+    if (kz > 0) {
+      const n = 2 * kz + 1
+      for (let i = 0; i < w; i++) {
+        let sum = 0
+        for (let j = -kz; j <= kz; j++) sum += g[Math.min(h - 1, Math.max(0, j)) * w + i]
+        for (let j = 0; j < h; j++) {
+          tmp[j * w + i] = sum / n
+          sum += g[Math.min(h - 1, j + kz + 1) * w + i] - g[Math.min(h - 1, Math.max(0, j - kz)) * w + i]
+        }
+      }
+      g.set(tmp)
+    }
+  }
+}
+
+/**
+ * `mjuk` er millimeter, og sløret kjem MELLOM feltet og spora: eit rundt
+ * hjørne skal ikkje gjere leddet rundt òg. Sporet er det einaste i denne
+ * fila som må kome ut med skarpe kantar — det er det som grip.
+ */
+function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0) {
   const { t0, dt, nt, z0, dz, nz, rows, cols } = ru
   const boksar = spor.map(boksAv)
   const g = new Float64Array((nt + 1) * (nz + 1))
@@ -406,7 +459,18 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp) {
         const d = formDist(f, t, z)
         v = f.gods ? Math.max(v, -d) : Math.min(v, d)
       }
-      if (v > 0) {
+      g[j * (nt + 1) + i] = v
+    }
+  }
+  if (mjuk > 0) sloer(g, nt + 1, nz + 1, Math.round(mjuk / dt), Math.round(mjuk / dz))
+  if (boksar.length) {
+    for (let j = 0; j <= nz; j++) {
+      const z = z0 + j * dz
+      for (let i = 0; i <= nt; i++) {
+        const k = j * (nt + 1) + i
+        let v = g[k]
+        if (v <= 0) continue
+        const t = t0 + i * dt
         for (const b of boksar) {
           const rx = t - b.px
           const ry = z - b.py
@@ -416,8 +480,8 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp) {
           if (d < v) v = d
           if (v <= 0) break
         }
+        g[k] = v
       }
-      g[j * (nt + 1) + i] = v
     }
   }
   return contour(g, t0, dt, nt, z0, dz, nz)
@@ -508,6 +572,8 @@ type Raa = {
   spor: Spor[]
   /** flata er ein sylinder og ikkje eit plan — sjå `Plan.bog` */
   boygd: boolean
+  /** kor mykje feltet vert slørt før konturen vert dregen, mm — sjå `Plan.mjuk` */
+  mjuk: number
   /** boksane planet er lenkt til gjennom laget sitt, om nokon */
   klipp?: Klipp
 }
@@ -570,10 +636,45 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     const former: Form[] = pl.strek.map((st: Strek) => formAv(st, ou, ov, S))
     const mine = pl.farge ? eigd.get(pl.farge) : undefined
     const klipp: Klipp | undefined = mine ? { r, boksar: mine } : undefined
+    // MJUKINGA er ein brøk av kroppen, som streka og bøyen; feltet reknar
+    // i millimeter, so ho vert gjord om her og berre her
+    const mjuk = (pl.mjuk ?? 0) * S
     // det utrulla rommet har flata på null; det vendte har henne på `d`
     const ru = ruteAv(sol, boygd ? 0 : d, step, former)
-    const ringar = felt(ru, former, [], klipp).map((l) => l.pts as Pt[])
-    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], nullpkt: [ou, ov] as Pt, boygd, klipp }
+    let ringar = felt(ru, former, [], klipp, mjuk).map((l) => l.pts as Pt[])
+    /**
+     * FIRKANTEN: BOKSEN KRING PROFILEN, LAGD TIL SOM GODS.
+     *
+     * Ei ribbe gjennom eit dyr er ein kontur med øyre og hovar, og av og
+     * til er det plata du vil ha og ikkje konturen. Boksen vert lagd inn i
+     * feltet som eit gods-strek, og so går alt sin vanlege gang: spora
+     * vert skorne i han, ledda vert lesne av HAN, og kuttfila er den same
+     * fila ho alltid var.
+     *
+     * Difor må ringane reknast om att her, før ledda: eit ledd som vart
+     * funne på den gamle profilen ville liggje ein annan stad enn det som
+     * vert skore. Prisen er eitt felt til for planet, og berre for planet
+     * som ber merket.
+     *
+     * Boksen er boksen kring det profilen FAKTISK er — etter klippet mot
+     * biten og etter mjukinga — og ikkje kring heile kroppen.
+     */
+    if (pl.firkant && ringar.length) {
+      let x0 = Infinity
+      let y0 = Infinity
+      let x1 = -Infinity
+      let y1 = -Infinity
+      for (const ring of ringar) {
+        const b = bbox(ring)
+        x0 = Math.min(x0, b.x0)
+        y0 = Math.min(y0, b.y0)
+        x1 = Math.max(x1, b.x1)
+        y1 = Math.max(y1, b.y1)
+      }
+      former.push({ gods: true, rund: false, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, hw: (x1 - x0) / 2, hh: (y1 - y0) / 2, c: 1, s: 0, bx0: x0, bx1: x1, by0: y0, by1: y1 })
+      ringar = felt(ru, former, [], klipp, mjuk).map((l) => l.pts as Pt[])
+    }
+    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], nullpkt: [ou, ov] as Pt, boygd, klipp, mjuk }
   })
 
   // --- ledda -------------------------------------------------------------
@@ -723,7 +824,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
 
   const ribber: Ribbe[] = raa.map((a) => {
     a.spor.sort((u, v) => u.munn - v.munn)
-    const loops = felt(a.ru, a.former, a.spor, a.klipp)
+    const loops = felt(a.ru, a.former, a.spor, a.klipp, a.mjuk)
     let outlines: Pt[][] = []
     let holes: Pt[][] = []
     for (const l of loops) {
