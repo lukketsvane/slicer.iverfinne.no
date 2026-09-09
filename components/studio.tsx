@@ -542,7 +542,18 @@ export function Studio() {
       }
       if (r.kind === "kjelde") {
         setNamn((m) => ({ ...m, [r.src.id]: r.src.label }))
-        setRammInn((n) => n + 1)
+        /**
+         * EI INNEBYGD FORM RAMMAR IKKJE INN.
+         *
+         * Ho kjem same vegen som ei fil — nettet vert henta, og kjelda
+         * melder seg — men ho er ikkje ein ny kropp: ho er ein bit som
+         * byter form, med plassen, storleiken og vendinga si i behald. Å
+         * blaste kameraet heim for kvart trykk på «bla» er å kaste vinkelen
+         * du stod og såg på, ti gonger på rad, medan du ser gjennom ti
+         * stolar. Ei FIL er noko anna: der er kroppen ein annan, og han
+         * skal du sjå.
+         */
+        if (!erFilform(r.src.id)) setRammInn((n) => n + 1)
         /**
          * NED I BASEN, UNDER NAMNET SITT.
          *
