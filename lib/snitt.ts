@@ -1059,6 +1059,17 @@ export type SkisseSyn = {
   akse: "x" | "y" | "z"
   /** det svaret er ein funksjon av: same nøkkel, same svar, ingen grunn til å teikne om */
   nokkel: string
+  /**
+   * LEDDA SOM HANDTAK, i profilen si ramme — berre på eit plan som ER
+   * låst, av di ei skisse ikkje har ledd enno.
+   *
+   * Same forma som `Delplass.spor` på plata: botnen er den lukka enden du
+   * dreg i, `lo` og `hi` er heile strekket leddet kan delast på, og
+   * `nokkel` er namnet `deling` i posen brukar. Difor kan handa setje det
+   * same leddet frå rommet som frå plata — det er éi line, lesen frå to
+   * stader.
+   */
+  spor?: { nokkel: string; munn: Pt; botn: Pt; lo: Pt; hi: Pt }[]
 }
 
 /** eit plan som alt er låst: profilen slik han faktisk vert skoren, med spor og strek */
@@ -1071,7 +1082,9 @@ function laastSyn(k: Kropp, p: Params, pl: Plan, cells: number): SkisseSyn | nul
     const hi = Math.max(q.munn, q.botn)
     kryss.push({ a: [q.p[0] + q.d[0] * lo, q.p[1] + q.d[1] * lo], b: [q.p[0] + q.d[0] * hi, q.p[1] + q.d[1] * hi], mot: q.mot })
   }
-  return { r: rib.r, ringar: [...rib.outlines, ...rib.holes], kryss, ...avstandAv(k, rib.r), nokkel: `laast|${pl.id}|${snittKey(p as unknown as ParamBag, cells)}` }
+  const paa = (q: Spor, t: number): Pt => [q.p[0] + q.d[0] * t, q.p[1] + q.d[1] * t]
+  const spor = rib.spor.map((q) => ({ nokkel: q.nokkel, munn: paa(q, q.munn), botn: paa(q, q.botn), lo: paa(q, q.lo), hi: paa(q, q.hi) }))
+  return { r: rib.r, ringar: [...rib.outlines, ...rib.holes], kryss, spor, ...avstandAv(k, rib.r), nokkel: `laast|${pl.id}|${snittKey(p as unknown as ParamBag, cells)}` }
 }
 
 function avstandAv(k: Kropp, r: Ramme): { avstand: number; akse: "x" | "y" | "z" } {

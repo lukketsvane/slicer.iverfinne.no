@@ -433,6 +433,42 @@ input {
   height: 64px;
 }
 
+/* LEDDA SOM HANDTAK, i rommet. Same prikken som på plata — ein liten ring
+   på den lukka enden av sporet — og den same fire og førti pikslars sona
+   kring henne. Dei står berre når eit låst plan er valt, og dei fell bort
+   med resten når grensesnittet søv. */
+.spor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+.spor button {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+}
+.spor button:active {
+  cursor: grabbing;
+}
+.spor button > span {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  border: 2px solid #e05a1a;
+  background: var(--paper);
+}
+
 /* SPEGLINGANE, øvst i midten av det frie bandet. Bandet er så breitt som
    lerretet, so det må sleppe fingrar gjennom: berre orda tek trykk.
 
@@ -478,6 +514,7 @@ main .bla,
 main .speil,
 main .handtak,
 main .sider,
+main .spor,
 main .uttak,
 main [aria-label="kontrollar"] {
   transition: opacity 90ms linear;
@@ -489,6 +526,7 @@ main[data-sov] .bla,
 main[data-sov] .speil,
 main[data-sov] .handtak,
 main[data-sov] .sider,
+main[data-sov] .spor,
 main[data-sov] .uttak,
 main[data-sov] [aria-label="kontrollar"] {
   opacity: 0;

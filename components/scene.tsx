@@ -8,6 +8,7 @@ import { LAG_FARGAR, MATERIALS, inRing, lagFarge, shoelace, type Kutt, type Mate
 import { akser, broek, dot, inn, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
 import { GROUND_Y, MAX_DIST, MIN_DIST, SKODDE_FJERN, SKODDE_NAER, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
+import { DELING_MAX, DELING_MIN } from "@/lib/params"
 import type { BitBoks } from "@/lib/kropp"
 import type { BuildRes } from "@/lib/worker"
 
@@ -1421,6 +1422,138 @@ function Snittet({ f, snitt, farge }: { f: Ramma; snitt: SkisseSyn; farge: strin
 }
 
 /**
+ * LEDDA SOM HANDTAK, I ROMMET.
+ *
+ * Spor-endane var handtak på PLATA og berre der: du kunne setje kor djupt
+ * eit ledd går medan du såg teikninga, men ikkje medan du såg kroppen —
+ * og det er kroppen du ser på når du avgjer kva for ei ribbe som skal
+ * bere. Her er dei same handtaka i rommet, på det valde planet: prikken
+ * står på den lukka enden av sporet, streken bak henne er heile bandet
+ * botnen kan gå i, og eit drag les fingeren mot den lina leddet ligg på.
+ *
+ * Talet som vert skrive er det same `deling` tek imot frå plata — begge
+ * spora i eit ledd har same nøkkel og same strekket — so eit djupare spor
+ * her er eit grunnare i naboen, utan at nokon reknar det om.
+ *
+ * Fingeren vert lesen mot ei LINE I ROMMET og ikkje mot ei flate: det
+ * næraste punktet mellom strålen frå auget og strekket leddet ligg på.
+ * Difor kan du dra frå kva vinkel som helst, og handtaket fylgjer sporet
+ * og ikkje musa.
+ */
+function Spora({ f, snitt, boks, onDeling }: {
+  f: Ramma
+  snitt: SkisseSyn
+  /** prikkane som DOM, over lerretet: scena skriv plassen deira kvar teikning */
+  boks: HTMLDivElement | null
+  onDeling: (nokkel: string, t: number) => void
+}) {
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
+  const size = useThree((s) => s.size)
+  const gl = useThree((s) => s.gl)
+  const controls = useThree((s) => s.controls) as { enabled: boolean } | null
+  const spor = useMemo(() => snitt.spor ?? [], [snitt])
+  const paa = (q: (typeof spor)[number], t: number): Pt => [q.lo[0] + (q.hi[0] - q.lo[0]) * t, q.lo[1] + (q.hi[1] - q.lo[1]) * t]
+  const naa = useRef({ f, snitt, spor, onDeling })
+  naa.current = { f, snitt, spor, onDeling }
+  const skrive = useRef<Record<string, string>>({})
+  /** bandet botnen kan gå i, som ei tynn line i planet */
+  const band = useMemo(() => {
+    const lin: number[] = []
+    for (const q of spor) lin.push(...ut(snitt.r, paa(q, DELING_MIN)), ...ut(snitt.r, paa(q, DELING_MAX)))
+    const g = new THREE.BufferGeometry()
+    g.setAttribute("position", new THREE.Float32BufferAttribute(lin, 3))
+    return g
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spor, snitt.r])
+  useEffect(() => () => band.dispose(), [band])
+
+  useEffect(() => {
+    if (!boks) return
+    /**
+     * FINGEREN VERT LESEN MOT EI LINE I ROMMET, og ikkje mot ei flate: det
+     * næraste punktet mellom strålen frå auget og strekket leddet ligg på.
+     * Difor kan du dra frå kva vinkel som helst — handtaket fylgjer sporet,
+     * ikkje musa.
+     */
+    let dra: { nokkel: string; A: THREE.Vector3; u: THREE.Vector3; aa: number } | null = null
+    const ned = (e: PointerEvent) => {
+      const el = (e.target as Element).closest<HTMLElement>("[data-spor]")
+      const q = naa.current.spor.find((x) => x.nokkel === el?.dataset.spor)
+      const g = naa.current.f
+      if (!e.isPrimary || !el || !q || !g) return
+      e.preventDefault()
+      e.stopPropagation()
+      const A = tilVerd(g, ut(naa.current.snitt.r, paa(q, DELING_MIN)))
+      const B = tilVerd(g, ut(naa.current.snitt.r, paa(q, DELING_MAX)))
+      const u = B.clone().sub(A)
+      const aa = u.dot(u)
+      if (aa < 1e-9) return
+      dra = { nokkel: q.nokkel, A, u, aa }
+      el.setPointerCapture(e.pointerId)
+      if (controls) controls.enabled = false
+    }
+    const rorsle = (e: PointerEvent) => {
+      if (!dra) return
+      const rute = gl.domElement.getBoundingClientRect()
+      const d = new THREE.Vector3(((e.clientX - rute.left) / rute.width) * 2 - 1, 1 - ((e.clientY - rute.top) / rute.height) * 2, 0.5)
+        .unproject(camera)
+        .sub(camera.position)
+        .normalize()
+      const w0 = dra.A.clone().sub(camera.position)
+      const b = dra.u.dot(d)
+      const dd = dra.u.dot(w0)
+      const ee = d.dot(w0)
+      const nemn = dra.aa - b * b
+      const sn = Math.abs(nemn) < 1e-9 ? 0 : (b * ee - dd) / nemn
+      const t = DELING_MIN + Math.min(1, Math.max(0, sn)) * (DELING_MAX - DELING_MIN)
+      naa.current.onDeling(dra.nokkel, +t.toFixed(3))
+    }
+    const opp = () => {
+      if (!dra) return
+      dra = null
+      if (controls) controls.enabled = true
+    }
+    boks.addEventListener("pointerdown", ned)
+    window.addEventListener("pointermove", rorsle, { passive: true })
+    window.addEventListener("pointerup", opp, { passive: true })
+    window.addEventListener("pointercancel", opp, { passive: true })
+    return () => {
+      boks.removeEventListener("pointerdown", ned)
+      window.removeEventListener("pointermove", rorsle)
+      window.removeEventListener("pointerup", opp)
+      window.removeEventListener("pointercancel", opp)
+      if (controls) controls.enabled = true
+    }
+  }, [boks, camera, controls, gl])
+
+  useFrame(() => {
+    if (!boks) return
+    const g = naa.current.f
+    if (!g) return
+    camera.updateMatrixWorld()
+    for (const q of naa.current.spor) {
+      const el = boks.querySelector<HTMLElement>(`[data-spor="${q.nokkel}"]`)
+      if (!el) continue
+      const v = tilVerd(g, ut(naa.current.snitt.r, q.botn)).project(camera)
+      const t = `translate(${(((v.x + 1) / 2) * size.width).toFixed(1)}px, ${(((1 - v.y) / 2) * size.height).toFixed(1)}px) translate(-50%, -50%)`
+      if (skrive.current[q.nokkel] !== t) {
+        skrive.current[q.nokkel] = t
+        el.style.transform = t
+      }
+      const o = v.z > 1 ? "0" : "1"
+      if (el.style.opacity !== o) el.style.opacity = o
+    }
+  })
+  return (
+    <group {...gruppa(f)}>
+      <lineSegments geometry={band} renderOrder={7}>
+        <lineBasicMaterial color={VALT} transparent opacity={0.4} depthTest={false} />
+      </lineSegments>
+    </group>
+  )
+}
+
+/**
  * STREKA I DET VALDE PLANET, teikna der dei står: det valde med heil strek
  * og eit pluss eller minus i midten, dei andre stipla so dei kan finnast og
  * takast. Berre ei teikning — profilen med streka skorne kjem frå motoren,
@@ -2084,7 +2217,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -2110,6 +2243,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   /** biten som er vald i verktyet for kroppen, som plass i lista */
   valdBit: number | null
   onVald: (id: number | null) => void
+  /** eit ledd delt på nytt frå rommet: same nøkkelen plata skriv */
+  onDeling: (nokkel: string, t: number) => void
   onValdStrek: (i: number | null) => void
   onPlan: (id: number, o: Vec3, n: Vec3) => void
   /** eit strek sleppt — og eit strek medan det vert drege, til snittet */
@@ -2173,6 +2308,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   const lupe = useRef<number | null>(null)
   const [boks, setBoks] = useState<HTMLDivElement | null>(null)
   const [sider, setSider] = useState<HTMLDivElement | null>(null)
+  /** prikkane på ledda, som DOM over lerretet — sjå `Spora` */
+  const [sporBoks, setSporBoks] = useState<HTMLDivElement | null>(null)
   const [sein, setSein] = useState(false)
   // Éi styrbar hovudlyskjelde på ein fast kuppel, pluss fire svake fyll:
   // eit uttak skal kaste éin hard skugge, slik det gjer i eit verkstadlys.
@@ -2215,6 +2352,14 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
               <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />
             </Sovnen>
           )}
+          {/* LEDDA SOM HANDTAK: berre på eit LÅST plan, og berre når det er
+              valt — ein prikk per ledd på kvar ribbe ville vore ei stjerne
+              av prikkar over heile kroppen. */}
+          {f && vald !== null && snitt?.spor?.length ? (
+            <Sovnen sov={sov}>
+              <Spora f={f} snitt={snitt} boks={sporBoks} onDeling={onDeling} />
+            </Sovnen>
+          ) : null}
           {f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[60, 60]} />
@@ -2325,6 +2470,17 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           Dei ligg i sitt eige lag so dei ikkje deler tilstand med handtaka
           på snittet — dei to er aldri framme samstundes, men eit lag som
           ber to meiningar er eit lag nokon gløymer å slå av. */}
+      {/* LEDDA SOM HANDTAK: éin prikk per ledd i det valde planet, på den
+          lukka enden av sporet. Scena skriv plassen deira kvar teikning
+          (sjå `Spora`); dei står berre der det finst eit låst plan valt. */}
+      <div ref={setSporBoks} className="spor">
+        {vald !== null &&
+          (snitt?.spor ?? []).map((q) => (
+            <button key={q.nokkel} type="button" data-spor={q.nokkel} aria-label={`ledd ${q.nokkel}`} title={`dra: kor djupt ledd ${q.nokkel} går`}>
+              <span aria-hidden="true" />
+            </button>
+          ))}
+      </div>
       <div ref={setSider} className="sider" style={{ visibility: "hidden" }}>
         {SIDER.map((sd, k) => (
           <button

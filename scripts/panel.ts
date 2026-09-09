@@ -1936,6 +1936,44 @@ async function handtaka(browser: Browser) {
       sjekk("og «jamt» tek delinga bort att", !hash(page).deling)
     }
   }
+
+  /**
+   * OG DEI SAME HANDTAKA I ROMMET.
+   *
+   * Spor-endane var på plata og berre der: du kunne setje kor djupt eit
+   * ledd går medan du såg teikninga, men ikkje medan du såg kroppen — og
+   * det er kroppen du ser på når du avgjer kva for ei ribbe som skal bere.
+   * Prikkane står på det valde planet, og talet dei skriv er det same
+   * `deling` tek imot frå plata.
+   */
+  await page.getByRole("button", { name: "lag", exact: true }).click()
+  await roleg(page, 800)
+  const prikk = page.locator("[data-spor]")
+  sjekk("ingen prikkar i rommet utan eit plan valt", (await prikk.count()) === 0)
+  await midt(page)
+  await utbrett(page)
+  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
+  await roleg(page, 900)
+  const nr = await prikk.count()
+  sjekk("det valde planet har ein prikk per ledd i rommet", nr > 0, `${nr} prikkar`)
+  const pb = await prikk.first().boundingBox()
+  if (pb) {
+    const kamera = async () => (await page.locator(".handtak").getAttribute("data-kamera")) ?? "?"
+    const kFyrr = await kamera()
+    const cx = pb.x + pb.width / 2
+    const cy = pb.y + pb.height / 2
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    await page.mouse.move(cx + 26, cy + 26, { steps: 12 })
+    await page.mouse.up()
+    await vent(page, (p) => !!p.deling)
+    const d3 = String(hash(page).deling ?? "")
+    sjekk("eit drag i rommet skriv den same delinga", /^\d+-\d+-\d+:[\d.]+$/.test(d3), d3)
+    // eit drag på ein prikk er ikkje eit drag på rommet: orbiten skal stå
+    // stille medan handtaket går, elles svingar kroppen medan du set eit ledd
+    sjekk("og synet stod stille medan du drog", (await kamera()) === kFyrr, `${kFyrr} → ${await kamera()}`)
+  }
+
   sjekk("ingen konsollfeil på handtaka", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
   await page.close()
 }

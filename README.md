@@ -118,6 +118,11 @@ canvas is black too. What does *not* follow is the output: an SVG, a DXF and a
 PNG are black on white paper whatever the screen is set to, because they are
 documents and not interface.
 
+**A value row takes the wheel.** Where there is a mouse, one notch is one
+step and shift is ten — the same two steps the arrow keys give — and the panel
+under the pointer holds still while you turn it. Drag the row sideways, type
+the number after a double-click, or turn the wheel: same row, three hands.
+
 **Over 1180 px with a mouse**, no sheet — the same controls as one column on
 the right, the top bar above the canvas, and the camera frames the object into
 whatever rectangle is left over. The bench is where precision lives, because
@@ -138,18 +143,18 @@ it. Tap empty space to deselect; the row's `slett` removes the plane.
 
 **Planes made in one action are a group.** A grid is two groups (across and
 along), a whirl is one, a mirrored cut is one, and duplicating a group makes
-another. The group has a row in the list above its planes; tap it and the
-whole group is selected *and folded away behind that one row* — a grid is
-thirty planes and the list is most of what a phone shows. The plane your hand
-holds, the last in the row, stays in the list: the list always shows what you
+another. The group has a row in the list above its planes, and *that
+row is all you see of it* until you ask for more — a grid is thirty planes and
+the list is most of what a phone shows. Tap it and the whole group is selected
+and unfolded; tap it again and it is let go and folded back. Whichever plane
+your hand holds stays in the list either way: the list always shows what you
 have hold of. Whatever you do to that plane the group does too: the handles,
 the two-finger drag, the arrow keys, `slett`, `dubler`. `fordel`, under your
 thumb while a group is selected, decides how: off, the whole row moves and
 turns as one; on, the far end stays, the plane you hold takes all of it and
 the ones between take their share, so turning the last rib fans the row along
-a curve and pushing it re-spaces the row evenly. Tap the group's row again to
-let it go and unfold it, or tap a single plane to let it go. Select another
-group and the first stays folded, so a grid reads as its two rows. The group
+a curve and pushing it re-spaces the row evenly. Select another group and the first stays open, and a
+plane you tap on its own lets the group go. The group
 is a tag on each plane in the link (`g:1`), never a thing of its own: each
 plane is still its own point and normal, and a plane you move alone stays in
 its group.
@@ -193,6 +198,12 @@ the closed end of its slot, on a hairline track showing how far it can travel.
 Drag one and that joint alone gets deeper — and the other half of the joint
 gets shallower by exactly as much, because both slots read one number off one
 line. `jamt` in the sheet's toolbar hands every joint back to the slider.
+**The same dots are in the room.** Select a plane and every joint on it gets
+one, on the closed end of its slot, with the band it can travel drawn behind
+it — because the body is what you are looking at when you decide which rib
+should carry. The finger is read against the joint's *line in space*, not
+against a surface, so you can drag from any angle and the camera holds still
+while you do.
 **With a plane selected**, the two buttons under your thumb are `skjer hòl`
 and `dubler planet`. The second used to add a rectangle of material to the
 profile; it duplicates the selected plane now — same normal, same strokes,
@@ -435,6 +446,28 @@ joint can be set on its own, and setting it deepens one slot and shallows the
 other by itself: the bottom of A's slot and the bottom of B's are *the same
 number*, read from either side of the same line. Nothing keeps them in step; they
 are not two values.
+
+**Two operators on the profile, in the sheet under the plane list.**
+`firkant` makes the profile the box around itself — a rib through an animal is
+a contour with ears and hooves, and sometimes the *plate* is what you want.
+The box goes into the field as material, so everything else runs as usual:
+slots are cut in it, and the joints are read off it. `mjuk` rounds the edge:
+a mesh is triangles and the triangles show up in the profile, so the field is
+blurred before the contour is drawn — a straight side is untouched, corners
+round off. It is blurred *before* the slots, so a rounded corner never makes a
+rounded joint. Both take the whole group when a group is selected, like the
+layer. Smoothing is a fraction of the longest side, capped at two percent:
+past that it eats the legs off a stool, and it dissolves joints before it
+dissolves the shape.
+
+**`virr` shoves a row out of line.** A grid is even, and even is honest — but
+a row of ribs standing evenly to the millimetre is also a row nobody has
+touched. With a group selected, the sheet grows a row that pushes every plane
+in it along its own normal. The kick is a hash of the plane's *name*, not a
+throw of the dice, so dragging back returns the row to where it stood
+(measured: 0.03 mm of 150), and the kicks are centred on zero so the row does
+not drift sideways while it wobbles. It is written into the points, like
+everything else the hand does: what the link carries is where the planes are.
 
 **Every kept plane is editable, down to its outline.** Nudge and re-angle with
 two fingers or the handles. Select a part and the thumb column offers **legg til
