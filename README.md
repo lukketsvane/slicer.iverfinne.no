@@ -60,12 +60,11 @@ no radius.
    across the screen — a knife seen edge-on — with a grab handle in the middle
    and a rotation handle at the end: drag the one to move the cut across the
    object, the other to tilt it. **Two fingers on the object** aim the cut:
-   drag moves it, twist tilts it, pinch zooms the view. Neither the pinch nor
-   the twist touches the body — the size is a number you drag and the turn is
-   the body tool; a body that grows when you want a closer look is a body
-   doing something you did not ask for. Switch on
-   **skisse** (or press `S`) and drag, twist and pinch all work on the plane
-   at once. Three fingers move the
+   drag moves it, twist tilts it, pinch zooms the view — **all three at once**,
+   each with its own dead zone, so a hand that wants to nudge and tilt gets both.
+   Neither the pinch nor the twist touches the body — the size is a number you
+   drag and the turn is the body tool; a body that grows when you want a closer
+   look is a body doing something you did not ask for. Three fingers move the
    light. The plane swings with the view and nothing is built from it — and a
    double-tap does nothing, because a reframe you did not ask for throws away
    the angle you were finding.
@@ -96,8 +95,10 @@ to the object. A slim bar at the top carries the body you are working on
 (tap it for a primitive or another file), the three views, undo and the link.
 A sheet at the bottom has three heights: one line (the live count, the grid
 tool, export), the middle (size and the plane list), everything (material and thickness, the
-sliders, the table with the rules and their fixes, the tools). The cut button
-and the sketch toggle float above it, under the right thumb.
+sliders, the table with the rules and their fixes, the tools). The tools
+float above it in a column under the right thumb, with the cut button at the
+bottom; the column is a band from the top line down to the sheet, so a long
+stack stops at the line instead of disappearing behind it.
 
 **The view cube**, top right, turns with the camera and is how you aim it: press
 a face for that side, an edge for the 45° view between two, a corner for the
@@ -131,10 +132,11 @@ double-click it (or press enter with the row focused), type, enter sets it and
 escape leaves it; arrows step it, shift-arrows step ten. A selected plane moves
 one millimetre along its normal per arrow press, ten with shift, and its row
 reads where it stands in millimetres from the centre of the body, live. `D`
-duplicates the selected plane, `H` cuts a hole in it, tab and shift-tab walk
+duplicates the selected plane, `H` cuts a hole in it, `O` freezes its profile
+into points (twice quickly for the box), tab and shift-tab walk
 the plane list, `F` reframes, and the right mouse button (or the wheel pressed)
 pans the view — the reframe button puts it back. Every tool has a letter: `R`
-the grid, `V` the whirl, `S` the sketch, `K` the body, and `B` leafs the
+the grid, `V` the whirl, `K` the body, and `B` leafs the
 selected piece to the next version of its family. **The grid and the whirl
 take the mouse too**: they were two fingers and nothing else, so on a bench
 the switch went on and nothing happened. With either open the left button is
@@ -309,7 +311,7 @@ catch. It is also what stands between you and the slots. The button under the
 reframe icon takes it away and puts it back; the link carries it, so a view you
 share is the view you sent. It changes no geometry and is not in the undo list.
 
-Keys: `L` cut, `S` sketch mode, `R` grid tool, `V` vortex, `⌫` remove the selected plane,
+Keys: `L` cut, `O` freeze the profile, `R` grid tool, `V` vortex, `⌫` remove the selected plane,
 `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 
 **Three ways to keep an afternoon's work, and you press none of them.** The
@@ -453,15 +455,39 @@ other by itself: the bottom of A's slot and the bottom of B's are *the same
 number*, read from either side of the same line. Nothing keeps them in step; they
 are not two values.
 
-**Two operators on the profile, in the sheet under the plane list.**
-`firkant` makes the profile the box around itself — a rib through an animal is
-a contour with ears and hooves, and sometimes the *plate* is what you want.
-The box goes into the field as material, so everything else runs as usual:
-slots are cut in it, and the joints are read off it. `mjuk` rounds the edge:
-a mesh is triangles and the triangles show up in the profile, so the field is
-blurred before the contour is drawn — a straight side is untouched, corners
-round off. It is blurred *before* the slots, so a rounded corner never makes a
-rounded joint. Both take the whole group when a group is selected, like the
+**The profile is a proposal, and `form` takes it over.** The contour is the
+mesh read off, and sometimes that is not the rib you have in mind. Select a
+plane and press **form** in the thumb column (or `O`): the profile freezes
+into points, and every point becomes a handle in space you can drag. From
+then on **the outline is the profile** — the body is not read for that plane
+at all — so the shape can get *smaller*, which a mark added as material never
+could. Strokes are still drawn in it and slots still cut in it, exactly as
+before, and the joints are read off it like any other profile.
+
+What freezes is the **largest ring**, and only that one: a profile can be
+several pieces with holes in them, and an outline is one polygon. That is the
+decision that lets the points stay points you drag instead of a tree you
+navigate — holes and islands you draw back with strokes.
+
+**Double-tap it and the outline becomes the box around itself** — a rib
+through an animal is a contour with ears and hooves, and sometimes the
+*plate* is what you want. Four corners, and they are handles like all the
+others, so you drag one out and have a trapezium. One more press and the
+outline is let go: the profile is the mesh again.
+
+The points live in the plane's own frame as fractions of the size, in `p:` in
+the plane string, so undo, the link, the project file and the session carry
+them with no extra code. There are at most 24 of them: a handle is 44 pixels
+and a profile filling 300 of them has a perimeter of about 800, which is
+eighteen handles that do not sit on top of one another. Past that you are
+tracing, not shaping. Links written before this still carry the old `f:1`
+mark and still get the live box.
+
+**`mjuk` rounds the edge**, in the sheet under the plane list: a mesh is
+triangles and the triangles show up in the profile, so the field is blurred
+before the contour is drawn — a straight side is untouched, corners round
+off. It is blurred *before* the slots, so a rounded corner never makes a
+rounded joint. It takes the whole group when a group is selected, like the
 layer. Smoothing is a fraction of the longest side, capped at two percent:
 past that it eats the legs off a stool, and it dissolves joints before it
 dissolves the shape.
@@ -476,14 +502,13 @@ not drift sideways while it wobbles. It is written into the points, like
 everything else the hand does: what the link carries is where the planes are.
 
 **Every kept plane is editable, down to its outline.** Nudge and re-angle with
-two fingers or the handles. Select a part and the thumb column offers **legg til
-gods** and **skjer hòl**: a rectangle that adds material, a round that cuts it
-away, dropped at the centre of the section and then moved, resized and turned
-with three handles. They are cut in the same field as the slots, so a hole you
-drew and a slot the engine cut never disagree, and the section shows the real
-result while you drag. When the model changes underneath a stroke, **the
-stroke stays**: it is what you did, and the tool does not throw work away
-unasked. It may drift out of true, and then you see it in the profile and
+two fingers or the handles. Select a part and the thumb column offers **skjer
+hòl**: a round that cuts material away, dropped at the centre of the section
+and then moved, resized and turned with three handles. It is cut in the same
+field as the slots, so a hole you drew and a slot the engine cut never
+disagree, and the section shows the real result while you drag. When the model
+changes underneath a stroke, **the stroke stays**: it is what you did, and the
+tool does not throw work away unasked. It may drift out of true, and then you see it in the profile and
 remove it yourself.
 
 **Up to 64 planes.** Beyond that a link is trying something.

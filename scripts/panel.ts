@@ -380,6 +380,56 @@ async function telefon(browser: Browser) {
   // og attende: skissa hugsar vinkelen sin, so ho vert vridd like mykje motsett
   await toFingrar(page, vriFingrar(-40))
   await page.waitForTimeout(300)
+  /**
+   * ALLE TRE PÅ EIN GONG — det dommaren stod i vegen for.
+   *
+   * Gesten fekk eitt namn før: klyp ELLER vri ELLER dra, aldri fleire. Ei
+   * hand som ville skuve snittet litt og vinkle det litt fekk det eine og
+   * ikkje det andre. Her går fingrane rundt EIN MIDT SOM GLID: det er ei
+   * vriding og eit drag i den same rørsla, og prøva krev at planet som vert
+   * låst har fått BEGGE.
+   *
+   * HER, medan skissa står i midten: handtaket hennar er ei flate på åtte og
+   * førti pikslar midt i snittet, og ein finger som landar på det dreg
+   * handtaket i staden for å gjere ein gest. Prøvene under skuvar skissa av
+   * garde, og då kjem handtaket vandrande inn under fingrane.
+   *
+   * Draget går PÅ SKRÅ. Skissa flyttar seg berre på tvers av si eiga line, og
+   * kva veg den lina står er noko prøva arvar frå vridingane over — eit drag
+   * langs éin akse kan difor vera eit drag som ikkje flyttar noko som helst.
+   * Skrått er det einaste draget som bit same kva vinkel ho står i.
+   */
+  sjekk("det finst ingen skissebrytar lenger", (await page.getByRole("button", { name: "skisse", exact: true }).count()) === 0)
+  const gest2 = (grader: number, dx: number, dy: number) => (t: number) => {
+    const a = (grader * t * Math.PI) / 180
+    const cx = 195 + dx * t
+    const cy = 380 + dy * t
+    return [[cx - 80 * Math.cos(a), cy - 80 * Math.sin(a)], [cx + 80 * Math.cos(a), cy + 80 * Math.sin(a)]] as [[number, number], [number, number]]
+  }
+  // skissa slik ho står NO: prøva måler skilnaden gesten gjer, og ikkje eit tal
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
+  const foer = plana(page)[plana(page).length - 1]
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0))
+  await toFingrar(page, gest2(34, -42, -42))
+  await page.waitForTimeout(300)
+  await page.keyboard.press("l")
+  await vent(page, talPlan(n0 + 1))
+  const baade = plana(page)[plana(page).length - 1]
+  const vridd = Math.hypot(baade.n[0] - foer.n[0], baade.n[1] - foer.n[1], baade.n[2] - foer.n[2])
+  const flytt2 = Math.hypot(baade.o[0] - foer.o[0], baade.o[1] - foer.o[1], baade.o[2] - foer.o[2])
+  sjekk(
+    "ei vriding og eit drag i same rørsla gjev BEGGE",
+    vridd > 0.1 && flytt2 > 0.02 && hash(page).rotZ === 0,
+    `normalen ${vridd.toFixed(2)}, punktet ${flytt2.toFixed(3)}, rotZ ${hash(page).rotZ}`,
+  )
+  await page.keyboard.press("z")
+  await vent(page, talPlan(n0))
+  // og attende: skissa hugsar både vinkelen og plassen sin, so gesten vert
+  // gjord motsett veg — prøvene under står på at ho står der ho stod
+  await toFingrar(page, gest2(-34, 42, 42))
+  await page.waitForTimeout(300)
 
   // Skisseplanet står gjennom midten. Dra to fingrar sidelengs over objektet,
   // lås, og planet som vart låst står ikkje i midten lenger.
@@ -394,30 +444,22 @@ async function telefon(browser: Browser) {
   await page.keyboard.press("z")
   await vent(page, talPlan(n0))
 
-  // --- SKISSE-MODUSEN: same to fingrane, men på planet -----------------------------
-  const skisse = page.getByRole("button", { name: "skisse", exact: true })
-  sjekk("«skisse» er ein knapp med tilstand", (await skisse.count()) === 1 && (await skisse.getAttribute("aria-pressed")) === "false")
-  await skisse.click()
-  await page.waitForTimeout(300)
-  sjekk("og eit trykk slår han på", (await skisse.getAttribute("aria-pressed")) === "true")
-  await toFingrar(page, (t) => {
-    const a = (30 * t * Math.PI) / 180
-    return [[195, 380], [195 + 80 * Math.cos(a), 380 + 80 * Math.sin(a)]]
-  })
-  await page.waitForTimeout(300)
-  await page.keyboard.press("l")
-  await vent(page, talPlan(n0 + 1))
-  const vriddS = plana(page)[plana(page).length - 1]
-  sjekk("i skisse-modus vrir to fingrar planet, ikkje objektet", Math.abs(vriddS.n[2]) > 0.1 && hash(page).rotZ === 0, `n = ${vriddS.n.map((c) => c.toFixed(2)).join(",")}, rotZ ${hash(page).rotZ}`)
-  await page.keyboard.press("z")
-  await vent(page, talPlan(n0))
+  /**
+   * ALLE TRE PÅ EIN GONG — det dommaren stod i vegen for.
+   *
+   * Gesten fekk eitt namn før: klyp ELLER vri ELLER dra, aldri fleire. Ei
+   * hand som ville skuve snittet litt og vinkle det litt fekk det eine og
+   * ikkje det andre. Her går fingrane rundt EIN MIDT SOM GLID: det er ei
+   * vriding og eit drag i den same rørsla, og prøva krev at planet som vert
+   * låst har fått BEGGE — han står på skrå OG han står ikkje i midten.
+   *
+   * Og brytaren som slo dommaren av er borte med han: det finst ikkje ein
+   * «skisse»-knapp lenger, av di alle modusane er det han var.
+   */
   const s1 = hash(page).storleik
   await toFingrar(page, (t) => [[195 - 30 - 70 * t, 380], [195 + 30 + 70 * t, 380]])
   await page.waitForTimeout(400)
-  sjekk("og eit knip rører ikkje storleiken der", hash(page).storleik === s1, `${s1} → ${hash(page).storleik}`)
-  await page.keyboard.press("s")
-  await page.waitForTimeout(300)
-  sjekk("S slår skissa av att", (await skisse.getAttribute("aria-pressed")) === "false")
+  sjekk("og eit knip rører ikkje storleiken på kroppen", hash(page).storleik === s1, `${s1} → ${hash(page).storleik}`)
 
   // --- HANDTAKA: éin finger på handtaket flyttar og vrir --------------------------
   const flyttH = page.locator("[data-handtak='flytt']")
@@ -2259,12 +2301,9 @@ async function boyen(browser: Browser) {
   }
 
   /**
-   * FORMA OG MJUKINGA.
-   *
-   * Dei står under den same tommelen som bøyen — mjukinga i arket — og går
-   * den same vegen inn: plan-strengen. So prøva er den same: trykk, og les
-   * lenkja. Forma er ei liste punkt (`p:`), mjukinga eit drag som bøyen
-   * (`m:`), og mjukinga tek heile gruppa når ho er vald.
+   * MJUKINGA. Ho står under den same tommelen som bøyen — i arket — og går
+   * den same vegen inn: plan-strengen. So prøva er den same: dra, og les
+   * lenkja. Forma har si eiga bolk; ho treng eit anna syn (sjå `forma`).
    */
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
@@ -2272,65 +2311,8 @@ async function boyen(browser: Browser) {
   await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await roleg(page, 500)
-  const form = page.locator("[data-form]")
   const mjuk = page.locator("[aria-label='mjuk, tal']")
-  const om0 = () => lesPlan(hash(page).plan)[0]?.omriss ?? []
-  sjekk("eit valt plan har forma i spalta og mjukinga i arket", (await form.count()) === 1 && (await mjuk.count()) === 1)
-
-  /**
-   * EITT TRYKK FRYS PROFILEN. Han skal kome ut som PUNKT — fleire enn tre,
-   * færre enn taket — og dei skal liggje kring planet sitt punkt, ikkje
-   * langt ute i lause lufta.
-   */
-  await form.click()
-  await vent(page, (p) => (lesPlan(p.plan)[0]?.omriss?.length ?? 0) >= 3)
-  const frose = om0()
-  sjekk(
-    "eit trykk frys profilen til punkt",
-    frose.length >= 3 && frose.length <= OMRISS_TAK && frose.every((q) => Math.abs(q[0]) <= 1.5 && Math.abs(q[1]) <= 1.5),
-    `${frose.length} punkt av ${OMRISS_TAK}`,
-  )
-  sjekk("og berre DET planet fekk ei form", !lesPlan(hash(page).plan)[1]?.omriss, hash(page).plan.slice(0, 44))
-  sjekk("og punkta står som handtak i rommet", (await page.locator("[data-punkt]").count()) === frose.length, `${await page.locator("[data-punkt]").count()} handtak`)
-
-  /**
-   * EIT PUNKT DREGE ER EI ANNA FORM. Handtaket vert teke der scena sette
-   * det, drege eit stykke, og forma skal ha endra seg NØYAKTIG i det eine
-   * punktet — resten står.
-   */
-  const h0 = await page.locator("[data-punkt='0']").boundingBox()
-  if (h0) {
-    await page.mouse.move(h0.x + h0.width / 2, h0.y + h0.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(h0.x + h0.width / 2 + 40, h0.y + h0.height / 2 - 30, { steps: 12 })
-    await page.mouse.up()
-    await vent(page, (p) => {
-      const o = lesPlan(p.plan)[0]?.omriss ?? []
-      return !!o[0] && (o[0][0] !== frose[0][0] || o[0][1] !== frose[0][1])
-    })
-    const drege = om0()
-    const rort = drege.filter((q, i) => !frose[i] || q[0] !== frose[i][0] || q[1] !== frose[i][1])
-    sjekk("eit drag i eit punkt flyttar NØYAKTIG det punktet", rort.length === 1 && drege.length === frose.length, `${rort.length} av ${drege.length} punkt rørte`)
-  }
-
-  /**
-   * DOBBELTTRYKKET GJEV BOKSEN: fire punkt, to x-verdiar og to y-verdiar,
-   * og han rammar inn den forma som stod.
-   */
-  await form.click()
-  await page.waitForTimeout(90)
-  await form.click()
-  await vent(page, (p) => (lesPlan(p.plan)[0]?.omriss?.length ?? 0) === 4)
-  const boks = om0()
-  const xs = [...new Set(boks.map((q) => q[0]))]
-  const ys = [...new Set(boks.map((q) => q[1]))]
-  sjekk("eit dobbelttrykk gjer forma til boksen kring seg sjølv", boks.length === 4 && xs.length === 2 && ys.length === 2, boks.map((q) => q.join(",")).join(" · "))
-
-  /** og eit einslegt trykk slepper forma: profilen er nettet att */
-  await page.waitForTimeout(DOBBELT + 60)
-  await form.click()
-  await vent(page, (p) => !lesPlan(p.plan)[0]?.omriss)
-  sjekk("og eit einslegt trykk slepper henne", !lesPlan(hash(page).plan)[0]?.omriss && (await page.locator("[data-punkt]").count()) === 0)
+  sjekk("eit valt plan har mjukinga i arket og forma i spalta", (await mjuk.count()) === 1 && (await page.locator("[data-form]").count()) === 1)
   // rada er den same skrubbaren som alle andre tal: eit vassrett drag
   const dra = async (dx: number) => {
     const mb = await mjuk.boundingBox()
@@ -2375,6 +2357,137 @@ async function boyen(browser: Browser) {
  * om hovudtråden ligg bak. Fire sider på ein gong deler éin prosessor, og
  * då ryk dei vaktene av travelheita og ikkje av koden.
  */
+/**
+ * FORMA: PROFILEN SOM PUNKT.
+ *
+ * Eiga bolk, og ikkje ein hale på bøyen, av éin grunn: reiskapen treng eit
+ * SYN. Skissa er sikta langs synsaksen — det er heile ideen med henne — so
+ * eit nylåst plan står på KANT og profilen hans projiserer til ei line.
+ * Punkta ligg då oppå kvarandre, og eit drag har ikkje ei flate å lesast
+ * mot. Difor står lista her som ei lenkje med kjende normalar, og synet
+ * vert sett med synskuben før noko vert teke i.
+ *
+ * Rutenettet 2×2 gjev to plan langs x og to langs y. Synskuben sett midt på
+ * ser rett framanfrå — kameraet står i kroppen sitt −y og ser mot +y — so
+ * det er y-plana (namn 3 og 4) som ligg flatt mot deg.
+ */
+async function forma(browser: Browser) {
+  console.log("\n=== forma")
+  const plan = skrivPlan(rutenett(2, 2))
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })), browser, 390, 844)
+  const om = (id: number) => lesPlan(hash(page).plan).find((q) => q.id === id)?.omriss ?? []
+  // synskuben midt på: rett framanfrå. Same tala som i «handtaka».
+  const h = await page.locator("header").boundingBox()
+  const v = page.viewportSize()!
+  await page.touchscreen.tap(v.width - 38, (h?.height ?? 44) + 38)
+  await roleg(page, 1400)
+
+  await midt(page)
+  await utbrett(page)
+  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan='3'] button").first().click()
+  await roleg(page, 600)
+  const form = page.locator("[data-form]")
+  sjekk("eit valt plan har forma i spalta", (await form.count()) === 1)
+  sjekk("og ho står i ro til nokon trykkjer", (await form.getAttribute("aria-pressed")) === "false" && (await page.locator("[data-punkt]").count()) === 0)
+
+  /**
+   * EITT TRYKK FRYS PROFILEN. Han skal kome ut som PUNKT — fleire enn tre,
+   * færre enn taket — og dei skal liggje kring planet sitt eige punkt.
+   */
+  await form.click()
+  await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) >= 3)
+  const frose = om(3)
+  sjekk(
+    "eit trykk frys profilen til punkt",
+    frose.length >= 3 && frose.length <= OMRISS_TAK && frose.every((q) => Math.abs(q[0]) <= 1.5 && Math.abs(q[1]) <= 1.5),
+    `${frose.length} punkt av ${OMRISS_TAK}`,
+  )
+  sjekk("og berre DET planet fekk ei form", lesPlan(hash(page).plan).filter((q) => q.omriss?.length).length === 1, hash(page).plan.slice(0, 40))
+  sjekk("merket på knappen fylgjer forma", (await form.getAttribute("aria-pressed")) === "true")
+  const n = await page.locator("[data-punkt]").count()
+  sjekk("og kvart punkt står som eit handtak i rommet", n === frose.length, `${n} handtak av ${frose.length} punkt`)
+
+  /**
+   * OG HANDTAKA LIGG DER PROFILEN LIGG, ikkje på ei line: står planet på
+   * kant, er dette ei line, og då er det ikkje forma du ser. Prøva måler
+   * spreiinga i BEGGE aksane.
+   */
+  const boksar = []
+  for (let i = 0; i < n; i++) boksar.push(await page.locator(`[data-punkt='${i}']`).boundingBox())
+  const xs = boksar.map((b) => b?.x ?? 0)
+  const ys = boksar.map((b) => b?.y ?? 0)
+  const bredd = Math.max(...xs) - Math.min(...xs)
+  const hogd = Math.max(...ys) - Math.min(...ys)
+  sjekk("handtaka står som profilen står, og ikkje på ei line", bredd > 40 && hogd > 40, `${bredd.toFixed(0)} × ${hogd.toFixed(0)} px`)
+
+  /**
+   * EIT DRAG I EIT PUNKT FLYTTAR NØYAKTIG DET PUNKTET.
+   *
+   * Kva for eit handtak fingeren tek er ikkje prøva sitt å avgjere —
+   * handtaka er fire og førti pikslar og kan liggje oppå kvarandre — so ho
+   * krev at det er EITT punkt som er rørt, og at dei andre står.
+   */
+  const bb = boksar[0]
+  if (bb) {
+    const cx = bb.x + bb.width / 2
+    const cy = bb.y + bb.height / 2
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    await page.mouse.move(cx + 46, cy - 34, { steps: 12 })
+    await page.mouse.up()
+    await vent(page, (p) => {
+      const o = lesPlan(p.plan).find((q) => q.id === 3)?.omriss ?? []
+      return o.some((q, i) => !frose[i] || q[0] !== frose[i][0] || q[1] !== frose[i][1])
+    })
+    const drege = om(3)
+    const i = drege.findIndex((q, k) => !frose[k] || q[0] !== frose[k][0] || q[1] !== frose[k][1])
+    const rort = drege.filter((q, k) => !frose[k] || q[0] !== frose[k][0] || q[1] !== frose[k][1])
+    sjekk("eit drag i eit punkt flyttar NØYAKTIG det punktet", rort.length === 1 && drege.length === frose.length, `${rort.length} av ${drege.length} punkt rørte`)
+    /**
+     * OG PUNKTET FYLGJER FINGEREN, ikkje eit tal gonge han. Handtaket vart
+     * teke midt på punktet og drege (46, −34) pikslar; profilen spenner
+     * `bredd` pikslar over éi eining, so punktet skal ha gått nett so
+     * mange einingar. Prøva held ein femtedel i mon — ein perspektivkamera
+     * skalerer litt ulikt over biletet — og fangar difor kvar faktor som
+     * har snike seg inn i omrekninga.
+     */
+    if (i >= 0) {
+      const dx = drege[i][0] - frose[i][0]
+      const dy = drege[i][1] - frose[i][1]
+      const vent = Math.hypot(46 / bredd, 34 / hogd)
+      const fekk = Math.hypot(dx, dy)
+      sjekk("og punktet fylgjer fingeren, i det målet profilen har", Math.abs(fekk - vent) < vent * 0.2, `${fekk.toFixed(3)} av ${vent.toFixed(3)} einingar`)
+    }
+  }
+
+  /**
+   * DOBBELTTRYKKET GJEV BOKSEN: fire punkt, to x-verdiar og to y-verdiar.
+   */
+  // to `click()` etter kvarandre ligg lenger frå kvarandre enn vindauget —
+  // Playwright ventar på at knappen skal stå stille mellom dei — so det må
+  // vera eitt dobbelttrykk og ikkje to trykk
+  await page.waitForTimeout(DOBBELT + 80)
+  await form.dblclick()
+  await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) === 4)
+  const boks = om(3)
+  const bx = [...new Set(boks.map((q) => q[0]))]
+  const by = [...new Set(boks.map((q) => q[1]))]
+  sjekk("eit dobbelttrykk gjer forma til boksen kring henne", boks.length === 4 && bx.length === 2 && by.length === 2, boks.map((q) => q.join(",")).join(" · "))
+  sjekk("og hjørna er handtak som alle andre punkt", (await page.locator("[data-punkt]").count()) === 4)
+
+  /** og eit einslegt trykk slepper forma: profilen er nettet att */
+  await page.waitForTimeout(DOBBELT + 80)
+  await form.click()
+  await vent(page, (p) => !lesPlan(p.plan).find((q) => q.id === 3)?.omriss)
+  sjekk(
+    "og eit einslegt trykk slepper henne",
+    !lesPlan(hash(page).plan).find((q) => q.id === 3)?.omriss && (await page.locator("[data-punkt]").count()) === 0 && (await form.getAttribute("aria-pressed")) === "false",
+  )
+
+  sjekk("ingen konsollfeil på forma", konsoll.length === 0, konsoll.slice(0, 2).join(" · "))
+  await page.close()
+}
+
 const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["telefon", telefon],
   ["reglar", reglar],
@@ -2383,6 +2496,7 @@ const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["handtaka", handtaka],
   ["andrefingeren", andreFingeren],
   ["boyen", boyen],
+  ["forma", forma],
   ["skalet", skaletOgSovnen],
   ["taket", taket],
   ["flyt", flyt],
