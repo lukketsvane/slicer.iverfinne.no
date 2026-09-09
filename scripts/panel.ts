@@ -1213,6 +1213,34 @@ async function benk(browser: Browser) {
   await page.keyboard.press("r")
   await page.waitForTimeout(200)
   sjekk("R tek verktyet for rutenettet", (await page.locator("button[aria-label='rutenett'][aria-pressed='true']").count()) === 1)
+  /**
+   * OG MUSA SET DEI TO TALA.
+   *
+   * Rutenettet og virvelen var TO FINGRAR og ingenting anna, og ei mus har
+   * éin peikar: to av dei fem reiskapane kunne ikkje brukast på ein benk i
+   * det heile — brytaren stod på, og ingenting hende. Med reiskapen open er
+   * venstre knappen hans: vassrett kolonner, loddrett rader, og orbiten står
+   * over so lenge draget varer.
+   */
+  {
+    const kamera = async () => (await page.locator(".handtak").getAttribute("data-kamera")) ?? "?"
+    const k0 = await kamera()
+    await page.mouse.move(500, 450)
+    await page.mouse.down()
+    for (let i = 1; i <= 6; i++) {
+      await page.mouse.move(500 + 22 * i, 450 - 15 * i)
+      await page.waitForTimeout(30)
+    }
+    await page.mouse.up()
+    await vent(page, (p) => lesPlan(p.plan).length > 0)
+    const nett = lesPlan(hash(page).plan)
+    const nx = nett.filter((q) => Math.abs(q.n[0]) > 0.9).length
+    const ny = nett.filter((q) => Math.abs(q.n[1]) > 0.9).length
+    sjekk("og eit musedrag set kolonner og rader", nx === 3 && ny === 2, `${nx}×${ny} av 3×2`)
+    sjekk("og synet stod stille medan draget gjekk", (await kamera()) === k0)
+    await page.keyboard.press("z")
+    await roleg(page, 400)
+  }
   await page.keyboard.press("r")
 
   // --- TALET KAN SKRIVAST: dobbeltklikk opnar eit felt, enter set, escape let stå ---

@@ -736,8 +736,11 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
   useEffect(() => {
     const el = gl.domElement
     const pts = new Map<number, { x: number; y: number }>()
-    type Gest = "none" | "klyp" | "vri" | "dra" | "sam" | "lys" | "hFlytt" | "hVri" | "musFlytt" | "musVri" | "sFlytt" | "sStor" | "sVri"
+    type Gest = "none" | "klyp" | "vri" | "dra" | "sam" | "lys" | "hFlytt" | "hVri" | "musFlytt" | "musVri" | "musRute" | "sFlytt" | "sStor" | "sVri"
     let mode: Gest = "none"
+    /** der musa tok rutenettet, og kva peikar det var: draget vert lese
+     *  frå det punktet, og berre frå den peikaren */
+    let musRute = { x: 0, y: 0, id: -1 }
     /** eit handtak er teke: ingen peikar når lerretet — korkje orbiten, gestmotoren eller augneblinksbiletet */
     const handtakGaar = () => mode === "hFlytt" || mode === "hVri" || mode === "sFlytt" || mode === "sStor" || mode === "sVri"
     /** taket på eit strek: kva plan og kva strek, slik han stod, planet si ramme, og punktet under fingeren i henne */
@@ -992,6 +995,25 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       // trykk-kandidat for mus og finger begge: fyrste peikar, åleine
       tapDown = pts.size === 0 && e.isPrimary ? { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId } : { x: 0, y: 0, t: 0, id: -1 }
       if (e.pointerType !== "touch") {
+        /**
+         * RUTENETTET OG VIRVELEN TEK DRAGET NÅR DEI STÅR PÅ.
+         *
+         * Dei var to fingrar og ingenting anna: vassrett kolonner, loddrett
+         * rader. Ei mus har éin peikar, og dermed kunne to av dei fem
+         * reiskapane ikkje brukast på ein benk i det heile — brytaren stod
+         * på og ingenting hende. Med reiskapen open er venstre knappen hans,
+         * og orbiten står over so lenge det varer; du slepper han med same
+         * tasten du tok han med.
+         */
+        if (ruteStil() && e.button === 0 && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+          e.stopImmediatePropagation()
+          e.preventDefault()
+          mode = "musRute"
+          musRute = { x: e.clientX, y: e.clientY, id: e.pointerId }
+          if (controls) controls.enabled = false
+          naa.current.onGest(naa.current.modus === "virvel" ? "virvel" : "rute")
+          return
+        }
         if (!(e.shiftKey || e.altKey) || e.button !== 0) return
         // musa: same gesten, éin peikar. Orbiten skal ikkje òg starte.
         e.stopImmediatePropagation()
@@ -1077,6 +1099,14 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
         naa.current.setLive({ id: stak.plan, i: stak.i, s })
         naa.current.onSynStrek(stak.plan, stak.i, s)
         invalidate()
+        return
+      }
+      if (mode === "musRute") {
+        // BERRE PEIKAREN SOM TOK DRAGET. Ei rørsle frå ein annan — ein
+        // finger som landar, ei melding nokon andre sender — er ikkje dette
+        // draget, og ho skal ikkje lesast som eit hopp frå nullpunktet.
+        if (e.pointerId !== musRute.id) return
+        naa.current.onRute(e.clientX - musRute.x, e.clientY - musRute.y)
         return
       }
       if (mode === "musFlytt" || mode === "musVri") {
@@ -1236,6 +1266,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
         }
         tapDown = { x: 0, y: 0, t: 0, id: -1 }
       }
+      if (mode === "musRute") return sleppHandtak()
       if (mode === "musFlytt" || mode === "musVri") return slepp()
       if ((mode === "hFlytt" || mode === "hVri") && tak && e.pointerId === tak.id) return sleppHandtak()
       if ((mode === "sFlytt" || mode === "sStor" || mode === "sVri") && stak && e.pointerId === stak.id) {
