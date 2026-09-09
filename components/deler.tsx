@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, type CSSProperties } from "react"
+import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { feltTal, lesTal, nn, snap, type ExportKind, type Metrics, type ParamBag, type Range, type Rule, type View } from "@/lib/core"
 import { RADER } from "@/lib/metrics"
 
@@ -107,6 +107,13 @@ export const IcoSliders = ikon("M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3
 export const IcoDown = ikon("m6 9 6 6 6-6")
 export const IcoAngre = ikon("M9 14 4 9l5-5|M4 9h10a6 6 0 0 1 0 12h-3", "h-3.5 w-3.5")
 export const IcoGjerOm = ikon("m15 14 5-5-5-5|M20 9H10a6 6 0 0 0 0 12h3", "h-3.5 w-3.5")
+/**
+ * FIRKANTEN: profilen vert boksen kring seg sjølv. Ramma er svaret, og
+ * kurva inni er det ho tek over for.
+ */
+export const IcoFirkant = ikon("M4 5h16v14H4z|M7.5 16c1.2-4.5 3.2-2.4 4.3-5.4")
+/** MJUKINGA: eit hjørne som er runda av — det er heile handlinga */
+export const IcoMjuk = ikon("M4 20V11a7 7 0 0 1 7-7h9")
 export const IcoReset = ikon("M3 12a9 9 0 1 0 2.6-6.36|M3 4v4.5h4.5", "h-3.5 w-3.5")
 export const IcoShare = ikon("M12 3v12|m8 7 4-4 4 4|M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8", "h-3.5 w-3.5")
 export const IcoUttak = ikon("M12 15V3|m8 11 4 4 4-4|M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4")
@@ -282,8 +289,50 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
     tak.current = null
     onSkrubb?.(false)
   }
+  /**
+   * HJULET STEGAR VERDIEN, og spalta under står stille.
+   *
+   * På benken er handa på ei mus, og det som ligg under peikaren er det du
+   * meiner. Eit hakk er eit steg, skift er ti — dei same to stega pilene
+   * alt gjev — og retninga er den same om du rullar loddrett eller
+   * sidelengs, av di rada ER vassrett.
+   *
+   * TERSKELEN ER EIT HAKK PÅ MUSA. Ei mus sender hundre per hakk; ei
+   * styreflate sender ein straum av små tal, og eitt steg per melding
+   * ville sendt verdien til taket av ei lita rørsle. Difor vert dei lagde
+   * saman til eit hakk er fullt, og summen vert nullstilt når du snur.
+   *
+   * Lyttaren er hengd på for hand av di React sin `onWheel` er passiv:
+   * `preventDefault` der er ei åtvaring i konsollen og ei spalte som
+   * rullar likevel.
+   */
+  const rad = useRef<HTMLDivElement | null>(null)
+  const naa = useRef({ value, r, k, skriv })
+  naa.current = { value, r, k, skriv }
+  useEffect(() => {
+    const el = rad.current
+    if (!el) return
+    let sum = 0
+    const paa = (e: WheelEvent) => {
+      const { value: v, r: rr, k: kk, skriv: sk } = naa.current
+      if (sk !== null) return
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : -e.deltaY
+      if (!d) return
+      e.preventDefault()
+      if (Math.sign(d) !== Math.sign(sum)) sum = 0
+      sum += d
+      const HAKK = 100
+      const n = Math.trunc(sum / HAKK)
+      if (!n) return
+      sum -= n * HAKK
+      onChange(kk, snap(v + n * (e.shiftKey ? 10 : 1) * rr.step, rr))
+    }
+    el.addEventListener("wheel", paa, { passive: false })
+    return () => el.removeEventListener("wheel", paa)
+  }, [onChange])
   return (
     <div
+      ref={rad}
       role="slider"
       tabIndex={benk ? 0 : -1}
       aria-label={`${r.label}, tal`}
@@ -291,7 +340,7 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
       aria-valuemin={r.min}
       aria-valuemax={r.max}
       aria-valuetext={`${shown}${r.unit ? " " + r.unit : ""}`}
-      title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra sidelengs${kanSkrive ? " · dobbeltklikk: skriv" : ""}`}
+      title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra sidelengs${benk ? " · hjulet stegar, skift ti" : ""}${kanSkrive ? " · dobbeltklikk: skriv" : ""}`}
       className="skrubb flex min-h-[44px] items-center gap-3"
       onDoubleClick={() => { if (kanSkrive && skriv === null) { sendt.current = false; opneFelt() } }}
       onPointerDown={(e) => {

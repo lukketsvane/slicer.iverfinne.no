@@ -6,7 +6,7 @@ import { erPrimitiv, KUBE } from "@/lib/sources"
 import { gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { BOG_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, MJUK_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
@@ -1141,6 +1141,65 @@ export function Studio() {
    * millimeter mot tjukna og seier frå, med eit råd som rettar ut til det
    * som går. Ein skyvar som stogga deg ville ikkje kunna seie kvifor.
    */
+  /**
+   * KVA EIN OPERATOR TEK: planet, eller heile gruppa når ho er vald.
+   *
+   * Det er den same regelen som laget, slett og dubler alt fylgjer — ei
+   * gruppe svarar som éi — og operatorane under er dei fyrste som er
+   * skrivne med han i staden for kring han.
+   */
+  const iScope = (l: readonly Plan[], id: number): Set<number> => {
+    const g = gruppeNo.current.g
+    const q = l.find((p) => p.id === id)
+    return new Set(g !== null && q?.gruppe === g ? iGruppa(l, g).map((p) => p.id) : [id])
+  }
+  /**
+   * FIRKANTEN: profilen vert boksen kring seg sjølv, og eit trykk til tek
+   * han attende. Ei gruppe svarar som éi: står han ikkje på alle, tek
+   * trykket alle — og står han på alle, tek han han av alle.
+   */
+  const vipFirkant = useCallback((id: number) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const treff = iScope(l, id)
+      const mine = l.filter((p) => treff.has(p.id))
+      if (!mine.length) return cur
+      const paa = !mine.every((p) => p.firkant)
+      return {
+        ...cur,
+        plan: skrivPlan(
+          l.map((p) => {
+            if (!treff.has(p.id)) return p
+            const { firkant: _, ...utan } = p
+            return paa ? { ...utan, firkant: true as const } : utan
+          }),
+        ),
+      }
+    })
+  }, [])
+  /** mjukinga: eit drag, som bøyen. Under eit halvt promille er ho ingen ting */
+  const mjukPlan = useCallback((id: number, d: number) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const treff = iScope(l, id)
+      const mine = l.filter((p) => treff.has(p.id))
+      if (!mine.length) return cur
+      const naa = Math.max(...mine.map((p) => p.mjuk ?? 0))
+      const v = Math.max(0, Math.min(MJUK_TAK, naa + d))
+      if (Math.abs(v - naa) < 1e-6) return cur
+      const mjuk = v < 0.0005 ? 0 : +v.toFixed(4)
+      return {
+        ...cur,
+        plan: skrivPlan(
+          l.map((p) => {
+            if (!treff.has(p.id)) return p
+            const { mjuk: _, ...utan } = p
+            return mjuk ? { ...utan, mjuk } : utan
+          }),
+        ),
+      }
+    })
+  }, [])
   const boyPlan = useCallback((id: number, d: number) => {
     setParams((cur) => {
       const l = lesPlan(cur.plan)
@@ -1717,6 +1776,10 @@ export function Studio() {
    * uendra på ein familie av éi, so spørsmålet er alt svara i `scene.ts`.
    */
   const bla = valdBit !== null && bitar[valdBit] && nesteForm(bitar[valdBit].id) !== bitar[valdBit].id ? familien(bitar[valdBit].id) : ""
+  /** operatorane på det valde planet — eller på heile gruppa: står dei, og kor mykje */
+  const iValt = vald === null ? [] : plan.filter((q) => (valdGruppe !== null && q.gruppe === valdGruppe ? true : q.id === vald))
+  const firkantPaa = iValt.length > 0 && iValt.every((q) => q.firkant)
+  const mjukNo = iValt.reduce((m, q) => Math.max(m, q.mjuk ?? 0), 0)
   /** kva fingrane held på med, med eitt ord — rutenettet med dei to tala sine */
   const gestTekst =
     gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
@@ -2108,6 +2171,10 @@ export function Studio() {
         valdGruppe={valdGruppe}
         onVelGruppe={velGruppe}
         onSlettGruppe={slettGruppe}
+        firkant={firkantPaa}
+        onFirkant={() => vald !== null && vipFirkant(vald)}
+        mjuk={mjukNo}
+        onMjuk={(v) => vald !== null && mjukPlan(vald, v - mjukNo)}
         onFarge={setFarge}
         bitFarge={valdBit !== null ? (bitar[valdBit]?.farge ?? 0) : null}
         onBitFarge={fargBit}

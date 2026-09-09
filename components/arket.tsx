@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState, type JSX, type RefObject } from "react"
 import { FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
-import type { Plan } from "@/lib/plan"
+import { MJUK_TAK, type Plan } from "@/lib/plan"
 import {
   CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, IcoVirvel,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
@@ -60,6 +60,17 @@ export type ArketProps = {
   valdGruppe: number | null
   onVelGruppe: (g: number) => void
   onSlettGruppe: (g: number) => void
+  /**
+   * DEI TO OPERATORANE PÅ PROFILEN til det valde planet — eller til heile
+   * den valde gruppa. Dei bur i arket og ikkje i tommelspalta: spalta er
+   * reiskapar du tek i medan du ser på kroppen, og ho var full. Ein brytar
+   * og eit tal høyrer heime på ei rad, saman med laget.
+   */
+  firkant: boolean
+  onFirkant: () => void
+  /** mjukinga som brøkdel av den lengste sida; rada syner henne i millimeter */
+  mjuk: number
+  onMjuk: (v: number) => void
   /** laget (C02–C29) på det valde planet — eller heile den valde gruppa; 0 er ikkje noko lag */
   onFarge: (farge: number) => void
   /** laget på den valde biten, eller null når ingen bit står vald */
@@ -212,6 +223,7 @@ function Plana({ p }: { p: ArketProps }) {
           </Fragment>
         )
       })}
+      {p.vald !== null && <Profilen p={p} />}
       {p.vald !== null && <Laga p={p} />}
     </ul>
   )
@@ -257,6 +269,49 @@ function Lagrad({ no, ord, tittel, onFarge }: {
           ),
         )}
       </span>
+    </li>
+  )
+}
+
+/**
+ * PROFILEN: KVA SOM SKJER MED KANTEN FØR SPORA VERT SKORNE.
+ *
+ * Firkanten gjer profilen til boksen kring seg sjølv — plata i staden for
+ * konturen — og mjukinga rundar av hakket trekantane i nettet la att.
+ * Begge tek heile gruppa når ho er vald, som laget under.
+ *
+ * Mjukinga står i MILLIMETER her og som ein brøk i strengen: brøken
+ * fylgjer kroppen når han vert skalert, og millimeteren er det du ser på
+ * plata. Rada er den same skrubbaren som alle andre tal — drag, piler,
+ * hjul, og skriving på benken.
+ */
+function Profilen({ p }: { p: ArketProps }) {
+  const S = num(p.params, "storleik", 150)
+  const tak = +(MJUK_TAK * S).toFixed(1)
+  return (
+    <li role="group" aria-label="profil" data-profil="" className="px-1.5 pb-0.5 pt-1">
+      <div className="flex items-center gap-2">
+        <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">profil</span>
+        <button
+          type="button"
+          aria-pressed={p.firkant}
+          title={p.firkant ? "firkanten: profilen er boksen kring seg sjølv. trykk for konturen attende" : "firkanten: gjer profilen til boksen kring seg sjølv — plata i staden for konturen"}
+          onClick={p.onFirkant}
+          className={CHIP + " uppercase tracking-[0.1em]"}
+          style={chipStyle(p.firkant)}
+          data-firkant=""
+        >
+          firkant
+        </button>
+      </div>
+      <SliderRow
+        k="mjuk"
+        r={{ label: "mjuk", min: 0, max: tak, step: 0.5, unit: "mm" }}
+        value={Math.min(tak, +(p.mjuk * S).toFixed(1))}
+        benk={p.benk}
+        onChange={(_, v) => p.onMjuk(S > 0 ? v / S : 0)}
+        onSkrubb={p.onSkrubb}
+      />
     </li>
   )
 }
