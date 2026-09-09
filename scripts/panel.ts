@@ -59,6 +59,19 @@ const vent = async (page: Page, f: (p: Params) => boolean, ms = 10000) => {
   await roleg(page, 200)
 }
 const talPlan = (n: number) => (p: Params) => lesPlan(p.plan).length === n
+/**
+ * GRUPPENE LIGG SAMAN, so ei rad i lista er ikkje der før nokon ber om
+ * henne. Eit trykk på gruppa brettar henne ut (og tek henne, som før);
+ * eit trykk på eit plan etterpå slepper gruppa att.
+ */
+const utbrett = async (page: Page) => {
+  const rader = page.locator("[role=listbox][aria-label='plan'] [data-gruppe] button[aria-expanded='false']")
+  for (let vakt = 0; vakt < 8 && (await rader.count()) > 0; vakt++) {
+    await rader.first().click()
+    await page.waitForTimeout(200)
+  }
+}
+
 /** arket i midten, med planlista synleg */
 const midt = async (page: Page) => {
   if ((await page.locator("[role=listbox][aria-label='plan']").count()) === 0) {
@@ -1921,6 +1934,7 @@ async function skaletOgSovnen(browser: Browser) {
   await page.mouse.move(190, 700)
   await page.locator(HOVUDLINA).click()
   await page.waitForTimeout(500)
+  await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(400)
   // arket att: eit ope ark held det vake av seg sjølv, og då prøver vi ingenting
@@ -1992,6 +2006,7 @@ async function boyen(browser: Browser) {
   const plan = skrivPlan(rutenett(3, 0))
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 300, tjukn: 6, material: "finer" })), browser, 390, 844)
   await midt(page)
+  await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await roleg(page, 600)
   const knapp = page.locator("[data-boy]")
@@ -2025,6 +2040,49 @@ async function boyen(browser: Browser) {
     const tekst = (await page.locator("[aria-label='kontrollar']").innerText()).replace(/\s+/g, " ")
     sjekk("bøyeradien står i tavla", /bøyeradius/.test(tekst), (tekst.match(/bøyeradius[^·]{0,44}/) ?? [""])[0])
   }
+
+  /**
+   * DEI TO ANDRE OPERATORANE PÅ PROFILEN: firkanten og mjukinga.
+   *
+   * Dei står under den same tommelen som bøyen og går den same vegen inn —
+   * plan-strengen — so prøva er den same: trykk, og les lenkja. Firkanten
+   * er eit merke (`f:1`), mjukinga eit drag som bøyen (`m:`), og båe tek
+   * heile gruppa når ho er vald.
+   */
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(300)
+  await midt(page)
+  await utbrett(page)
+  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
+  await roleg(page, 500)
+  const firkant = page.locator("[data-firkant]")
+  const mjuk = page.locator("[aria-label='mjuk, tal']")
+  sjekk("eit valt plan har firkanten og mjukinga i arket", (await firkant.count()) === 1 && (await mjuk.count()) === 1)
+  await firkant.click()
+  await vent(page, (p) => !!lesPlan(p.plan)[0]?.firkant)
+  sjekk("firkanten står i lenkja", lesPlan(hash(page).plan)[0]?.firkant === true && !lesPlan(hash(page).plan)[1]?.firkant, hash(page).plan.slice(0, 44))
+  await firkant.click()
+  await vent(page, (p) => !lesPlan(p.plan)[0]?.firkant)
+  sjekk("og eit trykk til tek han attende", !lesPlan(hash(page).plan)[0]?.firkant)
+  // rada er den same skrubbaren som alle andre tal: eit vassrett drag
+  const dra = async (dx: number) => {
+    const mb = await mjuk.boundingBox()
+    if (!mb) return
+    const y = mb.y + mb.height / 2
+    await page.mouse.move(mb.x + mb.width / 2, y)
+    await page.mouse.down()
+    await page.mouse.move(mb.x + mb.width / 2 + dx, y, { steps: 12 })
+    await page.mouse.up()
+  }
+  await dra(60)
+  await vent(page, (p) => (lesPlan(p.plan)[0]?.mjuk ?? 0) > 0)
+  const m0 = lesPlan(hash(page).plan)[0]?.mjuk ?? 0
+  sjekk("eit drag mjukar kanten", m0 > 0 && m0 <= 0.02, `mjuk ${m0}`)
+  sjekk("og dei andre plana står skarpe", lesPlan(hash(page).plan).slice(1).every((q) => !q.mjuk))
+  await dra(-160)
+  await vent(page, (p) => !(lesPlan(p.plan)[0]?.mjuk ?? 0))
+  sjekk("og eit drag attende tek henne heilt bort", !(lesPlan(hash(page).plan)[0]?.mjuk ?? 0), hash(page).plan.slice(0, 44))
+
   sjekk("ingen konsollfeil på bøyen", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
   await page.close()
 }

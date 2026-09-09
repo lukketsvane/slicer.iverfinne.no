@@ -92,6 +92,32 @@ export type Plan = {
    * ingen bøy i strengen i det heile.
    */
   bog: number
+  /**
+   * FIRKANTEN: profilen vert boksen kring seg sjølv.
+   *
+   * Ei ribbe gjennom eit dyr er ein kontur med øyre og hovar, og av og til
+   * er det ikkje det du vil ha: du vil ha PLATA — heile rektangelet ribba
+   * står i, med dei same ledda i dei same krysningane. Merket seier det,
+   * og snittinga legg boksen til som gods før ho skjer spora.
+   *
+   * Han vert lagd til ETTER klippet mot biten, so boksen er boksen kring
+   * det planet faktisk skjer, og ikkje kring heile kroppen.
+   */
+  firkant?: true
+  /**
+   * MJUKINGA: kor mykje av kanten som vert runda bort, som brøkdel av den
+   * lengste sida i kroppen.
+   *
+   * Eit nett er trekantar, og trekantane står i profilen: ein kontur som
+   * hakkar seg fram langs eit bein er ikkje ein feil i snittinga, det er
+   * nettet lese av. Mjukinga slører FELTET før konturen vert dregen, so
+   * hjørna vert runda og hakket forsvinn — og spora vert skorne etterpå,
+   * so leddet er like skarpt som før.
+   *
+   * Ein brøk og ikkje millimeter, av same grunn som bøyen og streka: det
+   * du mjuka skal fylgje kroppen når han vert skalert.
+   */
+  mjuk?: number
   strek: Strek[]
   /**
    * GRUPPA. Plan som vart til i éi handling — eit rutenett, ein virvel,
@@ -115,6 +141,16 @@ export type Plan = {
 /** Meir enn dette er ikkje ein bøy, det er eit rør. Regelen om materialet
  *  klemmer hardare enn dette lenge før du kjem hit. */
 export const BOG_TAK = 4
+/**
+ * MJUKINGSTAKET, som brøkdel av den lengste sida.
+ *
+ * To prosent er seks millimeter på ein kropp på tre hundre, og det er meir
+ * enn nok til å ta hakket trekantane la att. Målt over: eit slør på fire og
+ * ein halv prosent åt beina av ein krakk og la att ein kile. Ei mjuking som
+ * et opp delen er ikkje ei mjuking, so taket ligg der ho framleis er ein
+ * kant og ikkje ei ny form.
+ */
+export const MJUK_TAK = 0.02
 
 // =============================================================================
 // VEKTORAR — det vesle som trengst
@@ -346,7 +382,7 @@ const skrivStrek = (s: Strek) =>
 export function skrivPlan(l: readonly Plan[]): string {
   return l
     .map((p) =>
-      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...(p.farge ? [`c:${p.farge}`] : []), ...p.strek.map(skrivStrek)].join("/"),
+      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.firkant ? ["f:1"] : []), ...(p.mjuk ? [`m:${+p.mjuk.toFixed(4)}`] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...(p.farge ? [`c:${p.farge}`] : []), ...p.strek.map(skrivStrek)].join("/"),
     )
     .join(";")
 }
@@ -400,6 +436,8 @@ export function lesPlan(s: unknown): Plan[] {
     let bog = 0
     let gruppe = 0
     let farge = 0
+    let firkant = false
+    let mjuk = 0
     for (const r of rest.slice(1)) {
       // laget: eit av dei handa får merkje med, elles ikkje noko lag
       const c = /^c:(\d{1,2})$/.exec(r)
@@ -421,13 +459,25 @@ export function lesPlan(s: unknown): Plan[] {
         if (Number.isFinite(v)) bog = Math.max(-BOG_TAK, Math.min(BOG_TAK, +v.toFixed(4)))
         continue
       }
+      // firkanten er eit merke og ikkje eit tal: han står eller han står ikkje
+      if (r === "f:1") {
+        firkant = true
+        continue
+      }
+      // mjukinga: ein brøk over null, klemt til taket
+      const mj = /^m:([\d.]+)$/.exec(r)
+      if (mj) {
+        const v = Number(mj[1])
+        if (Number.isFinite(v)) mjuk = Math.max(0, Math.min(MJUK_TAK, +v.toFixed(4)))
+        continue
+      }
       if (strek.length >= STREK_TAK) break
       const st = lesStrek(r)
       if (!st) continue
       strek.push(st)
     }
     sett.add(id)
-    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, strek, ...(gruppe ? { gruppe } : {}), ...(farge ? { farge } : {}) })
+    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, ...(firkant ? { firkant: true as const } : {}), ...(mjuk ? { mjuk } : {}), strek, ...(gruppe ? { gruppe } : {}), ...(farge ? { farge } : {}) })
   }
   return ut
 }
