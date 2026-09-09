@@ -11,8 +11,9 @@
  */
 import { inRing, type Pt, type Vec3 } from "./core"
 import type { Kropp } from "./kropp"
-import { ut } from "./plan"
-import type { Ribbe, Snitt } from "./snitt"
+import { placedRings, type Nesting } from "./nest"
+import { ut, type Ramme } from "./plan"
+import type { Del, Ribbe, Snitt } from "./snitt"
 
 /**
  * kant: 0 = plateflate, 1 = kutt gjennom plata
@@ -187,7 +188,7 @@ export function flateMesh(k: Kropp) {
  * profilen gjennom ramma hennar. (u, v, n) er høgrehendt, so ein profil
  * mot klokka gjev flater som vender ut — for alle plan, utan unnatak.
  */
-export function ribSolid(s: Soup, r: Ribbe, t: number, del0 = -1) {
+export function ribSolid(s: Soup, r: Pick<Ribbe, "r" | "outlines" | "holes">, t: number, del0 = -1) {
   const h = t / 2
   const put = (q: Pt, off: number): Vec3 => ut(r.r, q, off)
   const boygd = !!r.r.k
@@ -258,4 +259,93 @@ export function lagMesh(sn: Snitt, t: number) {
     del += r.outlines.length
   }
   return soupToMesh(s)
+}
+
+// =============================================================================
+// DELANE KVAR FOR SEG — det same nettet, delt der kuttlista deler det
+// =============================================================================
+/**
+ * EIN DEL SOM SITT EIGE NETT, MED ADRESSA SI.
+ *
+ * `lagMesh` byggjer heile stabelen som éin haug trekantar, og det er rett
+ * for skjermkortet: han skal teikne alt kvar ramme. Ei FIL er noko anna.
+ * Ein montasje som kjem inn i Blender som eitt einaste nett er ein
+ * montasje du ikkje kan ta frå kvarandre — du ser han, og du kan ikkje
+ * dra ei ribbe ut av han utan å skilje trekantane for hand.
+ *
+ * Difor får kvar del sitt eige nett her, og namnet er ADRESSA — det same
+ * som står gravert på plata og i kuttlista og i monteringa. Éin del i
+ * fila, éin del på benken, eitt namn.
+ */
+export type DelMesh = { adr: string; positions: Float32Array; tris: number }
+
+const delMesh = (adr: string, s: Soup): DelMesh => ({
+  adr,
+  positions: new Float32Array(s.pos),
+  tris: s.pos.length / 9,
+})
+
+/**
+ * Montasjen slik han står, delt.
+ *
+ * Delane kjem frå kuttlista og ikkje frå ribbene: der ligg omrisset,
+ * hòla som høyrer til det, og adressa — alt utanom RAMMA, som er planet
+ * si og finst per plan. Å gå ribbene i staden ville krevd at denne
+ * lykkja delte omrissa i same rekkjefylgje som `buildDelar` gjer det, og
+ * to lykkjer som må halde takta er ei takt som fyrr eller seinare ryk.
+ */
+export function lagDelar(sn: Snitt, delar: readonly Del[], t: number): DelMesh[] {
+  const rammer = new Map(sn.ribber.map((r) => [r.plan.id, r.r]))
+  const ut: DelMesh[] = []
+  for (const q of delar) {
+    const r = rammer.get(q.plan)
+    // Kuttlista er BYGD av desse ribbene, so det finst alltid ei ramme.
+    // Skulle ho likevel mangle, ville delen falle stilt ut av fila — og
+    // det er nett det `pnpm probe` tel: like mange nodar som liner.
+    if (!r) continue
+    const s = newSoup()
+    ribSolid(s, { r, outlines: [q.outline], holes: q.holes }, t)
+    ut.push(delMesh(q.adr, s))
+  }
+  return ut
+}
+
+/** ei flat ramme i XY, med plata frå z = 0 og opp til tjukna */
+const flatRamme = (dx: number, t: number): Ramme => ({
+  o: [dx, 0, t / 2],
+  n: [0, 0, 1],
+  u: [1, 0, 0],
+  v: [0, 1, 0],
+  k: 0,
+})
+
+/**
+ * DEI SAME DELANE, LAGDE FLATT DER MASKINA SKJER DEI.
+ *
+ * Ringane er nestinga sine — same plassering, same sving, same plate som
+ * DXF-en og arket — so fila er kuttjobben i tre dimensjonar: ho ligg
+ * flatt, ho er sprengd frå kvarandre, og kvar del ligg alt der han skal
+ * liggje. Ein montasje du kan sjå gjennom, og ei plate du kan måle.
+ *
+ * Omrisset er det NOMINELLE: snittet vert teke i kuttfila og berre der.
+ * Ein 3D-modell som var kompensert for laseren sin veg ville vera ein
+ * modell av noko ingen skal lage.
+ *
+ * Platene ligg ved sida av kvarandre langs x, med ein tidel av breidda
+ * imellom: nok til at auget ser kvar den eine sluttar, og lite nok til at
+ * to plater framleis er eitt bilete.
+ */
+export function flatDelar(ns: Nesting, t: number): { ark: number; delar: DelMesh[] }[] {
+  return ns.sheets.map((sh, i) => {
+    const r = flatRamme(i * ns.sheetW * 1.1, t)
+    return {
+      ark: i + 1,
+      delar: sh.placed.map((q) => {
+        const rg = placedRings(q)
+        const s = newSoup()
+        ribSolid(s, { r, outlines: [rg.outline], holes: rg.holes }, t)
+        return delMesh(q.part.adr, s)
+      }),
+    }
+  })
 }

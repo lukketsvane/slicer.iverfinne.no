@@ -5,7 +5,7 @@ import { FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge, nn, type E
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import type { Plan } from "@/lib/plan"
 import {
-  CHIP, EXPORTS, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, IcoVirvel,
+  CHIP, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, IcoVirvel, UTTAK,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
 } from "./deler"
 import type { VerktyId } from "./verkty"
@@ -242,26 +242,50 @@ function fraaMidten(pl: Plan, b: { min: Vec3; max: Vec3 }): string {
   return `${d < -0.05 ? "−" : "+"}${nn(Math.abs(d), 1)} mm`
 }
 
-/** uttaka: éi brikke per fil, og kva dei to fargane tyder */
+/**
+ * UTTAKA: éi rad per bolk, éi brikke per fil, og kva dei to fargane tyder.
+ *
+ * Bolken står i margen — rom, plate, alt — der skyvargruppene har ordet
+ * sitt. Elleve brikker på ei line er ein haug du må lesa gjennom kvar
+ * gong; tre korte rader med eit ord framfor seg er tre stader å sjå.
+ *
+ * Fargeforklaringa høyrer til PLATA og står under henne. Ho sat nedst,
+ * ved sida av «lagre», og forklarte noko som ikkje stod der.
+ */
 function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
   const { metrics } = p
   return (
-    <div className="flex flex-wrap items-center gap-1.5 py-2">
-      {EXPORTS.map((x) => {
-        const stopp = stengd(x.id, metrics)
-        return (
-          <button key={x.id} type="button" title={stopp || x.hint} disabled={p.busy || stopp !== ""} onClick={() => { p.onExport(x.id); onGjort?.() }} className={CHIP + " uppercase tracking-[0.1em]"} style={{ ...chipStyle(false), opacity: stopp ? 0.3 : undefined, textDecoration: stopp ? "line-through" : undefined }}>
-            {x.label}
-          </button>
-        )
-      })}
-      {/* svart er C00 i LightBurn og køyrer fyrst: difor graverer det */}
-      <span className="dim ml-auto flex items-center gap-3 text-[10px] uppercase tracking-[0.14em]" title="svart graverer, blått kutt. fargen er rekkjefylgja">
-        {[["#000000", "graver"], ["#0000ff", "kutt"]].map(([farge, ord]) => (
-          // ringen kring prikken: den svarte er ein svart prikk på svart papir når systemet står mørkt
-          <span key={ord} className="flex items-center gap-1.5"><span aria-hidden="true" className="block h-[7px] w-[7px] rounded-full border" style={{ background: farge, borderColor: "var(--rule)" }} />{ord}</span>
-        ))}
-      </span>
+    <div className="py-1.5">
+      {UTTAK.map((g) => (
+        <div key={g.bolk} role="group" aria-label={g.bolk} data-bolk={g.bolk}>
+          {/* Ordet står på FYRSTE brikkerada og ikkje midt i bolken: ei rad
+              som bryt til to sender eit midtstilt ord ned mellom dei, og
+              då peikar det ikkje lenger på noko. Trettan pikslar er halve
+              brikkehøgda minus halve ordet. */}
+          <div className="flex items-start gap-1.5 py-0.5">
+            <span aria-hidden="true" className="dim mt-[13px] w-9 shrink-0 text-[9px] uppercase leading-none tracking-[0.12em]">{g.bolk}</span>
+            <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+              {g.filer.map((x) => {
+                const stopp = stengd(x.id, metrics)
+                return (
+                  <button key={x.id} type="button" title={stopp || x.hint} disabled={p.busy || stopp !== ""} onClick={() => { p.onExport(x.id); onGjort?.() }} className={CHIP + " uppercase tracking-[0.1em]"} style={{ ...chipStyle(false), opacity: stopp ? 0.3 : undefined, textDecoration: stopp ? "line-through" : undefined }}>
+                    {x.label}
+                  </button>
+                )
+              })}
+            </span>
+          </div>
+          {/* svart er C00 i LightBurn og køyrer fyrst: difor graverer det */}
+          {g.bolk === "plate" && (
+            <span className="dim flex items-center gap-3 pb-0.5 pl-[42px] text-[10px] uppercase tracking-[0.14em]" title="svart graverer, blått kutt. fargen er rekkjefylgja">
+              {[["#000000", "graver"], ["#0000ff", "kutt"]].map(([farge, ord]) => (
+                // ringen kring prikken: den svarte er ein svart prikk på svart papir når systemet står mørkt
+                <span key={ord} className="flex items-center gap-1.5"><span aria-hidden="true" className="block h-[7px] w-[7px] rounded-full border" style={{ background: farge, borderColor: "var(--rule)" }} />{ord}</span>
+              ))}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
@@ -395,7 +419,7 @@ export function Arket(p: ArketProps): JSX.Element {
         {IcoVirvel}
       </button>
       {!benk && (
-        <button type="button" aria-label="eksport" aria-expanded={visUttak} title="uttaka: stl, dxf, svg, ark, png, passprøve, alt, lagre" onClick={eksport} className={ICON_BTN} aria-pressed={visUttak} data-uttak="">
+        <button type="button" aria-label="eksport" aria-expanded={visUttak} title="uttaka: rom — stl, glb, flat, usdz. plate — dxf, svg, ark, png, passprøve. alt og lagre" onClick={eksport} className={ICON_BTN} aria-pressed={visUttak} data-uttak="">
           {IcoUttak}
         </button>
       )}
@@ -445,8 +469,33 @@ export function Arket(p: ArketProps): JSX.Element {
     )
   }
 
+  /**
+   * UTTAKSBOKSEN STÅR OVER ARKET OG IKKJE INNI DET.
+   *
+   * Han låg inne i arket, absolutt plassert over toppen av det. Arket
+   * klipper: `overflow-x-hidden` gjer at nettlesaren reknar den andre
+   * aksen som `auto`, og alt som stikk opp over kanten vert skore bort.
+   * Boksen hadde difor plass, mål og knappar — og teikna ingenting. Ei
+   * rute du kan måle og ikkje sjå er den verste sorten feil: han syner
+   * seg ikkje i eit einaste tal.
+   *
+   * No er han eit sysken av arket i den same faste ramma, over det.
+   * Søvnen tek han med (sjå `.uttak` i globals.css), som han tek alt
+   * anna som ikkje er objektet.
+   */
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex flex-col items-center px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+      {visUttak && steg !== "alt" && (
+        <div
+          data-uttak=""
+          role="group"
+          aria-label="uttak"
+          className="uttak ark pointer-events-auto mb-2 min-w-0 max-w-md rounded-2xl border px-3 sm:max-w-xl"
+          style={{ ...HAIR, width: "calc(100vw - 24px)", background: "var(--paper)", color: "var(--ink)" }}
+        >
+          <Uttaka p={p} onGjort={() => setVisUttak(false)} />
+        </div>
+      )}
       <section
         ref={el}
         aria-label="kontrollar"
@@ -463,11 +512,6 @@ export function Arket(p: ArketProps): JSX.Element {
           transform: pull ? `translateY(${pull}px)` : undefined,
         }}
       >
-        {visUttak && steg !== "alt" && (
-          <div data-uttak="" role="group" aria-label="uttak" className="absolute inset-x-2 bottom-[calc(100%+8px)] rounded-2xl border px-3" style={{ ...HAIR, background: "var(--paper)" }}>
-            <Uttaka p={p} onGjort={() => setVisUttak(false)} />
-          </div>
-        )}
         <div
           className="shrink-0"
           style={{ touchAction: "none" }}

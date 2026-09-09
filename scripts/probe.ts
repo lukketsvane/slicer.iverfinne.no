@@ -436,6 +436,97 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   }
 }
 
+// --- 9b GLB som SCENE: ein node per del, og dei same delane lagde flatt ---
+/**
+ * EIN MONTASJE DU KAN TA FRÅ KVARANDRE.
+ *
+ * GLB-en er ikkje eitt nett: han er eit tre. Vakta spør treet om det same
+ * kuttlista svarar på — kor mange delar, og kva dei heiter — av di det er
+ * NAMNET som gjer fila til noko meir enn eit bilete. Er dei to lister
+ * ulike, har fila delar som ikkje finst på plata, eller delar utan namn.
+ *
+ * Og «flat» er den same lista ein gong til, lagd ned på plata: ei gruppe
+ * per ark, og kvar del med begge flatene sine mellom null og tjukna. Ligg
+ * ein del utanfor det bandet, står han ikkje flatt.
+ */
+{
+  const bag = GRUNN as unknown as ParamBag
+  const p = GRUNN as Params
+  const liste = MOTOR.liste(bag)
+  console.log(`\n=== glb som scene ===`)
+
+  const montasje = tre(MOTOR.exportFile(bag, "glb").data as ArrayBuffer)
+  const rot = montasje.grupper
+  if (rot.length !== 1) bryt(`GLB har ${rot.length} rotnodar og ikkje éin`)
+  const namn = rot.flatMap((g) => g.barn)
+  console.log(`  glb       ${rot.length} gruppe «${rot[0]?.namn}», ${namn.length} nodar`)
+  if (namn.length !== liste.length) bryt(`GLB har ${namn.length} delnodar der kuttlista har ${liste.length} delar`)
+  const ulike = namn.filter((q, i) => q !== liste[i]?.adr)
+  if (ulike.length) bryt(`GLB-nodane heiter ikkje det kuttlista gjer: ${ulike.slice(0, 4).join(", ")}`)
+  else console.log(`  glb       kvar node ber adressa si — ${namn.slice(0, 4).join(", ")} …`)
+
+  const flatUt = MOTOR.exportFile(bag, "flat")
+  const flat = tre(flatUt.data as ArrayBuffer)
+  const paaArk = liste.filter((k) => k.ark > 0)
+  const ark = [...new Set(paaArk.map((k) => k.ark))].length
+  const flatNamn = flat.grupper.flatMap((g) => g.barn)
+  console.log(`  flat      ${flatUt.name}, ${flat.grupper.length} grupper (${flat.grupper.map((g) => g.namn).join(", ")}), ${flatNamn.length} nodar`)
+  if (flat.grupper.length !== ark) bryt(`«flat» har ${flat.grupper.length} grupper der nestinga la delane på ${ark} ark`)
+  if (flatNamn.length !== paaArk.length) bryt(`«flat» har ${flatNamn.length} nodar der ${paaArk.length} delar ligg på plata`)
+  if ([...flatNamn].sort().join() !== paaArk.map((k) => k.adr).sort().join()) bryt("«flat» ber andre adresser enn dei som ligg på plata")
+  // glTF er Y opp, so verkstaden si z — tjukna — er y i fila, i meter
+  const t = p.tjukn / 1000
+  if (flat.lo < -1e-6 || flat.hog > t + 1e-6) {
+    bryt(`«flat» går frå ${nn(flat.lo * 1000, 3)} til ${nn(flat.hog * 1000, 3)} mm og ikkje frå 0 til ${nn(p.tjukn, 2)}`)
+  } else {
+    console.log(`  flat      alle delane ligg mellom 0 og ${nn(p.tjukn, 2)} mm — plata står på golvet`)
+  }
+
+  /**
+   * EI DELT RIBBE HAR EI ADRESSE MED BOKSTAV I, og det er den saka som
+   * ryk fyrst om nodane skulle finne delane sine ein annan veg enn
+   * kuttlista gjer. To kubar med luft imellom: kvart plan tvers over dei
+   * skjer to lause stykke, og dei heiter «4a» og «4b».
+   */
+  const delt = { ...GRUNN, scene: "kube@-60,0,0/1/0;kube@60,0,0/1/0", plan: nett(3, 3) } as unknown as ParamBag
+  const dl = MOTOR.liste(delt)
+  const dNamn = tre(MOTOR.exportFile(delt, "glb").data as ArrayBuffer).grupper.flatMap((g) => g.barn)
+  const dFlat = tre(MOTOR.exportFile(delt, "flat").data as ArrayBuffer).grupper.flatMap((g) => g.barn)
+  const dPaa = dl.filter((k) => k.ark > 0).map((k) => k.adr)
+  console.log(`  delte     to kubar, ${dl.length} delar: ${dl.map((k) => k.adr).join(" ")}`)
+  if (!dl.some((k) => /[a-z]$/.test(k.adr))) bryt("prøva på delte ribber deler ingen ribbe lenger")
+  if (dNamn.join() !== dl.map((k) => k.adr).join()) bryt(`GLB-nodane er ${dNamn.join(" ")} der kuttlista er ${dl.map((k) => k.adr).join(" ")}`)
+  else if ([...dFlat].sort().join() !== [...dPaa].sort().join()) bryt(`«flat» er ${dFlat.join(" ")} der plata ber ${dPaa.join(" ")}`)
+  else console.log(`  delte     stykka har kvar sin node, i begge filene`)
+}
+
+/**
+ * Scena i ein GLB, lese rett av JSON-blokka: gruppene, borna deira, og kor
+ * høgt geometrien går. `lib/io/glb.ts` les TREKANTANE og gløymer treet —
+ * det er rett der, og feil her, av di det er treet vakta spør om.
+ */
+function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; lo: number; hog: number } {
+  const dv = new DataView(buf)
+  const jsonLen = dv.getUint32(12, true)
+  const g = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, jsonLen))) as {
+    scenes?: { nodes?: number[] }[]
+    nodes?: { name?: string; children?: number[] }[]
+    accessors?: { min?: number[]; max?: number[] }[]
+  }
+  const nodes = g.nodes ?? []
+  const grupper = (g.scenes?.[0]?.nodes ?? []).map((i) => ({
+    namn: nodes[i]?.name ?? "",
+    barn: (nodes[i]?.children ?? []).map((k) => nodes[k]?.name ?? ""),
+  }))
+  let lo = Infinity
+  let hog = -Infinity
+  for (const a of g.accessors ?? []) {
+    if (a.min) lo = Math.min(lo, a.min[1])
+    if (a.max) hog = Math.max(hog, a.max[1])
+  }
+  return { grupper, lo, hog }
+}
+
 // =============================================================================
 // FELTET SKAL SYNE DET MOTOREN REKNAR MED
 // =============================================================================

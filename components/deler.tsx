@@ -16,17 +16,42 @@ export const VIEWS: readonly { id: View; label: string; hint: string }[] = [
   { id: "kontur", label: "kontur", hint: "dei flate kuttprofilane (3)" },
 ]
 
-export const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[] = [
-  { id: "stl", label: "stl", hint: "delane som trekantnett, til rendering og 3D-print" },
-  { id: "glb", label: "glb", hint: "det same nettet i meter, y opp: blender, sketchfab, nettlesaren" },
-  { id: "usdz", label: "usdz", hint: "montasjen i rommet: del fila på ein iphone og set han på bordet" },
-  { id: "dxf", label: "dxf", hint: "dei same platene som r12-teikning, ei fil per plate" },
-  { id: "svg", label: "svg", hint: "alle profilane ved sida av kvarandre, i 1:1" },
-  { id: "ark", label: "ark", hint: "platene slik dei er pakka, ei fil per plate" },
-  { id: "png", label: "png", hint: "dei same platene som bilete — til meldingar, ikkje til maskina" },
-  { id: "prove", label: "passprøve", hint: "sju spor, kvart 0,05 mm breiare. skjer i di eiga plate og set klaringa" },
-  { id: "alt", label: "alt", hint: "heile jobben i éi nedlasting: stl, dxf, profilar, plater, passprøve, kuttliste, oppsett" },
-  { id: "prosjekt", label: "lagre", hint: "oppsettet og nettet i lag. slepp fila inn att, og du står der du gjekk frå" },
+/**
+ * UTTAKA, I TRE BOLKAR: rommet, plata, og det som ber heile jobben.
+ *
+ * Elleve brikker i ein haug er elleve val du må lesa kvar gong. Bolken
+ * seier kva fila er til før du les namnet hennar: skal ho SJÅAST (stl,
+ * glb, flat, usdz), skal ho SKJERAST (dxf, svg, ark, png, passprøve),
+ * eller ber ho ALT (alt, lagre). Ordet i margen er det same som over
+ * skyvargruppene.
+ */
+export const UTTAK: readonly { bolk: string; filer: readonly { id: ExportKind; label: string; hint: string }[] }[] = [
+  {
+    bolk: "rom",
+    filer: [
+      { id: "stl", label: "stl", hint: "delane som trekantnett, til rendering og 3D-print" },
+      { id: "glb", label: "glb", hint: "det same nettet i meter, y opp — ein node per del, med adressa som namn: blender, sketchfab, nettlesaren" },
+      { id: "flat", label: "flat", hint: "dei same delane lagde flatt der nestinga la dei, ei gruppe per plate: kuttjobben i tre dimensjonar" },
+      { id: "usdz", label: "usdz", hint: "montasjen i rommet: del fila på ein iphone og set han på bordet" },
+    ],
+  },
+  {
+    bolk: "plate",
+    filer: [
+      { id: "dxf", label: "dxf", hint: "dei same platene som r12-teikning, ei fil per plate" },
+      { id: "svg", label: "svg", hint: "alle profilane ved sida av kvarandre, i 1:1" },
+      { id: "ark", label: "ark", hint: "platene slik dei er pakka, ei fil per plate" },
+      { id: "png", label: "png", hint: "dei same platene som bilete — til meldingar, ikkje til maskina" },
+      { id: "prove", label: "passprøve", hint: "sju spor, kvart 0,05 mm breiare. skjer i di eiga plate og set klaringa" },
+    ],
+  },
+  {
+    bolk: "alt",
+    filer: [
+      { id: "alt", label: "alt", hint: "heile jobben i éi nedlasting: stl, dxf, profilar, plater, passprøve, kuttliste, oppsett" },
+      { id: "prosjekt", label: "lagre", hint: "oppsettet og nettet i lag. slepp fila inn att, og du står der du gjekk frå" },
+    ],
+  },
 ]
 
 /** Ein knapp som leverer ei tom fil lyg, og han lyg i LightBurn. Passprøva
@@ -34,7 +59,8 @@ export const EXPORTS: readonly { id: ExportKind; label: string; hint: string }[]
 export function stengd(x: ExportKind, m: Metrics | null): string {
   if (x === "prove" || x === "prosjekt" || !m) return ""
   if (m.parts === 0) return "ville vorte ei tom fil: ingen delar"
-  if ((x === "ark" || x === "png" || x === "dxf" || x === "alt") && m.sheets === 0) {
+  // «flat» er nestinga si: får ingen del plass på plata, ligg ingen del flatt
+  if ((x === "ark" || x === "png" || x === "dxf" || x === "alt" || x === "flat") && m.sheets === 0) {
     return "ville vorte ei tom fil: ingen del fekk plass på plata"
   }
   return ""

@@ -13,7 +13,7 @@ import { makeKropp, scenaAv } from "./kropp"
 import { erFilform, lesScene } from "./scene"
 import { buildSnitt, DETAIL, skisseSyn, type SkisseSyn, type Snitt } from "./snitt"
 import type { Plan } from "./plan"
-import { flateMesh, lagMesh } from "./mesh"
+import { flatDelar, flateMesh, lagDelar, lagMesh, type DelMesh } from "./mesh"
 import { measure } from "./metrics"
 import { checkRules } from "./rules"
 import { makeBygg } from "./bygg"
@@ -78,6 +78,9 @@ export const filnamnStamme = (label: string) =>
   ("slicer-" + label).replace(/\.[a-z0-9]+$/i, "").replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").toLowerCase().slice(0, 48)
 
 const stem = (p: Params) => filnamnStamme(srcLabel(p.kjelde))
+
+/** delane slik GLB-en vil ha dei: adressa er namnet på noden */
+const nodar = (delar: readonly DelMesh[]) => delar.map((d) => ({ namn: d.adr, positions: d.positions, tris: d.tris }))
 
 /** kva veg ein del kjem inn, med ord */
 function retningOrd(m: Vec3 | null): string {
@@ -148,8 +151,27 @@ export const MOTOR: EngineDef = {
       return { name: `${name}.stl`, mime: "model/stl", data: bytes.buffer.slice(0) as ArrayBuffer }
     }
     if (what === "glb") {
-      const bytes = meshToGlb(lagMesh(makeBygg(p, DETAIL.mid).s, p.tjukn), name, linear(p.material))
+      // SAME GEOMETRIEN, DELT: ein node per del, med adressa som namn, under
+      // éi gruppe som er heile montasjen.
+      const b = makeBygg(p, DETAIL.mid)
+      const bytes = meshToGlb([{ namn: name, delar: nodar(lagDelar(b.s, b.dl.delar, p.tjukn)) }], name, linear(p.material))
       return { name: `${name}.glb`, mime: "model/gltf-binary", data: bytes.buffer.slice(0) as ArrayBuffer }
+    }
+    if (what === "flat") {
+      /**
+       * DEI SAME DELANE, LAGDE NED PÅ PLATA.
+       *
+       * Ei gruppe per plate og ein node per del, der nestinga la han. Namnet
+       * ber tjukna og materialet av di dei to er det du ser i fila — kor
+       * tjukk plata er, og kva farge ho har. SNITTET STÅR IKKJE I NAMNET,
+       * av di det ikkje er teke: omrisset her er det nominelle, og ein
+       * 3D-modell kompensert for laseren sin veg ville vore ein modell av
+       * noko ingen skal lage.
+       */
+      const { ns } = makeBygg(p, DETAIL.mid)
+      const grupper = flatDelar(ns, p.tjukn).map((g) => ({ namn: `ark-${g.ark}`, delar: nodar(g.delar) }))
+      const bytes = meshToGlb(grupper, name, linear(p.material))
+      return { name: `${name}-${num(p.tjukn)}mm-${p.material}-flat.glb`, mime: "model/gltf-binary", data: bytes.buffer.slice(0) as ArrayBuffer }
     }
     if (what === "usdz") {
       const bytes = meshToUsdz(lagMesh(makeBygg(p, DETAIL.mid).s, p.tjukn), linear(p.material))
