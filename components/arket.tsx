@@ -338,8 +338,10 @@ function Profilen({ p }: { p: ArketProps }) {
   const tak = +(MJUK_TAK * S).toFixed(1)
   return (
     <li role="group" aria-label="profil" data-profil="" className="px-1.5 pb-0.5 pt-1">
+      {/* INGEN ETIKETT I MARGEN: brikka seier «firkant» og rada under seier
+          «mjuk», og eit ord til framfor dei er eit ord som berre tek plass —
+          «profil» er seks teikn i ein marg som er tre. */}
       <div className="flex items-center gap-2">
-        <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">profil</span>
         <button
           type="button"
           aria-pressed={p.firkant}
