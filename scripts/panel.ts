@@ -965,9 +965,21 @@ async function telefon(browser: Browser) {
     const tx = await page.locator("[data-bitverkty]").boundingBox()
     sjekk("bladeren står med ein bit som har fleire utgåver", (await bla.count()) === 1)
     sjekk("og han står motsett veg av reiskapane", !!bx && !!tx && bx.x + bx.width < tx.x, `${bx ? Math.round(bx.x) : "–"} mot ${tx ? Math.round(tx.x) : "–"} px`)
+    /**
+     * OG SYNET STÅR MEDAN DU BLAR.
+     *
+     * Ei innebygd form kjem same vegen som ei fil — nettet vert henta, og
+     * kjelda melder seg — og det rammar inn. Men ho er ikkje ein ny kropp:
+     * ho er ein bit som byter form, med plassen sin i behald. Å kaste
+     * vinkelen du står og ser frå, ti gonger medan du ser gjennom ti
+     * stolar, er å ta arbeidet frå deg.
+     */
+    const kamBla = async () => (await page.locator(".handtak").getAttribute("data-kamera")) ?? "?"
+    const kFyrr = await kamBla()
     await bla.click()
     await vent(page, (p) => /stolform-03/.test(String(p.scene ?? "")), 20000)
     sjekk("eitt trykk blar til den neste utgåva", /^stolform-03@/.test(valdBit()), valdBit().slice(0, 40))
+    sjekk("og synet står medan du blar", (await kamBla()) === kFyrr, `${kFyrr} → ${await kamBla()}`)
     sjekk("og plassen, storleiken og vendinga står", hale(valdBit()) === hale(foer[1] ?? ""), valdBit())
     // og B er den same vegen inn, for den som har eit tastatur
     await page.keyboard.press("b")
