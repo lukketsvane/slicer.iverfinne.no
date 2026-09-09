@@ -1773,6 +1773,14 @@ export function Studio() {
     })
   }, [])
 
+  /**
+   * FAMILIEN I DEN VALDE BITEN, når ho har fleire utgåver — elles tom.
+   *
+   * Han er heile vilkåret for bladeren nedst til venstre: ein kube har inga
+   * neste utgåve, so knappen er ikkje der. `nesteForm` gjev forma attende
+   * uendra på ein familie av éi, so spørsmålet er alt svara i `scene.ts`.
+   */
+  const bla = valdBit !== null && bitar[valdBit] && nesteForm(bitar[valdBit].id) !== bitar[valdBit].id ? familien(bitar[valdBit].id) : ""
   // TASTANE. Eit felt som er teke eig sine eigne.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1796,6 +1804,13 @@ export function Studio() {
       else if (k === "s") vekslModus()
       else if (k === "r") vekslRute()
       else if (k === "v") vekslVirvel()
+      // K som KROPPEN: det var den einaste reiskapen utan ein tast, og på
+      // ein benk er tastane vegen inn til dei — R, V, S og no K.
+      else if (k === "k") vekslBit()
+      // B som BLA: den neste utgåva av forma i den valde biten. Same vegen
+      // inn som knappen nedst til venstre, og han finst berre når familien
+      // har fleire utgåver — difor er tasten stum på ein kube.
+      else if (k === "b" && bla) leggBit(bla)
       else if (k === "1") setView("flate")
       else if (k === "2") setView("lag")
       else if (k === "3") setView("kontur")
@@ -1826,7 +1841,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslModus, dupliserPlan, leggStrek, stegPlan, plan, view])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslModus, vekslBit, bla, leggBit, dupliserPlan, leggStrek, stegPlan, plan, view])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -1845,14 +1860,6 @@ export function Studio() {
   const skuffRute: CSSProperties = benk
     ? { left: 0, right: KOL, bottom: 0, height: skuffH }
     : { left: 8, right: 8, top: toppH + 8, bottom: `calc(${LUKKA_ARK}px + env(safe-area-inset-bottom))` }
-  /**
-   * FAMILIEN I DEN VALDE BITEN, når ho har fleire utgåver — elles tom.
-   *
-   * Han er heile vilkåret for bladeren nedst til venstre: ein kube har inga
-   * neste utgåve, so knappen er ikkje der. `nesteForm` gjev forma attende
-   * uendra på ein familie av éi, so spørsmålet er alt svara i `scene.ts`.
-   */
-  const bla = valdBit !== null && bitar[valdBit] && nesteForm(bitar[valdBit].id) !== bitar[valdBit].id ? familien(bitar[valdBit].id) : ""
   /** operatorane på det valde planet — eller på heile gruppa: står dei, og kor mykje */
   const iValt = vald === null ? [] : plan.filter((q) => (valdGruppe !== null && q.gruppe === valdGruppe ? true : q.id === vald))
   const firkantPaa = iValt.length > 0 && iValt.every((q) => q.firkant)
@@ -2138,7 +2145,7 @@ export function Studio() {
             type="button"
             aria-pressed={modus === "bit"}
             aria-label="kroppen"
-            title={modus === "bit" ? "verktyet for kroppen: trykk ein bit, to fingrar flyttar, vrir og skalerer han. trykk for å gå ut" : "verktyet for kroppen: flytt, vri og skaler bitane han er sett saman av"}
+            title={modus === "bit" ? "verktyet for kroppen (K): trykk ein bit, to fingrar flyttar, vrir og skalerer han. trykk for å gå ut" : "verktyet for kroppen (K): flytt, vri og skaler bitane han er sett saman av"}
             onClick={vekslBit}
             className={TUMME_BTN}
             data-bitverkty=""
@@ -2200,7 +2207,7 @@ export function Studio() {
           <button
             type="button"
             aria-label="bla"
-            title={`bla til den neste utgåva av ${bla}: same plassen, same storleiken, ei anna form`}
+            title={`bla til den neste utgåva av ${bla} (B): same plassen, same storleiken, ei anna form`}
             onClick={() => leggBit(bla)}
             className={ORD}
             data-bla=""

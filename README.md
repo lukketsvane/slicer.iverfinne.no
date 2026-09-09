@@ -133,7 +133,9 @@ one millimetre along its normal per arrow press, ten with shift, and its row
 reads where it stands in millimetres from the centre of the body, live. `D`
 duplicates the selected plane, `H` cuts a hole in it, tab and shift-tab walk
 the plane list, `F` reframes, and the right mouse button (or the wheel pressed)
-pans the view — the reframe button puts it back. On the sheet, arrows nudge the
+pans the view — the reframe button puts it back. Every tool has a letter: `R`
+the grid, `V` the whirl, `S` the sketch, `K` the body, and `B` leafs the
+selected piece to the next version of its family. On the sheet, arrows nudge the
 selected part a millimetre, and shift-arrows ten. A phone gets none of this:
 one thumb has no arrows, and a text field there zooms the page.
 

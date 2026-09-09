@@ -263,6 +263,9 @@ export function Tavla({ metrics, rules, busy, params, onChange }: {
   )
 }
 
+/** kven som eig rullinga no, og når ho sist rørte seg — sjå `SliderRow` */
+const hjul: { el: Element | null; tid: number } = { el: null, tid: 0 }
+
 /**
  * ÉIN VERDI, SETT MED EIT DRAG PÅ SEG SJØLV.
  *
@@ -345,6 +348,22 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
       if (sk !== null) return
       const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : -e.deltaY
       if (!d) return
+      /**
+       * EI RULLING SOM ALT ER I GANG HØYRER TIL DEN HO BYRJA I.
+       *
+       * Spalta er høg og radene ligg tett: rullar du deg nedover ho med to
+       * fingrar, glir peikaren over ti tal på vegen, og kvart av dei ville
+       * teke rullinga frå deg og sett seg sjølv i staden. Difor eig den
+       * fyrste mottakaren gesten so lenge ho held fram — ein pause på ein
+       * sjettedels sekund er ny gest, og då er det raden under peikaren.
+       */
+      const no = e.timeStamp
+      if (hjul.el && hjul.el !== el && no - hjul.tid < 160) {
+        hjul.tid = no
+        return
+      }
+      hjul.el = el
+      hjul.tid = no
       e.preventDefault()
       if (Math.sign(d) !== Math.sign(sum)) sum = 0
       sum += d
