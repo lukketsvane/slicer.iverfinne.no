@@ -83,6 +83,12 @@ export type ArketProps = {
   /** mjukinga som brøkdel av den lengste sida; rada syner henne i millimeter */
   mjuk: number
   onMjuk: (v: number) => void
+  /**
+   * VIRRET: kor mange millimeter du har skuva rada ut av lina, denne økta.
+   * Berre med ei gruppe vald — ein einsleg plan har ingen line å bryte.
+   */
+  virr: number
+  onVirr: (mm: number) => void
   /** laget (C02–C29) på det valde planet — eller heile den valde gruppa; 0 er ikkje noko lag */
   onFarge: (farge: number) => void
   /** laget på den valde biten, eller null når ingen bit står vald */
@@ -235,6 +241,7 @@ function Plana({ p }: { p: ArketProps }) {
           </Fragment>
         )
       })}
+      {p.valdGruppe !== null && <Virret p={p} />}
       {p.vald !== null && <Profilen p={p} />}
       {p.vald !== null && <Laga p={p} />}
     </ul>
@@ -281,6 +288,35 @@ function Lagrad({ no, ord, tittel, onFarge }: {
           ),
         )}
       </span>
+    </li>
+  )
+}
+
+/**
+ * VIRRET: RADA UT AV LINA.
+ *
+ * Eit rutenett er jamt, og jamt er ærleg — men ei rad ribber som står
+ * millimeteren jamt er òg ei rad ingen har teke i. Rada her skuvar kvart
+ * plan i gruppa langs si eiga normal, med eit hakk som er gjeve av namnet:
+ * same planet får same hakket kvar gong, so du kan dra deg attende.
+ *
+ * Talet er det du har lagt på MEDAN DU STÅR HER, og ikkje noko som ligg i
+ * lenkja: det som ligg der er kvar plana står. Difor byrjar rada på null
+ * kvar gong du tek ei gruppe — virret er ikkje ei innstilling, det er ei
+ * hand som skuvar.
+ */
+function Virret({ p }: { p: ArketProps }) {
+  const S = num(p.params, "storleik", 150)
+  return (
+    <li role="group" aria-label="virr" data-virr="" className="px-1.5 pt-1">
+      <SliderRow
+        k="virr"
+        r={{ label: "virr", min: 0, max: Math.round(S * 0.12), step: 0.5, unit: "mm" }}
+        value={Math.min(Math.round(S * 0.12), p.virr)}
+        benk={p.benk}
+        onChange={(_, v) => p.onVirr(v)}
+        onSkrubb={p.onSkrubb}
+      />
     </li>
   )
 }
