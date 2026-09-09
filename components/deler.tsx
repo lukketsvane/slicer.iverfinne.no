@@ -19,11 +19,11 @@ export const VIEWS: readonly { id: View; label: string; hint: string }[] = [
 /**
  * UTTAKA, I TRE BOLKAR: rommet, plata, og det som ber heile jobben.
  *
- * Elleve brikker i ein haug er elleve val du må lesa kvar gong. Bolken
- * seier kva fila er til før du les namnet hennar: skal ho SJÅAST (stl,
- * glb, flat, usdz), skal ho SKJERAST (dxf, svg, ark, png, passprøve),
- * eller ber ho ALT (alt, lagre). Ordet i margen er det same som over
- * skyvargruppene.
+ * Eit dusin brikker i ein haug er eit dusin val du må lesa kvar gong.
+ * Bolken seier kva fila er til før du les namnet hennar: skal ho SJÅAST
+ * eller TRYKKJAST (stl, glb, flat, 3mf, usdz), skal ho SKJERAST (dxf,
+ * svg, ark, png, passprøve), eller ber ho ALT (alt, lagre). Ordet i
+ * margen er det same som over skyvargruppene.
  */
 export const UTTAK: readonly { bolk: string; filer: readonly { id: ExportKind; label: string; hint: string }[] }[] = [
   {
@@ -32,6 +32,7 @@ export const UTTAK: readonly { bolk: string; filer: readonly { id: ExportKind; l
       { id: "stl", label: "stl", hint: "delane som trekantnett, til rendering og 3D-print" },
       { id: "glb", label: "glb", hint: "det same nettet i meter, y opp — ein node per del, med adressa som namn: blender, sketchfab, nettlesaren" },
       { id: "flat", label: "flat", hint: "dei same delane lagde flatt der nestinga la dei, ei gruppe per plate: kuttjobben i tre dimensjonar" },
+      { id: "3mf", label: "3mf", hint: "dei same flate delane til 3D-trykk: eitt objekt per del, med adressa som namn. bambu studio, prusaslicer, cura" },
       { id: "usdz", label: "usdz", hint: "montasjen i rommet: del fila på ein iphone og set han på bordet" },
     ],
   },
@@ -59,8 +60,8 @@ export const UTTAK: readonly { bolk: string; filer: readonly { id: ExportKind; l
 export function stengd(x: ExportKind, m: Metrics | null): string {
   if (x === "prove" || x === "prosjekt" || !m) return ""
   if (m.parts === 0) return "ville vorte ei tom fil: ingen delar"
-  // «flat» er nestinga si: får ingen del plass på plata, ligg ingen del flatt
-  if ((x === "ark" || x === "png" || x === "dxf" || x === "alt" || x === "flat") && m.sheets === 0) {
+  // «flat» og «3mf» er nestinga si: får ingen del plass på plata, ligg ingen del flatt
+  if ((x === "ark" || x === "png" || x === "dxf" || x === "alt" || x === "flat" || x === "3mf") && m.sheets === 0) {
     return "ville vorte ei tom fil: ingen del fekk plass på plata"
   }
   return ""

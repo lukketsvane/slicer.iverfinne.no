@@ -202,6 +202,7 @@ async function flate(namn: string, w: number, h: number) {
     ["dxf", /\.dxf$|\.zip$/],
     ["glb", /\.glb$/],
     ["flat", /-flat\.glb$/],
+    ["3mf", /-delar\.3mf$/],
     ["usdz", /\.usdz$/],
     ["svg", /profilar\.svg$/],
   ] as [string, RegExp][]) {

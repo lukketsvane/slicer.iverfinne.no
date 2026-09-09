@@ -22,6 +22,7 @@ import { placedRings } from "./nest"
 import { apply } from "./pack"
 import { meshToStl } from "./export-stl"
 import { meshToGlb } from "./export-glb"
+import { delarTo3mf } from "./export-3mf"
 import { meshToUsdz } from "./export-usdz"
 import { sheetDxf } from "./export-dxf"
 import { couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
@@ -172,6 +173,22 @@ export const MOTOR: EngineDef = {
       const grupper = flatDelar(ns, p.tjukn).map((g) => ({ namn: `ark-${g.ark}`, delar: nodar(g.delar) }))
       const bytes = meshToGlb(grupper, name, linear(p.material))
       return { name: `${name}-${num(p.tjukn)}mm-${p.material}-flat.glb`, mime: "model/gltf-binary", data: bytes.buffer.slice(0) as ArrayBuffer }
+    }
+    if (what === "3mf") {
+      /**
+       * DEI SAME FLATE DELANE, I DET FORMATET EIN SLICER OPNAR.
+       *
+       * «flat» er den rette geometrien for ein trykkjar og feil format;
+       * dette er den same geometrien i rett format. Arka fell bort — ein
+       * trykkjar har inga plate, han har alle delane — so dei vert éi
+       * liste, og kvar del er sitt eige objekt med adressa si.
+       *
+       * Materialet står ikkje i namnet: fila seier ikkje kva du trykkjer
+       * i, det gjer spolen. TJUKNA står, av di ho ER geometrien.
+       */
+      const { ns } = makeBygg(p, DETAIL.mid)
+      const delar = flatDelar(ns, p.tjukn).flatMap((g) => nodar(g.delar))
+      return { name: `${name}-${num(p.tjukn)}mm-delar.3mf`, mime: "model/3mf", data: delarTo3mf(delar, name).buffer.slice(0) as ArrayBuffer }
     }
     if (what === "usdz") {
       const bytes = meshToUsdz(lagMesh(makeBygg(p, DETAIL.mid).s, p.tjukn), linear(p.material))

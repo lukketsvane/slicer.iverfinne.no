@@ -501,6 +501,7 @@ ranking is not a decision. The tool that sets them is.
 | **STL** | the assembled stack, as one soup of triangles |
 | **GLB** | the same stack as glTF binary — metres, Y up, flat-shaded: Blender, Sketchfab, a browser. **One node per part**, named by the address engraved on it, under one group that is the assembly: the stack comes apart with a click |
 | **FLAT** | the same parts again, laid flat exactly where the nester put them — one group per sheet, `ark-1`, `ark-2`, each part a node named by its address, sitting on the floor from 0 to the plate thickness. The cut job in three dimensions: already exploded, already arranged, already flat. The outline is the nominal one — kerf is taken in the cut file and only there |
+| **3MF** | the same flat parts for a **3D printer** — one object per part, named by its address, millimetres and Z up, welded and watertight. Bambu Studio, PrusaSlicer, Cura: drag it in, press arrange, print. A slicer does not read GLB, which is the whole reason this file exists |
 | **USDZ** | the same again for AR Quick Look: share it on an iPhone and the assembly stands on the table in front of you, at size |
 | **DXF** | R12 ASCII, mm, layers `KUTT` and `GRAVER`, kerf-compensated — one file per nested sheet, zipped when there is more than one. The plate is the drawing: `$EXTMIN`/`$EXTMAX`, not a burnable rectangle |
 | **SVG** | every profile side by side, 1:1 |
@@ -510,15 +511,16 @@ ranking is not a decision. The tool that sets them is.
 | **ALT** | the whole job in one download, plus the cut list as CSV and the assembly order as text |
 | **LAGRE** | a project file — settings and mesh together |
 
-**The eleven files stand in three rows, not one heap** — `rom`, `plate`, `alt`,
+**The twelve files stand in three rows, not one heap** — `rom`, `plate`, `alt`,
 with the word in the margin where the slider groups keep theirs. A row says what
-a file is for before you read its name: whether it is to be looked at, cut, or
-carries the whole job. The two colours are explained under the row they belong
-to; they used to sit at the bottom, next to `lagre`, explaining nothing near it.
+a file is for before you read its name: whether it is to be looked at or
+printed, cut, or carries the whole job. The two colours are explained under the
+row they belong to; they used to sit at the bottom, next to `lagre`, explaining
+nothing near it.
 
 On the phone the box stands **above** the sheet, not inside it. It used to sit
 inside, positioned over the sheet's top edge — and the sheet clips, so the box
-had a size, a position and eleven buttons and drew nothing at all. Every
+had a size, a position and every one of its buttons and drew nothing at all. Every
 ordinary check passed: it was in the DOM, `aria-expanded` said open, it had a
 bounding box. `pnpm panel uttaka` asks the one question that catches it — what
 is topmost at the middle of the chip.
@@ -598,14 +600,26 @@ GLB / glTF / STL / OBJ / PLY          per source, cached
   ├── joints      where two planes share a line through material — slots cut
   │               in the field, oriented, widened by the angle between the planes
   ├── nest        parts packed by outline, holes counted as free space
-  └── STL · GLB · FLAT · USDZ · DXF · SVG · ARK
+  └── STL · GLB · FLAT · 3MF · USDZ · DXF · SVG · ARK
 ```
 
-**The nesting is what FLAT is made of.** A part laid flat is the part the
-machine cuts, at the position the machine cuts it — the same rings the DXF and
-the sheet are drawn from, extruded by the plate thickness. A bent plane lies
+**The nesting is what FLAT and 3MF are made of.** A part laid flat is the part
+the machine cuts, at the position the machine cuts it — the same rings the DXF
+and the sheet are drawn from, extruded by the plate thickness. A bent plane lies
 flat as the blank it is cut from, before it is bent, because that is what the
 nester packed.
+
+**So the sheet size is also the print bed.** The parts come out of the nester at
+`arkB × arkH`; set those to your printer's bed — 256 × 256 for a Bambu Lab
+A1/P1/X1, 180 × 180 for an A1 mini — and the 3MF opens with the parts already
+arranged on it. Leave the sheet at plate size and they land off-bed instead;
+that is one press of *arrange* in the slicer, not a problem, but the nester will
+have packed for a plate you are not cutting.
+
+**3MF is millimetres and Z up**, which is what the workshop already is: nothing
+is turned and nothing is divided by a thousand on the way out. GLB is metres and
+Y up and has to be. The two look alike in the code and not in the file, and a
+part written 0.003 mm thick is a part you cannot see.
 
 **A mesh is a shell, not a solid.** Rays make it one: count which way each
 triangle faces, sum rather than parity, because scans have overlapping shells
@@ -727,9 +741,19 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   64-byte-aligned archive, which is what the format asks for.
 - **STL and USDZ out are one mesh**, because the formats are: binary STL has no
   notion of a part, and the USDZ is there to stand on the table, not to be taken
-  apart. Only GLB and FLAT carry the parts as separate named nodes.
+  apart. Only GLB, FLAT and 3MF carry the parts separately, each named by its
+  address.
 - **FLAT is a layout, not a job.** It shows where the nester put each part; it is
-  not cut from, so it takes no kerf and carries no engraving.
+  not cut from, so it takes no kerf and carries no engraving. The 3MF is the same
+  geometry, so the same holds: what you print is the nominal part, not the
+  kerf-compensated one.
+- **The 3MF carries geometry and names, and nothing else** — no printer profile,
+  no filament, no plate type, no per-object settings. It is a generic 3MF, not a
+  Bambu Studio project file; the slicer supplies all of that when you open it.
+- **A printed part is not a cut part.** Thickness, clearance and kerf were set
+  for a plate and a laser. Cut the fit-test coupon's logic again for your
+  printer: `klaring` is the number that decides whether the joints press
+  together, and a printer's tolerances are not a laser's.
 - A `.gltf` pointing at a separate `.bin` cannot reach it from a browser. Use
   `.glb`.
 - A globally inverted mesh is fixed automatically; *inconsistently* wound

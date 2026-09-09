@@ -1715,17 +1715,30 @@ async function uttaka(browser: Browser) {
   sjekk("og han står i tre bolkar", bolkar.join(" ") === "rom plate alt", bolkar.join(" "))
   // kvar fil har ei brikke, og «flat» er ei av dei
   const namn = await boks.locator("button").evaluateAll((e) => e.map((q) => q.textContent?.trim() ?? ""))
-  sjekk("elleve brikker, med flat mellom dei", namn.length === 11 && namn.includes("flat"), namn.join(" "))
-  // DET SOM TEL: ligg brikka øvst i sitt eige midtpunkt?
-  const traff = await page.evaluate(() => {
-    const b = document.querySelector('[role="group"][aria-label="uttak"] button')
-    if (!b) return "ingen brikke"
-    const r = b.getBoundingClientRect()
-    if (!r.width || !r.height) return "brikka har inga rute"
-    const paa = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
-    return paa && (b === paa || b.contains(paa)) ? "ja" : `nei, ${paa?.tagName.toLowerCase() ?? "ingen"} ligg over`
+  sjekk("tolv brikker, med flat og 3mf mellom dei", namn.length === 12 && namn.includes("flat") && namn.includes("3mf"), namn.join(" "))
+  /**
+   * DET SOM TEL: ligg brikka øvst i sitt eige midtpunkt?
+   *
+   * KVAR brikke, ikkje den fyrste. Den fyrste står lengst til venstre og
+   * er den siste som vert dekt av noko; det er den siste i ei full rad som
+   * går under tommelspalta, og ei prøve på berre den fyrste ville sagt ja
+   * til nett den rada som ikkje går an å trykkje på.
+   */
+  const daarlege = await page.evaluate(() => {
+    const ut: string[] = []
+    for (const b of document.querySelectorAll('[role="group"][aria-label="uttak"] button')) {
+      const r = b.getBoundingClientRect()
+      const ord = b.textContent?.trim() ?? "?"
+      if (!r.width || !r.height) {
+        ut.push(`${ord}: inga rute`)
+        continue
+      }
+      const paa = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+      if (!paa || !(b === paa || b.contains(paa))) ut.push(`${ord}: ${paa?.tagName.toLowerCase() ?? "ingen"} ligg over`)
+    }
+    return ut
   })
-  sjekk("og brikka ligg ØVST der ho står — boksen er ikkje klipt bort", traff === "ja", traff)
+  sjekk("og KVAR brikke ligg øvst der ho står — ingen er klipt eller dekt", daarlege.length === 0, daarlege.join(" · "))
   // eit trykk utanfor lukkar han att
   await page.mouse.click(195, 260)
   await page.waitForTimeout(250)

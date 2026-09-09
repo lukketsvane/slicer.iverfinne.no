@@ -25,6 +25,18 @@ import type { VerktyId } from "./verkty"
 export type Steg = "line" | "midt" | "alt"
 const STEG: readonly Steg[] = ["line", "midt", "alt"]
 export const KOL = 340
+/**
+ * TOMMELSPALTA EIG DEN HØGRE KANTEN, og ein boks over arket må vike for
+ * henne. Skjer er 64 px brei og spalta står 16 frå kanten av ruta, so ho
+ * tek dei ytste 80. Arket ligg 12 frå kanten, og då er det 68 att å halde
+ * fri langs si eiga høgre side.
+ *
+ * Utan det la den femte brikka i «rom» seg under skjer: ho stod der, ho
+ * var synleg, og eit trykk midt på henne gjekk til kniven. `pnpm panel
+ * uttaka` trykkjer på KVAR brikke og fangar det — ei prøve på berre den
+ * fyrste ville sagt ja, av di den fyrste står lengst frå spalta.
+ */
+const TUMME_FRI = 68
 /** storleiken står framme; plata står saman med materialet */
 const FRAMME = new Set(["storleik", "arkB", "arkH"])
 
@@ -246,7 +258,7 @@ function fraaMidten(pl: Plan, b: { min: Vec3; max: Vec3 }): string {
  * UTTAKA: éi rad per bolk, éi brikke per fil, og kva dei to fargane tyder.
  *
  * Bolken står i margen — rom, plate, alt — der skyvargruppene har ordet
- * sitt. Elleve brikker på ei line er ein haug du må lesa gjennom kvar
+ * sitt. Eit dusin brikker på ei line er ein haug du må lesa gjennom kvar
  * gong; tre korte rader med eit ord framfor seg er tre stader å sjå.
  *
  * Fargeforklaringa høyrer til PLATA og står under henne. Ho sat nedst,
@@ -419,7 +431,7 @@ export function Arket(p: ArketProps): JSX.Element {
         {IcoVirvel}
       </button>
       {!benk && (
-        <button type="button" aria-label="eksport" aria-expanded={visUttak} title="uttaka: rom — stl, glb, flat, usdz. plate — dxf, svg, ark, png, passprøve. alt og lagre" onClick={eksport} className={ICON_BTN} aria-pressed={visUttak} data-uttak="">
+        <button type="button" aria-label="eksport" aria-expanded={visUttak} title="uttaka: rom — stl, glb, flat, 3mf, usdz. plate — dxf, svg, ark, png, passprøve. alt og lagre" onClick={eksport} className={ICON_BTN} aria-pressed={visUttak} data-uttak="">
           {IcoUttak}
         </button>
       )}
@@ -491,7 +503,7 @@ export function Arket(p: ArketProps): JSX.Element {
           role="group"
           aria-label="uttak"
           className="uttak ark pointer-events-auto mb-2 min-w-0 max-w-md rounded-2xl border px-3 sm:max-w-xl"
-          style={{ ...HAIR, width: "calc(100vw - 24px)", background: "var(--paper)", color: "var(--ink)" }}
+          style={{ ...HAIR, width: "calc(100vw - 24px)", paddingRight: TUMME_FRI, background: "var(--paper)", color: "var(--ink)" }}
         >
           <Uttaka p={p} onGjort={() => setVisUttak(false)} />
         </div>
