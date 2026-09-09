@@ -195,6 +195,20 @@ async function telefon(browser: Browser) {
   // zoomar sida. Difor `[aria-label$=", tal"]` og ikkje `input[…]`.
   const felt = await page.locator("[aria-label$=', tal'][role=slider]").count()
   sjekk("«alle kontrollane» syner skyvarane", felt >= 12, `${felt} dragskiver`)
+  /**
+   * OG BOLKANE BRETTAR SEG. Sju overskrifter og tjue skyvarar er meir enn
+   * eit ark på ein telefon syner, og du arbeider i éin bolk om gongen:
+   * overskrifta er knappen, og skyvarane under henne fell bort til du
+   * trykkjer att.
+   */
+  const bolk = page.locator("[data-bolk='kutt']")
+  await bolk.click()
+  await page.waitForTimeout(300)
+  const felt2 = await page.locator("[aria-label$=', tal'][role=slider]").count()
+  sjekk("eit trykk på overskrifta brettar bolken saman", felt2 < felt && (await bolk.getAttribute("aria-expanded")) === "false", `${felt} → ${felt2} dragskiver`)
+  await bolk.click()
+  await page.waitForTimeout(300)
+  sjekk("og eit trykk til brettar han ut att", (await page.locator("[aria-label$=', tal'][role=slider]").count()) === felt)
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
   sjekk("esc stengjer arket til lina", (await liste.count()) === 0)
@@ -922,11 +936,28 @@ async function telefon(browser: Browser) {
     await vent(page, (p) => /stolform-02/.test(String(p.scene ?? "")), 20000)
     sjekk("den same familien om att blar til den neste utgåva", /^stolform-02@/.test(valdBit()), valdBit().slice(0, 40))
     sjekk("og han står framleis der han stod", hale(valdBit()) === hale(foer[1] ?? ""), valdBit())
+    /**
+     * OG BLADREN GJER DET I EITT TRYKK, NEDST TIL VENSTRE.
+     *
+     * Menyen er to trykk med kroppen dekt, kvar gong, for det eine
+     * spørsmålet «er denne stolen den rette?». Knappen står motsett veg av
+     * reiskapane — venstre tommelen — og han går den same vegen inn, so
+     * plassen, storleiken og angre er dei same.
+     */
+    const bla = page.locator("[data-bla]")
+    const bx = await bla.boundingBox()
+    const tx = await page.locator("[data-bitverkty]").boundingBox()
+    sjekk("bladeren står med ein bit som har fleire utgåver", (await bla.count()) === 1)
+    sjekk("og han står motsett veg av reiskapane", !!bx && !!tx && bx.x + bx.width < tx.x, `${bx ? Math.round(bx.x) : "–"} mot ${tx ? Math.round(tx.x) : "–"} px`)
+    await bla.click()
+    await vent(page, (p) => /stolform-03/.test(String(p.scene ?? "")), 20000)
+    sjekk("eitt trykk blar til den neste utgåva", /^stolform-03@/.test(valdBit()), valdBit().slice(0, 40))
+    sjekk("og plassen, storleiken og vendinga står", hale(valdBit()) === hale(foer[1] ?? ""), valdBit())
     await vel("sau")
     await vent(page, (p) => /sau-01/.test(String(p.scene ?? "")), 20000)
     sjekk("ein annan familie byrjar på si eiga fyrste", /^sau-01@/.test(valdBit()), valdBit().slice(0, 40))
-    // tre endringar, og angre kan ha slege nokon av dei saman
-    for (let i = 0; i < 5 && bitScene() !== foer.join(";"); i++) {
+    // fire endringar, og angre kan ha slege nokon av dei saman
+    for (let i = 0; i < 6 && bitScene() !== foer.join(";"); i++) {
       await page.keyboard.press("z")
       await roleg(page, 500)
     }
@@ -1232,6 +1263,14 @@ async function grupper(browser: Browser) {
   sjekk("trykk på gruppa vel henne", (await page.locator("[data-gruppe='1'][aria-selected='true']").count()) === 1)
   sjekk("og det siste planet er leiaren", (await page.locator("[data-plan='4'][aria-selected='true']").count()) === 1)
   sjekk("fordel står under tommelen", (await page.locator("[data-fordel]").count()) === 1)
+  /**
+   * OG TRYKKET BRETTAR HENNE SAMAN. Eit rutenett er tretti plan i lista, og
+   * lista er det meste av det ein telefon syner. Rada står att — og leiaren
+   * med henne, av di lista alltid skal syne kva handa held.
+   */
+  const iLista = page.locator("[role=listbox][aria-label='plan'] [data-plan]")
+  sjekk("og trykket brettar gruppa saman: leiaren står att åleine", (await iLista.count()) === 1, `${await iLista.count()} av 4 plan i lista`)
+  sjekk("og rada seier at ho er bretta", (await page.getByRole("button", { name: "gruppe 1", exact: true }).getAttribute("aria-expanded")) === "false")
 
   const y = () => plana(page).map((p) => p.o[1])
   const y0 = y()
@@ -1275,6 +1314,7 @@ async function grupper(browser: Browser) {
   await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
   await page.waitForTimeout(300)
   sjekk("trykk att slepper gruppa", (await page.locator("[role=option][aria-selected='true']").count()) === 0)
+  sjekk("og brettar henne ut att", (await iLista.count()) === 4, `${await iLista.count()} av 4 plan i lista`)
   await page.getByRole("button", { name: "slett gruppe 1", exact: true }).click()
   await vent(page, talPlan(0))
   sjekk("× på gruppa tek alle plana", plana(page).length === 0)
@@ -1304,6 +1344,38 @@ async function grupper(browser: Browser) {
   await page.getByRole("button", { name: "ikkje noko lag", exact: true }).click()
   await vent(page, (p) => lesPlan(p.plan).every((q) => !q.farge))
   sjekk("og ringen tek merket bort att", plana(page).every((q) => !q.farge))
+
+  /**
+   * OG EIT PLAN MED FLEIRE STYKKE ER EI GRUPPE I KUTTLISTA.
+   *
+   * Same saka ei rad ned: overskrifta «plan 1 · 2 stykke» samlar dei, og ho
+   * brettar dei saman. To kubar med luft imellom og eitt vassrett plan gjev
+   * nett det — eitt snitt, to stykke — og det er den einaste kroppen som
+   * gjev det utan å hente eit nett.
+   */
+  await page.goto(
+    URL + "#p=" + encodeURIComponent(JSON.stringify({
+      scene: "kube@-90,0,0/1/0;kube@90,0,0/1/0",
+      plan: skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] }]),
+      storleik: 150,
+    })),
+  )
+  await page.reload({ waitUntil: "networkidle" })
+  await roleg(page, 800)
+  await page.getByRole("button", { name: "kuttliste", exact: true }).click()
+  const verkty = page.locator("section[aria-label='verkty']")
+  await verkty.waitFor({ timeout: 10000 })
+  const bolk = verkty.locator("[data-bolk='plan-1']")
+  const rader = verkty.locator("tbody tr")
+  const rad0 = await rader.count()
+  sjekk("kuttlista samlar dei to stykka under planet sitt", (await bolk.count()) === 1 && rad0 === 3, `${rad0} rader`)
+  await bolk.click()
+  await page.waitForTimeout(250)
+  sjekk("og overskrifta brettar dei saman", (await rader.count()) === 1 && (await bolk.getAttribute("aria-expanded")) === "false", `${await rader.count()} rader`)
+  await bolk.click()
+  await page.waitForTimeout(250)
+  sjekk("og eit trykk til brettar dei ut att", (await rader.count()) === rad0, `${await rader.count()} rader`)
+
   sjekk("ingen konsollfeil på gruppene", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
 }
