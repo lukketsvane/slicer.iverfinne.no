@@ -969,11 +969,15 @@ async function telefon(browser: Browser) {
     await vent(page, (p) => /stolform-03/.test(String(p.scene ?? "")), 20000)
     sjekk("eitt trykk blar til den neste utgåva", /^stolform-03@/.test(valdBit()), valdBit().slice(0, 40))
     sjekk("og plassen, storleiken og vendinga står", hale(valdBit()) === hale(foer[1] ?? ""), valdBit())
+    // og B er den same vegen inn, for den som har eit tastatur
+    await page.keyboard.press("b")
+    await vent(page, (p) => /stolform-04/.test(String(p.scene ?? "")), 20000)
+    sjekk("og B gjer det same frå tastaturet", /^stolform-04@/.test(valdBit()), valdBit().slice(0, 40))
     await vel("sau")
     await vent(page, (p) => /sau-01/.test(String(p.scene ?? "")), 20000)
     sjekk("ein annan familie byrjar på si eiga fyrste", /^sau-01@/.test(valdBit()), valdBit().slice(0, 40))
-    // fire endringar, og angre kan ha slege nokon av dei saman
-    for (let i = 0; i < 6 && bitScene() !== foer.join(";"); i++) {
+    // fem endringar, og angre kan ha slege nokon av dei saman
+    for (let i = 0; i < 8 && bitScene() !== foer.join(";"); i++) {
       await page.keyboard.press("z")
       await roleg(page, 500)
     }
@@ -1159,6 +1163,52 @@ async function benk(browser: Browser) {
   sjekk("og plana står der dei stod", plana(page).length === n0 && plana(page).every((q, i) => JSON.stringify(q) === JSON.stringify(plana(page)[i])))
   await page.keyboard.press("z")
   await vent(page, (p) => p.storleik === s0b)
+
+  /**
+   * HJULET PÅ EI TALRAD.
+   *
+   * Eitt hakk på musa (deltaY 100) er eitt steg, skift er ti — og ei
+   * rulling som alt er i gang høyrer til den raden ho byrja i, so ein
+   * peikar som glir over ti tal på veg nedover spalta ikkje set kvart av
+   * dei. Prøva sender hjulet sjølv, so tida mellom meldingane er kjend.
+   */
+  const rulle = (merke: string, shift = false) =>
+    page.evaluate(
+      ([m, sh]) => {
+        document.querySelector(`[aria-label="${m}"]`)?.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true, cancelable: true, shiftKey: sh === "1" }))
+      },
+      [merke, shift ? "1" : ""] as const,
+    )
+  const b0 = hash(page).arkB
+  await rulle("breidd, tal")
+  await vent(page, (p) => p.arkB !== b0)
+  const b1 = hash(page).arkB
+  sjekk("eit hjulhakk stegar talet under peikaren", b1 < b0, `${b0} → ${b1} mm`)
+  // same gesten, ei anna rad: ho skal ikkje ta han
+  const h0 = hash(page).arkH
+  await page.evaluate(() => {
+    for (const m of ["breidd, tal", "høgd, tal"]) {
+      document.querySelector(`[aria-label="${m}"]`)?.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true, cancelable: true }))
+    }
+  })
+  await roleg(page, 400)
+  sjekk("ei rulling som er i gang tek ikkje raden ho glir over", hash(page).arkH === h0, `${h0} → ${hash(page).arkH} mm`)
+  // og etter ein pause er det raden under peikaren
+  await rulle("høgd, tal", true)
+  await vent(page, (p) => p.arkH !== h0)
+  sjekk("etter ein pause er hakket hennar, og skift er ti steg", hash(page).arkH < h0 - (b0 - b1) * 5, `${h0} → ${hash(page).arkH} mm`)
+
+  /**
+   * KVAR REISKAP SIN TAST. R, V og S hadde ein; kroppen hadde ingen, og
+   * bladeren fanst ikkje. På ein benk er tastane vegen inn til reiskapane,
+   * og ein reiskap utan tast er ein reiskap du må sikte på med musa.
+   */
+  await page.keyboard.press("k")
+  await page.waitForTimeout(300)
+  sjekk("K tek verktyet for kroppen", (await page.locator("[data-bitverkty][aria-pressed='true']").count()) === 1)
+  await page.keyboard.press("k")
+  await page.waitForTimeout(300)
+  sjekk("og K slepper han att", (await page.locator("[data-bitverkty][aria-pressed='false']").count()) === 1)
 
   await page.keyboard.press("r")
   await page.waitForTimeout(200)
