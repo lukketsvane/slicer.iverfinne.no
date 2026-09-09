@@ -33,6 +33,20 @@ const LUKKA_ARK = 84
 /** knappane over skjer i tommelspalta: 48 pikslar, runde, flate */
 /** knappane over skjer: ikon, og ikkje anna. Tilstanden er blekk mot dempa. */
 const TUMME_BTN = "hit ikon relative flex h-12 w-12 items-center justify-center"
+/**
+ * HAKKET EIT PLAN FÅR AV VIRRET, mellom −1 og 1, gjeve av NAMNET.
+ *
+ * Ein `Math.random()` her ville gjeve ei ny rad for kvart bilete medan du
+ * dreg, og du kunne aldri dra deg attende dit du var. Ein knasar på talet
+ * gjev det same hakket kvar gong, so virret er ein funksjon og ikkje eit
+ * kast — og eit drag ned tek nøyaktig attende det draget opp la på.
+ */
+const stoy = (id: number): number => {
+  let h = Math.imul(id ^ 0x9e3779b9, 0x85ebca6b)
+  h ^= h >>> 13
+  h = Math.imul(h, 0xc2b2ae35)
+  return (((h ^ (h >>> 16)) >>> 0) / 0xffffffff) * 2 - 1
+}
 /** eit steg i rutenettet: so langt fingrane må gå for éin kolonne eller éi rad */
 const RUTE_STEG = 44
 /** storleiken på ein bit, klemt til det lista tek imot */
@@ -227,6 +241,8 @@ export function Studio() {
   const [toppH, setToppH] = useState(44)
   /** gestmodusen: «form» er dei gamle gestane på objektet, «skisse» er gestane på planet */
   const [modus, setModus] = useState<Modus>("form")
+  /** kor mange millimeter virr du har lagt på gruppa du står i, denne økta */
+  const [virr, setVirr] = useState(0)
   /**
    * SYMMETRIEN PÅ SNITTET: tre brytarar i eitt tal (1 er x, 2 er y, 4 er z).
    *
@@ -1177,6 +1193,49 @@ export function Studio() {
       }
     })
   }, [])
+  /**
+   * VIRRET: EI RAD SOM IKKJE STÅR PÅ LINE.
+   *
+   * Eit rutenett er jamt, og jamt er ærleg — men ei rad ribber som står
+   * millimeteren jamt er òg ei rad ingen har teke i. Virret skuvar kvart
+   * plan i den valde gruppa langs si EIGA normal, med eit hakk som er
+   * gjeve av namnet og ikkje av tilfeldet: same planet får same hakket
+   * kvar gong, so eit drag opp og eit like langt drag ned tek rada
+   * nøyaktig attende dit ho stod.
+   *
+   * Og det vert skrive inn i PUNKTA, som alt anna handa gjer. Talet i rada
+   * er det du har lagt på medan du står her; det som ligg i strengen er
+   * kvar plana står, og det er den einaste sanninga om dei. Difor kan
+   * handtaka, pilene og angre ta i dei etterpå utan å vite om virret.
+   */
+  const virrPlan = useCallback((dmm: number) => {
+    const k = kroppRef.current
+    if (!k || !dmm) return
+    setParams((cur) => {
+      const g = gruppeNo.current.g
+      if (g === null) return cur
+      const l = lesPlan(cur.plan)
+      const treff = new Set(iGruppa(l, g).map((p) => p.id))
+      if (!treff.size) return cur
+      // MIDT PÅ NULL: hakka er tilfeldige nok til at summen deira ikkje er
+      // det, og ei rad som glir sidelengs medan du virrar er ei rad du
+      // ikkje bad om å flytte. Difor midten av dei, trekt frå kvart hakk.
+      const midt = [...treff].reduce((sum, id) => sum + stoy(id), 0) / treff.size
+      return {
+        ...cur,
+        plan: skrivPlan(
+          l.map((p) => {
+            if (!treff.has(p.id)) return p
+            const f = (stoy(p.id) - midt) * dmm
+            return {
+              ...p,
+              o: p.o.map((c, a) => Math.min(1, Math.max(0, +(c + (p.n[a] * f) / Math.max(1e-6, k.max[a] - k.min[a])).toFixed(4)))) as Vec3,
+            }
+          }),
+        ),
+      }
+    })
+  }, [])
   /** mjukinga: eit drag, som bøyen. Under eit halvt promille er ho ingen ting */
   const mjukPlan = useCallback((id: number, d: number) => {
     setParams((cur) => {
@@ -1280,6 +1339,8 @@ export function Studio() {
     setValdStrek(null)
     setPeikt(liste.find((k) => k.plan === id)?.adr ?? null)
   }, [liste])
+  // ei ny gruppe er ei ny rad: virret du la på den førre fylgjer ikkje med
+  useEffect(() => { setVirr(0) }, [valdGruppe])
   // ei gruppe er vald berre so lenge leiaren står i henne: eit anna plan, eit angre, ei sletting slepper gruppa
   useEffect(() => {
     if (valdGruppe === null) return
@@ -2175,6 +2236,8 @@ export function Studio() {
         onFirkant={() => vald !== null && vipFirkant(vald)}
         mjuk={mjukNo}
         onMjuk={(v) => vald !== null && mjukPlan(vald, v - mjukNo)}
+        virr={virr}
+        onVirr={(v) => { virrPlan(v - virr); setVirr(v) }}
         onFarge={setFarge}
         bitFarge={valdBit !== null ? (bitar[valdBit]?.farge ?? 0) : null}
         onBitFarge={fargBit}

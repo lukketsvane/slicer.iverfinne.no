@@ -1320,6 +1320,31 @@ async function grupper(browser: Browser) {
   const v = n1.map((n, i) => vinkel(n, n0[i]))
   sjekk("⌥-drag vrir leiaren, og rada er ei vifte", v[0] < 1e-3 && v[3] > 0.05 && v[1] > 1e-3 && v[1] < v[2] && v[2] < v[3], v.map((a) => ((a * 180) / Math.PI).toFixed(1) + "°").join(" "))
 
+  /**
+   * VIRRET: RADA UT AV LINA. Kvart plan får sitt eige hakk langs si eiga
+   * normal, gjeve av namnet — so eit drag attende tek rada nøyaktig dit ho
+   * stod. Prøva les lenkja: nokre plan opp, nokre ned, og ingen drift.
+   */
+  const virr = page.locator("[aria-label='virr, tal']")
+  sjekk("ei vald gruppe har ei virr-rad", (await virr.count()) === 1)
+  const yv0 = y()
+  const draVirr = async (dx: number) => {
+    const bx = await virr.boundingBox()
+    if (!bx) return
+    await page.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(bx.x + bx.width / 2 + dx, bx.y + bx.height / 2, { steps: 12 })
+    await page.mouse.up()
+  }
+  await draVirr(90)
+  await vent(page, (p) => lesPlan(p.plan).some((q, i) => Math.abs(q.o[1] - yv0[i]) > 1e-3))
+  const yv1 = y().map((v, i) => v - yv0[i])
+  sjekk("virret skuvar kvart plan sitt eige hakk", yv1.some((d) => d > 1e-3) && yv1.some((d) => d < -1e-3), yv1.map((d) => (d * 150).toFixed(1)).join(" "))
+  await draVirr(-220)
+  await roleg(page, 500)
+  const yv2 = y()
+  sjekk("og eit drag attende tek rada dit ho stod", yv2.every((v, i) => Math.abs(v - yv0[i]) < 2e-3), yv2.map((v, i) => ((v - yv0[i]) * 150).toFixed(2)).join(" "))
+
   await page.keyboard.press("d")
   await vent(page, talPlan(8))
   sjekk("D dublerer gruppa, og kopiane er ei ny gruppe som er vald", plana(page).slice(4).every((p) => p.gruppe === 2) && (await page.locator("[data-gruppe='2'][aria-selected='true']").count()) === 1)
