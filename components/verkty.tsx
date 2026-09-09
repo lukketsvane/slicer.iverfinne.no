@@ -47,6 +47,14 @@ function Kuttliste({ liste, peikt, onPeik, onOrd }: {
     for (const k of liste) m.set(k.id, (m.get(k.id) ?? 0) + 1)
     return m
   }, [liste])
+  /** plana du har bretta saman: overskrifta er knappen, som bolkane i arket */
+  const [bretta, setBretta] = useState<ReadonlySet<number>>(() => new Set())
+  const brett = (plan: number) =>
+    setBretta((s) => {
+      const n = new Set(s)
+      if (!n.delete(plan)) n.add(plan)
+      return n
+    })
   const grupper = useMemo(() => {
     const m = new Map<number, Kutt[]>()
     for (const k of [...liste].sort((a, b) => a.plan - b.plan || a.adr.localeCompare(b.adr, "nn", { numeric: true }))) {
@@ -68,30 +76,38 @@ function Kuttliste({ liste, peikt, onPeik, onOrd }: {
             </tr>
           </thead>
           <tbody>
-            {grupper.map(([plan, rader]) => (
-              <Fragmentet key={plan}>
-                {rader.length > 1 && (
-                  <tr><td colSpan={KOLONNAR.length} className="dim px-2 pt-2 text-[9px] uppercase tracking-[0.14em]">plan {plan} · {rader.length} stykke</td></tr>
-                )}
-                {rader.map((k) => (
-                  <tr
-                    key={k.adr}
-                    ref={peikt === k.adr ? peiktRad : undefined}
-                    onClick={() => onPeik(peikt === k.adr ? null : k.adr)}
-                    className="hit cursor-pointer"
-                    style={{ background: peikt === k.adr ? "color-mix(in srgb, var(--ink) 8%, transparent)" : undefined }}
-                  >
-                    {KOLONNAR.map((q) => (
-                      <td key={q.id} className={"px-2 py-[3px] " + celle(q)} style={{ color: q.id === "ledd" && k.joints === 0 ? "var(--warn)" : undefined }}>
-                        {q.id === "id" ? (
-                          <span title={`${former.get(k.id) ?? 1} delar har denne forma`}>{k.id}<span className="dim">{(former.get(k.id) ?? 1) > 1 ? `·${former.get(k.id)}` : ""}</span></span>
-                        ) : q.les(k)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </Fragmentet>
-            ))}
+            {grupper.map(([plan, rader]) => {
+              // planet med fleire stykke er ei GRUPPE, og overskrifta hennar
+              // brettar henne saman: eit rutenett er hundre liner, og du les
+              // eitt plan om gongen
+              const att = rader.length > 1 && bretta.has(plan)
+              return (
+                <Fragmentet key={plan}>
+                  {rader.length > 1 && (
+                    <tr><td colSpan={KOLONNAR.length} className="p-0">
+                      <button type="button" aria-expanded={!att} title={att ? `syn dei ${rader.length} stykka` : "brett planet saman"} onClick={() => brett(plan)} className="hit dim block w-full px-2 pt-2 text-left text-[9px] uppercase tracking-[0.14em]" data-bolk={`plan-${plan}`}>plan {plan} · {rader.length} stykke</button>
+                    </td></tr>
+                  )}
+                  {!att && rader.map((k) => (
+                    <tr
+                      key={k.adr}
+                      ref={peikt === k.adr ? peiktRad : undefined}
+                      onClick={() => onPeik(peikt === k.adr ? null : k.adr)}
+                      className="hit cursor-pointer"
+                      style={{ background: peikt === k.adr ? "color-mix(in srgb, var(--ink) 8%, transparent)" : undefined }}
+                    >
+                      {KOLONNAR.map((q) => (
+                        <td key={q.id} className={"px-2 py-[3px] " + celle(q)} style={{ color: q.id === "ledd" && k.joints === 0 ? "var(--warn)" : undefined }}>
+                          {q.id === "id" ? (
+                            <span title={`${former.get(k.id) ?? 1} delar har denne forma`}>{k.id}<span className="dim">{(former.get(k.id) ?? 1) > 1 ? `·${former.get(k.id)}` : ""}</span></span>
+                          ) : q.les(k)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </Fragmentet>
+              )
+            })}
           </tbody>
         </table>
       </div>

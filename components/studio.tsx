@@ -1709,6 +1709,14 @@ export function Studio() {
   const skuffRute: CSSProperties = benk
     ? { left: 0, right: KOL, bottom: 0, height: skuffH }
     : { left: 8, right: 8, top: toppH + 8, bottom: `calc(${LUKKA_ARK}px + env(safe-area-inset-bottom))` }
+  /**
+   * FAMILIEN I DEN VALDE BITEN, når ho har fleire utgåver — elles tom.
+   *
+   * Han er heile vilkåret for bladeren nedst til venstre: ein kube har inga
+   * neste utgåve, so knappen er ikkje der. `nesteForm` gjev forma attende
+   * uendra på ein familie av éi, so spørsmålet er alt svara i `scene.ts`.
+   */
+  const bla = valdBit !== null && bitar[valdBit] && nesteForm(bitar[valdBit].id) !== bitar[valdBit].id ? familien(bitar[valdBit].id) : ""
   /** kva fingrane held på med, med eitt ord — rutenettet med dei to tala sine */
   const gestTekst =
     gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
@@ -2017,6 +2025,38 @@ export function Studio() {
           >
             {vald === null ? IcoSkjer : IcoFerdig}
             <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--ink)", opacity: busy ? 1 : 0, transition: "opacity 200ms ease" }} />
+          </button>
+        </div>
+      )}
+
+      {/*
+        BLADREN, NEDST TIL VENSTRE — motsett veg av reiskapane.
+
+        Ti stolformer er éi line i menyen, og vegen til den neste gjekk
+        gjennom han: opne menyen, finn familien, trykk. To trykk med
+        kroppen dekt, kvar gong, for det som er EITT val — er denne
+        stolen den rette? Her er det eitt trykk, og menyen står ikkje i
+        vegen for å svare.
+
+        Han står berre når svaret finst: ein bit vald, og fleire utgåver i
+        familien hans. Og han går den same vegen som menyen — `leggBit`
+        med familien — so angre, lenkja og økta ser det same bytet dei
+        alltid har sett.
+      */}
+      {mounted && modus === "bit" && bla && (
+        <div
+          className="bla"
+          style={{ left: 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}
+        >
+          <button
+            type="button"
+            aria-label="bla"
+            title={`bla til den neste utgåva av ${bla}: same plassen, same storleiken, ei anna form`}
+            onClick={() => leggBit(bla)}
+            className={ORD}
+            data-bla=""
+          >
+            bla
           </button>
         </div>
       )}

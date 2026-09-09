@@ -408,6 +408,20 @@ input {
   opacity: 0.3;
 }
 
+/* BLADREN. Motsett veg av reiskapane: nedst til VENSTRE, på same lina som
+   skjer, der den andre tommelen alt ligg. Éin knapp og inga spalte — han
+   gjer éin ting, og han står berre når det finst ei neste utgåve å bla
+   til. Flat som alt anna. */
+.bla {
+  position: absolute;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  /* same høgda som skjer, so ordet står på lina hans og ikkje under henne:
+     båe spaltene er ankra i botnen, og eit ord er lågare enn eit ikon */
+  height: 64px;
+}
+
 /* SPEGLINGANE, øvst i midten av det frie bandet. Bandet er så breitt som
    lerretet, so det må sleppe fingrar gjennom: berre orda tek trykk.
 
@@ -449,6 +463,7 @@ input {
 main header,
 main .synskube,
 main .tumme,
+main .bla,
 main .speil,
 main .handtak,
 main .sider,
@@ -458,6 +473,7 @@ main [aria-label="kontrollar"] {
 main[data-sov] header,
 main[data-sov] .synskube,
 main[data-sov] .tumme,
+main[data-sov] .bla,
 main[data-sov] .speil,
 main[data-sov] .handtak,
 main[data-sov] .sider,

@@ -139,16 +139,27 @@ it. Tap empty space to deselect; the row's `slett` removes the plane.
 **Planes made in one action are a group.** A grid is two groups (across and
 along), a whirl is one, a mirrored cut is one, and duplicating a group makes
 another. The group has a row in the list above its planes; tap it and the
-whole group is selected, with the last plane in the row as the one your hand
-holds. Whatever you do to that plane the group does too: the handles, the
-two-finger drag, the arrow keys, `slett`, `dubler`. `fordel`, under your
+whole group is selected *and folded away behind that one row* — a grid is
+thirty planes and the list is most of what a phone shows. The plane your hand
+holds, the last in the row, stays in the list: the list always shows what you
+have hold of. Whatever you do to that plane the group does too: the handles,
+the two-finger drag, the arrow keys, `slett`, `dubler`. `fordel`, under your
 thumb while a group is selected, decides how: off, the whole row moves and
 turns as one; on, the far end stays, the plane you hold takes all of it and
-the ones between take their share, so turning the last rib fans the row
-along a curve and pushing it re-spaces the row evenly. Tap the group's row
-again, or a single plane, to let it go. The group is a tag on each plane in
-the link (`g:1`), never a thing of its own: each plane is still its own point
-and normal, and a plane you move alone stays in its group.
+the ones between take their share, so turning the last rib fans the row along
+a curve and pushing it re-spaces the row evenly. Tap the group's row again to
+let it go and unfold it, or tap a single plane to let it go. Select another
+group and the first stays folded, so a grid reads as its two rows. The group
+is a tag on each plane in the link (`g:1`), never a thing of its own: each
+plane is still its own point and normal, and a plane you move alone stays in
+its group.
+
+**A heading folds what is under it.** The same tap wherever a list has
+groups: the section headings under `alle kontrollane` — form, nett, delar and
+the rest — fold their sliders away, and a plane that gave several parts folds
+its rows behind its heading in the cut list. It is a way to see, not a
+setting: nothing about it is written to the link, and a reload has everything
+open again.
 
 **A plane can carry a layer.** Under a selected plane the list shows
 LightBurn's own palette, C02 to C29, and a ring for none. Pick one and every
@@ -327,6 +338,15 @@ seen. One line says `stolform` and gives you the first; if it is not the one
 you wanted, the same line takes you to the next. A version id (`sau-03`) only
 ever means which file to fetch — it is what the scene string and the link
 carry, and `lib/scene.ts` is where a family turns into one.
+
+**And `bla`, bottom left, is that in one tap.** Through the menu it is two
+taps with the body covered, every time, to answer the one question — is this
+the right stool? With a piece selected in the body tool, `bla` stands
+opposite the tools, under the other thumb, and takes it to the next version
+where it stands: same spot, same size, same turn. It is only there when the
+family has more than one version — a cube has no next — and it goes in the
+same way the menu does, so undo, the link and the session see the swap they
+have always seen.
 
 **A layer is the bond between a piece and its planes.** Two figures that
 overlap are one body, and a plane through both gave one rib reaching out of
