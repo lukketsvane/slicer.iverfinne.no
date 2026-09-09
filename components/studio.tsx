@@ -6,7 +6,7 @@ import { erPrimitiv, KUBE } from "@/lib/sources"
 import { gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { BOG_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, MJUK_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
 import { lesFest, skrivFest } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
@@ -14,7 +14,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoFerdig, IcoHol, IcoRute, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
+import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoHol, IcoRute, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -1141,6 +1141,65 @@ export function Studio() {
    * millimeter mot tjukna og seier frå, med eit råd som rettar ut til det
    * som går. Ein skyvar som stogga deg ville ikkje kunna seie kvifor.
    */
+  /**
+   * KVA EIN OPERATOR TEK: planet, eller heile gruppa når ho er vald.
+   *
+   * Det er den same regelen som laget, slett og dubler alt fylgjer — ei
+   * gruppe svarar som éi — og operatorane under er dei fyrste som er
+   * skrivne med han i staden for kring han.
+   */
+  const iScope = (l: readonly Plan[], id: number): Set<number> => {
+    const g = gruppeNo.current.g
+    const q = l.find((p) => p.id === id)
+    return new Set(g !== null && q?.gruppe === g ? iGruppa(l, g).map((p) => p.id) : [id])
+  }
+  /**
+   * FIRKANTEN: profilen vert boksen kring seg sjølv, og eit trykk til tek
+   * han attende. Ei gruppe svarar som éi: står han ikkje på alle, tek
+   * trykket alle — og står han på alle, tek han han av alle.
+   */
+  const vipFirkant = useCallback((id: number) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const treff = iScope(l, id)
+      const mine = l.filter((p) => treff.has(p.id))
+      if (!mine.length) return cur
+      const paa = !mine.every((p) => p.firkant)
+      return {
+        ...cur,
+        plan: skrivPlan(
+          l.map((p) => {
+            if (!treff.has(p.id)) return p
+            const { firkant: _, ...utan } = p
+            return paa ? { ...utan, firkant: true as const } : utan
+          }),
+        ),
+      }
+    })
+  }, [])
+  /** mjukinga: eit drag, som bøyen. Under eit halvt promille er ho ingen ting */
+  const mjukPlan = useCallback((id: number, d: number) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const treff = iScope(l, id)
+      const mine = l.filter((p) => treff.has(p.id))
+      if (!mine.length) return cur
+      const naa = Math.max(...mine.map((p) => p.mjuk ?? 0))
+      const v = Math.max(0, Math.min(MJUK_TAK, naa + d))
+      if (Math.abs(v - naa) < 1e-6) return cur
+      const mjuk = v < 0.0005 ? 0 : +v.toFixed(4)
+      return {
+        ...cur,
+        plan: skrivPlan(
+          l.map((p) => {
+            if (!treff.has(p.id)) return p
+            const { mjuk: _, ...utan } = p
+            return mjuk ? { ...utan, mjuk } : utan
+          }),
+        ),
+      }
+    })
+  }, [])
   const boyPlan = useCallback((id: number, d: number) => {
     setParams((cur) => {
       const l = lesPlan(cur.plan)
@@ -1709,6 +1768,18 @@ export function Studio() {
   const skuffRute: CSSProperties = benk
     ? { left: 0, right: KOL, bottom: 0, height: skuffH }
     : { left: 8, right: 8, top: toppH + 8, bottom: `calc(${LUKKA_ARK}px + env(safe-area-inset-bottom))` }
+  /**
+   * FAMILIEN I DEN VALDE BITEN, når ho har fleire utgåver — elles tom.
+   *
+   * Han er heile vilkåret for bladeren nedst til venstre: ein kube har inga
+   * neste utgåve, so knappen er ikkje der. `nesteForm` gjev forma attende
+   * uendra på ein familie av éi, so spørsmålet er alt svara i `scene.ts`.
+   */
+  const bla = valdBit !== null && bitar[valdBit] && nesteForm(bitar[valdBit].id) !== bitar[valdBit].id ? familien(bitar[valdBit].id) : ""
+  /** operatorane på det valde planet — eller på heile gruppa: står dei, og kor mykje */
+  const iValt = vald === null ? [] : plan.filter((q) => (valdGruppe !== null && q.gruppe === valdGruppe ? true : q.id === vald))
+  const firkantPaa = iValt.length > 0 && iValt.every((q) => q.firkant)
+  const mjukNo = iValt.reduce((m, q) => Math.max(m, q.mjuk ?? 0), 0)
   /** kva fingrane held på med, med eitt ord — rutenettet med dei to tala sine */
   const gestTekst =
     gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
@@ -1834,8 +1905,9 @@ export function Studio() {
 
       {/*
         TOMMELSPALTA. Skjer står der høgre tommelen alt er: nedst til høgre,
-        over arket, 64 pikslar. Med eit plan valt er skissa gøymd, og knappen
-        er «ferdig» og slepp valet. Over han: skissebrytaren, og med eit plan
+        over arket, 64 pikslar. Med eit plan valt er skissa gøymd — det er
+        ingenting å skjere — og då står den store plassen tom, so
+        reiskapane fell ned i han. Over han: skissebrytaren, og med eit plan
         valt òg slett — og dei to streka, gods og hòl, som teiknar i profilen
         hans. Er eit strek valt, er det streken slett tek. Ikon, aldri ord.
         Prikken i hjørnet er motoren som reknar. På benken står spalta nedst
@@ -2007,16 +2079,55 @@ export function Studio() {
           >
             {IcoSkisse}
           </button>
+          {/* SKJER, og ikkje anna. Med eit plan valt stod her eit merke som
+              sa «ferdig», og det var ein knapp for å slutte å gjere noko:
+              eit trykk utanfor planet, eit trykk på rada hans, escape —
+              alle tre slepper han frå før. So med eit plan valt står den
+              store knappen tom, og reiskapane hans fell ned i staden. */}
+          {vald === null && (
+            <button
+              type="button"
+              onClick={laas}
+              disabled={view === "kontur" || !harSnitt}
+              aria-label="skjer"
+              title="skjer: skissa vert ein del (L)"
+              className="skjer ikon"
+            >
+              {IcoSkjer}
+              <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--ink)", opacity: busy ? 1 : 0, transition: "opacity 200ms ease" }} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/*
+        BLADREN, NEDST TIL VENSTRE — motsett veg av reiskapane.
+
+        Ti stolformer er éi line i menyen, og vegen til den neste gjekk
+        gjennom han: opne menyen, finn familien, trykk. To trykk med
+        kroppen dekt, kvar gong, for det som er EITT val — er denne
+        stolen den rette? Her er det eitt trykk, og menyen står ikkje i
+        vegen for å svare.
+
+        Han står berre når svaret finst: ein bit vald, og fleire utgåver i
+        familien hans. Og han går den same vegen som menyen — `leggBit`
+        med familien — so angre, lenkja og økta ser det same bytet dei
+        alltid har sett.
+      */}
+      {mounted && modus === "bit" && bla && (
+        <div
+          className="bla"
+          style={{ left: 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}
+        >
           <button
             type="button"
-            onClick={vald === null ? laas : () => velPlan(null)}
-            disabled={view === "kontur" || (vald === null && !harSnitt)}
-            aria-label={vald === null ? "skjer" : "ferdig"}
-            title={vald === null ? "skjer: skissa vert ein del (L)" : "ferdig med planet (esc)"}
-            className="skjer ikon"
+            aria-label="bla"
+            title={`bla til den neste utgåva av ${bla}: same plassen, same storleiken, ei anna form`}
+            onClick={() => leggBit(bla)}
+            className={ORD}
+            data-bla=""
           >
-            {vald === null ? IcoSkjer : IcoFerdig}
-            <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--ink)", opacity: busy ? 1 : 0, transition: "opacity 200ms ease" }} />
+            bla
           </button>
         </div>
       )}
@@ -2060,6 +2171,10 @@ export function Studio() {
         valdGruppe={valdGruppe}
         onVelGruppe={velGruppe}
         onSlettGruppe={slettGruppe}
+        firkant={firkantPaa}
+        onFirkant={() => vald !== null && vipFirkant(vald)}
+        mjuk={mjukNo}
+        onMjuk={(v) => vald !== null && mjukPlan(vald, v - mjukNo)}
         onFarge={setFarge}
         bitFarge={valdBit !== null ? (bitar[valdBit]?.farge ?? 0) : null}
         onBitFarge={fargBit}

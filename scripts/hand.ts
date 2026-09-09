@@ -10,7 +10,7 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
-import { delAv, dreiing, lesPlan, nyGruppe, nyId, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, virvel, vriOm, PLAN_TAK, STREK_TAK } from "../lib/plan"
+import { delAv, dreiing, lesPlan, nyGruppe, nyId, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, virvel, vriOm, MJUK_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
@@ -58,6 +58,15 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0/c:1", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/c:0", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/c:30", "1@0.5,0.5,0.5/1,0,0"],
+  // FIRKANTEN OG MJUKINGA: to operatorar på profilen. Merket står eller
+  // står ikkje, og mjukinga er ein brøk over null, klemt til taket.
+  ["1@0.5,0.5,0.5/1,0,0/f:1", "1@0.5,0.5,0.5/1,0,0/f:1"],
+  ["1@0.5,0.5,0.5/1,0,0/m:0.01", "1@0.5,0.5,0.5/1,0,0/m:0.01"],
+  ["1@0.5,0.5,0.5/1,0,0/f:1/m:0.005/g:2", "1@0.5,0.5,0.5/1,0,0/f:1/m:0.005/g:2"],
+  ["1@0.5,0.5,0.5/1,0,0/m:9", `1@0.5,0.5,0.5/1,0,0/m:${MJUK_TAK}`],
+  ["1@0.5,0.5,0.5/1,0,0/m:0", "1@0.5,0.5,0.5/1,0,0"],
+  ["1@0.5,0.5,0.5/1,0,0/m:-0.01", "1@0.5,0.5,0.5/1,0,0"],
+  ["1@0.5,0.5,0.5/1,0,0/f:2", "1@0.5,0.5,0.5/1,0,0"],
   // EIT MERKE FRÅ EI GAMMAL LENKJE. Handteikna baner fanst ein periode og
   // vart skrivne som `b`. Dei er borte, og ei lenkje som ber ein må miste
   // NETT det streket — planet og dei andre streka hans står.
@@ -202,12 +211,13 @@ console.log("")
 console.log("")
 {
   const grunn = lesPlan(nett(6, 6))
-  const med = (strek: object[]) => {
-    const l = grunn.map((q) => ({ ...q, strek: q.id === 3 ? (strek as never) : q.strek }))
+  const medOp = (strek: object[], op: Partial<Plan> = {}) => {
+    const l = grunn.map((q) => (q.id === 3 ? { ...q, strek: strek as never, ...op } : q))
     const bag = { ...DEFAULT_PARAMS, plan: skrivPlan(l) } as unknown as ParamBag
     const m = MOTOR.measure(bag)
-    return { delar: m.parts, flate: m.plyArea, ledd: m.joints, nodar: m.nodes }
+    return { delar: m.parts, flate: m.plyArea, ledd: m.joints, nodar: m.nodes, kutt: m.cutLen }
   }
+  const med = (strek: object[]) => medOp(strek)
   const utan = med([])
   const gods = med([{ slag: "gods", form: "rekt", x: 0.55, y: 0.1, w: 0.2, h: 0.1, a: 20 }])
   const hol = med([{ slag: "hol", form: "rund", x: 0, y: -0.3, w: 0.15, h: 0.15, a: 0 }])
@@ -244,6 +254,29 @@ console.log("")
     { slag: "gods", form: "rekt", x: 0, y: 0, w: 0.22, h: 0.06, a: 0 },
   ])
   sjekk("og eit gods etter eit hòl fyller det att", attfylt.flate > kort.flate, `${Math.round(kort.flate)}→${Math.round(attfylt.flate)} mm²`)
+
+  /**
+   * DEI TO OPERATORANE PÅ PROFILEN.
+   *
+   * FIRKANTEN er boksen kring profilen, lagd til som gods: eit hakk i
+   * kanten vert fylt att, og flata veks til rektangelet. MJUKINGA slører
+   * feltet før konturen: hjørna vert runda, so både flata og kutten
+   * krympar litt — og ledda står, av di spora vert skorne etterpå.
+   */
+  const hakk = [{ slag: "hol", form: "rund", x: 0.42, y: 0, w: 0.3, h: 0.3, a: 0 }]
+  const medHakk = med(hakk)
+  const firk = medOp(hakk, { firkant: true })
+  sjekk(
+    "firkanten fyller hakket att: profilen er boksen kring seg sjølv",
+    firk.flate > medHakk.flate && firk.delar === medHakk.delar,
+    `${Math.round(medHakk.flate)}→${Math.round(firk.flate)} mm², ${firk.delar} delar`,
+  )
+  const mj = medOp([], { mjuk: 0.01 })
+  sjekk(
+    "mjukinga rundar hjørna: mindre flate, kortare kutt, dei same ledda",
+    mj.flate < utan.flate && mj.kutt < utan.kutt && mj.ledd === utan.ledd,
+    `${Math.round(utan.flate)}→${Math.round(mj.flate)} mm², ${Math.round(utan.kutt)}→${Math.round(mj.kutt)} mm, ${mj.ledd} ledd`,
+  )
 }
 
 for (const [inn, vent] of [
