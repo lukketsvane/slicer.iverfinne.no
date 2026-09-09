@@ -1,12 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
-import type { ArkSyn, ExportKind, DetailKey, ParamBag, Rom, Vec3, View } from "@/lib/core"
+import { bbox, shoelace, type ArkSyn, type ExportKind, type DetailKey, type ParamBag, type Pt, type Rom, type Vec3, type View } from "@/lib/core"
 import { erPrimitiv, KUBE } from "@/lib/sources"
 import { gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { BOG_TAK, MJUK_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
+import { simplify, type Pt2 } from "@/lib/contour"
 import { lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
@@ -14,7 +15,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoHol, IcoRute, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
+import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoRute, IcoSkjer, IcoSlett } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -25,9 +26,16 @@ import { Toppline } from "./toppline"
  * som rører geometri går til arbeidaren; her vert det berre teikna.
  */
 
+/** storleiken ut av posen: den lengste sida av kroppen, mm — det streka og
+ *  omrisset er brøkar av */
+const storleikAv = (p: ParamBag) => (typeof p.storleik === "number" && p.storleik > 0 ? p.storleik : 150)
+
 /** ei fil på meir enn dette er ikkje ein modell, det er eit uhell */
 const MAX_FIL = 220 * 1024 * 1024
 const ANGRE_DJUPN = 50
+/** to trykk lengre frå kvarandre enn dette er to trykk — same vindauge som
+ *  eit trykk på lerretet får (sjå `tapDown` i scene.tsx) */
+const DOBBELT_MS = 320
 /** kor høgt det lukka arket er med botnmargen; skuffa står over det på telefonen */
 const LUKKA_ARK = 84
 /** knappane over skjer i tommelspalta: 48 pikslar, runde, flate */
@@ -298,6 +306,9 @@ export function Studio() {
   const skisse = useRef<Skisse | null>(null)
   const kroppRef = useRef<BuildRes | null>(null)
   kroppRef.current = kropp
+  /** snittet slik motoren sist svara: det forma vert frose av */
+  const snittRef = useRef<SkisseSyn | null>(null)
+  snittRef.current = snitt
   const kjelde = String(params.kjelde ?? KUBE)
   const kjeldeNamn = kjelde === KUBE ? "kube" : (namn[kjelde] ?? "nett")
   /** bitane kroppen er sett saman av: kjelda åleine når lista er tom */
@@ -1041,10 +1052,6 @@ export function Studio() {
     setGest(kva)
   }, [])
   /** brytaren mellom form og skisse, med lina som seier kva som gjeld no */
-  const vekslModus = useCallback(() => {
-    setModus((m) => (m === "skisse" ? "form" : "skisse"))
-    setValdBit(null)
-  }, [])
   /** rutenettet: to fingrar set kolonner og rader. Eit valt plan er ikkje eit rutenett, so valet går. */
   const vekslRute = useCallback(() => {
     setModus((m) => (m === "rute" ? "form" : "rute"))
@@ -1181,29 +1188,139 @@ export function Studio() {
     return new Set(g !== null && q?.gruppe === g ? iGruppa(l, g).map((p) => p.id) : [id])
   }
   /**
-   * FIRKANTEN: profilen vert boksen kring seg sjølv, og eit trykk til tek
-   * han attende. Ei gruppe svarar som éi: står han ikkje på alle, tek
-   * trykket alle — og står han på alle, tek han han av alle.
+   * FORMA: PROFILEN FROSEN TIL PUNKT, OG PUNKTA HANDA DREG I.
+   *
+   * Eitt trykk frys profilen slik han står: den største ringen, forenkla
+   * til noko ei hand kan ta i, skriven inn i planet som eit omriss. Frå då
+   * av er det omrisset som ER profilen — kroppen vert ikkje lesen for dette
+   * planet — og kvart punkt står som eit handtak i rommet.
+   *
+   * DEN STØRSTE RINGEN OG BERRE HAN. Ein profil kan vera fleire stykke og
+   * ha hòl, og eit omriss er éi mangekant: det er den avgjerda som gjer at
+   * punkta kan vera punkt du dreg og ikkje eit tre du må navigere. Hòl og
+   * øyar teiknar du attende med streka, som før.
+   *
+   * PROFILEN FØR SPORA. `snitt.raa` og ikkje `snitt.ringar`: den siste er
+   * profilen med ledda skorne i seg, og å fryse HAN ville bake spora inn i
+   * forma og so skjere dei ein gong til.
    */
-  const vipFirkant = useCallback((id: number) => {
+  const frysOmriss = useCallback((id: number) => {
+    const k = kroppRef.current
+    const sn = snittRef.current
+    if (!k || !sn) return
+    const ringar = sn.raa?.length ? sn.raa : sn.ringar
+    if (!ringar.length) return
+    let stor = ringar[0]
+    for (const q of ringar) if (Math.abs(shoelace(q)) > Math.abs(shoelace(stor))) stor = q
+    if (stor.length < 3) return
+    /**
+     * FORENKLA HEILT NED TIL DET HANDA KAN TA I. Konturen har eit punkt på
+     * kvar rutekant — hundrevis — og taket er fire og tjue. Toleransen vert
+     * dobla til lista går inn under det: ei forenkling som KUTTA lista ville
+     * late att mangekanten på ein annan stad enn ho var open.
+     */
+    let pts = stor as Pt[]
+    for (let tol = 0.25; pts.length > OMRISS_TAK && tol < 4096; tol *= 2) pts = simplify(stor as Pt2[], tol) as Pt[]
+    if (pts.length < 3) return
     setParams((cur) => {
       const l = lesPlan(cur.plan)
-      const treff = iScope(l, id)
-      const mine = l.filter((p) => treff.has(p.id))
-      if (!mine.length) return cur
-      const paa = !mine.every((p) => p.firkant)
-      return {
-        ...cur,
-        plan: skrivPlan(
-          l.map((p) => {
-            if (!treff.has(p.id)) return p
-            const { firkant: _, ...utan } = p
-            return paa ? { ...utan, firkant: true as const } : utan
-          }),
-        ),
-      }
+      const j = l.findIndex((q) => q.id === id)
+      if (j < 0) return cur
+      const r = planRamme(l[j], k.min, k.max)
+      const S = storleikAv(cur)
+      const ou = dot(r.o, r.u)
+      const ov = dot(r.o, r.v)
+      l[j] = { ...l[j], omriss: pts.slice(0, OMRISS_TAK).map((q): Pt => [+((q[0] - ou) / S).toFixed(4), +((q[1] - ov) / S).toFixed(4)]) }
+      return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
+  /**
+   * DOBBELTTRYKKET: BOKSEN KRING FORMA, SOM FIRE PUNKT DU KAN DRA I.
+   *
+   * Ei ribbe gjennom eit dyr er ein kontur med øyre og hovar, og av og til
+   * er det plata du vil ha. Boksen kring det omrisset som står — eller kring
+   * profilen, om ingen står — er fire punkt, og dei er punkt som alle andre:
+   * du dreg eitt hjørne skeivt og har ei trapes.
+   */
+  const firkantOmriss = useCallback((id: number) => {
+    const k = kroppRef.current
+    if (!k) return
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const j = l.findIndex((q) => q.id === id)
+      if (j < 0) return cur
+      const S = storleikAv(cur)
+      let b: { x0: number; y0: number; x1: number; y1: number }
+      if (l[j].omriss?.length) b = bbox(l[j].omriss as Pt[])
+      else {
+        const sn = snittRef.current
+        const ringar = sn?.raa?.length ? sn.raa : sn?.ringar
+        if (!ringar?.length) return cur
+        const r = planRamme(l[j], k.min, k.max)
+        const ou = dot(r.o, r.u)
+        const ov = dot(r.o, r.v)
+        b = bbox(ringar.flat().map((q): Pt => [(q[0] - ou) / S, (q[1] - ov) / S]))
+      }
+      const { x0, y0, x1, y1 } = b
+      if (!(x1 > x0 && y1 > y0)) return cur
+      const kl = (v: number) => +Math.min(1.5, Math.max(-1.5, v)).toFixed(4)
+      l[j] = { ...l[j], omriss: [[kl(x0), kl(y0)], [kl(x1), kl(y0)], [kl(x1), kl(y1)], [kl(x0), kl(y1)]] }
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [])
+  /** og eit trykk til slepper forma: profilen er nettet att */
+  const losOmriss = useCallback((id: number) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const j = l.findIndex((q) => q.id === id)
+      if (j < 0 || !l[j].omriss) return cur
+      const { omriss: _, ...utan } = l[j]
+      l[j] = utan
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [])
+  /**
+   * EIT PUNKT DREGE. Klemt til halvanna storleik frå planet sitt punkt: eit
+   * punkt utanfor det fell på golvet i `lesPlan`, og då fell HEILE omrisset
+   * med — ei form som forsvinn av di du drog eitt punkt for langt er ikkje
+   * ei form du kan arbeide i.
+   */
+  const flyttPunkt = useCallback((id: number, i: number, q: Pt) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const j = l.findIndex((p) => p.id === id)
+      const om = l[j]?.omriss
+      if (!om || !om[i]) return cur
+      const kl = (v: number) => +Math.min(1.5, Math.max(-1.5, v)).toFixed(4)
+      const ny = om.slice()
+      ny[i] = [kl(q[0]), kl(q[1])]
+      l[j] = { ...l[j], omriss: ny }
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [])
+  /**
+   * EITT TRYKK, TO TRYKK, OG TRYKKET ETTER DET.
+   *
+   * Knappen gjer tre ting, og tida mellom trykka er det som skil dei: eitt
+   * trykk frys profilen (eller slepper forma som står), og eit trykk til
+   * innan vindauget gjer dei fire punkta i boksen kring henne. Difor endar
+   * eit dobbelttrykk ALLTID i boksen, same kva planet bar frå før — det
+   * fyrste trykket i det er berre eit steg på vegen.
+   *
+   * Vindauget er det same som eit trykk på lerretet får: eit trykk er kort,
+   * og to trykk som er lengre frå kvarandre enn dette er to trykk.
+   */
+  const sisteForm = useRef(0)
+  const formTrykk = useCallback(() => {
+    const id = valdRef.current
+    if (id === null) return
+    const no = performance.now()
+    const dobbelt = no - sisteForm.current < DOBBELT_MS
+    sisteForm.current = no
+    if (dobbelt) return firkantOmriss(id)
+    if (lesPlan(naa.current.plan).find((q) => q.id === id)?.omriss?.length) losOmriss(id)
+    else frysOmriss(id)
+  }, [firkantOmriss, frysOmriss, losOmriss])
   /**
    * VIRRET: EI RAD SOM IKKJE STÅR PÅ LINE.
    *
@@ -1812,7 +1929,6 @@ export function Studio() {
         if (valdStrek !== null) slettStrek()
         else if (vald !== null) slett(vald)
       } else if (k === "z") (e.shiftKey ? gjerOm : angre)()
-      else if (k === "s") vekslModus()
       else if (k === "r") vekslRute()
       else if (k === "v") vekslVirvel()
       // K som KROPPEN: det var den einaste reiskapen utan ein tast, og på
@@ -1829,6 +1945,9 @@ export function Studio() {
       else if (k === "f") document.querySelector<HTMLButtonElement>("[data-heim]")?.click()
       else if (k === "d" && vald !== null) dupliserPlan(vald)
       else if (k === "h" && vald !== null && view !== "kontur") leggStrek("hol")
+      // O som OMRISSET: same knappen, og eit trykk til innan vindauget gjev
+      // boksen — eit dobbelttrykk er eit dobbelttrykk på ein tast òg.
+      else if (k === "o" && vald !== null && valdGruppe === null && view !== "kontur") formTrykk()
       // PILENE FLYTTAR DET VALDE PLANET, ikkje synet: opp og høgre er langs
       // normalen, ned og venstre er mot. Ein skrubbar i fokus eig pilene
       // sine sjølv, og på plata er det delen pilene flyttar (sjå `Plater`).
@@ -1852,7 +1971,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslModus, vekslBit, bla, leggBit, dupliserPlan, leggStrek, stegPlan, plan, view])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, plan, view])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -1873,8 +1992,9 @@ export function Studio() {
     : { left: 8, right: 8, top: toppH + 8, bottom: `calc(${LUKKA_ARK}px + env(safe-area-inset-bottom))` }
   /** operatorane på det valde planet — eller på heile gruppa: står dei, og kor mykje */
   const iValt = vald === null ? [] : plan.filter((q) => (valdGruppe !== null && q.gruppe === valdGruppe ? true : q.id === vald))
-  const firkantPaa = iValt.length > 0 && iValt.every((q) => q.firkant)
   const mjukNo = iValt.reduce((m, q) => Math.max(m, q.mjuk ?? 0), 0)
+  /** ber det valde planet ei form handa har sett? */
+  const harOmriss = vald !== null && !!plan.find((q) => q.id === vald)?.omriss?.length
   /** kva fingrane held på med, med eitt ord — rutenettet med dei to tala sine */
   const gestTekst =
     gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
@@ -1912,6 +2032,7 @@ export function Studio() {
             onVald={velPlan}
             onDeling={setjDeling}
             onValdStrek={setValdStrek}
+            onPunkt={flyttPunkt}
             onPlan={flyttPlan}
             onStrek={endraStrek}
             onSynStrek={synStrek}
@@ -2012,7 +2133,7 @@ export function Studio() {
       {mounted && (
         <div
           className="tumme"
-          style={{ right: (benk ? KOL : 0) + 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}
+          style={{ right: (benk ? KOL : 0) + 16, top: toppH + 8, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}
           /**
            * DEN ANDRE FINGEREN.
            *
@@ -2080,6 +2201,23 @@ export function Studio() {
                   className={TUMME_BTN}
                 >
                   {IcoHol}
+                </button>
+              )}
+              {/* FORMA: eitt trykk frys profilen til punkt du kan dra i, eit
+                  dobbelttrykk gjer dei fire til boksen kring forma, og eit
+                  trykk til slepper det heile. Merket seier om planet ber ei
+                  form no; kva det NESTE trykket gjer, seier tittelen. */}
+              {valdGruppe === null && (
+                <button
+                  type="button"
+                  aria-pressed={harOmriss}
+                  aria-label="form"
+                  title={harOmriss ? "forma (O): dra punkta i profilen. dobbelttrykk for boksen kring dei, eitt trykk slepper forma" : "forma (O): frys profilen til punkt du kan dra i. dobbelttrykk for boksen kring han"}
+                  onClick={formTrykk}
+                  className={TUMME_BTN}
+                  data-form=""
+                >
+                  {IcoForm}
                 </button>
               )}
               {/* FORDEL: kva rada gjer med det leiaren får. Saman, eller
@@ -2163,18 +2301,7 @@ export function Studio() {
           >
             {IcoBit}
           </button>
-          {/* SKISSEMODUSEN: to fingrar arbeider på planet — dra flyttar, vri
-              vinklar, klyp zoomar. Av er «form»: klyp zoomar, vri vendinga. */}
-          <button
-            type="button"
-            aria-pressed={modus === "skisse"}
-            aria-label="skisse"
-            title={modus === "skisse" ? "skissemodus (S): to fingrar dreg, vrir og zoomar snittet. trykk for form" : "form (S): to fingrar klyp storleiken, vrir vendinga, dreg snittet. trykk for skisse"}
-            onClick={vekslModus}
-            className={TUMME_BTN}
-          >
-            {IcoSkisse}
-          </button>
+
           {/* SKJER, og ikkje anna. Med eit plan valt stod her eit merke som
               sa «ferdig», og det var ein knapp for å slutte å gjere noko:
               eit trykk utanfor planet, eit trykk på rada hans, escape —
@@ -2267,8 +2394,6 @@ export function Studio() {
         valdGruppe={valdGruppe}
         onVelGruppe={velGruppe}
         onSlettGruppe={slettGruppe}
-        firkant={firkantPaa}
-        onFirkant={() => vald !== null && vipFirkant(vald)}
         mjuk={mjukNo}
         onMjuk={(v) => vald !== null && mjukPlan(vald, v - mjukNo)}
         virr={virr}

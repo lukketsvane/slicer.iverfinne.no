@@ -237,18 +237,26 @@ type Rute = {
  * Éin stråle per rad og éin per kolonne, i den snudde kroppen der planet
  * er w = d. Det er heile kostnaden ved ei ribbe — resten er aritmetikk på
  * ei tabell som alt ligg i minnet.
+ *
+ * KJELDA ER KROPPEN, ELLER EIN BOKS. Ber planet eit omriss, kjem profilen
+ * frå punkta og ikkje frå nettet: då er det omrisset sin boks ruta skal
+ * dekkje, og det står ikkje ein einaste stråle å kaste. Det er ikkje ei
+ * innsparing som er funnen på — det er kva det tyder at handa har teke
+ * over forma.
  */
-function ruteAv(s: Solid, d: number, step: number, former: readonly Form[] = []): Rute {
+const TOMME: Span[] = []
+function ruteAv(kjelde: Solid | Kasse, d: number, step: number, former: readonly Form[] = []): Rute {
   // Ruta må dekkje HEILE profilen med litt mon: ein kontur som vert klipt
   // av kanten på ruta er ei open kjede og ikkje eit polygon. Og profilen
   // er ikkje berre kroppen: eit strek som tjuknar eit bein rekk gjerne ut
   // forbi boksen kring nettet, og vart klipt der — plata kom ut delt i to
   // av eit skrått band der kjeda vart lukka på måfå.
   const PAD = Math.max(4, step * 2)
-  let t0 = s.min[0]
-  let t1 = s.max[0]
-  let z0 = s.min[1]
-  let z1 = s.max[1]
+  const s = "runs" in kjelde ? kjelde : null
+  let t0 = s ? s.min[0] : (kjelde as Kasse).bx0
+  let t1 = s ? s.max[0] : (kjelde as Kasse).bx1
+  let z0 = s ? s.min[1] : (kjelde as Kasse).by0
+  let z1 = s ? s.max[1] : (kjelde as Kasse).by1
   for (const f of former) {
     t0 = Math.min(t0, f.bx0)
     t1 = Math.max(t1, f.bx1)
@@ -264,9 +272,9 @@ function ruteAv(s: Solid, d: number, step: number, former: readonly Form[] = [])
   const dt = (t1 - t0) / nt
   const dz = (z1 - z0) / nz
   const rows: Span[][] = new Array(nz + 1)
-  for (let j = 0; j <= nz; j++) rows[j] = s.runs(0, z0 + j * dz, d)
+  for (let j = 0; j <= nz; j++) rows[j] = s ? s.runs(0, z0 + j * dz, d) : TOMME
   const cols: Span[][] = new Array(nt + 1)
-  for (let i = 0; i <= nt; i++) cols[i] = s.runs(1, d, t0 + i * dt)
+  for (let i = 0; i <= nt; i++) cols[i] = s ? s.runs(1, d, t0 + i * dt) : TOMME
   return { t0, dt, nt, z0, dz, nz, rows, cols }
 }
 
@@ -316,6 +324,49 @@ function formAv(st: Strek, ou: number, ov: number, S: number): Form {
   const rx = hw * Math.abs(c) + hh * Math.abs(si)
   const ry = hw * Math.abs(si) + hh * Math.abs(c)
   return { gods, rund: st.form === "rund", cx, cy, hw, hh, c, s: si, bx0: cx - rx, bx1: cx + rx, by0: cy - ry, by1: cy + ry }
+}
+
+/**
+ * OMRISSET SOM FELT: EIN EKTE SIGNERT AVSTAND TIL MANGEKANTEN, positiv inne.
+ *
+ * Same krav som eit strek, og av same grunn: `contour` finn kanten ved å
+ * interpolere mellom to hjørneverdiar, so eit merke («inne er +e») ville
+ * lagt kvar einaste kryssing midt på ei cellekant og gjeve deg ei
+ * fem og førti graders trappe der du sette ei rett line.
+ *
+ * Inne-spørsmålet er PARTAL/ODDETAL og ikkje vinding. Handa kan dra eit
+ * punkt tvers over omrisset og lage ei mangekant som kryssar seg sjølv;
+ * partal/oddetal har eit svar på det, og vindinga har det ikkje.
+ *
+ * Segmenta vert rekna ut ÉIN gong for heile ruta — feltet spør om dei
+ * hundre tusen gonger — og avstanden vert halden i kvadrat til han skal
+ * ut, so det er éi rot per rutepunkt og ikkje éi per side.
+ */
+type Kant = { ax: number; ay: number; bx: number; by: number; ex: number; ey: number; inv: number }
+const kantar = (poly: readonly Pt[]): Kant[] => {
+  const ut: Kant[] = []
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const ex = poly[i][0] - poly[j][0]
+    const ey = poly[i][1] - poly[j][1]
+    ut.push({ ax: poly[j][0], ay: poly[j][1], bx: poly[i][0], by: poly[i][1], ex, ey, inv: 1 / Math.max(1e-12, ex * ex + ey * ey) })
+  }
+  return ut
+}
+function omrissDist(kant: readonly Kant[], x: number, y: number): number {
+  let d2 = Infinity
+  let inne = false
+  for (const k of kant) {
+    const px = x - k.ax
+    const py = y - k.ay
+    const t = Math.max(0, Math.min(1, (px * k.ex + py * k.ey) * k.inv))
+    const qx = px - k.ex * t
+    const qy = py - k.ey * t
+    const q = qx * qx + qy * qy
+    if (q < d2) d2 = q
+    if (k.ay > y !== k.by > y && x < k.ax + ((y - k.ay) / (k.by - k.ay)) * k.ex) inne = !inne
+  }
+  const d = Math.sqrt(d2)
+  return inne ? d : -d
 }
 
 type Boks = { px: number; py: number; dx: number; dy: number; lo: number; hi: number; half: number }
@@ -427,22 +478,30 @@ function sloer(g: Float64Array, w: number, h: number, kx: number, kz: number) {
  * hjørne skal ikkje gjere leddet rundt òg. Sporet er det einaste i denne
  * fila som må kome ut med skarpe kantar — det er det som grip.
  */
-function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0) {
+function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, omriss?: readonly Pt[]) {
   const { t0, dt, nt, z0, dz, nz, rows, cols } = ru
   const boksar = spor.map(boksAv)
+  // OMRISSET STÅR I STADEN FOR KROPPEN, og ikkje ved sida av han: det er
+  // det som gjer at handa kan ta forma MINDRE. Alt anna i feltet — klippet,
+  // streka, mjukinga, spora — les det same feltet som før.
+  const kant = omriss && omriss.length >= 3 ? kantar(omriss) : null
   const g = new Float64Array((nt + 1) * (nz + 1))
   for (let j = 0; j <= nz; j++) {
     const z = z0 + j * dz
     const row = rows[j]
     for (let i = 0; i <= nt; i++) {
       const t = t0 + i * dt
-      const dh = axisDist(row, t)
-      const dv = axisDist(cols[i], z)
-      // Forteiknet er SNITTET av dei to prøvene — er dei usamde, står vi
-      // på ein knivsegg og skal reknast som luft. Storleiken er avstanden
-      // til den næraste av dei to kantane, og aldri den fjernaste.
-      const mag = Math.min(Math.abs(dh), Math.abs(dv))
-      let v = dh > 0 && dv > 0 ? mag : -mag
+      let v: number
+      if (kant) v = omrissDist(kant, t, z)
+      else {
+        const dh = axisDist(row, t)
+        const dv = axisDist(cols[i], z)
+        // Forteiknet er SNITTET av dei to prøvene — er dei usamde, står vi
+        // på ein knivsegg og skal reknast som luft. Storleiken er avstanden
+        // til den næraste av dei to kantane, og aldri den fjernaste.
+        const mag = Math.min(Math.abs(dh), Math.abs(dv))
+        v = dh > 0 && dv > 0 ? mag : -mag
+      }
       // KLIPPET FYRST, og som eit hòl: det biten ikkje eig, er luft. Det
       // står før streka av di eit strek er noko du teikna PÅ delen, og ein
       // del som ikkje finst der har ingenting å teikne på.
@@ -574,6 +633,8 @@ type Raa = {
   boygd: boolean
   /** kor mykje feltet vert slørt før konturen vert dregen, mm — sjå `Plan.mjuk` */
   mjuk: number
+  /** profilen handa har sett, i millimeter i ramma — står i staden for kroppen */
+  omriss?: Pt[]
   /** boksane planet er lenkt til gjennom laget sitt, om nokon */
   klipp?: Klipp
 }
@@ -639,9 +700,17 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     // MJUKINGA er ein brøk av kroppen, som streka og bøyen; feltet reknar
     // i millimeter, so ho vert gjord om her og berre her
     const mjuk = (pl.mjuk ?? 0) * S
+    /**
+     * OMRISSET, UT AV BRØKANE OG INN I MILLIMETER — kring planet sitt eige
+     * punkt, som streka og av same grunn (sjå `formAv`). Har planet eit,
+     * er det profilen: kroppen vert ikkje lesen for dette planet, og ruta
+     * skal difor dekkje omrisset og ikkje nettet.
+     */
+    const omriss = pl.omriss && pl.omriss.length >= 3 ? (pl.omriss.map((q) => [ou + q[0] * S, ov + q[1] * S]) as Pt[]) : undefined
     // det utrulla rommet har flata på null; det vendte har henne på `d`
-    const ru = ruteAv(sol, boygd ? 0 : d, step, former)
-    let ringar = felt(ru, former, [], klipp, mjuk).map((l) => l.pts as Pt[])
+    const ob = omriss ? bbox(omriss) : null
+    const ru = ruteAv(ob ? { bx0: ob.x0, bx1: ob.x1, by0: ob.y0, by1: ob.y1 } : sol, boygd ? 0 : d, step, former)
+    let ringar = felt(ru, former, [], klipp, mjuk, omriss).map((l) => l.pts as Pt[])
     /**
      * FIRKANTEN: BOKSEN KRING PROFILEN, LAGD TIL SOM GODS.
      *
@@ -672,9 +741,9 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
         y1 = Math.max(y1, b.y1)
       }
       former.push({ gods: true, rund: false, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, hw: (x1 - x0) / 2, hh: (y1 - y0) / 2, c: 1, s: 0, bx0: x0, bx1: x1, by0: y0, by1: y1 })
-      ringar = felt(ru, former, [], klipp, mjuk).map((l) => l.pts as Pt[])
+      ringar = felt(ru, former, [], klipp, mjuk, omriss).map((l) => l.pts as Pt[])
     }
-    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], nullpkt: [ou, ov] as Pt, boygd, klipp, mjuk }
+    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], nullpkt: [ou, ov] as Pt, boygd, klipp, mjuk, omriss }
   })
 
   // --- ledda -------------------------------------------------------------
@@ -824,7 +893,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
 
   const ribber: Ribbe[] = raa.map((a) => {
     a.spor.sort((u, v) => u.munn - v.munn)
-    const loops = felt(a.ru, a.former, a.spor, a.klipp, a.mjuk)
+    const loops = felt(a.ru, a.former, a.spor, a.klipp, a.mjuk, a.omriss)
     let outlines: Pt[][] = []
     let holes: Pt[][] = []
     for (const l of loops) {
@@ -1051,6 +1120,12 @@ export function buildDelar(sn: Snitt, p: Params): DelListe {
 export type SkisseSyn = {
   r: Ramme
   ringar: Pt[][]
+  /**
+   * PROFILEN FØR SPORA, på eit plan som ER låst — det omrisset vert frose
+   * av. `ringar` er profilen slik han vert skoren, med spora i, og å fryse
+   * DEN ville bake ledda inn i forma og so skjere dei ein gong til.
+   */
+  raa?: Pt[][]
   /** stykke av kryssliner med gods i begge plan, i skissa si ramme: to endepunkt, og kva plan */
   kryss: { a: Pt; b: Pt; mot: number }[]
   /** kor langt inne i kroppen planet står, målt langs normalen frå den
@@ -1084,7 +1159,7 @@ function laastSyn(k: Kropp, p: Params, pl: Plan, cells: number): SkisseSyn | nul
   }
   const paa = (q: Spor, t: number): Pt => [q.p[0] + q.d[0] * t, q.p[1] + q.d[1] * t]
   const spor = rib.spor.map((q) => ({ nokkel: q.nokkel, munn: paa(q, q.munn), botn: paa(q, q.botn), lo: paa(q, q.lo), hi: paa(q, q.hi) }))
-  return { r: rib.r, ringar: [...rib.outlines, ...rib.holes], kryss, spor, ...avstandAv(k, rib.r), nokkel: `laast|${pl.id}|${snittKey(p as unknown as ParamBag, cells)}` }
+  return { r: rib.r, ringar: [...rib.outlines, ...rib.holes], raa: rib.raa, kryss, spor, ...avstandAv(k, rib.r), nokkel: `laast|${pl.id}|${snittKey(p as unknown as ParamBag, cells)}` }
 }
 
 function avstandAv(k: Kropp, r: Ramme): { avstand: number; akse: "x" | "y" | "z" } {

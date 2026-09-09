@@ -407,13 +407,38 @@ input {
 /* TOMMELSPALTA. Handlinga står der høgre tommelen alt er: nedst til høgre,
    over arket. Skjer er 64 pikslar; streka, slett og brytaren står over han.
    Flat, som alt anna: ingen skugge, ingen overgang, inga flate. */
+/**
+ * TOMMELSPALTA ER EIT BAND OG IKKJE EIN STABEL.
+ *
+ * Ho stod nedst og voks oppover, og med eit plan valt og arket heilt ope
+ * voks ho UT AV RUTA: målt på ein telefon låg dei to øvste reiskapane
+ * hundre og femti pikslar over toppen av skjermen, bak topplina. Dei var
+ * der, dei tok trykk, og ingen kunne sjå dei.
+ *
+ * No spenner bandet frå under topplina til over arket, og reiskapane ligg
+ * nedst i det — under tommelen, der dei høyrer heime. Får dei ikkje plass,
+ * går `margin-top: auto` på den fyrste i null og stabelen stoggar ved
+ * topplina i staden for å gå gjennom henne.
+ *
+ * Bandet tek ingen fingrar; berre reiskapane gjer det. Det ligg over heile
+ * den høgre halvdelen av lerretet, og eit band som tok trykk der ville
+ * stele kvart drag på kroppen.
+ */
 .tumme {
   position: absolute;
   z-index: 15;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   align-items: center;
   gap: 10px;
+  pointer-events: none;
+}
+.tumme > * {
+  pointer-events: auto;
+}
+.tumme > :first-child {
+  margin-top: auto;
 }
 .tumme .skjer {
   position: relative;
@@ -479,6 +504,41 @@ input {
   background: var(--paper);
 }
 
+/* PUNKTA I OMRISSET, same laget og same sona som ledda: eit merke på ti
+   pikslar i ei sone på fire og førti. Firkanta og ikkje runde — eit ledd er
+   ein stad på ei line, eit punkt er eit HJØRNE — so du ser kva du tek i når
+   dei to står på same profilen. */
+.punkt {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+.punkt button {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+}
+.punkt button:active {
+  cursor: grabbing;
+}
+.punkt button > span {
+  width: 9px;
+  height: 9px;
+  border: 2px solid #e05a1a;
+  background: var(--paper);
+}
+
 /* SPEGLINGANE, øvst i midten av det frie bandet. Bandet er så breitt som
    lerretet, so det må sleppe fingrar gjennom: berre orda tek trykk.
 
@@ -525,6 +585,7 @@ main .speil,
 main .handtak,
 main .sider,
 main .spor,
+main .punkt,
 main .uttak,
 main [aria-label="kontrollar"] {
   transition: opacity 90ms linear;
@@ -537,6 +598,7 @@ main[data-sov] .speil,
 main[data-sov] .handtak,
 main[data-sov] .sider,
 main[data-sov] .spor,
+main[data-sov] .punkt,
 main[data-sov] .uttak,
 main[data-sov] [aria-label="kontrollar"] {
   opacity: 0;

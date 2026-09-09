@@ -10,7 +10,7 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
-import { delAv, dreiing, lesPlan, nyGruppe, nyId, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, virvel, vriOm, MJUK_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
+import { delAv, dreiing, lesPlan, nyGruppe, nyId, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, virvel, vriOm, MJUK_TAK, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
@@ -18,6 +18,12 @@ import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
 import { bbox, nn, type ParamBag, type Pt, type Vec3 } from "../lib/core"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+/** n punkt på ein sirkel, skrivne slik `skrivPlan` skriv dei */
+const sirkel = (n: number, r = 0.3) =>
+  Array.from({ length: n }, (_, i) => {
+    const a = (i * Math.PI) / 20
+    return `${+(Math.cos(a) * r).toFixed(4)},${+(Math.sin(a) * r).toFixed(4)}`
+  }).join(",")
 
 let feil = 0
 const sjekk = (namn: string, ok: boolean, sagt = "") => {
@@ -67,6 +73,18 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0/m:0", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/m:-0.01", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/f:2", "1@0.5,0.5,0.5/1,0,0"],
+  // OMRISSET: punkta på rad, tre eller fleire, kvart innanfor to storleikar
+  // av planet sitt punkt. Alt anna er ikkje ei flate handa har sett.
+  ["1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2"],
+  ["1@0.5,0.5,0.5/1,0,0/m:0.01/p:-0.2,-0.2,0.2,-0.2,0,0.2/g:2", "1@0.5,0.5,0.5/1,0,0/m:0.01/p:-0.2,-0.2,0.2,-0.2,0,0.2/g:2"],
+  ["1@0.5,0.5,0.5/1,0,0/p:0,0,1,0", "1@0.5,0.5,0.5/1,0,0"],        // to punkt er inga flate
+  ["1@0.5,0.5,0.5/1,0,0/p:0,0,1,0,1", "1@0.5,0.5,0.5/1,0,0"],      // oddetal er ikkje punkt
+  ["1@0.5,0.5,0.5/1,0,0/p:0,0,0,0,0,0", "1@0.5,0.5,0.5/1,0,0"],    // tre punkt oppå kvarandre har inga flate
+  ["1@0.5,0.5,0.5/1,0,0/p:0,0,0.1,0,0.2,0", "1@0.5,0.5,0.5/1,0,0"], // tre punkt på ei line òg
+  ["1@0.5,0.5,0.5/1,0,0/p:0,0,9,0,0,9", "1@0.5,0.5,0.5/1,0,0"],    // langt utanfor kroppen
+  ["1@0.5,0.5,0.5/1,0,0/p:0,0,x,0,0,1", "1@0.5,0.5,0.5/1,0,0"],
+  // og fleire punkt enn taket vert kutta der taket går
+  [`1@0.5,0.5,0.5/1,0,0/p:${sirkel(40)}`, `1@0.5,0.5,0.5/1,0,0/p:${sirkel(OMRISS_TAK)}`],
   // EIT MERKE FRÅ EI GAMMAL LENKJE. Handteikna baner fanst ein periode og
   // vart skrivne som `b`. Dei er borte, og ei lenkje som ber ein må miste
   // NETT det streket — planet og dei andre streka hans står.
@@ -276,6 +294,58 @@ console.log("")
     "mjukinga rundar hjørna: mindre flate, kortare kutt, dei same ledda",
     mj.flate < utan.flate && mj.kutt < utan.kutt && mj.ledd === utan.ledd,
     `${Math.round(utan.flate)}→${Math.round(mj.flate)} mm², ${Math.round(utan.kutt)}→${Math.round(mj.kutt)} mm, ${mj.ledd} ledd`,
+  )
+
+  /**
+   * OMRISSET STÅR I STADEN FOR KROPPEN.
+   *
+   * Det er heile påstanden, og han kan berre provast ved å gjere forma
+   * MINDRE: eit merke som vart lagt til som gods kunne aldri det. Ei plate
+   * på ein tidel av storleiken i kvadrat er langt mindre enn ribba gjennom
+   * ein kube — og ho står framleis i lag med naboane, so ledda vert lesne
+   * av henne som av alt anna.
+   */
+  /**
+   * EITT PLAN OG INGEN NABOAR: då er flata i tavla flata til DEN ribba, og
+   * påstanden kan lesast som eit tal og ikkje som ein skilnad.
+   */
+  const kvadrat = (r: number): Pt[] => [[-r, -r], [r, -r], [r, r], [-r, r]]
+  const eitt = (op: Partial<Plan> = {}) => {
+    const bag = { ...DEFAULT_PARAMS, plan: skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5], n: [1, 0, 0], bog: 0, strek: [], ...op } as Plan]) } as unknown as ParamBag
+    const m = MOTOR.measure(bag)
+    return { delar: m.parts, flate: m.plyArea, nodar: m.nodes }
+  }
+  const nett1 = eitt()
+  // 0,2 × 0,2 av storleiken (150 mm) er 30 × 30 mm = 900 mm². Mindre enn
+  // det er flis: `MIN_AREA` kastar eit stykke under 400, og eit omriss er
+  // ikkje unnateke frå det.
+  const om = eitt({ omriss: kvadrat(0.1) })
+  sjekk(
+    "omrisset er profilen: flata er den mangekanten seier, ikkje den nettet seier",
+    om.delar === 1 && Math.abs(om.flate - 900) < 30,
+    `${Math.round(nett1.flate)} mm² frå nettet → ${Math.round(om.flate)} av 900, ${om.delar} del`,
+  )
+  sjekk(
+    "og det kan gjere forma MINDRE — det eit merke som vart lagt til som gods aldri kunne",
+    om.flate < nett1.flate * 0.2,
+    `${Math.round(nett1.flate)}→${Math.round(om.flate)} mm²`,
+  )
+
+  /**
+   * OG I EIT RUTENETT STÅR RIBBA I LAG MED NABOANE: ledda vert lesne av
+   * omrisset som av alt anna, og eit strek vert skore i det.
+   */
+  const stort = medOp([], { omriss: kvadrat(0.4) })
+  sjekk(
+    "ei ribbe med omriss har framleis ledd med naboane sine",
+    stort.ledd > 0 && stort.delar === utan.delar,
+    `${stort.ledd} ledd, ${stort.delar} delar`,
+  )
+  const skore = medOp([{ slag: "hol", form: "rund", x: 0, y: 0, w: 0.06, h: 0.06, a: 0 }], { omriss: kvadrat(0.4) })
+  sjekk(
+    "og eit strek vert framleis skore i det",
+    skore.flate < stort.flate && skore.nodar > stort.nodar,
+    `${Math.round(stort.flate)}→${Math.round(skore.flate)} mm²`,
   )
 }
 
