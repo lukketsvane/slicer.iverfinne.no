@@ -12,7 +12,7 @@
  *   PW_CHROMIUM=/opt/pw-browsers/chromium pnpm panel [url]
  */
 import { chromium, type Browser, type Page } from "playwright"
-import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
+import { lesPlan, OMRISS_TAK, rutenett, skrivPlan, type Strek } from "../lib/plan"
 import type { Vec3 } from "../lib/core"
 import { FORMER } from "../lib/scene"
 import type { Params } from "../lib/params"
@@ -24,6 +24,8 @@ import type { Params } from "../lib/params"
  * ein tenar.
  */
 const URL = process.env.URL ?? process.env.PANEL_URL ?? "http://127.0.0.1:3210"
+/** vindauget for eit dobbelttrykk, det same som studioet held */
+const DOBBELT = 320
 const HOVUDLINA = "[aria-label='plan, delar, ark og tid']"
 
 let feil = 0
@@ -2257,12 +2259,12 @@ async function boyen(browser: Browser) {
   }
 
   /**
-   * DEI TO ANDRE OPERATORANE PÅ PROFILEN: firkanten og mjukinga.
+   * FORMA OG MJUKINGA.
    *
-   * Dei står under den same tommelen som bøyen og går den same vegen inn —
-   * plan-strengen — so prøva er den same: trykk, og les lenkja. Firkanten
-   * er eit merke (`f:1`), mjukinga eit drag som bøyen (`m:`), og båe tek
-   * heile gruppa når ho er vald.
+   * Dei står under den same tommelen som bøyen — mjukinga i arket — og går
+   * den same vegen inn: plan-strengen. So prøva er den same: trykk, og les
+   * lenkja. Forma er ei liste punkt (`p:`), mjukinga eit drag som bøyen
+   * (`m:`), og mjukinga tek heile gruppa når ho er vald.
    */
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
@@ -2270,15 +2272,65 @@ async function boyen(browser: Browser) {
   await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await roleg(page, 500)
-  const firkant = page.locator("[data-firkant]")
+  const form = page.locator("[data-form]")
   const mjuk = page.locator("[aria-label='mjuk, tal']")
-  sjekk("eit valt plan har firkanten og mjukinga i arket", (await firkant.count()) === 1 && (await mjuk.count()) === 1)
-  await firkant.click()
-  await vent(page, (p) => !!lesPlan(p.plan)[0]?.firkant)
-  sjekk("firkanten står i lenkja", lesPlan(hash(page).plan)[0]?.firkant === true && !lesPlan(hash(page).plan)[1]?.firkant, hash(page).plan.slice(0, 44))
-  await firkant.click()
-  await vent(page, (p) => !lesPlan(p.plan)[0]?.firkant)
-  sjekk("og eit trykk til tek han attende", !lesPlan(hash(page).plan)[0]?.firkant)
+  const om0 = () => lesPlan(hash(page).plan)[0]?.omriss ?? []
+  sjekk("eit valt plan har forma i spalta og mjukinga i arket", (await form.count()) === 1 && (await mjuk.count()) === 1)
+
+  /**
+   * EITT TRYKK FRYS PROFILEN. Han skal kome ut som PUNKT — fleire enn tre,
+   * færre enn taket — og dei skal liggje kring planet sitt punkt, ikkje
+   * langt ute i lause lufta.
+   */
+  await form.click()
+  await vent(page, (p) => (lesPlan(p.plan)[0]?.omriss?.length ?? 0) >= 3)
+  const frose = om0()
+  sjekk(
+    "eit trykk frys profilen til punkt",
+    frose.length >= 3 && frose.length <= OMRISS_TAK && frose.every((q) => Math.abs(q[0]) <= 1.5 && Math.abs(q[1]) <= 1.5),
+    `${frose.length} punkt av ${OMRISS_TAK}`,
+  )
+  sjekk("og berre DET planet fekk ei form", !lesPlan(hash(page).plan)[1]?.omriss, hash(page).plan.slice(0, 44))
+  sjekk("og punkta står som handtak i rommet", (await page.locator("[data-punkt]").count()) === frose.length, `${await page.locator("[data-punkt]").count()} handtak`)
+
+  /**
+   * EIT PUNKT DREGE ER EI ANNA FORM. Handtaket vert teke der scena sette
+   * det, drege eit stykke, og forma skal ha endra seg NØYAKTIG i det eine
+   * punktet — resten står.
+   */
+  const h0 = await page.locator("[data-punkt='0']").boundingBox()
+  if (h0) {
+    await page.mouse.move(h0.x + h0.width / 2, h0.y + h0.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(h0.x + h0.width / 2 + 40, h0.y + h0.height / 2 - 30, { steps: 12 })
+    await page.mouse.up()
+    await vent(page, (p) => {
+      const o = lesPlan(p.plan)[0]?.omriss ?? []
+      return !!o[0] && (o[0][0] !== frose[0][0] || o[0][1] !== frose[0][1])
+    })
+    const drege = om0()
+    const rort = drege.filter((q, i) => !frose[i] || q[0] !== frose[i][0] || q[1] !== frose[i][1])
+    sjekk("eit drag i eit punkt flyttar NØYAKTIG det punktet", rort.length === 1 && drege.length === frose.length, `${rort.length} av ${drege.length} punkt rørte`)
+  }
+
+  /**
+   * DOBBELTTRYKKET GJEV BOKSEN: fire punkt, to x-verdiar og to y-verdiar,
+   * og han rammar inn den forma som stod.
+   */
+  await form.click()
+  await page.waitForTimeout(90)
+  await form.click()
+  await vent(page, (p) => (lesPlan(p.plan)[0]?.omriss?.length ?? 0) === 4)
+  const boks = om0()
+  const xs = [...new Set(boks.map((q) => q[0]))]
+  const ys = [...new Set(boks.map((q) => q[1]))]
+  sjekk("eit dobbelttrykk gjer forma til boksen kring seg sjølv", boks.length === 4 && xs.length === 2 && ys.length === 2, boks.map((q) => q.join(",")).join(" · "))
+
+  /** og eit einslegt trykk slepper forma: profilen er nettet att */
+  await page.waitForTimeout(DOBBELT + 60)
+  await form.click()
+  await vent(page, (p) => !lesPlan(p.plan)[0]?.omriss)
+  sjekk("og eit einslegt trykk slepper henne", !lesPlan(hash(page).plan)[0]?.omriss && (await page.locator("[data-punkt]").count()) === 0)
   // rada er den same skrubbaren som alle andre tal: eit vassrett drag
   const dra = async (dx: number) => {
     const mb = await mjuk.boundingBox()

@@ -73,14 +73,14 @@ export type ArketProps = {
   onVelGruppe: (g: number) => void
   onSlettGruppe: (g: number) => void
   /**
-   * DEI TO OPERATORANE PÅ PROFILEN til det valde planet — eller til heile
-   * den valde gruppa. Dei bur i arket og ikkje i tommelspalta: spalta er
-   * reiskapar du tek i medan du ser på kroppen, og ho var full. Ein brytar
-   * og eit tal høyrer heime på ei rad, saman med laget.
+   * MJUKINGA PÅ PROFILEN til det valde planet — eller til heile den valde
+   * gruppa. Ho bur i arket og ikkje i tommelspalta: eit TAL høyrer heime på
+   * ei rad, saman med laget. Firkanten stod her ved sida av henne og er
+   * flytt: han var ei HANDLING på forma, og handlingar bur under tommelen —
+   * sjå forma i spalta (`studio.tsx`).
+   *
+   * Som brøkdel av den lengste sida; rada syner henne i millimeter.
    */
-  firkant: boolean
-  onFirkant: () => void
-  /** mjukinga som brøkdel av den lengste sida; rada syner henne i millimeter */
   mjuk: number
   onMjuk: (v: number) => void
   /**
@@ -324,36 +324,22 @@ function Virret({ p }: { p: ArketProps }) {
 /**
  * PROFILEN: KVA SOM SKJER MED KANTEN FØR SPORA VERT SKORNE.
  *
- * Firkanten gjer profilen til boksen kring seg sjølv — plata i staden for
- * konturen — og mjukinga rundar av hakket trekantane i nettet la att.
- * Begge tek heile gruppa når ho er vald, som laget under.
+ * Mjukinga rundar av hakket trekantane i nettet la att, og ho tek heile
+ * gruppa når ho er vald, som laget under.
  *
- * Mjukinga står i MILLIMETER her og som ein brøk i strengen: brøken
- * fylgjer kroppen når han vert skalert, og millimeteren er det du ser på
- * plata. Rada er den same skrubbaren som alle andre tal — drag, piler,
- * hjul, og skriving på benken.
+ * Ho står i MILLIMETER her og som ein brøk i strengen: brøken fylgjer
+ * kroppen når han vert skalert, og millimeteren er det du ser på plata.
+ * Rada er den same skrubbaren som alle andre tal — drag, piler, hjul, og
+ * skriving på benken.
  */
 function Profilen({ p }: { p: ArketProps }) {
   const S = num(p.params, "storleik", 150)
   const tak = +(MJUK_TAK * S).toFixed(1)
   return (
     <li role="group" aria-label="profil" data-profil="" className="px-1.5 pb-0.5 pt-1">
-      {/* INGEN ETIKETT I MARGEN: brikka seier «firkant» og rada under seier
-          «mjuk», og eit ord til framfor dei er eit ord som berre tek plass —
-          «profil» er seks teikn i ein marg som er tre. */}
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          aria-pressed={p.firkant}
-          title={p.firkant ? "firkanten: profilen er boksen kring seg sjølv. trykk for konturen attende" : "firkanten: gjer profilen til boksen kring seg sjølv — plata i staden for konturen"}
-          onClick={p.onFirkant}
-          className={CHIP + " uppercase tracking-[0.1em]"}
-          style={chipStyle(p.firkant)}
-          data-firkant=""
-        >
-          firkant
-        </button>
-      </div>
+      {/* INGEN ETIKETT I MARGEN: rada seier «mjuk» sjølv, og eit ord til
+          framfor henne er eit ord som berre tek plass — «profil» er seks
+          teikn i ein marg som er tre. */}
       <SliderRow
         k="mjuk"
         r={{ label: "mjuk", min: 0, max: tak, step: 0.5, unit: "mm" }}

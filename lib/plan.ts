@@ -26,12 +26,23 @@
  * sitt medan han vert flytt, vinkla om og teikna om — det er det namnet
  * som er gravert på han og lese av i ein haug på ein arbeidsbenk.
  */
-import { lagFarge, type Pt, type Vec3 } from "./core"
+import { lagFarge, shoelace, type Pt, type Vec3 } from "./core"
 
 /** Fleire plan enn dette er ikkje eit prosjekt, det er ei lenkje som prøver seg. */
 export const PLAN_TAK = 64
 /** og fleire strek på eitt plan er ikkje ei redigering */
 export const STREK_TAK = 24
+/**
+ * PUNKTTAKET I EIT OMRISS.
+ *
+ * Kvart punkt er eit handtak du skal kunne ta med tommelen, og handtaket er
+ * fire og førti pikslar. Ein profil som fyller tre hundre pikslar på ein
+ * telefon har ein omkrins kring åtte hundre, og det er atten handtak som
+ * ikkje ligg oppå kvarandre. Fire og tjue er difor der forminga sluttar og
+ * avteikninga byrjar: fleire punkt er punkt du ikkje kan skilje frå
+ * kvarandre med ein finger.
+ */
+export const OMRISS_TAK = 24
 
 /**
  * EIN HANDTEIKNA STREK I PROFILEN.
@@ -102,8 +113,35 @@ export type Plan = {
    *
    * Han vert lagd til ETTER klippet mot biten, so boksen er boksen kring
    * det planet faktisk skjer, og ikkje kring heile kroppen.
+   *
+   * Merket kjem frå den tida brikka i arket sette det. No set reiskapen i
+   * spalta eit OMRISS på fire punkt i staden — ein boks du kan dra i — men
+   * merket vert framleis lese og skrive, so ei lenkje frå den tida opnar
+   * det same objektet ho alltid har opna.
    */
   firkant?: true
+  /**
+   * OMRISSET: PROFILEN SOM PUNKT, SETT AV HANDA.
+   *
+   * Profilen er nettet lese av, og av og til er ikkje det svaret du vil ha:
+   * du vil ha ribba du ser for deg. Fryser du profilen, vert han ei liste
+   * punkt i planet si eiga ramme — og frå då av er det DEI som er profilen.
+   * Kroppen vert ikkje lesen for dette planet lenger; streka vert teikna i
+   * omrisset og spora skorne i det, som før.
+   *
+   * TO DIMENSJONAR OG EI RETT LINE MELLOM PUNKTA. Ein kurve med
+   * kontrollpunkt ville vore ein ny geometri i strengen, og ein kant som
+   * ikkje er der punkta er. Ei mangekant er det profilen alltid har vore:
+   * `contour` gjev ei mangekant, kuttfila skriv ei mangekant, og ledda vert
+   * lesne av ei mangekant.
+   *
+   * Brøkdelar av storleiken, kring planet sitt eige punkt — same eining og
+   * same nullpunkt som eit strek, og av same grunn: det du forma skal
+   * fylgje kroppen når han vert skalert.
+   *
+   * Under tre punkt er det ikkje ei flate, og då er det ikkje eit omriss.
+   */
+  omriss?: Pt[]
   /**
    * MJUKINGA: kor mykje av kanten som vert runda bort, som brøkdel av den
    * lengste sida i kroppen.
@@ -379,10 +417,13 @@ const vec = (v: Vec3) => v.map(tal4).join(",")
 const skrivStrek = (s: Strek) =>
   `${s.slag === "gods" ? "+" : "-"}${s.form === "rekt" ? "r" : "o"}:${[s.x, s.y, s.w, s.h, s.a].map(tal4).join(",")}`
 
+/** «p:x,y,x,y,…» — punkta på rad, av di eit punkt ikkje har fleire felt enn dei to */
+const skrivOmriss = (o: readonly Pt[]) => `p:${o.map((q) => `${tal4(q[0])},${tal4(q[1])}`).join(",")}`
+
 export function skrivPlan(l: readonly Plan[]): string {
   return l
     .map((p) =>
-      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.firkant ? ["f:1"] : []), ...(p.mjuk ? [`m:${+p.mjuk.toFixed(4)}`] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...(p.farge ? [`c:${p.farge}`] : []), ...p.strek.map(skrivStrek)].join("/"),
+      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.firkant ? ["f:1"] : []), ...(p.mjuk ? [`m:${+p.mjuk.toFixed(4)}`] : []), ...(p.omriss?.length ? [skrivOmriss(p.omriss)] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...(p.farge ? [`c:${p.farge}`] : []), ...p.strek.map(skrivStrek)].join("/"),
     )
     .join(";")
 }
@@ -413,6 +454,29 @@ const lesStrek = (s: string): Strek | null => {
   }
 }
 
+/**
+ * OMRISSET INN, FRÅ EI LENKJE KVEN SOM HELST KAN HA SKRIVE.
+ *
+ * Eit ODDETAL av tal er ikkje punkt; eit punkt langt utanfor kroppen er
+ * ikkje eit punkt handa sette; under tre punkt er det inga flate. Alt slikt
+ * fell på golvet og planet står att utan omriss — det er framleis eit
+ * gyldig plan, og profilen kjem frå kroppen som han alltid har gjort.
+ */
+const lesOmriss = (s: string): Pt[] | null => {
+  const v = s.split(",").map(Number)
+  if (v.length < 6 || v.length % 2 !== 0 || !v.every(Number.isFinite)) return null
+  const ut: Pt[] = []
+  for (let i = 0; i + 1 < v.length && ut.length < OMRISS_TAK; i += 2) {
+    if (Math.abs(v[i]) > 2 || Math.abs(v[i + 1]) > 2) return null
+    ut.push([+v[i].toFixed(4), +v[i + 1].toFixed(4)])
+  }
+  if (ut.length < 3) return null
+  // Ei mangekant utan flate er ingen profil: tre punkt på ei line, eller
+  // seks komma på rad frå ei lenkje som prøver seg. Talet er ein brøk av
+  // storleiken i andre, so det er ein promille av kroppen i kvadrat.
+  return Math.abs(shoelace(ut)) > 1e-6 ? ut : null
+}
+
 export function lesPlan(s: unknown): Plan[] {
   const ut: Plan[] = []
   if (typeof s !== "string" || !s) return ut
@@ -438,6 +502,7 @@ export function lesPlan(s: unknown): Plan[] {
     let farge = 0
     let firkant = false
     let mjuk = 0
+    let omriss: Pt[] | null = null
     for (const r of rest.slice(1)) {
       // laget: eit av dei handa får merkje med, elles ikkje noko lag
       const c = /^c:(\d{1,2})$/.exec(r)
@@ -471,13 +536,20 @@ export function lesPlan(s: unknown): Plan[] {
         if (Number.isFinite(v)) mjuk = Math.max(0, Math.min(MJUK_TAK, +v.toFixed(4)))
         continue
       }
+      // omrisset: punkta på rad. Står det to i same planet, er det det
+      // siste som gjeld — som for alle dei andre merka her.
+      const om = /^p:([\d.,-]+)$/.exec(r)
+      if (om) {
+        omriss = lesOmriss(om[1]) ?? omriss
+        continue
+      }
       if (strek.length >= STREK_TAK) break
       const st = lesStrek(r)
       if (!st) continue
       strek.push(st)
     }
     sett.add(id)
-    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, ...(firkant ? { firkant: true as const } : {}), ...(mjuk ? { mjuk } : {}), strek, ...(gruppe ? { gruppe } : {}), ...(farge ? { farge } : {}) })
+    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, ...(firkant ? { firkant: true as const } : {}), ...(mjuk ? { mjuk } : {}), ...(omriss ? { omriss } : {}), strek, ...(gruppe ? { gruppe } : {}), ...(farge ? { farge } : {}) })
   }
   return ut
 }

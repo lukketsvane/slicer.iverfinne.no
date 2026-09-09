@@ -59,15 +59,17 @@ export type GestKva = "lys" | "snitt" | "zoom" | "strek" | "rute" | "virvel" | "
 /** eit strek medan fingeren har det: teikna her, snitta av motoren, skrive i parametrane fyrst når det vert sleppt */
 type Live = { id: number; i: number; s: Strek }
 /**
- * TRE GESTMODUSAR, TO BRYTARAR. «form» er dei gamle gestane: to fingrar på
- * objektet klyp storleiken, vrir vendinga og dreg snittet på tvers — éin
- * gest om gongen, den som leier vinn. «skisse» er reiskapen for sjølve
- * planet: dra flyttar det, vri vinklar det, og klyp — når ingen av dei to
- * andre er i gang — dollyar kameraet. Med eit låst plan valt gjeld skisse-
- * gestane DET planet, i begge modusane. Arbeider fingrane på planet, står
- * kameraet: eit klyp du ikkje meinte skal ikkje flytte synet.
+ * FIRE MODUSAR. «form» er den vanlege: to fingrar dreg snittet, vrir det og
+ * — når ingen av dei to andre er i gang — dollyar kameraet. Med eit låst
+ * plan valt gjeld dei same tre gestane DET planet. Arbeider fingrane på
+ * planet, står kameraet: eit klyp du ikkje meinte skal ikkje flytte synet.
  *
- * «bit» er den tredje: verktyet for KROPPEN. Bitane han er sett saman av
+ * «skisse» var ein femte, og han er borte. Han gjorde nøyaktig éin ting:
+ * slo av dommaren som gav gesten eitt namn. No er det ingen dommar å slå
+ * av — alle tre gestane er levande i kvar modus — og ein brytar utan ei
+ * verknad er ein brytar som lyg.
+ *
+ * «bit» er den andre: verktyet for KROPPEN. Bitane han er sett saman av
  * står som boksar du kan peike på, og to fingrar på ein vald bit flyttar
  * han (vassrett på golvet, loddrett opp), vrir han kring loddlina og gjer
  * han større. Same gestane, eit anna emne.
@@ -81,7 +83,7 @@ type Live = { id: number; i: number; s: Strek }
  * skriven om av dei to tala. Difor er skissa og handtaka borte medan han
  * står på, som i «bit»: det finst ikkje eitt plan å ta i her.
  */
-export type Modus = "form" | "skisse" | "bit" | "rute" | "virvel"
+export type Modus = "form" | "bit" | "rute" | "virvel"
 type Lys = { az: number; el: number }
 
 type Ramma = { cx: number; cy: number; s: number; min: Vec3; max: Vec3; midt: Vec3; fit: Fit }
@@ -418,19 +420,25 @@ function FitCamera({ fit, rute, sikt }: { fit: Fit | null; rute: Rute; sikt: Sik
  *   pilene            (benken) eit valt plan eitt millimeter langs normalen,
  *                     ti med skift — i studio, der tastane bur
  *
- * Klassifiseringa skjer ÉIN gong, etter ei daudsone, og alle fire kandidatar
- * (klyp, vri, dra loddrett, dra vassrett) vert målte i same eining: pikslar.
- * Vridinga vert rekna om til bogen kvar finger har gått, so ein liten vri på
- * to fingrar tett i hop ikkje skuggar for eit drag. Klyp og vri gjev TOTALEN
- * sidan gesten byrja, ikkje eit steg per hending: nettlesaren slår saman
- * rørsler når hovudtråden er oppteken, og eit bygg tek hundre millisekund.
+ * TO FINGRAR GJER DET DU GJER, OG IKKJE DET EIN DOMMAR TRUR DU MEINTE.
+ *
+ * Gesten fekk eit NAMN før: klyp eller vri eller dra, aldri fleire, avgjort
+ * på kven som leidde klårast i tre bilete på rad. Medan dommaren tenkte
+ * hende ingenting, og so tok han eitt av dei tre og heldt på det heile
+ * gesten ut. Vil du skuve snittet litt og vinkle det litt, fekk du det eine
+ * og ikkje det andre — og du visste ikkje kvifor.
+ *
+ * No er alle tre levande på ein gong, kvar med si eiga daudsone, og kvar
+ * mot sitt eige mål: draget, vridinga, klypet. Ei daudsone er ikkje eit
+ * val, det er ei grense for kva som er ei rørsle i det heile — under seks
+ * pikslar, ni grader og fire prosent held ei hand seg aldri heilt i ro.
+ *
+ * Klyp og vri gjev TOTALEN sidan gesten byrja, ikkje eit steg per hending:
+ * nettlesaren slår saman rørsler når hovudtråden er oppteken, og eit bygg
+ * tek hundre millisekund.
  */
-/** daudsona i pikslar, og kor klårt leiaren må leie */
-const DAUD = 8
-const NOK = 1.25
-/** under femten grader er ei vriding ingen kandidat: utilsikta rull ligg under ti */
-const VRI_MIN = 0.26
-/** skissemodusen: under dette er ei vriding inga vriding, og eit klyp ingen klyp */
+/** under dette er ei rørsle inga rørsle: eit drag, ei vriding, eit klyp */
+const PAN_SAM = 6
 const VRI_SAM = 0.15
 const KLYP_SAM = 0.04
 
@@ -736,7 +744,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
   useEffect(() => {
     const el = gl.domElement
     const pts = new Map<number, { x: number; y: number }>()
-    type Gest = "none" | "klyp" | "vri" | "dra" | "sam" | "lys" | "hFlytt" | "hVri" | "musFlytt" | "musVri" | "musRute" | "sFlytt" | "sStor" | "sVri"
+    type Gest = "none" | "sam" | "lys" | "hFlytt" | "hVri" | "musFlytt" | "musVri" | "musRute" | "sFlytt" | "sStor" | "sVri"
     let mode: Gest = "none"
     /** der musa tok rutenettet, og kva peikar det var: draget vert lese
      *  frå det punktet, og berre frå den peikaren */
@@ -747,25 +755,14 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
     let stak: { id: number; i: number; plan: number; s0: Strek; s: Strek | null; r: Ramme; q0: Pt; ang0: number } | null = null
     /** eit trykk som valde eller slepte eit strek: klikket som fylgjer skal ikkje òg velje ein del eller sleppe planet */
     let svelgKlikk = false
-    /** skissemodusen: dra, vri og klyp SAMSTUNDES, kvar med si daudsone */
-    let sam = { d0: 1, sistA: 0, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null as GestKva }
+    /** to fingrar: dra, vri og klyp SAMSTUNDES, kvar med si daudsone */
+    let sam = { x0: 0, y0: 0, d0: 1, sistA: 0, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null as GestKva }
     /** skissegestane gjeld når brytaren står på skisse — og alltid når eit låst plan er valt */
     /** verktyet for kroppen har fingrane når ein bit er vald; elles som før */
     const bitStil = () => naa.current.modus === "bit" && naa.current.valdBit !== null
     /** rutenettet tek fingrane heilt: det finst ikkje eitt plan å ta i her */
     const ruteStil = () => naa.current.modus === "rute" || naa.current.modus === "virvel"
-    const skisseStil = () => !bitStil() && !ruteStil() && (naa.current.modus === "skisse" || naa.current.valt !== null)
     let last = { cx: 0, cy: 0, d: 0, a: 0 }
-    /** stoda då gesten vart klassifisert, som klyp, vri og drag måler frå */
-    let start = { cx: 0, cy: 0, d: 0, a: 0 }
-    /** summen av vridinga, so ho kan gå forbi eit halvt omdreiing */
-    let vridd = 0
-    /** der den andre fingeren landa: alle fire kandidatar vert målte SIDAN ankeret */
-    let anker = { cx: 0, cy: 0, d: 0, a: 0 }
-    let sumVri = 0
-    /** kven som leier, og kor mange hendingar han har leidd */
-    let leiar: "klyp" | "vri" | "v" | "h" | null = null
-    let iRad = 0
     let snap: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null
     let tak: Tak | null = null
     // trykket: kort, og stillestandande
@@ -1030,22 +1027,14 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
         if (controls) controls.enabled = false
         const c = measure2()
         last = c
-        if (skisseStil()) {
-          // skissa: den fyrste fingeren rakk å snu synet litt før den andre
-          // landa; det høyrer ikkje til gesten. Og alle tre gestane er
-          // levande frå no, kvar med si daudsone.
-          restore()
-          tak = taTak(c.cx, c.cy)
-          dist0 = controls ? camera.position.distanceTo(controls.target) : 6
-          sam = { d0: Math.max(1, c.d), sistA: c.a, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null }
-          mode = "sam"
-        } else {
-          mode = "none"
-          anker = c
-          sumVri = 0
-          leiar = null
-          iRad = 0
-        }
+        // Den fyrste fingeren rakk å snu synet litt før den andre landa; det
+        // høyrer ikkje til gesten, so det vert lagt attende. Og alle tre
+        // gestane er levande frå no, kvar med si daudsone.
+        restore()
+        tak = taTak(c.cx, c.cy)
+        dist0 = controls ? camera.position.distanceTo(controls.target) : 6
+        sam = { x0: c.cx, y0: c.cy, d0: Math.max(1, c.d), sistA: c.a, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null }
+        mode = "sam"
       }
       if (pts.size === 3) {
         mode = "lys"
@@ -1133,116 +1122,68 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
         return
       }
       if (pts.size !== 2) return
+      if (mode !== "sam") return
       const c = measure2()
-      if (mode === "sam") {
-        if (!tak) return
-        sam.vri += vinkel(c.a, sam.sistA)
-        sam.sistA = c.a
-        const panX = c.cx - tak.x0
-        const panY = c.cy - tak.y0
-        const klyp = c.d / sam.d0
-        if (!sam.akt.pan && Math.hypot(panX, panY) > 6) sam.akt.pan = true
-        if (!sam.akt.vri && Math.abs(sam.vri) > VRI_SAM) sam.akt.vri = true
-        /**
-         * PLANET VINN OVER KAMERAET.
-         *
-         * Alle tre gestane var levande på ein gong, som på eit kart. Men to
-         * fingrar held aldri nøyaktig same avstand medan dei dreg: fire
-         * prosent er nok til å låse opp klypet, og kameraet krøkte seg inn
-         * og ut medan du flytte planet. Du bad om det eine og fekk det
-         * andre. Difor: arbeider fingrane på planet, er klypet kameraet
-         * sitt og kameraet står. Klyp åleine — ingen dreg, ingen vrir —
-         * dollyar som før.
-         */
-        const arbeider = sam.akt.pan || sam.akt.vri
-        if (!arbeider && !sam.akt.klyp && Math.abs(klyp - 1) > KLYP_SAM) sam.akt.klyp = true
-        if (sam.akt.klyp && !arbeider) dolly(klyp)
-        if (arbeider) bruk(tak, sam.akt.pan ? panX : 0, sam.akt.pan ? panY : 0, sam.akt.vri ? sam.vri : 0)
-        const sagt: GestKva = arbeider ? "snitt" : sam.akt.klyp ? "zoom" : null
-        if (sagt !== sam.sagt) {
-          sam.sagt = sagt
-          naa.current.onGest(sagt)
-        }
-        last = c
-        return
-      }
-      const dv = vinkel(c.a, last.a)
-      // Vinkelen vert lagd saman heile vegen, òg medan gesten er namnlaus: det er han klassifiseringa les.
-      sumVri += dv
-      if (mode === "none") {
-        /**
-         * GESTEN FÅR NAMN ÉIN GONG, PÅ TOTALANE. Alle fire står i same
-         * eininga — pikslar. Vridinga vert rekna om til bogen kvar finger
-         * har gått, med radien fingrane hadde DÅ DEI LANDA. Under VRI_MIN
-         * er vridinga ingen kandidat i det heile.
-         */
-        const A = Math.abs(sumVri) > VRI_MIN ? Math.abs(sumVri) * (anker.d / 2) : 0
-        const D = Math.abs(c.d - anker.d)
-        const X = Math.abs(c.cx - anker.cx)
-        const Y = Math.abs(c.cy - anker.cy)
-        const M = Math.max(A, D, X, Y)
-        if (M < DAUD) {
-          // `last` er FØRRE HENDING òg medan gesten er namnlaus, elles vert
-          // den same vridinga lagd saman om att: ein sum av delsummar
-          last = c
-          return
-        }
-        // Den som leier må leie KLÅRT — med eit forhold OG ei heil daudsone
-        // — og i tre bilete på rad. Ti bilete på rad tek han uansett.
-        const storst: "klyp" | "vri" | "v" | "h" = A === M ? "vri" : D === M ? "klyp" : Y === M ? "v" : "h"
-        if (storst !== leiar) {
-          leiar = storst
-          iRad = 0
-        }
-        iRad++
-        const nest = Math.max(...[A, D, X, Y].filter((v) => v !== M), 0)
-        const klaart = M > NOK * nest && M - nest >= DAUD
-        if (!(klaart && iRad >= 3) && iRad < 10) {
-          last = c
-          return
-        }
-        mode = leiar === "klyp" ? "klyp" : leiar === "vri" ? "vri" : "dra"
-        // Nullpunktet er der gesten VART til, ikkje der fingrane landa:
-        // daudsona skal ikkje telje med i totalen. For vridinga er det
-        // motsett — ho tek med seg det ho alt har samla; du gjorde gesten,
-        // du skal få han. `- dv` av di denne hendinga alt ligg i sumVri.
-        start = c
-        vridd = mode === "vri" ? sumVri - dv : 0
-        // Den fyrste fingeren rakk å snu synet litt før den andre landa.
-        // Den rotasjonen høyrer ikkje til gesten, so han vert lagd attende.
-        restore()
-        dist0 = controls ? camera.position.distanceTo(controls.target) : 6
-        tak = taTak(c.cx, c.cy)
-        naa.current.onGest(mode === "klyp" ? "zoom" : ruteStil() ? (naa.current.modus === "virvel" ? "virvel" : "rute") : "snitt")
-      }
-      // VERKTYET FOR KROPPEN tek dei same tre gestane, men emnet er biten:
-      // klypet gjer han større, vridinga snur han kring loddlina, draget
-      // flyttar han — vassrett langs det du ser som høgre, loddrett opp.
+      sam.vri += vinkel(c.a, sam.sistA)
+      sam.sistA = c.a
+      const panX = c.cx - sam.x0
+      const panY = c.cy - sam.y0
+      const klyp = c.d / sam.d0
+      if (!sam.akt.pan && Math.hypot(panX, panY) > PAN_SAM) sam.akt.pan = true
+      if (!sam.akt.vri && Math.abs(sam.vri) > VRI_SAM) sam.akt.vri = true
+      /**
+       * EMNET VINN OVER KAMERAET.
+       *
+       * To fingrar held aldri nøyaktig same avstand medan dei dreg: fire
+       * prosent er nok til å låse opp klypet, og kameraet krøkte seg inn og
+       * ut medan du flytte planet. Du bad om det eine og fekk det andre.
+       * Difor: arbeider fingrane på emnet, er klypet kameraet sitt og
+       * kameraet står. Klyp åleine — ingen dreg, ingen vrir — dollyar.
+       *
+       * VERKTYET FOR KROPPEN ER UNNATAKET, og det er ikkje eit unnatak i
+       * regelen: der ER klypet emnet. Biten vert større medan du flyttar og
+       * vrir han, av di det er tre ting på den same biten og ikkje to ting
+       * som slåst om kven du sikta på.
+       */
       const paaBit = bitStil()
-      if (mode === "klyp") {
-        if (start.d > 8 && c.d > 8) {
-          if (paaBit) naa.current.onBitSkala(c.d / start.d)
-          // KLYPET ER SYNET, IKKJE OBJEKTET. Det skalerte kroppen før — og
-          // eit objekt som veks når du vil sjå nærare er eit objekt som
-          // ikkje gjer det du bad om. Storleiken er eit mål du dreg i.
-          else dolly(c.d / start.d)
-        }
-      } else if (mode === "vri") {
-        vridd += dv
-        // VRIDINGA SIKTAR SNITTET, ikkje objektet. Ho snudde kroppen på
-        // bordet før — og eit objekt som snur seg når du vil vinkle kuttet
-        // er eit objekt som gjer noko anna enn du bad om. Vendinga er eit
-        // tal du dreg i, i arket. Ein bit i verktyet for kroppen er
-        // unnataket: der ER det biten du held i.
-        if (paaBit) naa.current.onBitVri((-vridd * 180) / Math.PI)
-        else if (!ruteStil() && tak) vri(tak, vridd)
-      } else if (mode === "dra") {
+      const rute = ruteStil()
+      const arbeider = sam.akt.pan || sam.akt.vri
+      if (!sam.akt.klyp && Math.abs(klyp - 1) > KLYP_SAM && (paaBit || !arbeider)) sam.akt.klyp = true
+      if (paaBit) {
+        // VERKTYET FOR KROPPEN: klypet gjer biten større, vridinga snur han
+        // kring loddlina, draget flyttar han — vassrett langs det du ser som
+        // høgre, loddrett rett opp.
+        if (sam.akt.klyp) naa.current.onBitSkala(klyp)
+        if (sam.akt.vri) naa.current.onBitVri((-sam.vri * 180) / Math.PI)
+        if (sam.akt.pan) flyttBit(panX, panY)
+      } else if (rute) {
         // RUTENETTET LES DRAGET SOM TO TAL: kor langt til høgre er kolonner,
         // kor langt opp er rader. Begge aksane på ein gong, av di eit
         // rutenett er dei to tala i lag og ikkje to gestar etter kvarandre.
-        if (ruteStil()) naa.current.onRute(c.cx - start.cx, c.cy - start.cy)
-        else if (paaBit) flyttBit(c.cx - start.cx, c.cy - start.cy)
-        else if (tak) flytt(tak, c.cx - start.cx, c.cy - start.cy)
+        // Det finst ikkje eitt plan å vri her, so vridinga har ikkje eit mål.
+        if (sam.akt.pan) naa.current.onRute(panX, panY)
+        else if (sam.akt.klyp) dolly(klyp)
+      } else {
+        // KLYPET ER SYNET OG IKKJE OBJEKTET; vridinga SIKTAR snittet og snur
+        // ikkje kroppen. Storleiken og vendinga på kroppen er tal du dreg i,
+        // i arket — eit objekt som veks eller snur seg når du ville sjå og
+        // sikte er eit objekt som gjer noko anna enn du bad om.
+        if (sam.akt.klyp && !arbeider) dolly(klyp)
+        if (arbeider && tak) bruk(tak, sam.akt.pan ? panX : 0, sam.akt.pan ? panY : 0, sam.akt.vri ? sam.vri : 0)
+      }
+      /** kva fingrane held på med, til talet øvst til venstre */
+      const sagt: GestKva = arbeider || (paaBit && sam.akt.klyp)
+        ? rute
+          ? naa.current.modus === "virvel"
+            ? "virvel"
+            : "rute"
+          : "snitt"
+        : sam.akt.klyp
+          ? "zoom"
+          : null
+      if (sagt !== sam.sagt) {
+        sam.sagt = sagt
+        naa.current.onGest(sagt)
       }
       last = c
     }
@@ -1582,6 +1523,121 @@ function Spora({ f, snitt, boks, onDeling }: {
       </lineSegments>
     </group>
   )
+}
+
+/**
+ * PUNKTA I OMRISSET, SOM HANDTAK.
+ *
+ * Har planet eit omriss, ER det profilen (sjå `Plan.omriss`), og profilen
+ * står alt teikna av `Snittet`. Det som manglar er noko å ta i, so denne
+ * teiknar ingenting: ho set berre kvar prikk der punktet sitt står, kvar
+ * teikning, og les fingeren attende inn i planet si ramme.
+ *
+ * DOM og ikkje nett, av same grunn som ledda og handtaka: eit merke du skal
+ * treffe med tommelen treng ei sone på fire og førti pikslar og eit namn ein
+ * skjermlesar kan seie. Ein trekant i WebGL har korkje det eine eller det
+ * andre.
+ *
+ * Fingeren vert lesen mot FLATA og ikkje mot skjermen: strålen gjennom
+ * peikaren møter planet, og møtepunktet vert rekna inn i ramma med `inn`.
+ * Difor kan du dra frå kva vinkel som helst, og på ein bøygd plan fylgjer
+ * punktet flata der ho faktisk ligg.
+ *
+ * STÅR PLANET PÅ KANT, GJER INGENTING. Eit nylåst plan gjer nett det —
+ * skissa er sikta langs synsaksen, so ho projiserer til ei LINE — og ei
+ * mangekant du dreg i medan du ikkje ser henne er ei mangekant du ikkje
+ * kan forme. Du snur objektet fyrst; det er den same handa som alltid.
+ */
+function Omrisset({ f, r, omriss, S, boks, onPunkt }: {
+  f: Ramma
+  /** ramma til det valde planet: punkta er brøkar av `S` kring `r.o` */
+  r: Ramme
+  omriss: readonly Pt[]
+  S: number
+  boks: HTMLDivElement | null
+  onPunkt: (i: number, q: Pt) => void
+}) {
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
+  const size = useThree((s) => s.size)
+  const gl = useThree((s) => s.gl)
+  const controls = useThree((s) => s.controls) as { enabled: boolean } | null
+  const naa = useRef({ f, r, omriss, S, onPunkt })
+  naa.current = { f, r, omriss, S, onPunkt }
+  const skrive = useRef<string[]>([])
+
+  useEffect(() => {
+    if (!boks) return
+    let dra: number | null = null
+    /** der strålen gjennom peikaren møter planet, i ramma — null når planet står på kant */
+    const paaFlata = (e: PointerEvent): Pt | null => {
+      const g = naa.current.f
+      const rr = naa.current.r
+      const rute = gl.domElement.getBoundingClientRect()
+      const d = new THREE.Vector3(((e.clientX - rute.left) / rute.width) * 2 - 1, 1 - ((e.clientY - rute.top) / rute.height) * 2, 0.5)
+        .unproject(camera)
+        .sub(camera.position)
+        .normalize()
+      const n = nTilVerd(rr.n)
+      const k = d.dot(n)
+      if (Math.abs(k) < 0.02) return null
+      const t = tilVerd(g, rr.o).sub(camera.position).dot(n) / k
+      if (t <= 0) return null
+      return inn(rr, fraaVerd(g, camera.position.clone().addScaledVector(d, t)))
+    }
+    const ned = (e: PointerEvent) => {
+      const el = (e.target as Element).closest<HTMLElement>("[data-punkt]")
+      if (!e.isPrimary || !el) return
+      const i = Number(el.dataset.punkt)
+      if (!Number.isInteger(i) || !naa.current.omriss[i]) return
+      e.preventDefault()
+      e.stopPropagation()
+      dra = i
+      el.setPointerCapture(e.pointerId)
+      if (controls) controls.enabled = false
+    }
+    const rorsle = (e: PointerEvent) => {
+      if (dra === null) return
+      const q = paaFlata(e)
+      if (!q) return
+      const s = naa.current.S || 1
+      naa.current.onPunkt(dra, [q[0] / s, q[1] / s])
+    }
+    const opp = () => {
+      if (dra === null) return
+      dra = null
+      if (controls) controls.enabled = true
+    }
+    boks.addEventListener("pointerdown", ned)
+    window.addEventListener("pointermove", rorsle, { passive: true })
+    window.addEventListener("pointerup", opp, { passive: true })
+    window.addEventListener("pointercancel", opp, { passive: true })
+    return () => {
+      boks.removeEventListener("pointerdown", ned)
+      window.removeEventListener("pointermove", rorsle)
+      window.removeEventListener("pointerup", opp)
+      window.removeEventListener("pointercancel", opp)
+      if (controls) controls.enabled = true
+    }
+  }, [boks, camera, controls, gl])
+
+  useFrame(() => {
+    if (!boks) return
+    const g = naa.current.f
+    camera.updateMatrixWorld()
+    naa.current.omriss.forEach((q, i) => {
+      const el = boks.querySelector<HTMLElement>(`[data-punkt="${i}"]`)
+      if (!el) return
+      const v = tilVerd(g, ut(naa.current.r, [q[0] * naa.current.S, q[1] * naa.current.S])).project(camera)
+      const t = `translate(${(((v.x + 1) / 2) * size.width).toFixed(1)}px, ${(((1 - v.y) / 2) * size.height).toFixed(1)}px) translate(-50%, -50%)`
+      if (skrive.current[i] !== t) {
+        skrive.current[i] = t
+        el.style.transform = t
+      }
+      const o = v.z > 1 ? "0" : "1"
+      if (el.style.opacity !== o) el.style.opacity = o
+    })
+  })
+  return null
 }
 
 /**
@@ -2248,7 +2304,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPunkt, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -2277,6 +2333,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   /** eit ledd delt på nytt frå rommet: same nøkkelen plata skriv */
   onDeling: (nokkel: string, t: number) => void
   onValdStrek: (i: number | null) => void
+  /** eit punkt i omrisset drege: plassen i lista, og punktet i planet si ramme */
+  onPunkt: (id: number, i: number, q: Pt) => void
   onPlan: (id: number, o: Vec3, n: Vec3) => void
   /** eit strek sleppt — og eit strek medan det vert drege, til snittet */
   onStrek: (id: number, i: number, s: Strek) => void
@@ -2341,6 +2399,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   const [sider, setSider] = useState<HTMLDivElement | null>(null)
   /** prikkane på ledda, som DOM over lerretet — sjå `Spora` */
   const [sporBoks, setSporBoks] = useState<HTMLDivElement | null>(null)
+  /** og prikkane på punkta i omrisset — sjå `Omrisset` */
+  const [punktBoks, setPunktBoks] = useState<HTMLDivElement | null>(null)
   const [sein, setSein] = useState(false)
   // Éi styrbar hovudlyskjelde på ein fast kuppel, pluss fire svake fyll:
   // eit uttak skal kaste éin hard skugge, slik det gjer i eit verkstadlys.
@@ -2392,6 +2452,11 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             </Sovnen>
           ) : null}
           {f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
+          {f && valt?.omriss?.length && rValt ? (
+            <Sovnen sov={sov}>
+              <Omrisset f={f} r={rValt} omriss={valt.omriss} S={storleik} boks={punktBoks} onPunkt={(i, q) => onPunkt(valt.id, i, q)} />
+            </Sovnen>
+          ) : null}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[60, 60]} />
             <shadowMaterial transparent opacity={0.24} />
@@ -2511,6 +2576,17 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
               <span aria-hidden="true" />
             </button>
           ))}
+      </div>
+      {/* PUNKTA I OMRISSET: eitt handtak per punkt i det valde planet, sett
+          på plass av scena kvar teikning (sjå `Omrisset`). Dei står berre
+          der handa har frose profilen — elles er profilen nettet, og det er
+          ingen punkt å ta i. */}
+      <div ref={setPunktBoks} className="punkt">
+        {(valt?.omriss ?? []).map((_, i) => (
+          <button key={i} type="button" data-punkt={i} aria-label={`punkt ${i + 1} i omrisset`} title="dra: flytt punktet i profilen">
+            <span aria-hidden="true" />
+          </button>
+        ))}
       </div>
       <div ref={setSider} className="sider" style={{ visibility: "hidden" }}>
         {SIDER.map((sd, k) => (

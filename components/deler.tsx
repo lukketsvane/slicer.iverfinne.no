@@ -144,8 +144,21 @@ export const IcoMjuk = ikon("M4 20V11a7 7 0 0 1 7-7h9")
 export const IcoReset = ikon("M3 12a9 9 0 1 0 2.6-6.36|M3 4v4.5h4.5", "h-3.5 w-3.5")
 export const IcoShare = ikon("M12 3v12|m8 7 4-4 4 4|M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8", "h-3.5 w-3.5")
 export const IcoUttak = ikon("M12 15V3|m8 11 4 4 4-4|M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4")
-/** skissemodusen: lina med handtaket på */
-export const IcoSkisse = ikon("M4 20 20 4|M9 15a2 2 0 1 0 4 0 2 2 0 1 0-4 0", "h-5 w-5")
+/**
+ * FORMA: PROFILEN SOM PUNKT.
+ *
+ * Ei mangekant med prikkar i hjørna. Prikkane er heile saka — dei er det
+ * handa tek i — so dei står i papirfarge inni streken og ikkje som fylte
+ * punkt: eit handtak er ein ring du kan setje fingeren i.
+ */
+export const IcoForm = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5.5 9 12 4l6.5 5-2.5 9.5h-8z" />
+    {[[5.5, 9], [12, 4], [18.5, 9], [16, 18.5], [8, 18.5]].map(([x, y]) => (
+      <circle key={`${x},${y}`} cx={x} cy={y} r={2.1} fill="var(--paper)" />
+    ))}
+  </svg>
+)
 /** SKJER: kniven. Handlinga som gjer skissa til ein del — eit ikon og aldri eit ord. */
 export const IcoSkjer = ikon("M3 21l6-6|M9 15 20.5 3.5c1.3 3.3.4 6.3-2.4 8.4L9 15z", "h-7 w-7")
 /** slett det valde planet */
