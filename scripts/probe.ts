@@ -488,6 +488,88 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
    * kuttlista gjer. To kubar med luft imellom: kvart plan tvers over dei
    * skjer to lause stykke, og dei heiter «4a» og «4b».
    */
+  /**
+   * 3MF: DET SAME, I DET FORMATET EIN SLICER OPNAR.
+   *
+   * Ein slicer les ikkje GLB, so «flat» er rett geometri i feil format.
+   * Fila er ein OPC-pakke — tre filer i ein ZIP — og innhaldet er XML som
+   * ein kan lesa. Vakta spør om det som gjer at Bambu Studio opnar henne
+   * utan å klage: at pakka har dei tre filene, at eininga er millimeter,
+   * at kvart objekt står i bygglista, at namna er adressene, og at ingen
+   * trekant peikar utanfor si eiga hjørneliste eller på seg sjølv.
+   *
+   * OG AT TALA IKKJE ER DELTE PÅ TUSEN. 3MF er millimeter og z opp, som
+   * verkstaden; GLB er meter og y opp. To formata som ser like ut i koden
+   * og ikkje i fila, og ein del på 0,003 mm er ein del du ikkje ser.
+   */
+  const mfUt = MOTOR.exportFile(bag, "3mf")
+  const pakke = unzip(mfUt.data as ArrayBuffer)
+  const filer = pakke.map((f) => f.name).sort()
+  console.log(`  3mf       ${mfUt.name}, ${(mfUt.data as ArrayBuffer).byteLength} B, ${filer.join(" ")}`)
+  if (filer.join(" ") !== "3D/3dmodel.model [Content_Types].xml _rels/.rels") bryt(`3MF-pakka ber ${filer.join(", ")}`)
+  const mf = new TextDecoder().decode(pakke.find((f) => f.name === "3D/3dmodel.model")?.data ?? new Uint8Array())
+  if (!/unit="millimeter"/.test(mf)) bryt("3MF seier ikkje at eininga er millimeter")
+  const mfNamn = [...mf.matchAll(/<object id="(\d+)"[^>]*name="([^"]*)"/g)].map((m) => ({ id: m[1], namn: m[2] }))
+  const mfBygg = [...mf.matchAll(/<item objectid="(\d+)"/g)].map((m) => m[1])
+  console.log(`  3mf       ${mfNamn.length} objekt, ${mfBygg.length} i bygglista`)
+  if (mfNamn.length !== paaArk.length) bryt(`3MF har ${mfNamn.length} objekt der ${paaArk.length} delar ligg på plata`)
+  if (mfBygg.join() !== mfNamn.map((q) => q.id).join()) bryt("3MF sin byggliste og objektlista er ikkje den same")
+  if (mfNamn.map((q) => q.namn).sort().join() !== paaArk.map((k) => k.adr).sort().join()) bryt("3MF ber andre namn enn adressene på plata")
+  // hjørna: same høgda som «flat», og i MILLIMETER
+  const zar = [...mf.matchAll(/<vertex [^>]*z="(-?[\d.]+)"/g)].map((m) => Number(m[1]))
+  const zLo = Math.min(...zar)
+  const zHog = Math.max(...zar)
+  if (Math.abs(zLo) > 1e-3 || Math.abs(zHog - p.tjukn) > 1e-3) {
+    bryt(`3MF går frå ${nn(zLo, 3)} til ${nn(zHog, 3)} og ikkje frå 0 til ${nn(p.tjukn, 2)} mm`)
+  } else {
+    console.log(`  3mf       millimeter og z opp: plata står frå 0 til ${nn(zHog, 2)}`)
+  }
+  /**
+   * OG AT KVAR DEL ER EIN LUKKA KROPP.
+   *
+   * Det er dette som avgjer om slicaren opnar fila eller melder «ikkje
+   * manifold — reparer?». Prøva er kantane: i eit lukka nett med rett
+   * vinding går kvar kant nøyaktig éin gong den eine vegen og éin gong
+   * den andre. Ein kant utan makker er eit hòl i skalet; ein kant som
+   * går same vegen to gonger er to flater som vender kvar sin veg.
+   *
+   * Volumet seier kva veg heile skalet vender. Positivt er ut. Eit nett
+   * som er vrengt har same kantane og er like fullt eit hòl i lufta.
+   */
+  let vondt = 0
+  let opne = 0
+  let dobble = 0
+  let vrengde = 0
+  for (const bit of mf.split("<object ").slice(1)) {
+    const V = [...bit.matchAll(/<vertex x="(-?[\d.]+)" y="(-?[\d.]+)" z="(-?[\d.]+)"\/>/g)].map((m) => [Number(m[1]), Number(m[2]), Number(m[3])])
+    const kant = new Set<string>()
+    let vol = 0
+    for (const t of bit.matchAll(/<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"\/>/g)) {
+      const a = Number(t[1])
+      const b = Number(t[2])
+      const c = Number(t[3])
+      if (a === b || b === c || c === a || a >= V.length || b >= V.length || c >= V.length) {
+        vondt++
+        continue
+      }
+      for (const [u, w] of [[a, b], [b, c], [c, a]]) {
+        if (kant.has(`${u}>${w}`)) dobble++
+        kant.add(`${u}>${w}`)
+      }
+      const [A, B, C] = [V[a], V[b], V[c]]
+      vol += (A[0] * (B[1] * C[2] - B[2] * C[1]) - A[1] * (B[0] * C[2] - B[2] * C[0]) + A[2] * (B[0] * C[1] - B[1] * C[0])) / 6
+    }
+    for (const k of kant) {
+      const [u, w] = k.split(">")
+      if (!kant.has(`${w}>${u}`)) opne++
+    }
+    if (vol <= 0) vrengde++
+  }
+  if (vondt) bryt(`3MF har ${vondt} trekantar som peikar på seg sjølve eller utanfor hjørnelista`)
+  if (opne || dobble) bryt(`3MF er ikkje lukka: ${opne} kantar utan makker, ${dobble} kantar same veg to gonger`)
+  if (vrengde) bryt(`3MF har ${vrengde} delar med volum ≤ 0 — skalet vender inn`)
+  if (!vondt && !opne && !dobble && !vrengde) console.log(`  3mf       kvar del er ein lukka kropp som vender ut — slicaren har ingenting å reparere`)
+
   const delt = { ...GRUNN, scene: "kube@-60,0,0/1/0;kube@60,0,0/1/0", plan: nett(3, 3) } as unknown as ParamBag
   const dl = MOTOR.liste(delt)
   const dNamn = tre(MOTOR.exportFile(delt, "glb").data as ArrayBuffer).grupper.flatMap((g) => g.barn)

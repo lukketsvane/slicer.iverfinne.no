@@ -474,6 +474,9 @@ export type ExportKind =
   /** dei same delane, men lagde flatt der nestinga la dei: kuttjobben i tre
    *  dimensjonar, sprengd frå kvarandre og klar til å målast */
   | "flat"
+  /** dei same flate delane i det formatet ein slicer opnar: eitt objekt per
+   *  del, millimeter og z opp, til 3D-trykk */
+  | "3mf"
   /** og som USDZ: montasjen på bordet framfor deg, gjennom delingsarket */
   | "usdz"
   | "dxf"
