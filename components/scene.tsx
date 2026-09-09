@@ -1576,7 +1576,17 @@ function Omrisset({ f, r, omriss, S, boks, onPunkt }: {
 
   useEffect(() => {
     if (!boks) return
-    let dra: number | null = null
+    /**
+     * TAKET PÅ EIT PUNKT: kva punkt, kvar det stod, og kvar på flata
+     * fingeren tok det.
+     *
+     * Punktet fylgjer det FINGEREN HAR GÅTT, og ikkje kvar fingeren står.
+     * Handtaka er fire og førti pikslar og ligg gjerne oppå kvarandre på ein
+     * profil med mange punkt; tek du det bakarste, skal det ikkje hoppe fram
+     * til fingeren. Det er den same rekninga eit strek gjer når det vert
+     * drege (sjå `sFlytt`), og av same grunn.
+     */
+    let dra: { i: number; q0: Pt; p0: Pt } | null = null
     /** der strålen gjennom peikaren møter planet, i ramma — null når planet står på kant */
     const paaFlata = (e: PointerEvent): Pt | null => {
       const g = naa.current.f
@@ -1597,22 +1607,27 @@ function Omrisset({ f, r, omriss, S, boks, onPunkt }: {
       const el = (e.target as Element).closest<HTMLElement>("[data-punkt]")
       if (!e.isPrimary || !el) return
       const i = Number(el.dataset.punkt)
-      if (!Number.isInteger(i) || !naa.current.omriss[i]) return
+      const p0 = naa.current.omriss[i]
+      if (!Number.isInteger(i) || !p0) return
+      // står planet på kant, er det ikkje eit drag: fingeren har inga flate
+      // å lesast mot, og punktet ville hoppa dit strålen tilfeldigvis råka
+      const q0 = paaFlata(e)
+      if (!q0) return
       e.preventDefault()
       e.stopPropagation()
-      dra = i
+      dra = { i, q0, p0 }
       el.setPointerCapture(e.pointerId)
       if (controls) controls.enabled = false
     }
     const rorsle = (e: PointerEvent) => {
-      if (dra === null) return
+      if (!dra) return
       const q = paaFlata(e)
       if (!q) return
       const s = naa.current.S || 1
-      naa.current.onPunkt(dra, [q[0] / s, q[1] / s])
+      naa.current.onPunkt(dra.i, [dra.p0[0] + (q[0] - dra.q0[0]) / s, dra.p0[1] + (q[1] - dra.q0[1]) / s])
     }
     const opp = () => {
-      if (dra === null) return
+      if (!dra) return
       dra = null
       if (controls) controls.enabled = true
     }
