@@ -124,6 +124,16 @@ html {
   .handtak [data-handtak]:not(:active):hover {
     opacity: 0.85;
   }
+  /* EI RAD ER NOKO DU SIKTAR PÅ. Lista over plan og kuttlista er rader du
+     trykkjer på, og med ei mus skal dei svare FØR trykket — same språket som
+     den dempa knappen som lyser litt opp. Fem prosent mot dei åtte den valde
+     står i: du ser skilnaden på kva du peikar på og kva du har valt. Rada som
+     alt ber ein bakgrunn frå handa (vald, eller i den valde gruppa) skriv han
+     inline og går difor føre. */
+  .benk [role="option"]:hover,
+  .benk tbody tr:hover {
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+  }
 }
 /* det einaste som får ein markør: eit talfelt som er opna for å skrive i */
 input {
