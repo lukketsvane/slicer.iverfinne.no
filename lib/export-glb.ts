@@ -16,6 +16,12 @@
  * SKAL rekne flatenormalar når dei manglar — då vert fila ein tredjedel
  * mindre og skyggjinga rettare enn med mjuke hjørnenormalar frå eit nett
  * som er skore i plater.
+ *
+ * OG EIN MONTASJE ER IKKJE EITT NETT. glTF er ei scene, ikkje ein haug
+ * trekantar: kvar del får sin eigen node med adressa si som namn, og
+ * nodane heng under ei gruppe — montasjen, eller plata dei ligg på. Då
+ * kan den som opnar fila ta stabelen frå kvarandre med eit klikk, og
+ * namnet på det han held i er det same som står gravert på plata.
  */
 const HEADER = 12
 const CHUNK = 8
@@ -30,35 +36,64 @@ function padd(b: Uint8Array, fyll: number): Uint8Array {
   return ut
 }
 
+/** ein del i fila: namnet noden får — adressa — og trekantane hans */
+export type GlbDel = { namn: string; positions: Float32Array; tris: number }
+/** delane samla under éin node: heile montasjen, eller éi plate */
+export type GlbGruppe = { namn: string; delar: readonly GlbDel[] }
+
 export function meshToGlb(
-  mesh: { positions: Float32Array; tris: number },
+  grupper: readonly GlbGruppe[],
   name = "slicerman",
   farge: readonly [number, number, number] = [0.72, 0.6, 0.42],
 ): Uint8Array {
-  const n = mesh.tris * 3
-  const P = mesh.positions
+  // Ein del utan trekantar er ikkje ein feil å kaste — men ein accessor med
+  // null element er ein ugyldig glTF, so han får ingen node. Ei gruppe som
+  // står att tom får det heller ikkje.
+  const grp = grupper
+    .map((g) => ({ namn: g.namn, delar: g.delar.filter((d) => d.tris > 0) }))
+    .filter((g) => g.delar.length > 0)
+  const n = grp.reduce((s, g) => s + g.delar.reduce((t, d) => t + d.tris * 3, 0), 0)
   const pos = new Float32Array(n * 3)
-  const min: [number, number, number] = [Infinity, Infinity, Infinity]
-  const max: [number, number, number] = [-Infinity, -Infinity, -Infinity]
-  for (let i = 0; i < n; i++) {
-    const v: [number, number, number] = [P[i * 3] / 1000, P[i * 3 + 2] / 1000, -P[i * 3 + 1] / 1000]
-    for (let a = 0; a < 3; a++) {
-      pos[i * 3 + a] = v[a]
-      if (v[a] < min[a]) min[a] = v[a]
-      if (v[a] > max[a]) max[a] = v[a]
+  /** kvar del si eiga blokk i den eine bufferen: hjørne frå, hjørne til, og boksen */
+  const blokk: { namn: string; frå: number; tal: number; min: number[]; max: number[] }[] = []
+  let skrive = 0
+  for (const g of grp) {
+    for (const d of g.delar) {
+      const tal = d.tris * 3
+      const P = d.positions
+      const min = [Infinity, Infinity, Infinity]
+      const max = [-Infinity, -Infinity, -Infinity]
+      for (let i = 0; i < tal; i++) {
+        const v: [number, number, number] = [P[i * 3] / 1000, P[i * 3 + 2] / 1000, -P[i * 3 + 1] / 1000]
+        for (let a = 0; a < 3; a++) {
+          pos[(skrive + i) * 3 + a] = v[a]
+          if (v[a] < min[a]) min[a] = v[a]
+          if (v[a] > max[a]) max[a] = v[a]
+        }
+      }
+      blokk.push({ namn: d.namn, frå: skrive, tal, min, max })
+      skrive += tal
     }
   }
   const bin = new Uint8Array(pos.buffer, 0, pos.byteLength)
   const asset = { version: "2.0", generator: "slicerman" }
-  // Eit nett utan trekantar er ikkje ein feil å kaste: det er ei scene utan
-  // noko i. Ein accessor med null element er derimot ein ugyldig glTF.
+  /**
+   * Nodane: fyrst delane, so gruppene. `blokk` ligg i den same
+   * rekkjefylgja gruppene vart gått i, so borna til gruppe nummer g er
+   * dei `blokk`-numra som kjem etter dei føregåande gruppene sine.
+   * Rekkjefylgja er fri i glTF; dette er berre lettare å lesa i fila enn
+   * to lister som flettar seg.
+   */
+  const delNodar = blokk.map((b, i) => ({ mesh: i, name: b.namn }))
+  let barn = 0
+  const gruppeNodar = grp.map((g) => ({ name: g.namn, children: g.delar.map(() => barn++) }))
   const json = n
     ? {
         asset,
         scene: 0,
-        scenes: [{ nodes: [0] }],
-        nodes: [{ mesh: 0, name }],
-        meshes: [{ name, primitives: [{ attributes: { POSITION: 0 }, material: 0 }] }],
+        scenes: [{ name, nodes: gruppeNodar.map((_, i) => delNodar.length + i) }],
+        nodes: [...delNodar, ...gruppeNodar],
+        meshes: blokk.map((b, i) => ({ name: b.namn, primitives: [{ attributes: { POSITION: i }, material: 0 }] })),
         materials: [
           {
             name: "material",
@@ -70,11 +105,14 @@ export function meshToGlb(
             },
           },
         ],
-        accessors: [{ bufferView: 0, componentType: 5126, count: n, type: "VEC3", min, max }],
-        bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: bin.length, target: 34962 }],
+        // Ei blokk per del: hjørna hennar ligg samla, so `byteOffset` er
+        // hjørnet ho byrjar på gonga tolv. Det går alltid opp i fire, som
+        // formatet krev av ein flyttal-accessor.
+        accessors: blokk.map((b, i) => ({ bufferView: i, componentType: 5126, count: b.tal, type: "VEC3", min: b.min, max: b.max })),
+        bufferViews: blokk.map((b) => ({ buffer: 0, byteOffset: b.frå * 12, byteLength: b.tal * 12, target: 34962 })),
         buffers: [{ byteLength: bin.length }],
       }
-    : { asset, scene: 0, scenes: [{ nodes: [] }] }
+    : { asset, scene: 0, scenes: [{ name, nodes: [] }] }
 
   const jsonBytes = padd(new TextEncoder().encode(JSON.stringify(json)), 0x20)
   const binBytes = n ? padd(bin, 0) : new Uint8Array(0)

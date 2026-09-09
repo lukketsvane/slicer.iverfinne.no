@@ -452,6 +452,7 @@ main .tumme,
 main .speil,
 main .handtak,
 main .sider,
+main .uttak,
 main [aria-label="kontrollar"] {
   transition: opacity 90ms linear;
 }
@@ -461,6 +462,7 @@ main[data-sov] .tumme,
 main[data-sov] .speil,
 main[data-sov] .handtak,
 main[data-sov] .sider,
+main[data-sov] .uttak,
 main[data-sov] [aria-label="kontrollar"] {
   opacity: 0;
   pointer-events: none;

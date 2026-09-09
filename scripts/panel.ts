@@ -1686,6 +1686,55 @@ async function symmetri(browser: Browser) {
 }
 
 /**
+ * UTTAKSBOKSEN, OG DEN FEILEN INGEN VAKT KUNNE SJÅ.
+ *
+ * Boksen låg INNI arket, absolutt plassert over toppen av det. Arket
+ * klipper — `overflow-x-hidden` gjer at den andre aksen vert `auto` — so
+ * boksen hadde ei rute, ei høgd og elleve knappar, og teikna ingen ting.
+ * Kvar einaste ting ein vanleg vakt spør om var rett: han var i DOM-en,
+ * `aria-expanded` stod på sant, `boundingBox` gav tal, og `isVisible`
+ * sa ja. Berre auget kunne sjå at der ikkje var noko.
+ *
+ * Difor spør denne vakta noko anna: kva ligg ØVST i punktet midt på
+ * brikka? `elementFromPoint` er eit ekte treff-oppslag og fylgjer
+ * klippinga. Er svaret ikkje brikka sjølv, er ho ikkje der for fingeren
+ * heller — og det er den eine påstanden som held boksen synleg.
+ */
+async function uttaka(browser: Browser) {
+  console.log("\n=== uttaksboksen")
+  // eit rutenett gjennom lenkja: boksen skal ha delar å gje filer av
+  const plan = skrivPlan(rutenett(3, 3))
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan })), browser, 390, 844)
+  await vent(page, talPlan(6))
+  const knapp = page.getByRole("button", { name: "eksport", exact: true })
+  await knapp.click()
+  await page.waitForTimeout(250)
+  const boks = page.locator('[role="group"][aria-label="uttak"]')
+  sjekk("trykk på uttak opnar boksen", (await boks.count()) === 1 && (await knapp.getAttribute("aria-expanded")) === "true")
+  const bolkar = await page.locator("[data-bolk]").evaluateAll((e) => e.map((q) => q.getAttribute("data-bolk")))
+  sjekk("og han står i tre bolkar", bolkar.join(" ") === "rom plate alt", bolkar.join(" "))
+  // kvar fil har ei brikke, og «flat» er ei av dei
+  const namn = await boks.locator("button").evaluateAll((e) => e.map((q) => q.textContent?.trim() ?? ""))
+  sjekk("elleve brikker, med flat mellom dei", namn.length === 11 && namn.includes("flat"), namn.join(" "))
+  // DET SOM TEL: ligg brikka øvst i sitt eige midtpunkt?
+  const traff = await page.evaluate(() => {
+    const b = document.querySelector('[role="group"][aria-label="uttak"] button')
+    if (!b) return "ingen brikke"
+    const r = b.getBoundingClientRect()
+    if (!r.width || !r.height) return "brikka har inga rute"
+    const paa = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+    return paa && (b === paa || b.contains(paa)) ? "ja" : `nei, ${paa?.tagName.toLowerCase() ?? "ingen"} ligg over`
+  })
+  sjekk("og brikka ligg ØVST der ho står — boksen er ikkje klipt bort", traff === "ja", traff)
+  // eit trykk utanfor lukkar han att
+  await page.mouse.click(195, 260)
+  await page.waitForTimeout(250)
+  sjekk("eit trykk utanfor lukkar boksen", (await boks.count()) === 0)
+  sjekk("ingen konsollfeil i uttaka", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await page.close()
+}
+
+/**
  * TAKET SEIER FRÅ.
  *
  * Lista stoggar på `PLAN_TAK`, og eit trykk på skjer gav att posen han
@@ -1983,6 +2032,7 @@ const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["taket", taket],
   ["flyt", flyt],
   ["mork", mork],
+  ["uttaka", uttaka],
   ["benk", benk],
   ["grupper", grupper],
 ]

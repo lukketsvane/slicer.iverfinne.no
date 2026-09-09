@@ -498,8 +498,9 @@ ranking is not a decision. The tool that sets them is.
 
 | | |
 |---|---|
-| **STL** | the assembled stack |
-| **GLB** | the same stack as glTF binary — metres, Y up, flat-shaded: Blender, Sketchfab, a browser |
+| **STL** | the assembled stack, as one soup of triangles |
+| **GLB** | the same stack as glTF binary — metres, Y up, flat-shaded: Blender, Sketchfab, a browser. **One node per part**, named by the address engraved on it, under one group that is the assembly: the stack comes apart with a click |
+| **FLAT** | the same parts again, laid flat exactly where the nester put them — one group per sheet, `ark-1`, `ark-2`, each part a node named by its address, sitting on the floor from 0 to the plate thickness. The cut job in three dimensions: already exploded, already arranged, already flat. The outline is the nominal one — kerf is taken in the cut file and only there |
 | **USDZ** | the same again for AR Quick Look: share it on an iPhone and the assembly stands on the table in front of you, at size |
 | **DXF** | R12 ASCII, mm, layers `KUTT` and `GRAVER`, kerf-compensated — one file per nested sheet, zipped when there is more than one. The plate is the drawing: `$EXTMIN`/`$EXTMAX`, not a burnable rectangle |
 | **SVG** | every profile side by side, 1:1 |
@@ -508,6 +509,19 @@ ranking is not a decision. The tool that sets them is.
 | **PRØVE** | fit-test coupon: seven slots, each 0.05 mm wider than the last |
 | **ALT** | the whole job in one download, plus the cut list as CSV and the assembly order as text |
 | **LAGRE** | a project file — settings and mesh together |
+
+**The eleven files stand in three rows, not one heap** — `rom`, `plate`, `alt`,
+with the word in the margin where the slider groups keep theirs. A row says what
+a file is for before you read its name: whether it is to be looked at, cut, or
+carries the whole job. The two colours are explained under the row they belong
+to; they used to sit at the bottom, next to `lagre`, explaining nothing near it.
+
+On the phone the box stands **above** the sheet, not inside it. It used to sit
+inside, positioned over the sheet's top edge — and the sheet clips, so the box
+had a size, a position and eleven buttons and drew nothing at all. Every
+ordinary check passed: it was in the DOM, `aria-expanded` said open, it had a
+bounding box. `pnpm panel uttaka` asks the one question that catches it — what
+is topmost at the middle of the chip.
 
 In the SVG files **colour is the operation, and the colour carries the order**:
 `#000000` engrave, `#0000FF` cut. Those are LightBurn's C00 and C01, and
@@ -584,8 +598,14 @@ GLB / glTF / STL / OBJ / PLY          per source, cached
   ├── joints      where two planes share a line through material — slots cut
   │               in the field, oriented, widened by the angle between the planes
   ├── nest        parts packed by outline, holes counted as free space
-  └── STL · GLB · USDZ · DXF · SVG · ARK
+  └── STL · GLB · FLAT · USDZ · DXF · SVG · ARK
 ```
+
+**The nesting is what FLAT is made of.** A part laid flat is the part the
+machine cuts, at the position the machine cuts it — the same rings the DXF and
+the sheet are drawn from, extruded by the plate thickness. A bent plane lies
+flat as the blank it is cut from, before it is bent, because that is what the
+nester packed.
 
 **A mesh is a shell, not a solid.** Rays make it one: count which way each
 triangle faces, sum rather than parity, because scans have overlapping shells
@@ -703,8 +723,13 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
 - Draco- and meshopt-compressed GLB cannot be read. Re-export without.
 - **GLB** and **USDZ** out carry the geometry and one colour, and nothing else:
   no normals (both formats shade the flat parts from the faces themselves), no
-  textures, one mesh. The USDZ is ASCII USD in an uncompressed, 64-byte-aligned
-  archive, which is what the format asks for.
+  textures, one material. The USDZ is ASCII USD in an uncompressed,
+  64-byte-aligned archive, which is what the format asks for.
+- **STL and USDZ out are one mesh**, because the formats are: binary STL has no
+  notion of a part, and the USDZ is there to stand on the table, not to be taken
+  apart. Only GLB and FLAT carry the parts as separate named nodes.
+- **FLAT is a layout, not a job.** It shows where the nester put each part; it is
+  not cut from, so it takes no kerf and carries no engraving.
 - A `.gltf` pointing at a separate `.bin` cannot reach it from a browser. Use
   `.glb`.
 - A globally inverted mesh is fixed automatically; *inconsistently* wound

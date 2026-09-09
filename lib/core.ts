@@ -471,6 +471,9 @@ export type ExportKind =
   | "stl"
   /** same objektet som GLB — det formatet resten av verda opnar */
   | "glb"
+  /** dei same delane, men lagde flatt der nestinga la dei: kuttjobben i tre
+   *  dimensjonar, sprengd frå kvarandre og klar til å målast */
+  | "flat"
   /** og som USDZ: montasjen på bordet framfor deg, gjennom delingsarket */
   | "usdz"
   | "dxf"
