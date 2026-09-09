@@ -113,24 +113,24 @@ function Lina({ p }: { p: ArketProps }) {
  *  liste teiknar ingenting likevel. */
 function Plana({ p }: { p: ArketProps }) {
   /**
-   * BRETTA GRUPPER. Eit rutenett er tretti plan i lista, og lista er det
-   * meste av det du ser på ein telefon. Trykket på gruppa gjer det han
-   * alltid har gjort — han TEK henne, so handtaka, pilene, slett og dubler
-   * gjeld alle plana i henne — og han brettar henne saman til den eine
-   * rada si medan han gjer det. Trykk att, og ho vert sleppt og bretta ut.
+   * EI GRUPPE LIGG BRETTA. Eit rutenett er tretti plan i lista, og lista er
+   * det meste av det du ser på ein telefon — so gruppa er si eine rad til
+   * du ber om noko anna. Trykket på henne gjer det han alltid har gjort —
+   * han TEK henne, so handtaka, pilene, slett og dubler gjeld alle plana i
+   * henne — og han brettar henne ut medan han gjer det. Trykk att, og ho
+   * vert sleppt og lagd saman.
    *
    * Det du HELD står likevel: planet som er valt er med i lista jamvel om
-   * gruppa hans er bretta, av di lista alltid skal syne kva handa har.
+   * gruppa hans ligg saman, av di lista alltid skal syne kva handa har.
    *
    * Bretten fylgjer trykket og ikkje valet: vel du ei anna gruppe, ligg den
-   * fyrste bretta vidare, og eit rutenett er dei to radene sine. Gruppetalet
-   * vert aldri brukt om att (`nyGruppe`), so eit tal som ligg att her etter
-   * ei sletta gruppe kan aldri treffe ei ny.
+   * fyrste open vidare. Gruppetalet vert aldri brukt om att (`nyGruppe`),
+   * so eit tal som ligg att her etter ei sletta gruppe kan aldri treffe ei ny.
    */
-  const [bretta, setBretta] = useState<ReadonlySet<number>>(() => new Set())
+  const [utbretta, setUtbretta] = useState<ReadonlySet<number>>(() => new Set())
   const brett = (g: number) => {
     const paa = p.valdGruppe === g
-    setBretta((s) => {
+    setUtbretta((s) => {
       const n = new Set(s)
       if (paa) n.delete(g)
       else n.add(g)
@@ -151,12 +151,12 @@ function Plana({ p }: { p: ArketProps }) {
         const hovud = pl.gruppe && !sett.has(pl.gruppe) ? pl.gruppe : 0
         if (hovud) sett.add(hovud)
         const tal = hovud ? p.plan.filter((q) => q.gruppe === hovud).length : 0
-        const att = !!pl.gruppe && bretta.has(pl.gruppe) && !paa
+        const att = !!pl.gruppe && !utbretta.has(pl.gruppe) && !paa
         return (
           <Fragment key={pl.id}>
-          {/* GRUPPA SOM RAD: trykk brettar henne saman og vel alle plana i
-              henne, og leiaren er det siste. Ho står over det fyrste planet
-              sitt, og plana hennar står inndregne under. × tek heile gruppa. */}
+          {/* GRUPPA SOM RAD: ho ligg saman, og trykket brettar henne ut og
+              vel alle plana i henne, med det siste som leiar. Plana hennar
+              står inndregne under henne. × tek heile gruppa. */}
           {hovud > 0 && (
             <li
               role="option"
@@ -165,7 +165,7 @@ function Plana({ p }: { p: ArketProps }) {
               className="flex items-center gap-2 rounded-lg px-1.5 text-[11px]"
               style={p.valdGruppe === hovud ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : undefined}
             >
-              <button type="button" aria-label={`gruppe ${hovud}`} aria-expanded={!bretta.has(hovud)} title="brett gruppa saman og tak henne: handtaka, pilene, slett og dubler tek alle plana i henne. trykk att brettar henne ut og slepper henne" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => brett(hovud)}>
+              <button type="button" aria-label={`gruppe ${hovud}`} aria-expanded={utbretta.has(hovud)} title="brett gruppa ut og tak henne: handtaka, pilene, slett og dubler tek alle plana i henne. trykk att slepper henne og legg henne saman att" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => brett(hovud)}>
                 <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>G{hovud}</span>
                 <span className="min-w-0 flex-1 truncate">gruppe</span>
                 <span className="tab dim shrink-0">· {tal} plan</span>
@@ -237,18 +237,26 @@ function Lagrad({ no, ord, tittel, onFarge }: {
   onFarge: (farge: number) => void
 }) {
   return (
-    <li role="group" aria-label="lag" data-lag={ord} className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 px-1.5 pb-1 pt-0.5">
+    /* ÉI RAD, OG HO RULLAR. Åtte og tjue fargar braut i tre rader og tok
+       ein tredjedel av arket for eit val du gjer sjeldan. No er det éi
+       line som rullar sidelengs inni seg sjølv: like mange fargar, og
+       arket får høgda si attende. Prikkane kunne ikkje krympast i staden
+       — tolv pikslar kvar er tolv pikslar med treffesoner som ligg oppå
+       kvarandre, og då tek feil farge trykket. */
+    <li role="group" aria-label="lag" data-lag={ord} className="flex items-center gap-1 px-1.5 pb-1 pt-0.5">
       <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">{ord}</span>
-      <button type="button" aria-pressed={no === 0} aria-label="ikkje noko lag" title="ikkje noko lag: kuttet er blått som dei andre" onClick={() => onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
-        <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ borderColor: no === 0 ? "var(--ink)" : "var(--rule)" }} />
-      </button>
-      {LAG_FARGAR.map((hex, i) =>
-        i < FARGE_MIN ? null : (
-          <button key={hex} type="button" aria-pressed={no === i} aria-label={`lag C${String(i).padStart(2, "0")}`} title={`lag C${String(i).padStart(2, "0")} i LightBurn · ${hex}${tittel}`} onClick={() => onFarge(i)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
-            <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ background: hex, borderColor: no === i ? "var(--ink)" : "transparent" }} />
-          </button>
-        ),
-      )}
+      <span className="rull-x flex min-w-0 flex-1 items-center gap-x-0.5 overflow-x-auto overscroll-contain">
+        <button type="button" aria-pressed={no === 0} aria-label="ikkje noko lag" title="ikkje noko lag: kuttet er blått som dei andre" onClick={() => onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+          <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ borderColor: no === 0 ? "var(--ink)" : "var(--rule)" }} />
+        </button>
+        {LAG_FARGAR.map((hex, i) =>
+          i < FARGE_MIN ? null : (
+            <button key={hex} type="button" aria-pressed={no === i} aria-label={`lag C${String(i).padStart(2, "0")}`} title={`lag C${String(i).padStart(2, "0")} i LightBurn · ${hex}${tittel}`} onClick={() => onFarge(i)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+              <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ background: hex, borderColor: no === i ? "var(--ink)" : "transparent" }} />
+            </button>
+          ),
+        )}
+      </span>
     </li>
   )
 }

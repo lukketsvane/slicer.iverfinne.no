@@ -14,7 +14,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoFerdig, IcoHol, IcoRute, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
+import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoHol, IcoRute, IcoSkisse, IcoSkjer, IcoSlett } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -1842,8 +1842,9 @@ export function Studio() {
 
       {/*
         TOMMELSPALTA. Skjer står der høgre tommelen alt er: nedst til høgre,
-        over arket, 64 pikslar. Med eit plan valt er skissa gøymd, og knappen
-        er «ferdig» og slepp valet. Over han: skissebrytaren, og med eit plan
+        over arket, 64 pikslar. Med eit plan valt er skissa gøymd — det er
+        ingenting å skjere — og då står den store plassen tom, so
+        reiskapane fell ned i han. Over han: skissebrytaren, og med eit plan
         valt òg slett — og dei to streka, gods og hòl, som teiknar i profilen
         hans. Er eit strek valt, er det streken slett tek. Ikon, aldri ord.
         Prikken i hjørnet er motoren som reknar. På benken står spalta nedst
@@ -2015,17 +2016,24 @@ export function Studio() {
           >
             {IcoSkisse}
           </button>
-          <button
-            type="button"
-            onClick={vald === null ? laas : () => velPlan(null)}
-            disabled={view === "kontur" || (vald === null && !harSnitt)}
-            aria-label={vald === null ? "skjer" : "ferdig"}
-            title={vald === null ? "skjer: skissa vert ein del (L)" : "ferdig med planet (esc)"}
-            className="skjer ikon"
-          >
-            {vald === null ? IcoSkjer : IcoFerdig}
-            <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--ink)", opacity: busy ? 1 : 0, transition: "opacity 200ms ease" }} />
-          </button>
+          {/* SKJER, og ikkje anna. Med eit plan valt stod her eit merke som
+              sa «ferdig», og det var ein knapp for å slutte å gjere noko:
+              eit trykk utanfor planet, eit trykk på rada hans, escape —
+              alle tre slepper han frå før. So med eit plan valt står den
+              store knappen tom, og reiskapane hans fell ned i staden. */}
+          {vald === null && (
+            <button
+              type="button"
+              onClick={laas}
+              disabled={view === "kontur" || !harSnitt}
+              aria-label="skjer"
+              title="skjer: skissa vert ein del (L)"
+              className="skjer ikon"
+            >
+              {IcoSkjer}
+              <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--ink)", opacity: busy ? 1 : 0, transition: "opacity 200ms ease" }} />
+            </button>
+          )}
         </div>
       )}
 
