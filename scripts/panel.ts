@@ -256,7 +256,10 @@ async function telefon(browser: Browser) {
   await rad.locator("button").first().click()
   await page.waitForTimeout(300)
   sjekk("eit trykk på rada vel planet", (await rad.getAttribute("aria-selected")) === "true")
-  sjekk("og den store knappen seier «ferdig»", (await page.getByRole("button", { name: "ferdig", exact: true }).count()) === 1)
+  // DEN STORE KNAPPEN STÅR TOM med eit plan valt: det er ingenting å skjere,
+  // og «ferdig» var ein knapp for å slutte å gjere noko — eit trykk utanfor,
+  // eit trykk på rada eller escape slepper planet frå før.
+  sjekk("og den store knappen står tom", (await page.getByRole("button", { name: "ferdig", exact: true }).count()) === 0 && (await page.getByRole("button", { name: "skjer", exact: true }).count()) === 0)
   await page.keyboard.press("Backspace")
   await vent(page, talPlan(n0 + 1))
   sjekk("⌫ tek det valde planet bort", plana(page).length === n0 + 1)
@@ -1258,19 +1261,20 @@ async function grupper(browser: Browser) {
   const plan = skrivPlan(rutenett(0, 4))
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })), browser, 1400, 900)
   sjekk("lista har gruppa som rad", (await page.locator("[data-gruppe='1']").count()) === 1)
+  /**
+   * OG HO LIGG SAMAN. Eit rutenett er tretti plan i lista, og lista er det
+   * meste av det ein telefon syner: gruppa er si eine rad til du ber om
+   * noko anna. Trykket brettar henne ut OG tek henne — leiaren er det siste
+   * planet, som før.
+   */
+  const iLista = page.locator("[role=listbox][aria-label='plan'] [data-plan]")
+  sjekk("og plana hennar ligg saman frå fyrst av", (await iLista.count()) === 0, `${await iLista.count()} av 4 plan i lista`)
   await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
   await page.waitForTimeout(300)
   sjekk("trykk på gruppa vel henne", (await page.locator("[data-gruppe='1'][aria-selected='true']").count()) === 1)
+  sjekk("og brettar henne ut", (await iLista.count()) === 4 && (await page.getByRole("button", { name: "gruppe 1", exact: true }).getAttribute("aria-expanded")) === "true", `${await iLista.count()} av 4 plan i lista`)
   sjekk("og det siste planet er leiaren", (await page.locator("[data-plan='4'][aria-selected='true']").count()) === 1)
   sjekk("fordel står under tommelen", (await page.locator("[data-fordel]").count()) === 1)
-  /**
-   * OG TRYKKET BRETTAR HENNE SAMAN. Eit rutenett er tretti plan i lista, og
-   * lista er det meste av det ein telefon syner. Rada står att — og leiaren
-   * med henne, av di lista alltid skal syne kva handa held.
-   */
-  const iLista = page.locator("[role=listbox][aria-label='plan'] [data-plan]")
-  sjekk("og trykket brettar gruppa saman: leiaren står att åleine", (await iLista.count()) === 1, `${await iLista.count()} av 4 plan i lista`)
-  sjekk("og rada seier at ho er bretta", (await page.getByRole("button", { name: "gruppe 1", exact: true }).getAttribute("aria-expanded")) === "false")
 
   const y = () => plana(page).map((p) => p.o[1])
   const y0 = y()
@@ -1314,7 +1318,7 @@ async function grupper(browser: Browser) {
   await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
   await page.waitForTimeout(300)
   sjekk("trykk att slepper gruppa", (await page.locator("[role=option][aria-selected='true']").count()) === 0)
-  sjekk("og brettar henne ut att", (await iLista.count()) === 4, `${await iLista.count()} av 4 plan i lista`)
+  sjekk("og legg henne saman att", (await iLista.count()) === 0, `${await iLista.count()} av 4 plan i lista`)
   await page.getByRole("button", { name: "slett gruppe 1", exact: true }).click()
   await vent(page, talPlan(0))
   sjekk("× på gruppa tek alle plana", plana(page).length === 0)
@@ -1324,6 +1328,9 @@ async function grupper(browser: Browser) {
   await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })))
   await page.reload({ waitUntil: "networkidle" })
   await roleg(page, 800)
+  // gruppa ligg saman etter ei omlasting: brett henne ut for å nå eit plan
+  await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
+  await page.waitForTimeout(300)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(300)
   sjekk("eit valt plan har laga under seg", (await page.locator("[data-lag='lag']").count()) === 1 && (await page.locator("[data-lag='lag'] button").count()) === 29)

@@ -112,8 +112,6 @@ export const IcoShare = ikon("M12 3v12|m8 7 4-4 4 4|M5 11v8a2 2 0 0 0 2 2h10a2 2
 export const IcoUttak = ikon("M12 15V3|m8 11 4 4 4-4|M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4")
 /** skissemodusen: lina med handtaket på */
 export const IcoSkisse = ikon("M4 20 20 4|M9 15a2 2 0 1 0 4 0 2 2 0 1 0-4 0", "h-5 w-5")
-/** ferdig med det valde planet: eit merke. Stort: han står i den store knappen under tommelen. */
-export const IcoFerdig = ikon("m5 12 5 5L20 7", "h-7 w-7")
 /** SKJER: kniven. Handlinga som gjer skissa til ein del — eit ikon og aldri eit ord. */
 export const IcoSkjer = ikon("M3 21l6-6|M9 15 20.5 3.5c1.3 3.3.4 6.3-2.4 8.4L9 15z", "h-7 w-7")
 /** slett det valde planet */

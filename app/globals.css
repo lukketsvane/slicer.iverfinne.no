@@ -161,6 +161,17 @@ input {
   height: max(100%, 44px);
   transform: translate(-50%, -50%);
 }
+/* EI RAD SOM RULLAR SIDELENGS, utan ei line til under seg. Fargane er ei
+   line med åtte og tjue prikkar; ein rullestong under dei ville vore ei
+   line til i eit ark som er høgt nok frå før, og det som stikk ut i kanten
+   seier alt at det er meir. */
+.rull-x {
+  scrollbar-width: none;
+}
+.rull-x::-webkit-scrollbar {
+  display: none;
+}
+
 /* lister som rullar skal rulle sjølve, og ikkje ta sida med seg */
 .rull,
 .overscroll-contain {
