@@ -29,6 +29,33 @@ import { Toppline } from "./toppline"
 /** storleiken ut av posen: den lengste sida av kroppen, mm — det streka og
  *  omrisset er brøkar av */
 const storleikAv = (p: ParamBag) => (typeof p.storleik === "number" && p.storleik > 0 ? p.storleik : 150)
+/**
+ * EIT PUNKT I OMRISSET, KLEMT TIL DET STRENGEN TEK IMOT.
+ *
+ * `lesPlan` kastar HEILE omrisset om eitt punkt ligg meir enn to storleikar
+ * frå planet sitt punkt — ei form som forsvinn av di eitt hjørne kom for
+ * langt ut er ikkje ei form du kan arbeide i. Halvanna er innanfor med god
+ * margin, og det gjeld kvar veg eit punkt kjem inn: frose, dregen, eller
+ * som eit hjørne i boksen.
+ */
+const klemPunkt = (q: Pt): Pt => [+Math.min(1.5, Math.max(-1.5, q[0])).toFixed(4), +Math.min(1.5, Math.max(-1.5, q[1])).toFixed(4)]
+/**
+ * DEN STØRSTE RINGEN I SNITTET, FØR SPORA.
+ *
+ * Ein profil kan vera fleire stykke og ha hòl, og eit omriss er ÉI mangekant
+ * — det er den avgjerda som gjer at punkta kan vera punkt du dreg og ikkje
+ * eit tre du må navigere. Hòl og øyar teiknar du attende med streka.
+ *
+ * `raa` og ikkje `ringar`: den siste er profilen med ledda skorne i seg, og
+ * å fryse HAN ville bake spora inn i forma og so skjere dei ein gong til.
+ */
+function stoersteRing(sn: SkisseSyn | null): Pt[] | null {
+  const ringar = sn?.raa?.length ? sn.raa : sn?.ringar
+  if (!ringar?.length) return null
+  let stor = ringar[0]
+  for (const q of ringar) if (Math.abs(shoelace(q)) > Math.abs(shoelace(stor))) stor = q
+  return stor.length >= 3 ? stor : null
+}
 
 /** ei fil på meir enn dette er ikkje ein modell, det er eit uhell */
 const MAX_FIL = 220 * 1024 * 1024
@@ -1194,25 +1221,11 @@ export function Studio() {
    * til noko ei hand kan ta i, skriven inn i planet som eit omriss. Frå då
    * av er det omrisset som ER profilen — kroppen vert ikkje lesen for dette
    * planet — og kvart punkt står som eit handtak i rommet.
-   *
-   * DEN STØRSTE RINGEN OG BERRE HAN. Ein profil kan vera fleire stykke og
-   * ha hòl, og eit omriss er éi mangekant: det er den avgjerda som gjer at
-   * punkta kan vera punkt du dreg og ikkje eit tre du må navigere. Hòl og
-   * øyar teiknar du attende med streka, som før.
-   *
-   * PROFILEN FØR SPORA. `snitt.raa` og ikkje `snitt.ringar`: den siste er
-   * profilen med ledda skorne i seg, og å fryse HAN ville bake spora inn i
-   * forma og so skjere dei ein gong til.
    */
   const frysOmriss = useCallback((id: number) => {
     const k = kroppRef.current
-    const sn = snittRef.current
-    if (!k || !sn) return
-    const ringar = sn.raa?.length ? sn.raa : sn.ringar
-    if (!ringar.length) return
-    let stor = ringar[0]
-    for (const q of ringar) if (Math.abs(shoelace(q)) > Math.abs(shoelace(stor))) stor = q
-    if (stor.length < 3) return
+    const stor = stoersteRing(snittRef.current)
+    if (!k || !stor) return
     /**
      * FORENKLA HEILT NED TIL DET HANDA KAN TA I. Konturen har eit punkt på
      * kvar rutekant — hundrevis — og taket er fire og tjue. Toleransen vert
@@ -1230,7 +1243,7 @@ export function Studio() {
       const S = storleikAv(cur)
       const ou = dot(r.o, r.u)
       const ov = dot(r.o, r.v)
-      l[j] = { ...l[j], omriss: pts.slice(0, OMRISS_TAK).map((q): Pt => [+((q[0] - ou) / S).toFixed(4), +((q[1] - ov) / S).toFixed(4)]) }
+      l[j] = { ...l[j], omriss: pts.slice(0, OMRISS_TAK).map((q) => klemPunkt([(q[0] - ou) / S, (q[1] - ov) / S])) }
       return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
@@ -1253,18 +1266,18 @@ export function Studio() {
       let b: { x0: number; y0: number; x1: number; y1: number }
       if (l[j].omriss?.length) b = bbox(l[j].omriss as Pt[])
       else {
-        const sn = snittRef.current
-        const ringar = sn?.raa?.length ? sn.raa : sn?.ringar
-        if (!ringar?.length) return cur
+        // same ringen frysinga tek: eit dobbelttrykk i eitt drag og eit
+        // dobbelttrykk etter eit sleppt omriss skal gje den same boksen
+        const stor = stoersteRing(snittRef.current)
+        if (!stor) return cur
         const r = planRamme(l[j], k.min, k.max)
         const ou = dot(r.o, r.u)
         const ov = dot(r.o, r.v)
-        b = bbox(ringar.flat().map((q): Pt => [(q[0] - ou) / S, (q[1] - ov) / S]))
+        b = bbox(stor.map((q): Pt => [(q[0] - ou) / S, (q[1] - ov) / S]))
       }
       const { x0, y0, x1, y1 } = b
       if (!(x1 > x0 && y1 > y0)) return cur
-      const kl = (v: number) => +Math.min(1.5, Math.max(-1.5, v)).toFixed(4)
-      l[j] = { ...l[j], omriss: [[kl(x0), kl(y0)], [kl(x1), kl(y0)], [kl(x1), kl(y1)], [kl(x0), kl(y1)]] }
+      l[j] = { ...l[j], omriss: [klemPunkt([x0, y0]), klemPunkt([x1, y0]), klemPunkt([x1, y1]), klemPunkt([x0, y1])] }
       return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
@@ -1279,21 +1292,15 @@ export function Studio() {
       return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
-  /**
-   * EIT PUNKT DREGE. Klemt til halvanna storleik frå planet sitt punkt: eit
-   * punkt utanfor det fell på golvet i `lesPlan`, og då fell HEILE omrisset
-   * med — ei form som forsvinn av di du drog eitt punkt for langt er ikkje
-   * ei form du kan arbeide i.
-   */
+  /** eit punkt drege, der fingeren slapp det */
   const flyttPunkt = useCallback((id: number, i: number, q: Pt) => {
     setParams((cur) => {
       const l = lesPlan(cur.plan)
       const j = l.findIndex((p) => p.id === id)
       const om = l[j]?.omriss
       if (!om || !om[i]) return cur
-      const kl = (v: number) => +Math.min(1.5, Math.max(-1.5, v)).toFixed(4)
       const ny = om.slice()
-      ny[i] = [kl(q[0]), kl(q[1])]
+      ny[i] = klemPunkt(q)
       l[j] = { ...l[j], omriss: ny }
       return { ...cur, plan: skrivPlan(l) }
     })
@@ -2213,6 +2220,9 @@ export function Studio() {
                   aria-pressed={harOmriss}
                   aria-label="form"
                   title={harOmriss ? "forma (O): dra punkta i profilen. dobbelttrykk for boksen kring dei, eitt trykk slepper forma" : "forma (O): frys profilen til punkt du kan dra i. dobbelttrykk for boksen kring han"}
+                  // utan eit snitt er det ingen profil å fryse — og då ville
+                  // eit trykk vore eit trykk som ikkje gjorde noko
+                  disabled={!harOmriss && !snitt}
                   onClick={formTrykk}
                   className={TUMME_BTN}
                   data-form=""

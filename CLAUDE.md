@@ -81,8 +81,9 @@ English one would read better to you.
 metric is, what a rule is, and the geometry the slicing, the measuring and the
 cut files all share. It knows nothing about planes, cube or STL. A change that
 teaches it about one of those is in the wrong file. `lib/plan.ts` is what a
-cutting plane is — a name, a point, a normal and a bend in the body's space,
-encoded as the `plan` string in the parameter bag — and it knows nothing about
+cutting plane is — a name, a point, a normal, a bend, and (when the hand has
+taken the shape over) an outline of 2D points in the plane's own frame — all
+encoded as the `plan` string in the parameter bag, and it knows nothing about
 meshes. A bent plane is a cylinder, not a plane: developable, so the part is
 still cut flat, and the radius is limited by what the material takes. Bent
 planes do not carry joints yet — two bent surfaces cross along a curve, and
@@ -94,8 +95,10 @@ invisible until locked, a locked plane stays where you put it, the view is a
 decision and never a consequence of the geometry, names belong to
 the part and never get reused, it is a laser tool with no cutter diameter,
 colour is the operation and carries the order, kerf is taken exactly once,
-slots are cut in the field and not in the polygon, and there are two colours
-and no more.
+slots are cut in the field and not in the polygon, a plane that carries an
+outline takes its profile from that outline and not from the body, two fingers
+do all three gestures at once and never pick one for you, and there are two
+colours and no more.
 
 ## Verify with the harnesses, not by eye
 

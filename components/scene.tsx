@@ -1149,6 +1149,29 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       const rute = ruteStil()
       const arbeider = sam.akt.pan || sam.akt.vri
       if (!sam.akt.klyp && Math.abs(klyp - 1) > KLYP_SAM && (paaBit || !arbeider)) sam.akt.klyp = true
+      /**
+       * GESTEN VERT MELD FØR KANALANE ARBEIDER, og det er ikkje ei
+       * smakssak: studioet tek GRUNNSTODA si i `onGest` — kor mange ribber
+       * virvelen stod på, kva rutenettet var, kva bit som var vald — og eit
+       * drag som kom først ville rekna frå grunnstoda til førre gest.
+       * Målt: virvelen fall attende til to ribber i det andre draget.
+       *
+       * Talet det melder er kva fingrane held på med, til lina øvst til
+       * venstre.
+       */
+      const sagt: GestKva = arbeider || (paaBit && sam.akt.klyp)
+        ? rute
+          ? naa.current.modus === "virvel"
+            ? "virvel"
+            : "rute"
+          : "snitt"
+        : sam.akt.klyp
+          ? "zoom"
+          : null
+      if (sagt !== sam.sagt) {
+        sam.sagt = sagt
+        naa.current.onGest(sagt)
+      }
       if (paaBit) {
         // VERKTYET FOR KROPPEN: klypet gjer biten større, vridinga snur han
         // kring loddlina, draget flyttar han — vassrett langs det du ser som
@@ -1170,20 +1193,6 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
         // sikte er eit objekt som gjer noko anna enn du bad om.
         if (sam.akt.klyp && !arbeider) dolly(klyp)
         if (arbeider && tak) bruk(tak, sam.akt.pan ? panX : 0, sam.akt.pan ? panY : 0, sam.akt.vri ? sam.vri : 0)
-      }
-      /** kva fingrane held på med, til talet øvst til venstre */
-      const sagt: GestKva = arbeider || (paaBit && sam.akt.klyp)
-        ? rute
-          ? naa.current.modus === "virvel"
-            ? "virvel"
-            : "rute"
-          : "snitt"
-        : sam.akt.klyp
-          ? "zoom"
-          : null
-      if (sagt !== sam.sagt) {
-        sam.sagt = sagt
-        naa.current.onGest(sagt)
       }
       last = c
     }
@@ -2452,10 +2461,10 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             </Sovnen>
           ) : null}
           {f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
+          {/* teiknar ingenting — han set berre prikkane, so han står ikkje i
+              `Sovnen`: dovninga tek `.punkt` i stilarket, som ho tek ledda */}
           {f && valt?.omriss?.length && rValt ? (
-            <Sovnen sov={sov}>
-              <Omrisset f={f} r={rValt} omriss={valt.omriss} S={storleik} boks={punktBoks} onPunkt={(i, q) => onPunkt(valt.id, i, q)} />
-            </Sovnen>
+            <Omrisset f={f} r={rValt} omriss={valt.omriss} S={storleik} boks={punktBoks} onPunkt={(i, q) => onPunkt(valt.id, i, q)} />
           ) : null}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[60, 60]} />
