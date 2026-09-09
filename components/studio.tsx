@@ -7,7 +7,7 @@ import { gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { BOG_TAK, MJUK_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
-import { lesFest, skrivFest } from "@/lib/params"
+import { lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
@@ -1270,6 +1270,22 @@ export function Studio() {
       return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
+  /**
+   * EIT LEDD DELT PÅ NYTT, FRÅ ROMMET.
+   *
+   * Det same `deling` plata skriv: nøkkelen er leddet, talet er kvar
+   * botnen står på strekket det kan delast på. Begge spora les den same
+   * lina frå kvar si side, so den eine vert grunnare når den andre vert
+   * djupare — her som der.
+   */
+  const setjDeling = useCallback((nokkel: string, t: number) => {
+    setParams((cur) => {
+      const m = new Map(lesDeling(cur.deling))
+      if (m.get(nokkel) === t) return cur
+      m.set(nokkel, t)
+      return { ...cur, deling: skrivDeling(m) }
+    })
+  }, [])
   /** eit plan flytt eller vinkla om av fingrane — gjennom parametrane, so angre og lenkja gjeld */
   const flyttPlan = useCallback((id: number, o: Vec3, n: Vec3) => {
     setParams((cur) => {
@@ -1876,6 +1892,7 @@ export function Studio() {
             storleik={typeof params.storleik === "number" ? params.storleik : 150}
             valdStrek={valdStrek}
             onVald={velPlan}
+            onDeling={setjDeling}
             onValdStrek={setValdStrek}
             onPlan={flyttPlan}
             onStrek={endraStrek}
