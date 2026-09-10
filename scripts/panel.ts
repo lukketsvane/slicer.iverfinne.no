@@ -124,13 +124,20 @@ async function opne(url: string, browser: Browser, w: number, h: number, o?: { s
  * TO FINGRAR, GJENNOM CDP. Playwright har éin finger; skissa treng to.
  * `steg` gjev fingrane sine plassar frå 0 til 1.
  */
-async function toFingrar(page: Page, steg: (t: number) => [[number, number], [number, number]], n = 12) {
+async function toFingrar(
+  page: Page,
+  steg: (t: number) => [[number, number], [number, number]],
+  n = 12,
+  /** køyrt etter kvart hakk, MEDAN fingrane er nede: sjå «undervegs» under */
+  mellom?: () => Promise<void>,
+) {
   const cdp = await page.context().newCDPSession(page)
   const pkt = (t: number) => steg(t).map(([x, y], id) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 }))
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(0) })
   for (let i = 1; i <= n; i++) {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pkt(i / n) })
     await page.waitForTimeout(16)
+    if (mellom) await mellom()
   }
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
   await cdp.detach()
@@ -565,6 +572,50 @@ async function telefon(browser: Browser) {
     Math.abs(kamEtter2 - kamFør2) < 1e-3 && flytta2 > 0.005,
     `avstand ${kamFør2.toFixed(3)} → ${kamEtter2.toFixed(3)}, planet flytta ${flytta2.toFixed(3)}`,
   )
+  /**
+   * OG KAMERAET STÅR UNDERVEGS, IKKJE BERRE ETTERPÅ.
+   *
+   * Dei to prøvene over måler kvar kameraet ENDA. Det er ikkje det same som
+   * at det stod: `restore()` set det attende, so ein dolly og ein
+   * tilbakesetjing i byrjinga av kvart drag går rett gjennom dei begge. Og
+   * det var nett det som stod att å sjå — eit rykk ut og eit rykk inn,
+   * kvar einaste gong to fingrar tok i noko.
+   *
+   * Difor les denne avstanden ETTER KVART HAKK medan fingrane er nede, og
+   * krev at han ikkje rører seg i det heile.
+   *
+   * OG RØRSLA ER DEN HANDA FAKTISK GJER. Ho spriker i det ho tek tak —
+   * fem prosent, framme i rørsla — og draget tek av frå null. Målt på det
+   * som stod: ved tredje hakket hadde fingrane gått sine fire prosent og
+   * midten berre fire pikslar av seks, so klypet vann, kameraet dollya, og
+   * ved fjerde hakket tok draget gesten og `restore()` sette det attende.
+   * Eit rykk ut og eit rykk inn, kvar einaste gong.
+   */
+  const kamFør3 = await avstandNo()
+  const planStod3 = plana(page)[0]
+  const undervegs: number[] = []
+  await toFingrar(
+    page,
+    (t) => {
+      const glid = 50 * (1 + 0.05 * Math.min(1, t * 4))
+      const dx = 70 * t * t
+      return [[170 + dx, 380 - glid], [170 + dx, 380 + glid]]
+    },
+    12,
+    async () => { undervegs.push(await avstandNo()) },
+  )
+  await page.waitForTimeout(600)
+  const planKom3 = plana(page)[0]
+  const flytta3 = Math.hypot(planKom3.o[0] - planStod3.o[0], planKom3.o[1] - planStod3.o[1], planKom3.o[2] - planStod3.o[2])
+  const verst = Math.max(...undervegs.map((v) => Math.abs(v - kamFør3)))
+  sjekk(
+    "og kameraet står i KVART hakk av draget, ikkje berre til slutt",
+    verst < 1e-3 && flytta3 > 0.005,
+    `verste avvik ${verst.toFixed(4)} over ${undervegs.length} hakk, planet flytta ${flytta3.toFixed(3)}`,
+  )
+  await page.waitForTimeout(700)
+  await page.keyboard.press("z")
+  await vent(page, (p) => JSON.stringify(lesPlan(p.plan)[0]?.o) === JSON.stringify(planStod3.o))
   // og prøva ryddar etter seg sjølv: draget er EI bokføring i angrestakken,
   // og kjeda under tel steg. La bokføringa falle på plass fyrst (450 ms).
   await page.waitForTimeout(700)

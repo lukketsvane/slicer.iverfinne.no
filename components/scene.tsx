@@ -499,6 +499,36 @@ function FitCamera({ fit, rute, sikt, laast }: { fit: Fit | null; rute: Rute; si
 const PAN_SAM = 6
 const VRI_SAM = 0.15
 const KLYP_SAM = 0.04
+/**
+ * KAMERAET FÅR IKKJE GESTEN FØR HO ER AVGJORD.
+ *
+ * Daudsonene aleine duger ikkje, og grunnen er at dei tre kanalane ikkje er
+ * like raske til å seie frå. Draget må gå seks pikslar. Klypet må endre
+ * avstanden mellom fingrane fire prosent — og på ei hand som held hundre og
+ * seksti pikslar er det seks og ein halv piksel FORDELT PÅ TO FINGRAR, altso
+ * tre kvar. Ingen legg to fingrar på eit glas og dreg dei utan at dei glir
+ * tre pikslar frå kvarandre fyrst.
+ *
+ * So klypet vann opninga på kvart einaste drag: kameraet dollya eit hakk,
+ * og so kom draget og tok gesten. `restore()` sette kameraet attende — og
+ * DET er det som stod att å sjå: eit rykk ut og eit rykk inn, i byrjinga av
+ * kvar einaste to-fingerrørsle. Prøva såg det ikkje, av di ho målte kvar
+ * kameraet ENDA og ikkje kvar det var undervegs.
+ *
+ * Difor: kameraet er stille til gesten har fått hundre og tjue millisekund
+ * på å seie kva ho er. Har draget eller vridinga meldt seg i det vindauget,
+ * er klypet emnet sitt og kameraet står resten av gesten. Har dei ikkje
+ * det, er det eit klyp, og `dolly` reknar frå TOTALEN — so kameraet hoppar
+ * rett dit det skulle, utan å ha mist eit einaste hakk av rørsla.
+ *
+ * Eit klyp som er umogeleg å ta feil av — ein femdel av avstanden mellom
+ * fingrane, med midten i ro — treng ikkje vente: han opnar vindauget med
+ * ein gong, so ein zoom kjennest som ein zoom.
+ */
+const SAM_VENT = 120
+/** klypet må vera dobbelt so tydeleg når det er KAMERAET det ber om */
+const KLYP_SYN = 0.08
+const KLYP_KLAR = 0.2
 
 type Tak = {
   id: number
@@ -816,7 +846,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
     /** eit trykk som valde eller slepte eit strek: klikket som fylgjer skal ikkje òg velje ein del eller sleppe planet */
     let svelgKlikk = false
     /** to fingrar: dra, vri og klyp SAMSTUNDES, kvar med si daudsone */
-    let sam = { x0: 0, y0: 0, d0: 1, sistA: 0, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null as GestKva }
+    let sam = { x0: 0, y0: 0, d0: 1, t0: 0, sistA: 0, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null as GestKva }
     /** skissegestane gjeld når brytaren står på skisse — og alltid når eit låst plan er valt */
     /** verktyet for kroppen har fingrane når ein bit er vald; elles som før */
     const bitStil = () => naa.current.modus === "bit" && naa.current.valdBit !== null
@@ -1098,7 +1128,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
         restore()
         tak = taTak(c.cx, c.cy)
         dist0 = controls ? camera.position.distanceTo(controls.target) : 6
-        sam = { x0: c.cx, y0: c.cy, d0: Math.max(1, c.d), sistA: c.a, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null }
+        sam = { x0: c.cx, y0: c.cy, d0: Math.max(1, c.d), t0: performance.now(), sistA: c.a, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null }
         mode = "sam"
       }
       if (pts.size === 3) {
@@ -1213,6 +1243,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       const paaBit = bitStil()
       const rute = ruteStil()
       const arbeider = sam.akt.pan || sam.akt.vri
+      const spurt = Math.abs(klyp - 1)
       /**
        * OG EMNET TEK KAMERAET ATTENDE.
        *
@@ -1230,7 +1261,15 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
         sam.akt.klyp = false
         restore()
       }
-      if (!sam.akt.klyp && Math.abs(klyp - 1) > KLYP_SAM && (paaBit || !arbeider)) sam.akt.klyp = true
+      /**
+       * OG DET ER BILETA UNDERVEGS SOM TEL, ikkje kvar kameraet endar.
+       *
+       * `restore()` over rettar opp etterpå; dette hindrar at det skjer i
+       * det heile. Sjå `SAM_VENT`: på verktyet for kroppen er klypet emnet
+       * og går som før, elles må gesten ha fått seie kva ho er.
+       */
+      const moden = performance.now() - sam.t0 > SAM_VENT || spurt > KLYP_KLAR
+      if (!sam.akt.klyp && (paaBit ? spurt > KLYP_SAM : !arbeider && moden && spurt > KLYP_SYN)) sam.akt.klyp = true
       /**
        * GESTEN VERT MELD FØR KANALANE ARBEIDER, og det er ikkje ei
        * smakssak: studioet tek GRUNNSTODA si i `onGest` — kor mange ribber

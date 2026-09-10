@@ -62,6 +62,8 @@ no radius.
    object, the other to tilt it. **Two fingers on the object** aim the cut:
    drag moves it, twist tilts it, pinch zooms the view — **all three at once**,
    each with its own dead zone, so a hand that wants to nudge and tilt gets both.
+   The camera is the one that has to wait its turn: see *a drag never moves the
+   camera*, below.
    Neither the pinch nor the twist touches the body — the size is a number you
    drag and the turn is the body tool; a body that grows when you want a closer
    look is a body doing something you did not ask for. Three fingers move the
@@ -246,6 +248,34 @@ count and the millimetre off the sketch is gone from the screen: the sheet
 already says both, and it covered exactly what you were aiming at. The handles
 are 22-pixel marks at half ink, full ink while you hold one; their touch
 targets are still 48.
+
+**A drag never moves the camera — not at the end, and not for one frame.**
+The three channels do not declare themselves at the same speed. The drag has to
+travel six pixels. The pinch has to change the gap between the fingers by four
+per cent — and on a hand spanning 160 pixels that is six and a half pixels
+*split between two fingers*, three each. Nobody puts two fingers on glass and
+drags them without them sliding three pixels apart first.
+
+So the pinch won the opening of every single drag: the camera dollied a notch,
+then the drag took the gesture and the camera was put back. **The putting back
+was the thing you could see** — a jump out and a jump in, every time two fingers
+touched anything. The tests never caught it because they measured where the
+camera *ended*, and it ended exactly where it started.
+
+Now the camera gets nothing for the first 120 ms, while the gesture says what it
+is. If the drag or the twist speaks in that window, the pinch belongs to the
+subject and the camera stands still for the rest of the gesture. If they do not,
+it is a pinch — and the dolly is computed from the *total* ratio, so the view
+lands exactly where it should with nothing lost to the wait. A pinch too big to
+mistake, a fifth of the finger gap with the centre still, skips the wait
+entirely so a zoom feels like a zoom. The pinch also has to be twice as clear
+when it is the *camera* it is asking for (8 %) as when it is the subject — in
+the body tool the pinch **is** the piece, and that is unchanged.
+
+The test measures the distance after every step while the fingers are still
+down, and requires it not to move at all. Measured on the code before this:
+0.689 units of swing mid-drag, with both end-state tests reading 14.450 →
+14.450. Now: 0.0000.
 
 **Two fingers, one cut.** Hold the sketch handle with your thumb and tap
 `skjer` with a finger — the plane is cut where you are holding it, and the
