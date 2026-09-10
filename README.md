@@ -257,6 +257,36 @@ stops being a control. Zoom is still yours: going closer is not a new angle,
 it is the same view from nearer. Aim the object once and the rest of the
 session is aiming at *it*, not at it and the camera both.
 
+**A side is a side, not a perspective.** Press a face of the view cube and
+the camera swings there — and as it lands, the perspective flattens out. Two
+ribs the same length come out the same length on screen, a plate facing you has
+no splayed edges, and you can read a shape off the screen instead of guessing
+at it. Turn away from the axis and the perspective comes back on its own; the
+rule is the geometry, not the button, so a finger that lands you square on gets
+the same view a cube face does, and nothing else in the app needs to know this
+exists.
+
+It is not a second camera. An orthographic camera is a different projection
+matrix, and everything that works in screen points — the sketch, the handles,
+the outline, `pxPer` — would have needed two versions of itself, one of which
+would be wrong the first time somebody forgot it. Instead the field of view is
+*narrowed*: 30° down to 2°, while the camera walks the same factor further
+back, so `d · tan(fov/2)` — which is what decides how big a thing lands on the
+screen — holds still and the image does not move a pixel while it straightens
+out. At 2° the rays are parallel to 1.4 %, under a pixel across an object on
+this screen. The threshold is 2° off an axis, with 3.2° to leave again so a
+shaking finger crosses once instead of flickering; the floor under that number
+is the orbit's own pole clamp (1.15°, so the top and bottom faces never sit
+exactly on the axis) plus what the cube's swing leaves behind.
+
+Two things follow the camera out there. The ceiling on how far back you may go
+is a number in perspective, so it scales with the field of view — you get the
+same 3.4 times the framed distance either way. And the near and far clipping
+planes stop being 0.1 and 1000: at 222 units out, a near plane at 0.1 leaves
+0.03 units of depth resolution, half a rib, and two ribs side by side start
+flickering about which is in front. Laid around the distance instead, the same
+step is 2.5e-6. The fog already worked this way, for the same reason.
+
 **A finger that lands after a turn does not inherit the spin.** OrbitControls
 damps: let go mid-turn and it keeps swinging for a few frames, and
 `controls.enabled = false` only stops it *listening* — the leftover

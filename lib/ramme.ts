@@ -74,6 +74,41 @@ export const MAX_DIST = 48
 export const SKODDE_NAER = 8
 export const SKODDE_FJERN = 34
 /**
+ * OG KLIPPEPLANA GJER DET SAME.
+ *
+ * `near` stod på 0,1 og `far` på 1000, og på den innramma avstanden er det
+ * godt nok. Flatsynet er det ikkje: der står kameraet femten gonger lenger
+ * ute, og djupnebufferet har mesteparten av oppløysinga si rett framfor
+ * `near`. Ved 222 med `near` 0,1 er steget i djupna 0,03 einingar — ei halv
+ * ribbe — og då blinkar to ribber som ligg inntil kvarandre om kven som er
+ * framfor. Med djupna lagd kring AVSTANDEN i staden er steget 2,5e-6.
+ *
+ * Lufta framfor må vera romsleg nok til at kroppen aldri når henne: han er
+ * kring 1,6 i radius, og `SKODDE_NAER` er alt 8. Bak treng ho ikkje vera
+ * det — alt forbi `SKODDE_FJERN` er allereie skodde, og skodda er nøyaktig
+ * bakgrunnsfargen.
+ */
+export const NAER_LUFT = 12
+/** synsfeltet i perspektiv */
+export const FOV_NAER = 30
+/**
+ * OG SYNSFELTET I FLATSYNET.
+ *
+ * Ikkje null: eit ortografisk kamera er ei anna projeksjonsmatrise, og alt
+ * som reknar på skjermpunkt måtte hatt to utgåver. To grader gjev strålar
+ * som er parallelle til 1,4 % — under ein piksel over eit objekt på denne
+ * skjermen — med den same matrisa som alt anna byggjer på.
+ */
+export const FOV_FLAT = 2
+/**
+ * Kor mykje lenger attende eit trongare synsfelt må stå for at biletet skal
+ * stå stille: `d · tan(fov/2)` er det som avgjer kor stort noko vert, so
+ * han skal vera konstant. Både innramminga og taket på dollyen er tal i
+ * PERSPEKTIVET, og dei fylgjer med.
+ */
+export const fovSkala = (fovDeg: number) =>
+  Math.tan((FOV_NAER * Math.PI) / 360) / Math.tan((fovDeg * Math.PI) / 360)
+/**
  * Kor lite det frie bandet får verte før innramminga sluttar å ta omsyn.
  *
  * Eit ark som tek to tredelar er ikkje eit ark nokon les objektet gjennom;
@@ -112,7 +147,10 @@ export function ramme(
   // Eit objekt kan snuast, og då må innramminga halde same kva veg det
   // står: difor radien, som er den same frå alle kantar.
   const raw = (fit.r * FIT_MARGIN) / Math.tan(Math.min(vHalf, hHalf))
-  const dist = Math.min(MAX_DIST, Math.max(MIN_DIST, raw))
+  // golvet og taket er tal i perspektivet; i flatsynet står heile biletet
+  // lenger ute, og då må dei det òg
+  const k = fovSkala(o.fovDeg)
+  const dist = Math.min(MAX_DIST * k, Math.max(MIN_DIST * k, raw))
   // Golvpinninga held golvlina i same skjermhøgd, men berre så lenge ho
   // ikkje kastar sikta over objektet. På eit høgt og smalt lerret vert
   // avstanden stor, og då ville siktepunktet flyge opp i lause lufta med
