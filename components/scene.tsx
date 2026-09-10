@@ -6,6 +6,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRe
 import * as THREE from "three"
 import { LAG_FARGAR, MATERIALS, inRing, lagFarge, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
 import { akser, broek, dot, inn, OMRISS_TAK, omrissLine, omrissMidt, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
+import type { Montasje } from "@/lib/montasje"
 import { FOV_FLAT, FOV_NAER, GROUND_Y, MAX_DIST, MIN_DIST, NAER_LUFT, SKODDE_FJERN, SKODDE_NAER, fovSkala, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import { DELING_MAX, DELING_MIN } from "@/lib/params"
@@ -84,14 +85,23 @@ type Live = { id: number; i: number; s: Strek }
  * skriven om av dei to tala. Difor er skissa og handtaka borte medan han
  * står på, som i «bit»: det finst ikkje eitt plan å ta i her.
  */
-export type Modus = "form" | "bit" | "rute" | "virvel"
+export type Modus = "form" | "bit" | "rute" | "virvel" | "montasje"
 type Lys = { az: number; el: number }
 
 type Ramma = { cx: number; cy: number; s: number; min: Vec3; max: Vec3; midt: Vec3; fit: Fit }
 
-function ramma(d: BuildRes | null): Ramma | null {
+/**
+ * `ekstra` er ein boks som må vera med i biletet utan å vera kroppen —
+ * montasjen sin stabel av plater. Delar lagde flatt tek alltid meir plass
+ * enn dei same delane sette i kvarandre, so utan dette ville halve
+ * animasjonen stått utanfor ruta. Han verkar på SKALAEN og ikkje på
+ * kameraet: innramminga skalerer objektet inn i den same ramma same kor
+ * stort det er, so synsvinkelen din står medan biletet krympar.
+ */
+function ramma(d: BuildRes | null, ekstra?: { min: Vec3; max: Vec3 } | null): Ramma | null {
   if (!d) return null
-  const { min, max } = d
+  const min: Vec3 = ekstra ? [Math.min(d.min[0], ekstra.min[0]), Math.min(d.min[1], ekstra.min[1]), Math.min(d.min[2], ekstra.min[2])] : d.min
+  const max: Vec3 = ekstra ? [Math.max(d.max[0], ekstra.max[0]), Math.max(d.max[1], ekstra.max[1]), Math.max(d.max[2], ekstra.max[2])] : d.max
   const cx = (min[0] + max[0]) / 2
   const cy = (min[1] + max[1]) / 2
   const h = Math.max(1e-6, max[2] - Math.min(0, min[2]))
@@ -567,7 +577,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
    * handtaka hennar står midt i biletet — nett der fingrane skal ta i ein
    * bit. Eit verkty om gongen: her er det kroppen som vert bygd.
    */
-  const synleg = !!f && vald === null && modus !== "bit" && modus !== "rute" && modus !== "virvel"
+  const synleg = !!f && vald === null && modus !== "bit" && modus !== "rute" && modus !== "virvel" && modus !== "montasje"
   /** snittet i verda: handtaka står PÅ det — flytt i midten, vri på toppen */
   const snittVerd = useMemo<SnittVerd | null>(() => {
     if (!f || !snitt?.ringar.length) return null
@@ -2106,6 +2116,167 @@ function Demping({ onSein }: { onSein: (sein: boolean) => void }) {
   return null
 }
 
+/**
+ * MONTASJEN — KROPPEN SOM REISER SEG AV PLATENE SINE.
+ *
+ * Ei kuttfil seier kva du skal skjere, ikkje kva som går kvar. Denne
+ * reiskapen svarar på det andre: delane ligg i stabel slik dei kjem av
+ * laseren, og so lyfter dei seg på plass — éin gjeng om gongen, den
+ * største fyrst, av di den største er ramma resten vert tredd inn i.
+ *
+ * EIN DEL ER EITT NETT OG TO MATRISER (sjå `lib/montasje.ts`). Rekninga
+ * står der, utanfor nettlesaren, og `pnpm probe` krev at dei to matrisene
+ * råkar dei same to netta motoren skriv til filene. Her er det berre
+ * interpolering: kvaternionen mellom dei to vendingane, lina mellom dei to
+ * punkta. Ei stiv flytting, som ei hand som lyfter ei plate.
+ *
+ * DEI SLEPPER ETTER KVARANDRE INNAN EIT STEG. Alle på ein gong er ein
+ * sverm, og ein sverm syner deg ingen rekkjefylgje. Halve steget går med
+ * til å sleppe dei, so du ser at det er ein etter ein — og heile steget er
+ * likevel over på under eit sekund.
+ */
+const MONT_MS = 900
+const MONT_SPREIING = 0.55
+/** mjuk start og mjuk stopp: ei hand akselererer ikkje i eit hopp */
+const mjukna = (t: number) => t * t * (3 - 2 * t)
+
+function Montasjen({ f, mont, T, spel, vakn, material, onSteg }: {
+  f: Ramma
+  mont: Montasje
+  /** kvar i animasjonen vi er, frå 0 til `mont.steg`. Ein ref: dette talet
+   *  endrar seg kvart bilete, og ei teikning per bilete er seksti teikningar
+   *  i sekundet av eit tre som ikkje har endra seg. */
+  T: MutableRefObject<number>
+  spel: MutableRefObject<boolean>
+  /** scena teiknar på oppmoding: knappen i spalta dreg i denne for å få eit bilete */
+  vakn: MutableRefObject<(() => void) | null>
+  material: string
+  onSteg: (s: number) => void
+}) {
+  const invalidate = useThree((s) => s.invalidate)
+  useEffect(() => {
+    vakn.current = invalidate
+    return () => { vakn.current = null }
+  }, [vakn, invalidate])
+  const mat = (material in MATERIALS ? material : "finer") as Material
+  /** nettet til kvar del, i si eiga flate ramme — og det bøygde, om han er det */
+  const geo = useMemo(
+    () =>
+      mont.delar.map((d) => ({
+        flat: mkGeom(d.positions),
+        boygd: d.boygd ? mkGeom(d.boygd) : null,
+      })),
+    [mont],
+  )
+  useEffect(() => () => { for (const g of geo) { g.flat.dispose(); g.boygd?.dispose() } }, [geo])
+  /**
+   * DEI TO PLASSANE, TEKNE FRÅ KVARANDRE ÉIN GONG.
+   *
+   * `decompose` er ei rotrekning per matrise, og det er tolv per bilete for
+   * ein liten kropp og fleire hundre for ein stor. Vendinga og punktet står
+   * ikkje stille i tid — dei er dei same tala heile animasjonen — so dei
+   * vert rekna når montasjen kjem og ikkje ein gong til.
+   */
+  const par = useMemo(
+    () =>
+      mont.delar.map((d) => {
+        const a = new THREE.Matrix4().fromArray(d.flat)
+        const b = new THREE.Matrix4().fromArray(d.ferdig)
+        const pa = new THREE.Vector3()
+        const pb = new THREE.Vector3()
+        const qa = new THREE.Quaternion()
+        const qb = new THREE.Quaternion()
+        const sk = new THREE.Vector3()
+        a.decompose(pa, qa, sk)
+        b.decompose(pb, qb, sk)
+        return { pa, pb, qa, qb }
+      }),
+    [mont],
+  )
+  /**
+   * NÅR KVAR DEL SLEPPER. Delane i eit steg vert delte på kor mange dei er,
+   * so den siste byrjar der spreiinga sluttar — og rekkjefylgja er den dei
+   * står i, som er rekkjefylgja adressene er graverte i.
+   */
+  const start = useMemo(() => {
+    const iSteg = new Map<number, number>()
+    const tal = new Map<number, number>()
+    for (const d of mont.delar) tal.set(d.steg, (tal.get(d.steg) ?? 0) + 1)
+    return mont.delar.map((d) => {
+      const j = iSteg.get(d.steg) ?? 0
+      iSteg.set(d.steg, j + 1)
+      return d.steg + (j / Math.max(1, tal.get(d.steg) ?? 1)) * MONT_SPREIING
+    })
+  }, [mont])
+
+  const netta = useRef<(THREE.Mesh | null)[]>([])
+  const bogne = useRef<(THREE.Mesh | null)[]>([])
+  const sist = useRef(-1)
+  const sagtSteg = useRef(-1)
+  const tmpP = useRef(new THREE.Vector3())
+  const tmpQ = useRef(new THREE.Quaternion())
+  const ein = useRef(new THREE.Vector3(1, 1, 1))
+
+  useFrame((_, dt) => {
+    if (spel.current) {
+      T.current = Math.min(mont.steg, T.current + (Math.min(dt, 0.05) * 1000) / MONT_MS)
+      if (T.current >= mont.steg) spel.current = false
+      invalidate()
+    }
+    const t = T.current
+    if (t === sist.current) return
+    sist.current = t
+    for (let i = 0; i < mont.delar.length; i++) {
+      const m = netta.current[i]
+      if (!m) continue
+      const e = mjukna(Math.min(1, Math.max(0, (t - start[i]) / (1 - MONT_SPREIING))))
+      const q = par[i]
+      // Ein BØYGD del er den eine som ikkje er ei stiv flytting av seg
+      // sjølv: han flyg flat — som han ER medan han ligg på plata — og vert
+      // det han er i det han kjem på plass.
+      const b = bogne.current[i]
+      if (b) {
+        const nede = e >= 1
+        b.visible = nede
+        m.visible = !nede
+        if (nede) continue
+      }
+      m.position.lerpVectors(q.pa, q.pb, e)
+      m.quaternion.slerpQuaternions(q.qa, q.qb, e)
+      m.matrix.compose(m.position, m.quaternion, ein.current)
+      m.matrixWorldNeedsUpdate = true
+    }
+    const s = Math.min(mont.steg, Math.floor(t) + 1)
+    if (s !== sagtSteg.current) {
+      sagtSteg.current = s
+      onSteg(s)
+    }
+  })
+
+  return (
+    <group {...gruppa(f)}>
+      {mont.delar.map((d, i) => (
+        <group key={d.adr}>
+          <mesh
+            ref={(el) => { netta.current[i] = el }}
+            geometry={geo[i].flat}
+            matrixAutoUpdate={false}
+            castShadow
+            receiveShadow
+          >
+            <meshStandardMaterial color={MATERIALS[mat].hex} roughness={0.9} metalness={0} side={THREE.DoubleSide} />
+          </mesh>
+          {geo[i].boygd && (
+            <mesh ref={(el) => { bogne.current[i] = el }} geometry={geo[i].boygd!} visible={false} castShadow receiveShadow>
+              <meshStandardMaterial color={MATERIALS[mat].hex} roughness={0.9} metalness={0} side={THREE.DoubleSide} />
+            </mesh>
+          )}
+        </group>
+      ))}
+    </group>
+  )
+}
+
 /** kroppen og delane, i kroppen si ramme */
 function Kroppen({ f, kropp, lag, view, skal, material, liste, vald, gruppe, plan, blink, sein, onVald }: {
   f: Ramma
@@ -2779,7 +2950,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -2816,6 +2987,13 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   onTaPunkt: (id: number, i: number) => void
   /** hjørne eller boge — sjå `Plan.runde` */
   onVriPunkt: (id: number, i: number) => void
+  /** montasjen: delane med dei to plassane sine. Null når reiskapen er av. */
+  mont: Montasje | null
+  /** kvar i animasjonen vi er, og om han spelar. Refar — sjå `Montasjen`. */
+  montT: MutableRefObject<number>
+  montSpel: MutableRefObject<boolean>
+  montVakn: MutableRefObject<(() => void) | null>
+  onMontSteg: (s: number) => void
   /** punktet handa held i, som plass i omrisset */
   valdPunkt: number | null
   onValdPunkt: (i: number | null) => void
@@ -2861,10 +3039,18 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
    * mot han, og eit plan på 0,5 skal stå midt i kroppen slik han er no, ikkje
    * slik han var. Det er berre synet som står.
    */
-  const fRaa = useMemo(() => ramma(kropp ?? lag), [kropp, lag])
+  const fRaa = useMemo(() => ramma(kropp ?? lag, mont?.boks), [kropp, lag, mont])
   const syn = useRef<{ cx: number; cy: number; s: number; fit: Fit } | null>(null)
   const synN = useRef<string>("")
-  const synNokkel = `${sikt.n}|${rammInn}`
+  /**
+   * OG MONTASJEN ER EI OMFRAMMING NOKON BAD OM.
+   *
+   * Synet er ei avgjerd og står fryst til nokon spør (sjå over). Å opne
+   * montasjen ER å spørje: du bad om å sjå heile animasjonen, og han er
+   * større enn kroppen. Kameraet står — det er skalaen som byter — so du
+   * ser det same objektet frå den same vinkelen, berre mindre.
+   */
+  const synNokkel = `${sikt.n}|${rammInn}|${mont ? `${mont.boks.min.join(",")}/${mont.boks.max.join(",")}` : ""}`
   if (fRaa && (!syn.current || synN.current !== synNokkel)) {
     synN.current = synNokkel
     syn.current = { cx: fRaa.cx, cy: fRaa.cy, s: fRaa.s, fit: fRaa.fit }
@@ -2921,6 +3107,20 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <directionalLight position={[2, 1.5, 7]} intensity={0.35} />
         <directionalLight position={[0.5, -3, 2]} intensity={0.3} />
         <group position={[0, GROUND_Y, 0]}>
+          {/*
+            MONTASJEN STÅR I STADEN FOR ALT DETTE, og ikkje oppå det.
+
+            Det er dei same delane: to utgåver av dei same delane i eitt
+            bilete er eit objekt du ikkje kan lese. Og alt det andre her —
+            snittet, ledda, streka, omrisset, boksane — høyrer til å ENDRE
+            kroppen. Montasjen endrar ingenting; han syner deg kva du skal
+            gjere med hendene. Eit snitt gjennom eit objekt som er halvvegs
+            teke frå kvarandre er ei line utan noko på den andre sida.
+          */}
+          {f && mont ? (
+            <Montasjen f={f} mont={mont} T={montT} spel={montSpel} vakn={montVakn} material={material} onSteg={onMontSteg} />
+          ) : (
+          <>
           {f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} skal={skal} material={material} liste={liste} vald={vald} gruppe={gruppe} plan={plan} blink={blink} sein={sein} onVald={onVald} />}
           {f && modus === "bit" && bitar.length > 0 && <Bitboksar f={f} bitar={bitar} vald={valdBit} />}
         <Sidehandtak f={f} boks={sider} boks3={modus === "bit" && valdBit !== null ? (bitar[valdBit] ?? null) : null} onSide={onBitSide} onGest={onGest} />
@@ -2956,6 +3156,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
               onValdPunkt={onValdPunkt}
             />
           ) : null}
+          </>
+          )}
           <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[60, 60]} />
             <shadowMaterial transparent opacity={0.24} />

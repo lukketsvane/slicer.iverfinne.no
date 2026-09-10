@@ -431,11 +431,23 @@ input {
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  gap: 10px;
+  /* Fire og ikkje ti. Knappane er 48 px og treffeflata deira er heile
+     knappen, so lufta mellom dei er berre luft — og med ni reiskapar i
+     spalta er seks piksel per mellomrom fem og førti piksel som avgjer om
+     stabelen når opp i synskuben eller ikkje. Under fire ville dei byrja
+     å sjå ut som éin lang knapp. */
+  gap: 4px;
   pointer-events: none;
 }
 .tumme > * {
   pointer-events: auto;
+  /* OG DEI KRYMPAR IKKJE. Bandet er kortare enn stabelen når arket står
+     heilt ope, og flex svara på det med å klemme knappane ned — målt til
+     16 px høge, med treffesoner som låg oppå kvarandre. Ein knapp har ein
+     storleik av di ein tommel har det. Får dei ikkje plass, legg dei seg
+     nedover i staden: dei ligg over arket (15 mot 10), og då er dei
+     stygge, men dei er der og dei er 48 px. */
+  flex: none;
 }
 .tumme > :first-child {
   margin-top: auto;

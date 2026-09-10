@@ -17,6 +17,7 @@ import { flatDelar, flateMesh, lagDelar, lagMesh, type DelMesh } from "./mesh"
 import { measure } from "./metrics"
 import { checkRules } from "./rules"
 import { makeBygg } from "./bygg"
+import { montasjen, type Montasje } from "./montasje"
 import { fitSize, strokesAt } from "./stroke"
 import { placedRings } from "./nest"
 import { apply } from "./pack"
@@ -46,6 +47,11 @@ export type EngineDef = {
   liste(p: ParamBag): Kutt[]
   /** éi plate slik ho ligg, som SVG — den same teikninga uttaket gjev */
   arkSyn(p: ParamBag, i: number): ArkSyn
+  /**
+   * MONTASJEN: dei same delane som kuttlista, kvar med nettet sitt, dei to
+   * plassane sine — på plata og i objektet — og kva runde han kjem i.
+   */
+  montasje(p: ParamBag): Montasje
   /** skissa snitta før ho er låst: profilen og kryssa mot dei låste plana */
   skisse(p: ParamBag, plan: Plan): SkisseSyn
 }
@@ -356,6 +362,13 @@ export const MOTOR: EngineDef = {
       delar: sheet.placed.length,
       util: skore > 0 ? flate / skore : 0,
     }
+  },
+
+  /** montasjen: kvar kvar del ligg, kvar han skal, og kva runde han kjem i */
+  montasje(bag: ParamBag): Montasje {
+    const p = asP(bag)
+    const b = makeBygg(p, DETAIL.mid)
+    return montasjen(b.s, b.dl.delar, b.ns, p.tjukn, b.k.solid.min, b.k.solid.max)
   },
 
   skisse(bag: ParamBag, plan: Plan): SkisseSyn {

@@ -51,6 +51,14 @@ const roleg = async (page: Page, ms = 500) => {
   await ferdig(page)
   await page.waitForTimeout(ms)
 }
+/** vent på noko som må lesast av SIDA og ikkje av posen — ei line, eit merke */
+const vent2 = async (page: Page, f: () => Promise<boolean>, ms = 8000) => {
+  const t0 = Date.now()
+  while (Date.now() - t0 < ms) {
+    if (await f()) return
+    await page.waitForTimeout(100)
+  }
+}
 /** lenkja vert skriven litt etter handlinga; vent på at posen seier det ho skal */
 const vent = async (page: Page, f: (p: Params) => boolean, ms = 10000) => {
   const t0 = Date.now()
@@ -2485,31 +2493,55 @@ async function boyen(browser: Browser) {
   }
 
   /**
-   * OG HEILE TOMMELSPALTA STÅR PÅ SKJERMEN.
+   * OG HEILE TOMMELSPALTA STÅR PÅ SKJERMEN — OG UNDER SYNSKUBEN.
    *
    * Med eit plan valt og arket ope er ho på sitt lengste og bandet på sitt
-   * kortaste — rutenett, virvel, dubler, hòl, form, bøy, slett, kropp — so
-   * det er her ho ryk om ho skal ryke. Ein reiskap utanfor ruta er ein
-   * reiskap som ikkje finst, og det HAR hendt: stabelen gjekk 156 pikslar
-   * over topplina før spalta vart eit band. Prøva står her, av di ho må stå
-   * ein stad der nokon oppdagar det neste gongen ein knapp kjem til.
+   * kortaste — rutenett, montasje, virvel, dubler, hòl, form, bøy, slett,
+   * kropp — so det er her ho ryk om ho skal ryke.
+   *
+   * TO TING VERT KREVDE. Ein reiskap utanfor ruta er ein reiskap som ikkje
+   * finst, og det HAR hendt: stabelen gjekk 156 pikslar over topplina før
+   * spalta vart eit band. Og dei to spaltene står i den SAME kanten —
+   * synskuben med låsen, innramminga og lupa øvst, reiskapane nedst — so ein
+   * stabel som rekk opp i han legg seg over innrammingsknappen. Det HAR
+   * hendt òg: elleve knappar, og eit trykk på innramminga gjekk til
+   * rutenettet. Difor spør prøva DOM-en kva som faktisk ligg øvst midt på
+   * innrammingsknappen, og ikkje berre kva tala seier.
    */
-  const spalta = await page.evaluate(() => {
-    const h = document.querySelector("header")?.getBoundingClientRect().bottom ?? 0
-    const alle = [...document.querySelectorAll<HTMLElement>(".tumme button")]
-    const ute: string[] = []
-    for (const b of alle) {
-      const r = b.getBoundingClientRect()
+  const spalta = await page.evaluate(`(function () {
+    function bb(e) { return e.getBoundingClientRect() }
+    var h = document.querySelector("header") ? bb(document.querySelector("header")).bottom : 0
+    var kube = document.querySelector(".synskube")
+    var k = kube ? bb(kube) : null
+    var alle = document.querySelectorAll(".tumme button")
+    var ute = []
+    var over = []
+    var smaa = []
+    for (var i = 0; i < alle.length; i++) {
+      var r = bb(alle[i])
+      var namn = alle[i].getAttribute("aria-label")
       if (r.width === 0 || r.height === 0) continue
-      if (r.top < h - 1 || r.bottom > innerHeight + 1 || r.left < 0 || r.right > innerWidth + 1) ute.push(`${b.getAttribute("aria-label")} ${Math.round(r.top)}..${Math.round(r.bottom)}`)
+      if (r.top < h - 1 || r.bottom > innerHeight + 1 || r.left < 0 || r.right > innerWidth + 1) ute.push(namn + " " + Math.round(r.top) + ".." + Math.round(r.bottom))
+      if (k && r.top < k.bottom && r.bottom > k.top && r.left < k.right && r.right > k.left) over.push(namn)
+      if (Math.min(r.width, r.height) < 44) smaa.push(namn + " " + Math.round(r.height))
     }
-    return { ute, n: alle.length, topp: Math.round(h), H: innerHeight }
-  })
+    var heim = document.querySelector("[data-heim]")
+    var tek = "-"
+    if (heim) {
+      var q = bb(heim)
+      var e = document.elementFromPoint((q.left + q.right) / 2, (q.top + q.bottom) / 2)
+      tek = e ? (e.closest("[data-heim]") ? "innramminga" : (e.getAttribute("aria-label") || e.tagName)) : "-"
+    }
+    return { ute: ute, over: over, smaa: smaa, n: alle.length, topp: Math.round(h), H: innerHeight, tek: tek }
+  })()`) as { ute: string[]; over: string[]; smaa: string[]; n: number; topp: number; H: number; tek: string }
   sjekk(
     "og heile tommelspalta står på skjermen, under topplina",
-    spalta.ute.length === 0 && spalta.n >= 8,
+    spalta.ute.length === 0 && spalta.n >= 9,
     `${spalta.n} knappar mellom ${spalta.topp} og ${spalta.H} px${spalta.ute.length ? " · " + spalta.ute.slice(0, 3).join(" · ") : ""}`,
   )
+  sjekk("og ingen av dei legg seg over synskuben", spalta.over.length === 0, spalta.over.slice(0, 3).join(" · "))
+  sjekk("so innrammingsknappen tek sitt eige trykk", spalta.tek === "innramminga", spalta.tek)
+  sjekk("og ingen reiskap er klemt under 44 px", spalta.smaa.length === 0, spalta.smaa.slice(0, 3).join(" · "))
 
   /**
    * MJUKINGA. Ho står under den same tommelen som bøyen — i arket — og går
@@ -2946,11 +2978,118 @@ async function forma(browser: Browser) {
   await page.close()
 }
 
+/**
+ * MONTASJEN — KROPPEN SOM REISER SEG AV PLATENE SINE.
+ *
+ * Rekninga står i `lib/montasje.ts` og vert prøvd i `pnpm probe`: der vert
+ * dei to matrisene gonga med delen sitt eige nett og samanlikna med dei to
+ * netta motoren skriv til filene, punkt for punkt. Det treng ingen
+ * nettlesar, og det er den prøva som held geometrien ærleg.
+ *
+ * HER ER DET RØRSLA. At delane FAKTISK flyttar seg, at dei kjem fram i
+ * rekkjefylgje, at animasjonen står stille når han er ferdig — og at
+ * fingeren kan stoppe han midt i og stå der. Ingen av dei fire let seg
+ * lesa av eit tal i lenkja: dei skjer berre på skjermen.
+ */
+async function montasjen(browser: Browser) {
+  console.log("\n=== montasjen")
+  // eit rutenett med to retningar: to steg, og tre ribber i kvart
+  const bag = { plan: skrivPlan(rutenett(3, 3)), storleik: 150, tjukn: 6 }
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
+  const kn = page.locator(".tumme [data-montasje]")
+  /**
+   * LESINGA OVER OBJEKTET — og `count()` FØR `textContent()`.
+   *
+   * Ein locator som ikkje råkar noko ventar heile standardtimeouten sin før
+   * han gjev opp: to slike kall er seksti sekund i ein del som elles tek
+   * ti. Her er «ingenting» eit gyldig svar — verktyet er av — so
+   * spørsmålet må vera «finst han?» og ikkje «kva står det i han?».
+   */
+  const lesing = async () => {
+    const e = page.locator("[data-lesing] .tab").first()
+    return (await e.count()) ? ((await e.textContent()) ?? "").trim() : ""
+  }
+  sjekk("montasjen står i tommelspalta", (await kn.count()) === 1 && (await kn.getAttribute("aria-pressed")) === "false")
+  sjekk("og han er av til nokon trykkjer", (await lesing()) === "")
+
+  await kn.click()
+  await vent2(page, async () => /^steg /.test(await lesing()), 8000)
+  const opna = await lesing()
+  sjekk("eit trykk opnar han, og lina seier kva steg vi er på", /^steg 1\/2 · 3$/.test(opna), opna)
+  /**
+   * OG SKJER STÅR IKKJE HER. Montasjen endrar ingenting — det finst inga
+   * skisse å skjere — og ein stor knapp som ikkje gjer noko er verre enn
+   * ingen knapp.
+   */
+  sjekk("og skjer-knappen er borte medan han står på", (await page.getByRole("button", { name: "skjer", exact: true }).count()) === 0)
+
+  /**
+   * HAN SPELAR AV SEG SJØLV. Du opna reiskapen for å SJÅ montasjen, og eit
+   * objekt som står stille i utgangsstillinga si seier ingenting.
+   */
+  const klipp = { x: 20, y: 120, width: 350, height: 560 }
+  const bilete = async () => (await page.screenshot({ clip: klipp })).length
+  const tidleg = await bilete()
+  await vent2(page, async () => (await lesing()).startsWith("steg 2/"), 8000)
+  const andre = await lesing()
+  sjekk("han spelar av seg sjølv, og steg 2 kjem etter steg 1", andre.startsWith("steg 2/2"), andre)
+  await page.waitForTimeout(1600)
+  const ferdig = await bilete()
+  sjekk("og delane har faktisk flytt seg", Math.abs(ferdig - tidleg) > 200, `${tidleg} B → ${ferdig} B`)
+  /**
+   * OG SO STÅR HAN. Ein animasjon som aldri vert ferdig er ein animasjon du
+   * ikkje kan sjå PÅ — og i eit lerret som teiknar på oppmoding er han
+   * dessutan eit bilete i sekundet for alltid.
+   */
+  await page.waitForTimeout(700)
+  const staar = await bilete()
+  sjekk("og so står han stille: animasjonen er ferdig", Math.abs(staar - ferdig) < 200, `${ferdig} B → ${staar} B`)
+
+  /**
+   * EIT DRAG NED TEK DEG ATTENDE. Den vegen delane kom frå, og du skal
+   * kunne STÅ der: ein animasjon du ikkje kan stoppe midt i er ein
+   * animasjon du må sjå fire gonger.
+   */
+  const kb = await kn.boundingBox()
+  if (kb) {
+    const cx = kb.x + kb.width / 2
+    const cy = kb.y + kb.height / 2
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    await page.mouse.move(cx, cy + 200, { steps: 14 })
+    await page.mouse.up()
+    await page.waitForTimeout(500)
+    const dregen = await lesing()
+    sjekk("eit drag ned tek deg attende til fyrste steget", dregen.startsWith("steg 1/2"), dregen)
+    const attende = await bilete()
+    sjekk("og biletet er eit anna enn det ferdige", Math.abs(attende - ferdig) > 200, `${ferdig} B → ${attende} B`)
+    await page.waitForTimeout(700)
+    const staaOgso = await bilete()
+    sjekk("og han vert STÅANDE der fingeren slapp han", Math.abs(staaOgso - attende) < 200, `${attende} B → ${staaOgso} B`)
+  }
+
+  // eit trykk til slepper han, og kroppen står som han stod
+  await kn.click()
+  await roleg(page, 700)
+  sjekk("eit trykk til slepper verktyet", (await kn.getAttribute("aria-pressed")) === "false" && (await lesing()) === "")
+  sjekk("og skjer er attende", (await page.getByRole("button", { name: "skjer", exact: true }).count()) === 1)
+  // og tasten gjer det same, for benken
+  await page.keyboard.press("m")
+  await vent2(page, async () => /^steg /.test(await lesing()), 8000)
+  sjekk("og M gjer det same frå tastaturet", (await kn.getAttribute("aria-pressed")) === "true")
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(400)
+  sjekk("og escape slepper han, som han slepper alt anna", (await kn.getAttribute("aria-pressed")) === "false")
+  sjekk("ingen konsollfeil i montasjen", konsoll.length === 0, konsoll.slice(0, 2).join(" · "))
+  await page.close()
+}
+
 const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["telefon", telefon],
   ["reglar", reglar],
   ["symmetri", symmetri],
   ["virvelen", virvelen],
+  ["montasjen", montasjen],
   ["handtaka", handtaka],
   ["andrefingeren", andreFingeren],
   ["boyen", boyen],

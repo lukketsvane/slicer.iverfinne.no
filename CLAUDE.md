@@ -92,6 +92,12 @@ still cut flat, and the radius is limited by what the material takes. Bent
 planes do not carry joints yet — two bent surfaces cross along a curve, and
 that finder is not written; a hard rule says so.
 
+`lib/montasje.ts` is the way from the plate to the object: one mesh per part in
+its own flat frame plus two rigid matrices — where it lies on the plate, where
+it stands in the body — and the engine's own assembly order grouped into steps.
+It computes no order of its own; that would be a second truth about assembly,
+and `montering.txt` is already in the box.
+
 Read `README.md` and `REBUILD.md` before changing behaviour. The decisions in
 them are decisions, not accidents — the phone is the tool, a sketched plane is
 invisible until locked, a locked plane stays where you put it, the view is a
@@ -101,8 +107,9 @@ colour is the operation and carries the order, kerf is taken exactly once,
 slots are cut in the field and not in the polygon, a plane that carries an
 outline takes its profile from that outline and not from the body, an outline
 curve goes through its points and never has control arms, the view flattens to
-2° when you look straight down an axis and never gets a second camera, two
-fingers do all three gestures at once and never pick one for you, and there are
+2° when you look straight down an axis and never gets a second camera, the
+montage never computes an assembly order of its own — it groups the engine's —
+two fingers do all three gestures at once and never pick one for you, and there are
 two colours and no more.
 
 ## Verify with the harnesses, not by eye
@@ -126,6 +133,7 @@ pnpm tung     # a million triangles in, and how long that takes
 pnpm ark      # cut sheets as images
 pnpm look     # screenshots of the page, and any console errors
 pnpm panel    # the controls in a real browser: both surfaces, gestures, keys
+pnpm panel montasjen  # the montage: it plays, it stops, and a finger can hold it mid-way
 pnpm panel boyen   # ONE section of it — the full run is 3.5 minutes, one part is seconds
 ```
 
