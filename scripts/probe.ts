@@ -17,6 +17,11 @@ import { feltTal, klokke, lesTal, snap, type ParamBag } from "../lib/core"
 import { PARAM_RANGES } from "../lib/params"
 import { lesPlan, rutenett, skrivPlan, virvel } from "../lib/plan"
 import { makeKropp } from "../lib/kropp"
+import { makeBygg } from "../lib/bygg"
+import { DETAIL } from "../lib/snitt"
+import { flatDelar, lagDelar } from "../lib/mesh"
+import { STABEL_LUFT } from "../lib/montasje"
+import { placedRings } from "../lib/nest"
 import { FILFORMER } from "../lib/scene"
 import { KUBE } from "../lib/sources"
 import { existsSync, readFileSync } from "node:fs"
@@ -723,6 +728,142 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   const null0 = MOTOR.measure({ ...grunn, plan: skrivPlan(lesPlan(grunn.plan).map((q) => ({ ...q, bog: 0 }))) } as unknown as ParamBag)
   if (flat.cutLen !== null0.cutLen || flat.parts !== null0.parts) bryt("bog 0 gjev eit anna svar enn ingen bog")
   else console.log(`  bog 0 er det same som ingen bog: ${nn(flat.cutLen, 0)} mm kutt`)
+}
+
+/**
+ * MONTASJEN — vegen frå plata til objektet.
+ *
+ * Heile reiskapen kviler på éin påstand: at ein del ligg på plata og står i
+ * objektet som DET SAME nettet, flytt stivt. Held han, treng montasjen
+ * berre eitt nett og to matriser, og alt imellom er ei interpolering. Held
+ * han ikkje, er animasjonen ei løgn om ein del som ikkje passar.
+ *
+ * So prøva reknar det ut: ho tek delen sitt eige nett, gonger det med kvar
+ * av dei to matrisene, og krev at svaret er NØYAKTIG dei to nettverka
+ * motoren byggjer kvar for seg — det same GLB-en og den flate GLB-en er.
+ */
+{
+  console.log("\n=== montasjen ===")
+  const bag = { ...GRUNN, storleik: 300, tjukn: 6 } as unknown as ParamBag
+  const m = MOTOR.montasje(bag)
+  const b = makeBygg(bag as unknown as Params, DETAIL.mid)
+  const staaende = new Map(lagDelar(b.s, b.dl.delar, 6).map((d) => [d.adr, d.positions]))
+  /**
+   * DEN FLATE FASITEN, FLYTT INN I STABELEN.
+   *
+   * `flatDelar` sprer platene bortover x — det er ei fil du ser gjennom.
+   * Montasjen legg dei i stabel midt under kroppen, av di det er benken.
+   * Skilnaden er eit kjent skuv per plate og ingenting anna, so fasiten er
+   * framleis den same geometrien motoren skriv til fila: er ho det ikkje,
+   * ligg delen ein annan stad på plata enn der laseren skjer han.
+   */
+  const bk = b.k.solid
+  // det same «brukt»-området montasjen sentrerer stabelen på
+  const brukt = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity }
+  for (const sh of b.ns.sheets) {
+    for (const q of sh.placed) {
+      for (const pt of placedRings(q).outline) {
+        brukt.x0 = Math.min(brukt.x0, pt[0])
+        brukt.y0 = Math.min(brukt.y0, pt[1])
+        brukt.x1 = Math.max(brukt.x1, pt[0])
+        brukt.y1 = Math.max(brukt.y1, pt[1])
+      }
+    }
+  }
+  const liggjande = new Map(
+    flatDelar(b.ns, 6).flatMap((g) =>
+      g.delar.map((d) => {
+        const i = g.ark - 1
+        const skuv: [number, number, number] = [
+          -i * b.ns.sheetW * 1.1 + (bk.min[0] + bk.max[0]) / 2 - (brukt.x0 + brukt.x1) / 2,
+          (bk.min[1] + bk.max[1]) / 2 - (brukt.y0 + brukt.y1) / 2,
+          bk.min[2] + i * 6 * STABEL_LUFT,
+        ]
+        const q = new Float32Array(d.positions.length)
+        for (let j = 0; j < q.length; j++) q[j] = d.positions[j] + skuv[j % 3]
+        return [d.adr, q] as const
+      }),
+    ),
+  )
+  const liste = MOTOR.liste(bag)
+  if (m.delar.length !== liste.length) bryt(`montasjen har ${m.delar.length} delar, kuttlista ${liste.length}`)
+  else console.log(`  ${m.delar.length} delar, ${m.steg} steg, ${new Set(m.delar.map((d) => d.ark)).size} plate(r)`)
+
+  /** eit punkt gjennom ei 4×4 i kolonnerekkjefylgje */
+  const gjennom = (M: Float32Array, x: number, y: number, z: number) => [
+    M[0] * x + M[4] * y + M[8] * z + M[12],
+    M[1] * x + M[5] * y + M[9] * z + M[13],
+    M[2] * x + M[6] * y + M[10] * z + M[14],
+  ]
+  /** determinanten til dei tre fyrste kolonnene: +1 er ei ekte rotasjon */
+  const det = (M: Float32Array) =>
+    M[0] * (M[5] * M[10] - M[6] * M[9]) - M[4] * (M[1] * M[10] - M[2] * M[9]) + M[8] * (M[1] * M[6] - M[2] * M[5])
+  let verst = 0
+  let skeiv = 0
+  for (const d of m.delar) {
+    // ingen spegling og inga skalering: elles er «flytt stivt» ikkje sant,
+    // og ein del som er spegla er ein del som ikkje passar i hòlet sitt
+    if (Math.abs(det(d.ferdig) - 1) > 1e-4 || Math.abs(det(d.flat) - 1) > 1e-4) skeiv++
+    for (const [M, fasit] of [[d.ferdig, staaende.get(d.adr)], [d.flat, liggjande.get(d.adr)]] as const) {
+      if (!fasit || fasit.length !== d.positions.length) {
+        bryt(`${d.adr}: nettet er ${d.positions.length / 3} punkt, fasiten ${(fasit?.length ?? 0) / 3}`)
+        break
+      }
+      for (let i = 0; i < d.positions.length; i += 3) {
+        const q = gjennom(M, d.positions[i], d.positions[i + 1], d.positions[i + 2])
+        for (let k = 0; k < 3; k++) verst = Math.max(verst, Math.abs(q[k] - fasit[i + k]))
+      }
+    }
+  }
+  if (skeiv) bryt(`${skeiv} delar er spegla eller skalerte av matrisa si`)
+  // ein tidel av ein mikrometer: dette er den same rekninga gjord to gonger,
+  // so avviket er float32 og ikkje geometri
+  if (verst > 1e-3) bryt(`matrisene bommar med ${verst.toExponential(1)} mm på nettet motoren byggjer`)
+  else console.log(`  matrisene råkar begge netta: verste avvik ${verst.toExponential(1)} mm, alle stive`)
+
+  /**
+   * OG STEGA ER RETNINGANE. Eit rutenett er to gjengar ribber som ikkje
+   * kryssar sine eigne: to steg, kva veg du enn snur det. Ein virvel har
+   * inga to parallelle ribber, og då er kvar ribbe sitt eige steg — som er
+   * sant om ein virvel: han vert bygd éi om gongen.
+   */
+  for (const [nx, ny, vent] of [[6, 6, 2], [4, 0, 1]] as const) {
+    const g = MOTOR.montasje({ ...GRUNN, plan: nett(nx, ny) } as unknown as ParamBag)
+    if (g.steg !== vent) bryt(`rutenett ${nx}×${ny}: ${g.steg} steg, venta ${vent}`)
+    else console.log(`  rutenett ${nx}×${ny}: ${g.steg} steg`)
+  }
+  /**
+   * OG STEGA MOTSEIER ALDRI `montering.txt`.
+   *
+   * Rekkjefylgja delane KAN monterast i er motoren si — han reknar henne av
+   * ledda, hardregelen «kan monterast» vaktar henne, og ho ligg i eska som
+   * `montering.txt`. Montasjen reknar ikkje ei ny: han klumpar hennar i
+   * retningar. So går ein gjennom ordenen frå ende til annan, skal steget
+   * aldri gå NEDOVER — gjer det det, syner animasjonen ei anna montering
+   * enn arket, og då er det animasjonen som lyg.
+   */
+  const orden = b.s.montering.orden
+  const plan2steg = new Map<number, number>()
+  for (const d of b.dl.delar) {
+    const md = m.delar.find((q) => q.adr === d.adr)
+    if (md) plan2steg.set(d.plan, md.steg)
+  }
+  let fall = 0
+  let foerre = -1
+  for (const id of orden) {
+    const st = plan2steg.get(id)
+    if (st === undefined) continue
+    if (st < foerre) fall++
+    foerre = st
+  }
+  if (fall) bryt(`${fall} stader går steget nedover i monteringsordenen`)
+  else console.log(`  og stega fylgjer montering.txt: ${orden.length} plan, aldri eit steg attende`)
+
+  const v = { ...DEFAULT_PARAMS, plan: skrivPlan(virvel(9, 0.3, [1, 1])) } as unknown as ParamBag
+  const vm = MOTOR.montasje(v)
+  const vplan = new Set(vm.delar.map((d) => d.steg)).size
+  if (vplan !== 9) bryt(`virvel med 9 ribber: ${vplan} steg`)
+  else console.log(`  virvel med 9 ribber: ${vplan} steg — éi om gongen`)
 }
 
 console.log(brot ? `\n${brot} påstandar held ikkje` : "\nalle påstandar held")

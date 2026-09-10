@@ -138,6 +138,15 @@ const ikon = (d: string, k = "h-4 w-4") => (
 /** verktyet for rutenettet: kolonner og rader */
 export const IcoRute = ikon("M3 3h18v18H3z|M9 3v18|M15 3v18|M3 9h18|M3 15h18")
 /**
+ * VERKTYET FOR MONTASJEN: tre plater som lyfter seg av ein stabel.
+ *
+ * Ikkje ein pilknapp og ikkje ei klokke — dei ville sagt «spel», og det er
+ * ikkje kva reiskapen er. Han er kroppen som reiser seg av platene sine, og
+ * det er det biletet seier: nedst ligg stabelen, over han står to plater
+ * på veg opp, kvar sitt hakk.
+ */
+export const IcoMontasje = ikon("M3 20h18|M6 15.5h12|M8.5 11h7|M11 6.5h2")
+/**
  * VERKTYET FOR VIRVELEN: ribber kring ein akse, og INGEN gjennom han.
  *
  * Same språket som rutenettet: ringen er kva han står i, og linene inni er

@@ -14,6 +14,7 @@ import { unzip } from "./zip"
 import type { Plan } from "./plan"
 import { lesScene } from "./scene"
 import type { SkisseSyn } from "./snitt"
+import type { Montasje } from "./montasje"
 import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rom, Rule, Vec3 } from "./core"
 
 export type BuildReq = { kind: "build"; id: number; params: ParamBag; detail: DetailKey; view: Rom }
@@ -34,7 +35,9 @@ export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number 
 /** «snitt skissa for meg»: profilen gjennom kroppen og kryssa mot dei låste
  *  plana, medan du siktar. Ein straum av punkt; berre det siste tel. */
 export type SkisseReq = { kind: "skisse"; id: number; params: ParamBag; plan: Plan }
-export type Req = BuildReq | ExportReq | ImportReq | ArkReq | SkisseReq
+/** «rekn montasjen for meg»: kvar kvar del ligg, kvar han skal, og i kva runde */
+export type MontReq = { kind: "montasje"; id: number; params: ParamBag }
+export type Req = BuildReq | ExportReq | ImportReq | ArkReq | SkisseReq | MontReq
 
 export type BuildRes = {
   kind: "build"
@@ -59,6 +62,7 @@ export type KjeldeRes = { kind: "kjelde"; id: number; src: SourceInfo }
 /** ei prosjektfil som er opna: nettet OG innstillingane som låg med det */
 export type ProsjektRes = { kind: "prosjekt"; id: number; src: SourceInfo | null; params: ParamBag }
 export type ArkRes = { kind: "ark"; id: number } & ArkSyn
+export type MontRes = { kind: "montasje"; id: number } & Montasje
 export type SkisseRes = { kind: "skisse"; id: number } & SkisseSyn
 /** Noko som kasta. Svaret finst av éin grunn: porten på hovudtråden slepp
  *  ikkje neste førespurnad før den førre er svara, og eit unntak utan svar
@@ -69,6 +73,7 @@ export type Res =
   | MaalRes
   | ExportRes
   | ArkRes
+  | MontRes
   | SkisseRes
   | ProsjektRes
   | KjeldeRes
@@ -180,6 +185,20 @@ self.onmessage = (e: MessageEvent<Req>) => {
 
     if (req.kind === "ark") {
       post({ kind: "ark", id: req.id, ...MOTOR.arkSyn(req.params, req.sheet) })
+      return
+    }
+
+    if (req.kind === "montasje") {
+      // Utanom porten, som plata og skissa: montasjen er noko du ber om når
+      // du opnar reiskapen, og han skal ikkje stå i kø bak eit bygg.
+      const m = MOTOR.montasje(req.params)
+      const transfer: Transferable[] = []
+      for (const d of m.delar) {
+        for (const a of [d.positions, d.ferdig, d.flat, d.boygd]) {
+          if (a?.byteLength && !transfer.includes(a.buffer)) transfer.push(a.buffer)
+        }
+      }
+      post({ kind: "montasje", id: req.id, ...m }, transfer)
       return
     }
 

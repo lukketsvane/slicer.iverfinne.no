@@ -283,5 +283,32 @@ if (halv && siste && halv !== siste && siste.n === halv.n * 2) {
   console.log(`  gest: ${Math.min(...tider)}–${Math.max(...tider)} ms per bilete, tre bitar`)
 }
 
+/**
+ * OG MONTASJEN VED TAKET.
+ *
+ * Han byggjer eit nett per DEL og ikkje eitt for heile stabelen, so han er
+ * den eine rekninga som veks med kor mange delar du har og ikkje med kor
+ * fint nettet er. Med plantaket fullt er det verste tilfellet, og det er
+ * eit tal verdt å ha skrive ned: reiskapen vert spurd når du opnar han, og
+ * ein reiskap som brukar fleire sekund på å opne seg er ein reiskap du
+ * trur er broten.
+ */
+{
+  console.log("\n=== montasjen ved taket ===")
+  const plan = skrivPlan(rutenett(PLAN_TAK / 2, PLAN_TAK / 2))
+  const bag = { ...GRUNN, plan } as unknown as ParamBag
+  // bygget fyrst, so tida er montasjen og ikkje snittinga: appen har alt
+  // bygd kroppen når du trykkjer på knappen
+  MOTOR.liste(bag)
+  const t0 = Date.now()
+  const m = MOTOR.montasje(bag)
+  const ms = Date.now() - t0
+  ok(
+    `${PLAN_TAK} plan: montasjen kjem på under eit halvt sekund`,
+    ms < 500 && m.delar.length > 0,
+    `${ms} ms, ${m.delar.length} delar, ${m.steg} steg`,
+  )
+}
+
 console.log(brot ? `\n${brot} brot på taket` : "\ntaket held")
 process.exit(brot ? 1 : 0)

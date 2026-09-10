@@ -13,9 +13,10 @@ import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, 
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
+import type { Montasje } from "@/lib/montasje"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoRute, IcoSkjer, IcoSlett, IcoVirvel } from "./deler"
+import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett, IcoVirvel } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -88,6 +89,15 @@ const RUTE_STEG = 44
 const klemBit = (v: number) => Math.min(BIT_MAX, Math.max(BIT_MIN, v))
 /** kor mykje bøy éin piksel drag er verd: hundre pikslar er ein halv bøy */
 const BOY_STEG = 0.005
+/**
+ * MONTASJEN: kor mange pikslar eit heilt steg er når du dreg i knappen.
+ *
+ * Hundre og seksti — lenger enn ein tommel går utan å flytte handa, med
+ * vilje: du skal kunne stoppe MIDT i eit steg og sjå kva som går kvar.
+ * Ein knapp der heile animasjonen gjekk på tjue pikslar ville vore ein
+ * brytar mellom flatt og ferdig, og det er ikkje det same som å sjå.
+ */
+const MONT_STEG_PX = 160
 /** kor lenge grensesnittet står framme etter siste rørsle, i millisekund */
 const SOV_MS = 2000
 /** eit steg i virvelen: so langt fingrane går for éi ribbe til, og for eit hakk ut frå aksen */
@@ -279,6 +289,25 @@ export function Studio() {
   const [ruteTal, setRuteTal] = useState<[number, number] | null>(null)
   /** ribber og avstand, medan fingrane set dei: lesinga over kroppen */
   const [virvelTal, setVirvelTal] = useState<[number, number] | null>(null)
+  /**
+   * MONTASJEN: delane med dei to plassane sine, og kvar i animasjonen vi er.
+   *
+   * Sjølve talet står i ein REF og ikkje i tilstanden. Det endrar seg kvart
+   * bilete medan animasjonen går, og ei React-teikning per bilete er seksti
+   * teikningar i sekundet av eit tre som ikkje har endra seg. Scena les
+   * refen i si eiga lykkje; det einaste som kjem attende hit er kva STEG vi
+   * er på, og det byter eit par gonger i heile animasjonen.
+   */
+  const [mont, setMont] = useState<Montasje | null>(null)
+  const montT = useRef(0)
+  const montSpel = useRef(false)
+  const [montSteg, setMontSteg] = useState(1)
+  /** draget i montasjeknappen: kvar fingeren sist stod, og kvar han landa */
+  const montDra = useRef<number | null>(null)
+  const montNed = useRef<number | null>(null)
+  /** scena teiknar på oppmoding: her legg ho vekkjaren sin, so eit drag i
+   *  knappen får eit bilete ut av henne */
+  const montVakn = useRef<(() => void) | null>(null)
   const [busy, setBusy] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
   const [melding, setMelding] = useState<string | null>(null)
@@ -286,6 +315,19 @@ export function Studio() {
   const [drag, setDrag] = useState(false)
   const [arkH, setArkH] = useState(0)
   const [toppH, setToppH] = useState(44)
+  /**
+   * NEDSTE KANTEN AV SYNSKUBEN, MÅLT.
+   *
+   * Dei to spaltene står i den same kanten av skjermen: synskuben med
+   * låsen, innramminga og lupa øvst, reiskapane nedst. Bandet reiskapane
+   * bur i vart klemt mot TOPPLINA, og det er ei line for høgt — ein stabel
+   * som er lang nok legg seg over synskuben, og då er det reiskapen som tek
+   * trykket du meinte for innramminga.
+   *
+   * Målt og ikkje talfesta: kuben er scena sin og kan endre seg, og eit
+   * tal skrive to stader er to tal som fyrr eller seinare skil lag.
+   */
+  const [kubeBotn, setKubeBotn] = useState(0)
   /** gestmodusen: «form» er dei gamle gestane på objektet, «skisse» er gestane på planet */
   const [modus, setModus] = useState<Modus>("form")
   /** kor mange millimeter virr du har lagt på gruppa du står i, denne økta */
@@ -588,6 +630,19 @@ export function Studio() {
         void kind
         void id
         setArk(plata)
+        return
+      }
+      if (r.kind === "montasje") {
+        const { kind, id, ...m } = r
+        void kind
+        void id
+        // Ein ny montasje er ei ny liste delar, so animasjonen byrjar på
+        // golvet — og han SPELAR: du opna reiskapen for å sjå han, og eit
+        // objekt som står stille i utgangsstillinga si seier ingenting.
+        montT.current = 0
+        montSpel.current = true
+        setMontSteg(1)
+        setMont(m)
         return
       }
       if (r.kind === "kjelde") {
@@ -1103,10 +1158,37 @@ export function Studio() {
     setValdBit(null)
     setVald(null)
   }, [])
-  /** verktyet for kroppen: bitane står som boksar, og gestane gjeld den valde */
+  /**
+   * MONTASJEN: kroppen som reiser seg av platene sine.
+   *
+   * Reiskapen er ei LESING og ikkje ei endring — han rører ikkje eit einaste
+   * tal — so han slepper det valde planet og biten på veg inn, av di
+   * handtaka deira ville stått i eit objekt som er halvvegs teke frå
+   * kvarandre.
+   */
+  const vekslMontasje = useCallback(() => {
+    if (modus === "montasje") {
+      setMont(null)
+      setModus("form")
+      return
+    }
+    setModus("montasje")
+    setValdBit(null)
+    setVald(null)
+  }, [modus])
+  /**
+   * VERKTYET FOR KROPPEN: bitane står som boksar, og gestane gjeld den valde.
+   *
+   * Og han slepper planet, slik rutenettet, virvelen og montasjen gjer det.
+   * Utan det stod BEGGE reiskapssetta i spalta samstundes — dei fem for
+   * planet og dei to for biten, elleve knappar i alt — og stabelen rakk opp
+   * i synskuben og la seg over innrammingsknappen. Du trykte på han, og
+   * rutenettet tok trykket.
+   */
   const vekslBit = useCallback(() => {
     setModus((m) => (m === "bit" ? "form" : "bit"))
     setValdBit(null)
+    setVald(null)
   }, [])
 
   // --- PLANA -----------------------------------------------------------------
@@ -1666,6 +1748,19 @@ export function Studio() {
     })
   }, [vald, valdStrek])
   const askArk = useCallback((i: number) => send({ kind: "ark", id: ++reqId.current, params: naa.current, sheet: Math.max(0, i) }), [send])
+  /**
+   * MONTASJEN VERT SPURD OM NÅR REISKAPEN ER PÅ, og på nytt kvar gong noko
+   * som endrar delane endrar seg — plana, storleiken, tjukna, plata,
+   * kroppen. Ikkje kvar gong KVA SOM HELST endrar seg: eit drag i lyset
+   * eller eit byte av lesemåte lagar ikkje ein einaste ny del, og å rekne
+   * heile montasjen om att for det ville teke reiskapen frå å vera til å
+   * scrubbe i.
+   */
+  const montNokkel = modus === "montasje" ? [params.plan, params.storleik, params.tjukn, params.arkB, params.arkH, params.kjelde, params.scene, params.fest, params.snitt].join("|") : ""
+  useEffect(() => {
+    if (!montNokkel) return
+    send({ kind: "montasje", id: ++reqId.current, params: naa.current })
+  }, [montNokkel, send])
   const velDel = useCallback((adr: string | null) => {
     setPeikt(adr)
     const k = adr ? liste.find((q) => q.adr === adr) : undefined
@@ -1936,6 +2031,27 @@ export function Studio() {
     return () => window.clearTimeout(t)
   }, [melding])
   /**
+   * SYNSKUBEN VERT MÅLT, ikkje rekna. Han er scena sin — kuben, låsen,
+   * innramminga og lupa — og han flyttar seg med ruta og med topplina.
+   * `ResizeObserver` fangar båe utan at nokon må hugse å seie frå.
+   */
+  useEffect(() => {
+    if (!mounted) return
+    const el = document.querySelector<HTMLElement>(".synskube")
+    if (!el) return
+    const maal = () => setKubeBotn(Math.round(el.getBoundingClientRect().bottom))
+    maal()
+    const ro = new ResizeObserver(maal)
+    ro.observe(el)
+    window.addEventListener("resize", maal)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener("resize", maal)
+    }
+    // `toppH` er det einaste som flyttar kuben loddrett; storleiken tek
+    // observatøren, og ei flytting sidelengs endrar ikkje nedste kanten
+  }, [mounted, toppH])
+  /**
    * INGENTING PÅ SIDA VERT MERKT, FORSTØRRA ELLER RULLA. Skalaen er låst i
    * viewporten og merkinga i CSS; her går det som CSS ikkje når: iOS sine
    * eigne klypehendingar, eit fleirfingerdrag utanfor lerretet (lerretet
@@ -2039,6 +2155,8 @@ export function Studio() {
       // K som KROPPEN: det var den einaste reiskapen utan ein tast, og på
       // ein benk er tastane vegen inn til dei — R, V, S og no K.
       else if (k === "k") vekslBit()
+      // M som MONTASJEN: same knappen, og han spelar når han opnar seg
+      else if (k === "m") vekslMontasje()
       // B SOM BOGE, når du held eit punkt: hjørne eller boge, same handling
       // som dobbelttrykket på punktet. Det minste emnet fyrst, som ⌫ — held
       // du eit punkt, er det DET tasten gjeld.
@@ -2081,13 +2199,16 @@ export function Studio() {
         else if (valdPunkt !== null) setValdPunkt(null)
         else if (valdStrek !== null) setValdStrek(null)
         else if (vald !== null) velPlan(null)
+        // montasjen er ei lesing og ikkje eit val: escape slepper han som
+        // han slepper alt anna du står inne i
+        else if (modus === "montasje") vekslMontasje()
         else setSteg("line")
       } else return
       e.preventDefault()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslVirvel, vekslMontasje, modus, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -2113,7 +2234,11 @@ export function Studio() {
   const harOmriss = vald !== null && !!plan.find((q) => q.id === vald)?.omriss?.length
   /** kva fingrane held på med, med eitt ord — rutenettet med dei to tala sine */
   const gestTekst =
-    gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
+    // MONTASJEN STÅR SÅ LENGE HAN ER PÅ, og ikkje berre medan ein finger er
+    // nede: han er ei lesing og ikkje ein gest, og steget er det du treng å
+    // vite medan du ser på — kva runde dette er, og kor mange ribber ho er.
+    modus === "montasje" && mont ? `steg ${montSteg}/${mont.steg} · ${mont.delar.filter((d) => d.steg === montSteg - 1).length}`
+    : gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
     : gest === "virvel" ? (virvelTal ? `${virvelTal[0]} · ${Math.round(virvelTal[1] * 100)}%` : "virvel")
     : gest
   /** ord, ikkje setningar: gestane i den rekkjefylgja du tek dei */
@@ -2152,6 +2277,11 @@ export function Studio() {
             onLeggPunkt={leggPunkt}
             onTaPunkt={taPunkt}
             onVriPunkt={vriPunkt}
+            mont={mont}
+            montT={montT}
+            montSpel={montSpel}
+            montVakn={montVakn}
+            onMontSteg={setMontSteg}
             valdPunkt={valdPunkt}
             onValdPunkt={setValdPunkt}
             onPlan={flyttPlan}
@@ -2199,7 +2329,7 @@ export function Studio() {
       {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til VENSTRE i
           det frie bandet — synskuben har det høgre hjørnet */}
       {gestTekst && (
-        <div className="pointer-events-none absolute flex justify-start" style={{ top: toppH + 10, left: 14 }} aria-hidden="true">
+        <div data-lesing="" className="pointer-events-none absolute flex justify-start" style={{ top: toppH + 10, left: 14 }} aria-hidden="true">
           <span className="tab text-[26px] leading-none tracking-[0.02em]" style={{ opacity: 0.5 }}>{gestTekst}</span>
         </div>
       )}
@@ -2254,7 +2384,7 @@ export function Studio() {
       {mounted && (
         <div
           className="tumme"
-          style={{ right: (benk ? KOL : 0) + 16, top: toppH + 8, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}
+          style={{ right: (benk ? KOL : 0) + 16, top: Math.max(toppH + 8, kubeBotn + 8), bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}
           /**
            * DEN ANDRE FINGEREN.
            *
@@ -2294,6 +2424,75 @@ export function Studio() {
           >
             {IcoRute}
           </button>
+          {/*
+            MONTASJEN, ØVST: den einaste reiskapen som ikkje endrar noko.
+
+            Han svarar på det kuttfila ikkje svarar på — kva går kvar, og
+            kva må ned FØRST — og han svarar av geometrien.
+
+            TRE GESTAR, OG ALLE TRE ER LÆRDE FRÅ FØR. Eit trykk slår han på
+            og av, som rutenettet og virvelen. Å slå han PÅ spelar heile
+            montasjen, av di det er det du opna han for — so to trykk er
+            «sjå det ein gong til», utan at nokon må lære eit dobbelttrykk
+            til. Og eit drag opp og ned tek deg dit du vil sjå og let deg
+            STÅ der, som bøyen og lupa: ein animasjon du ikkje kan stoppe
+            midt i er ein animasjon du må sjå fire gonger.
+          */}
+          <button
+            type="button"
+            data-montasje=""
+            aria-pressed={modus === "montasje"}
+            aria-label="montasje"
+            title={modus === "montasje" ? `montasjen (M): steg ${montSteg} av ${mont?.steg ?? 1}. dra opp og ned for å stå midt i han; trykk for å gå ut` : "montasjen (M): sjå kroppen reise seg av platene sine, ein gjeng ribber om gongen"}
+            className={TUMME_BTN}
+            style={modus === "montasje" ? { touchAction: "none", cursor: "ns-resize" } : undefined}
+            onPointerDown={(e) => {
+              // trykket vert notert same kva: det er DET som slår verktyet
+              // på og av. Draget finst berre når han alt er på — utan ein
+              // montasje er det ingenting å dra i.
+              montNed.current = e.clientY
+              if (modus !== "montasje") return
+              e.currentTarget.setPointerCapture(e.pointerId)
+              montDra.current = e.clientY
+              montSpel.current = false
+              setSkrubbar(true)
+            }}
+            onPointerMove={(e) => {
+              if (montDra.current === null || !mont) return
+              const dy = e.clientY - montDra.current
+              montDra.current = e.clientY
+              // opp er mot ferdig og ned er attende mot plata: den vegen delane går
+              montT.current = Math.min(mont.steg, Math.max(0, montT.current - dy / MONT_STEG_PX))
+              montVakn.current?.()
+            }}
+            onPointerUp={(e) => {
+              const ned = montNed.current
+              montDra.current = null
+              montNed.current = null
+              setSkrubbar(false)
+              // eit trykk er eit trykk berre når det ikkje flytte seg — elles
+              // er det byrjinga på eit drag, og eit drag slepper ikkje verktyet
+              if (ned !== null && Math.abs(e.clientY - ned) <= 6) vekslMontasje()
+            }}
+            onPointerCancel={() => { montDra.current = null; montNed.current = null; setSkrubbar(false) }}
+            /*
+              OG INGEN `onClick`. Han er den same knappen som bøyen: alt går
+              gjennom peikaren, av di eit drag og eit trykk berre kan
+              skiljast der.
+
+              Ein `onClick` ved sida av ville dessutan seia det same ein
+              gong til, og React les rekvisittane som gjeld NÅR hendinga
+              vert send — ikkje slik dei stod då fingeren gjekk ned. So
+              `pointerup` slo verktyet av, og klikket som kom etter såg ein
+              knapp som var av og slo han på att. Målt: eit trykk gjorde
+              ingenting i det heile.
+
+              Den andre fingeren når han likevel: handlarane her høyrer på
+              kvar peikar, primær eller ikkje (sjå spalta over).
+            */
+          >
+            {IcoMontasje}
+          </button>
           {/* OG VIRVELEN, UNDER HAN. Dei to er det same slaget reiskap —
               begge skriv heile plana på nytt, og begge vert sette med to
               fingrar — so dei står saman, øvst, over dei som gjeld eitt
@@ -2310,7 +2509,12 @@ export function Studio() {
           >
             {IcoVirvel}
           </button>
-          {vald !== null && (
+          {/* Og reiskapane for PLANET står ikkje medan kroppsverktyet er ope.
+              Der er det bitane du held på med, og eit trykk på objektet vel
+              ein bit — men det vel planet under han òg, og då stod begge
+              setta i spalta samstundes: elleve knappar, klemte ned til 40
+              px kvar. Verktyet seier kva du arbeider med. */}
+          {vald !== null && modus !== "bit" && (
             <>
               {/* TO REISKAPAR MED TO LESEMÅTAR. I rommet legg dei ein
                   firkant eller ein ring midt i snittet. I teikninga er dei
@@ -2464,7 +2668,10 @@ export function Studio() {
               eit trykk utanfor planet, eit trykk på rada hans, escape —
               alle tre slepper han frå før. So med eit plan valt står den
               store knappen tom, og reiskapane hans fell ned i staden. */}
-          {vald === null && (
+          {/* SKJER STÅR IKKJE I MONTASJEN. Han er ei LESING: det finst inga
+              skisse å skjere der, og ein stor knapp som ikkje gjer noko er
+              verre enn ingen knapp. */}
+          {vald === null && modus !== "montasje" && (
             <button
               type="button"
               onClick={laas}

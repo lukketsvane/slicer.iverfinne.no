@@ -101,8 +101,24 @@ bottom; the column is a band from the top line down to the sheet, so a long
 stack stops at the line instead of disappearing behind it. The two layout
 tools — the grid and the vortex — sit at the top of it, above everything that
 belongs to a single plane, because they are the same kind of thing: both write
-the whole plane list, and both are set with two fingers. A tool you can only
+the whole plane list, and both are set with two fingers. Above them is the
+montage, the one tool that changes nothing at all. A tool you can only
 reach from a keyboard does not exist on the phone.
+
+The band **starts below the view cube**, not below the top line. Both columns
+sit in the same edge of the screen — the cube with the padlock, the reframe and
+the magnifier at the top, the tools at the bottom — and a stack long enough
+reaches up into it: measured, eleven buttons, and a press meant for the reframe
+button went to the grid tool. The cube's lower edge is measured rather than
+written down twice. Eleven, because opening the body tool left a *plane*
+selected as well as a piece, so both sets of tools stood there at once; the body
+tool now lets the plane go, the way the grid, the vortex and the montage do, and
+the plane's tools stand down while it is open. And the buttons **do not shrink**:
+with the sheet fully open the band is shorter than the stack, and flex answered
+that by squeezing them to 16 pixels with touch targets lying on top of one
+another. A button has a size because a thumb has one. `pnpm panel boyen` checks
+all four things — on screen, clear of the cube, the reframe button taking its own
+press, and nothing under 44 px.
 
 **The view cube**, top right, turns with the camera and is how you aim it: press
 a face for that side, an edge for the 45° view between two, a corner for the
@@ -142,7 +158,7 @@ one millimetre and ten with shift, `B` switches it between corner and arc,
 `⌫` removes it, tab and shift-tab walk
 the plane list, `F` reframes, and the right mouse button (or the wheel pressed)
 pans the view — the reframe button puts it back. Every tool has a letter: `R`
-the grid, `V` the whirl, `K` the body, and `B` leafs the
+the grid, `V` the whirl, `M` the montage, `K` the body, and `B` leafs the
 selected piece to the next version of its family (or, with an outline point
 held, switches that point between corner and arc). **The grid and the whirl
 take the mouse too**: they were two fingers and nothing else, so on a bench
@@ -371,7 +387,8 @@ catch. It is also what stands between you and the slots. The button under the
 reframe icon takes it away and puts it back; the link carries it, so a view you
 share is the view you sent. It changes no geometry and is not in the undo list.
 
-Keys: `L` cut, `O` freeze the profile, `R` grid tool, `V` vortex, `B` corner or
+Keys: `L` cut, `O` freeze the profile, `R` grid tool, `V` vortex, `M` montage,
+`B` corner or
 arc on a held point (else leaf the selected piece), `⌫` remove what is
 held — an outline point, else a stroke, else the plane,
 `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
@@ -641,6 +658,50 @@ cross each other in material without sharing a common line cannot be assembled
 in any order; then it is the plane, not the list, that has to change.
 `montering.txt` in the ALT bundle writes the order out, part by part, with the
 direction each comes in.
+
+**And you can watch it.** The montage tool — the top button in the thumb
+column, or `M` — puts the parts back on their plates and lets the body rise out
+of them, one group of ribs at a time. Tap it and it plays; tap again and you
+are back to the object. Drag the button up and down to stop anywhere in it,
+because an animation you cannot stop in the middle is an animation you have to
+watch four times. The line over the object reads which round you are in and how
+many ribs are in it.
+
+The order is not a second opinion. It is `montering.orden` — the same order
+`montering.txt` writes and the **kan monterast** rule guards — grouped into
+steps: two parallel planes never cross each other, so as long as the direction
+holds they go down together. A rib grid is two steps, across then along. A
+vortex is one step per rib, which is the truth about a vortex. Parts with no
+joint at all are not in the order — nothing holds them — so they come last.
+`pnpm probe` walks the order end to end and requires the step never to go
+*backwards*: if it did, the animation would be showing you a different assembly
+from the sheet in the box.
+
+**A part is one mesh and two matrices.** The outline is the same points in both
+places — the assembly puts them in the plane's frame, the nester lays them on a
+plate with a quarter turn and a shift — and both are rigid: `akser` gives
+`u × v = n`, so the frame is a true rotation, and all four quarter turns in the
+nester have determinant +1, so a part is never mirrored. So the part needs one
+mesh, in its own flat frame, and two matrices: where it lies and where it goes.
+Everything between them is interpolation, not new geometry. `pnpm probe`
+multiplies each part's mesh by each matrix and requires the answer to be
+*exactly* the two meshes the engine writes to the GLB and the flat GLB — worst
+error 2.4e-4 mm, which is float32 and not geometry.
+
+The plates lie in a **stack**, centred under the body, not spread out side by
+side the way the flat GLB writes them. That file is something you look through,
+where nothing should sit on top of anything; this is your body standing up out
+of its own plates, and there the pile on the bench is what is true. Twelve
+plates side by side is three and a half metres against a 150 mm body, and the
+object is a dot in that picture. The stack is centred on the *parts*, not on
+the plate: a 600 × 400 sheet under a 150 mm body would be four fifths empty.
+
+Parts laid flat always take more room than the same parts crossed into each
+other, so the view scales down to hold both ends of the animation — the camera
+does not move, the picture does. Opening the tool is asking for that, which is
+the one thing that sets the frame. A **bent** plane is the single part that is
+not a rigid move of itself: it is cut flat and stands curved. It flies flat —
+which is what it *is* on the plate — and becomes what it is as it lands.
 
 ## Two rib languages
 
@@ -913,6 +974,7 @@ minutes, and HMR reloading underneath produces failures that look real.
 | `lib/scene.ts` | the body as pieces: primitives and files, placed |
 | `lib/kropp.ts` | the body: pieces joined, weld, unflip, simplify, smooth, place — and turned along any normal |
 | `lib/snitt.ts` | planes to ribs: the field, the joints, the slots, the parts, the assembly order |
+| `lib/montasje.ts` | the way from the plate to the object: one mesh and two matrices per part, and the order grouped into steps |
 | `lib/bygg.ts` | the whole build once: body, ribs, parts, nesting |
 | `lib/soup.ts` | mesh in two forms, and the road between them |
 | `lib/io/` | GLB, glTF, STL, OBJ, PLY readers |
