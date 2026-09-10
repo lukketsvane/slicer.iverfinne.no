@@ -5,7 +5,7 @@ import { GizmoHelper, GizmoViewcube, OrbitControls } from "@react-three/drei"
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react"
 import * as THREE from "three"
 import { LAG_FARGAR, MATERIALS, inRing, lagFarge, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
-import { akser, broek, dot, inn, OMRISS_TAK, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
+import { akser, broek, dot, inn, OMRISS_TAK, omrissLine, omrissMidt, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
 import { FOV_FLAT, FOV_NAER, GROUND_Y, MAX_DIST, MIN_DIST, NAER_LUFT, SKODDE_FJERN, SKODDE_NAER, fovSkala, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import { DELING_MAX, DELING_MIN } from "@/lib/params"
@@ -1642,12 +1642,26 @@ function Spora({ f, snitt, boks, onDeling }: {
  * ER PLASS TIL EITT, og ingen annan stad.
  */
 const MIDT_MIN = 84
+/**
+ * KOR LENGE EIT TRYKK MÅ STÅ FØR PUNKTET GÅR.
+ *
+ * Dobbelttrykket tok punktet bort før; no vrir det hjørne til boge, og
+ * sletteinga måtte ein annan veg. Ho gjekk hit av di dette er den einaste
+ * rørsla att som ikkje er eit drag og ikkje eit trykk.
+ *
+ * Seks hundre millisekund er lengre enn nokon held stille før dei dreg —
+ * ei rørsle på seks pikslar avlyser han uansett — og kort nok til at han
+ * ikkje kjennest som at ingenting skjer.
+ */
+const LANG_MS = 600
 
-function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt, onValdPunkt }: {
+function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt }: {
   f: Ramma
   /** ramma til det valde planet: punkta er brøkar av `S` kring `r.o` */
   r: Ramme
   omriss: readonly Pt[]
+  /** kva punkt som er bogar — sjå `Plan.runde` */
+  runde: readonly number[] | undefined
   S: number
   /**
    * DET FRIE BANDET: den delen av ruta som ikkje ligg under arket eller
@@ -1660,6 +1674,8 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
   /** eit punkt til, midt på kanten etter `i` */
   onLeggPunkt: (i: number, q: Pt) => void
   onTaPunkt: (i: number) => void
+  /** hjørne eller boge */
+  onVriPunkt: (i: number) => void
   /** punktet handa held i: pilene og ⌫ treng eit emne */
   onValdPunkt: (i: number | null) => void
 }) {
@@ -1667,8 +1683,8 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
   const size = useThree((s) => s.size)
   const gl = useThree((s) => s.gl)
   const controls = useThree((s) => s.controls) as Orbit | null
-  const naa = useRef({ f, r, omriss, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onValdPunkt })
-  naa.current = { f, r, omriss, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onValdPunkt }
+  const naa = useRef({ f, r, omriss, runde, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt })
+  naa.current = { f, r, omriss, runde, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt }
   /** plassen kvart merke sist vart skrive til, so ei teikning som ikkje flytta
    *  noko ikkje skriv noko — som i `Spora` */
   const skrive = useRef<Record<string, string>>({})
@@ -1685,13 +1701,14 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
    * Der dei skil lag, er skilnaden nett det motoren har skore vekk.
    */
   const lina = useMemo(() => {
-    const n = omriss.length
+    const l = omrissLine(omriss, runde)
+    const n = l.length
     const pts: number[] = []
     for (let k = 0; k < n; k++) {
-      pts.push(...ut(r, [omriss[k][0] * S, omriss[k][1] * S]), ...ut(r, [omriss[(k + 1) % n][0] * S, omriss[(k + 1) % n][1] * S]))
+      pts.push(...ut(r, [l[k][0] * S, l[k][1] * S]), ...ut(r, [l[(k + 1) % n][0] * S, l[(k + 1) % n][1] * S]))
     }
     return mkGeom(pts)
-  }, [r, omriss, S])
+  }, [r, omriss, runde, S])
   useEffect(() => () => lina.dispose(), [lina])
 
   useEffect(() => {
@@ -1706,7 +1723,7 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
      * til fingeren. Det er den same rekninga eit strek gjer når det vert
      * drege (sjå `sFlytt`), og av same grunn.
      */
-    let dra: { i: number; q0: Pt; p0: Pt; x0: number; y0: number; ny: boolean; g: Ramma; r: Ramme } | null = null
+    let dra: { i: number; id: number; q0: Pt; p0: Pt; x0: number; y0: number; ny: boolean; g: Ramma; r: Ramme } | null = null
     /** det førre trykket på eit punkt: kva punkt, og når. To tett i hop tek det bort. */
     let sisteTrykk = { i: -1, t: 0 }
     /**
@@ -1724,6 +1741,8 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
      * vindauget framleis får hendinga si.
      */
     let svelgKlikk = false
+    /** langtrykket som er i gang, om noko */
+    let lang = 0
     const svelg = (e: MouseEvent) => {
       if (!svelgKlikk) return
       svelgKlikk = false
@@ -1757,7 +1776,7 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
       if (!e.isPrimary || !el) return
       // står planet på kant, er det ikkje eit drag: fingeren har inga flate
       // å lesast mot, og punktet ville hoppa dit strålen tilfeldigvis råka
-      const { f: g, r: rr, omriss: om } = naa.current
+      const { f: g, r: rr, omriss: om, runde: ru } = naa.current
       const q0 = paaFlata(e, g, rr)
       if (!q0) return
       /**
@@ -1775,11 +1794,13 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
         if (!Number.isInteger(i) || !a || !b || om.length >= OMRISS_TAK) return
         e.preventDefault()
         e.stopPropagation()
-        const ny: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+        // midt på KURVA og ikkje på korda: punktet skal verte til der merket
+        // står, og der merket står er på kanten
+        const ny = omrissMidt(om, ru, i)
         naa.current.onLeggPunkt(i, ny)
         // det nye punktet er det handa held: pilene tek det med ein gong
         naa.current.onValdPunkt(i + 1)
-        dra = { i: i + 1, q0, p0: ny, x0: e.clientX, y0: e.clientY, ny: true, g, r: rr }
+        dra = { i: i + 1, id: e.pointerId, q0, p0: ny, x0: e.clientX, y0: e.clientY, ny: true, g, r: rr }
         el.setPointerCapture(e.pointerId)
         taKameraet(controls)
         return
@@ -1793,12 +1814,48 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
       // det kostar ikkje eit trykk å velje — og slepper du utan å ha drege,
       // står punktet att som teke, med pilene og ⌫ på seg.
       naa.current.onValdPunkt(i)
-      dra = { i, q0, p0, x0: e.clientX, y0: e.clientY, ny: false, g, r: rr }
+      dra = { i, id: e.pointerId, q0, p0, x0: e.clientX, y0: e.clientY, ny: false, g, r: rr }
       el.setPointerCapture(e.pointerId)
       taKameraet(controls)
+      /**
+       * OG EIT LANGT TRYKK TEK PUNKTET BORT.
+       *
+       * Dobbelttrykket gjorde dette før; no vrir det hjørne til boge, og
+       * eit punkt må framleis kunne gå. På benken er det ⌫ — der ligg
+       * tastaturet — og på telefonen er det dette: hald punktet stille eit
+       * lite bel, so er det borte.
+       *
+       * Ei rørsle avlyser det, so eit drag som byrjar seint er eit drag og
+       * ikkje ei sletting. Tre punkt er golvet, som før.
+       */
+      if (om.length > 3) {
+        lang = window.setTimeout(() => {
+          lang = 0
+          if (!dra || dra.i !== i) return
+          dra = null
+          if (controls) controls.enabled = true
+          svelgKlikk = true
+          naa.current.onTaPunkt(i)
+        }, LANG_MS)
+      }
+    }
+    const avlys = () => {
+      if (!lang) return
+      window.clearTimeout(lang)
+      lang = 0
     }
     const rorsle = (e: PointerEvent) => {
-      if (!dra) return
+      /**
+       * BERRE DEN PEIKAREN SOM TOK TAK.
+       *
+       * Lyttarane står på vindauget, so alt som rører seg medan eit punkt er
+       * teke kjem hit: den andre fingeren, og på ein telefon som ikkje skal
+       * dovne av, ei rørsle som ikkje kjem frå ei hand i det heile. Utan
+       * dette les draget koordinatane til DEN hendinga — og eit punkt som
+       * skulle stå stille flaug til det hjørnet av skjermen ho peika på.
+       */
+      if (!dra || e.pointerId !== dra.id) return
+      if (lang && Math.hypot(e.clientX - dra.x0, e.clientY - dra.y0) > 6) avlys()
       const q = paaFlata(e, dra.g, dra.r)
       if (!q) return
       const s = naa.current.S || 1
@@ -1820,30 +1877,32 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
       naa.current.onPunkt(dra.i, [dra.p0[0] + du / s, dra.p0[1] + dv / s])
     }
     const opp = (e: PointerEvent) => {
-      if (!dra) return
+      if (!dra || e.pointerId !== dra.id) return
+      avlys()
       const d = dra
       dra = null
       if (controls) controls.enabled = true
       /**
-       * DOBBELTTRYKK TEK PUNKTET BORT.
+       * DOBBELTTRYKK VRIR HJØRNE TIL BOGE, OG ATTENDE.
        *
-       * Same vegen ut som forma og bøyen har: eit trykk er eit trykk berre
+       * Same vegen inn som forma og bøyen har: eit trykk er eit trykk berre
        * når det ikkje flytte seg, og to av dei tett i hop på DET SAME
        * punktet er ei handling. Eit punkt som nett vart til under midtmerket
-       * er ikkje eit trykk på eit punkt, so trykket som laga det kan ikkje
-       * ta det bort att.
+       * er ikkje eit trykk på eit punkt, so trykket som laga det vrir det
+       * ikkje.
        *
-       * Tre punkt er golvet: under det er det inga flate, og `lesPlan` ville
-       * late heile omrisset falle.
+       * Dette tok punktet bort før. Det gjer langtrykket no — og ⌫, som
+       * alltid — av di ei kurve er noko du lagar med tommelen på punktet du
+       * ser på, og det er den korte vegen som skal gå dit.
        */
       if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) > 6) return
       const no = performance.now()
       const same = sisteTrykk.i === d.i && no - sisteTrykk.t < DOBBELT_MS
       sisteTrykk = { i: d.i, t: no }
-      if (same && !d.ny && naa.current.omriss.length > 3) {
+      if (same && !d.ny) {
         sisteTrykk.i = -1
         svelgKlikk = true
-        naa.current.onTaPunkt(d.i)
+        naa.current.onVriPunkt(d.i)
       }
     }
     boks.addEventListener("pointerdown", ned)
@@ -1857,6 +1916,7 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
       window.removeEventListener("pointermove", rorsle)
       window.removeEventListener("pointerup", opp)
       window.removeEventListener("pointercancel", opp)
+      avlys()
       if (controls) controls.enabled = true
     }
   }, [boks, camera, controls, gl])
@@ -1880,7 +1940,7 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
      * Laget her er 6; reiskapane er 15, arket 10, synskuben 12. Eit punkt
      * under noko av det er eit punkt fingeren ikkje kan nå — og verre:
      * trykket går til det som ligg oppå. Målt: eit punkt drege ut til høgre
-     * hamna under tommelspalta, og dobbelttrykket som skulle ta det bort
+     * hamna under tommelspalta, og dobbelttrykket som skulle vri det
      * dubla planet i staden.
      *
      * Spørsmålet går til DOM-en og ikkje til ei liste over kva som kan
@@ -1905,10 +1965,7 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
      * omrekningar i eitt bilete. Difor: les alt, so skriv alt.
      */
     const px = om.map(paaSkjerm)
-    const mpx = om.map((q, i) => {
-      const j = (i + 1) % n
-      return paaSkjerm([(q[0] + om[j][0]) / 2, (q[1] + om[j][1]) / 2])
-    })
+    const mpx = om.map((_, i) => paaSkjerm(omrissMidt(om, naa.current.runde, i)))
     /**
      * MIDTMERKA STÅR DER DET ER PLASS TIL EITT PUNKT TIL, og ingen annan
      * stad: kanten må vera lang nok på SKJERMEN (`MIDT_MIN`) — det er
@@ -2722,7 +2779,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPunkt, onLeggPunkt, onTaPunkt, valdPunkt, onValdPunkt, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -2757,6 +2814,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   onLeggPunkt: (id: number, i: number, q: Pt) => void
   /** og eit punkt bort */
   onTaPunkt: (id: number, i: number) => void
+  /** hjørne eller boge — sjå `Plan.runde` */
+  onVriPunkt: (id: number, i: number) => void
   /** punktet handa held i, som plass i omrisset */
   valdPunkt: number | null
   onValdPunkt: (i: number | null) => void
@@ -2886,12 +2945,14 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
               f={f}
               r={rValt}
               omriss={valt.omriss}
+              runde={valt.runde}
               S={storleik}
               fri={fri}
               boks={punktBoks}
               onPunkt={(i, q) => onPunkt(valt.id, i, q)}
               onLeggPunkt={(i, q) => onLeggPunkt(valt.id, i, q)}
               onTaPunkt={(i) => onTaPunkt(valt.id, i)}
+              onVriPunkt={(i) => onVriPunkt(valt.id, i)}
               onValdPunkt={onValdPunkt}
             />
           ) : null}
@@ -3056,7 +3117,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           </button>
         ))}
         {(valt?.omriss ?? []).map((_, i) => (
-          <button key={`p${i}`} type="button" data-punkt={i} data-vald={i === valdPunkt ? "" : undefined} aria-current={i === valdPunkt} aria-label={`punkt ${i + 1} i omrisset`} title="dra: flytt punktet — skift låser aksen. pilene flyttar det ein millimeter, ti med skift; ⌫ eller dobbelttrykk tek det bort">
+          <button key={`p${i}`} type="button" data-punkt={i} data-rund={valt?.runde?.includes(i) ? "" : undefined} data-vald={i === valdPunkt ? "" : undefined} aria-current={i === valdPunkt} aria-label={`punkt ${i + 1} i omrisset${valt?.runde?.includes(i) ? ", boge" : ""}`} title="dra: flytt punktet — skift låser aksen. dobbelttrykk: hjørne eller boge. pilene flyttar det ein millimeter, ti med skift; ⌫ eller eit langt trykk tek det bort">
             <span aria-hidden="true" />
           </button>
         ))}

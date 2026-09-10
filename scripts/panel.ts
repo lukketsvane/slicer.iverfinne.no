@@ -2736,19 +2736,67 @@ async function forma(browser: Browser) {
   }
 
   /**
-   * DOBBELTTRYKK TEK EIT PUNKT BORT — same vegen ut som forma og bøyen har.
-   * Og tre er golvet: under det er det inga flate, so det fjerde trykket
-   * gjer ingenting i staden for å late heile omrisset falle.
+   * DOBBELTTRYKK VRIR HJØRNE TIL BOGE, OG ATTENDE.
+   *
+   * Same vegen inn som forma og bøyen har, og det er den KORTE vegen: ei
+   * kurve er noko du lagar med tommelen på punktet du ser på. Bogen ligg
+   * ikkje i punktet — han er ein plass i `r:` — so prøva les strengen og
+   * ikkje berre eit merke, og krev at punkta står som dei stod.
    */
+  const rund = () => lesPlan(hash(page).plan).find((q) => q.id === 3)?.runde ?? []
+  const midtBb = async (i: number) => {
+    const e = page.locator(`[data-midt='${i}']`)
+    return (await e.isVisible()) ? await e.boundingBox() : null
+  }
   const pb = await page.locator("[data-punkt='1']").boundingBox()
   if (pb) {
     const foer = om(3)
+    const mFoer = await midtBb(1)
     await page.waitForTimeout(DOBBELT + 80)
     await page.mouse.dblclick(pb.x + pb.width / 2, pb.y + pb.height / 2)
+    await vent(page, () => rund().includes(1))
+    sjekk(
+      "eit dobbelttrykk på eit punkt vrir det til ein boge",
+      rund().join() === "1" && JSON.stringify(om(3)) === JSON.stringify(foer),
+      `bogar: ${rund().join(",") || "ingen"} · ${om(3).length} punkt står`,
+    )
+    sjekk("og merket seier kva punktet er vorte", (await page.locator("[data-punkt='1']").getAttribute("data-rund")) !== null)
+    /**
+     * OG MIDTMERKET FYLGJER KANTEN DET STYRER. Bognar stykket, ligg merket
+     * på KURVA og ikkje på korda mellom punkta — elles ville det drive av
+     * garde frå den kanten det høyrer til, og punktet det lagar ville rykt
+     * forma rett i det du tok i det.
+     */
+    const mEtter = await midtBb(1)
+    if (mFoer && mEtter) {
+      const flytt = Math.hypot(mEtter.x - mFoer.x, mEtter.y - mFoer.y)
+      sjekk("og midtmerket flytta seg ut på kurva", flytt > 3, `${flytt.toFixed(1)} px`)
+    }
+    await page.waitForTimeout(DOBBELT + 80)
+    await page.mouse.dblclick(pb.x + pb.width / 2, pb.y + pb.height / 2)
+    await vent(page, () => !rund().includes(1))
+    sjekk("og eit til vrir det attende til eit hjørne", rund().length === 0 && JSON.stringify(om(3)) === JSON.stringify(foer), `bogar: ${rund().join(",") || "ingen"}`)
+  }
+
+  /**
+   * OG EIT LANGT TRYKK TEK PUNKTET BORT.
+   *
+   * Den vegen dobbelttrykket gjekk før. Ho måtte flytte seg, og ho gjekk
+   * hit av di dette er den einaste rørsla att som korkje er eit drag eller
+   * eit trykk. Tre er golvet: under det er det inga flate, so trykket etter
+   * det gjer ingenting i staden for å late heile omrisset falle.
+   */
+  const lb = await page.locator("[data-punkt='1']").boundingBox()
+  if (lb) {
+    const foer = om(3)
+    await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2)
+    await page.mouse.down()
+    await page.waitForTimeout(900)
+    await page.mouse.up()
     await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) === foer.length - 1)
     const ny = om(3)
     sjekk(
-      "eit dobbelttrykk på eit punkt tek NØYAKTIG det bort",
+      "eit langt trykk tek NØYAKTIG det punktet bort",
       ny.length === foer.length - 1 && !ny.some((q) => JSON.stringify(q) === JSON.stringify(foer[1])),
       `${foer.length} → ${ny.length} punkt`,
     )

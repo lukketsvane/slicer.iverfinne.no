@@ -550,6 +550,13 @@ input {
 .punkt button[data-vald] > span {
   background: #e05a1a;
 }
+/* EIN BOGE STÅR PÅ HJØRNET. Same merket, vridd ein åttedels omgang: eit
+   punkt som STÅR er fylt eller ope firkanta, og eit punkt som står på skrå
+   er det same punktet med ei kurve gjennom seg. Ingen ny farge, ingen ny
+   storleik — den skilnaden er teken av det runde, og det tyder noko anna. */
+.punkt button[data-rund] > span {
+  transform: rotate(45deg);
+}
 /* MIDTMERKET: eit punkt du ikkje har enno. Mindre sone, mindre merke, og
    RUNDT — firkanta er eit hjørne som står, rundt er ein stad eit hjørne kan
    verte til. Det er heile skilnaden ei hand treng for å vite kva ho tek. */
