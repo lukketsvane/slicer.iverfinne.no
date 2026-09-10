@@ -6,7 +6,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRe
 import * as THREE from "three"
 import { LAG_FARGAR, MATERIALS, inRing, lagFarge, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
 import { akser, broek, dot, inn, OMRISS_TAK, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
-import { GROUND_Y, MAX_DIST, MIN_DIST, SKODDE_FJERN, SKODDE_NAER, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
+import { FOV_FLAT, FOV_NAER, GROUND_Y, MAX_DIST, MIN_DIST, NAER_LUFT, SKODDE_FJERN, SKODDE_NAER, fovSkala, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import { DELING_MAX, DELING_MIN } from "@/lib/params"
 import type { BitBoks } from "@/lib/kropp"
@@ -387,13 +387,22 @@ function iStrek(s: Strek, S: number, q: Pt, tol: number): boolean {
  *  retninga dei bad om — heimvinkelen når ingen har peika på ei side */
 export type Sikt = { n: number; dir: Vec3 | null }
 
-function FitCamera({ fit, rute, sikt }: { fit: Fit | null; rute: Rute; sikt: Sikt }) {
+function FitCamera({ fit, rute, sikt, laast }: { fit: Fit | null; rute: Rute; sikt: Sikt; laast: boolean }) {
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
-  const controls = useThree((s) => s.controls) as { target: THREE.Vector3; update?: () => void } | null
+  const controls = useThree((s) => s.controls) as (Orbit & { target: THREE.Vector3 }) | null
   const invalidate = useThree((s) => s.invalidate)
   const sist = useRef({ r: 0, rute: "", n: 0 })
   const nokkel = `${rute.W}|${rute.H}|${rute.venstre}|${rute.hogre}|${rute.topp}|${rute.botn}`
+  // LÅSEN TØMER RESTEN AV ORBITEN. Ei vending som er sleppt held fram i
+  // bileta etter (sjå `roOrbit`), og ein lås som let henne renne ferdig
+  // etterpå er ikkje ein lås: du ser synet gli vidare etter at du sa stopp.
+  // Resten vert brukt opp i eitt steg her, so det du låser er det du får.
+  useEffect(() => {
+    if (!laast) return
+    roOrbit(controls)
+    invalidate()
+  }, [laast, controls, invalidate])
   useEffect(() => {
     if (!fit || !controls) return
     const s = sist.current
@@ -407,6 +416,10 @@ function FitCamera({ fit, rute, sikt }: { fit: Fit | null; rute: Rute; sikt: Sik
     if (!flytta && s.r && Math.abs(fit.r - s.r) / s.r < 0.1) return
     s.r = fit.r
     s.rute = nokkel
+    // resten av ei vending FYRST, av same grunn som i gestane: dempinga
+    // held fram i bileta etter, og ho ville lagt seg oppå innramminga og
+    // late synet gli eit stykke vidare etter at det stod der du bad om
+    roOrbit(controls)
     const persp = camera as THREE.PerspectiveCamera
     // rekninga står i lib/ramme.ts, der ho kan prøvast utanfor ein nettlesar
     const r = ramme(fit, { rute, fovDeg: persp.fov ?? 30 })
@@ -416,12 +429,16 @@ function FitCamera({ fit, rute, sikt }: { fit: Fit | null; rute: Rute; sikt: Sik
     persp.setViewOffset(r.fri.w, r.fri.h, -r.fri.L, -r.fri.T, size.width, size.height)
     controls.target.set(0, r.y, 0)
     const h = sikt.dir ?? HEIM
-    const dir = heim ? new THREE.Vector3(...h) : camera.position.clone().sub(controls.target)
+    // Med synet låst rammar ho inn UTAN å snu: heimvinkelen er ei vinkling,
+    // og ei vinkling er nett det låsen står imot.
+    const dir = heim && !laast ? new THREE.Vector3(...h) : camera.position.clone().sub(controls.target)
     if (dir.lengthSq() < 1e-6) dir.set(...h)
     camera.position.copy(controls.target).add(dir.setLength(r.dist))
     controls.update?.()
     invalidate()
-  }, [fit, nokkel, rute, sikt, controls, camera, invalidate, size])
+    // `laast` er med av di han vert lesen her; ein vri på låsen aleine
+    // stoggar på vakta over — han er korkje ei ny ramme eller ein ny kropp
+  }, [fit, nokkel, rute, sikt, laast, controls, camera, invalidate, size])
   return null
 }
 
@@ -584,7 +601,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
   )
   const senterPx = useRef({ x: 0, y: 0 })
   /** kameraet slik lappen sist las han: er talet det same, vert han ikkje skriven om att */
-  const kamSist = useRef({ x: NaN, y: NaN, z: NaN, d: NaN })
+  const kamSist = useRef({ x: NaN, y: NaN, z: NaN, d: NaN, fov: NaN })
   /** skissa slik ho sist gjekk til motoren, i verda: flyttar ho seg ikkje, spør vi ikkje om att */
   const sist = useRef<{ o: THREE.Vector3; n: THREE.Vector3 } | null>(null)
   /** det siste snappet ein gest gjorde: tikken på lappen */
@@ -631,9 +648,11 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       const c = camera.position
       const d = controls ? c.distanceTo(controls.target) : 0
       const k = kamSist.current
-      if (k.x !== c.x || k.y !== c.y || k.z !== c.z || k.d !== d) {
-        kamSist.current = { x: c.x, y: c.y, z: c.z, d }
+      if (k.x !== c.x || k.y !== c.y || k.z !== c.z || k.d !== d || k.fov !== camera.fov) {
+        kamSist.current = { x: c.x, y: c.y, z: c.z, d, fov: camera.fov }
         boks.dataset.kamera = `${c.x.toFixed(6)},${c.y.toFixed(6)},${c.z.toFixed(6)}`
+        // synsfeltet med: det er det einaste flatsynet syner att på
+        boks.dataset.fov = camera.fov.toFixed(3)
         if (controls) boks.dataset.avstand = d.toFixed(3)
       }
     }
@@ -949,7 +968,10 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
     let dist0 = 6
     const dolly = (klyp: number) => {
       if (!controls) return
-      const dist = Math.min(MAX_DIST, Math.max(MIN_DIST, dist0 / klyp))
+      // golvet og taket er tal i perspektivet — i flatsynet ligg heile
+      // avstanden lenger ute, og då fylgjer dei med (sjå `fovSkala`)
+      const k = fovSkala(camera.fov)
+      const dist = Math.min(MAX_DIST * k, Math.max(MIN_DIST * k, dist0 / klyp))
       // retninga FØR kameraet vert flytt: `copy` går føre argumentet sitt, og
       // eit nullpunkt vart til eit kamera rett over objektet i azimut null
       const retn = camera.position.clone().sub(controls.target).setLength(dist)
@@ -2447,7 +2469,7 @@ const KUBE_HOVER = "#dcdcdc"
  */
 function Skodda() {
   const scene = useThree((s) => s.scene)
-  const camera = useThree((s) => s.camera)
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
   const controls = useThree((s) => s.controls) as { target: THREE.Vector3 } | null
   useFrame(() => {
     const f = scene.fog as THREE.Fog | null
@@ -2455,6 +2477,102 @@ function Skodda() {
     const d = camera.position.distanceTo(controls.target)
     f.near = d + SKODDE_NAER
     f.far = d + SKODDE_FJERN
+    // og klippeplana med henne, av same grunn ein gong til: sjå `NAER_LUFT`
+    const naer = Math.max(0.1, d - NAER_LUFT)
+    if (camera.near !== naer || camera.far !== f.far) {
+      camera.near = naer
+      camera.far = f.far
+      camera.updateProjectionMatrix()
+    }
+  })
+  return null
+}
+
+/**
+ * FLATSYNET — ei side er ei side, og ikkje eit perspektiv.
+ *
+ * Trykkjer du på ei side av synskuben, ser du rett ned ei akse, og då er
+ * det ei TEIKNING du ser på: to like lange ribber skal vera like lange på
+ * skjermen, og ei plate rett framfor deg skal ikkje ha skrå kantar. Eit
+ * perspektiv gjev deg det motsette, og det er nett i den stillinga du er
+ * i når du skal måle noko med auga.
+ *
+ * Det er ikkje eit anna kamera. Eit ortografisk kamera er ei anna
+ * projeksjonsmatrise, og alt som reknar på skjermpunkt — skissa, handtaka,
+ * omrisset, `pxPer` — måtte hatt to utgåver, og éin av dei ville vore feil
+ * fyrste gongen nokon gløymde henne. Her vert synsfeltet SNEVRA INN i
+ * staden: 30° ned til 2°, medan kameraet går like mykje lenger attende, so
+ * `d · tan(fov/2)` står stille og biletet ikkje flyttar seg ein piksel
+ * medan det rettar seg ut.
+ *
+ * Regelen er GEOMETRIEN og ikkje knappen: ser du rett ned ei akse, er
+ * synet flatt, kva veg du enn kom dit frå. Difor kjem perspektivet attende
+ * av seg sjølv når du snur deg vekk, og difor treng korkje synskuben,
+ * tastaturet eller lenkja vite om dette.
+ */
+/**
+ * Cos 2°: kor rett ned ei akse du må sjå før synet flatar seg ut.
+ *
+ * Botnen på dette talet er ikkje smak. Synskuben set deg aldri HEILT på
+ * aksen: orbiten klemmer polvinkelen til 0,02 rad — 1,15° — so topp- og
+ * botnsida står alltid det stykket unna, og drei si eiga svinging gjev seg
+ * med opp til 0,57° att. To grader ligg over summen med margin.
+ */
+const FLAT_INN = 0.99939
+/** cos 3,2°: ut att. Skilnaden er ei hysterese — éi kryssing i staden for
+ *  ei blafring når fingeren står og skjelv på kanten. */
+const FLAT_UT = 0.99844
+/** heile vegen på kring 300 ms */
+const FLAT_FART = 3.4
+
+function Flatsynet() {
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
+  const controls = useThree((s) => s.controls) as (Orbit & { target: THREE.Vector3; minDistance: number; maxDistance: number }) | null
+  const invalidate = useThree((s) => s.invalidate)
+  /** kor langt ute i utflatinga vi er: 0 perspektiv, 1 flatt */
+  const t = useRef(0)
+  /**
+   * AVSTANDEN MÅLT I PERSPEKTIVET, og den einaste avstanden nokon eig.
+   *
+   * Den verkelege avstanden er han gonga med `fovSkala`, og medan synet
+   * flatar ut vert han REKNA — ikkje skalert eit steg om gongen. Det er
+   * skilnaden som gjer at synskuben ikkje kan øydeleggje han: kuben svingar
+   * kameraet med radien han fanga då du trykte, og skriv over det vi la
+   * der. Ei skalering ville mist dei stega for godt og late objektet stå
+   * att i feil storleik; ei utrekning tek dei att i biletet etter.
+   */
+  const dPer = useRef(0)
+  const retn = useRef(new THREE.Vector3())
+  useFrame((_, dt) => {
+    if (!controls) return
+    const d = camera.position.distanceTo(controls.target)
+    if (d < 1e-6) return
+    const v = retn.current.copy(camera.position).sub(controls.target).divideScalar(d)
+    const cos = Math.max(Math.abs(v.x), Math.abs(v.y), Math.abs(v.z))
+    const rett = cos >= (t.current > 0 ? FLAT_UT : FLAT_INN)
+    // eit langt bilete skal ikkje hoppe gjennom heile utflatinga
+    const steg = Math.min(dt, 0.05) * FLAT_FART
+    const ny = rett ? Math.min(1, t.current + steg) : Math.max(0, t.current - steg)
+    if (ny === t.current) {
+      // Ingenting flatar ut: då er avstanden noko nokon ANDRE har sett —
+      // innramminga, klypet, lupa — og han er den vi reknar vidare frå.
+      dPer.current = d / fovSkala(camera.fov)
+      return
+    }
+    if (dPer.current <= 0) dPer.current = d / fovSkala(camera.fov)
+    t.current = ny
+    // geometrisk mellom dei to: utflatinga går like fort heile vegen
+    const fov = FOV_NAER * Math.pow(FOV_FLAT / FOV_NAER, ny)
+    const k = fovSkala(fov)
+    camera.fov = fov
+    camera.updateProjectionMatrix()
+    // Taket FØRST: orbiten klemmer avstanden sin kvart bilete, og eit tak
+    // som står att i perspektivet ville rykt kameraet inn att i biletet
+    // etter dette.
+    controls.minDistance = MIN_DIST * k
+    controls.maxDistance = MAX_DIST * k
+    camera.position.copy(controls.target).addScaledVector(v, dPer.current * k)
+    invalidate()
   })
   return null
 }
@@ -2466,7 +2584,8 @@ function Kamerataket({ ut }: { ut: MutableRefObject<((f: number) => void) | null
   useEffect(() => {
     ut.current = (f: number) => {
       if (!controls || !Number.isFinite(f) || f <= 0) return
-      const d = Math.min(MAX_DIST, Math.max(MIN_DIST, camera.position.distanceTo(controls.target) / f))
+      const k = fovSkala((camera as THREE.PerspectiveCamera).fov)
+      const d = Math.min(MAX_DIST * k, Math.max(MIN_DIST * k, camera.position.distanceTo(controls.target) / f))
       const retn = camera.position.clone().sub(controls.target).setLength(d)
       camera.position.copy(controls.target).add(retn)
       controls.update?.()
@@ -2697,9 +2816,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   const rValt = useMemo(() => (valt && f ? planRamme(valt, f.min, f.max) : null), [valt, f])
   const [live, setLive] = useState<Live | null>(null)
   const fri = useMemo(() => fritt(rute), [rute])
-  // med synet låst rammar heimknappen inn UTAN å snu: `dir` null er
-  // «heimvinkelen», og han ville vore ei ny vinkling
-  const heim = useCallback(() => setSikt((s) => ({ n: s.n + 1, dir: laastRef.current ? s.dir : null })), [])
+  const heim = useCallback(() => setSikt((s) => ({ n: s.n + 1, dir: null })), [])
   /** lupa: scena legg dollyen sin her, knappen under kuben dreg i han */
   const zoom = useRef<((f: number) => void) | null>(null)
   const lupe = useRef<number | null>(null)
@@ -2712,8 +2829,6 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   const [sein, setSein] = useState(false)
   /** synsvinkelen står der han står: sjå låsen i spalta under kuben */
   const [laast, setLaast] = useState(false)
-  const laastRef = useRef(false)
-  laastRef.current = laast
   // Éi styrbar hovudlyskjelde på ein fast kuppel, pluss fire svake fyll:
   // eit uttak skal kaste éin hard skugge, slik det gjer i eit verkstadlys.
   const [lys, setLys] = useState<Lys>({ az: 0.62, el: 0.92 })
@@ -2785,7 +2900,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             <shadowMaterial transparent opacity={0.24} />
           </mesh>
         </group>
-        <FitCamera fit={f?.fit ?? null} rute={rute} sikt={sikt} />
+        <FitCamera fit={f?.fit ?? null} rute={rute} sikt={sikt} laast={laast} />
         <Kamerataket ut={zoom} />
         <Skodda />
         {/*
@@ -2813,6 +2928,11 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             </group>
           </Sovnen>
         </GizmoHelper>
+        {/* ETTER synskuben, med vilje: begge skriv på kameraet i same
+            biletet, og den som skriv sist er den som vert teikna. Rekninga
+            i `Flatsynet` tek seg att om rekkjefylgja skulle svikte — det
+            kostar eit bilete eller to, ikkje storleiken på objektet. */}
+        <Flatsynet />
         <Demping onSein={setSein} />
         <Handa f={f} fri={fri} sov={sov} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
         {/* Kroppen snur heile vegen rundt — undersida er der ledda sit, og
@@ -2829,6 +2949,10 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           screenSpacePanning
           touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}
           enableZoom
+          // Golvet og taket i PERSPEKTIVET. Flatsynet skriv dei om medan
+          // det flatar ut — sjå `Flatsynet` — og det held, av di desse to
+          // er faste tal: R3F skriv berre om rekvisittar som har ENDRA seg,
+          // so ei ny teikning av scena tek dei ikkje attende.
           minDistance={MIN_DIST}
           maxDistance={MAX_DIST}
           rotateSpeed={0.9}

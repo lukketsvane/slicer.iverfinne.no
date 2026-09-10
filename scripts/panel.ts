@@ -866,6 +866,20 @@ async function telefon(browser: Browser) {
     return s.split(",").map(Number) as [number, number, number]
   }
   /**
+   * AVSTANDEN OG SYNSFELTET, og produktet av dei to.
+   *
+   * `d · tan(fov/2)` er kor stort objektet vert på skjermen. Flatsynet
+   * byter begge to — 30° på 14 vert 2° på 222 — og heile poenget er at
+   * PRODUKTET står stille. Det er den eine talet prøva har lov å tru på:
+   * står det, har biletet ikkje flytt seg medan projeksjonen skifta.
+   */
+  const syn = async () => {
+    const b = page.locator(".handtak")
+    const d = Number((await b.getAttribute("data-avstand")) ?? "0")
+    const fov = Number((await b.getAttribute("data-fov")) ?? "30")
+    return { d, fov, skala: d * Math.tan((fov * Math.PI) / 360) }
+  }
+  /**
    * SYNSKUBEN er geometri i lerretet no (`GizmoViewcube` frå drei) og ikkje
    * knappar i DOM: han vert prøvd med fingeren der han står, og svaret vert
    * lese av kameraet scena skriv i lappen. Midten av kuben er sida som
@@ -879,14 +893,55 @@ async function telefon(browser: Browser) {
   await page.locator("[data-heim]").click()
   await page.waitForTimeout(900)
   const kubeFør = await kamera()
+  const synFør = await syn()
   await page.touchscreen.tap(kx, ky)
   await page.waitForTimeout(1700)
   const framme = await kamera()
   sjekk("eit tapp midt på synskuben ser rett framanfrå", Math.abs(framme[0]) < 0.5 && framme[2] > 10, `${kubeFør.map((c) => c.toFixed(1)).join(", ")} → ${framme.map((c) => c.toFixed(2)).join(", ")}`)
+
+  /**
+   * FLATSYNET. Ei side er ei side og ikkje eit perspektiv: står du rett ned
+   * ei akse, vert synsfeltet snevra inn til to grader medan kameraet går
+   * like mykje lenger attende. Prøva les begge tala og krev at PRODUKTET
+   * står — eit sprang der er eit objekt som hoppa i storleik då sida låste
+   * seg, og det er akkurat det ingen skal sjå.
+   */
+  const synFlat = await syn()
+  sjekk("og då flatar synet seg ut: synsfeltet ned mot to grader", synFlat.fov < 2.2 && synFlat.d > synFør.d * 10, `${synFør.fov.toFixed(1)}° på ${synFør.d.toFixed(1)} → ${synFlat.fov.toFixed(2)}° på ${synFlat.d.toFixed(1)}`)
+  sjekk("utan at objektet vert større eller mindre", Math.abs(synFlat.skala / synFør.skala - 1) < 0.02, `${synFør.skala.toFixed(3)} → ${synFlat.skala.toFixed(3)}`)
+
   await page.touchscreen.tap(kx + 14, ky - 14)
   await page.waitForTimeout(1700)
   const hjorne = await kamera()
   sjekk("og eit tapp på hjørnet hans ser frå tre sider", Math.min(...hjorne) > 1 && Math.max(...hjorne) - Math.min(...hjorne) < 1, hjorne.map((c) => c.toFixed(2)).join(", "))
+  /**
+   * OG ATTENDE. Hjørnet er ikkje ei akse, so perspektivet skal kome att av
+   * seg sjølv — og storleiken skal framleis stå. Denne er den strenge av
+   * dei to: synskuben svingar kameraet med den radien han fanga då du
+   * trykte, og skriv over det flatsynet legg der medan han svingar. Reknar
+   * flatsynet avstanden ut på nytt kvart bilete, tek han dei stega att;
+   * skalerer han han eit steg om gongen, står objektet att tre gonger for
+   * lite og INGEN annan prøve merkar det.
+   */
+  const synHjorne = await syn()
+  sjekk("og perspektivet kjem attende når du forlet sida", synHjorne.fov > 29, `${synHjorne.fov.toFixed(2)}°`)
+  sjekk("med objektet framleis like stort", Math.abs(synHjorne.skala / synFør.skala - 1) < 0.02, `${synFør.skala.toFixed(3)} → ${synHjorne.skala.toFixed(3)}`)
+
+  // Og den andre vegen ut: ein finger, ikkje kuben. Innramminga fyrst —
+  // midten av synskuben er den flata som VENDER MOT DEG, og frå hjørnet er
+  // det hjørnet sjølv, so eit tapp der ville late deg stå.
+  await page.locator("[data-heim]").click()
+  await page.waitForTimeout(700)
+  await page.touchscreen.tap(kx, ky)
+  await page.waitForTimeout(1700)
+  sjekk("ei side til: flatt att", (await syn()).fov < 2.2, `${(await syn()).fov.toFixed(2)}°`)
+  await page.mouse.move(195, 420)
+  await page.mouse.down()
+  await page.mouse.move(300, 350, { steps: 12 })
+  await page.mouse.up()
+  await roleg(page, 900)
+  const synFinger = await syn()
+  sjekk("og ein finger tek deg ut av det like godt", synFinger.fov > 29 && Math.abs(synFinger.skala / synFør.skala - 1) < 0.02, `${synFinger.fov.toFixed(2)}° · ${synFinger.skala.toFixed(3)} mot ${synFør.skala.toFixed(3)}`)
 
   await page.locator("[data-heim]").click()
   await page.waitForTimeout(700)
@@ -903,10 +958,19 @@ async function telefon(browser: Browser) {
    */
   const laas = page.locator("[data-laas]")
   sjekk("låsen står under kuben, open", (await laas.count()) === 1 && (await laas.getAttribute("aria-pressed")) === "false")
+  // FYRST EIN ANNAN VINKEL ENN HEIMVINKELEN. Står synet i heimvinkelen når
+  // du låser, seier «innramminga snur ikkje» ingenting — ho ville landa på
+  // det same om ho snudde aldri så mykje. Vakta under held prøva ærleg.
+  await page.mouse.move(195, 430)
+  await page.mouse.down()
+  await page.mouse.move(300, 350, { steps: 12 })
+  await page.mouse.up()
+  await roleg(page, 900)
   await laas.click()
   await page.waitForTimeout(250)
   sjekk("og eit trykk låser han", (await laas.getAttribute("aria-pressed")) === "true")
   const laastFraa = await kamera()
+  sjekk("og synet står i ein annan vinkel enn heimvinkelen", Math.hypot(laastFraa[0] - heim[0], laastFraa[1] - heim[1], laastFraa[2] - heim[2]) > 1, `${heim.map((c) => c.toFixed(2)).join(", ")} → ${laastFraa.map((c) => c.toFixed(2)).join(", ")}`)
   await page.mouse.move(195, 420)
   await page.mouse.down()
   await page.mouse.move(310, 330, { steps: 12 })
