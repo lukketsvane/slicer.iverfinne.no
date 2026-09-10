@@ -98,7 +98,11 @@ tool, export), the middle (size and the plane list), everything (material and th
 sliders, the table with the rules and their fixes, the tools). The tools
 float above it in a column under the right thumb, with the cut button at the
 bottom; the column is a band from the top line down to the sheet, so a long
-stack stops at the line instead of disappearing behind it.
+stack stops at the line instead of disappearing behind it. The two layout
+tools — the grid and the vortex — sit at the top of it, above everything that
+belongs to a single plane, because they are the same kind of thing: both write
+the whole plane list, and both are set with two fingers. A tool you can only
+reach from a keyboard does not exist on the phone.
 
 **The view cube**, top right, turns with the camera and is how you aim it: press
 a face for that side, an edge for the 45° view between two, a corner for the
@@ -139,7 +143,8 @@ one millimetre and ten with shift, `B` switches it between corner and arc,
 the plane list, `F` reframes, and the right mouse button (or the wheel pressed)
 pans the view — the reframe button puts it back. Every tool has a letter: `R`
 the grid, `V` the whirl, `K` the body, and `B` leafs the
-selected piece to the next version of its family. **The grid and the whirl
+selected piece to the next version of its family (or, with an outline point
+held, switches that point between corner and arc). **The grid and the whirl
 take the mouse too**: they were two fingers and nothing else, so on a bench
 the switch went on and nothing happened. With either open the left button is
 theirs — sideways sets columns (or ribs), up and down sets rows (or how far
@@ -641,7 +646,8 @@ direction each comes in.
 
 Ribbed plate furniture speaks two structural languages, and the tool has a layout
 tool for each. **The grid** crosses ribs over one another, under your thumb.
-**The vortex** — `V`, and no button of its own — stands
+**The vortex** — the second button in the thumb column, right under the grid,
+or `V` — stands
 them around the upright axis: `n` ribs, each turned `2πi/n`, each *pushed out* so
 it is tangent to a circle rather than passing through the middle.
 

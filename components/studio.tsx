@@ -15,7 +15,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoRute, IcoSkjer, IcoSlett } from "./deler"
+import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoRute, IcoSkjer, IcoSlett, IcoVirvel } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -2293,6 +2293,22 @@ export function Studio() {
             data-ruteverkty=""
           >
             {IcoRute}
+          </button>
+          {/* OG VIRVELEN, UNDER HAN. Dei to er det same slaget reiskap —
+              begge skriv heile plana på nytt, og begge vert sette med to
+              fingrar — so dei står saman, øvst, over dei som gjeld eitt
+              plan. Han hadde berre ein tast ei stund, og ein reiskap du
+              berre når frå eit tastatur finst ikkje på telefonen. */}
+          <button
+            type="button"
+            aria-pressed={modus === "virvel"}
+            aria-label="virvel"
+            title={modus === "virvel" ? "virvelen (V): to fingrar — vassrett er kor mange ribber, loddrett er kor langt ut frå aksen. trykk for å gå ut" : "virvelen (V): to fingrar set ribber kring ein akse, og kor langt ut dei står"}
+            onClick={vekslVirvel}
+            className={TUMME_BTN}
+            data-virvelverkty=""
+          >
+            {IcoVirvel}
           </button>
           {vald !== null && (
             <>

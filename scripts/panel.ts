@@ -2005,12 +2005,22 @@ async function virvelen(browser: Browser) {
   console.log("\n=== virvelen")
   const bag = { scene: "sylinder@0,0,0/1/0", storleik: 300, tjukn: 9 }
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
-  // Virvelen har ingen knapp lenger — han vart teken bort av lina — so
-  // tasten er vegen inn. Prøva ser at ikonet FAKTISK er borte: ein knapp
-  // som ligg att er ein knapp nokon trykkjer på.
-  sjekk("virvelen har ingen knapp i lina", (await page.locator("[data-virvelverkty]").count()) === 0)
-  await page.keyboard.press("v")
+  /**
+   * VIRVELEN ER EIN REISKAP, og reiskapane bur i tommelspalta.
+   *
+   * Han stod i lina på arket ei stund, og deretter ingen stad: berre `V`
+   * nådde han, og ein reiskap du berre når frå eit tastatur finst ikkje på
+   * telefonen. No står han under rutenettet, av di dei to er det same
+   * slaget — begge skriv heile plana, begge vert sette med to fingrar.
+   *
+   * Difor går prøva inn den vegen ein tumme går: gjennom knappen.
+   */
+  const virvelKnapp = page.locator(".tumme [data-virvelverkty]")
+  sjekk("virvelen står i tommelspalta, under rutenettet", (await virvelKnapp.count()) === 1 && (await page.locator("[aria-label='kontrollar'] [data-virvelverkty]").count()) === 0)
+  sjekk("og han står i ro til nokon trykkjer", (await virvelKnapp.getAttribute("aria-pressed")) === "false")
+  await virvelKnapp.click()
   await page.waitForTimeout(250)
+  sjekk("eit trykk opnar han", (await virvelKnapp.getAttribute("aria-pressed")) === "true")
   await toFingrar(page, (t) => [[110 + 200 * t, 300], [110 + 200 * t, 400]])
   await vent(page, (p) => lesPlan(p.plan).length > 0)
   await ferdig(page)
@@ -2032,13 +2042,19 @@ async function virvelen(browser: Browser) {
   const av1 = Math.hypot(plana(page)[0].o[0] - 0.5, plana(page)[0].o[1] - 0.5)
   sjekk("to fingrar oppover skyv ribbene ut frå aksen", av1 > av0, `${av0.toFixed(3)} → ${av1.toFixed(3)}`)
   sjekk("og talet på ribber står", plana(page).length === n1, `${plana(page).length} ribber`)
-  // og den same tasten slepper han: eit drag etterpå skal ikkje vera hans
+  // og eit trykk til slepper han: eit drag etterpå skal ikkje vera hans
   const n2 = plana(page).length
-  await page.keyboard.press("v")
+  await virvelKnapp.click()
   await page.waitForTimeout(250)
   await toFingrar(page, (t) => [[110 + 160 * t, 300], [110 + 160 * t, 400]])
   await roleg(page, 500)
-  sjekk("V att slepper verktyet: eit drag etterpå er ikkje hans", plana(page).length === n2, `${n2} → ${plana(page).length} ribber`)
+  sjekk("eit trykk til slepper verktyet: eit drag etterpå er ikkje hans", plana(page).length === n2 && (await virvelKnapp.getAttribute("aria-pressed")) === "false", `${n2} → ${plana(page).length} ribber`)
+  // og tasten gjer det same, for benken
+  await page.keyboard.press("v")
+  await page.waitForTimeout(250)
+  sjekk("og V gjer det same frå tastaturet", (await virvelKnapp.getAttribute("aria-pressed")) === "true")
+  await page.keyboard.press("v")
+  await page.waitForTimeout(250)
   sjekk("ingen konsollfeil i virvelen", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
   await page.close()
 }
@@ -2467,6 +2483,33 @@ async function boyen(browser: Browser) {
       sjekk("men eit dobbelttrykk rettar planet ut att", bogAv() === 0, `bog ${bogAv()}`)
     }
   }
+
+  /**
+   * OG HEILE TOMMELSPALTA STÅR PÅ SKJERMEN.
+   *
+   * Med eit plan valt og arket ope er ho på sitt lengste og bandet på sitt
+   * kortaste — rutenett, virvel, dubler, hòl, form, bøy, slett, kropp — so
+   * det er her ho ryk om ho skal ryke. Ein reiskap utanfor ruta er ein
+   * reiskap som ikkje finst, og det HAR hendt: stabelen gjekk 156 pikslar
+   * over topplina før spalta vart eit band. Prøva står her, av di ho må stå
+   * ein stad der nokon oppdagar det neste gongen ein knapp kjem til.
+   */
+  const spalta = await page.evaluate(() => {
+    const h = document.querySelector("header")?.getBoundingClientRect().bottom ?? 0
+    const alle = [...document.querySelectorAll<HTMLElement>(".tumme button")]
+    const ute: string[] = []
+    for (const b of alle) {
+      const r = b.getBoundingClientRect()
+      if (r.width === 0 || r.height === 0) continue
+      if (r.top < h - 1 || r.bottom > innerHeight + 1 || r.left < 0 || r.right > innerWidth + 1) ute.push(`${b.getAttribute("aria-label")} ${Math.round(r.top)}..${Math.round(r.bottom)}`)
+    }
+    return { ute, n: alle.length, topp: Math.round(h), H: innerHeight }
+  })
+  sjekk(
+    "og heile tommelspalta står på skjermen, under topplina",
+    spalta.ute.length === 0 && spalta.n >= 8,
+    `${spalta.n} knappar mellom ${spalta.topp} og ${spalta.H} px${spalta.ute.length ? " · " + spalta.ute.slice(0, 3).join(" · ") : ""}`,
+  )
 
   /**
    * MJUKINGA. Ho står under den same tommelen som bøyen — i arket — og går
