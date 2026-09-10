@@ -324,9 +324,23 @@ async function telefon(browser: Browser) {
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
   /**
-   * KLYPET ER KAMERAET, IKKJE KROPPEN. Det skalerte objektet før: du ville
-   * sjå nærare og fekk ein større krakk. Prøva spreier fingrane og krev at
-   * kameraet kom nærare OG at storleiken står som han stod.
+   * TO FINGRAR RØRER IKKJE KAMERAET. IKKJE EIN GONG EIT REINT KLYP.
+   *
+   * Klypet zooma synet før, og det er teke bort. Grunnen er at dei tre
+   * kanalane deler éi rørsle: draget må gå seks pikslar, klypet fire
+   * prosent — og fire prosent er tre pikslar PER FINGER på ei hand som held
+   * hundre og seksti. Ei hand som tek tak spriker so mykje før ho har drege
+   * i det heile, so klypet vann opninga på kvart einaste drag og kameraet
+   * krøkte seg ut og inn att. Ingen daudsone kan lese kva handa MEINTE.
+   *
+   * So kameraet er teke ut av striden. Zoomen har sine eigne kontrollar —
+   * lupa under synskuben, og hjulet på ein benk — og dei vert prøvde like
+   * under (`forstørraren`) og i `benk`.
+   *
+   * Prøva spreier fingrane like mykje som ho gjorde då dette var ein zoom,
+   * og krev at BÅDE kameraet og storleiken på kroppen står. Storleiken av
+   * di klypet skalerte objektet ein gong i tida: du ville sjå nærare og
+   * fekk ein større krakk.
    */
   const kamDist = async () => Number((await page.locator(".handtak").getAttribute("data-avstand")) ?? 0)
   const s0 = hash(page).storleik
@@ -334,7 +348,7 @@ async function telefon(browser: Browser) {
   await toFingrar(page, (t) => [[195 - 30 - 70 * t, 380], [195 + 30 + 70 * t, 380]])
   await roleg(page, 600)
   const d1 = await kamDist()
-  sjekk("to fingrar som spreier seg tek synet nærare", d1 < d0 - 0.2, `avstand ${d0.toFixed(2)} → ${d1.toFixed(2)}`)
+  sjekk("eit reint klyp på objektet rører ikkje kameraet", Math.abs(d1 - d0) < 1e-3, `avstand ${d0.toFixed(3)} → ${d1.toFixed(3)}`)
   sjekk("og storleiken på kroppen står", hash(page).storleik === s0, `${s0} mm`)
 
   /**
@@ -545,8 +559,7 @@ async function telefon(browser: Browser) {
    *
    * Prøva over lèt fingrane gli sakte, so draget rakk sine seks pikslar før
    * klypet rakk sine fire prosent. Ei hand gjer det motsett like ofte: ho
-   * spriker i det ho tek i, og DÅ slo klypet inn fyrst — kameraet krøkte
-   * seg eit hakk, og der stod det når draget so tok gesten.
+   * spriker i det ho tek i, og DÅ slo klypet inn fyrst.
    *
    * Her spriker fingrane tolv prosent FØR midten rører seg i det heile, og
    * so kjem draget. Kameraet skal stå der det stod.
@@ -568,7 +581,7 @@ async function telefon(browser: Browser) {
   const planKom2 = plana(page)[0]
   const flytta2 = Math.hypot(planKom2.o[0] - planStod2.o[0], planKom2.o[1] - planStod2.o[1], planKom2.o[2] - planStod2.o[2])
   sjekk(
-    "og eit klyp som kjem FØR draget gjev kameraet attende",
+    "og eit klyp som kjem FØR draget rører det ikkje heller",
     Math.abs(kamEtter2 - kamFør2) < 1e-3 && flytta2 > 0.005,
     `avstand ${kamFør2.toFixed(3)} → ${kamEtter2.toFixed(3)}, planet flytta ${flytta2.toFixed(3)}`,
   )
