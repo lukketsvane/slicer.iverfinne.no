@@ -10,7 +10,7 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
-import { delAv, dreiing, lesPlan, nyGruppe, nyId, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, virvel, vriOm, MJUK_TAK, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
+import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, virvel, vriOm, MJUK_TAK, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
@@ -85,6 +85,14 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0/p:0,0,x,0,0,1", "1@0.5,0.5,0.5/1,0,0"],
   // og fleire punkt enn taket vert kutta der taket går
   [`1@0.5,0.5,0.5/1,0,0/p:${sirkel(40)}`, `1@0.5,0.5,0.5/1,0,0/p:${sirkel(OMRISS_TAK)}`],
+  // BOGANE: plassar i omrisset, og ingenting anna. Ein plass som ikkje
+  // finst, eit tal som ikkje er eit heiltal, eller bogar utan eit omriss å
+  // høyre til — alt fell på golvet, og forma står att som hjørne.
+  ["1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:0,2", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:0,2"],
+  ["1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:2,0,2", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:0,2"],
+  ["1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:9", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2"],
+  ["1@0.5,0.5,0.5/1,0,0/r:0,1", "1@0.5,0.5,0.5/1,0,0"],
+  ["1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:x", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2"],
   // EIT MERKE FRÅ EI GAMMAL LENKJE. Handteikna baner fanst ein periode og
   // vart skrivne som `b`. Dei er borte, og ei lenkje som ber ein må miste
   // NETT det streket — planet og dei andre streka hans står.
@@ -346,6 +354,44 @@ console.log("")
     "og eit strek vert framleis skore i det",
     skore.flate < stort.flate && skore.nodar > stort.nodar,
     `${Math.round(stort.flate)}→${Math.round(skore.flate)} mm²`,
+  )
+
+  /**
+   * EIN BOGE ER EI KURVE, OG EIT HJØRNE ER FRAMLEIS EIT HJØRNE.
+   *
+   * Bogen ligg ikkje i strengen — han er eit flagg på eit punkt, og kurva
+   * vert rekna av naboane (sjå `omrissLine`). Difor tre påstandar, og alle
+   * tre må halde samstundes: kurva GÅR GJENNOM punkta (elles er handtaket
+   * ikkje på kanten det styrer), eit stykke mellom to hjørne er NØYAKTIG ei
+   * rett line (elles er kvar gammal form ei anna form no), og ein boge
+   * kjem faktisk fram i geometrien og ikkje berre på skjermen.
+   */
+  const rutene = kvadrat(0.1)
+  const rein = omrissLine(rutene)
+  sjekk(
+    "utan bogar er lina nøyaktig punkta, uendra",
+    JSON.stringify(rein) === JSON.stringify(rutene) && JSON.stringify(omrissLine(rutene, [])) === JSON.stringify(rutene),
+    `${rein.length} punkt`,
+  )
+  const alleFire = omrissLine(rutene, [0, 1, 2, 3])
+  sjekk(
+    "og kurva går gjennom kvart einaste punkt handa sette",
+    rutene.every((q) => alleFire.some((r) => Math.abs(r[0] - q[0]) < 1e-9 && Math.abs(r[1] - q[1]) < 1e-9)),
+    `${rutene.length} punkt i ${alleFire.length}`,
+  )
+  const eittRundt = omrissLine(rutene, [0])
+  const i1 = eittRundt.findIndex((q) => q[0] === rutene[1][0] && q[1] === rutene[1][1])
+  const etter = eittRundt[(i1 + 1) % eittRundt.length]
+  sjekk(
+    "stykket mellom to hjørne er framleis ei rett line, utan eit punkt i mellom",
+    i1 >= 0 && etter[0] === rutene[2][0] && etter[1] === rutene[2][1],
+    `${eittRundt.length} punkt i alt, og punkt 2 kjem rett etter punkt 1`,
+  )
+  const bogen = eitt({ omriss: rutene, runde: [0, 1, 2, 3] })
+  sjekk(
+    "fire bogar bular firkanten ut til noko rundare: større flate",
+    bogen.delar === 1 && bogen.flate > om.flate * 1.2,
+    `${Math.round(om.flate)}→${Math.round(bogen.flate)} mm²`,
   )
 }
 

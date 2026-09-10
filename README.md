@@ -134,7 +134,8 @@ one millimetre along its normal per arrow press, ten with shift, and its row
 reads where it stands in millimetres from the centre of the body, live. `D`
 duplicates the selected plane, `H` cuts a hole in it, `O` freezes its profile
 into points (twice quickly for the box), the arrows move a held outline point
-one millimetre and ten with shift, `⌫` removes it, tab and shift-tab walk
+one millimetre and ten with shift, `B` switches it between corner and arc,
+`⌫` removes it, tab and shift-tab walk
 the plane list, `F` reframes, and the right mouse button (or the wheel pressed)
 pans the view — the reframe button puts it back. Every tool has a letter: `R`
 the grid, `V` the whirl, `K` the body, and `B` leafs the
@@ -365,7 +366,8 @@ catch. It is also what stands between you and the slots. The button under the
 reframe icon takes it away and puts it back; the link carries it, so a view you
 share is the view you sent. It changes no geometry and is not in the undo list.
 
-Keys: `L` cut, `O` freeze the profile, `R` grid tool, `V` vortex, `⌫` remove what is
+Keys: `L` cut, `O` freeze the profile, `R` grid tool, `V` vortex, `B` corner or
+arc on a held point (else leaf the selected piece), `⌫` remove what is
 held — an outline point, else a stroke, else the plane,
 `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 
@@ -533,14 +535,34 @@ dense eighteen-point rib does not. They also disappear under anything that
 covers them — the sheet, the tool column, the plane's own handles — because a
 mark you cannot reach is worse than no mark: the press goes to whatever is on
 top. (Measured before that rule: a point dragged out to the right ended up
-under the tool column, and the double-tap meant to remove it duplicated the
+under the tool column, and the double-tap meant to reach it duplicated the
 plane instead.)
+
+**Double-tap a point and it becomes an arc.** The outline stops being a
+corner there and the edge curves through it — and a second double-tap makes it
+a corner again. The mark says which it is: a square stands for a corner, the
+same square turned an eighth of a turn stands for an arc. That is the whole
+control. There are no handle arms: the curve is worked out from the point's
+two neighbours, which means it passes *through* the points you already set,
+the handle stays on the edge it steers, and there is nothing extra to miss with
+a thumb.
+
+Only points live in the string. The arc is a flag — which positions in the
+outline are arcs — and the curve is turned back into points before any geometry
+sees it, so `contour`, the cut file and the joints read the polygon they always
+read. An outline with no arcs is, segment for segment, exactly the polygon it
+was before this existed: a corner is its own neighbour, which makes the stretch
+between two corners come out a straight line from the same arithmetic, with no
+second path through it. That is also why an old link opens the same shape.
 
 **Put a finger on a point and you are holding it** — the same motion that
 starts a drag, so selecting costs no extra press. The one you hold reads in
 full ink. Then the keyboard has it: the **arrows** move it one millimetre in
-the profile's own frame and ten with shift, **⌫** removes it, **Esc** lets it
-go. Holding **shift while dragging** locks the drag to one axis, which is how
+the profile's own frame and ten with shift, **B** switches it between corner
+and arc, **⌫** removes it, **Esc** lets it go. On the phone, where there is no
+`⌫`, **a long press removes it** — that is where removal went when the
+double-tap was taken over, because a curve is something you make with your
+thumb on the point you are looking at, and the short way should go there. Holding **shift while dragging** locks the drag to one axis, which is how
 you get a straight edge by hand. None of that is magnetism — nothing snaps on
 its own guess; you hold a key and it does exactly one thing.
 
@@ -561,8 +583,8 @@ others, so you drag one out and have a trapezium. One more press and the
 outline is let go: the profile is the mesh again.
 
 The points live in the plane's own frame as fractions of the size, in `p:` in
-the plane string, so undo, the link, the project file and the session carry
-them with no extra code. There are at most 24 of them: a handle is 44 pixels
+the plane string — and which of them are arcs in `r:`, as positions — so undo,
+the link, the project file and the session carry them with no extra code. There are at most 24 of them: a handle is 44 pixels
 and a profile filling 300 of them has a perimeter of about 800, which is
 eighteen handles that do not sit on top of one another. Past that you are
 tracing, not shaping. Links written before this still carry the old `f:1`

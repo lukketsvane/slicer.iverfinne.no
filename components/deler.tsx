@@ -80,7 +80,7 @@ export const HAIR: CSSProperties = { borderColor: "var(--rule)" }
  *
  * Same vindauge som eit trykk på lerretet får (`tapDown` i scene.tsx), og
  * det står her av di tre reiskapar deler det: forma tek boksen, bøyen rettar
- * planet ut, og eit punkt i omrisset går bort. Ei hand skal ikkje måtte
+ * planet ut, og eit punkt i omrisset vert ein boge. Ei hand skal ikkje måtte
  * lære seg tre ulike dobbelttrykk.
  */
 export const DOBBELT_MS = 320

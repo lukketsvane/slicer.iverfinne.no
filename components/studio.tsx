@@ -6,7 +6,7 @@ import { erPrimitiv, KUBE } from "@/lib/sources"
 import { gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, omrissLine, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
 import { simplify, type Pt2 } from "@/lib/contour"
 import { lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
@@ -39,6 +39,9 @@ const storleikAv = (p: ParamBag) => (typeof p.storleik === "number" && p.storlei
  * som eit hjørne i boksen.
  */
 const klemPunkt = (q: Pt): Pt => [+Math.min(1.5, Math.max(-1.5, q[0])).toFixed(4), +Math.min(1.5, Math.max(-1.5, q[1])).toFixed(4)]
+/** bogane er plassar i omrisset: flyttar punkta seg, må plassane fylgje med */
+const skiftRunde = (r: readonly number[] | undefined, f: (i: number) => number | null) =>
+  r?.length ? { runde: r.map(f).filter((i): i is number => i !== null) } : {}
 /**
  * DEN STØRSTE RINGEN I SNITTET, FØR SPORA.
  *
@@ -1252,7 +1255,9 @@ export function Studio() {
       const S = storleikAv(cur)
       const ou = dot(r.o, r.u)
       const ov = dot(r.o, r.v)
-      l[j] = { ...l[j], omriss: pts.slice(0, OMRISS_TAK).map((q) => klemPunkt([(q[0] - ou) / S, (q[1] - ov) / S])) }
+      // ein frosen profil er hjørne: bogane frå ei tidlegare form peikar på
+      // punkt som ikkje finst meir
+      l[j] = { ...l[j], omriss: pts.slice(0, OMRISS_TAK).map((q) => klemPunkt([(q[0] - ou) / S, (q[1] - ov) / S])), runde: undefined }
       return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
@@ -1273,7 +1278,8 @@ export function Studio() {
       if (j < 0) return cur
       const S = storleikAv(cur)
       let b: { x0: number; y0: number; x1: number; y1: number }
-      if (l[j].omriss?.length) b = bbox(l[j].omriss as Pt[])
+      // boksen kring det forma FAKTISK er: ein boge bular utanfor punkta sine
+      if (l[j].omriss?.length) b = bbox(omrissLine(l[j].omriss as Pt[], l[j].runde))
       else {
         // same ringen frysinga tek: eit dobbelttrykk i eitt drag og eit
         // dobbelttrykk etter eit sleppt omriss skal gje den same boksen
@@ -1286,7 +1292,8 @@ export function Studio() {
       }
       const { x0, y0, x1, y1 } = b
       if (!(x1 > x0 && y1 > y0)) return cur
-      l[j] = { ...l[j], omriss: [klemPunkt([x0, y0]), klemPunkt([x1, y0]), klemPunkt([x1, y1]), klemPunkt([x0, y1])] }
+      // ein boks er fire hjørne, og ingen ting anna
+      l[j] = { ...l[j], omriss: [klemPunkt([x0, y0]), klemPunkt([x1, y0]), klemPunkt([x1, y1]), klemPunkt([x0, y1])], runde: undefined }
       return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
@@ -1297,7 +1304,7 @@ export function Studio() {
       const l = lesPlan(cur.plan)
       const j = l.findIndex((q) => q.id === id)
       if (j < 0 || !l[j].omriss) return cur
-      const { omriss: _, ...utan } = l[j]
+      const { omriss: _, runde: _r, ...utan } = l[j]
       l[j] = utan
       return { ...cur, plan: skrivPlan(l) }
     })
@@ -1317,7 +1324,9 @@ export function Studio() {
       if (!om || !om[i] || om.length >= OMRISS_TAK) return cur
       const ny = om.slice()
       ny.splice(i + 1, 0, klemPunkt(q))
-      l[j] = { ...l[j], omriss: ny }
+      // BOGANE ER PLASSAR, so eit punkt sett inn flyttar dei bakanfor seg.
+      // Nytt punkt er eit hjørne: det du drog ut skal vera der du sette det.
+      l[j] = { ...l[j], omriss: ny, ...skiftRunde(l[j].runde, (k) => (k > i ? k + 1 : k)) }
       return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
@@ -1329,7 +1338,28 @@ export function Studio() {
       const j = l.findIndex((p) => p.id === id)
       const om = l[j]?.omriss
       if (!om || !om[i] || om.length <= 3) return cur
-      l[j] = { ...l[j], omriss: om.filter((_, k) => k !== i) }
+      l[j] = { ...l[j], omriss: om.filter((_, k) => k !== i), ...skiftRunde(l[j].runde, (k) => (k === i ? null : k > i ? k - 1 : k)) }
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [])
+  /**
+   * HJØRNE ELLER BOGE: DOBBELTTRYKKET PÅ PUNKTET.
+   *
+   * Eitt flagg og ingen kontrollarmar. Ein boge er rekna av naboane sine
+   * (sjå `omrissLine`), so det finst ikkje eit handtak til å dra i — og det
+   * er meininga: to armar per punkt er fire fleire ting å bomme på med ein
+   * tommel, og kurva du får er den mjukaste som går gjennom dei punkta du
+   * alt har sett.
+   */
+  const vriPunkt = useCallback((id: number, i: number) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const j = l.findIndex((p) => p.id === id)
+      const om = l[j]?.omriss
+      if (!om || !om[i]) return cur
+      const har = l[j].runde ?? []
+      const ny = har.includes(i) ? har.filter((k) => k !== i) : [...har, i].sort((a, b) => a - b)
+      l[j] = { ...l[j], ...(ny.length ? { runde: ny } : { runde: undefined }) }
       return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
@@ -2009,9 +2039,13 @@ export function Studio() {
       // K som KROPPEN: det var den einaste reiskapen utan ein tast, og på
       // ein benk er tastane vegen inn til dei — R, V, S og no K.
       else if (k === "k") vekslBit()
-      // B som BLA: den neste utgåva av forma i den valde biten. Same vegen
-      // inn som knappen nedst til venstre, og han finst berre når familien
-      // har fleire utgåver — difor er tasten stum på ein kube.
+      // B SOM BOGE, når du held eit punkt: hjørne eller boge, same handling
+      // som dobbelttrykket på punktet. Det minste emnet fyrst, som ⌫ — held
+      // du eit punkt, er det DET tasten gjeld.
+      else if (k === "b" && valdPunkt !== null && vald !== null) vriPunkt(vald, valdPunkt)
+      // B som BLA elles: den neste utgåva av forma i den valde biten. Same
+      // vegen inn som knappen nedst til venstre, og han finst berre når
+      // familien har fleire utgåver — difor er tasten stum på ein kube.
       else if (k === "b" && bla) leggBit(bla)
       else if (k === "1") setView("flate")
       else if (k === "2") setView("lag")
@@ -2053,7 +2087,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, plan, view])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -2117,6 +2151,7 @@ export function Studio() {
             onPunkt={flyttPunkt}
             onLeggPunkt={leggPunkt}
             onTaPunkt={taPunkt}
+            onVriPunkt={vriPunkt}
             valdPunkt={valdPunkt}
             onValdPunkt={setValdPunkt}
             onPlan={flyttPlan}

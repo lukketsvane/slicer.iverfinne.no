@@ -35,7 +35,7 @@ import { bbox, inRing, MATERIALS, MIN_AREA, perimeter, shoelace, type Material, 
 import { contour, simplify } from "./contour"
 import type { Solid, Span } from "./mesh/solid"
 import { rull, vend, type BitBoks, type Kropp } from "./kropp"
-import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, norm3, skrivPlan, ut, type Plan, type Ramme, type Strek } from "./plan"
+import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, norm3, omrissLine, skrivPlan, ut, type Plan, type Ramme, type Strek } from "./plan"
 import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 
 /**
@@ -706,7 +706,9 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
      * er det profilen: kroppen vert ikkje lesen for dette planet, og ruta
      * skal difor dekkje omrisset og ikkje nettet.
      */
-    const omriss = pl.omriss && pl.omriss.length >= 3 ? (pl.omriss.map((q) => [ou + q[0] * S, ov + q[1] * S]) as Pt[]) : undefined
+    // Bogane vert rekna ut til punkt her, so alt under dette — ruta,
+    // feltet, ledda, kuttfila — ser den mangekanten dei alltid har sett.
+    const omriss = pl.omriss && pl.omriss.length >= 3 ? (omrissLine(pl.omriss, pl.runde).map((q) => [ou + q[0] * S, ov + q[1] * S]) as Pt[]) : undefined
     // det utrulla rommet har flata på null; det vendte har henne på `d`
     const ob = omriss ? bbox(omriss) : null
     const ru = ruteAv(ob ? { bx0: ob.x0, bx1: ob.x1, by0: ob.y0, by1: ob.y1 } : sol, boygd ? 0 : d, step, former)

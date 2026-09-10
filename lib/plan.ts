@@ -129,11 +129,13 @@ export type Plan = {
    * Kroppen vert ikkje lesen for dette planet lenger; streka vert teikna i
    * omrisset og spora skorne i det, som før.
    *
-   * TO DIMENSJONAR OG EI RETT LINE MELLOM PUNKTA. Ein kurve med
-   * kontrollpunkt ville vore ein ny geometri i strengen, og ein kant som
-   * ikkje er der punkta er. Ei mangekant er det profilen alltid har vore:
-   * `contour` gjev ei mangekant, kuttfila skriv ei mangekant, og ledda vert
-   * lesne av ei mangekant.
+   * TO DIMENSJONAR, OG INGEN KONTROLLPUNKT. Eit punkt kan vera eit hjørne
+   * eller ein boge (sjå `runde`), men bogen er rekna av NABOANE og ligg
+   * ikkje i strengen: det er framleis berre punkt her, og kurva går
+   * gjennom dei. Ei mangekant er det profilen alltid har vore — `contour`
+   * gjev ei mangekant, kuttfila skriv ei mangekant, og ledda vert lesne av
+   * ei mangekant — so bogane vert rekna ut til punkt (`omrissLine`) før
+   * noko som helst geometri får sjå dei.
    *
    * Brøkdelar av storleiken, kring planet sitt eige punkt — same eining og
    * same nullpunkt som eit strek, og av same grunn: det du forma skal
@@ -142,6 +144,22 @@ export type Plan = {
    * Under tre punkt er det ikkje ei flate, og då er det ikkje eit omriss.
    */
   omriss?: Pt[]
+  /**
+   * KVA PUNKT I OMRISSET SOM ER BOGAR OG IKKJE HJØRNE.
+   *
+   * Plassane i `omriss`, ikkje punkt for seg: eit punkt er anten det eine
+   * eller det andre, og eit flagg treng ikkje meir enn eit tal. Er lista
+   * tom, er heile profilen hjørne — som han var før dette fanst, so ei
+   * lenkje frå den tida opnar den same forma.
+   *
+   * Kurva er ein Catmull-Rom gjennom punkta: ho GÅR GJENNOM dei, so
+   * handtaket ligg framleis på kanten det styrer. Eit hjørne står i vegen
+   * for seg sjølv — naboen på den sida vert punktet sjølv — og då er
+   * stykket mellom to hjørne nøyaktig ei rett line. Difor éin veg gjennom
+   * rekninga og ikkje to, og difor er ei form utan bogar bit for bit den
+   * same mangekanten ho alltid var.
+   */
+  runde?: number[]
   /**
    * MJUKINGA: kor mykje av kanten som vert runda bort, som brøkdel av den
    * lengste sida i kroppen.
@@ -419,11 +437,13 @@ const skrivStrek = (s: Strek) =>
 
 /** «p:x,y,x,y,…» — punkta på rad, av di eit punkt ikkje har fleire felt enn dei to */
 const skrivOmriss = (o: readonly Pt[]) => `p:${o.map((q) => `${tal4(q[0])},${tal4(q[1])}`).join(",")}`
+/** «r:0,2,5» — kva plassar i omrisset som er bogar. Tomt er berre hjørne. */
+const skrivRunde = (r: readonly number[]) => `r:${r.join(",")}`
 
 export function skrivPlan(l: readonly Plan[]): string {
   return l
     .map((p) =>
-      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.firkant ? ["f:1"] : []), ...(p.mjuk ? [`m:${+p.mjuk.toFixed(4)}`] : []), ...(p.omriss?.length ? [skrivOmriss(p.omriss)] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...(p.farge ? [`c:${p.farge}`] : []), ...p.strek.map(skrivStrek)].join("/"),
+      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.firkant ? ["f:1"] : []), ...(p.mjuk ? [`m:${+p.mjuk.toFixed(4)}`] : []), ...(p.omriss?.length ? [skrivOmriss(p.omriss)] : []), ...(p.omriss?.length && p.runde?.length ? [skrivRunde(p.runde)] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...(p.farge ? [`c:${p.farge}`] : []), ...p.strek.map(skrivStrek)].join("/"),
     )
     .join(";")
 }
@@ -455,6 +475,66 @@ const lesStrek = (s: string): Strek | null => {
 }
 
 /**
+ * OMRISSET SOM MANGEKANT, MED BOGANE REKNA UT.
+ *
+ * Alt nedanfor dette tek ei mangekant: feltet, kuttfila, ledda. Bogane er
+ * eit flagg på eit punkt og ikkje ein ny geometri, so dei vert til punkt
+ * her — éin stad — og resten av huset ser aldri anna enn det ho alltid såg.
+ *
+ * Catmull-Rom gjennom punkta: for stykket p1→p2 er naboen på kvar side
+ * tangenten, og eit HJØRNE er sin eigen nabo. Med begge endane hjørne fell
+ * kurva saman med den rette lina mellom dei — same rekninga, ingen greiner,
+ * og ei form utan bogar er bit for bit den mangekanten ho var før.
+ *
+ * Åtte steg per boga: eit omriss står i høgda 300 px på skjermen, og eit
+ * stykke av det er sjeldan meir enn hundre. Åtte gjev kortare bitar enn ein
+ * piksel er brei på ein telefon, og taket på 24 punkt held heile ting under
+ * 200 punkt — mindre enn ein kontur lesen av eit nett.
+ */
+const BOGE_STEG = 8
+const bogePkt = (p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt => {
+  const t2 = t * t
+  const t3 = t2 * t
+  const c = (a: number, b: number, d: number, e: number) => 0.5 * (2 * b + (d - a) * t + (2 * a - 5 * b + 4 * d - e) * t2 + (-a + 3 * b - 3 * d + e) * t3)
+  return [c(p0[0], p1[0], p2[0], p3[0]), c(p0[1], p1[1], p2[1], p3[1])]
+}
+/** dei fire punkta stykket etter `i` vert rekna av */
+const bogeFire = (o: readonly Pt[], rund: ReadonlySet<number>, i: number): [Pt, Pt, Pt, Pt] => {
+  const n = o.length
+  const j = (i + 1) % n
+  return [rund.has(i) ? o[(i - 1 + n) % n] : o[i], o[i], o[j], rund.has(j) ? o[(j + 1) % n] : o[j]]
+}
+export function omrissLine(omriss: readonly Pt[], runde?: readonly number[]): Pt[] {
+  const n = omriss.length
+  if (n < 3 || !runde?.length) return omriss.slice()
+  const rund = new Set(runde)
+  const ut: Pt[] = []
+  for (let i = 0; i < n; i++) {
+    ut.push(omriss[i])
+    const j = (i + 1) % n
+    if (!rund.has(i) && !rund.has(j)) continue
+    const [a, b, c, d] = bogeFire(omriss, rund, i)
+    for (let k = 1; k < BOGE_STEG; k++) ut.push(bogePkt(a, b, c, d, k / BOGE_STEG))
+  }
+  return ut
+}
+/**
+ * MIDT PÅ STYKKET ETTER `i`, PÅ KURVA og ikkje på korda.
+ *
+ * Det er her midtmerket står og der punktet det lagar hamnar. Stod merket
+ * på korda, ville det liggje av garde frå den kanten det høyrer til so
+ * snart stykket bogna — og punktet det la til ville rykt forma rett.
+ */
+export function omrissMidt(omriss: readonly Pt[], runde: readonly number[] | undefined, i: number): Pt {
+  const n = omriss.length
+  const j = (i + 1) % n
+  const rund = new Set(runde ?? [])
+  if (!rund.has(i) && !rund.has(j)) return [(omriss[i][0] + omriss[j][0]) / 2, (omriss[i][1] + omriss[j][1]) / 2]
+  const [a, b, c, d] = bogeFire(omriss, rund, i)
+  return bogePkt(a, b, c, d, 0.5)
+}
+
+/**
  * OMRISSET INN, FRÅ EI LENKJE KVEN SOM HELST KAN HA SKRIVE.
  *
  * Eit ODDETAL av tal er ikkje punkt; eit punkt langt utanfor kroppen er
@@ -475,6 +555,16 @@ const lesOmriss = (s: string): Pt[] | null => {
   // seks komma på rad frå ei lenkje som prøver seg. Talet er ein brøk av
   // storleiken i andre, so det er ein promille av kroppen i kvadrat.
   return Math.abs(shoelace(ut)) > 1e-6 ? ut : null
+}
+
+/**
+ * BOGANE INN. Plassar i omrisset, so alt som ikkje er eit heiltal innanfor
+ * lista fell bort — og eit omriss utan bogar er berre hjørne, som før.
+ */
+const lesRunde = (s: string, n: number): number[] => {
+  const v = s.split(",").map(Number)
+  const ut = [...new Set(v.filter((i) => Number.isInteger(i) && i >= 0 && i < n))].sort((a, b) => a - b)
+  return ut
 }
 
 export function lesPlan(s: unknown): Plan[] {
@@ -503,6 +593,7 @@ export function lesPlan(s: unknown): Plan[] {
     let firkant = false
     let mjuk = 0
     let omriss: Pt[] | null = null
+    let runde = ""
     for (const r of rest.slice(1)) {
       // laget: eit av dei handa får merkje med, elles ikkje noko lag
       const c = /^c:(\d{1,2})$/.exec(r)
@@ -543,13 +634,21 @@ export function lesPlan(s: unknown): Plan[] {
         omriss = lesOmriss(om[1]) ?? omriss
         continue
       }
+      // bogane: rå her, av di dei berre tyder noko saman med omrisset, og
+      // det kan stå etter dei i strengen
+      const bg = /^r:([\d,]+)$/.exec(r)
+      if (bg) {
+        runde = bg[1]
+        continue
+      }
       if (strek.length >= STREK_TAK) break
       const st = lesStrek(r)
       if (!st) continue
       strek.push(st)
     }
     sett.add(id)
-    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, ...(firkant ? { firkant: true as const } : {}), ...(mjuk ? { mjuk } : {}), ...(omriss ? { omriss } : {}), strek, ...(gruppe ? { gruppe } : {}), ...(farge ? { farge } : {}) })
+    const rd = omriss && runde ? lesRunde(runde, omriss.length) : []
+    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, ...(firkant ? { firkant: true as const } : {}), ...(mjuk ? { mjuk } : {}), ...(omriss ? { omriss } : {}), ...(rd.length ? { runde: rd } : {}), strek, ...(gruppe ? { gruppe } : {}), ...(farge ? { farge } : {}) })
   }
   return ut
 }

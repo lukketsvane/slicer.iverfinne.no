@@ -82,9 +82,12 @@ metric is, what a rule is, and the geometry the slicing, the measuring and the
 cut files all share. It knows nothing about planes, cube or STL. A change that
 teaches it about one of those is in the wrong file. `lib/plan.ts` is what a
 cutting plane is — a name, a point, a normal, a bend, and (when the hand has
-taken the shape over) an outline of 2D points in the plane's own frame — all
-encoded as the `plan` string in the parameter bag, and it knows nothing about
-meshes. A bent plane is a cylinder, not a plane: developable, so the part is
+taken the shape over) an outline of 2D points in the plane's own frame, with
+a flag on the points that are arcs rather than corners — all encoded as the
+`plan` string in the parameter bag, and it knows nothing about meshes. An arc
+is not a new geometry: the curve is worked out from the point's neighbours and
+turned back into points (`omrissLine`) before anything geometric sees it, so
+everything below still gets the polygon it always got. A bent plane is a cylinder, not a plane: developable, so the part is
 still cut flat, and the radius is limited by what the material takes. Bent
 planes do not carry joints yet — two bent surfaces cross along a curve, and
 that finder is not written; a hard rule says so.
@@ -96,9 +99,11 @@ decision and never a consequence of the geometry, names belong to
 the part and never get reused, it is a laser tool with no cutter diameter,
 colour is the operation and carries the order, kerf is taken exactly once,
 slots are cut in the field and not in the polygon, a plane that carries an
-outline takes its profile from that outline and not from the body, two fingers
-do all three gestures at once and never pick one for you, and there are two
-colours and no more.
+outline takes its profile from that outline and not from the body, an outline
+curve goes through its points and never has control arms, the view flattens to
+2° when you look straight down an axis and never gets a second camera, two
+fingers do all three gestures at once and never pick one for you, and there are
+two colours and no more.
 
 ## Verify with the harnesses, not by eye
 
