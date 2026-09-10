@@ -5,7 +5,7 @@ import { FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge, nn, type E
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import { MJUK_TAK, type Plan } from "@/lib/plan"
 import {
-  CHIP, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, IcoVirvel, UTTAK,
+  CHIP, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, UTTAK,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
 } from "./deler"
 import type { VerktyId } from "./verkty"
@@ -99,9 +99,7 @@ export type ArketProps = {
   feil: string | null
   melding: string | null
   hentar: boolean
-  /** virvelen: to fingrar set kor mange ribber, og kor langt ut frå aksen */
-  virvel: boolean
-  onVirvel: () => void
+
   onExport: (k: ExportKind) => void
   onReset: () => void
   verkty: VerktyId | null
@@ -551,19 +549,7 @@ export function Arket(p: ArketProps): JSX.Element {
       <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className="hit tab min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em]" aria-label="plan, delar, ark og tid">
         <Lina p={p} />
       </button>
-      {/* VIRVELEN. Rutenettet stod her, ved talet det endrar; no står det i
-          tommelspalta, saman med dei andre reiskapane. */}
-      <button
-        type="button"
-        aria-pressed={p.virvel}
-        aria-label="virvel"
-        title={p.virvel ? "virvelen (V): to fingrar — vassrett er kor mange ribber, loddrett kor langt ut frå aksen. trykk for å gå ut" : "virvelen (V): ribber kring loddaksen, skovne ut frå han"}
-        onClick={p.onVirvel}
-        className={ICON_BTN}
-        data-virvelverkty=""
-      >
-        {IcoVirvel}
-      </button>
+
       {!benk && (
         <button type="button" aria-label="eksport" aria-expanded={visUttak} title="uttaka: rom — stl, glb, flat, 3mf, usdz. plate — dxf, svg, ark, png, passprøve. alt og lagre" onClick={eksport} className={ICON_BTN} aria-pressed={visUttak} data-uttak="">
           {IcoUttak}

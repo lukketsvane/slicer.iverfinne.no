@@ -1804,6 +1804,9 @@ export function Studio() {
   const andreFinger = useRef<Element | null>(null)
   /** kvar fingeren stod sist medan han bøygde eit plan */
   const boy = useRef<number | null>(null)
+  /** og der han LANDA, med tida for det førre trykket: to trykk rettar planet ut */
+  const boyNed = useRef<number | null>(null)
+  const sisteBoy = useRef(0)
   /**
    * EIN NY KROPP RAMMAR INN, EI REDIGERING GJER DET IKKJE.
    *
@@ -2249,18 +2252,25 @@ export function Studio() {
               {/* BØYEN: TRYKK OG DRA, som lupa. Ein skyvar ville teke ei
                   rad i arket for noko som gjeld eitt plan, og handtaka på
                   snittet er alt tre. Draget er buelengd og ikkje pikslar:
-                  hundre pikslar er ein halv bøy same kva skjerm du held. */}
+                  hundre pikslar er ein halv bøy same kva skjerm du held.
+
+                  OG EIT DOBBELTTRYKK RETTAR PLANET UT ATT. Ein skrubbar har
+                  ingen veg attende til null utan at du dreg deg dit og
+                  bommar på siste hundredelen; knappen er sin eigen veg ut,
+                  som forma er det. Eit trykk er eit trykk berre når det
+                  ikkje flytte seg — elles er det byrjinga på eit drag. */}
               {valdStrek === null && valdGruppe === null && (
                 <button
                   type="button"
                   data-boy=""
                   aria-label="bøy planet"
-                  title="dra opp og ned: bøy planet. materialet set grensa, og regelen seier kvar ho går"
+                  title="dra opp og ned: bøy planet. materialet set grensa, og regelen seier kvar ho går. dobbelttrykk rettar han ut att"
                   className={TUMME_BTN}
                   style={{ touchAction: "none", cursor: "ns-resize" }}
                   onPointerDown={(e) => {
                     e.currentTarget.setPointerCapture(e.pointerId)
                     boy.current = e.clientY
+                    boyNed.current = e.clientY
                     setSkrubbar(true)
                   }}
                   onPointerMove={(e) => {
@@ -2269,8 +2279,18 @@ export function Studio() {
                     boy.current = e.clientY
                     boyPlan(vald, -dy * BOY_STEG)
                   }}
-                  onPointerUp={() => { boy.current = null; setSkrubbar(false) }}
-                  onPointerCancel={() => { boy.current = null; setSkrubbar(false) }}
+                  onPointerUp={(e) => {
+                    const ned = boyNed.current
+                    boy.current = null
+                    boyNed.current = null
+                    setSkrubbar(false)
+                    if (ned === null || vald === null || Math.abs(e.clientY - ned) > 6) return
+                    const no = performance.now()
+                    const dobbelt = no - sisteBoy.current < DOBBELT_MS
+                    sisteBoy.current = no
+                    if (dobbelt) boyPlan(vald, -(plan.find((q) => q.id === vald)?.bog ?? 0))
+                  }}
+                  onPointerCancel={() => { boy.current = null; boyNed.current = null; setSkrubbar(false) }}
                 >
                   {IcoBoy}
                 </button>
@@ -2416,8 +2436,7 @@ export function Studio() {
         feil={feil}
         melding={melding}
         hentar={hentar}
-        virvel={modus === "virvel"}
-        onVirvel={vekslVirvel}
+
         onExport={doExport}
         onReset={() => endre({ ...MOTOR.defaults, kjelde: params.kjelde })}
         verkty={verkty}
