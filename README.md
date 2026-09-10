@@ -105,8 +105,8 @@ a face for that side, an edge for the 45° view between two, a corner for the
 isometric between three, and the camera swings there. It is drei's
 `GizmoViewcube` — geometry in the canvas, hit by the same raycast as everything
 else in the scene — not a hand-built one, and it is 45 px. Under it is the
-reframe button, which fits the object back into the screen, and under that the
-magnifier: press and drag it up to go in, down to go out. Out is 3.4 times
+padlock that holds the view still (below), then the reframe button, which fits
+the object back into the screen, and under that the magnifier: press and drag it up to go in, down to go out. Out is 3.4 times
 the framed distance — the ceiling was one and a quarter, which is not enough
 to see a body with many planes in it. The body turns the
 whole way round, underside included.
@@ -246,6 +246,26 @@ opening a file is not editing.
 The box itself is still live. A plane's origin is a fraction of it, and a
 plane at 0.5 has to sit in the middle of the body as it is now, not as it was.
 Only the view holds still.
+
+**And it can be locked.** The padlock above the reframe button takes that
+decision all the way: with it closed, nothing turns the object — not one
+finger on the canvas, not a face of the view cube, not the reframe button,
+which then fits the object back into the screen from where you are already
+standing instead of swinging home. The cube keeps turning with the camera,
+because saying which way you are looking is half of what it is for; it just
+stops being a control. Zoom is still yours: going closer is not a new angle,
+it is the same view from nearer. Aim the object once and the rest of the
+session is aiming at *it*, not at it and the camera both.
+
+**A finger that lands after a turn does not inherit the spin.** OrbitControls
+damps: let go mid-turn and it keeps swinging for a few frames, and
+`controls.enabled = false` only stops it *listening* — the leftover
+`sphericalDelta` is still spent, a slice per frame. So the ordinary phone
+motion, one finger turning the view and the second coming down to cut,
+handed the second finger a camera that was still moving, and the position we
+restored was overwritten in the next frame. Now taking the camera spends the
+remainder in one step (one `update()` with damping off) instead of waiting
+for it to die out.
 
 **Each side of a piece has a dot.** In the body tool, a selected piece shows
 six small dots, one on the middle of each face of its box. Drag one and that

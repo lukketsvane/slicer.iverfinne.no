@@ -892,6 +892,44 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(700)
   const heim = await kamera()
   sjekk("innramminga tek synet heim att", heim[1] > 0 && heim[2] > Math.abs(heim[0]), heim.map((c) => c.toFixed(2)).join(", "))
+
+  /**
+   * LÅSEN: SYNSVINKELEN STÅR, OG INGENTING RØRER HAN.
+   *
+   * Tre ting kan snu objektet — ein finger på lerretet, ei side på
+   * synskuben, og heimknappen — og prøva tek alle tre med låsen på. Ho krev
+   * TALET og ikkje ei kjensle: kameraet skal stå på same staden på tre
+   * desimalar etterpå.
+   */
+  const laas = page.locator("[data-laas]")
+  sjekk("låsen står under kuben, open", (await laas.count()) === 1 && (await laas.getAttribute("aria-pressed")) === "false")
+  await laas.click()
+  await page.waitForTimeout(250)
+  sjekk("og eit trykk låser han", (await laas.getAttribute("aria-pressed")) === "true")
+  const laastFraa = await kamera()
+  await page.mouse.move(195, 420)
+  await page.mouse.down()
+  await page.mouse.move(310, 330, { steps: 12 })
+  await page.mouse.up()
+  await roleg(page, 500)
+  sjekk("ein finger snur ikkje synet medan han er låst", (await kamera()).join() === laastFraa.join(), `${laastFraa.map((c) => c.toFixed(2)).join(", ")} → ${(await kamera()).map((c) => c.toFixed(2)).join(", ")}`)
+  await page.touchscreen.tap(kx, ky)
+  await roleg(page, 900)
+  sjekk("og synskuben snur han ikkje heller", (await kamera()).join() === laastFraa.join(), (await kamera()).map((c) => c.toFixed(2)).join(", "))
+  await page.locator("[data-heim]").click()
+  await roleg(page, 700)
+  const rammaLaast = await kamera()
+  sjekk("innramminga rammar inn utan å snu", Math.abs(rammaLaast[0] - laastFraa[0]) < 0.01 && Math.abs(rammaLaast[1] - laastFraa[1]) < 0.01, rammaLaast.map((c) => c.toFixed(2)).join(", "))
+  await laas.click()
+  await page.waitForTimeout(250)
+  await page.mouse.move(195, 420)
+  await page.mouse.down()
+  await page.mouse.move(310, 330, { steps: 12 })
+  await page.mouse.up()
+  await roleg(page, 500)
+  sjekk("og eit trykk til slepper han: fingeren snur att", (await kamera()).join() !== laastFraa.join(), (await kamera()).map((c) => c.toFixed(2)).join(", "))
+  await page.locator("[data-heim]").click()
+  await roleg(page, 700)
   // eit dobbelttrykk på objektet: to korte trykk, same staden
   await page.touchscreen.tap(195, 380)
   await page.waitForTimeout(90)

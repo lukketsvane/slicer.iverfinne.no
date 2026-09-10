@@ -251,6 +251,36 @@ function polygonGeom(poly: readonly Vec3[]) {
   for (let i = 0; i < poly.length; i++) lin.push(...poly[i], ...poly[(i + 1) % poly.length])
   return { flate: mkGeom(pos), kant: mkGeom(lin) }
 }
+/**
+ * ORBITEN SLEPPER IKKJE AV SEG SJØLV.
+ *
+ * `controls.enabled = false` stengjer berre hendingane. Dempinga er ein REST
+ * som ligg att inne i OrbitControls — `sphericalDelta` — og han vert brukt
+ * opp litt for kvart bilete, uansett om kontrollane er slegne av. Difor:
+ * tok du eit handtak eller sette ned den andre fingeren rett etter å ha
+ * snudd synet, heldt kameraet fram med å svinge medan du sikta, og
+ * `restore()` vart overskriven av resten i biletet etter.
+ *
+ * På ein telefon er det den vanlege rørsla — éin finger snur, den andre
+ * kjem ned — so det hende kvar gong. Her vert resten BRUKT OPP med ein
+ * gong: utan demping tømer `update()` heile delta-en i eitt steg, og so
+ * står kameraet stilt til nokon ber det om noko.
+ */
+type Orbit = { enabled: boolean; enableDamping?: boolean; update?: () => void }
+const roOrbit = (c: Orbit | null) => {
+  if (!c) return
+  const d = c.enableDamping
+  c.enableDamping = false
+  c.update?.()
+  c.enableDamping = d
+}
+/** ein gest tek kameraet: orbiten høyrer ikkje meir, og resten hans er brukt opp */
+const taKameraet = (c: Orbit | null) => {
+  if (!c) return
+  c.enabled = false
+  roOrbit(c)
+}
+
 /** ein geometri med fast tak på punkt, skriven om att når skissa flyttar seg */
 function dynGeom(n: number) {
   const g = new THREE.BufferGeometry()
@@ -505,7 +535,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
   const gl = useThree((s) => s.gl)
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
   const size = useThree((s) => s.size)
-  const controls = useThree((s) => s.controls) as { enabled: boolean; target: THREE.Vector3; update?: () => void } | null
+  const controls = useThree((s) => s.controls) as (Orbit & { target: THREE.Vector3 }) | null
   const invalidate = useThree((s) => s.invalidate)
   const gruppe = useRef<THREE.Group>(null)
   /** skissa: pikslar frå midten av det frie bandet, og vinkelen. Loddrett gjennom midten til å byrje med. */
@@ -771,6 +801,8 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
 
     const restore = () => {
       if (!snap || !controls) return
+      // resten av draget FYRST: elles legg han seg oppå det vi nett sette
+      roOrbit(controls)
       camera.position.copy(snap.pos)
       controls.target.copy(snap.target)
       controls.update?.()
@@ -1008,7 +1040,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
           e.preventDefault()
           mode = "musRute"
           musRute = { x: e.clientX, y: e.clientY, id: e.pointerId }
-          if (controls) controls.enabled = false
+          taKameraet(controls)
           naa.current.onGest(naa.current.modus === "virvel" ? "virvel" : "rute")
           return
         }
@@ -1025,7 +1057,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pts.size === 1 && controls) snap = { pos: camera.position.clone(), target: controls.target.clone() }
       if (pts.size === 2 && mode !== "lys") {
-        if (controls) controls.enabled = false
+        taKameraet(controls)
         const c = measure2()
         last = c
         // Den fyrste fingeren rakk å snu synet litt før den andre landa; det
@@ -1041,7 +1073,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
         mode = "lys"
         const c = centroid()
         last = { cx: c.x, cy: c.y, d: 0, a: 0 }
-        if (controls) controls.enabled = false
+        taKameraet(controls)
         restore()
         naa.current.onGest("lys")
       }
@@ -1318,7 +1350,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       } catch {
         // ein peikar som alt er sleppt
       }
-      if (controls) controls.enabled = false
+      taKameraet(controls)
       naa.current.onGest(strek ? "strek" : "snitt")
     }
     const svelg = (e: MouseEvent) => {
@@ -1449,7 +1481,7 @@ function Spora({ f, snitt, boks, onDeling }: {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
   const size = useThree((s) => s.size)
   const gl = useThree((s) => s.gl)
-  const controls = useThree((s) => s.controls) as { enabled: boolean } | null
+  const controls = useThree((s) => s.controls) as Orbit | null
   const spor = useMemo(() => snitt.spor ?? [], [snitt])
   const paa = (q: (typeof spor)[number], t: number): Pt => [q.lo[0] + (q.hi[0] - q.lo[0]) * t, q.lo[1] + (q.hi[1] - q.lo[1]) * t]
   const naa = useRef({ f, snitt, spor, onDeling })
@@ -1489,7 +1521,7 @@ function Spora({ f, snitt, boks, onDeling }: {
       if (aa < 1e-9) return
       dra = { nokkel: q.nokkel, A, u, aa }
       el.setPointerCapture(e.pointerId)
-      if (controls) controls.enabled = false
+      taKameraet(controls)
     }
     const rorsle = (e: PointerEvent) => {
       if (!dra) return
@@ -1612,7 +1644,7 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
   const size = useThree((s) => s.size)
   const gl = useThree((s) => s.gl)
-  const controls = useThree((s) => s.controls) as { enabled: boolean } | null
+  const controls = useThree((s) => s.controls) as Orbit | null
   const naa = useRef({ f, r, omriss, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onValdPunkt })
   naa.current = { f, r, omriss, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onValdPunkt }
   /** plassen kvart merke sist vart skrive til, so ei teikning som ikkje flytta
@@ -1727,7 +1759,7 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
         naa.current.onValdPunkt(i + 1)
         dra = { i: i + 1, q0, p0: ny, x0: e.clientX, y0: e.clientY, ny: true, g, r: rr }
         el.setPointerCapture(e.pointerId)
-        if (controls) controls.enabled = false
+        taKameraet(controls)
         return
       }
       const i = Number(el.dataset.punkt)
@@ -1741,7 +1773,7 @@ function Omrisset({ f, r, omriss, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt,
       naa.current.onValdPunkt(i)
       dra = { i, q0, p0, x0: e.clientX, y0: e.clientY, ny: false, g, r: rr }
       el.setPointerCapture(e.pointerId)
-      if (controls) controls.enabled = false
+      taKameraet(controls)
     }
     const rorsle = (e: PointerEvent) => {
       if (!dra) return
@@ -2528,6 +2560,19 @@ const IkonLupe = (
   </svg>
 )
 
+/**
+ * LÅSEN: synsvinkelen står, og ingenting kan røre han.
+ *
+ * Ein hengelås som er open når han ikkje gjeld og lukka når han gjeld —
+ * skilnaden er bøylen, og det er den eine tingen ein hengelås seier.
+ */
+const IkonLaas = (open: boolean) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="11" width="14" height="9" rx="1.6" />
+    <path d={open ? "M8.5 11V7.5a3.5 3.5 0 0 1 6.8-1.2" : "M8.5 11V7.5a3.5 3.5 0 0 1 7 0V11"} />
+  </svg>
+)
+
 /** ramm inn att: objektet heilt, i heimvinkelen */
 const IkonHeim = (
   <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -2652,7 +2697,9 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   const rValt = useMemo(() => (valt && f ? planRamme(valt, f.min, f.max) : null), [valt, f])
   const [live, setLive] = useState<Live | null>(null)
   const fri = useMemo(() => fritt(rute), [rute])
-  const heim = useCallback(() => setSikt((s) => ({ n: s.n + 1, dir: null })), [])
+  // med synet låst rammar heimknappen inn UTAN å snu: `dir` null er
+  // «heimvinkelen», og han ville vore ei ny vinkling
+  const heim = useCallback(() => setSikt((s) => ({ n: s.n + 1, dir: laastRef.current ? s.dir : null })), [])
   /** lupa: scena legg dollyen sin her, knappen under kuben dreg i han */
   const zoom = useRef<((f: number) => void) | null>(null)
   const lupe = useRef<number | null>(null)
@@ -2663,6 +2710,10 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   /** og prikkane på punkta i omrisset — sjå `Omrisset` */
   const [punktBoks, setPunktBoks] = useState<HTMLDivElement | null>(null)
   const [sein, setSein] = useState(false)
+  /** synsvinkelen står der han står: sjå låsen i spalta under kuben */
+  const [laast, setLaast] = useState(false)
+  const laastRef = useRef(false)
+  laastRef.current = laast
   // Éi styrbar hovudlyskjelde på ein fast kuppel, pluss fire svake fyll:
   // eit uttak skal kaste éin hard skugge, slik det gjer i eit verkstadlys.
   const [lys, setLys] = useState<Lys>({ az: 0.62, el: 0.92 })
@@ -2746,6 +2797,11 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           <Sovnen sov={sov}>
             <group scale={KUBE_SKALA}>
               <GizmoViewcube
+                // MED SYNET LÅST ER KUBEN BERRE EI AVLESING. Han seier
+                // framleis kva veg du ser — det er halve nytten hans — men
+                // eit trykk på ei side snur ingenting. `onClick` byter ut
+                // drei si eiga tweening heilt, so det held å svelgje han.
+                onClick={laast ? ((e) => { e.stopPropagation(); return null }) : undefined}
                 faces={SIDEORD}
                 color={tema.paper}
                 textColor={tema.ink}
@@ -2769,7 +2825,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           // To fingrar gjer det aldri — dei har snittet.
           enablePan={benk}
           mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN }}
-          enableRotate
+          enableRotate={!laast}
           screenSpacePanning
           touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}
           enableZoom
@@ -2789,6 +2845,17 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         du trykkjer på.
       */}
       <div className="synskube" style={{ right: rute.hogre + 16, top: rute.topp + 72 }}>
+        {/*
+          LÅSEN, ØVST: synsvinkelen står der du sette han.
+
+          Synet er ei avgjerd (sjå README), og dette er den avgjerda teken
+          heilt ut: med låsen på snur korkje éin finger, synskuben eller
+          heimknappen objektet. Du kan framleis gå nærare og lenger unna —
+          det er ikkje ei ny vinkling, det er det same synet på nært hald.
+        */}
+        <button type="button" data-laas="" aria-pressed={laast} aria-label="lås synet" title={laast ? "synsvinkelen er låst: ingenting snur objektet. trykk for å sleppe han" : "lås synsvinkelen: éin finger, synskuben og heimknappen snur han ikkje meir"} onClick={() => setLaast((v) => !v)}>
+          {IkonLaas(!laast)}
+        </button>
         <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt (F)" onClick={heim}>
           {IkonHeim}
         </button>
