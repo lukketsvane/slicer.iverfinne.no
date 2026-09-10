@@ -262,7 +262,10 @@ every frame.
 
 **A plane does not have to be flat.** Select one and drag the bend button
 under your thumb: the cutting surface becomes a cylinder, straight along `v`
-and curved along `u`. A cylinder is developable — it unrolls to a flat sheet
+and curved along `u`. **Double-tap the button and the plane is straight
+again** — a scrubber has no way back to nought except dragging yourself
+there and missing by a hundredth, so the button is its own way out, the way
+`form` is. A cylinder is developable — it unrolls to a flat sheet
 without stretching — so the part is still cut flat and you bend it on
 assembly. That is why it is a cylinder and not a sphere.
 
@@ -533,7 +536,8 @@ direction each comes in.
 ## Two rib languages
 
 Ribbed plate furniture speaks two structural languages, and the tool has a layout
-tool for each. **The grid** crosses ribs over one another. **The vortex** stands
+tool for each. **The grid** crosses ribs over one another, under your thumb.
+**The vortex** — `V`, and no button of its own — stands
 them around the upright axis: `n` ribs, each turned `2πi/n`, each *pushed out* so
 it is tangent to a circle rather than passing through the middle.
 

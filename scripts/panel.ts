@@ -525,6 +525,43 @@ async function telefon(browser: Browser) {
   const planKom = plana(page)[0]
   const flytta = Math.hypot(planKom.o[0] - planStod.o[0], planKom.o[1] - planStod.o[1], planKom.o[2] - planStod.o[2])
   sjekk("og eit drag som glir frå kvarandre rører ikkje kameraet", Math.abs(kamEtter - kamFør) < 1e-3 && flytta > 0.005, `avstand ${kamFør.toFixed(3)} → ${kamEtter.toFixed(3)}, planet flytta ${flytta.toFixed(3)}`)
+  /**
+   * OG DET GJELD FRÅ DET FYRSTE HAKKET.
+   *
+   * Prøva over lèt fingrane gli sakte, so draget rakk sine seks pikslar før
+   * klypet rakk sine fire prosent. Ei hand gjer det motsett like ofte: ho
+   * spriker i det ho tek i, og DÅ slo klypet inn fyrst — kameraet krøkte
+   * seg eit hakk, og der stod det når draget so tok gesten.
+   *
+   * Her spriker fingrane tolv prosent FØR midten rører seg i det heile, og
+   * so kjem draget. Kameraet skal stå der det stod.
+   *
+   * Draget går ANDRE VEGEN enn det over: eit plan er ikkje klemt inn i
+   * boksen (`flyttPlan`), og to drag same vegen skuvar det ut av det
+   * `lesPlan` tek imot — då fell planet ut av lista, og prøvene under står
+   * att utan noko å ta i.
+   */
+  const kamFør2 = await avstandNo()
+  const planStod2 = plana(page)[0]
+  await toFingrar(page, (t) => {
+    const glid = 50 * (1 + 0.12 * Math.min(1, t * 3))
+    const dx = -60 * Math.max(0, t - 0.34)
+    return [[230 + dx, 380 - glid], [230 + dx, 380 + glid]]
+  })
+  await page.waitForTimeout(600)
+  const kamEtter2 = await avstandNo()
+  const planKom2 = plana(page)[0]
+  const flytta2 = Math.hypot(planKom2.o[0] - planStod2.o[0], planKom2.o[1] - planStod2.o[1], planKom2.o[2] - planStod2.o[2])
+  sjekk(
+    "og eit klyp som kjem FØR draget gjev kameraet attende",
+    Math.abs(kamEtter2 - kamFør2) < 1e-3 && flytta2 > 0.005,
+    `avstand ${kamFør2.toFixed(3)} → ${kamEtter2.toFixed(3)}, planet flytta ${flytta2.toFixed(3)}`,
+  )
+  // og prøva ryddar etter seg sjølv: draget er EI bokføring i angrestakken,
+  // og kjeda under tel steg. La bokføringa falle på plass fyrst (450 ms).
+  await page.waitForTimeout(700)
+  await page.keyboard.press("z")
+  await vent(page, (p) => JSON.stringify(lesPlan(p.plan)[0]?.o) === JSON.stringify(planStod2.o))
   await page.keyboard.press("z")
   await roleg(page, 300)
   sjekk("og dei andre står stille", plana(page).slice(1).every((p, i) => JSON.stringify(p) === JSON.stringify(før[i + 1])))
@@ -603,7 +640,11 @@ async function telefon(browser: Browser) {
   // Bokføringa i angrestakken er dempa 450 ms — eit drag er hundre punkt og
   // éi endring. Vakta må la ho falle på plass før ho angrar.
   await page.waitForTimeout(1400)
-  sjekk("⌫ tek streken bort, ikkje planet", plana(page)[0]?.strek.length === 0 && plana(page).length === n0 + 1 && plana(page)[0].id === planFør.id)
+  sjekk(
+    "⌫ tek streken bort, ikkje planet",
+    plana(page)[0]?.strek.length === 0 && plana(page).length === n0 + 1 && plana(page)[0].id === planFør.id,
+    `${plana(page).length} plan (venta ${n0 + 1}), namn ${plana(page)[0]?.id ?? "–"} av ${planFør.id}, ${plana(page)[0]?.strek.length ?? "–"} strek`,
+  )
   /**
    * Z HENTAR STREKEN ATT — men ikkje prøvd her.
    *
@@ -1862,11 +1903,12 @@ async function virvelen(browser: Browser) {
   console.log("\n=== virvelen")
   const bag = { scene: "sylinder@0,0,0/1/0", storleik: 300, tjukn: 9 }
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
-  const knapp = page.locator("[data-virvelverkty]")
-  sjekk("virvelen står på lina", (await knapp.count()) === 1 && (await knapp.getAttribute("aria-pressed")) === "false")
-  await knapp.click()
+  // Virvelen har ingen knapp lenger — han vart teken bort av lina — so
+  // tasten er vegen inn. Prøva ser at ikonet FAKTISK er borte: ein knapp
+  // som ligg att er ein knapp nokon trykkjer på.
+  sjekk("virvelen har ingen knapp i lina", (await page.locator("[data-virvelverkty]").count()) === 0)
+  await page.keyboard.press("v")
   await page.waitForTimeout(250)
-  sjekk("og eit trykk slår han på", (await knapp.getAttribute("aria-pressed")) === "true")
   await toFingrar(page, (t) => [[110 + 200 * t, 300], [110 + 200 * t, 400]])
   await vent(page, (p) => lesPlan(p.plan).length > 0)
   await ferdig(page)
@@ -1888,9 +1930,13 @@ async function virvelen(browser: Browser) {
   const av1 = Math.hypot(plana(page)[0].o[0] - 0.5, plana(page)[0].o[1] - 0.5)
   sjekk("to fingrar oppover skyv ribbene ut frå aksen", av1 > av0, `${av0.toFixed(3)} → ${av1.toFixed(3)}`)
   sjekk("og talet på ribber står", plana(page).length === n1, `${plana(page).length} ribber`)
-  await knapp.click()
+  // og den same tasten slepper han: eit drag etterpå skal ikkje vera hans
+  const n2 = plana(page).length
+  await page.keyboard.press("v")
   await page.waitForTimeout(250)
-  sjekk("trykk att slepper verktyet", (await knapp.getAttribute("aria-pressed")) === "false")
+  await toFingrar(page, (t) => [[110 + 160 * t, 300], [110 + 160 * t, 400]])
+  await roleg(page, 500)
+  sjekk("V att slepper verktyet: eit drag etterpå er ikkje hans", plana(page).length === n2, `${n2} → ${plana(page).length} ribber`)
   sjekk("ingen konsollfeil i virvelen", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
   await page.close()
 }
@@ -2298,6 +2344,26 @@ async function boyen(browser: Browser) {
     await roleg(page, 900)
     const tekst = (await page.locator("[aria-label='kontrollar']").innerText()).replace(/\s+/g, " ")
     sjekk("bøyeradien står i tavla", /bøyeradius/.test(tekst), (tekst.match(/bøyeradius[^·]{0,44}/) ?? [""])[0])
+    /**
+     * OG EIT DOBBELTTRYKK RETTAR HAN UT ATT. Knappen er ein skrubbar, so
+     * eit TRYKK på han er ei rørsle som aldri kom i gang — to av dei tett i
+     * hop er vegen attende til null. Prøva krev at eitt trykk ikkje gjer
+     * det: eit einslegt trykk skal ikkje kaste bøyen du står og set.
+     *
+     * Knappen vert MÅLT PÅ NYTT: arket står ope no, og spalta er eit band
+     * som endar over det — knappen står ikkje der han stod.
+     */
+    const b2 = await knapp.boundingBox()
+    if (b2) {
+      const tx = b2.x + b2.width / 2
+      const ty = b2.y + b2.height / 2
+      await page.mouse.click(tx, ty)
+      await page.waitForTimeout(DOBBELT + 80)
+      sjekk("eitt trykk rører ikkje bøyen", bogAv() < 0, `bog ${bogAv()}`)
+      await page.mouse.dblclick(tx, ty)
+      await vent(page, (p) => !(lesPlan(p.plan)[0]?.bog ?? 0))
+      sjekk("men eit dobbelttrykk rettar planet ut att", bogAv() === 0, `bog ${bogAv()}`)
+    }
   }
 
   /**

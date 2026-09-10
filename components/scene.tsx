@@ -1148,6 +1148,23 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       const paaBit = bitStil()
       const rute = ruteStil()
       const arbeider = sam.akt.pan || sam.akt.vri
+      /**
+       * OG EMNET TEK KAMERAET ATTENDE.
+       *
+       * To fingrar held aldri heilt same avstand medan dei legg i veg: fire
+       * prosent er seks pikslar på ei hand som held hundre og seksti, og det
+       * er nådd FØR draget har gått sine seks. So kvart einaste drag byrja
+       * med at synet krøkte seg eit hakk — og der stod det, av di klypet
+       * berre vart stengt ute etterpå og aldri teke attende.
+       *
+       * Snapshotet frå fingrane landa ligg alt der (`snap`), so kameraet får
+       * stoda si attende i det draget eller vridinga tek gesten. Éin gong:
+       * klypet er slokna for resten av gesten, og kan ikkje slå inn på nytt.
+       */
+      if (arbeider && sam.akt.klyp && !paaBit) {
+        sam.akt.klyp = false
+        restore()
+      }
       if (!sam.akt.klyp && Math.abs(klyp - 1) > KLYP_SAM && (paaBit || !arbeider)) sam.akt.klyp = true
       /**
        * GESTEN VERT MELD FØR KANALANE ARBEIDER, og det er ikkje ei
