@@ -75,6 +75,15 @@ export const num = (p: ParamBag, k: string, fallback: number) =>
   typeof p[k] === "number" ? (p[k] as number) : fallback
 
 export const HAIR: CSSProperties = { borderColor: "var(--rule)" }
+/**
+ * TO TRYKK LENGRE FRÅ KVARANDRE ENN DETTE ER TO TRYKK.
+ *
+ * Same vindauge som eit trykk på lerretet får (`tapDown` i scene.tsx), og
+ * det står her av di tre reiskapar deler det: forma tek boksen, bøyen rettar
+ * planet ut, og eit punkt i omrisset går bort. Ei hand skal ikkje måtte
+ * lære seg tre ulike dobbelttrykk.
+ */
+export const DOBBELT_MS = 320
 /* Flate knappar: fyllet byter, og ikkje noko anna — ingen skugge, ingen overgang, inga krymping under fingeren. */
 /**
  * EIT VERKTY ER EIT IKON, og ikkje anna.

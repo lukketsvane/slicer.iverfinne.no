@@ -538,6 +538,35 @@ input {
   border: 2px solid #e05a1a;
   background: var(--paper);
 }
+/* DET DU HELD, HELD DU. Handtaka er fire og førti pikslar og ligg gjerne
+   oppå kvarandre på ein profil med mange punkt, so utan dette veit du ikkje
+   kva for eit du fekk tak i før du har drege. Same språket som handtaka på
+   snittet: halvt blekk til vanleg, fullt medan fingeren står på det.
+
+   OG DET SOM ER TEKE STÅR FULLT VIDARE. På ein benk er det tastane som
+   flyttar punktet — pilene, ⌫ — og eit emne du ikkje ser er eit emne du
+   ikkje tør trykkje på. */
+.punkt button:active > span,
+.punkt button[data-vald] > span {
+  background: #e05a1a;
+}
+/* MIDTMERKET: eit punkt du ikkje har enno. Mindre sone, mindre merke, og
+   RUNDT — firkanta er eit hjørne som står, rundt er ein stad eit hjørne kan
+   verte til. Det er heile skilnaden ei hand treng for å vite kva ho tek. */
+.punkt button[data-midt] {
+  width: 32px;
+  height: 32px;
+}
+.punkt button[data-midt] > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  border-width: 1.5px;
+  opacity: 0.55;
+}
+.punkt button[data-midt]:active > span {
+  opacity: 1;
+}
 
 /* SPEGLINGANE, øvst i midten av det frie bandet. Bandet er så breitt som
    lerretet, so det må sleppe fingrar gjennom: berre orda tek trykk.

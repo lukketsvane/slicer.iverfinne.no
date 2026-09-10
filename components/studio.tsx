@@ -15,7 +15,7 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoRute, IcoSkjer, IcoSlett } from "./deler"
+import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoRute, IcoSkjer, IcoSlett } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -60,9 +60,6 @@ function stoersteRing(sn: SkisseSyn | null): Pt[] | null {
 /** ei fil på meir enn dette er ikkje ein modell, det er eit uhell */
 const MAX_FIL = 220 * 1024 * 1024
 const ANGRE_DJUPN = 50
-/** to trykk lengre frå kvarandre enn dette er to trykk — same vindauge som
- *  eit trykk på lerretet får (sjå `tapDown` i scene.tsx) */
-const DOBBELT_MS = 320
 /** kor høgt det lukka arket er med botnmargen; skuffa står over det på telefonen */
 const LUKKA_ARK = 84
 /** knappane over skjer i tommelspalta: 48 pikslar, runde, flate */
@@ -254,6 +251,18 @@ export function Studio() {
   gruppeNo.current = { g: valdGruppe, fordel }
   const valdRef = useRef<number | null>(null)
   valdRef.current = vald
+  /**
+   * PUNKTET SOM ER TEKE, som plass i omrisset til det valde planet.
+   *
+   * Eit strek har det same (`valdStrek`), og av same grunn: utan noko som
+   * er TEKE finst det ikkje eit tastatur. Pilene, ⌫ og escape treng eit
+   * emne, og på ein benk er tastane vegen inn. Handa tek eit punkt ved å
+   * leggje fingeren på det — same rørsla som byrjar eit drag — so det
+   * kostar ikkje eit trykk å velje.
+   */
+  const [valdPunkt, setValdPunkt] = useState<number | null>(null)
+  // eit anna plan er ei anna form: punktet handa heldt finst ikkje der
+  useEffect(() => setValdPunkt(null), [vald])
   /** biten som er vald i verktyet for kroppen, som plass i scenelista */
   const [valdBit, setValdBit] = useState<number | null>(null)
   const bitRef = useRef<number | null>(null)
@@ -1283,12 +1292,65 @@ export function Studio() {
   }, [])
   /** og eit trykk til slepper forma: profilen er nettet att */
   const losOmriss = useCallback((id: number) => {
+    setValdPunkt(null)
     setParams((cur) => {
       const l = lesPlan(cur.plan)
       const j = l.findIndex((q) => q.id === id)
       if (j < 0 || !l[j].omriss) return cur
       const { omriss: _, ...utan } = l[j]
       l[j] = utan
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [])
+  /**
+   * EIT PUNKT TIL, SETT INN RETT ETTER `i`.
+   *
+   * Rekkjefylgja i lista ER mangekanten — kva punkt som er nabo til kva — so
+   * eit nytt punkt må inn der kanten var og ingen annan stad. Lagt bakarst
+   * ville det dregi ei line tvers over forma.
+   */
+  const leggPunkt = useCallback((id: number, i: number, q: Pt) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const j = l.findIndex((p) => p.id === id)
+      const om = l[j]?.omriss
+      if (!om || !om[i] || om.length >= OMRISS_TAK) return cur
+      const ny = om.slice()
+      ny.splice(i + 1, 0, klemPunkt(q))
+      l[j] = { ...l[j], omriss: ny }
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [])
+  /** og eit punkt bort. Tre er golvet: under det er det inga flate. */
+  const taPunkt = useCallback((id: number, i: number) => {
+    setValdPunkt(null)
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const j = l.findIndex((p) => p.id === id)
+      const om = l[j]?.omriss
+      if (!om || !om[i] || om.length <= 3) return cur
+      l[j] = { ...l[j], omriss: om.filter((_, k) => k !== i) }
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [])
+  /**
+   * EIT PUNKT EITT HAKK MED PILENE — millimeter i planet si EIGA ramme.
+   *
+   * Ikkje langs normalen, som pilene gjer med eit heilt plan: eit punkt bur
+   * i profilen, og profilen er det du ser på plata. Høgre er +u og opp er
+   * +v, dei same to aksane delen ligg i når han vert skoren, so ei pil
+   * flyttar punktet den vegen du ser det gå.
+   */
+  const stegPunkt = useCallback((id: number, i: number, du: number, dv: number) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const j = l.findIndex((p) => p.id === id)
+      const om = l[j]?.omriss
+      if (!om || !om[i]) return cur
+      const S = storleikAv(cur)
+      const ny = om.slice()
+      ny[i] = klemPunkt([om[i][0] + du / S, om[i][1] + dv / S])
+      l[j] = { ...l[j], omriss: ny }
       return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
@@ -1936,7 +1998,10 @@ export function Studio() {
         if (vald === null) laas()
         else velPlan(null)
       } else if (k === "delete" || k === "backspace") {
-        if (valdStrek !== null) slettStrek()
+        // det minste emnet fyrst: eit punkt, so eit strek, so planet. Handa
+        // tek bort det ho held i, ikkje det som held det.
+        if (valdPunkt !== null && vald !== null) taPunkt(vald, valdPunkt)
+        else if (valdStrek !== null) slettStrek()
         else if (vald !== null) slett(vald)
       } else if (k === "z") (e.shiftKey ? gjerOm : angre)()
       else if (k === "r") vekslRute()
@@ -1961,6 +2026,12 @@ export function Studio() {
       // PILENE FLYTTAR DET VALDE PLANET, ikkje synet: opp og høgre er langs
       // normalen, ned og venstre er mot. Ein skrubbar i fokus eig pilene
       // sine sjølv, og på plata er det delen pilene flyttar (sjå `Plater`).
+      // EIT PUNKT FYRST: held du eit punkt, er det DET pilene flyttar — i
+      // profilen si eiga ramme, og ikkje planet langs normalen sin.
+      else if (k.startsWith("arrow") && vald !== null && valdPunkt !== null && view !== "kontur" && t?.getAttribute("role") !== "slider") {
+        const mm = e.shiftKey ? 10 : 1
+        stegPunkt(vald, valdPunkt, k === "arrowright" ? mm : k === "arrowleft" ? -mm : 0, k === "arrowup" ? mm : k === "arrowdown" ? -mm : 0)
+      }
       else if (k.startsWith("arrow") && vald !== null && valdStrek === null && view !== "kontur" && t?.getAttribute("role") !== "slider") {
         const retn = k === "arrowup" || k === "arrowright" ? 1 : -1
         stegPlan(vald, retn * (e.shiftKey ? 10 : 1))
@@ -1973,6 +2044,7 @@ export function Studio() {
         velPlan(plan[(i + (e.shiftKey ? plan.length - 1 : 1)) % plan.length].id)
       } else if (k === "escape") {
         if (verkty) setVerkty(null)
+        else if (valdPunkt !== null) setValdPunkt(null)
         else if (valdStrek !== null) setValdStrek(null)
         else if (vald !== null) velPlan(null)
         else setSteg("line")
@@ -1981,7 +2053,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, plan, view])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslVirvel, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, plan, view])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -2043,6 +2115,10 @@ export function Studio() {
             onDeling={setjDeling}
             onValdStrek={setValdStrek}
             onPunkt={flyttPunkt}
+            onLeggPunkt={leggPunkt}
+            onTaPunkt={taPunkt}
+            valdPunkt={valdPunkt}
+            onValdPunkt={setValdPunkt}
             onPlan={flyttPlan}
             onStrek={endraStrek}
             onSynStrek={synStrek}
