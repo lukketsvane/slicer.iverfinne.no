@@ -61,10 +61,10 @@ export type GestKva = "lys" | "snitt" | "zoom" | "strek" | "rute" | "virvel" | "
 /** eit strek medan fingeren har det: teikna her, snitta av motoren, skrive i parametrane fyrst når det vert sleppt */
 type Live = { id: number; i: number; s: Strek }
 /**
- * FIRE MODUSAR. «form» er den vanlege: to fingrar dreg snittet, vrir det og
- * — når ingen av dei to andre er i gang — dollyar kameraet. Med eit låst
- * plan valt gjeld dei same tre gestane DET planet. Arbeider fingrane på
- * planet, står kameraet: eit klyp du ikkje meinte skal ikkje flytte synet.
+ * FIRE MODUSAR. «form» er den vanlege: to fingrar dreg snittet og vrir det.
+ * Med eit låst plan valt gjeld dei same gestane DET planet. Kameraet er
+ * ikkje med i det heile — to fingrar høyrer objektet til, og synet har sine
+ * eigne kontrollar (éin finger, lupa, hjulet).
  *
  * «skisse» var ein femte, og han er borte. Han gjorde nøyaktig éin ting:
  * slo av dommaren som gav gesten eitt namn. No er det ingen dommar å slå
@@ -462,9 +462,11 @@ function FitCamera({ fit, rute, sikt, laast }: { fit: Fit | null; rute: Rute; si
  * svingar med synet; eit låst plan gjer det ikkje — det er heile skilnaden.
  *
  *   éin finger        snu synet (OrbitControls)
- *   to fingrar, klyp  SYNET. Kameraet går nærare og lenger unna — klypet er
- *                     det klypet er alle andre stader. Storleiken på kroppen
- *                     er eit mål du dreg i, i arket.
+ *   to fingrar, klyp  INGENTING, utanom på verktyet for kroppen, der det gjer
+ *                     biten større. Zoomen er lupa under synskuben og hjulet
+ *                     på ein benk; sjå `rorsle` for kvifor han ikkje kan
+ *                     dele rørsla med draget. Storleiken på kroppen er eit
+ *                     mål du dreg i, i arket.
  *   to fingrar, vri   VINKELEN PÅ SNITTET. Skissa (eller det valde planet)
  *                     vrir seg kring synsaksen — du siktar kuttet der du
  *                     ser han. Vendinga på kroppen er eit tal i arket.
@@ -486,10 +488,13 @@ function FitCamera({ fit, rute, sikt, laast }: { fit: Fit | null; rute: Rute; si
  * gesten ut. Vil du skuve snittet litt og vinkle det litt, fekk du det eine
  * og ikkje det andre — og du visste ikkje kvifor.
  *
- * No er alle tre levande på ein gong, kvar med si eiga daudsone, og kvar
- * mot sitt eige mål: draget, vridinga, klypet. Ei daudsone er ikkje eit
- * val, det er ei grense for kva som er ei rørsle i det heile — under seks
- * pikslar, ni grader og fire prosent held ei hand seg aldri heilt i ro.
+ * No er dei levande på ein gong, kvar med si eiga daudsone, og kvar mot
+ * sitt eige mål: draget, vridinga — og klypet, der det har eit mål å gå
+ * til. Ei daudsone er ikkje eit val, det er ei grense for kva som er ei
+ * rørsle i det heile: under seks pikslar, ni grader og fire prosent held ei
+ * hand seg aldri heilt i ro. Det var òg heile grunnen til at kameraet måtte
+ * ut av striden — fire prosent er tre pikslar per finger, og ei hand som
+ * tek tak spriker so mykje før ho har drege i det heile.
  *
  * Klyp og vri gjev TOTALEN sidan gesten byrja, ikkje eit steg per hending:
  * nettlesaren slår saman rørsler når hovudtråden er oppteken, og eit bygg
@@ -498,37 +503,8 @@ function FitCamera({ fit, rute, sikt, laast }: { fit: Fit | null; rute: Rute; si
 /** under dette er ei rørsle inga rørsle: eit drag, ei vriding, eit klyp */
 const PAN_SAM = 6
 const VRI_SAM = 0.15
+/** klypet er berre eit klyp på verktyet for kroppen no — sjå `rorsle` */
 const KLYP_SAM = 0.04
-/**
- * KAMERAET FÅR IKKJE GESTEN FØR HO ER AVGJORD.
- *
- * Daudsonene aleine duger ikkje, og grunnen er at dei tre kanalane ikkje er
- * like raske til å seie frå. Draget må gå seks pikslar. Klypet må endre
- * avstanden mellom fingrane fire prosent — og på ei hand som held hundre og
- * seksti pikslar er det seks og ein halv piksel FORDELT PÅ TO FINGRAR, altso
- * tre kvar. Ingen legg to fingrar på eit glas og dreg dei utan at dei glir
- * tre pikslar frå kvarandre fyrst.
- *
- * So klypet vann opninga på kvart einaste drag: kameraet dollya eit hakk,
- * og so kom draget og tok gesten. `restore()` sette kameraet attende — og
- * DET er det som stod att å sjå: eit rykk ut og eit rykk inn, i byrjinga av
- * kvar einaste to-fingerrørsle. Prøva såg det ikkje, av di ho målte kvar
- * kameraet ENDA og ikkje kvar det var undervegs.
- *
- * Difor: kameraet er stille til gesten har fått hundre og tjue millisekund
- * på å seie kva ho er. Har draget eller vridinga meldt seg i det vindauget,
- * er klypet emnet sitt og kameraet står resten av gesten. Har dei ikkje
- * det, er det eit klyp, og `dolly` reknar frå TOTALEN — so kameraet hoppar
- * rett dit det skulle, utan å ha mist eit einaste hakk av rørsla.
- *
- * Eit klyp som er umogeleg å ta feil av — ein femdel av avstanden mellom
- * fingrane, med midten i ro — treng ikkje vente: han opnar vindauget med
- * ein gong, so ein zoom kjennest som ein zoom.
- */
-const SAM_VENT = 120
-/** klypet må vera dobbelt so tydeleg når det er KAMERAET det ber om */
-const KLYP_SYN = 0.08
-const KLYP_KLAR = 0.2
 
 type Tak = {
   id: number
@@ -846,7 +822,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
     /** eit trykk som valde eller slepte eit strek: klikket som fylgjer skal ikkje òg velje ein del eller sleppe planet */
     let svelgKlikk = false
     /** to fingrar: dra, vri og klyp SAMSTUNDES, kvar med si daudsone */
-    let sam = { x0: 0, y0: 0, d0: 1, t0: 0, sistA: 0, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null as GestKva }
+    let sam = { x0: 0, y0: 0, d0: 1, sistA: 0, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null as GestKva }
     /** skissegestane gjeld når brytaren står på skisse — og alltid når eit låst plan er valt */
     /** verktyet for kroppen har fingrane når ein bit er vald; elles som før */
     const bitStil = () => naa.current.modus === "bit" && naa.current.valdBit !== null
@@ -1003,8 +979,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       naa.current.onValdBit(best === null ? null : (best as { i: number }).i)
     }
     const vri = (t: Tak, ang: number) => bruk(t, 0, 0, ang)
-    /** klypet i skissemodusen dollyar kameraet: totalen sidan gesten byrja */
-    /** avstanden til kameraet då klypet vart eit klyp: totalen vert målt frå han */
+    /** avstanden til kameraet då hjulet byrja: totalen vert målt frå han */
     let dist0 = 6
     const dolly = (klyp: number) => {
       if (!controls) return
@@ -1127,8 +1102,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
         // gestane er levande frå no, kvar med si daudsone.
         restore()
         tak = taTak(c.cx, c.cy)
-        dist0 = controls ? camera.position.distanceTo(controls.target) : 6
-        sam = { x0: c.cx, y0: c.cy, d0: Math.max(1, c.d), t0: performance.now(), sistA: c.a, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null }
+        sam = { x0: c.cx, y0: c.cy, d0: Math.max(1, c.d), sistA: c.a, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null }
         mode = "sam"
       }
       if (pts.size === 3) {
@@ -1243,33 +1217,31 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       const paaBit = bitStil()
       const rute = ruteStil()
       const arbeider = sam.akt.pan || sam.akt.vri
-      const spurt = Math.abs(klyp - 1)
       /**
-       * OG EMNET TEK KAMERAET ATTENDE.
+       * KLYPET ER EMNET SITT, ALDRI KAMERAET SITT.
        *
-       * To fingrar held aldri heilt same avstand medan dei legg i veg: fire
-       * prosent er seks pikslar på ei hand som held hundre og seksti, og det
-       * er nådd FØR draget har gått sine seks. So kvart einaste drag byrja
-       * med at synet krøkte seg eit hakk — og der stod det, av di klypet
-       * berre vart stengt ute etterpå og aldri teke attende.
+       * Klypet zooma synet før, og det er teke bort. Grunnen står i tal:
+       * draget må gå seks pikslar, medan klypet må endre fingeravstanden
+       * fire prosent — seks og ein halv piksel FORDELT PÅ TO FINGRAR på ei
+       * hand som held hundre og seksti. Ingen legg to fingrar på eit glas og
+       * dreg dei utan at dei glir tre pikslar frå kvarandre fyrst, so klypet
+       * vann opninga på kvart einaste drag: kameraet krøkte seg eit hakk og
+       * vart sett attende, og rykket ut og inn var det du såg.
        *
-       * Snapshotet frå fingrane landa ligg alt der (`snap`), so kameraet får
-       * stoda si attende i det draget eller vridinga tek gesten. Éin gong:
-       * klypet er slokna for resten av gesten, og kan ikkje slå inn på nytt.
+       * Det let seg mildne — daudsoner, eit vindauge før kameraet får
+       * gesten — men det let seg ikkje fjerne, av di dei tre kanalane deler
+       * éi rørsle og ingen daudsone kan lese kva handa MEINTE. So kameraet
+       * er teke ut av striden: to fingrar høyrer objektet til, heile vegen.
+       *
+       * Zoomen er ikkje borte, han har berre ein eigen kontroll: lupa under
+       * synskuben — trykk og dra, som bøyen — og hjulet på ein benk. Éin
+       * inngang per ting, og ingen arbitrering.
+       *
+       * VERKTYET FOR KROPPEN STÅR SOM FØR: der ER klypet emnet. Biten vert
+       * større medan du flyttar og vrir han, og det er tre ting på den same
+       * biten og ikkje to som slåst om kven du sikta på.
        */
-      if (arbeider && sam.akt.klyp && !paaBit) {
-        sam.akt.klyp = false
-        restore()
-      }
-      /**
-       * OG DET ER BILETA UNDERVEGS SOM TEL, ikkje kvar kameraet endar.
-       *
-       * `restore()` over rettar opp etterpå; dette hindrar at det skjer i
-       * det heile. Sjå `SAM_VENT`: på verktyet for kroppen er klypet emnet
-       * og går som før, elles må gesten ha fått seie kva ho er.
-       */
-      const moden = performance.now() - sam.t0 > SAM_VENT || spurt > KLYP_KLAR
-      if (!sam.akt.klyp && (paaBit ? spurt > KLYP_SAM : !arbeider && moden && spurt > KLYP_SYN)) sam.akt.klyp = true
+      if (paaBit && !sam.akt.klyp && Math.abs(klyp - 1) > KLYP_SAM) sam.akt.klyp = true
       /**
        * GESTEN VERT MELD FØR KANALANE ARBEIDER, og det er ikkje ei
        * smakssak: studioet tek GRUNNSTODA si i `onGest` — kor mange ribber
@@ -1286,9 +1258,7 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
             ? "virvel"
             : "rute"
           : "snitt"
-        : sam.akt.klyp
-          ? "zoom"
-          : null
+        : null
       if (sagt !== sam.sagt) {
         sam.sagt = sagt
         naa.current.onGest(sagt)
@@ -1306,13 +1276,12 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
         // rutenett er dei to tala i lag og ikkje to gestar etter kvarandre.
         // Det finst ikkje eitt plan å vri her, so vridinga har ikkje eit mål.
         if (sam.akt.pan) naa.current.onRute(panX, panY)
-        else if (sam.akt.klyp) dolly(klyp)
       } else {
-        // KLYPET ER SYNET OG IKKJE OBJEKTET; vridinga SIKTAR snittet og snur
-        // ikkje kroppen. Storleiken og vendinga på kroppen er tal du dreg i,
-        // i arket — eit objekt som veks eller snur seg når du ville sjå og
-        // sikte er eit objekt som gjer noko anna enn du bad om.
-        if (sam.akt.klyp && !arbeider) dolly(klyp)
+        // VRIDINGA SIKTAR SNITTET og snur ikkje kroppen. Storleiken og
+        // vendinga på kroppen er tal du dreg i, i arket — eit objekt som
+        // veks eller snur seg når du ville sikte er eit objekt som gjer noko
+        // anna enn du bad om. Og klypet gjer ingenting her i det heile: sjå
+        // over.
         if (arbeider && tak) bruk(tak, sam.akt.pan ? panX : 0, sam.akt.pan ? panY : 0, sam.akt.vri ? sam.vri : 0)
       }
       last = c

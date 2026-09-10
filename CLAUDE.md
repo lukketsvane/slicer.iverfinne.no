@@ -109,7 +109,8 @@ outline takes its profile from that outline and not from the body, an outline
 curve goes through its points and never has control arms, the view flattens to
 2° when you look straight down an axis and never gets a second camera, the
 montage never computes an assembly order of its own — it groups the engine's —
-two fingers do all three gestures at once and never pick one for you, and there are
+two fingers belong to the object and never move the camera — zoom is the
+magnifier, and in the body tool the pinch is the piece — and there are
 two colours and no more.
 
 ## Verify with the harnesses, not by eye
