@@ -2452,7 +2452,18 @@ async function forma(browser: Browser) {
   await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan='3'] button").first().click()
   await roleg(page, 600)
+  // og arket att: forma vert arbeidd med medan du ser på KROPPEN, og eit
+  // handtak som fell bak arket står ikkje framme (sjå `Omrisset`). Lina
+  // lukkar utan å sleppe valet — escape ville sleppt det.
+  await page.locator(HOVUDLINA).click()
+  await roleg(page, 400)
   const form = page.locator("[data-form]")
+  /** kor mange av dei som faktisk står framme: scena gøymer dei som ikkje har plass */
+  const synlege = async (vel: string) => {
+    let n = 0
+    for (const e of await page.locator(vel).all()) if (await e.isVisible()) n++
+    return n
+  }
   sjekk("eit valt plan har forma i spalta", (await form.count()) === 1)
   sjekk("og ho står i ro til nokon trykkjer", (await form.getAttribute("aria-pressed")) === "false" && (await page.locator("[data-punkt]").count()) === 0)
 
@@ -2472,6 +2483,17 @@ async function forma(browser: Browser) {
   sjekk("merket på knappen fylgjer forma", (await form.getAttribute("aria-pressed")) === "true")
   const n = await page.locator("[data-punkt]").count()
   sjekk("og kvart punkt står som eit handtak i rommet", n === frose.length, `${n} handtak av ${frose.length} punkt`)
+  /**
+   * OG MIDTMERKA STÅR BERRE DER DET ER PLASS TIL EITT PUNKT TIL.
+   *
+   * Ein frosen profil har både lange kantar og korte — snittet gjennom ein
+   * kube er mest ein firkant med nokre punkt attåt — so nokre kantar får eit
+   * merke og andre ikkje. Det er heile regelen, og prøva her er at han
+   * VERKAR: færre merke enn kantar. Boksen under er den andre halvdelen av
+   * han — der er alle fire kantane lange, og alle fire får eit merke.
+   */
+  const midtFrose = await synlege("[data-midt]")
+  sjekk("og midtmerka står berre der kanten har plass til eitt", midtFrose > 0 && midtFrose < frose.length, `${midtFrose} merke på ${frose.length} kantar`)
 
   /**
    * OG HANDTAKA LIGG DER PROFILEN LIGG, ikkje på ei line: står planet på
@@ -2510,19 +2532,20 @@ async function forma(browser: Browser) {
     const rort = drege.filter((q, k) => !frose[k] || q[0] !== frose[k][0] || q[1] !== frose[k][1])
     sjekk("eit drag i eit punkt flyttar NØYAKTIG det punktet", rort.length === 1 && drege.length === frose.length, `${rort.length} av ${drege.length} punkt rørte`)
     /**
-     * OG PUNKTET FYLGJER FINGEREN, ikkje eit tal gonge han. Handtaket vart
-     * teke midt på punktet og drege (46, −34) pikslar; profilen spenner
-     * `bredd` pikslar over éi eining, so punktet skal ha gått nett so
-     * mange einingar. Prøva held ein femtedel i mon — ein perspektivkamera
-     * skalerer litt ulikt over biletet — og fangar difor kvar faktor som
-     * har snike seg inn i omrekninga.
+     * OG MERKET ENDAR UNDER FINGEREN.
+     *
+     * Det er heile påstanden, og han er sagt i PIKSLAR: kvar punktet hamna i
+     * planet si eiga eining er ei omrekning som avheng av kva vinkel flata
+     * står i og kor langt unna ho er — eit tal prøva måtte gjette på. Der
+     * fingeren slapp, derimot, veit ho nøyaktig, og der skal merket stå.
+     *
+     * Det fangar kvar faktor som har snike seg inn i omrekninga: går
+     * punktet for langt, hamnar merket forbi fingeren.
      */
-    if (i >= 0) {
-      const dx = drege[i][0] - frose[i][0]
-      const dy = drege[i][1] - frose[i][1]
-      const vent = Math.hypot(46 / bredd, 34 / hogd)
-      const fekk = Math.hypot(dx, dy)
-      sjekk("og punktet fylgjer fingeren, i det målet profilen har", Math.abs(fekk - vent) < vent * 0.2, `${fekk.toFixed(3)} av ${vent.toFixed(3)} einingar`)
+    const etterBb = await page.locator(`[data-punkt='${i}']`).boundingBox()
+    if (i >= 0 && etterBb) {
+      const av = Math.hypot(etterBb.x + etterBb.width / 2 - (cx + 46), etterBb.y + etterBb.height / 2 - (cy - 34))
+      sjekk("og merket endar under fingeren", av < 6, `${av.toFixed(1)} px frå der fingeren slapp`)
     }
   }
 
@@ -2540,6 +2563,182 @@ async function forma(browser: Browser) {
   const by = [...new Set(boks.map((q) => q[1]))]
   sjekk("eit dobbelttrykk gjer forma til boksen kring henne", boks.length === 4 && bx.length === 2 && by.length === 2, boks.map((q) => q.join(",")).join(" · "))
   sjekk("og hjørna er handtak som alle andre punkt", (await page.locator("[data-punkt]").count()) === 4)
+
+  /**
+   * MIDTMERKA: EIT PUNKT DU IKKJE HAR ENNO.
+   *
+   * Ein boks er fire lange kantar, so alle fire har plass til eit merke. Ei
+   * FROSEN ribbe er atten korte, og då har ingen av dei det — du kan leggje
+   * til eit punkt der det er plass til eitt, og ingen annan stad.
+   */
+  /**
+   * BOKSEN HAR MIDTMERKE Å TA I — men ikkje naudsynleg fire.
+   *
+   * Snittet ber sine eigne handtak: flytt står midt i det og vri rett over,
+   * og dei ligg over dette laget (15 mot 6). Eit midtmerke under eit av dei
+   * er eit merke fingeren ikkje kan nå, so det står ikkje framme — og då
+   * har kanten det sat på ikkje noko merke. Det er RETT: reiskapen som
+   * alltid må vera der vinn over den som kjem att på neste kant.
+   */
+  const midtBoks = await synlege("[data-midt]")
+  sjekk("boksen har midtmerke å ta i", midtBoks >= 2, `${midtBoks} av 4 kantar`)
+
+  /**
+   * OG KVART MERKE SOM STÅR FRAMME KAN TAKAST.
+   *
+   * Det er heile grunnen til at merka vert gøymde i det heile. Prøva spør
+   * DOM-en det same spørsmålet scena gjer — kva er øvst her? — for kvart
+   * merke som står framme, og krev at svaret er merket sjølv. Målt før
+   * dette stod: eit punkt låg under tommelspalta, og dobbelttrykket som
+   * skulle ta det bort dubla planet i staden.
+   */
+  const utanfor = async () => {
+    const feil: string[] = []
+    for (const e of await page.locator("[data-punkt], [data-midt]").all()) {
+      if (!(await e.isVisible())) continue
+      const bb = await e.boundingBox()
+      if (!bb) continue
+      const kva = await page.evaluate(([x, y]) => {
+        const t = document.elementFromPoint(x, y) as HTMLElement | null
+        return t?.closest("[data-punkt],[data-midt]") ? "" : `${t?.tagName ?? "-"}.${(t?.className || "-").split(" ")[0]}`
+      }, [bb.x + bb.width / 2, bb.y + bb.height / 2])
+      if (kva) feil.push(`${await e.getAttribute("aria-label")} under ${kva}`)
+    }
+    return feil
+  }
+  const dekte = await utanfor()
+  sjekk("og kvart merke som står framme kan takast", dekte.length === 0, dekte.slice(0, 2).join(" · "))
+
+  /**
+   * OG EIT DRAG I EIT MIDTMERKE ER EITT PUNKT TIL, PÅ RETT PLASS.
+   *
+   * Rekkjefylgja i lista ER mangekanten, so prøva krev meir enn eit punkt
+   * til: ho krev at naboane står som dei stod, og at det nye ligg MELLOM
+   * dei. Eit punkt lagt bakarst ville dregi ei line tvers over forma.
+   */
+  const mb = await page.locator("[data-midt='1']").boundingBox()
+  if (mb) {
+    const foer = om(3)
+    const cx = mb.x + mb.width / 2
+    const cy = mb.y + mb.height / 2
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    await page.mouse.move(cx + 40, cy - 30, { steps: 12 })
+    await page.mouse.up()
+    await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) === 5)
+    const ny = om(3)
+    const naboane = ny.length === 5 && JSON.stringify(ny[1]) === JSON.stringify(foer[1]) && JSON.stringify(ny[3]) === JSON.stringify(foer[2])
+    sjekk("eit drag i eit midtmerke er eitt punkt til, mellom naboane sine", naboane, `${foer.length} → ${ny.length} punkt`)
+    sjekk("og det nye punktet er DET fingeren dreg", JSON.stringify(ny[2]) !== JSON.stringify([(foer[1][0] + foer[2][0]) / 2, (foer[1][1] + foer[2][1]) / 2]), ny[2]?.join(","))
+    sjekk("og det står som eit handtak med dei andre", (await page.locator("[data-punkt]").count()) === 5)
+  }
+
+  /**
+   * DOBBELTTRYKK TEK EIT PUNKT BORT — same vegen ut som forma og bøyen har.
+   * Og tre er golvet: under det er det inga flate, so det fjerde trykket
+   * gjer ingenting i staden for å late heile omrisset falle.
+   */
+  const pb = await page.locator("[data-punkt='1']").boundingBox()
+  if (pb) {
+    const foer = om(3)
+    await page.waitForTimeout(DOBBELT + 80)
+    await page.mouse.dblclick(pb.x + pb.width / 2, pb.y + pb.height / 2)
+    await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) === foer.length - 1)
+    const ny = om(3)
+    sjekk(
+      "eit dobbelttrykk på eit punkt tek NØYAKTIG det bort",
+      ny.length === foer.length - 1 && !ny.some((q) => JSON.stringify(q) === JSON.stringify(foer[1])),
+      `${foer.length} → ${ny.length} punkt`,
+    )
+  }
+  /**
+   * OG TRE PUNKT ER GOLVET. Under det er det inga flate, og `lesPlan` ville
+   * late HEILE omrisset falle — ei form som forsvinn av di du tok eitt punkt
+   * for mykje er ikkje ei form du kan arbeide i. Fjerde trykket gjer difor
+   * ingenting, og prøva krev nett det: ikkje ein feil, berre ingen ting.
+   */
+  /**
+   * ⌫ TEK DET SOM ER TEKE. Fingeren på eit punkt ER å ta det, so prøva
+   * treng ikkje eit trykk til: ho legg fingeren på eit SYNLEG handtak — eit
+   * som ligg under arket eller spalta står ikkje framme (sjå `Omrisset`) —
+   * og trykkjer ⌫.
+   */
+  const taSynleg = async () => {
+    for (const e of await page.locator("[data-punkt]").all()) {
+      if (!(await e.isVisible())) continue
+      const bb = await e.boundingBox()
+      if (bb) return { el: e, x: bb.x + bb.width / 2, y: bb.y + bb.height / 2 }
+    }
+    return null
+  }
+  const t1 = await taSynleg()
+  if (t1) {
+    const foer = om(3).length
+    await page.mouse.click(t1.x, t1.y)
+    await page.waitForTimeout(500)
+    sjekk("eit trykk på eit punkt tek det: merket står fullt", (await t1.el.getAttribute("aria-current")) === "true")
+    /**
+     * OG PILENE FLYTTAR DET, i millimeter i profilen si eiga ramme: éin på
+     * ei pil, ti med skift. Storleiken er 150 mm, so éin millimeter er
+     * 1/150 av eininga punktet er skrive i — og det er DET talet prøva
+     * les, ikkje «det rørte seg».
+     */
+    const i1 = Number(await t1.el.getAttribute("data-punkt"))
+    const p0 = om(3)[i1]
+    // planet sitt eige punkt, FØR pilene: dei skal flytte punktet i
+    // profilen og ikkje planet langs normalen sin
+    const planFoer = JSON.stringify(lesPlan(hash(page).plan).find((q) => q.id === 3)?.o)
+    await page.keyboard.press("ArrowRight")
+    await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.[i1]?.[0] ?? 0) !== p0[0])
+    const p1 = om(3)[i1]
+    sjekk("og ei pil flyttar det éin millimeter i profilen", Math.abs(p1[0] - p0[0] - 1 / 150) < 1e-4 && p1[1] === p0[1], `${p0.join(",")} → ${p1.join(",")}`)
+    await page.keyboard.press("Shift+ArrowUp")
+    await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.[i1]?.[1] ?? 0) !== p1[1])
+    const p2 = om(3)[i1]
+    sjekk("og skift gjer han ti", Math.abs(p2[1] - p1[1] - 10 / 150) < 1e-4 && p2[0] === p1[0], `${p1.join(",")} → ${p2.join(",")}`)
+    /**
+     * OG SKIFT LÅSER AKSEN I EIT DRAG. Fingeren går på skrå — meir i u enn i
+     * v — og punktet skal ha gått i u og STÅTT i v. Ei rett kant er det ein
+     * oftast er ute etter, og han er vanskeleg å treffe på frihand.
+     */
+    await page.keyboard.down("Shift")
+    await page.mouse.move(t1.x, t1.y)
+    await page.mouse.down()
+    await page.mouse.move(t1.x + 50, t1.y - 22, { steps: 10 })
+    await page.mouse.up()
+    await page.keyboard.up("Shift")
+    await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.[i1]?.[0] ?? 0) !== p2[0])
+    const p3 = om(3)[i1]
+    sjekk("og skift låser aksen i eit drag", p3[0] !== p2[0] && p3[1] === p2[1], `${p2.join(",")} → ${p3.join(",")}`)
+    const planEtter = JSON.stringify(lesPlan(hash(page).plan).find((q) => q.id === 3)?.o)
+    sjekk("og planet sjølv stod stille medan pilene gjekk", planEtter === planFoer, `${planFoer} → ${planEtter}`)
+    await page.keyboard.press("Backspace")
+    await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) === foer - 1)
+    sjekk("og ⌫ tek det bort — ikkje planet", om(3).length === foer - 1 && lesPlan(hash(page).plan).length === 4, `${foer} → ${om(3).length} punkt · ${lesPlan(hash(page).plan).length} plan`)
+  }
+  /**
+   * OG TRE PUNKT ER GOLVET. Under det er det inga flate, og `lesPlan` ville
+   * late HEILE omrisset falle — ei form som forsvinn av di du tok eitt punkt
+   * for mykje er ikkje ei form du kan arbeide i. Trykket etter det gjer
+   * difor ingenting: ikkje ein feil, berre ingen ting.
+   */
+  for (let vakt = 0; vakt < 4 && om(3).length > 3; vakt++) {
+    const t = await taSynleg()
+    if (!t) break
+    await page.mouse.click(t.x, t.y)
+    await page.waitForTimeout(400)
+    await page.keyboard.press("Backspace")
+    await page.waitForTimeout(900)
+  }
+  const golv = om(3).length
+  const t2 = await taSynleg()
+  if (t2) {
+    await page.mouse.click(t2.x, t2.y)
+    await page.waitForTimeout(400)
+    await page.keyboard.press("Backspace")
+    await page.waitForTimeout(900)
+  }
+  sjekk("og tre punkt er golvet: forma kan ikkje trykkjast bort", golv === 3 && om(3).length === 3, `${golv} → ${om(3).length} punkt`)
 
   /** og eit einslegt trykk slepper forma: profilen er nettet att */
   await page.waitForTimeout(DOBBELT + 80)

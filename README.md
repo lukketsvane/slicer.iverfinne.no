@@ -133,7 +133,8 @@ escape leaves it; arrows step it, shift-arrows step ten. A selected plane moves
 one millimetre along its normal per arrow press, ten with shift, and its row
 reads where it stands in millimetres from the centre of the body, live. `D`
 duplicates the selected plane, `H` cuts a hole in it, `O` freezes its profile
-into points (twice quickly for the box), tab and shift-tab walk
+into points (twice quickly for the box), the arrows move a held outline point
+one millimetre and ten with shift, `⌫` removes it, tab and shift-tab walk
 the plane list, `F` reframes, and the right mouse button (or the wheel pressed)
 pans the view — the reframe button puts it back. Every tool has a letter: `R`
 the grid, `V` the whirl, `K` the body, and `B` leafs the
@@ -314,7 +315,8 @@ catch. It is also what stands between you and the slots. The button under the
 reframe icon takes it away and puts it back; the link carries it, so a view you
 share is the view you sent. It changes no geometry and is not in the undo list.
 
-Keys: `L` cut, `O` freeze the profile, `R` grid tool, `V` vortex, `⌫` remove the selected plane,
+Keys: `L` cut, `O` freeze the profile, `R` grid tool, `V` vortex, `⌫` remove what is
+held — an outline point, else a stroke, else the plane,
 `Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
 
 **Three ways to keep an afternoon's work, and you press none of them.** The
@@ -471,6 +473,36 @@ What freezes is the **largest ring**, and only that one: a profile can be
 several pieces with holes in them, and an outline is one polygon. That is the
 decision that lets the points stay points you drag instead of a tree you
 navigate — holes and islands you draw back with strokes.
+
+**Every edge with room on it grows a small round mark at its middle.** Drag one
+and it becomes a point — one motion, not two: you pull the edge where you want
+it and the point came into being on the way, in the right place in the ring.
+The marks appear only where the edge is long enough on screen for a finger to
+tell the middle from the ends, so a four-sided box sprouts them and a
+dense eighteen-point rib does not. They also disappear under anything that
+covers them — the sheet, the tool column, the plane's own handles — because a
+mark you cannot reach is worse than no mark: the press goes to whatever is on
+top. (Measured before that rule: a point dragged out to the right ended up
+under the tool column, and the double-tap meant to remove it duplicated the
+plane instead.)
+
+**Put a finger on a point and you are holding it** — the same motion that
+starts a drag, so selecting costs no extra press. The one you hold reads in
+full ink. Then the keyboard has it: the **arrows** move it one millimetre in
+the profile's own frame and ten with shift, **⌫** removes it, **Esc** lets it
+go. Holding **shift while dragging** locks the drag to one axis, which is how
+you get a straight edge by hand. None of that is magnetism — nothing snaps on
+its own guess; you hold a key and it does exactly one thing.
+
+Three points is the floor. Below that there is no surface, and an outline that
+vanished because you removed one point too many is not an outline you can work
+in, so the press after the third simply does nothing.
+
+The line you are shaping is drawn **from the points**, thin and dimmed, on top
+of the profile the engine returns. The engine's answer is the truth — it is
+what gets cut, with slots and strokes in it — but it comes back a couple of
+hundred milliseconds later, and a point dragged while the line lags behind your
+finger is a point you do not believe you are moving.
 
 **Double-tap it and the outline becomes the box around itself** — a rib
 through an animal is a contour with ears and hooves, and sometimes the
