@@ -8,7 +8,7 @@ import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, omrissLine, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
 import { simplify, type Pt2 } from "@/lib/contour"
-import { lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
+import { byggKey, lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
@@ -302,9 +302,9 @@ export function Studio() {
   const montT = useRef(0)
   const montSpel = useRef(false)
   const [montSteg, setMontSteg] = useState(1)
-  /** draget i montasjeknappen: kvar fingeren sist stod, og kvar han landa */
+  /** draget i montasjeknappen: kva peikar, kvar han sist stod, og kvar han landa */
   const montDra = useRef<number | null>(null)
-  const montNed = useRef<number | null>(null)
+  const montNed = useRef<{ id: number; y: number } | null>(null)
   /** scena teiknar på oppmoding: her legg ho vekkjaren sin, so eit drag i
    *  knappen får eit bilete ut av henne */
   const montVakn = useRef<(() => void) | null>(null)
@@ -330,6 +330,9 @@ export function Studio() {
   const [kubeBotn, setKubeBotn] = useState(0)
   /** gestmodusen: «form» er dei gamle gestane på objektet, «skisse» er gestane på planet */
   const [modus, setModus] = useState<Modus>("form")
+  /** ...og den same modusen til lyttarar som vart sette opp éin gong */
+  const modusRef = useRef<Modus>("form")
+  modusRef.current = modus
   /** kor mange millimeter virr du har lagt på gruppa du står i, denne økta */
   const [virr, setVirr] = useState(0)
   /**
@@ -633,6 +636,20 @@ export function Studio() {
         return
       }
       if (r.kind === "montasje") {
+        /**
+         * OG EIT SVAR SOM KJEM ETTER AT REISKAPEN ER LUKKA, FELL PÅ GOLVET.
+         *
+         * To trykk tett i hop er «sjå det ein gong til» — knappen sin eigen
+         * lære — men på ein kropp med mange plan tek montasjen opp mot eit
+         * halvt sekund, so det andre trykket rekk å lukke reiskapen FØR
+         * svaret på det fyrste kjem. Sette vi han då, stod du att med
+         * stabelen av plater medan knappen sa at verktyet var av: kroppen,
+         * snittet og skjer var borte, og berre to trykk til henta dei.
+         *
+         * Refen og ikkje `modus`: denne lyttaren er sett opp éin gong, og
+         * ser difor alltid modusen frå det fyrste biletet.
+         */
+        if (modusRef.current !== "montasje") return
         const { kind, id, ...m } = r
         void kind
         void id
@@ -1750,13 +1767,19 @@ export function Studio() {
   const askArk = useCallback((i: number) => send({ kind: "ark", id: ++reqId.current, params: naa.current, sheet: Math.max(0, i) }), [send])
   /**
    * MONTASJEN VERT SPURD OM NÅR REISKAPEN ER PÅ, og på nytt kvar gong noko
-   * som endrar delane endrar seg — plana, storleiken, tjukna, plata,
-   * kroppen. Ikkje kvar gong KVA SOM HELST endrar seg: eit drag i lyset
-   * eller eit byte av lesemåte lagar ikkje ein einaste ny del, og å rekne
-   * heile montasjen om att for det ville teke reiskapen frå å vera til å
-   * scrubbe i.
+   * som endrar delane endrar seg. Ikkje kvar gong KVA SOM HELST endrar seg:
+   * eit drag i lyset eller eit byte av lesemåte lagar ikkje ein einaste ny
+   * del, og å rekne heile montasjen om att for det ville teke reiskapen frå
+   * å vera til å scrubbe i.
+   *
+   * OG NØKKELEN ER MOTOREN SIN. Han stod som ei handskriven liste på ni
+   * parametrar her, og det er den same feilen to gonger: `byggKey` er
+   * nøyaktig det `makeBygg` hugsar på, og montasjen er bygd av det bygget.
+   * Lista mangla vendinga, glattinga, forenklinga, klaringa, leddlengda —
+   * alt `params.ts` seier tel — so eit drag i «vend x» let animasjonen
+   * spele delane til den forrige kroppen, med gamle steg i lina.
    */
-  const montNokkel = modus === "montasje" ? [params.plan, params.storleik, params.tjukn, params.arkB, params.arkH, params.kjelde, params.scene, params.fest, params.snitt].join("|") : ""
+  const montNokkel = modus === "montasje" ? byggKey(params, 0) : ""
   useEffect(() => {
     if (!montNokkel) return
     send({ kind: "montasje", id: ++reqId.current, params: naa.current })
@@ -2450,7 +2473,13 @@ export function Studio() {
               // trykket vert notert same kva: det er DET som slår verktyet
               // på og av. Draget finst berre når han alt er på — utan ein
               // montasje er det ingenting å dra i.
-              montNed.current = e.clientY
+              // BERRE DEN PEIKAREN SOM TOK I KNAPPEN. Landa ein annan finger
+              // borti han medan den fyrste heldt, skreiv han over kvar
+              // trykket byrja — og trykket vart lese som eit drag og gjorde
+              // ingenting. (Spalta les ein finger som ikkje er den primære
+              // med vilje; difor eit namn og ikkje `isPrimary`.)
+              if (montNed.current) return
+              montNed.current = { id: e.pointerId, y: e.clientY }
               if (modus !== "montasje") return
               e.currentTarget.setPointerCapture(e.pointerId)
               montDra.current = e.clientY
@@ -2467,14 +2496,20 @@ export function Studio() {
             }}
             onPointerUp={(e) => {
               const ned = montNed.current
+              if (!ned || ned.id !== e.pointerId) return
               montDra.current = null
               montNed.current = null
               setSkrubbar(false)
               // eit trykk er eit trykk berre når det ikkje flytte seg — elles
               // er det byrjinga på eit drag, og eit drag slepper ikkje verktyet
-              if (ned !== null && Math.abs(e.clientY - ned) <= 6) vekslMontasje()
+              if (Math.abs(e.clientY - ned.y) <= 6) vekslMontasje()
             }}
-            onPointerCancel={() => { montDra.current = null; montNed.current = null; setSkrubbar(false) }}
+            onPointerCancel={(e) => {
+              if (montNed.current && montNed.current.id !== e.pointerId) return
+              montDra.current = null
+              montNed.current = null
+              setSkrubbar(false)
+            }}
             /*
               OG INGEN `onClick`. Han er den same knappen som bøyen: alt går
               gjennom peikaren, av di eit drag og eit trykk berre kan

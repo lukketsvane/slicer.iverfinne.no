@@ -491,7 +491,29 @@ const lesStrek = (s: string): Strek | null => {
  * piksel er brei på ein telefon, og taket på 24 punkt held heile ting under
  * 200 punkt — mindre enn ein kontur lesen av eit nett.
  */
-const BOGE_STEG = 8
+/**
+ * KOR FINT EIN BOGE VERT DELT: SÅ FINT HAN TRENG, OG IKKJE FINARE.
+ *
+ * Åtte faste steg var lett å skrive og dyrt å bruke. Punkta frå denne fila
+ * går rett inn i feltet (`felt`/`omrissDist` i `lib/snitt.ts`), og der vert
+ * KVAR KANT gått for KVAR CELLE i ei rute som kan vera 520 × 520. Åtte steg
+ * gjer eit omriss på fire og tjue punkt til hundre og to og nitti, og det er
+ * åtte gonger den lykkja. Målt: 32 plan gjekk frå 493 ms til 2013 ms, og det
+ * er arbeidaren på nytt for kvart tal du dreg i — på ein telefon.
+ *
+ * Difor vert stykket delt på AVVIKET og ikkje på eit tal: står midten av
+ * kurva nærare korda enn `BOGE_TOL`, er korda kurva. Ein boge på ei tett
+ * ribbe treng då to stykke der han fekk åtte, og eit hjørne som er runda på
+ * ein lang kant får dei han treng.
+ *
+ * Toleransen er ein brøk av storleiken, som punkta sjølve: to tusendelar er
+ * 0,3 mm på ein kropp på 150 og under ei celle i ruta konturen vert lesen
+ * av. Djupna er eit tak mot ei kurve som ikkje vil konvergere — seksten
+ * stykke er dobbelt så mange som det faste talet var, og dit kjem ein berre
+ * på ein boge over ein heil kropp.
+ */
+const BOGE_TOL = 0.002
+const BOGE_DJUP = 4
 const bogePkt = (p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt => {
   const t2 = t * t
   const t3 = t2 * t
@@ -504,6 +526,20 @@ const bogeFire = (o: readonly Pt[], rund: ReadonlySet<number>, i: number): [Pt, 
   const j = (i + 1) % n
   return [rund.has(i) ? o[(i - 1 + n) % n] : o[i], o[i], o[j], rund.has(j) ? o[(j + 1) % n] : o[j]]
 }
+/**
+ * Stykket delt i to til kurva og korda fell saman. `p1` vert lagt til, `p0`
+ * ikkje: kvart punkt kjem éin gong, og det fyrste i stykket er alt lagt til.
+ */
+function bogeFlat(ut: Pt[], f: (t: number) => Pt, t0: number, t1: number, p0: Pt, p1: Pt, djup: number) {
+  const tm = (t0 + t1) / 2
+  const m = f(tm)
+  if (djup >= BOGE_DJUP || Math.hypot(m[0] - (p0[0] + p1[0]) / 2, m[1] - (p0[1] + p1[1]) / 2) <= BOGE_TOL) {
+    ut.push(p1)
+    return
+  }
+  bogeFlat(ut, f, t0, tm, p0, m, djup + 1)
+  bogeFlat(ut, f, tm, t1, m, p1, djup + 1)
+}
 export function omrissLine(omriss: readonly Pt[], runde?: readonly number[]): Pt[] {
   const n = omriss.length
   if (n < 3 || !runde?.length) return omriss.slice()
@@ -514,7 +550,11 @@ export function omrissLine(omriss: readonly Pt[], runde?: readonly number[]): Pt
     const j = (i + 1) % n
     if (!rund.has(i) && !rund.has(j)) continue
     const [a, b, c, d] = bogeFire(omriss, rund, i)
-    for (let k = 1; k < BOGE_STEG; k++) ut.push(bogePkt(a, b, c, d, k / BOGE_STEG))
+    const stykke: Pt[] = []
+    bogeFlat(stykke, (t) => bogePkt(a, b, c, d, t), 0, 1, omriss[i], omriss[j], 0)
+    // endepunktet er neste omgang sitt fyrste punkt
+    stykke.pop()
+    for (const q of stykke) ut.push(q)
   }
   return ut
 }
@@ -525,10 +565,9 @@ export function omrissLine(omriss: readonly Pt[], runde?: readonly number[]): Pt
  * på korda, ville det liggje av garde frå den kanten det høyrer til so
  * snart stykket bogna — og punktet det la til ville rykt forma rett.
  */
-export function omrissMidt(omriss: readonly Pt[], runde: readonly number[] | undefined, i: number): Pt {
+export function omrissMidt(omriss: readonly Pt[], rund: ReadonlySet<number>, i: number): Pt {
   const n = omriss.length
   const j = (i + 1) % n
-  const rund = new Set(runde ?? [])
   if (!rund.has(i) && !rund.has(j)) return [(omriss[i][0] + omriss[j][0]) / 2, (omriss[i][1] + omriss[j][1]) / 2]
   const [a, b, c, d] = bogeFire(omriss, rund, i)
   return bogePkt(a, b, c, d, 0.5)

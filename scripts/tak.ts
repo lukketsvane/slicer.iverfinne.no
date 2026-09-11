@@ -284,6 +284,48 @@ if (halv && siste && halv !== siste && siste.n === halv.n * 2) {
 }
 
 /**
+ * BOGAR I OMRISSA, VED TAKET.
+ *
+ * Punkta frå `omrissLine` går rett inn i feltet, og der vert kvar kant gått
+ * for kvar celle i ruta. Ei fast deling på åtte gjorde eit omriss på 24
+ * punkt til 192 og bygget fire gonger dyrare — på arbeidaren, for kvart tal
+ * du dreg i. Delinga er adaptiv no (sjå `BOGE_TOL`), og dette er talet som
+ * held henne der: bogar skal koste under det doble av ingen bogar.
+ *
+ * Rutenettet ovanfor har ingen omriss i det heile, so utan denne målte
+ * ingenting dette.
+ */
+{
+  console.log("\n=== bogar ved taket ===")
+  const sirkel = (n: number, r = 0.35) =>
+    Array.from({ length: n }, (_, i) => [+(r * Math.cos((2 * Math.PI * i) / n)).toFixed(4), +(r * Math.sin((2 * Math.PI * i) / n)).toFixed(4)] as [number, number])
+  const om = sirkel(24)
+  const lag = (bogar: boolean) =>
+    Array.from({ length: 32 }, (_, i) => ({
+      id: i + 1,
+      o: [0.5, 0.05 + (0.9 * i) / 31, 0.5],
+      n: [0, 1, 0],
+      bog: 0,
+      strek: [],
+      omriss: om,
+      ...(bogar ? { runde: om.map((_, k) => k) } : {}),
+    }))
+  const kost = (bogar: boolean) => {
+    const bag = { ...GRUNN, storleik: 200, plan: skrivPlan(lag(bogar) as never) } as unknown as ParamBag
+    const t0 = Date.now()
+    const n = MOTOR.liste(bag).length
+    return { ms: Date.now() - t0, n }
+  }
+  const utan = kost(false)
+  const med = kost(true)
+  ok(
+    "32 omriss med boge på kvart punkt kostar under det doble av ingen bogar",
+    med.n === utan.n && med.ms < utan.ms * 2,
+    `${utan.ms} ms utan → ${med.ms} ms med (${(med.ms / Math.max(1, utan.ms)).toFixed(2)}×), ${med.n} delar`,
+  )
+}
+
+/**
  * OG MONTASJEN VED TAKET.
  *
  * Han byggjer eit nett per DEL og ikkje eitt for heile stabelen, so han er
