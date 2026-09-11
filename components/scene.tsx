@@ -100,16 +100,28 @@ type Ramma = { cx: number; cy: number; s: number; min: Vec3; max: Vec3; midt: Ve
  */
 function ramma(d: BuildRes | null, ekstra?: { min: Vec3; max: Vec3 } | null): Ramma | null {
   if (!d) return null
-  const min: Vec3 = ekstra ? [Math.min(d.min[0], ekstra.min[0]), Math.min(d.min[1], ekstra.min[1]), Math.min(d.min[2], ekstra.min[2])] : d.min
-  const max: Vec3 = ekstra ? [Math.max(d.max[0], ekstra.max[0]), Math.max(d.max[1], ekstra.max[1]), Math.max(d.max[2], ekstra.max[2])] : d.max
-  const cx = (min[0] + max[0]) / 2
-  const cy = (min[1] + max[1]) / 2
-  const h = Math.max(1e-6, max[2] - Math.min(0, min[2]))
-  const w = Math.max(max[0] - min[0], max[1] - min[1])
+  /**
+   * `ekstra` verkar på SKALAEN OG SENTRERINGA, og aldri på `min`/`max`.
+   *
+   * Dei to er kroppen sin boks, og han er noko heilt anna enn kva biletet
+   * dekkjer: brøkane til plana vert lesne mot HAN (`planRamme(valt, f.min,
+   * f.max)`, og `broek(...)` når handa skriv eit plan attende). Let stabelen
+   * til montasjen seg inn der, ville eit plan på 0,5 stått midt i ein boks
+   * som er fire gonger kroppen — handtaket teikna éin stad og talet skrive
+   * for ein annan.
+   */
+  const bx: Vec3 = ekstra ? [Math.min(d.min[0], ekstra.min[0]), Math.min(d.min[1], ekstra.min[1]), Math.min(d.min[2], ekstra.min[2])] : d.min
+  const bX: Vec3 = ekstra ? [Math.max(d.max[0], ekstra.max[0]), Math.max(d.max[1], ekstra.max[1]), Math.max(d.max[2], ekstra.max[2])] : d.max
+  const cx = (bx[0] + bX[0]) / 2
+  const cy = (bx[1] + bX[1]) / 2
+  const h = Math.max(1e-6, bX[2] - Math.min(0, bx[2]))
+  const w = Math.max(bX[0] - bx[0], bX[1] - bx[1])
   const s = FRAME / Math.max(w, h, 1e-6)
   return {
-    cx, cy, s, min, max,
-    midt: [cx, cy, (min[2] + max[2]) / 2],
+    cx, cy, s,
+    min: d.min,
+    max: d.max,
+    midt: [(d.min[0] + d.max[0]) / 2, (d.min[1] + d.max[1]) / 2, (d.min[2] + d.max[2]) / 2],
     fit: { r: (Math.hypot(w, h) / 2) * s, w: w * s, h: h * s, cy: (h / 2) * s },
   }
 }
@@ -1193,6 +1205,14 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       if (pts.size !== 2) return
       if (mode !== "sam") return
       const c = measure2()
+      // MONTASJEN ER EI LESING. Han endrar ikkje eit einaste tal, og det
+      // gjeld fingrane òg: utan dette fall to fingrar gjennom til `bruk`,
+      // og skisseplanet stod ein annan stad enn der du forlét det — usynleg,
+      // av di handa ikkje teiknar noko medan montasjen står.
+      if (naa.current.modus === "montasje") {
+        last = c
+        return
+      }
       sam.vri += vinkel(c.a, sam.sistA)
       sam.sistA = c.a
       const panX = c.cx - sam.x0
@@ -1200,20 +1220,6 @@ function Handa({ f, fri, sov, modus, vald, plan, snitt, skisse, boks, storleik, 
       const klyp = c.d / sam.d0
       if (!sam.akt.pan && Math.hypot(panX, panY) > PAN_SAM) sam.akt.pan = true
       if (!sam.akt.vri && Math.abs(sam.vri) > VRI_SAM) sam.akt.vri = true
-      /**
-       * EMNET VINN OVER KAMERAET.
-       *
-       * To fingrar held aldri nøyaktig same avstand medan dei dreg: fire
-       * prosent er nok til å låse opp klypet, og kameraet krøkte seg inn og
-       * ut medan du flytte planet. Du bad om det eine og fekk det andre.
-       * Difor: arbeider fingrane på emnet, er klypet kameraet sitt og
-       * kameraet står. Klyp åleine — ingen dreg, ingen vrir — dollyar.
-       *
-       * VERKTYET FOR KROPPEN ER UNNATAKET, og det er ikkje eit unnatak i
-       * regelen: der ER klypet emnet. Biten vert større medan du flyttar og
-       * vrir han, av di det er tre ting på den same biten og ikkje to ting
-       * som slåst om kven du sikta på.
-       */
       const paaBit = bitStil()
       const rute = ruteStil()
       const arbeider = sam.akt.pan || sam.akt.vri
@@ -1546,7 +1552,7 @@ function Spora({ f, snitt, boks, onDeling }: {
      * Difor kan du dra frå kva vinkel som helst — handtaket fylgjer sporet,
      * ikkje musa.
      */
-    let dra: { nokkel: string; A: THREE.Vector3; u: THREE.Vector3; aa: number } | null = null
+    let dra: { nokkel: string; id: number; A: THREE.Vector3; u: THREE.Vector3; aa: number } | null = null
     const ned = (e: PointerEvent) => {
       const el = (e.target as Element).closest<HTMLElement>("[data-spor]")
       const q = naa.current.spor.find((x) => x.nokkel === el?.dataset.spor)
@@ -1559,12 +1565,15 @@ function Spora({ f, snitt, boks, onDeling }: {
       const u = B.clone().sub(A)
       const aa = u.dot(u)
       if (aa < 1e-9) return
-      dra = { nokkel: q.nokkel, A, u, aa }
+      dra = { nokkel: q.nokkel, id: e.pointerId, A, u, aa }
       el.setPointerCapture(e.pointerId)
       taKameraet(controls)
     }
     const rorsle = (e: PointerEvent) => {
-      if (!dra) return
+      // BERRE DEN PEIKAREN SOM TOK TAK — same grunnen som i `Omrisset`:
+      // lyttarane står på vindauget, so den andre fingeren kjem hit òg, og
+      // eit spor som skulle stå stille hoppa dit HAN peika.
+      if (!dra || e.pointerId !== dra.id) return
       const rute = gl.domElement.getBoundingClientRect()
       const d = new THREE.Vector3(((e.clientX - rute.left) / rute.width) * 2 - 1, 1 - ((e.clientY - rute.top) / rute.height) * 2, 0.5)
         .unproject(camera)
@@ -1814,7 +1823,7 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
         e.stopPropagation()
         // midt på KURVA og ikkje på korda: punktet skal verte til der merket
         // står, og der merket står er på kanten
-        const ny = omrissMidt(om, ru, i)
+        const ny = omrissMidt(om, new Set(ru ?? []), i)
         naa.current.onLeggPunkt(i, ny)
         // det nye punktet er det handa held: pilene tek det med ein gong
         naa.current.onValdPunkt(i + 1)
@@ -1983,7 +1992,11 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
      * omrekningar i eitt bilete. Difor: les alt, so skriv alt.
      */
     const px = om.map(paaSkjerm)
-    const mpx = om.map((_, i) => paaSkjerm(omrissMidt(om, naa.current.runde, i)))
+    // bogane som mengd ÉIN gong, ikkje ein gong per punkt: dette er kvar
+    // teikning, og fire og tjue mengder i sekundet seksti er fire og tjue
+    // mengder for mykje
+    const rundeNo = new Set(naa.current.runde ?? [])
+    const mpx = om.map((_, i) => paaSkjerm(omrissMidt(om, rundeNo, i)))
     /**
      * MIDTMERKA STÅR DER DET ER PLASS TIL EITT PUNKT TIL, og ingen annan
      * stad: kanten må vera lang nok på SKJERMEN (`MIDT_MIN`) — det er
@@ -2221,8 +2234,6 @@ function Montasjen({ f, mont, T, spel, vakn, material, onSteg }: {
   const bogne = useRef<(THREE.Mesh | null)[]>([])
   const sist = useRef(-1)
   const sagtSteg = useRef(-1)
-  const tmpP = useRef(new THREE.Vector3())
-  const tmpQ = useRef(new THREE.Quaternion())
   const ein = useRef(new THREE.Vector3(1, 1, 1))
 
   useFrame((_, dt) => {
@@ -3173,7 +3184,6 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         </group>
         <FitCamera fit={f?.fit ?? null} rute={rute} sikt={sikt} laast={laast} />
         <Kamerataket ut={zoom} />
-        <Skodda />
         {/*
           SYNSKUBEN, øvst til høgre i det FRIE bandet: marginen er kanten av
           arket og kolonna, ikkje kanten av lerretet, so han står i biletet og
@@ -3204,6 +3214,14 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             i `Flatsynet` tek seg att om rekkjefylgja skulle svikte — det
             kostar eit bilete eller to, ikkje storleiken på objektet. */}
         <Flatsynet />
+        {/* OG SKODDA ETTER FLATSYNET, av same grunn den andre vegen: ho LES
+            avstanden, og flatsynet gongar han med 1,17 per bilete medan
+            synet rettar seg ut. Stod ho før, las ho avstanden frå biletet
+            FØR — og då låg skodda eit hakk for nær (objektet tona bort i
+            bakgrunnen på veg inn i flatsynet) og `near` eit hakk for langt
+            ute (objektet vart klipt bort på veg ut av det). Eit blink kvar
+            gong du trykte på ei side av kuben. */}
+        <Skodda />
         <Demping onSein={setSein} />
         <Handa f={f} fri={fri} sov={sov} modus={modus} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
         {/* Kroppen snur heile vegen rundt — undersida er der ledda sit, og
@@ -3303,8 +3321,12 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
       {/* LEDDA SOM HANDTAK: éin prikk per ledd i det valde planet, på den
           lukka enden av sporet. Scena skriv plassen deira kvar teikning
           (sjå `Spora`); dei står berre der det finst eit låst plan valt. */}
+      {/* Og dei står ikkje medan montasjen gjer det: komponentane som set
+          plassen deira kvar teikning (`Spora`, `Omrisset`) er ikkje monterte
+          då, so knappane ville hopa seg opp usette i hjørnet av lerretet —
+          synlege, trykkbare og utan nokon bak seg. */}
       <div ref={setSporBoks} className="spor">
-        {vald !== null &&
+        {vald !== null && !mont &&
           (snitt?.spor ?? []).map((q) => (
             <button key={q.nokkel} type="button" data-spor={q.nokkel} aria-label={`ledd ${q.nokkel}`} title={`dra: kor djupt ledd ${q.nokkel} går`}>
               <span aria-hidden="true" />
@@ -3321,12 +3343,12 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           kan verte til. Scena gøymer dei der kanten er for kort til at
           fingeren kan skilje dei frå punkta i endane. */}
       <div ref={setPunktBoks} className="punkt">
-        {(valt?.omriss ?? []).map((_, i) => (
+        {(mont ? [] : valt?.omriss ?? []).map((_, i) => (
           <button key={`m${i}`} type="button" data-midt={i} hidden aria-label={`legg til eit punkt mellom ${i + 1} og ${((i + 1) % (valt?.omriss?.length ?? 1)) + 1}`} title="dra: eit punkt til, midt på kanten">
             <span aria-hidden="true" />
           </button>
         ))}
-        {(valt?.omriss ?? []).map((_, i) => (
+        {(mont ? [] : valt?.omriss ?? []).map((_, i) => (
           <button key={`p${i}`} type="button" data-punkt={i} data-rund={valt?.runde?.includes(i) ? "" : undefined} data-vald={i === valdPunkt ? "" : undefined} aria-current={i === valdPunkt} aria-label={`punkt ${i + 1} i omrisset${valt?.runde?.includes(i) ? ", boge" : ""}`} title="dra: flytt punktet — skift låser aksen. dobbelttrykk: hjørne eller boge. pilene flyttar det ein millimeter, ti med skift; ⌫ eller eit langt trykk tek det bort">
             <span aria-hidden="true" />
           </button>

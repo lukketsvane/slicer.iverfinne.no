@@ -124,17 +124,22 @@ const flatMat = (m: readonly number[], off: Vec3): Float32Array =>
   ])
 
 /** normalen som nøkkel, med teiknet vaska bort: n og −n er den same retninga */
+const RETN_NULL = 1e-4
 function retning(n: Vec3): string {
+  // DEN SAME GRENSA BEGGE STADER. Teiknet vart teke av det fyrste leddet
+  // over 1e-6, medan nøkkelen nulla ut alt under 1e-4 — so [1e-4, 1, 0] og
+  // [−1e-4, 1, 0], som er det same planet på seks tusendels grad, fekk
+  // «0,1,0» og «0,−1,0» og vart to steg der geometrien har eitt. Normalane
+  // kjem ut av `lesPlan` i multiplar av 1e-4, so det bandet er nåeleg frå
+  // ei lenkje.
   let s: Vec3 = [n[0], n[1], n[2]]
-  // fyrste leddet som ikkje er null avgjer teiknet, so eit plan og det same
-  // planet snudd hamnar i den same gjengen
   for (const c of s) {
-    if (Math.abs(c) > 1e-6) {
+    if (Math.abs(c) >= RETN_NULL) {
       if (c < 0) s = [-s[0], -s[1], -s[2]]
       break
     }
   }
-  return s.map((c) => (Math.abs(c) < 1e-4 ? 0 : c).toFixed(3)).join(",")
+  return s.map((c) => (Math.abs(c) < RETN_NULL ? 0 : c).toFixed(3)).join(",")
 }
 
 /** kva steg kvart plan høyrer til: motoren si rekkjefylgje, klumpa i retningar */

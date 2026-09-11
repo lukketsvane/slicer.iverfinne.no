@@ -606,7 +606,15 @@ a thumb.
 Only points live in the string. The arc is a flag — which positions in the
 outline are arcs — and the curve is turned back into points before any geometry
 sees it, so `contour`, the cut file and the joints read the polygon they always
-read. An outline with no arcs is, segment for segment, exactly the polygon it
+read. Those points are subdivided by **how far the curve strays from the
+chord**, not by a fixed count: they go straight into the field, where every
+edge is walked for every cell of a grid up to 520 × 520, so a flat eight steps
+per segment turned a 24-point outline into 192 and made the build four times
+dearer — on the worker, on every number you drag. Split on the deviation
+instead and a gentle arc on a dense rib takes two segments where it took eight,
+while a rounded corner on a long edge still gets the ones it needs: 32 outlines
+with every point an arc went from 2013 ms to 728 ms, and `pnpm tak` now holds
+arcs to under twice the cost of none. An outline with no arcs is, segment for segment, exactly the polygon it
 was before this existed: a corner is its own neighbour, which makes the stretch
 between two corners come out a straight line from the same arithmetic, with no
 second path through it. That is also why an old link opens the same shape.
