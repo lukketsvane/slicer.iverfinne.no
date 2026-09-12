@@ -24,6 +24,7 @@ import { STABEL_LUFT } from "../lib/montasje"
 import { placedRings } from "../lib/nest"
 import { FILFORMER } from "../lib/scene"
 import { KUBE } from "../lib/sources"
+import { checkRules } from "../lib/rules"
 import { existsSync, readFileSync } from "node:fs"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
@@ -1031,6 +1032,60 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   const vplan = new Set(vm.delar.map((d) => d.steg)).size
   if (vplan !== 9) bryt(`ei vifte med 9 plan: ${vplan} steg`)
   else console.log(`  ei vifte med 9 plan: ${vplan} steg — eitt om gongen`)
+}
+
+/**
+ * TO DELAR PÅ DEN SAME STADEN.
+ *
+ * Eit møte skuldra nektar får ikkje spor, men godset står att i båe — og
+ * dei to delane skal vera same staden. Regelen «kan monterast» ser det
+ * ikkje: han spør om ein del har éi retning inn, og desse har ikkje eit
+ * ledd i det heile på lina dei klemmer på. Nitten av dei tjue innebygde
+ * formene hadde minst eitt slikt par medan tavla stod grøn.
+ *
+ * Vakta krev tre ting, og det midtarste er det som gjer henne verd å
+ * køyre: at eit rutenett på ein kube er REINT. Ei vakt som berre krev at
+ * talet er over null ville stått grøn om lesinga melde klemme på alt.
+ */
+{
+  console.log("\n=== klemma ===")
+  const rein = makeBygg(GRUNN as unknown as Params, DETAIL.mid).s.montering.klem
+  if (rein.length) bryt(`eit rutenett på ein kube klemmer ikkje, men lesinga fann ${rein.length} par`)
+  else console.log(`  eit rutenett på ein kube: ingen par i kvarandre`)
+
+  const sti = "public/form/stolform-03.glb"
+  if (!existsSync(sti)) bryt(`${sti} finst ikkje`)
+  else {
+    const b = readFileSync(sti)
+    put("klemform", "klemform", parseMesh("stolform-03.glb", b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer))
+    const kp = { ...DEFAULT_PARAMS, kjelde: "klemform", storleik: 200, plan: nett(6, 6) } as unknown as Params
+    const k = makeBygg(kp, DETAIL.mid).s
+    if (!k.montering.klem.length) bryt("ei form med avviste møte klemmer, men lesinga fann ingen par")
+    else if (k.montering.brot.length) bryt("denne forma skal bryte KLEMMA og ikkje rekkjefylgja")
+    else {
+      console.log(`  og ei form med ${k.avvist} avviste møte: ${k.montering.klem.length} par i kvarandre, ${k.montering.klem.slice(0, 3).map(([x, y]) => `${x}–${y}`).join(", ")}`)
+
+      /**
+       * OG RÅDET KJEM FRAM TIL NULL. Eitt plan om gongen, det som er med i
+       * flest par. Talet skal falle mot null og aldri stige — steig det,
+       * ville knappen vore ein knapp du kan trykkje deg lengre bort med.
+       */
+      let q = kp
+      const spor: number[] = []
+      for (let i = 0; i < 10; i++) {
+        const kl = makeBygg(q, DETAIL.mid).s.montering.klem
+        spor.push(kl.length)
+        if (!kl.length) break
+        const r = checkRules(q, MOTOR.measure(q as unknown as ParamBag), undefined, true).find((x) => x.id === "klem")
+        if (!r?.fiks) { bryt("regelen klem melder brot utan å tilby eit råd"); break }
+        q = { ...q, ...r.fiks.set } as unknown as Params
+      }
+      const steig = spor.some((n, i) => i > 0 && n > spor[i - 1])
+      if (steig) bryt(`rådet gjorde klemma verre: ${spor.join(" → ")}`)
+      else if (spor[spor.length - 1] !== 0) bryt(`rådet kom ikkje fram til null: ${spor.join(" → ")}`)
+      else console.log(`  og rådet kjem fram, eitt plan om gongen: ${spor.join(" → ")}`)
+    }
+  }
 }
 
 console.log(brot ? `\n${brot} påstandar held ikkje` : "\nalle påstandar held")
