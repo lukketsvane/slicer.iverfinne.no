@@ -19,7 +19,7 @@ import { lesPlan, rutenett, skrivPlan, virvel } from "../lib/plan"
 import { makeKropp } from "../lib/kropp"
 import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
-import { flatDelar, lagDelar } from "../lib/mesh"
+import { flatDelar, lagDelar, lagMesh } from "../lib/mesh"
 import { STABEL_LUFT } from "../lib/montasje"
 import { placedRings } from "../lib/nest"
 import { FILFORMER } from "../lib/scene"
@@ -411,6 +411,41 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   const fasit = parseMesh("ut.stl", stlUt.data as ArrayBuffer)
   const les = parseMesh("ut.glb", glbUt.data as ArrayBuffer)
   console.log(`\n=== glb og usdz ===`)
+
+  /**
+   * OG OBJEKTFILENE ER FINARE LESNE ENN KUTTFILENE.
+   *
+   * Ei fil du tek med deg ut av reiskapen vert skriven éin gong; eit
+   * skyvarhakk vert rekna på kvart drag. Dei to har ikkje same budsjettet,
+   * og difor ikkje same oppløysinga: `DETAIL.fil` mot `DETAIL.mid`.
+   *
+   * Prøva les det av TREKANTTALET og ikkje av ein konstant. Eit tal i ei
+   * fil kan stå medan koden sluttar å bruke det — og då er «høgare
+   * oppløysing» ein påstand og ikkje ein eigenskap.
+   *
+   * OG HO MÅ PRØVAST PÅ NOKO KRUMT. Ein kube har rette omriss, og eit rett
+   * omriss vinn ingenting på fleire celler — målt: 3072 mot 2688 trekantar,
+   * som er avrunding og ikkje oppløysing. Det er ikkje ein feil i tiltaket,
+   * det er heile poenget med det: oppløysing er noko KURVER treng.
+   *
+   * Og grensa er sett lågt med vilje. Det oppløysinga fyrst og fremst kjøper
+   * er NØYAKTIGHEIT og ikkje trekantar: `tol` fylgjer rutesteget, so fila
+   * går frå eit omriss som får vike 0,11 mm frå forma til eitt som får vike
+   * 0,021 mm. Forenklaren held berre dei punkta han treng for å halde seg
+   * innanfor, so trekanttalet stig mykje mindre enn nøyaktigheita gjer. Det
+   * er rett veg: eit punkt som ikkje seier noko nytt er ein kant maskina
+   * bremsar for.
+   */
+  const krum = { ...GRUNN, kjelde: "kule", storleik: 200 } as unknown as Params
+  const finStl = MOTOR.exportFile(krum as unknown as ParamBag, "stl")
+  const fin = parseMesh("fin.stl", finStl.data as ArrayBuffer)
+  const grovStl = meshToStl(lagMesh(makeBygg(krum, DETAIL.mid).s, krum.tjukn), "grov")
+  const grov = parseMesh("grov.stl", grovStl.buffer.slice(0) as ArrayBuffer)
+  if (!(fin.tris > grov.tris * 1.25)) {
+    bryt(`objektfila har ${fin.tris} trekantar mot ${grov.tris} på kuttnivået — ho er ikkje finare lesen`)
+  } else {
+    console.log(`  oppløysing  ei kule: objektfila ${fin.tris} trekantar mot ${grov.tris} på kuttnivået (${(fin.tris / grov.tris).toFixed(1)}×)`)
+  }
   console.log(`  glb       ${glbUt.name}, ${(glbUt.data as ArrayBuffer).byteLength} B, ${les.tris} trekantar`)
   if (les.tris !== fasit.tris) bryt(`GLB har ${les.tris} trekantar der STL-en har ${fasit.tris}`)
   const avvik = Math.max(
@@ -891,6 +926,35 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
     prøvde++
     if (!ORD[md.veg]?.test(line)) ulike++
   }
+  /**
+   * OG EIN MONTASJE SOM IKKJE GÅR OPP SEIER DET I FILA.
+   *
+   * Den harde regelen `orden` seier det på skjermen. Skjermen står ikkje ved
+   * benken. `montering.txt` er fila som gjer det, og ho listar eit plan med
+   * nummer på — so ho skal ikkje gje deg ei liste som ser ut som ein plan
+   * når motoren veit ho stoggar.
+   *
+   * Tre plan gjennom det same senteret er tilfellet: kvart par kryssar langs
+   * si eiga line, og den tredje kjem ikkje inn same kva rekkjefylgje du tek
+   * dei i.
+   */
+  {
+    const umogeleg = {
+      ...DEFAULT_PARAMS,
+      plan: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.5/0,1,0;3@0.5,0.5,0.5/0,0,1",
+    } as unknown as Params
+    const b2 = makeBygg(umogeleg, DETAIL.mid)
+    const tekst = montering(umogeleg, b2.s)
+    const fast = b2.s.montering.brot
+    if (!fast.length) bryt("tre plan gjennom senteret vart ikkje meldt som umogeleg å montere")
+    else if (!tekst.includes("DETTE GÅR IKKJE OPP")) bryt("montering.txt listar ei rekkjefylgje som ikkje går, utan å seie det")
+    else if (!tekst.includes("STÅR FAST")) bryt("montering.txt seier frå, men merkjer ikkje kva line som stoggar")
+    else console.log(`  og ein montasje som ikkje går opp seier det i fila: ${fast.length} del(ar) står fast`)
+    // og eit rutenett skal IKKJE bera varselet
+    const greitt = montering(GRUNN as unknown as Params, makeBygg(GRUNN, DETAIL.mid).s)
+    if (greitt.includes("DETTE GÅR IKKJE OPP")) bryt("eit rutenett som går opp fekk varselet likevel")
+  }
+
   if (!prøvde) bryt("fann ingen liner i montering.txt å samanlikne vegen med")
   else if (ulike) bryt(`${ulike} av ${prøvde} delar har vegen til ein annan del enn seg sjølv`)
   else console.log(`  og vegen inn høyrer rett del til: ${prøvde} delar`)

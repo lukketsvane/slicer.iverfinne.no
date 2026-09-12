@@ -40,7 +40,10 @@ const TAK: [string, number][] = [
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko
-  ["lib/snitt.ts", 1282],
+  // +22 den 12.: tabellen over kva oppløysinga kostar og kjøper, målt. Han
+  // står over `DETAIL`, av di eit nivå utan tala sine er eit tal nokon
+  // kjem til å setje etter kjensle
+  ["lib/snitt.ts", 1304],
   ["lib/pack.ts", 955],
 ]
 

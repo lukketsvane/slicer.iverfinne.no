@@ -53,7 +53,29 @@ import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
  * tjue. Det midtre nivået er det filene vert skorne på, og no det same som
  * skjermen syner: to millimeters celler på ein halvmeter.
  */
-export const DETAIL = { lav: 120, mid: 220, hog: 320 } as const
+/**
+ * KOR FINT FELTET VERT LESE — og kva det kostar.
+ *
+ * Målt på ei kule på 200 mm med åtte plan, buelengd i omrissa og tid:
+ *
+ *     celler    ms   punkt i omrissa   kuttlengd
+ *        120   119               574     7461 mm
+ *        220   127               684     7526 mm
+ *        320   198               804     7564 mm
+ *        640   287               986     7659 mm
+ *       1200   343              1096     7736 mm
+ *
+ * To ting å lese ut av det. Kostnaden er STERKT underlineær — ti gonger så
+ * mange celler er tre gonger tida — av di arbeidet ligg i trekantane per
+ * plan og ikkje i feltet. Og oppløysinga kjøper noko ekte: kuttlengda stig
+ * mot ein grense, av di eit grovt omriss bokstavleg talt skjer svingane.
+ *
+ * `mid` er det skjermen og kuttfilene går på: eit skyvarhakk skal svare, og
+ * det gjer han på hundre og tretti millisekund. `fil` er for det som vert
+ * skrive ÉIN GONG — eit objekt du tek med deg ut av reiskapen — der tre
+ * hundre millisekund er ingenting og eit glatt omriss er alt.
+ */
+export const DETAIL = { lav: 120, mid: 220, hog: 320, fil: 1200 } as const
 export type DetailStep = (typeof DETAIL)[keyof typeof DETAIL]
 
 export type Spor = {
