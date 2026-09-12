@@ -44,6 +44,7 @@ export type Params = {
   // --- DELAR --------------------------------------------------------------
   tjukn: number // platetjukn MÅLT med skyvelær, mm — ikkje det ho heiter
   lause: number // 0 tek med stykke utan ledd, 1 kastar dei
+  merk: number // 0 glatte delar i 3D-filene, 1 med adressa skoren ned i framsida
 
   // --- LEDD ---------------------------------------------------------------
   klaring: number // sporet breiare enn den MÅLTE plata, mm
@@ -112,6 +113,18 @@ export const SNITTVEGAR = ["i fila", "i maskina"] as const
  * mista — men du får ikkje ei fil full av flis du ikkje bad om.
  */
 export const LAUSE = ["ta med", "kast"] as const
+/**
+ * NUMMERET I DELEN, i dei tredimensjonale filene.
+ *
+ * Kuttfila graverer adressa på plata frå fyrst av — der er han ein strek
+ * stråla køyrer langs. Ein trykt del har ingen strek: han er gods, og skal
+ * nummeret finnast i han må det skjerast NED i flata.
+ *
+ * Difor eit val og ikkje ei fast åtferd: ei lomme tek gods, og på ei tynn
+ * ribbe er det gods som skal bere. Den som trykkjer delane vil ha nummeret;
+ * den som skjer dei har det alt.
+ */
+export const MERK = ["utan", "nummer"] as const
 
 /**
  * ETIKETTANE STÅR UNDER SI EIGA OVERSKRIFT.
@@ -145,6 +158,7 @@ export const PARAM_RANGES: Record<string, Range> = {
   // som er i vegen og ikkje handa.
   tjukn: { min: 1, max: 25, step: 0.05, label: "tjukn", unit: "mm" },
   lause: { min: 0, max: 1, step: 1, label: "lause", int: true, names: LAUSE },
+  merk: { min: 0, max: 1, step: 1, label: "merk", int: true, names: MERK },
 
   klaring: { min: 0, max: 0.6, step: 0.01, label: "klaring", unit: "mm" },
   ledd: { min: 0.2, max: 0.8, step: 0.01, label: "deling" },
@@ -165,7 +179,7 @@ export const PARAM_RANGES: Record<string, Range> = {
 export const GROUPS: readonly Group[] = [
   { id: "form", label: "form", keys: ["storleik", "rotX", "rotY", "rotZ"] },
   { id: "nett", label: "nett", keys: ["glatt", "trekant"] },
-  { id: "delar", label: "delar", keys: ["tjukn", "lause"] },
+  { id: "delar", label: "delar", keys: ["tjukn", "lause", "merk"] },
   { id: "forenkling", label: "forenkling", keys: ["forenkl", "hol"] },
   { id: "ledd", label: "ledd", keys: ["klaring", "ledd"] },
   { id: "kutt", label: "kutt", keys: ["snitt", "snittveg", "fart"] },
@@ -364,6 +378,7 @@ export const DEFAULT_PARAMS: Params = {
 
   tjukn: 3,
   lause: 1,
+  merk: 0,
 
   klaring: 0.1,
   ledd: 0.5,

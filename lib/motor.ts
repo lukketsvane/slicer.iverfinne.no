@@ -244,7 +244,7 @@ export const MOTOR: EngineDef = {
       // SAME GEOMETRIEN, DELT: ein node per del, med adressa som namn, under
       // éi gruppe som er heile montasjen.
       const b = makeBygg(p, DETAIL.fil)
-      const bytes = meshToGlb([{ namn: name, delar: nodar(lagDelar(b.s, b.dl.delar, p.tjukn)) }], name, linear(p.material))
+      const bytes = meshToGlb([{ namn: name, delar: nodar(lagDelar(b.s, b.dl.delar, p.tjukn, !!p.merk)) }], name, linear(p.material))
       return { name: `${name}.glb`, mime: "model/gltf-binary", data: bytes.buffer.slice(0) as ArrayBuffer }
     }
     if (what === "flat") {
@@ -267,7 +267,7 @@ export const MOTOR: EngineDef = {
        * fri til å lesast fint.
        */
       const { ns } = makeBygg(p, DETAIL.mid)
-      const grupper = flatDelar(ns, p.tjukn).map((g) => ({ namn: `ark-${g.ark}`, delar: nodar(g.delar) }))
+      const grupper = flatDelar(ns, p.tjukn, !!p.merk).map((g) => ({ namn: `ark-${g.ark}`, delar: nodar(g.delar) }))
       const bytes = meshToGlb(grupper, name, linear(p.material))
       return { name: `${name}-${num(p.tjukn)}mm-${p.material}-flat.glb`, mime: "model/gltf-binary", data: bytes.buffer.slice(0) as ArrayBuffer }
     }
@@ -284,7 +284,7 @@ export const MOTOR: EngineDef = {
        * i, det gjer spolen. TJUKNA står, av di ho ER geometrien.
        */
       const { ns } = makeBygg(p, DETAIL.fil)
-      const delar = flatDelar(ns, p.tjukn).flatMap((g) => nodar(g.delar))
+      const delar = flatDelar(ns, p.tjukn, !!p.merk).flatMap((g) => nodar(g.delar))
       return { name: `${name}-${num(p.tjukn)}mm-delar.3mf`, mime: "model/3mf", data: delarTo3mf(delar, name).buffer.slice(0) as ArrayBuffer }
     }
     if (what === "usdz") {

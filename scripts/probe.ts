@@ -19,11 +19,12 @@ import { lesPlan, rutenett, skrivPlan, ut, type Plan } from "../lib/plan"
 import { makeKropp } from "../lib/kropp"
 import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
-import { flatDelar, lagDelar, lagMesh } from "../lib/mesh"
+import { flatDelar, lagDelar, lagMesh, merkeFor } from "../lib/mesh"
 import { STABEL_LUFT } from "../lib/montasje"
 import { placedRings } from "../lib/nest"
 import { FILFORMER } from "../lib/scene"
 import { KUBE } from "../lib/sources"
+import { areal, merkeFlater } from "../lib/merke"
 import { checkRules } from "../lib/rules"
 import { existsSync, readFileSync } from "node:fs"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
@@ -1213,6 +1214,85 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
       else console.log(`  og rådet kjem fram, eitt plan om gongen: ${spor.join(" → ")}`)
     }
   }
+}
+
+/**
+ * NUMMERET SKORE NED I DELEN.
+ *
+ * Kuttfila graverer adressa med ein strek stråla køyrer langs. Ein trykt
+ * del har ingen strek — han er gods — so merket må vera ei LOMME, og ei
+ * lomme er geometri: ho må vera lukka, og ho må ta nøyaktig so mykje gods
+ * som flata hennar gonga djupna.
+ *
+ * Vakta måler begge to, og den fyrste er den som fann feilen: «4» og «6»
+ * har eit auge inni seg, og eit auge sydd inn i ytterkanten gjev eit
+ * polygon med ein kanal utan breidd, som so vart brukt som hòl i endå ei
+ * syning. Åtte og fire kantar som ikkje var delte av to flater — eit nett
+ * ein trykkjar ikkje kan lese — medan «1», «2», «3» og «5» stod lukka.
+ * Difor står bokstavane med auge i lista under, og difor tel vakta kantar.
+ */
+{
+  console.log("\n=== merket ===")
+  const mp = { ...DEFAULT_PARAMS, plan: nett(3, 3), storleik: 200, merk: 1 } as unknown as Params
+  const mb = makeBygg(mp, DETAIL.mid)
+  const utan = lagDelar(mb.s, mb.dl.delar, mp.tjukn, false)
+  const med = lagDelar(mb.s, mb.dl.delar, mp.tjukn, true)
+
+  /** volumet, og kor mange kantar som ikkje er delte av nøyaktig to flater */
+  const maal = (pos: Float32Array) => {
+    let V = 0
+    const kant = new Map<string, number>()
+    const id = new Map<string, number>()
+    const nid = (i: number) => {
+      const k = `${pos[i].toFixed(3)},${pos[i + 1].toFixed(3)},${pos[i + 2].toFixed(3)}`
+      let v = id.get(k)
+      if (v === undefined) { v = id.size; id.set(k, v) }
+      return v
+    }
+    for (let i = 0; i < pos.length; i += 9) {
+      V += (pos[i] * (pos[i + 4] * pos[i + 8] - pos[i + 5] * pos[i + 7]) - pos[i + 1] * (pos[i + 3] * pos[i + 8] - pos[i + 5] * pos[i + 6]) + pos[i + 2] * (pos[i + 3] * pos[i + 7] - pos[i + 4] * pos[i + 6])) / 6
+      const [A, B, C] = [nid(i), nid(i + 3), nid(i + 6)]
+      for (const [u, v] of [[A, B], [B, C], [C, A]]) {
+        const k = `${Math.min(u, v)}|${Math.max(u, v)}`
+        kant.set(k, (kant.get(k) ?? 0) + 1)
+      }
+    }
+    let opne = 0
+    for (const n of kant.values()) if (n !== 2) opne++
+    return { V, opne }
+  }
+
+  let opne = 0
+  let teke = 0
+  let venta = 0
+  for (let i = 0; i < med.length; i++) {
+    const a = maal(utan[i].positions)
+    const c = maal(med[i].positions)
+    const m = merkeFor(mb.dl.delar[i], mp.tjukn)
+    opne += c.opne
+    teke += a.V - c.V
+    if (m) venta += m.flater.reduce((x, f) => x + Math.abs(areal(f.ytre)) - f.indre.reduce((y, q) => y + Math.abs(areal(q)), 0), 0) * m.djup
+  }
+  if (!venta) bryt("ingen del vart merkt i det heile")
+  else if (opne) bryt(`${opne} kantar i dei merkte delane er ikkje delte av to flater`)
+  else if (Math.abs(teke / venta - 1) > 0.01) bryt(`lomma tok ${teke.toFixed(1)} mm³ der flata seier ${venta.toFixed(1)}`)
+  else console.log(`  ${med.length} merkte delar: 0 opne kantar, lomma tok ${teke.toFixed(1)} mm³ mot ${venta.toFixed(1)} venta`)
+
+  // og bokstavane med auge er DEI som fall: kvar av dei, kvar for seg
+  let auge = 0
+  for (const t of ["0", "4", "6", "8", "A", "9"]) {
+    const f = merkeFlater(t, 0, 0, 6, 0.8)
+    if (f.length !== 1 || !f[0].indre.length) bryt(`«${t}» skal vera éi flate med minst eitt auge, fekk ${f.length} flate(r) og ${f[0]?.indre.length ?? 0} auge`)
+    else auge += f[0].indre.length
+  }
+  if (auge) console.log(`  og bokstavane med auge har dei: ${auge} augo over seks teikn`)
+
+  // OG VALET MÅ SYNAST I FILA. Eit flagg som ikkje endrar uttaket er eit
+  // flagg som kan stå kvar som helst.
+  const a3 = MOTOR.exportFile({ ...mp, merk: 0 } as unknown as ParamBag, "3mf").data as ArrayBuffer
+  const b3 = MOTOR.exportFile(mp as unknown as ParamBag, "3mf").data as ArrayBuffer
+  if (a3.byteLength >= b3.byteLength) bryt(`3mf med merke er ikkje større: ${a3.byteLength} → ${b3.byteLength} B`)
+  else console.log(`  og valet står i fila: 3mf ${a3.byteLength} → ${b3.byteLength} B`)
 }
 
 console.log(brot ? `\n${brot} påstandar held ikkje` : "\nalle påstandar held")
