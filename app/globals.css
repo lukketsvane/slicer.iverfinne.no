@@ -653,6 +653,25 @@ main[data-sov] [aria-label="kontrollar"] {
   pointer-events: none;
   transition: opacity 500ms ease;
 }
+/* OG BARNA MED. Spaltene og laga over lerretet er sjølve gjennomsiktige —
+   dei er ei rute over heile biletet, og berre knappane i dei skal ta ein
+   finger — so kvart av dei set borna sine attende på `auto`. Ein `none` hjå
+   forelderen overlever ikkje det: `pointer-events` er ikkje arva, han er
+   ein eigen verdi per element, og eit barn som seier `auto` er med i
+   treffeprøva same kva forelderen sa.
+   So lina over tok berre ei rute ingen sikta på frå før. Målt før dette:
+   lat det sovne i tre sekund, trykk der `skjer` står, og eit plan var
+   skore på ein skjerm som synte ingenting. `pnpm panel skalet` prøver det
+   no ved å TRYKKJE og lesa posen, og ikkje ved å lesa regelen her. */
+main[data-sov] .tumme > *,
+main[data-sov] .handtak [data-handtak],
+main[data-sov] .sider button,
+main[data-sov] .spor button,
+main[data-sov] .punkt button,
+main[data-sov] .speil button,
+main[data-sov] .synskube button {
+  pointer-events: none;
+}
 
 /* tastaturet skal kunne sjåast, i same blekket som alt anna */
 :where(button, a, [role="switch"], [role="slider"]):focus-visible {

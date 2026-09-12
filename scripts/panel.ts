@@ -2403,7 +2403,8 @@ async function handtaka(browser: Browser) {
 async function skaletOgSovnen(browser: Browser) {
   console.log("\n=== skalet og søvnen")
   const plan = skrivPlan(rutenett(3, 2))
-  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan })), browser, 390, 844, { sov: true })
+  const adressa = URL + "#p=" + encodeURIComponent(JSON.stringify({ plan }))
+  const { page, konsoll } = await opne(adressa, browser, 390, 844, { sov: true })
   const lerret = { x: 20, y: 240, width: 350, height: 380 }
   /** biletet når det står stille — vakna, so ingenting glir medan vi skyt */
   const stille = async (n = 10) => {
@@ -2460,11 +2461,66 @@ async function skaletOgSovnen(browser: Browser) {
   await page.waitForTimeout(3200)
   const sovande = await gjennomsikt()
   sjekk("og fell bort etter to sekund utan ein finger", sovande.sov === true && sovande.topp === 0 && sovande.tumme === 0 && sovande.ark === 0 && sovande.synskube === 0, JSON.stringify(sovande))
-  sjekk("og tek ikkje imot fingrar medan det søv", sovande.peik === "none", String(sovande.peik))
+  sjekk("og regelen står skriven på spalta", sovande.peik === "none", String(sovande.peik))
   await page.mouse.move(190, 700)
   await page.waitForTimeout(400)
   const attende = await gjennomsikt()
   sjekk("ei rørsle hentar det att", attende.sov === false && attende.topp === 1, JSON.stringify(attende))
+
+  /**
+   * OG SO DET SOM BETYR NOKO: EIT TRYKK MEDAN DET SØV SKAL IKKJE GJERE NOKO.
+   *
+   * Lina over prøver at REGELEN ER SKRIVEN — `pointer-events: none` på
+   * spalta. Det er ikkje det same som at han VERKAR, og skilnaden er ikkje
+   * teoretisk: `.tumme > *` set barna attende på `auto`, ein `none` hjå
+   * forelderen overlever ikkje det, og barnet er det som tek fingeren. Den
+   * gamle prøva las forelderen og var grøn medan eit trykk der `skjer` står
+   * skar eit plan på ein skjerm som synte ingenting.
+   *
+   * So denne les VERKNADEN: kom klikket fram til knappen, og endra posen
+   * seg. Og fingeren må vera ein FINGER — `mouse.click` flyttar peikaren dit
+   * fyrst, og den rørsla vekkjer grensesnittet før trykket landar, so ei
+   * musevakt ville målt ein vaken skjerm og aldri sett dette.
+   *
+   * Kvar kontroll får si eiga sovnad: det fyrste trykket vekkjer, og etter
+   * det er knappane levande med rette.
+   */
+  const doed = async (namn: string, veljar: string) => {
+    // Frisk side OG frisk lagring kvar gong. Eit trykk set gjerne ein modus,
+    // og `skjer` let det nye planet stå valt — båe er grensesnitt som IKKJE
+    // skal sovne, med rette. Nettlesaren hugsar økta i IndexedDB, so ein
+    // reload åleine ber det valde planet med seg, og den neste kontrollen
+    // ville prøvd ein skjerm den fyrste heldt vaken.
+    await page.evaluate(`new Promise(function (res) {
+      var r = indexedDB.deleteDatabase("slicer")
+      r.onsuccess = r.onerror = r.onblocked = function () { res(null) }
+    })`)
+    // ...og `goto` åleine er ikkje ei ny side: appen skriv hashen sin medan
+    // du arbeider, so ei adresse som berre skil seg i fragmentet er ei
+    // hash-endring og ikkje ei lasting. Reiskapen stod open tvers gjennom.
+    await page.goto(adressa, { waitUntil: "networkidle" })
+    await page.reload({ waitUntil: "networkidle" })
+    await roleg(page, 800)
+    await page.mouse.move(190, 700)
+    await roleg(page, 300)
+    const boks = await page.locator(veljar).first().boundingBox()
+    if (!boks) return sjekk(`${namn} står å trykkje på`, false)
+    await page.evaluate(`(() => {
+      window.__traff = false
+      document.querySelector(${JSON.stringify(veljar)}).addEventListener("click", function () { window.__traff = true }, { capture: true })
+    })()`)
+    const foer = hash(page).plan ?? ""
+    await page.waitForTimeout(3200)
+    const sov = await page.evaluate(`document.querySelector("main").hasAttribute("data-sov")`)
+    await page.touchscreen.tap(Math.round(boks.x + boks.width / 2), Math.round(boks.y + boks.height / 2))
+    await page.waitForTimeout(1000)
+    const traff = await page.evaluate(`window.__traff`)
+    const lik = (hash(page).plan ?? "") === foer
+    sjekk(`eit trykk på ${namn} medan det søv gjer ingenting`, sov === true && traff === false && lik, `sov=${sov} klikk=${traff}${lik ? "" : " · POSEN ENDRA SEG"}`)
+  }
+  await doed("skjer", ".tumme .skjer")
+  await doed("ein reiskap i spalta", ".tumme button:not(.skjer)")
+  await doed("synskuben", ".synskube button")
 
   /**
    * OG BERRE I KVILE. Står eit plan valt, er du midt i noko: det som står

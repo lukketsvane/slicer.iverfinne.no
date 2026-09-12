@@ -2067,10 +2067,39 @@ export function Studio() {
     vald === null && valdStrek === null && valdBit === null &&
     modus !== "bit" && modus !== "rute" && modus !== "virvel" &&
     !busy && !drag && !melding && !feil && !hentar
+  /**
+   * DET FYRSTE TRYKKET VEKKJER, OG GJER ELLES INGENTING.
+   *
+   * Regelen stod skriven, og han heldt ikkje. `pointer-events: none` på
+   * det som søv er rett og naudsynt — utan det tek eit handtak fingeren og
+   * eit drag byrjar — men det er ikkje NOK, og grunnen ligg i rekkjefylgja:
+   * vekkjaren under høyrer `pointerdown`, og nettlesaren lagar `click`
+   * fyrst ved `touchend`. Fingeren vekkjer altso grensesnittet, `data-sov`
+   * fell bort, knappane er levande att — og so kjem klikket og landar på
+   * ein knapp som stod usynleg då fingeren gjekk ned. Målt: eit trykk der
+   * `skjer` står skar eit plan på ein skjerm som synte ingenting.
+   *
+   * So den fingeren som vekkjer må svelgje sitt eige klikk. Same grepet som
+   * scena gjer med det klikket eit drag lagar: ein lyttar i fangstfasen på
+   * `window`, framfor React sin eigen, og han tek eitt klikk og ikkje meir.
+   * Vindauget er kort og vert rydda av seg sjølv — vekkjer du med eit drag
+   * eller ein tast kjem det aldri noko klikk, og då skal ikkje det neste
+   * ekte klikket svelgjast i staden.
+   */
+  const soven = useRef(false)
+  soven.current = sov
   useEffect(() => {
     if (!kvile) return setSov(false)
     let t = 0
-    const vak = () => {
+    const vak = (e?: Event) => {
+      if (soven.current && e?.type === "pointerdown") {
+        const svelg = (k: Event) => {
+          k.stopImmediatePropagation()
+          k.preventDefault()
+        }
+        window.addEventListener("click", svelg, { capture: true, once: true })
+        window.setTimeout(() => window.removeEventListener("click", svelg, true), 700)
+      }
       setSov(false)
       window.clearTimeout(t)
       t = window.setTimeout(() => setSov(true), SOV_MS)
