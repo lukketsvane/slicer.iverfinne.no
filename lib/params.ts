@@ -42,11 +42,11 @@ export type Params = {
   hol: number
 
   // --- DELAR --------------------------------------------------------------
-  tjukn: number // platetjukn, mm
+  tjukn: number // platetjukn MÅLT med skyvelær, mm — ikkje det ho heiter
   lause: number // 0 tek med stykke utan ledd, 1 kastar dei
 
   // --- LEDD ---------------------------------------------------------------
-  klaring: number // sporet breiare enn plata, mm
+  klaring: number // sporet breiare enn den MÅLTE plata, mm
   ledd: number // kvar i overlappet delinga ligg, 0,5 er halvt om halvt
 
   // --- KUTT ---------------------------------------------------------------
@@ -137,7 +137,13 @@ export const PARAM_RANGES: Record<string, Range> = {
   forenkl: { min: 0, max: 10, step: 0.05, label: "toleranse", unit: "mm" },
   hol: { min: 0, max: 80, step: 1, label: "minste hòl", unit: "mm" },
 
-  tjukn: { min: 1, max: 25, step: 0.1, label: "tjukn", unit: "mm" },
+  // STEGET ER EIT SKYVELÆR, ikkje eit varenamn. Sporet er `tjukn + klaring`,
+  // so er tjukna det plata HEITER og ikkje det ho ER, gjeng skilnaden rett
+  // inn i passinga: 3 mm MDF måler jamt 2,8–2,9, og eit spor skore etter
+  // talet 3 sit då 0,3 mm for vidt — over det regelen kallar laust. Eit steg
+  // på ein tidels millimeter kan ikkje uttrykkje 2,85, og då er det talet
+  // som er i vegen og ikkje handa.
+  tjukn: { min: 1, max: 25, step: 0.05, label: "tjukn", unit: "mm" },
   lause: { min: 0, max: 1, step: 1, label: "lause", int: true, names: LAUSE },
 
   klaring: { min: 0, max: 0.6, step: 0.01, label: "klaring", unit: "mm" },
@@ -359,7 +365,7 @@ export const DEFAULT_PARAMS: Params = {
   tjukn: 3,
   lause: 1,
 
-  klaring: 0.15,
+  klaring: 0.1,
   ledd: 0.5,
 
   snitt: 0.2,

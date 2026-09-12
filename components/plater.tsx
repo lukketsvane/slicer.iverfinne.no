@@ -447,6 +447,38 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
   const vald = peikt ? ark.plasser.find((d) => d.adr === peikt) : undefined
   const kryss = ark.plasser.filter((d) => d.kross).length
   const delingar = lesDeling(params.deling)
+
+  /**
+   * ÉI LINE, ALLTID.
+   *
+   * Avlesinga stod på si eiga rad (`basis-full`), og rada kom og gjekk med
+   * kva du hadde teke i. Bandet voks med ei line i det du valde ein del,
+   * arket under fekk mindre å vera på, og heile teikninga hoppa — på
+   * telefonen, medan fingeren stod på delen. Ei rad som kjem av kva du har
+   * valt er nett det README meiner med at synet er ei avgjerd og ikkje ein
+   * konsekvens av det som ligg der.
+   *
+   * Difor deler dei plassen: har du teke i noko, seier lina kva det er;
+   * har du ikkje, seier ho kva plata ber. Dei to er aldri interessante på
+   * same tid, og bandet er like høgt anten vegen.
+   */
+  const lesing = ((): { tekst: string; dim: boolean } => {
+    if (dra) {
+      const d = ark.plasser.find((q) => q.adr === dra.adr)
+      if (d) return { tekst: `${dra.adr} · ${nn(Math.max(0, d.plass.x + dra.dx), 0)} · ${nn(Math.max(0, d.plass.y + dra.dy), 0)} mm${dra.vri ? ` · ${nn(dra.vri, 0)}°` : ""}`, dim: false }
+    }
+    if (sporDra) {
+      const v = vald?.spor.find((q) => q.nokkel === sporDra.nokkel)
+      if (v) {
+        const bx = v.lo[0] + (v.hi[0] - v.lo[0]) * sporDra.t
+        const by = v.lo[1] + (v.hi[1] - v.lo[1]) * sporDra.t
+        return { tekst: `ledd ${v.nokkel} · ${nn(Math.hypot(bx - v.munn[0], by - v.munn[1]), 0)} mm`, dim: false }
+      }
+    }
+    if (vald) return { tekst: `${vald.adr} · ${nn(vald.boks.w, 0)} × ${nn(vald.boks.h, 0)} mm`, dim: true }
+    return { tekst: `${ark.delar} delar · ${nn(ark.util * 100, 0)} %${faste > 0 ? ` · ${faste} faste` : ""}`, dim: true }
+  })()
+
   const sleppFinger = (e: React.PointerEvent) => {
     fingrar.current.delete(e.pointerId)
     if (fingrar.current.size < 2) { klyp.current = null; slepp() }
@@ -454,33 +486,17 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
   }
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-2" style={HAIR}>
+      <div data-arkband="" className="flex flex-wrap items-center gap-1.5 border-b px-3 py-2" style={HAIR}>
         {Array.from({ length: ark.tal }, (_, i) => (
           <button key={i} type="button" className={CHIP_B + " mono min-h-[26px] px-2.5"} style={chipStyle(i === ark.i)} onClick={() => onArk(i)} title={`plate ${i + 1} av ${ark.tal}`}>{i + 1}</button>
         ))}
-        <span className="dim mono ml-auto min-w-0 truncate text-[10px]">{ark.delar} delar · {nn(ark.util * 100, 0)} %{faste > 0 && ` · ${faste} faste`}</span>
+        <span className={`mono ml-auto min-w-0 truncate text-[10px]${lesing.dim ? " dim" : ""}`} data-arklesing="">{lesing.tekst}</span>
         {festa.size > 0 && (
           <button type="button" className={CHIP_B + " uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onChange({ ...params, fest: "" })} title="slepp alle festa delar: pakkinga legg dei der ho vil att">slepp</button>
         )}
         {kryss > 0 && <span className="mono text-[10px]" style={{ color: "var(--warn)" }}>{kryss} overlapp</span>}
         {delingar.size > 0 && (
           <button type="button" className={CHIP_B + " uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onChange({ ...params, deling: "" })} title="alle ledd like djupe att: skyvaren styrer dei igjen">jamt</button>
-        )}
-        {dra && (() => {
-          const d = ark.plasser.find((q) => q.adr === dra.adr)
-          return d ? (
-            <span className="mono basis-full truncate text-[10px]">{dra.adr} · {nn(Math.max(0, d.plass.x + dra.dx), 0)} · {nn(Math.max(0, d.plass.y + dra.dy), 0)} mm{dra.vri ? ` · ${nn(dra.vri, 0)}°` : ""}</span>
-          ) : null
-        })()}
-        {sporDra && (() => {
-          const v = vald?.spor.find((q) => q.nokkel === sporDra.nokkel)
-          if (!v) return null
-          const bx = v.lo[0] + (v.hi[0] - v.lo[0]) * sporDra.t
-          const by = v.lo[1] + (v.hi[1] - v.lo[1]) * sporDra.t
-          return <span className="mono basis-full truncate text-[10px]">ledd {v.nokkel} · {nn(Math.hypot(bx - v.munn[0], by - v.munn[1]), 0)} mm</span>
-        })()}
-        {!dra && !sporDra && vald && (
-          <span className="dim basis-full truncate text-[10px] tracking-[0.04em]">{vald.adr} · {nn(vald.boks.w, 0)} × {nn(vald.boks.h, 0)} mm</span>
         )}
       </div>
       <div className="min-h-0 flex-1 p-3">

@@ -1715,7 +1715,9 @@ async function benk(browser: Browser) {
   await tjukn.focus()
   await page.keyboard.press("Shift+ArrowRight")
   await vent(page, (p) => p.tjukn !== 4.5)
-  sjekk("skift+pil stegar ti", hash(page).tjukn === 5.5, String(hash(page).tjukn))
+  // ti steg, og steget på tjukna er ein tjuedels millimeter: ho er talet
+  // du les av skyvelæret, ikkje det plata heiter
+  sjekk("skift+pil stegar ti", hash(page).tjukn === 5, String(hash(page).tjukn))
   await page.keyboard.press("z")
   await page.keyboard.press("z")
   await vent(page, (p) => p.tjukn !== 4.5 && Math.abs(p.tjukn - 4.5) < 3)
@@ -2231,6 +2233,27 @@ async function reglar(browser: Browser) {
   const tekst = (await tavla.innerText()).replace(/\s+/g, " ")
   sjekk("den harde regelen utan ei rad står i tavla", /kan monterast/.test(tekst), tekst.slice(-90))
   sjekk("og den mjuke òg", /klaring/.test(tekst))
+
+  /**
+   * OG MONTASJEFANA ER SLEGEN AV MEDAN OBJEKTET IKKJE GÅR I HOP.
+   *
+   * Animasjonen syner delane kome inn éin etter éin. Står ein del fast,
+   * er den rekkjefylgja ikkje noko som KAN hende — og filmen synte deg
+   * likevel at det gjekk. Uttaka står opne med varselet sitt; det er
+   * avgjerda, og ho gjeld eit kutt du kan sjå på. Ein film som seier at
+   * det gjekk er noko anna.
+   *
+   * Bagen her har alt eit brot på «kan monterast», so vakta treng ikkje
+   * lage seg eit: ho spør fana medan lina er raud, og tasten med.
+   */
+  const mfane = page.getByRole("tab", { name: "montasje", exact: true })
+  sjekk("og montasjefana er slegen av medan det ikkje går i hop", await mfane.isDisabled(), (await mfane.getAttribute("title")) ?? "")
+  await page.keyboard.press("4")
+  await roleg(page, 300)
+  sjekk("og tasten hans opnar henne ikkje", (await mfane.getAttribute("aria-selected")) === "false")
+  await page.keyboard.press("m")
+  await roleg(page, 300)
+  sjekk("og M heller ikkje", (await mfane.getAttribute("aria-selected")) === "false")
   const bytt = page.locator("button[aria-label^='fiks kan monterast']")
   sjekk("og han ber rådet sitt", (await bytt.count()) === 1)
   const planFør = hash(page).plan
@@ -2433,8 +2456,25 @@ async function handtaka(browser: Browser) {
   await roleg(page, 900)
   const handtak = flata.locator("g[data-spor]")
   sjekk("ingen handtak før du har peikt på ein del", (await handtak.count()) === 0)
+
+  /**
+   * OG BANDET OVER PLATA ER LIKE HØGT ETTER SOM FØR.
+   *
+   * Avlesinga stod på si eiga rad, og rada kom i det du tok på ein del.
+   * Bandet voks med ei line, teikninga under fekk mindre plass, og heile
+   * plata hoppa — under fingeren som nett hadde valt noko. Difor deler
+   * avlesinga og platetalet den same lina no.
+   *
+   * Målt i pikslar og ikkje på klassenamn: det er HØGDA som er feilen, og
+   * ein klasse kan byttast utan at høgda står stille.
+   */
+  const band = page.locator("[data-arkband]")
+  const foerH = (await band.boundingBox())?.height ?? 0
   await flata.locator("g[data-del]").first().click()
   await roleg(page, 600)
+  const etterH = (await band.boundingBox())?.height ?? 0
+  sjekk("og bandet over plata står like høgt når ein del vert vald", foerH > 0 && Math.abs(etterH - foerH) < 1, `${foerH.toFixed(0)} → ${etterH.toFixed(0)} px`)
+  sjekk("og lina seier kva du valde", /\d/.test((await page.locator("[data-arklesing]").innerText()) || ""), await page.locator("[data-arklesing]").innerText())
   const n = await handtak.count()
   sjekk("den valde delen har eitt handtak per ledd", n > 0, `${n} handtak`)
   if (n > 0) {
