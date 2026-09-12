@@ -45,7 +45,10 @@ const TAK: [string, number][] = [
   // «ingen delar» — to prop-liner og to kommentarliner
   // +13 den 12.: ribba handa peika på i montasjen — kva lina svarar med, og
   // kva som fell når lista delar er ei anna
-  ["components/studio.tsx", 2940],
+  // +28 den 12.: «fiks alt» — handlaren som sender, og svarbolken som set
+  // posen og seier kva han tok og kva som står att. Ein knapp som endrar
+  // seks ting i stillheit er ein knapp ingen tør trykkje to gonger
+  ["components/studio.tsx", 2968],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko

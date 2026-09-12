@@ -37,7 +37,9 @@ export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number 
 export type SkisseReq = { kind: "skisse"; id: number; params: ParamBag; plan: Plan }
 /** «rekn montasjen for meg»: kvar kvar del ligg, kvar han skal, og i kva runde */
 export type MontReq = { kind: "montasje"; id: number; params: ParamBag }
-export type Req = BuildReq | ExportReq | ImportReq | ArkReq | SkisseReq | MontReq
+/** alle råda, trykte i eitt — sjå `fiksAlt` i `rules.ts` */
+export type FiksReq = { kind: "fiksalt"; id: number; params: ParamBag }
+export type Req = BuildReq | ExportReq | ImportReq | ArkReq | SkisseReq | MontReq | FiksReq
 
 export type BuildRes = {
   kind: "build"
@@ -63,6 +65,8 @@ export type KjeldeRes = { kind: "kjelde"; id: number; src: SourceInfo }
 export type ProsjektRes = { kind: "prosjekt"; id: number; src: SourceInfo | null; params: ParamBag }
 export type ArkRes = { kind: "ark"; id: number } & ArkSyn
 export type MontRes = { kind: "montasje"; id: number } & Montasje
+/** posen etter at alle råda er trykte, kva han tok, og kva som står att */
+export type FiksRes = { kind: "fiksalt"; id: number; params: ParamBag; fiksa: string[]; att: string[] }
 export type SkisseRes = { kind: "skisse"; id: number } & SkisseSyn
 /** Noko som kasta. Svaret finst av éin grunn: porten på hovudtråden slepp
  *  ikkje neste førespurnad før den førre er svara, og eit unntak utan svar
@@ -70,6 +74,7 @@ export type SkisseRes = { kind: "skisse"; id: number } & SkisseSyn
 export type FeilRes = { kind: "feil"; id: number; kva: string; view?: Rom; kvifor?: string }
 export type Res =
   | BuildRes
+  | FiksRes
   | MaalRes
   | ExportRes
   | ArkRes
@@ -185,6 +190,17 @@ self.onmessage = (e: MessageEvent<Req>) => {
 
     if (req.kind === "ark") {
       post({ kind: "ark", id: req.id, ...MOTOR.arkSyn(req.params, req.sheet) })
+      return
+    }
+
+    if (req.kind === "fiksalt") {
+      /**
+       * Utanom porten, som plata og montasjen: dette er eit trykk du gjorde,
+       * ikkje noko som fylgjer ein skyvar, og det skal ikkje stå i kø bak
+       * eit bygg du ikkje ventar på lenger.
+       */
+      const ut = MOTOR.fiksAlt(req.params)
+      post({ kind: "fiksalt", id: req.id, params: ut.p, fiksa: ut.fiksa, att: ut.att })
       return
     }
 

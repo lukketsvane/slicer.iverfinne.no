@@ -449,6 +449,16 @@ export type Fiks = {
   /** parametrane som skal endrast. Tal for skyvarane; ein streng for dei
    *  få parametrane som er lister — festa, som eit råd kan sleppe. */
   set: Record<string, number | string>
+  /**
+   * RÅDET RIV ARBEID: det tek plan du har sett, og ikkje eit tal du kan
+   * skyve attende.
+   *
+   * Eit slikt råd står som knappen sin, som alle andre — du kan trykkje han
+   * når du vil ha han, og angre tek han. Men «fiks alt» hoppar over dei.
+   * Eit trykk som tek førti plan du har sett skal vera eit trykk du meinte,
+   * og ikkje noko som fylgde med på kjøpet av å rette klaringa.
+   */
+  riv?: true
 }
 
 // =============================================================================

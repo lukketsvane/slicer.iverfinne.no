@@ -17,7 +17,7 @@
  */
 import type { ParamBag } from "../lib/core"
 import { measure, RADER } from "../lib/metrics"
-import { checkRules } from "../lib/rules"
+import { checkRules, fiksAlt } from "../lib/rules"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { MOTOR } from "../lib/motor"
 import { meshToStl } from "../lib/export-stl"
@@ -348,6 +348,51 @@ const boygd = (bog: number): Params =>
   } as Params
   const bærande = reglane(medTvers).find((q) => q.id === "bogledd")
   ok("eit bøygt plan med flate plan langs aksen ber ledd", !!bærande?.ok && !bærande.hard, bærande?.value)
+}
+
+/**
+ * FIKS ALT: ALLE RÅDA, TRYKTE I EITT.
+ *
+ * Prøvene over tek eitt råd om gongen. Eit objekt kan ha fleire brot på ein
+ * gong, og då er kvart råd ein knapp du skal finne i ei rekkjefylgje ingen
+ * har fortalt deg. Vakta her krev tre ting av kjeda:
+ *
+ * Han gjer det ALDRI verre — talet på harde brot skal ikkje stige.
+ * Han tek det som HAR eit trygt råd — der eit fanst, skal noko ha skjedd.
+ * Og han rører ALDRI eit råd som riv arbeid: «ta bort dei som står fast»
+ * tek plana dine, og det skal vera eit trykk du meinte.
+ */
+{
+  const harde = (q: Params) => reglane(q).filter((r) => r.hard && !r.ok)
+  const saker2: [string, Params][] = [
+    ["for stor for plata", { ...DEFAULT_PARAMS, storleik: 1200, plan: nett(3, 3), arkB: 300, arkH: 200 } as Params],
+    ["snittet et opp sporet", { ...DEFAULT_PARAMS, tjukn: 1, snitt: 6, plan: nett(4, 4) } as Params],
+    ["for stram bøy", boygd(1.5)],
+    ["alt i orden frå før", { ...DEFAULT_PARAMS, plan: nett(4, 4) } as Params],
+  ]
+  for (const [namn, p] of saker2) {
+    const foer = harde(p)
+    const trygge = reglane(p).filter((r) => !r.ok && r.fiks && !r.fiks.riv)
+    const ut = fiksAlt(p)
+    const etter = harde(ut.p)
+    ok(`fiks alt gjer det ikkje verre: ${namn}`, etter.length <= foer.length, `${foer.length} → ${etter.length} harde brot`)
+    if (trygge.length) {
+      ok(`og han tek noko når det finst eit trygt råd: ${namn}`, ut.fiksa.length > 0, `tok ${ut.fiksa.join(",") || "—"}`)
+    }
+  }
+  /**
+   * OG HAN RØRER IKKJE DET SOM RIV. Tre plan gjennom det same senteret kan
+   * ikkje monterast i nokon orden, so det einaste rådet er å ta dei bort —
+   * og det skal «fiks alt» la stå.
+   */
+  const umogeleg = { ...DEFAULT_PARAMS, plan: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.5/0,1,0;3@0.5,0.5,0.5/0,0,1" } as Params
+  const rivet = reglane(umogeleg).find((r) => r.id === "orden")
+  ok("eit umogeleg sett får eit råd som RIV", !!rivet?.fiks?.riv, rivet?.fiks?.ord ?? "ingen")
+  const etterAlt = fiksAlt(umogeleg)
+  ok("og fiks alt rører han ikkje", etterAlt.p.plan === umogeleg.plan, `${etterAlt.fiksa.length} tekne`)
+  // ...men trykkjer du han sjølv, verkar han
+  const rivd = { ...umogeleg, ...rivet!.fiks!.set } as Params
+  ok("og trykkjer du han sjølv, er montasjen open", !reglane(rivd).some((r) => r.id === "orden" && !r.ok), `${lesPlan(String(rivd.plan)).length} plan att`)
 }
 
 {

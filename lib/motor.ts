@@ -15,7 +15,7 @@ import { buildSnitt, DETAIL, skisseSyn, type SkisseSyn, type Snitt } from "./sni
 import type { Plan } from "./plan"
 import { flatDelar, flateMesh, lagDelar, lagMesh, type DelMesh } from "./mesh"
 import { measure } from "./metrics"
-import { checkRules } from "./rules"
+import { checkRules, fiksAlt } from "./rules"
 import { makeBygg } from "./bygg"
 import { montasjen, vegen, type Montasje } from "./montasje"
 import { fitSize, strokesAt } from "./stroke"
@@ -41,6 +41,8 @@ export type EngineDef = {
   clamp(o: unknown, prev: ParamBag): ParamBag
   build(p: ParamBag, detail: DetailKey, view: Rom): BuildOut
   measure(p: ParamBag): Metrics
+  /** alle råda, trykte i eitt: posen etter, kva som vart teke, kva som står att */
+  fiksAlt(p: ParamBag): { p: ParamBag; fiksa: string[]; att: string[] }
   rules(p: ParamBag, m: Metrics): Rule[]
   exportFile(p: ParamBag, what: ExportKind): ExportOut
   /** kuttlista: éi line per del, med adressa, forma, målet og plata */
@@ -224,6 +226,10 @@ export const MOTOR: EngineDef = {
   },
 
   measure: (bag) => measure(asP(bag)),
+  fiksAlt(bag) {
+    const ut = fiksAlt(asP(bag))
+    return { p: ut.p as unknown as ParamBag, fiksa: ut.fiksa, att: ut.att }
+  },
   rules: (bag, m) => checkRules(asP(bag), m),
 
   exportFile(bag: ParamBag, what: ExportKind): ExportOut {
