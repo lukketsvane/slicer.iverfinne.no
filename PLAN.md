@@ -38,6 +38,9 @@ Panelet fordeler seg slik, og det er tal å argumentere med:
 skal køyre éin bolk medan ein arbeider; `telefon` er no stor nok til at
 kroppsverktyet bør ut av han og verta sin eigen bolk.
 
+Målinga er frå den 12. `virvelen` er sidan teken bort med verktyet sitt, so
+køyringa er 17,3 s kortare enn tabellen seier.
+
 CI er grøn på `main` (køyring 70). Typehygiena er uvanleg god: **ein** einaste
 `as any`/`@ts-ignore` i 19 297 liner kjelde. Motoren er rask og lineær der ho
 skal vera:
@@ -168,7 +171,7 @@ stader:
 
 Dei to er **44 % av all kjelde i eit prosjekt med 43 filer.** `Handa` er éin
 funksjon med ein `useEffect` som koplar åtte lyttarar og skil mellom skisse,
-plan, rutenett, virvel, omriss, spor, bit og kamera inni seg. Kvar feil som er
+plan, rutenett, omriss, spor, bit og kamera inni seg. Kvar feil som er
 retta i gestane dei siste to vekene — klypet mot kameraet, prikken på sida,
 sporhandtaket som høyrde på feil peikar — er den same feilen på nytt: **ein
 kanal las ei hending som høyrde ein annan til**. Det er ikkje uflaks. Det er

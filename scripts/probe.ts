@@ -15,7 +15,7 @@ import { unzip } from "../lib/zip"
 import { glb } from "./glbfil"
 import { feltTal, klokke, lesTal, snap, type ParamBag } from "../lib/core"
 import { PARAM_RANGES } from "../lib/params"
-import { lesPlan, rutenett, skrivPlan, virvel } from "../lib/plan"
+import { lesPlan, rutenett, skrivPlan, type Plan } from "../lib/plan"
 import { makeKropp } from "../lib/kropp"
 import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
@@ -26,6 +26,31 @@ import { FILFORMER } from "../lib/scene"
 import { KUBE } from "../lib/sources"
 import { existsSync, readFileSync } from "node:fs"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
+
+/**
+ * EI VIFTE AV PLAN, som TESTDATA og ikkje som ein reiskap.
+ *
+ * `virvel` var eit verkty i appen og er teken bort. Geometrien han laga — n
+ * plan kring loddaksen, kvart med si eiga retning — er framleis noko motoren
+ * må greie, og noko handa kan setje for hand. Ho vert difor laga her.
+ */
+const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1): Plan[] => {
+  const W = Math.max(1e-6, vidd[0])
+  const D = Math.max(1e-6, vidd[1])
+  const d = r * Math.min(W, D)
+  const ut: Plan[] = []
+  for (let i = 0; i < n; i++) {
+    const a = (2 * Math.PI * i) / n
+    const nv: [number, number, number] = [+Math.cos(a).toFixed(4), +Math.sin(a).toFixed(4), 0]
+    ut.push({
+      id: fraa + i,
+      o: [+(0.5 + (d * nv[0]) / W).toFixed(4), +(0.5 + (d * nv[1]) / D).toFixed(4), 0.5],
+      n: nv, bog: 0, strek: [], gruppe: 1,
+    })
+  }
+  return ut
+}
+
 
 /**
  * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
@@ -203,7 +228,7 @@ report("kube, vend 30/20/10 og 700 mm", {
 }
 
 /**
- * --- 4d VIRVELEN: RIBBER KRING EIN AKSE -------------------------------------
+ * --- 4d EI VIFTE: PLAN KRING EIN AKSE ---------------------------------------
  *
  * Det andre ribbespråket møblane snakkar. n ribber kring loddaksen, kvar
  * vridd og SKOVEN UT frå han. Skuvet er heile saka: går alle gjennom aksen,
@@ -217,18 +242,18 @@ report("kube, vend 30/20/10 og 700 mm", {
     const k = makeKropp({ ...kropp, plan: "" } as Params)
     return [k.solid.max[0] - k.solid.min[0], k.solid.max[1] - k.solid.min[1]]
   })()
-  const paa = (n: number, r: number) => report(`virvel ${n} ribber, r ${r}`, { ...kropp, plan: skrivPlan(virvel(n, r, vidd)) } as Params)
+  const paa = (n: number, r: number) => report(`vifte ${n} plan, r ${r}`, { ...kropp, plan: skrivPlan(vifte(n, r, vidd)) } as Params)
   const open = paa(20, 0.3)
   if (open.m.parts === 0 || open.m.joints === 0 || open.m.loose > 0 || open.m.openEdges > 0) {
-    bryt(`virvelen heng ikkje saman: ${open.m.parts} delar, ${open.m.joints} ledd, ${open.m.loose} lause, ${open.m.openEdges} opne kantar`)
+    bryt(`vifta heng ikkje saman: ${open.m.parts} delar, ${open.m.joints} ledd, ${open.m.loose} lause, ${open.m.openEdges} opne kantar`)
   }
   // og gjennom aksen fell han frå kvarandre — målt, ikkje gjetta
-  const midt = report("virvel gjennom aksen (utarta)", { ...kropp, plan: skrivPlan(virvel(20, 0, vidd)) } as Params)
+  const midt = report("vifte gjennom aksen (utarta)", { ...kropp, plan: skrivPlan(vifte(20, 0, vidd)) } as Params)
   if (midt.m.loose <= open.m.loose) {
     bryt(`ribber gjennom aksen skulle falle frå kvarandre: ${midt.m.loose} lause mot ${open.m.loose}`)
   }
   // trebeint: det låge talet skal òg gje eit møbel som held
-  const tre = report("virvel 3 ribber, r 0.18", { ...kropp, plan: skrivPlan(virvel(3, 0.18, vidd)) } as Params)
+  const tre = report("vifte, 3 plan, r 0.18", { ...kropp, plan: skrivPlan(vifte(3, 0.18, vidd)) } as Params)
   if (tre.m.parts !== 3 || tre.m.joints === 0 || tre.m.loose > 0) {
     bryt(`tre ribber heng ikkje saman: ${tre.m.parts} delar, ${tre.m.joints} ledd, ${tre.m.loose} lause`)
   }
@@ -882,9 +907,9 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
 
   /**
    * OG STEGA ER RETNINGANE. Eit rutenett er to gjengar ribber som ikkje
-   * kryssar sine eigne: to steg, kva veg du enn snur det. Ein virvel har
+   * kryssar sine eigne: to steg, kva veg du enn snur det. Ei vifte har
    * inga to parallelle ribber, og då er kvar ribbe sitt eige steg — som er
-   * sant om ein virvel: han vert bygd éi om gongen.
+   * sant om ei vifte: ho vert bygd eitt om gongen.
    */
   for (const [nx, ny, vent] of [[6, 6, 2], [4, 0, 1]] as const) {
     const g = MOTOR.montasje({ ...GRUNN, plan: nett(nx, ny) } as unknown as ParamBag)
@@ -1001,11 +1026,11 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   else if (ulike) bryt(`${ulike} av ${prøvde} delar har vegen til ein annan del enn seg sjølv`)
   else console.log(`  og vegen inn høyrer rett del til: ${prøvde} delar`)
 
-  const v = { ...DEFAULT_PARAMS, plan: skrivPlan(virvel(9, 0.3, [1, 1])) } as unknown as ParamBag
+  const v = { ...DEFAULT_PARAMS, plan: skrivPlan(vifte(9, 0.3, [1, 1])) } as unknown as ParamBag
   const vm = MOTOR.montasje(v)
   const vplan = new Set(vm.delar.map((d) => d.steg)).size
-  if (vplan !== 9) bryt(`virvel med 9 ribber: ${vplan} steg`)
-  else console.log(`  virvel med 9 ribber: ${vplan} steg — éi om gongen`)
+  if (vplan !== 9) bryt(`ei vifte med 9 plan: ${vplan} steg`)
+  else console.log(`  ei vifte med 9 plan: ${vplan} steg — eitt om gongen`)
 }
 
 console.log(brot ? `\n${brot} påstandar held ikkje` : "\nalle påstandar held")

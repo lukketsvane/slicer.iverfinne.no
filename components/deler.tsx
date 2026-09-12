@@ -147,15 +147,6 @@ export const IcoRute = ikon("M3 3h18v18H3z|M9 3v18|M15 3v18|M3 9h18|M3 15h18")
  * på veg opp, kvar sitt hakk.
  */
 export const IcoMontasje = ikon("M3 20h18|M6 15.5h12|M8.5 11h7|M11 6.5h2")
-/**
- * VERKTYET FOR VIRVELEN: ribber kring ein akse, og INGEN gjennom han.
- *
- * Same språket som rutenettet: ringen er kva han står i, og linene inni er
- * det han lagar. Difor korder og ikkje eiker — ei eike ville sagt at ei
- * ribbe går gjennom midten, og det er nett det ho ikkje gjer. Skuvet ut
- * frå aksen er heile grunnen til at virvelen står open.
- */
-export const IcoVirvel = ikon("M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 1 0 0-17|M4.05 9h15.9|M18.57 6.62 10.62 20.39|M13.38 20.39 5.43 6.62")
 
 export const IcoSliders = ikon("M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4")
 export const IcoDown = ikon("m6 9 6 6 6-6")

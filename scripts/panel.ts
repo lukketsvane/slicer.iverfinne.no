@@ -973,7 +973,7 @@ async function telefon(browser: Browser) {
    * meir, eller ei rute mindre. Hòlet, forma, bøyen og fordel teiknar seg
    * alle på lerretet — som ligg gøymt under arka her — so dei står i
    * rommet, der du kan sjå kva dei gjorde. Det same gjeld rutenettet,
-   * virvelen, kroppsverktyet og skjer: alle fire vert sette med fingrane
+   * kroppsverktyet og skjer: alle tre vert sette med fingrane
    * PÅ objektet, og objektet er ikkje her.
    */
   // Trykket må kome når hovudtråden er ledig. Eit trykk gjennom CDP ber
@@ -1670,7 +1670,7 @@ async function benk(browser: Browser) {
   /**
    * OG MUSA SET DEI TO TALA.
    *
-   * Rutenettet og virvelen var TO FINGRAR og ingenting anna, og ei mus har
+   * Rutenettet var TO FINGRAR og ingenting anna, og ei mus har
    * éin peikar: to av dei fem reiskapane kunne ikkje brukast på ein benk i
    * det heile — brytaren stod på, og ingenting hende. Med reiskapen open er
    * venstre knappen hans: vassrett kolonner, loddrett rader, og orbiten står
@@ -2278,88 +2278,6 @@ async function reglar(browser: Browser) {
   await page.close()
 }
 
-/**
- * VIRVELEN: DET ANDRE RIBBESPRÅKET.
- *
- * Rutenettet gjev ribber på tvers av kvarandre; virvelen gjev dei kring
- * loddaksen. Vassrett set kor mange, loddrett kor langt ut frå aksen — og
- * skuvet ut er heile saka, av di ribber som alle går gjennom aksen kryssar
- * kvarandre langs den same lina og fell frå kvarandre.
- *
- * Vakta dreg til høgre og krev fleire ribber, dreg opp og krev at avstanden
- * veks utan at talet endrar seg, og ser at det som kom ut HELD SAMAN: ledd,
- * og ingen lause stykke. Rekninga står i `pnpm hand`; her er det verktyet.
- */
-async function virvelen(browser: Browser) {
-  console.log("\n=== virvelen")
-  const bag = { scene: "sylinder@0,0,0/1/0", storleik: 300, tjukn: 9 }
-  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
-  /**
-   * VIRVELEN ER EIN REISKAP, og reiskapane bur i tommelspalta.
-   *
-   * Han stod i lina på arket ei stund, og deretter ingen stad: berre `V`
-   * nådde han, og ein reiskap du berre når frå eit tastatur finst ikkje på
-   * telefonen. No står han under rutenettet, av di dei to er det same
-   * slaget — begge skriv heile plana, begge vert sette med to fingrar.
-   *
-   * Difor går prøva inn den vegen ein tumme går: gjennom knappen.
-   */
-  const virvelKnapp = page.locator(".tumme [data-virvelverkty]")
-  sjekk("virvelen står i tommelspalta, under rutenettet", (await virvelKnapp.count()) === 1 && (await page.locator("[aria-label='kontrollar'] [data-virvelverkty]").count()) === 0)
-  sjekk("og han står i ro til nokon trykkjer", (await virvelKnapp.getAttribute("aria-pressed")) === "false")
-  await virvelKnapp.click()
-  await page.waitForTimeout(250)
-  sjekk("eit trykk opnar han", (await virvelKnapp.getAttribute("aria-pressed")) === "true")
-  await toFingrar(page, (t) => [[110 + 200 * t, 300], [110 + 200 * t, 400]])
-  await vent(page, (p) => lesPlan(p.plan).length > 0)
-  await ferdig(page)
-  const n1 = plana(page).length
-  sjekk("to fingrar til høgre set ribber kring aksen", n1 >= 12, `${n1} ribber`)
-  const loddrett = plana(page).every((q) => Math.abs(q.n[2]) < 1e-3)
-  sjekk("og kvar ribbe står loddrett", loddrett, plana(page).slice(0, 2).map((q) => q.n.join(",")).join(" · "))
-  // ingen av dei går gjennom midten: det er skuvet som held virvelen open
-  const gjennomMidten = plana(page).filter((q) => Math.hypot(q.o[0] - 0.5, q.o[1] - 0.5) < 0.01).length
-  sjekk("og ingen av dei gjennom midten", gjennomMidten === 0, `${gjennomMidten} i midten`)
-  // at det HENG SAMAN — ledd, ingen lause — står i `pnpm probe`, som har heile
-  // målinga. Lina har berre tala sine, og dei skal vera der.
-  const l1 = await lina(page)
-  sjekk("og det vart delar av det", /[1-9]\d* delar/.test(l1), l1)
-  // opp: lenger ut frå aksen, og talet på ribber står
-  const av0 = Math.hypot(plana(page)[0].o[0] - 0.5, plana(page)[0].o[1] - 0.5)
-  await toFingrar(page, (t) => [[130, 400 - 120 * t], [260, 400 - 120 * t]])
-  await vent(page, (p) => Math.hypot(lesPlan(p.plan)[0].o[0] - 0.5, lesPlan(p.plan)[0].o[1] - 0.5) > av0 + 0.005)
-  const av1 = Math.hypot(plana(page)[0].o[0] - 0.5, plana(page)[0].o[1] - 0.5)
-  sjekk("to fingrar oppover skyv ribbene ut frå aksen", av1 > av0, `${av0.toFixed(3)} → ${av1.toFixed(3)}`)
-  sjekk("og talet på ribber står", plana(page).length === n1, `${plana(page).length} ribber`)
-  // og eit trykk til slepper han: eit drag etterpå skal ikkje vera hans
-  const n2 = plana(page).length
-  await virvelKnapp.click()
-  await page.waitForTimeout(250)
-  await toFingrar(page, (t) => [[110 + 160 * t, 300], [110 + 160 * t, 400]])
-  await roleg(page, 500)
-  sjekk("eit trykk til slepper verktyet: eit drag etterpå er ikkje hans", plana(page).length === n2 && (await virvelKnapp.getAttribute("aria-pressed")) === "false", `${n2} → ${plana(page).length} ribber`)
-  // og tasten gjer det same, for benken
-  await page.keyboard.press("v")
-  await page.waitForTimeout(250)
-  sjekk("og V gjer det same frå tastaturet", (await virvelKnapp.getAttribute("aria-pressed")) === "true")
-  await page.keyboard.press("v")
-  await page.waitForTimeout(250)
-  sjekk("ingen konsollfeil i virvelen", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
-  await page.close()
-}
-
-/**
- * SYMMETRIEN PÅ SNITTET.
- *
- * Tre brytarar rett over skjer, og dei endrar KVA SKJER GJER: eitt trykk
- * låser snittet du siktar og spegelbileta hans om midtplana i kroppen.
- * Vakta siktar snittet til sides — eit snitt gjennom midten speglar seg
- * til seg sjølv, og då ville prøva ikkje prøvd noko — slår på x, skjer, og
- * krev TO plan som ligg spegelvendt om ein halv. So x av att, og eitt.
- *
- * Rekninga sjølv står i `pnpm hand`, rein og utan ein kropp. Her er det
- * brytaren og skjer som vert prøvde.
- */
 async function symmetri(browser: Browser) {
   console.log("\n=== symmetrien på snittet")
   const { page, konsoll } = await opne(URL, browser, 390, 844)
@@ -2880,9 +2798,14 @@ async function boyen(browser: Browser) {
    * OG HEILE TOMMELSPALTA STÅR PÅ SKJERMEN — OG UNDER SYNSKUBEN.
    *
    * Med eit plan valt og arket ope er ho på sitt lengste og bandet på sitt
-   * kortaste — rutenett, virvel, dubler, hòl, form, bøy, slett, kropp — so
+   * kortaste — rutenett, dubler, hòl, form, bøy, slett, kropp — so
    * det er her ho ryk om ho skal ryke. (Montasjen stod her ein gong; han er
-   * ei fane no, og spalta hans ber berre steget.)
+   * ei fane no, og spalta hans ber berre steget. Virvelen stod her òg, som
+   * den åttande; han er teken heilt bort.)
+   *
+   * TALET ER EI NEDRE GRENSE, ikkje ei teljing. `ute.length === 0` er sann
+   * av seg sjølv om spørjinga ikkje finn ein einaste knapp, so golvet er
+   * det som gjer prøva verd å køyre. Det står på dei sju som er lista over.
    *
    * TO TING VERT KREVDE. Ein reiskap utanfor ruta er ein reiskap som ikkje
    * finst, og det HAR hendt: stabelen gjekk 156 pikslar over topplina før
@@ -2921,7 +2844,7 @@ async function boyen(browser: Browser) {
   })()`) as { ute: string[]; over: string[]; smaa: string[]; n: number; topp: number; H: number; tek: string }
   sjekk(
     "og heile tommelspalta står på skjermen, under topplina",
-    spalta.ute.length === 0 && spalta.n >= 8,
+    spalta.ute.length === 0 && spalta.n >= 7,
     `${spalta.n} knappar mellom ${spalta.topp} og ${spalta.H} px${spalta.ute.length ? " · " + spalta.ute.slice(0, 3).join(" · ") : ""}`,
   )
   sjekk("og ingen av dei legg seg over synskuben", spalta.over.length === 0, spalta.over.slice(0, 3).join(" · "))
@@ -3579,7 +3502,6 @@ const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["kroppen", kroppen],
   ["reglar", reglar],
   ["symmetri", symmetri],
-  ["virvelen", virvelen],
   ["montasjen", montasjen],
   ["handtaka", handtaka],
   ["andrefingeren", andreFingeren],

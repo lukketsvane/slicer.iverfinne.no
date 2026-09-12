@@ -38,7 +38,8 @@ const TAK: [string, number][] = [
   // +62 den 12.: den fyrste fingeren vert halden att frå orbiten til han har
   // gått tolv pikslar. Det meste er grunngjevinga — kvifor ein orbit ikkje
   // kan målast på avstand, og kvifor grensa er px og ikkje ei klokke
-  ["components/scene.tsx", 3527],
+  // −22 den 12.: virvelen er ute. Fyrste gongen eit tak her gjeng NED
+  ["components/scene.tsx", 3505],
   // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
@@ -48,7 +49,9 @@ const TAK: [string, number][] = [
   // +28 den 12.: «fiks alt» — handlaren som sender, og svarbolken som set
   // posen og seier kva han tok og kva som står att. Ein knapp som endrar
   // seks ting i stillheit er ein knapp ingen tør trykkje to gonger
-  ["components/studio.tsx", 2968],
+  // −82 den 12.: virvelen er ute — knappen, dei to konstantane, staten,
+  // tasten og heile blokka som rekna vifta ut. Ein kanal mindre i `Handa`
+  ["components/studio.tsx", 2886],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko

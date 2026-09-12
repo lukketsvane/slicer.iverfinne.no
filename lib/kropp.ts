@@ -306,15 +306,16 @@ const VENDT = new WeakMap<Kropp, Map<string, { sol: Solid; b: number }>>()
  * HUGSEN ER EIT MINNEBUDSJETT, IKKJE EIT TAL PÅ RETNINGAR.
  *
  * Taket stod på tolv vendingar. Eit rutenett har to, so det var rikeleg —
- * men VIRVELEN, det andre ribbespråket i reiskapen, gjev éi eiga retning
- * per ribbe. Over tolv av dei fall hugsen i den klassiske FIFO-fella: same
- * bygget går gjennom retningane i same rekkjefylgja kvar gong, so den eldste
- * vert alltid kasta rett før han skal brukast att. Målt, med tre bygg på rad:
+ * men eit sett plan sett for hand kan ha éi eiga retning PER PLAN. Over tolv
+ * av dei fall hugsen i den klassiske FIFO-fella: same bygget går gjennom
+ * retningane i same rekkjefylgja kvar gong, so den eldste vert alltid kasta
+ * rett før han skal brukast att. Målt, med tre bygg på rad, på ei vifte av
+ * plan kring loddaksen (`pnpm tak` lagar henne framleis):
  *
- *   rutenett 6x6      24 treff · 0 bom
- *   virvel 8 ribber   16 treff · 0 bom
- *   virvel 20 ribber   0 treff · 40 bom      ← heile nettet snudd 20 gonger
- *   virvel 32 ribber   0 treff · 64 bom
+ *   rutenett 6x6     24 treff · 0 bom
+ *   vifte 8 plan     16 treff · 0 bom
+ *   vifte 20 plan     0 treff · 40 bom      ← heile nettet snudd 20 gonger
+ *   vifte 32 plan     0 treff · 64 bom
  *
  * Å byte FIFO mot LRU rettar det IKKJE: ei syklisk rekkje som er lengre enn
  * hugsen bommar like mykje med LRU. Det som rettar det er å ha plass til
@@ -324,7 +325,7 @@ const VENDT = new WeakMap<Kropp, Map<string, { sol: Solid; b: number }>>()
  *
  * Budsjettet er sett til det dei tolv kosta på det DYRASTE nettet — 21 MB —
  * so ingen konfigurasjon brukar meir minne enn før. På standardnettet er det
- * fire og førti vendingar i staden for tolv, og virvelen treff kvar gong.
+ * fire og førti vendingar i staden for tolv, og vifta treff kvar gong.
  * Talet står òg med eit hardt tak på plantaket: eit lite nett skal ikkje
  * kunne samle fleire vendingar enn det finst plan.
  */

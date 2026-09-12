@@ -30,8 +30,8 @@
  * Stega er ei gruppering av henne og ingenting meir: to plan som er
  * parallelle kryssar aldri kvarandre, so so lenge retninga står, går dei
  * ned i lag. Eit rutenett vert difor to steg — tvers, so langs — og ein
- * virvel eitt steg per ribbe, som er sant om ein virvel: han vert bygd éi
- * om gongen. Delar utan eit einaste ledd står ikkje i ordenen; dei ligg
+ * ei vifte av plan eitt steg per plan, som er sant om ei vifte: ho vert
+ * bygd eitt om gongen. Delar utan eit einaste ledd står ikkje i ordenen; dei ligg
  * berre der, og dei kjem sist.
  */
 import type { Vec3 } from "./core"

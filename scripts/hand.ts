@@ -10,7 +10,7 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
-import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, virvel, vriOm, MJUK_TAK, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
+import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, vriOm, MJUK_TAK, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
@@ -110,7 +110,7 @@ for (const [inn, vent] of [
 }
 
 /**
- * GRUPPENE. Eit rutenett er to rekkjer, ein virvel éi; og det ei rad gjer
+ * GRUPPENE. Eit rutenett er to rekkjer; og det ei rad gjer
  * med det leiaren fekk er eit tal per plan: alt (saman), eller sin del av
  * vegen frå den ståande enden til leiaren (fordelt).
  */
@@ -118,7 +118,6 @@ for (const [inn, vent] of [
   const r22 = rutenett(2, 2)
   sjekk("rutenettet er to grupper: tvers og langs", r22.map((p) => p.gruppe).join() === "1,1,2,2", r22.map((p) => p.gruppe).join())
   sjekk("berre rader er éi gruppe", rutenett(0, 3).every((p) => p.gruppe === 1))
-  sjekk("virvelen er éi gruppe", virvel(5, 0.3, [100, 100]).every((p) => p.gruppe === 1))
   sjekk("og gruppa overlever strengen", lesPlan(skrivPlan(r22)).map((p) => p.gruppe).join() === "1,1,2,2")
   const rad = rutenett(0, 4)
   const del = (leiar: number, fordel: boolean) => [...delAv(rad, leiar, fordel).values()].map((v) => nn(v, 2)).join(" ")
@@ -616,55 +615,6 @@ console.log("\nrutenettet og det som er ditt:")
     // og strengen ber alt saman
     sjekk("lista går gjennom strengen som ho er", reinPlan(skrivPlan(nytt)) === skrivPlan(nytt), `${skrivPlan(nytt).length} teikn`)
   }
-}
-
-/**
- * VIRVELEN.
- *
- * Det andre ribbespråket: n ribber kring loddaksen, kvar tangent til ein
- * sirkel med radius `r`. Prøva som tel er AVSTANDEN: punktet i eit plan er
- * brøkar av boksen, og boksen er ikkje kvadratisk, so ein brøk som er den
- * same på begge aksane gjev ein ellipse og ein skeiv virvel. Difor vert
- * han målt i millimeter, gjennom `ramme`, på ein boks som IKKJE er
- * kvadratisk — på ein kvadratisk ein ville feilen ikkje synt seg.
- */
-console.log("\nvirvelen:")
-{
-  const boks = (W: number, D: number, H = 100) => ({ min: [-W / 2, -D / 2, 0] as Vec3, max: [W / 2, D / 2, H] as Vec3 })
-  const avstandar = (pl: ReturnType<typeof virvel>, b: ReturnType<typeof boks>) =>
-    pl.map((q) => {
-      const r = ramme(q, b.min, b.max)
-      // avstanden frå LODDAKSEN gjennom midten, langs normalen til planet
-      return Math.abs(r.o[0] * r.n[0] + r.o[1] * r.n[1] + r.o[2] * r.n[2])
-    })
-  const spenn = (x: number[]) => Math.max(...x) / Math.max(1e-9, Math.min(...x))
-
-  const skeiv = boks(300, 120)
-  const a = avstandar(virvel(20, 0.36, [300, 120]), skeiv)
-  sjekk(
-    "kvar ribbe står like langt frå aksen på ein skeiv kropp",
-    spenn(a) < 1.001,
-    `${Math.min(...a).toFixed(1)}–${Math.max(...a).toFixed(1)} mm (${spenn(a).toFixed(2)}×)`,
-  )
-  // og det er ikkje sjølvsagt: den naive brøken sprikjer på den same boksen
-  const naiv = Array.from({ length: 20 }, (_, i) => {
-    const t = (2 * Math.PI * i) / 20
-    return { id: i + 1, o: [0.5 + 0.18 * Math.cos(t), 0.5 + 0.18 * Math.sin(t), 0.5] as Vec3, n: [+Math.cos(t).toFixed(4), +Math.sin(t).toFixed(4), 0] as Vec3, bog: 0, strek: [] }
-  })
-  const b2 = avstandar(naiv, skeiv)
-  sjekk("og ein brøk av boksen ville sprike — det er heile grunnen", spenn(b2) > 2, `${Math.min(...b2).toFixed(1)}–${Math.max(...b2).toFixed(1)} mm (${spenn(b2).toFixed(2)}×)`)
-
-  const rund = avstandar(virvel(20, 0.36, [240, 240]), boks(240, 240))
-  sjekk("på ein rund kropp er avstanden r × vidda", Math.abs(rund[0] - 0.36 * 240) < 0.5, `${rund[0].toFixed(1)} mm av venta ${(0.36 * 240).toFixed(1)}`)
-
-  const pl = virvel(12, 0.3, [200, 200], 7)
-  sjekk("n ribber, med namn frå det du bad om", pl.length === 12 && pl[0].id === 7 && pl[11].id === 18)
-  sjekk("alle står loddrett, med einingsnormal", pl.every((q) => q.n[2] === 0 && Math.abs(Math.hypot(q.n[0], q.n[1]) - 1) < 1e-3))
-  sjekk("og ingen to av dei er det same planet", pl.every((q, i) => pl.every((w, j) => i === j || !sameSnitt(q, w))))
-
-  // r = 0 er det utarta tilfellet: alle gjennom aksen, alle langs same lina
-  const null0 = virvel(8, 0, [200, 200])
-  sjekk("r = 0 legg alle gjennom midten — det utarta tilfellet", null0.every((q) => Math.abs(q.o[0] - 0.5) < 1e-6 && Math.abs(q.o[1] - 0.5) < 1e-6))
 }
 
 /**
