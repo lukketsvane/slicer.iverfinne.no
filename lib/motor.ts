@@ -122,12 +122,44 @@ export function montering(p: Params, s: Snitt): string {
     const stykke = r?.outlines.length ?? 0
     const namn = `${id}${stykke > 1 ? ` (${stykke} stykke)` : ""}`
     const veg = retningOrd(s.montering.retning[id] ?? null)
-    return `  ${i + 1}  ${namn}  ${veg}${mot.length ? `, mot ${mot.join(", ")}` : ""}`
+    // eit merke på den som ikkje kjem inn, so lista og varselet over syner
+    // det same utan at nokon må telje seg fram
+    const fast = s.montering.brot.includes(id) ? "  << STÅR FAST" : ""
+    return `  ${i + 1}  ${namn}  ${veg}${mot.length ? `, mot ${mot.join(", ")}` : ""}${fast}`
   })
+  /**
+   * OG FILA LISTAR IKKJE EI REKKJEFYLGJE HO VEIT IKKJE GÅR.
+   *
+   * `montering.brot` er dei delane som ikkje kjem inn: dei har ledd mot to
+   * delar som alt ligg, langs liner som ikkje er parallelle, og ei plate kan
+   * berre skuvast éin veg. Den harde regelen `orden` seier det på skjermen —
+   * men skjermen står ikkje ved benken, og denne fila gjer det.
+   *
+   * Ho stoggar ikkje kuttinga. Reiskapen avgjer ikkje for deg, og det finst
+   * grunnar til å skjere delane likevel. Men ho skal ikkje gje deg ei liste
+   * med tal som ser ut som ein plan når ho ikkje er det: eit ark som seier
+   * «1, 2, 3» og stoggar på 3 er verre enn eit ark som seier frå.
+   */
+  const brotne = s.montering.brot
+  const varsel = brotne.length
+    ? [
+        "DETTE GÅR IKKJE OPP.",
+        "",
+        `Desse delane kjem ikkje inn: ${brotne.join(", ")}.`,
+        "Ein del vert skuva inn langs spora sine, og ei plate kan berre gå éin veg. Desse har ledd mot to delar som alt ligg, langs liner som ikkje er parallelle — så dei står fast same kva du gjer.",
+        "",
+        "Rekkjefylgja under er den reiskapen ville ha brukt. Ho stoggar på den fyrste av dei over. Skjer du dette, får du delar som ikkje let seg setje saman.",
+        "Byt rekkjefylgja så ein slik del kjem inn FØR den eine han står fast mot, eller vinkle planet om. Reiskapen syner kva for eitt under «kan monterast».",
+        "",
+        "---",
+        "",
+      ]
+    : []
   return [
     `MONTERING — ${srcLabel(p.kjelde)}`,
     `${s.ribber.length} plan, ${p.tjukn} mm plate. Adressa er gravert på kvar del.`,
     "",
+    ...varsel,
     "I denne rekkjefylgja. Sporet på delen som kjem opnar seg i fartsretninga; sporet på delen som ligg opnar seg mot han.",
     ...liner,
     "",
@@ -166,14 +198,14 @@ export const MOTOR: EngineDef = {
     const p = asP(bag)
     const name = stem(p)
     if (what === "stl") {
-      // SAME OBJEKT SOM DELANE: det midtre nivået, som kuttfilene og tavla.
-      const bytes = meshToStl(lagMesh(makeBygg(p, DETAIL.mid).s, p.tjukn), name)
+      // SAME OBJEKT SOM DELANE, men lese fint: sjå `DETAIL.fil`.
+      const bytes = meshToStl(lagMesh(makeBygg(p, DETAIL.fil).s, p.tjukn), name)
       return { name: `${name}.stl`, mime: "model/stl", data: bytes.buffer.slice(0) as ArrayBuffer }
     }
     if (what === "glb") {
       // SAME GEOMETRIEN, DELT: ein node per del, med adressa som namn, under
       // éi gruppe som er heile montasjen.
-      const b = makeBygg(p, DETAIL.mid)
+      const b = makeBygg(p, DETAIL.fil)
       const bytes = meshToGlb([{ namn: name, delar: nodar(lagDelar(b.s, b.dl.delar, p.tjukn)) }], name, linear(p.material))
       return { name: `${name}.glb`, mime: "model/gltf-binary", data: bytes.buffer.slice(0) as ArrayBuffer }
     }
@@ -187,6 +219,14 @@ export const MOTOR: EngineDef = {
        * av di det ikkje er teke: omrisset her er det nominelle, og ein
        * 3D-modell kompensert for laseren sin veg ville vore ein modell av
        * noko ingen skal lage.
+       *
+       * OG HO STÅR PÅ `mid`, ulikt dei andre objektfilene. «flat» er EI
+       * GRUPPE PER PLATE — ho syner kvar nestinga la kvar del — og då gjer
+       * ho ein påstand om ARK. Står det to plater i panelet, skal det vera
+       * to grupper her, og ei pakking rekna på eit anna celletal kan lande
+       * på eit anna tal. Dei andre objektfilene seier ingenting om plater
+       * (3MF seier det rett ut: trykkjaren har inga plate), og dei er difor
+       * fri til å lesast fint.
        */
       const { ns } = makeBygg(p, DETAIL.mid)
       const grupper = flatDelar(ns, p.tjukn).map((g) => ({ namn: `ark-${g.ark}`, delar: nodar(g.delar) }))
@@ -205,12 +245,12 @@ export const MOTOR: EngineDef = {
        * Materialet står ikkje i namnet: fila seier ikkje kva du trykkjer
        * i, det gjer spolen. TJUKNA står, av di ho ER geometrien.
        */
-      const { ns } = makeBygg(p, DETAIL.mid)
+      const { ns } = makeBygg(p, DETAIL.fil)
       const delar = flatDelar(ns, p.tjukn).flatMap((g) => nodar(g.delar))
       return { name: `${name}-${num(p.tjukn)}mm-delar.3mf`, mime: "model/3mf", data: delarTo3mf(delar, name).buffer.slice(0) as ArrayBuffer }
     }
     if (what === "usdz") {
-      const bytes = meshToUsdz(lagMesh(makeBygg(p, DETAIL.mid).s, p.tjukn), linear(p.material))
+      const bytes = meshToUsdz(lagMesh(makeBygg(p, DETAIL.fil).s, p.tjukn), linear(p.material))
       return { name: `${name}.usdz`, mime: "model/vnd.usdz+zip", data: bytes.buffer.slice(0) as ArrayBuffer }
     }
     if (what === "prove") {

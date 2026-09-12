@@ -123,6 +123,20 @@ async function opne(url: string, browser: Browser, w: number, h: number, o?: { s
 /**
  * TO FINGRAR, GJENNOM CDP. Playwright har éin finger; skissa treng to.
  * `steg` gjev fingrane sine plassar frå 0 til 1.
+ *
+ * OG DEI KJEM IKKJE NED SAMSTUNDES.
+ *
+ * Prøva sette båe punkta i den SAME `touchStart`. Det er greitt når båe
+ * høyrer til éin gest som byrjar i same augeblinken — men ei hand gjer aldri
+ * det. Den eine fingeren når glaset fyrst, og i det glipet ser appen éin
+ * finger åleine: ein gest som er noko anna enn den som kjem. Nett den
+ * rekkjefylgja var heile feilen med prikkane på sidene, som levde gjennom
+ * eit grønt panel so lenge han gjorde — og han kunne ikkje ha vorte fanga
+ * av ein prøve der båe fingrane melder seg i det same millisekundet.
+ *
+ * `lag` er kor mange bilete den fyrste fingeren er åleine, og han RØRER seg
+ * i det glipet: ein finger som ligg heilt i ro er ikkje ein gest, og då
+ * prøver ein ikkje det som hender. Null er den gamle åtferda.
  */
 async function toFingrar(
   page: Page,
@@ -130,10 +144,22 @@ async function toFingrar(
   n = 12,
   /** køyrt etter kvart hakk, MEDAN fingrane er nede: sjå «undervegs» under */
   mellom?: () => Promise<void>,
+  lag = 0,
 ) {
   const cdp = await page.context().newCDPSession(page)
   const pkt = (t: number) => steg(t).map(([x, y], id) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 }))
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(0) })
+  if (lag > 0) {
+    // fyrste fingeren åleine, og han flyttar seg medan han er det
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pkt(0)[0]] })
+    for (let i = 1; i <= lag; i++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [pkt((i / n) * 0.5)[0]] })
+      await page.waitForTimeout(16)
+    }
+    // og so kjem den andre — begge punkta med, som nettlesaren gjer det
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(0) })
+  } else {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(0) })
+  }
   for (let i = 1; i <= n; i++) {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pkt(i / n) })
     await page.waitForTimeout(16)
@@ -489,6 +515,38 @@ async function telefon(browser: Browser) {
   await toFingrar(page, (t) => [[195 - 30 - 70 * t, 380], [195 + 30 + 70 * t, 380]])
   await page.waitForTimeout(400)
   sjekk("og eit knip rører ikkje storleiken på kroppen", hash(page).storleik === s1, `${s1} → ${hash(page).storleik}`)
+
+  /**
+   * OG DET SAME NÅR FINGRANE KJEM NED ETTER KVARANDRE.
+   *
+   * Ei hand set aldri to fingrar på glaset i det same millisekundet. Den
+   * eine når fyrst, og i det glipet ser appen éin finger SOM RØRER SEG —
+   * altso ein annan gest enn den som kjem. Prøvene over sette båe i den same
+   * hendinga og kunne difor ikkje sjå kva som hender i glipet; feilen med
+   * prikkane på sidene levde gjennom eit grønt panel av nett den grunnen.
+   *
+   * Seks bilete er ei roleg hand, fjorten er ei treg. Kravet er det same i
+   * båe: skissa fylgjer fingrane, og kameraet står.
+   */
+  for (const lag of [6, 14]) {
+    const kamFør2 = await kamDist()
+    const nFør = plana(page).length
+    await toFingrar(page, (t) => [[150 + 90 * t, 330], [150 + 90 * t, 430]], 12, undefined, lag)
+    await page.waitForTimeout(300)
+    await page.keyboard.press("l")
+    await vent(page, talPlan(nFør + 1))
+    const sein = plana(page)[plana(page).length - 1]
+    const avSein = Math.hypot(sein.o[0] - 0.5, sein.o[1] - 0.5)
+    sjekk(`to fingrar med ${lag} bilete lag flyttar skissa`, avSein > 0.05, `o = ${sein.o.map((c) => c.toFixed(2)).join(",")}`)
+    sjekk(`og kameraet står gjennom heile gesten (${lag} bilete lag)`, Math.abs((await kamDist()) - kamFør2) < 1e-3, `avstand ${kamFør2.toFixed(3)} → ${(await kamDist()).toFixed(3)}`)
+    await page.keyboard.press("z")
+    await vent(page, talPlan(nFør))
+    // OG SKISSA ATTENDE DIT HO STOD. Ho hugsar plassen sin — angre tek
+    // planet, ikkje gesten — so utan dette ville kvar runde skuve henne
+    // lenger ut, og prøvene etter ville målt ei skisse ingen bad om.
+    await toFingrar(page, (t) => [[240 - 90 * t, 330], [240 - 90 * t, 430]], 12, undefined, lag)
+    await page.waitForTimeout(300)
+  }
 
   // --- HANDTAKA: éin finger på handtaket flyttar og vrir --------------------------
   const flyttH = page.locator("[data-handtak='flytt']")
