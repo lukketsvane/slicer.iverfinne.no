@@ -1114,7 +1114,15 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
 - Two planes closer than five degrees to parallel do not get a joint: the slot
   would be twelve plates wide.
 - Three planes that cross in material without sharing a line cannot be
-  assembled in any order. The rule says which one.
+  assembled in any order. The rule says which one — and `montering.txt` leads
+  with it rather than printing a numbered sequence that stops partway. Nothing
+  blocks the cut: the tool does not decide for you, and there are reasons to cut
+  the parts anyway. But it will not hand you a list that looks like a plan when
+  it is not one.
+- The order check asks whether each part can be pushed in along its own slots,
+  given the parts already placed. It does not sweep the part along that path to
+  see whether it collides with something else on the way; a set that passes can
+  still, in principle, be blocked by geometry the check does not look at.
 - Nesting is deterministic: bottom-left-fill with four rotations, then up to
   three more passes within a fixed work budget, keeping the best. Fewer sheets
   would need a real search.

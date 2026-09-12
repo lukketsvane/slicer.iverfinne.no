@@ -31,12 +31,18 @@ import { readFileSync } from "node:fs"
 
 /** fila, og kor mange liner ho får vega. Sett den 12. september 2026. */
 const TAK: [string, number][] = [
-  ["components/scene.tsx", 3436],
+  // +29 den 12.: ei ribbe i montasjen er til å peike på. Fana synte rørsla og
+  // svara ikkje på «kva er DEN der» — no seier lina adressa og steget, og
+  // ribba står i blekk. Ein `tak()`-handlar på kvart nett, og fargen som seier
+  // kva ein du tok
+  ["components/scene.tsx", 3465],
   // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
   // «ingen delar» — to prop-liner og to kommentarliner
-  ["components/studio.tsx", 2927],
+  // +13 den 12.: ribba handa peika på i montasjen — kva lina svarar med, og
+  // kva som fell når lista delar er ei anna
+  ["components/studio.tsx", 2940],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko
