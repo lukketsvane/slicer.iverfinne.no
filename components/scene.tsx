@@ -2170,7 +2170,7 @@ const MONT_SPREIING = 0.55
 /** mjuk start og mjuk stopp: ei hand akselererer ikkje i eit hopp */
 const mjukna = (t: number) => t * t * (3 - 2 * t)
 
-function Montasjen({ f, mont, T, spel, vakn, material, onSteg }: {
+function Montasjen({ f, mont, T, spel, vakn, material, onSteg, vald, onVeld }: {
   f: Ramma
   mont: Montasje
   /** kvar i animasjonen vi er, frå 0 til `mont.steg`. Ein ref: dette talet
@@ -2182,6 +2182,9 @@ function Montasjen({ f, mont, T, spel, vakn, material, onSteg }: {
   vakn: MutableRefObject<(() => void) | null>
   material: string
   onSteg: (s: number) => void
+  /** ribba handa peika på, som adresse, og vegen å seie frå om ei ny */
+  vald: string | null
+  onVeld: (adr: string) => void
 }) {
   const invalidate = useThree((s) => s.invalidate)
   useEffect(() => {
@@ -2241,6 +2244,24 @@ function Montasjen({ f, mont, T, spel, vakn, material, onSteg }: {
 
   const netta = useRef<(THREE.Mesh | null)[]>([])
   const bogne = useRef<(THREE.Mesh | null)[]>([])
+  /**
+   * EI RIBBE ER TIL Å PEIKE PÅ. Den opplagde rørsla i denne fana — du ser ein
+   * stabel like ribber reise seg og lurer på kva DEN der er — og ho gjorde
+   * ingenting. Same vegen inn som ein del i «lag» har (sjå `pluk` i
+   * `Kroppen`): eit trykk er eit trykk berre når det ikkje flytte seg, og
+   * det andre i eit dobbelttrykk er ikkje eit nytt trykk.
+   */
+  const ned = useRef<{ x: number; y: number } | null>(null)
+  const tak = (adr: string) => ({
+    onPointerDown: (e: { clientX: number; clientY: number }) => { ned.current = { x: e.clientX, y: e.clientY } },
+    onClick: (e: { clientX: number; clientY: number; detail: number; stopPropagation: () => void }) => {
+      const d = ned.current
+      ned.current = null
+      if (!d || e.detail > 1 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return
+      e.stopPropagation()
+      onVeld(adr)
+    },
+  })
   const sist = useRef(-1)
   const sagtSteg = useRef(-1)
   const ein = useRef(new THREE.Vector3(1, 1, 1))
@@ -2291,12 +2312,17 @@ function Montasjen({ f, mont, T, spel, vakn, material, onSteg }: {
             matrixAutoUpdate={false}
             castShadow
             receiveShadow
+            {...tak(d.adr)}
           >
-            <meshStandardMaterial color={MATERIALS[mat].hex} roughness={0.9} metalness={0} side={THREE.DoubleSide} />
+            {/* OG DEN VALDE STÅR I BLEKK. Adressa står i lina, men du peika
+                på éi ribbe i ein stabel like ribber, og eit svar som ikkje
+                seier KVA EIN du tok er eit halvt svar. Same oransje som eit
+                valt plan i rommet. */}
+            <meshStandardMaterial color={vald === d.adr ? VALT : MATERIALS[mat].hex} roughness={0.9} metalness={0} side={THREE.DoubleSide} />
           </mesh>
           {geo[i].boygd && (
-            <mesh ref={(el) => { bogne.current[i] = el }} geometry={geo[i].boygd!} visible={false} castShadow receiveShadow>
-              <meshStandardMaterial color={MATERIALS[mat].hex} roughness={0.9} metalness={0} side={THREE.DoubleSide} />
+            <mesh ref={(el) => { bogne.current[i] = el }} geometry={geo[i].boygd!} visible={false} castShadow receiveShadow {...tak(d.adr)}>
+              <meshStandardMaterial color={vald === d.adr ? VALT : MATERIALS[mat].hex} roughness={0.9} metalness={0} side={THREE.DoubleSide} />
             </mesh>
           )}
         </group>
@@ -3010,7 +3036,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -3062,6 +3088,9 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   montSpel: MutableRefObject<boolean>
   montVakn: MutableRefObject<(() => void) | null>
   onMontSteg: (s: number) => void
+  /** ribba handa peika på i montasjen, som adresse */
+  montVald: string | null
+  onMontVald: (adr: string) => void
   /** punktet handa held i, som plass i omrisset */
   valdPunkt: number | null
   onValdPunkt: (i: number | null) => void
@@ -3188,7 +3217,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             teke frå kvarandre er ei line utan noko på den andre sida.
           */}
           {f && mont ? (
-            <Montasjen f={f} mont={mont} T={montT} spel={montSpel} vakn={montVakn} material={material} onSteg={onMontSteg} />
+            <Montasjen f={f} mont={mont} T={montT} spel={montSpel} vakn={montVakn} material={material} onSteg={onMontSteg} vald={montVald} onVeld={onMontVald} />
           ) : (
           <>
           {f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} skal={skal} material={material} liste={liste} vald={vald} gruppe={gruppe} plan={plan} blink={blink} sein={sein} onVald={onVald} />}

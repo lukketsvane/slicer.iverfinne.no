@@ -9,7 +9,10 @@
  * frå lenkja — ho ber parameterposen, og posen er sanninga.
  *
  *   pnpm build && pnpm start -p 3210
- *   PW_CHROMIUM=/opt/pw-browsers/chromium pnpm panel [url]
+ *   PW_CHROMIUM=/opt/pw-browsers/chromium pnpm panel [del ...]
+ *
+ * `URL` seier kvar sida står, `LAG` kor mange bilete den andre fingeren kjem
+ * etter den fyrste i ein togripargest (sjå `toFingrar`).
  */
 import { chromium, type Browser, type Page } from "playwright"
 import { lesPlan, OMRISS_TAK, rutenett, skrivPlan, type Strek } from "../lib/plan"
@@ -121,6 +124,29 @@ async function opne(url: string, browser: Browser, w: number, h: number, o?: { s
 }
 
 /**
+ * KOR MANGE BILETE DEN ANDRE FINGEREN KJEM ETTER DEN FYRSTE.
+ *
+ * `toFingrar` sende begge i den same `touchStart`-en, og ei hand gjer aldri
+ * det: tommelen landar, glaset kjenner éin finger i nokre bilete, og so kjem
+ * peikefingeren. Nett den rekkjefylgja er ein heil klasse feil — kameraet som
+ * snudde seg av den fyrste fingeren åleine levde gjennom eit grønt harness av
+ * di harnesset aldri sende han åleine (sjå prikkane på sidene av ein bit i
+ * «telefon», der prøva måtte skrive CDP-en sin eigen for å nå han).
+ *
+ * Seks bilete er hundre millisekund: ein rask klyp med to fingrar, målt på ei
+ * hand. `LAG=0` sender dei saman att, og `LAG=14` er ei roleg hand.
+ *
+ * OG DEN FYRSTE FINGEREN VANDRAR IKKJE MEDAN HAN VENTAR. Han landar der gesten
+ * byrjar og skjelv dei pikslane ei hand skjelv på eit glas; sjølve gesten tek
+ * til frå byrjinga si når begge er nede. Fyrste utkastet lét han gå sin del av
+ * VEGEN åleine, og då målte prøvene eit kortare drag i staden for ei anna
+ * hand: rutenettet fekk to kolonner der draget seier fire.
+ */
+const LAG = Number(process.env.LAG ?? 6)
+/** kor mange pikslar ein finger som ligg og ventar skjelv */
+const SKJELV = 1
+
+/**
  * TO FINGRAR, GJENNOM CDP. Playwright har éin finger; skissa treng to.
  * `steg` gjev fingrane sine plassar frå 0 til 1.
  *
@@ -142,24 +168,27 @@ async function toFingrar(
   page: Page,
   steg: (t: number) => [[number, number], [number, number]],
   n = 12,
-  /** køyrt etter kvart hakk, MEDAN fingrane er nede: sjå «undervegs» under */
+  /** køyrt etter kvart hakk, MEDAN handa er nede — den fyrste fingeren sine
+   *  hakk med (sjå `lag`): ingen av dei skal røre kameraet. Sjå «undervegs». */
   mellom?: () => Promise<void>,
-  lag = 0,
+  /** kor mange hakk den andre fingeren kjem etter den fyrste; sjå `LAG` */
+  lag = LAG,
 ) {
   const cdp = await page.context().newCDPSession(page)
   const pkt = (t: number) => steg(t).map(([x, y], id) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 }))
-  if (lag > 0) {
-    // fyrste fingeren åleine, og han flyttar seg medan han er det
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pkt(0)[0]] })
-    for (let i = 1; i <= lag; i++) {
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [pkt((i / n) * 0.5)[0]] })
+  const l = Math.max(0, Math.round(lag))
+  if (l) {
+    // TOMMELEN FYRST, og glaset kjenner han åleine medan handa legg seg ned.
+    const a = pkt(0)[0]
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [a] })
+    for (let i = 1; i <= l; i++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...a, y: a.y + (i % 2 ? SKJELV : -SKJELV) }] })
       await page.waitForTimeout(16)
+      if (mellom) await mellom()
     }
-    // og so kjem den andre — begge punkta med, som nettlesaren gjer det
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(0) })
-  } else {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(0) })
   }
+  // og so er begge nede, og gesten går som han alltid har gjort
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(0) })
   for (let i = 1; i <= n; i++) {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pkt(i / n) })
     await page.waitForTimeout(16)
@@ -515,38 +544,6 @@ async function telefon(browser: Browser) {
   await toFingrar(page, (t) => [[195 - 30 - 70 * t, 380], [195 + 30 + 70 * t, 380]])
   await page.waitForTimeout(400)
   sjekk("og eit knip rører ikkje storleiken på kroppen", hash(page).storleik === s1, `${s1} → ${hash(page).storleik}`)
-
-  /**
-   * OG DET SAME NÅR FINGRANE KJEM NED ETTER KVARANDRE.
-   *
-   * Ei hand set aldri to fingrar på glaset i det same millisekundet. Den
-   * eine når fyrst, og i det glipet ser appen éin finger SOM RØRER SEG —
-   * altso ein annan gest enn den som kjem. Prøvene over sette båe i den same
-   * hendinga og kunne difor ikkje sjå kva som hender i glipet; feilen med
-   * prikkane på sidene levde gjennom eit grønt panel av nett den grunnen.
-   *
-   * Seks bilete er ei roleg hand, fjorten er ei treg. Kravet er det same i
-   * båe: skissa fylgjer fingrane, og kameraet står.
-   */
-  for (const lag of [6, 14]) {
-    const kamFør2 = await kamDist()
-    const nFør = plana(page).length
-    await toFingrar(page, (t) => [[150 + 90 * t, 330], [150 + 90 * t, 430]], 12, undefined, lag)
-    await page.waitForTimeout(300)
-    await page.keyboard.press("l")
-    await vent(page, talPlan(nFør + 1))
-    const sein = plana(page)[plana(page).length - 1]
-    const avSein = Math.hypot(sein.o[0] - 0.5, sein.o[1] - 0.5)
-    sjekk(`to fingrar med ${lag} bilete lag flyttar skissa`, avSein > 0.05, `o = ${sein.o.map((c) => c.toFixed(2)).join(",")}`)
-    sjekk(`og kameraet står gjennom heile gesten (${lag} bilete lag)`, Math.abs((await kamDist()) - kamFør2) < 1e-3, `avstand ${kamFør2.toFixed(3)} → ${(await kamDist()).toFixed(3)}`)
-    await page.keyboard.press("z")
-    await vent(page, talPlan(nFør))
-    // OG SKISSA ATTENDE DIT HO STOD. Ho hugsar plassen sin — angre tek
-    // planet, ikkje gesten — so utan dette ville kvar runde skuve henne
-    // lenger ut, og prøvene etter ville målt ei skisse ingen bad om.
-    await toFingrar(page, (t) => [[240 - 90 * t, 330], [240 - 90 * t, 430]], 12, undefined, lag)
-    await page.waitForTimeout(300)
-  }
 
   // --- HANDTAKA: éin finger på handtaket flyttar og vrir --------------------------
   const flyttH = page.locator("[data-handtak='flytt']")
@@ -1226,7 +1223,26 @@ async function telefon(browser: Browser) {
   await vent(page, (p) => !p.scene)
   sjekk("angre tek biten bort att", !hash(page).scene, `«${hash(page).scene ?? ""}»`)
 
-  // --- VERKTYET FOR KROPPEN: flytt, vri, skaler, dubler, slett --------------
+  sjekk("ingen konsollfeil på telefonen", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
+  await page.close()
+}
+
+/**
+ * VERKTYET FOR KROPPEN, I SIN EIGEN DEL.
+ *
+ * Det låg i «telefon», og «telefon» var hundre og seksti av dei tre hundre og
+ * seksti sekunda panelet tek. CLAUDE.md seier at du skal køyre den delen du
+ * tok i medan du arbeider, og ein del som er halve harnesset er ikkje ein del
+ * du kan køyre. Dette er det eine stykket som står for seg sjølv: det tek ei
+ * scene med to kubar og prøver berre bitane.
+ */
+async function kroppen(browser: Browser) {
+  console.log("\n=== verktyet for kroppen")
+  const { page, konsoll } = await opne(URL, browser, 390, 844)
+  /** brikka med kjelda i toppen, og menyen ho opnar */
+  const kjelde = page.locator("button[data-kjelde]")
+  const meny2 = page.locator("[data-meny]")
+
   /**
    * Bitane er boksar du kan peike på, og dei same tre gestane gjeld dei:
    * draget flyttar (loddrett lyfter), klypet gjer større, vridinga snur.
@@ -1496,7 +1512,7 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(300)
   sjekk("eit trykk til lèt verktyet att", (await bitVerkty.getAttribute("aria-pressed")) === "false" && (await page.locator("[aria-label='dubler biten']").count()) === 0)
 
-  sjekk("ingen konsollfeil på telefonen", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
+  sjekk("ingen konsollfeil i verktyet for kroppen", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
 }
 
@@ -3362,6 +3378,38 @@ async function montasjen(browser: Browser) {
   await page.locator(HOVUDLINA).click()
   await roleg(page, 500)
 
+  /**
+   * OG EI RIBBE ER TIL Å PEIKE PÅ.
+   *
+   * Det opplagde å gjere i denne fana — du ser ein stabel like ribber reise
+   * seg og lurer på kva DEN der er — og det gjorde ingenting. No svarar lina
+   * med adressa som er gravert på henne og steget ho kjem i, og ribba står i
+   * blekk so du ser kva ein du tok.
+   */
+  {
+    // animasjonen må stå stille fyrst: eit bilete som er ulikt av di delane
+    // rører seg seier ingenting om kva farge éin av dei har
+    await page.waitForTimeout(1800)
+    const klipp2 = { x: 20, y: 360, width: 350, height: 300 }
+    const utan = await page.screenshot({ clip: klipp2 })
+    let sagt = ""
+    let traff: [number, number] | null = null
+    // Ein stabel ribber har luft mellom seg, og han står LÅGT i ruta — dei
+    // reiser seg or plata på golvet. Prøv nokre punkt der godset er til eit
+    // av dei råkar; fyrst når eit gjer det, er det noko å prøve.
+    for (const [x, y] of [[195, 470], [195, 520], [150, 440], [240, 500], [195, 400], [120, 560]] as [number, number][]) {
+      await page.touchscreen.tap(x, y)
+      await page.waitForTimeout(400)
+      sagt = await lesing()
+      if (/^\S+ · steg \d+$/.test(sagt)) { traff = [x, y]; break }
+    }
+    sjekk("eit trykk på ei ribbe seier adressa og steget", /^\S+ · steg \d+$/.test(sagt), `«${sagt}»`)
+    sjekk("og ribba står i blekk", !(await page.screenshot({ clip: klipp2 })).equals(utan))
+    if (traff) await page.touchscreen.tap(traff[0], traff[1])
+    await page.waitForTimeout(600)
+    sjekk("og eit trykk til slepper henne, og steget står att", /^steg /.test(await lesing()), await lesing())
+  }
+
   // ei anna fane slepper han, og kroppen står som han stod
   await page.getByRole("tab", { name: "lag", exact: true }).click()
   await roleg(page, 700)
@@ -3406,6 +3454,7 @@ async function montasjen(browser: Browser) {
 
 const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["telefon", telefon],
+  ["kroppen", kroppen],
   ["reglar", reglar],
   ["symmetri", symmetri],
   ["virvelen", virvelen],
