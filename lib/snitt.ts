@@ -1089,13 +1089,92 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     }
   })
 
-  // LUKA ER MÅLT MELLOM NABOAR: to plan som er nesten parallelle, og kor
-  // langt frå kvarandre dei står langs normalen, minus plata.
+  /**
+   * LUKA ER MÅLT MELLOM NABOAR: to plan som er nesten parallelle, og kor
+   * langt frå kvarandre dei står, minus plata.
+   *
+   * FOR TO FLATE PLAN er det eitt tal langs normalen, og det er eksakt.
+   *
+   * FOR EIT BØYGT ER DET IKKJE DET. Normalen til ei bøygd flate er normalen
+   * DER BUEN BYRJAR; flata sjølv vender seg bort frå han heile vegen ut.
+   * Målt slik det stod, på to ribber 36 mm frå kvarandre i eit objekt på
+   * 300 mm, den eine bøygd 0,9 og den andre −0,9:
+   *
+   *     lika langs normalen      33,0 mm
+   *     ekte næraste avstand      0,4 mm  (mellom flatene, so −2,6 mm luke)
+   *
+   * Ribbene rører kvarandre, og lina sa at det var tre centimeter å ta i.
+   * Det er ikkje ei unøyaktigheit — det er eit anna tal.
+   *
+   * So der ei av dei to er bøygd, vert MIDTLINA prøvd: flata ved `w = 0`,
+   * skanna over det spennet profilen har, og minste avstanden mellom dei to
+   * linene. Det er den same blindsona som den flate rekninga alt har — to
+   * plan som står langt frå kvarandre LANGS aksen tel som naboar — og det
+   * er med vilje: regelen spør kor tett plana står, ikkje om dei møtest.
+   */
+  const PAR_10 = Math.sin((10 * Math.PI) / 180)
+  const MIDT_STEG = 64
+  /** midtlina til flata i rommet, `w = 0`, over det spennet profilen har */
+  const midtlina = (a: Raa): Vec3[] => {
+    const [lo, hi] = uSpenn(a)
+    if (!(hi > lo)) return [ut(a.r, [0, 0], 0)]
+    const ut2: Vec3[] = []
+    for (let i = 0; i <= MIDT_STEG; i++) ut2.push(ut(a.r, [lo + ((hi - lo) * i) / MIDT_STEG, 0], 0))
+    return ut2
+  }
+  /** frå eit punkt til stykket mellom a og b, og ikkje berre til endane:
+   *  eit grovt skann av ei line ville lese ei luke som er større enn ho er */
+  const tilStykket = (q: Vec3, a: Vec3, b: Vec3): number => {
+    const dx = b[0] - a[0]
+    const dy = b[1] - a[1]
+    const dz = b[2] - a[2]
+    const LL = dx * dx + dy * dy + dz * dz
+    const t = LL > 1e-12 ? Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy + (q[2] - a[2]) * dz) / LL)) : 0
+    return Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy, q[2] - a[2] - t * dz)
+  }
+  const midtAvstand = (A: Raa, B: Raa): number => {
+    const la = midtlina(A)
+    const lb = midtlina(B)
+    let m = Infinity
+    for (const q of la) for (let i = 1; i < lb.length; i++) m = Math.min(m, tilStykket(q, lb[i - 1], lb[i]))
+    for (const q of lb) for (let i = 1; i < la.length; i++) m = Math.min(m, tilStykket(q, la[i - 1], la[i]))
+    return m
+  }
+  /**
+   * OG SKANNINGA VERT BERRE GJORD DER HO KAN ENDRE SVARET.
+   *
+   * Ei bøygd flate vik aldri lenger frå grunnplanet sitt enn `sagitta` —
+   * n-avstanden ved kvar av endane av buen, som er det største han vert.
+   * To flater kan difor aldri koma nærare kvarandre enn lika langs
+   * normalane minus dei to sagittaene, og er DEN grensa alt større enn det
+   * minste vi har funne, kan paret ikkje senke det. Grensa er eit prikk og
+   * ei subtraksjon; skanninga er åtte tusen avstandar.
+   *
+   * Målt på det verste tilfellet som finst — 24 bøygde plan og 24 skrå, tre
+   * køyringar kvar — kostar heile rekninga 1734–1770 ms utan grensa og
+   * 1570–1597 ms med, mot 1468–1501 ms slik ho stod då ho las feil tal.
+   */
+  const sagitta = raa.map((a) => {
+    if (!a.boygd) return 0
+    const [lo, hi] = uSpenn(a)
+    const av = (u: number) => {
+      const q = ut(a.r, [u, 0], 0)
+      return Math.abs(dot(a.r.n, q) - dot(a.r.n, a.r.o))
+    }
+    return Math.max(av(lo), av(hi))
+  })
   let minGap = span
   for (let i = 0; i < raa.length; i++) {
     for (let j = i + 1; j < raa.length; j++) {
-      if (len3(cross(raa[i].r.n, raa[j].r.n)) > Math.sin((10 * Math.PI) / 180)) continue
-      const g = Math.abs(dot(raa[i].r.n, raa[i].r.o) - dot(raa[i].r.n, raa[j].r.o))
+      const A = raa[i]
+      const B = raa[j]
+      if (len3(cross(A.r.n, B.r.n)) > PAR_10) continue
+      const g0 = Math.abs(dot(A.r.n, A.r.o) - dot(A.r.n, B.r.o))
+      let g = g0
+      if (A.boygd || B.boygd) {
+        if (g0 - sagitta[i] - sagitta[j] - p.tjukn >= minGap) continue
+        g = midtAvstand(A, B)
+      }
       minGap = Math.min(minGap, g - p.tjukn)
     }
   }

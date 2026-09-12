@@ -64,7 +64,12 @@ const TAK: [string, number][] = [
   // melde fire og tjue ledd utan å nemne dei åtte som heldt golva. Tjue av
   // linene er teljinga; resten er kvifor talet ikkje tel det som aldri var
   // der, og kva som med vilje står utanfor det
-  ["lib/snitt.ts", 1360],
+  // +79 den 12.: luka mellom to bøygde ribber vert målt på MIDTLINA og ikkje
+  // langs normalen. Normalen til ei bøygd flate er normalen der buen byrjar,
+  // og to ribber som krøkte seg mot kvarandre las 33,0 mm medan dei stod
+  // 0,4 mm frå kvarandre. Skanninga er femten liner; resten er grunngjevinga
+  // og grensa som gjer at ho berre vert køyrd der ho kan endre svaret
+  ["lib/snitt.ts", 1439],
   ["lib/pack.ts", 955],
 ]
 
