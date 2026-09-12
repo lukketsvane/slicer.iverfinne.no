@@ -843,7 +843,7 @@ async function telefon(browser: Browser) {
   await alt()
   sjekk("arket er ope med alt", (await page.getByRole("button", { name: "kuttliste", exact: true }).count()) === 1)
   sjekk("og platene er ikkje eit verkty i skuffa lenger", (await page.getByRole("button", { name: "plater", exact: true }).count()) === 0)
-  await page.getByRole("button", { name: "kontur", exact: true }).click()
+  await page.getByRole("tab", { name: "kontur", exact: true }).click()
   const flata = page.locator("section[aria-label='plateflata']")
   await flata.waitFor({ timeout: 10000 })
   await roleg(page)
@@ -913,7 +913,7 @@ async function telefon(browser: Browser) {
   const bak = page.locator("div[aria-hidden='true'].fixed.inset-0")
   if (await bak.count()) await bak.dispatchEvent("pointerdown")
   await page.waitForTimeout(200)
-  await page.getByRole("button", { name: "lag", exact: true }).click()
+  await page.getByRole("tab", { name: "lag", exact: true }).click()
   await page.waitForTimeout(400)
   sjekk("og «lag» tek deg attende til rommet", (await flata.count()) === 0)
 
@@ -1113,9 +1113,9 @@ async function telefon(browser: Browser) {
     return fyrr
   }
   const skalFør = await stille()
-  await page.getByRole("button", { name: "flate", exact: true }).click()
+  await page.getByRole("tab", { name: "flate", exact: true }).click()
   await roleg(page, 1200)
-  await page.getByRole("button", { name: "lag", exact: true }).click()
+  await page.getByRole("tab", { name: "lag", exact: true }).click()
   await roleg(page, 1200)
   const skalEtter = await stille()
   sjekk("ein tur innom «flate» let skalet stå som det stod", skalFør.equals(skalEtter), `${skalFør.length} B → ${skalEtter.length} B`)
@@ -1450,7 +1450,7 @@ async function benk(browser: Browser) {
   for (const [tast, view] of [["1", "flate"], ["3", "kontur"], ["2", "lag"]] as const) {
     await page.keyboard.press(tast)
     await roleg(page, 300)
-    sjekk(`tast ${tast} vel «${view}»`, (await page.getByRole("button", { name: view, exact: true }).getAttribute("aria-pressed")) === "true")
+    sjekk(`tast ${tast} vel «${view}»`, (await page.getByRole("tab", { name: view, exact: true }).getAttribute("aria-selected")) === "true")
   }
 
   const n0 = plana(page).length
@@ -2313,7 +2313,7 @@ async function handtaka(browser: Browser) {
   console.log("\n=== handtaka på spor-endane")
   const plan = skrivPlan(rutenett(2, 2))
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan })), browser, 390, 844)
-  await page.getByRole("button", { name: "kontur", exact: true }).click()
+  await page.getByRole("tab", { name: "kontur", exact: true }).click()
   const flata = page.locator("section[aria-label='plateflata']")
   await flata.waitFor({ timeout: 10000 })
   await roleg(page, 900)
@@ -2360,7 +2360,7 @@ async function handtaka(browser: Browser) {
    * Prikkane står på det valde planet, og talet dei skriv er det same
    * `deling` tek imot frå plata.
    */
-  await page.getByRole("button", { name: "lag", exact: true }).click()
+  await page.getByRole("tab", { name: "lag", exact: true }).click()
   await roleg(page, 800)
   const prikk = page.locator("[data-spor]")
   sjekk("ingen prikkar i rommet utan eit plan valt", (await prikk.count()) === 0)
@@ -2433,10 +2433,10 @@ async function skaletOgSovnen(browser: Browser) {
   const att = await stille()
   sjekk("og eit trykk til set det attende", med.equals(att))
   // I «flate» ER kroppen kroppen, og då er det ingenting å slå av
-  await page.getByRole("button", { name: "flate", exact: true }).click()
+  await page.getByRole("tab", { name: "flate", exact: true }).click()
   await roleg(page, 700)
   sjekk("i «flate» finst brytaren ikkje", (await skalKnapp.count()) === 0)
-  await page.getByRole("button", { name: "lag", exact: true }).click()
+  await page.getByRole("tab", { name: "lag", exact: true }).click()
   await roleg(page, 700)
 
   /**
@@ -2538,6 +2538,30 @@ async function skaletOgSovnen(browser: Browser) {
   await page.waitForTimeout(3200)
   const valt = await gjennomsikt()
   sjekk("med eit plan valt søv det ikkje", valt.sov === false && valt.tumme === 1, JSON.stringify(valt))
+
+  /**
+   * OG MONTASJEN KVILER IKKJE.
+   *
+   * `kvile` tok `kontur` ut av søvnen — der ligg lerretet gøymt, og det er
+   * ingenting å sjå på. Montasjen er det motsette: han ER eit bilete i
+   * rørsle, med éin einaste kontroll. Å sjå på noko som rører seg er ikkje
+   * kvile, og ein skjerm som fell bort midt i animasjonen tek steget med
+   * seg. Han stod ikkje i lista, og difor sovna han.
+   */
+  await page.evaluate(`new Promise(function (res) {
+    var r = indexedDB.deleteDatabase("slicer")
+    r.onsuccess = r.onerror = r.onblocked = function () { res(null) }
+  })`)
+  await page.goto(adressa, { waitUntil: "networkidle" })
+  await page.reload({ waitUntil: "networkidle" })
+  await roleg(page, 800)
+  await page.getByRole("tab", { name: "montasje", exact: true }).click()
+  await vent2(page, async () => (await page.locator("[data-lesing] .tab").first().count()) > 0, 10000)
+  await page.mouse.move(190, 700)
+  await page.waitForTimeout(3600)
+  const imont = await page.evaluate(`document.querySelector("main").hasAttribute("data-sov")`)
+  sjekk("montasjen kviler ikkje — han er eit bilete i rørsle", imont === false, `sov=${imont}`)
+
   sjekk("ingen konsollfeil kring skalet og søvnen", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
   await page.close()
 }
@@ -3161,7 +3185,7 @@ async function montasjen(browser: Browser) {
   // eit rutenett med to retningar: to steg, og tre ribber i kvart
   const bag = { plan: skrivPlan(rutenett(3, 3)), storleik: 150, tjukn: 6 }
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
-  const fana = page.getByRole("button", { name: "montasje", exact: true })
+  const fana = page.getByRole("tab", { name: "montasje", exact: true })
   const kn = page.locator(".tumme [data-montasje]")
   /**
    * LESINGA OVER OBJEKTET — og `count()` FØR `textContent()`.
@@ -3183,7 +3207,7 @@ async function montasjen(browser: Browser) {
    * einaste andre knapp skriv om plana. Difor: eit ord i topplina, ved sida
    * av dei tre andre, og spalta hans ber det eine som er att å gjere.
    */
-  sjekk("montasjen er ei fane i topplina", (await fana.count()) === 1 && (await fana.getAttribute("aria-pressed")) === "false")
+  sjekk("montasjen er ei fane i topplina", (await fana.count()) === 1 && (await fana.getAttribute("aria-selected")) === "false")
   sjekk("og ingen montasjeknapp står i tommelspalta", (await kn.count()) === 0)
   sjekk("og han er av til nokon vel fana", (await lesing()) === "")
 
@@ -3260,21 +3284,41 @@ async function montasjen(browser: Browser) {
   }
 
   // ei anna fane slepper han, og kroppen står som han stod
-  await page.getByRole("button", { name: "lag", exact: true }).click()
+  await page.getByRole("tab", { name: "lag", exact: true }).click()
   await roleg(page, 700)
-  sjekk("ei anna fane slepper montasjen", (await fana.getAttribute("aria-pressed")) === "false" && (await lesing()) === "")
+  sjekk("ei anna fane slepper montasjen", (await fana.getAttribute("aria-selected")) === "false" && (await lesing()) === "")
   sjekk("og skjer er attende", (await page.getByRole("button", { name: "skjer", exact: true }).count()) === 1)
   // og tasten gjer det same, for benken — handa hugsar M frå då han var ein reiskap
   await page.keyboard.press("m")
   await vent2(page, async () => /^steg /.test(await lesing()), 8000)
-  sjekk("og M gjer det same frå tastaturet", (await fana.getAttribute("aria-pressed")) === "true")
+  sjekk("og M gjer det same frå tastaturet", (await fana.getAttribute("aria-selected")) === "true")
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
-  sjekk("og escape tek deg attende dit du kom frå", (await fana.getAttribute("aria-pressed")) === "false" && (await page.getByRole("button", { name: "lag", exact: true }).getAttribute("aria-pressed")) === "true")
+  sjekk("og escape tek deg attende dit du kom frå", (await fana.getAttribute("aria-selected")) === "false" && (await page.getByRole("tab", { name: "lag", exact: true }).getAttribute("aria-selected")) === "true")
+  /**
+   * OG FRÅ KONTUREN LIKESO — som er den saka som ikkje heldt.
+   *
+   * Vegen ut las `romsyn`, og `romsyn` er eit ROM: konturen skriv han
+   * aldri. So `kontur` → `M` → `Esc` landa i «lag», ei fane du ikkje hadde
+   * vore i. Prøva over går frå «lag» og ville stått grøn same kva.
+   */
+  await page.getByRole("tab", { name: "kontur", exact: true }).click()
+  await roleg(page, 700)
+  await page.keyboard.press("m")
+  await vent2(page, async () => /^steg /.test(await lesing()), 8000)
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(500)
+  sjekk(
+    "og frå konturen kjem du attende til konturen",
+    (await page.getByRole("tab", { name: "kontur", exact: true }).getAttribute("aria-selected")) === "true",
+    `kontur=${await page.getByRole("tab", { name: "kontur", exact: true }).getAttribute("aria-selected")} lag=${await page.getByRole("tab", { name: "lag", exact: true }).getAttribute("aria-selected")}`,
+  )
+  await page.getByRole("tab", { name: "lag", exact: true }).click()
+  await roleg(page, 700)
   // og talet gjer det, som dei tre andre
   await page.keyboard.press("4")
   await vent2(page, async () => /^steg /.test(await lesing()), 8000)
-  sjekk("og 4 er fana hans, som 1, 2 og 3 er dei andre sine", (await fana.getAttribute("aria-pressed")) === "true")
+  sjekk("og 4 er fana hans, som 1, 2 og 3 er dei andre sine", (await fana.getAttribute("aria-selected")) === "true")
   await page.keyboard.press("2")
   await roleg(page, 500)
   sjekk("ingen konsollfeil i montasjen", konsoll.length === 0, konsoll.slice(0, 2).join(" · "))
