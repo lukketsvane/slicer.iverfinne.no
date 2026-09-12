@@ -562,6 +562,18 @@ input {
 .punkt button[data-vald] > span {
   background: #e05a1a;
 }
+/* OG EIT PUNKT SOM HAR FUNNE NOKO STÅR I DEN ANDRE FARGEN.
+   Det er to fargar i huset, og dette er den andre: medan fingeren går, og
+   berre då, seier merket at punktet IKKJE står der fingeren er — det har
+   falle på eit anna punkt, ei kant eller aksen til ein nabo. Utan det er
+   snappet noko som skjer med forma di utan at du veit det, og ein reiskap
+   som flyttar på ting i stille er ein reiskap du sluttar å tru på.
+
+   Ingen ring, ingen glød, ingen storleik: berre blekket. */
+.punkt button[data-snapp] > span {
+  background: var(--warn);
+  border-color: var(--warn);
+}
 /* EIN BOGE STÅR PÅ HJØRNET. Same merket, vridd ein åttedels omgang: eit
    punkt som STÅR er fylt eller ope firkanta, og eit punkt som står på skrå
    er det same punktet med ei kurve gjennom seg. Ingen ny farge, ingen ny

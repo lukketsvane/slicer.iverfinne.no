@@ -5,7 +5,7 @@ import { GizmoHelper, GizmoViewcube, OrbitControls } from "@react-three/drei"
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react"
 import * as THREE from "three"
 import { LAG_FARGAR, MATERIALS, inRing, lagFarge, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
-import { akser, broek, dot, inn, OMRISS_TAK, omrissLine, omrissMidt, ramme as planRamme, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
+import { akser, broek, dot, inn, OMRISS_TAK, omrissLine, omrissMidt, ramme as planRamme, snappPunkt, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
 import type { Montasje } from "@/lib/montasje"
 import { FOV_FLAT, FOV_NAER, GROUND_Y, MAX_DIST, MIN_DIST, NAER_LUFT, SKODDE_FJERN, SKODDE_NAER, fovSkala, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
@@ -1731,7 +1731,7 @@ const MIDT_MIN = 84
  */
 const LANG_MS = 600
 
-function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt }: {
+function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt, onSlaaSaman }: {
   f: Ramma
   /** ramma til det valde planet: punkta er brøkar av `S` kring `r.o` */
   r: Ramme
@@ -1747,6 +1747,8 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
   fri: ReturnType<typeof fritt>
   boks: HTMLDivElement | null
   onPunkt: (i: number, q: Pt) => void
+  /** to punkt som fall saman ved slippet — `slaaSaman` avgjer om dei kan */
+  onSlaaSaman: (i: number, mot: number) => void
   /** eit punkt til, midt på kanten etter `i` */
   onLeggPunkt: (i: number, q: Pt) => void
   onTaPunkt: (i: number) => void
@@ -1759,8 +1761,8 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
   const size = useThree((s) => s.size)
   const gl = useThree((s) => s.gl)
   const controls = useThree((s) => s.controls) as Orbit | null
-  const naa = useRef({ f, r, omriss, runde, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt })
-  naa.current = { f, r, omriss, runde, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt }
+  const naa = useRef({ f, r, omriss, runde, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt, onSlaaSaman })
+  naa.current = { f, r, omriss, runde, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt, onSlaaSaman }
   /** plassen kvart merke sist vart skrive til, so ei teikning som ikkje flytta
    *  noko ikkje skriv noko — som i `Spora` */
   const skrive = useRef<Record<string, string>>({})
@@ -1799,7 +1801,7 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
      * til fingeren. Det er den same rekninga eit strek gjer når det vert
      * drege (sjå `sFlytt`), og av same grunn.
      */
-    let dra: { i: number; id: number; q0: Pt; p0: Pt; x0: number; y0: number; ny: boolean; g: Ramma; r: Ramme } | null = null
+    let dra: { i: number; id: number; q0: Pt; p0: Pt; x0: number; y0: number; ny: boolean; g: Ramma; r: Ramme; rPx: number; snapp: { slag: string; mot?: number } | null } | null = null
     /** det førre trykket på eit punkt: kva punkt, og når. To tett i hop tek det bort. */
     let sisteTrykk = { i: -1, t: 0 }
     /**
@@ -1847,6 +1849,36 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
       if (t <= 0) return null
       return inn(rr, fraaVerd(g, camera.position.clone().addScaledVector(d, t)))
     }
+    /**
+     * SNAPPRADIEN, i omrisset sine einingar.
+     *
+     * Rekna av det SAME kartet fingeren vert lese med: same punkt, og same
+     * punkt tolv pikslar til høgre. Avstanden mellom dei to svara ER kor
+     * mykje ein piksel er verdt akkurat der, ved denne zoomen og denne
+     * vinkelen på planet. Null attende tyder at kartet ikkje svarar — eit
+     * plan på kant — og då er det ikkje noko snapp, som det ikkje er noko
+     * drag heller.
+     */
+    const SNAPP_PX_OMRISS = 12
+    /** og punktet, som SLÅR SAMAN, krev at du faktisk la det oppå */
+    const SNAPP_SAMAN_PX = 5
+    const radius = (e: PointerEvent, g: Ramma, rr: Ramme): number => {
+      const a = paaFlata(e, g, rr)
+      const b = paaFlata({ clientX: e.clientX + SNAPP_PX_OMRISS, clientY: e.clientY } as PointerEvent, g, rr)
+      if (!a || !b) return 0
+      /**
+       * OG SVARET SKAL VERA I OMRISSET SI EINING.
+       *
+       * `paaFlata` svarar i MILLIMETER, og omrisset står i brøk av
+       * storleiken — det er difor draget deler på `S` når det flyttar
+       * punktet. Utan den same delinga her var radien `S` gonger for stor:
+       * på eit objekt på to hundre millimeter fanga tolv pikslar heile
+       * ribba, og eit heilt vanleg drag åt opp eit hjørne.
+       */
+      const S = naa.current.S || 1
+      const d = Math.hypot(b[0] - a[0], b[1] - a[1]) / S
+      return Number.isFinite(d) && d > 0 ? d : 0
+    }
     const ned = (e: PointerEvent) => {
       const el = (e.target as Element).closest<HTMLElement>("[data-punkt], [data-midt]")
       if (!e.isPrimary || !el) return
@@ -1876,7 +1908,7 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
         naa.current.onLeggPunkt(i, ny)
         // det nye punktet er det handa held: pilene tek det med ein gong
         naa.current.onValdPunkt(i + 1)
-        dra = { i: i + 1, id: e.pointerId, q0, p0: ny, x0: e.clientX, y0: e.clientY, ny: true, g, r: rr }
+        dra = { i: i + 1, id: e.pointerId, q0, p0: ny, x0: e.clientX, y0: e.clientY, ny: true, g, r: rr, rPx: radius(e, g, rr), snapp: null }
         el.setPointerCapture(e.pointerId)
         taKameraet(controls)
         return
@@ -1890,7 +1922,7 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
       // det kostar ikkje eit trykk å velje — og slepper du utan å ha drege,
       // står punktet att som teke, med pilene og ⌫ på seg.
       naa.current.onValdPunkt(i)
-      dra = { i, id: e.pointerId, q0, p0, x0: e.clientX, y0: e.clientY, ny: false, g, r: rr }
+      dra = { i, id: e.pointerId, q0, p0, x0: e.clientX, y0: e.clientY, ny: false, g, r: rr, rPx: radius(e, g, rr), snapp: null }
       el.setPointerCapture(e.pointerId)
       taKameraet(controls)
       /**
@@ -1950,7 +1982,33 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
         if (Math.abs(du) >= Math.abs(dv)) dv = 0
         else du = 0
       }
-      naa.current.onPunkt(dra.i, [dra.p0[0] + du / s, dra.p0[1] + dv / s])
+      /**
+       * OG SNAPPET LES KVA DU SIKTA PÅ — så lenge du ikkje held skift.
+       *
+       * Skift tyder alt «eg køyrer, ikkje hjelp»: han låser aksen og
+       * gjettar ikkje. Då skal han ikkje magnetisere heller, og dei to er
+       * det same valet sett to vegar.
+       *
+       * Radien er i PIKSLAR og vert rekna om til omrisset sine einingar
+       * gjennom det same kartet fingeren vert lese med. Ein radius i
+       * millimeter ville vore fire pikslar på eit stort objekt og førti på
+       * eit lite, og eit snapp som er ulikt sterkt på ulik zoom er eit
+       * snapp du ikkje lærer deg.
+       */
+      const fri: Pt = [dra.p0[0] + du / s, dra.p0[1] + dv / s]
+      if (e.shiftKey || !dra.rPx) {
+        dra.snapp = null
+        naa.current.onPunkt(dra.i, fri)
+        return
+      }
+      const sn = snappPunkt(naa.current.omriss, dra.i, fri, dra.rPx, (dra.rPx * SNAPP_SAMAN_PX) / SNAPP_PX_OMRISS)
+      dra.snapp = sn.slag ? { slag: sn.slag, mot: sn.mot } : null
+      const merke = boks.querySelector<HTMLElement>(`[data-punkt="${dra.i}"]`)
+      if (merke) {
+        if (sn.slag) merke.dataset.snapp = sn.slag
+        else delete merke.dataset.snapp
+      }
+      naa.current.onPunkt(dra.i, sn.p)
     }
     const opp = (e: PointerEvent) => {
       if (!dra || e.pointerId !== dra.id) return
@@ -1958,6 +2016,18 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
       const d = dra
       dra = null
       if (controls) controls.enabled = true
+      /**
+       * OG TO PUNKT SOM FALL SAMAN VERT EITT — når du slepper dei.
+       *
+       * Ikkje medan du dreg: eit punkt som forsvinn under fingeren tek
+       * heile ringen med seg i eit hopp, og du har ikkje sagt frå deg det
+       * du held i før du har sleppt det. Snappet SYNER at dei står likt;
+       * slippet er det som gjer dei til eitt.
+       *
+       * Berre naboar, og `slaaSaman` er den som veit kvifor.
+       */
+      for (const q of boks.querySelectorAll<HTMLElement>("[data-punkt][data-snapp]")) delete q.dataset.snapp
+      if (d.snapp?.slag === "punkt" && d.snapp.mot !== undefined) naa.current.onSlaaSaman(d.i, d.snapp.mot)
       /**
        * DOBBELTTRYKK VRIR HJØRNE TIL BOGE, OG ATTENDE.
        *
@@ -3076,7 +3146,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -3107,6 +3177,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   onValdStrek: (i: number | null) => void
   /** eit punkt i omrisset drege: plassen i lista, og punktet i planet si ramme */
   onPunkt: (id: number, i: number, q: Pt) => void
+  onSlaaSaman: (id: number, i: number, mot: number) => void
   /** eit punkt til, sett inn rett etter `i` */
   onLeggPunkt: (id: number, i: number, q: Pt) => void
   /** og eit punkt bort */
@@ -3289,6 +3360,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
               fri={fri}
               boks={punktBoks}
               onPunkt={(i, q) => onPunkt(valt.id, i, q)}
+              onSlaaSaman={(i, mot) => onSlaaSaman(valt.id, i, mot)}
               onLeggPunkt={(i, q) => onLeggPunkt(valt.id, i, q)}
               onTaPunkt={(i) => onTaPunkt(valt.id, i)}
               onVriPunkt={(i) => onVriPunkt(valt.id, i)}

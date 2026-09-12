@@ -10,7 +10,7 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
-import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, vriOm, MJUK_TAK, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
+import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, slaaSaman, snappPunkt, vriOm, MJUK_TAK, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
@@ -765,6 +765,62 @@ console.log("\nhandtaka på spor-endane:")
   }
   const eine = [...alle.entries()].filter(([, d]) => d.length !== 2)
   sjekk("kvart ledd har handtak på nøyaktig to delar", eine.length === 0, eine.slice(0, 4).map(([k, d]) => `${k}:${d.length}`).join(" · "))
+}
+
+/**
+ * SNAPPET I OMRISSET.
+ *
+ * Reine tal: gjeve eit omriss og eit punkt som er drege, kva fell det på?
+ * Rekkjefylgja er heile poenget — eit punkt er meir bestemt enn ei line, og
+ * ei line meir enn ein akse — so vakta prøver dei mot kvarandre og ikkje
+ * kvar for seg. Og ho krev at eit punkt midt i inkje står HEILT stille:
+ * ein snapp som alltid fangar er ikkje eit snapp, det er eit rutenett.
+ */
+{
+  console.log("\n=== snappet i omrisset")
+  /** eit kvadrat med hjørna i (0,0), (1,0), (1,1), (0,1) */
+  const kv: Pt[] = [[0, 0], [1, 0], [1, 1], [0, 1]]
+  const R = 0.1
+
+  const fritt = snappPunkt(kv, 0, [0.5, 0.5], R)
+  sjekk("midt inne fangar ingenting", fritt.slag === null && fritt.p[0] === 0.5, `${fritt.slag}`)
+
+  const nær = snappPunkt(kv, 0, [0.95, 0.03], R)
+  sjekk("nær eit anna punkt fell det PÅ punktet", nær.slag === "punkt" && nær.mot === 1 && nær.p[0] === 1 && nær.p[1] === 0, `${nær.slag} mot ${nær.mot} → ${nær.p.join(",")}`)
+
+  /**
+   * OG PUNKTET HAR SIN EIGEN RADIUS, som er trongare.
+   * Same staden, same vidde for kant og akse — men eit punkt fangar berre
+   * om du la det oppå. Det som elles hende: eit vanleg drag mista eit hjørne.
+   */
+  const langt = snappPunkt(kv, 0, [0.95, 0.03], R, 0.02)
+  sjekk("men ikkje når punktradien er trongare enn avstanden", langt.slag !== "punkt", `${langt.slag}`)
+  const paa = snappPunkt(kv, 0, [0.995, 0.005], R, 0.02)
+  sjekk("og legg du det OPPÅ, fangar han likevel", paa.slag === "punkt" && paa.mot === 1, `${paa.slag} mot ${paa.mot}`)
+
+  // midt på kanten mellom punkt 1 og 2 (x = 1): punkt 0 er ikkje ende i henne
+  const kant = snappPunkt(kv, 0, [0.97, 0.5], R)
+  sjekk("nær ei kant fell det NED PÅ kanten", kant.slag === "kant" && Math.abs(kant.p[0] - 1) < 1e-9 && Math.abs(kant.p[1] - 0.5) < 1e-9, `${kant.slag} → ${kant.p.join(",")}`)
+
+  // rett under punkt 3 (0,1) som er nabo til 0, men langt frå alle kantar
+  const akse = snappPunkt(kv, 0, [0.04, 0.5], R)
+  sjekk("nær aksen til ein nabo fangar berre den eine koordinaten", akse.slag === "akse" && akse.p[0] === 0 && akse.p[1] === 0.5, `${akse.slag} → ${akse.p.join(",")}`)
+
+  // OG PUNKTET SITT EIGE STED FANGAR IKKJE SEG SJØLV
+  const sjolv = snappPunkt(kv, 0, [0.001, 0.001], R)
+  sjekk("punktet fangar ikkje seg sjølv", sjolv.slag !== "punkt" || sjolv.mot !== 0, `${sjolv.slag} mot ${sjolv.mot}`)
+
+  // SLÅ SAMAN: naboar vert eitt, andre ikkje, og tre punkt aldri
+  const nabo = slaaSaman(kv, 0, 1)
+  sjekk("to naboar som fell saman vert eitt punkt", !!nabo && nabo.omriss.length === 3, `${nabo?.omriss.length} att`)
+  const over = slaaSaman(kv, 0, 2)
+  sjekk("to som IKKJE er naboar vert ikkje eitt — ringen ville klemt seg til eit åttetal", over === null)
+  const tre = slaaSaman([[0, 0], [1, 0], [0, 1]], 0, 1)
+  sjekk("og tre punkt slår aldri saman: under fire er det ikkje ei flate", tre === null)
+
+  // OG RADIEN STYRER: null radius fangar ingenting
+  const av = snappPunkt(kv, 0, [0.95, 0.03], 0)
+  sjekk("radius null fangar ingenting", av.slag === null, `${av.slag}`)
 }
 
 console.log(feil ? `\n${feil} FEIL` : "\nhanda held")

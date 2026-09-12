@@ -919,3 +919,134 @@ export function skilRute(l: readonly Plan[]): { rute: Plan[]; andre: Plan[]; nx:
   const mine = new Set(rute.map((q) => q.id))
   return { rute, andre: l.filter((q) => !mine.has(q.id)), nx: okx ? kx.length : 0, ny: oky ? ky.length : 0 }
 }
+
+// =============================================================================
+// SNAPPET I OMRISSET
+// =============================================================================
+/**
+ * KVA EIT PUNKT FELL PÅ NÅR DU SLEPPER DET NÆR NOKO ANNA.
+ *
+ * Eit omriss vert teikna med ein tommel, og ein tommel treffer ikkje. Det
+ * er ingen ting i vegen med det — punktet står der du sette det — men to
+ * hjørne som skulle vore det same hjørnet, og som står ein tidels
+ * millimeter frå kvarandre, gjev eit omriss med ei kant ingen kan sjå og
+ * ingen bad om. Snappet er ikkje ei utbetring av handa di; det er at
+ * reiskapen les kva du sikta på.
+ *
+ * TRE TING FANGAR, og dei står i denne rekkjefylgja av di eit punkt er meir
+ * bestemt enn ei line, og ei line meir enn ein akse:
+ *
+ *   1. EIT ANNA PUNKT i det same omrisset. Fell dei saman og er naboar,
+ *      vert dei eitt — sjå `slaaSaman`.
+ *   2. EI KANT som punktet ikkje sjølv er ende i. Punktet fell ned på lina,
+ *      ikkje på eit av endepunkta hennar.
+ *   3. AKSEN TIL EIN NABO: same u, eller same v, som punktet før eller
+ *      etter. Det er dette som gjer rette kantar mogelege på frihand, og
+ *      det er den einaste av dei tre som kan fange BERRE den eine
+ *      koordinaten og la den andre stå.
+ *
+ * Radien er i omrisset sine eigne einingar — brøk av storleiken — so den
+ * som kallar avgjer kor mange pikslar det er verdt. Det er eit spørsmål om
+ * synet og ikkje om forma.
+ *
+ * OG PUNKTET HAR SIN EIGEN, TRONGARE RADIUS. Dei to andre er hjelp: dei
+ * flyttar punktet ditt litt, og angrar du er det eitt drag til. Punktet er
+ * noko anna — det ENDAR med at to hjørne vert eitt, og eit hjørne som
+ * forsvinn er arbeid som forsvinn. Målt: med same radius for alle tre
+ * mista eit vanleg drag på ein frosen profil med ni punkt eitt av dei, av
+ * di naboane står tett på skjermen og fingeren kom innanfor utan å ville
+ * det. Ein radius for «eg sikta på hjelp» og ein for «eg la det OPPÅ» er
+ * ikkje to mekanismar; det er den same, med det ein bad om skild frå det
+ * ein fekk.
+ */
+export type Snapp = {
+  p: Pt
+  /** kva som fanga, i den rekkjefylgja dei vart prøvde. Null er fritt. */
+  slag: "punkt" | "kant" | "akse" | null
+  /** kva punkt det fall saman med, når slaget er «punkt» */
+  mot?: number
+}
+
+/** næraste punktet på strekket a–b, og kor langt unna det er */
+function paaKanten(p: Pt, a: Pt, b: Pt): { q: Pt; d: number } {
+  const vx = b[0] - a[0]
+  const vy = b[1] - a[1]
+  const L = vx * vx + vy * vy
+  let t = L > 0 ? ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / L : 0
+  t = t < 0 ? 0 : t > 1 ? 1 : t
+  const q: Pt = [a[0] + vx * t, a[1] + vy * t]
+  return { q, d: Math.hypot(p[0] - q[0], p[1] - q[1]) }
+}
+
+export function snappPunkt(omriss: readonly Pt[], i: number, p: Pt, r: number, rPunkt = r): Snapp {
+  const n = omriss.length
+  if (n < 3 || r <= 0 || !omriss[i]) return { p, slag: null }
+
+  // 1. eit anna punkt — og DENNE har sin eigen, trongare radius
+  let best = rPunkt
+  let mot = -1
+  for (let k = 0; k < n; k++) {
+    if (k === i) continue
+    const d = Math.hypot(p[0] - omriss[k][0], p[1] - omriss[k][1])
+    if (d < best) {
+      best = d
+      mot = k
+    }
+  }
+  if (mot >= 0) return { p: [omriss[mot][0], omriss[mot][1]], slag: "punkt", mot }
+
+  // 2. ei kant punktet ikkje er ende i
+  let bestK = r
+  let paa: Pt | null = null
+  for (let k = 0; k < n; k++) {
+    const j = (k + 1) % n
+    if (k === i || j === i) continue
+    const { q, d } = paaKanten(p, omriss[k], omriss[j])
+    if (d < bestK) {
+      bestK = d
+      paa = q
+    }
+  }
+  if (paa) return { p: paa, slag: "kant" }
+
+  // 3. aksen til ein nabo — kvar koordinat for seg, so eit punkt kan stå
+  //    rett over den eine naboen og fritt i den andre retninga
+  const naboar = [omriss[(i - 1 + n) % n], omriss[(i + 1) % n]]
+  let u = p[0]
+  let v = p[1]
+  let du = r
+  let dv = r
+  for (const q of naboar) {
+    if (Math.abs(p[0] - q[0]) < du) {
+      du = Math.abs(p[0] - q[0])
+      u = q[0]
+    }
+    if (Math.abs(p[1] - q[1]) < dv) {
+      dv = Math.abs(p[1] - q[1])
+      v = q[1]
+    }
+  }
+  if (u !== p[0] || v !== p[1]) return { p: [u, v], slag: "akse" }
+  return { p, slag: null }
+}
+
+/**
+ * TO PUNKT SOM VART EITT.
+ *
+ * Berre NABOAR. To hjørne som ligg attmed kvarandre i ringen og fell saman
+ * er ei kant med lengd null, og ho skal bort. To hjørne som IKKJE er
+ * naboar og fell saman er noko heilt anna: ringen klemmer seg saman i eit
+ * punkt og vert eit åttetal. Alt under — `inRing`, øyreklippet,
+ * leddsøket — les ein ring som ein ring, og eit åttetal er ikkje ein ring.
+ * Difor snappar dei to saman so du ser at dei står likt, men dei vert ikkje
+ * eitt punkt.
+ *
+ * Under fire punkt er det ikkje ei flate, so tre punkt slår ikkje saman.
+ */
+export function slaaSaman(omriss: readonly Pt[], i: number, mot: number): { omriss: Pt[]; fall: number } | null {
+  const n = omriss.length
+  if (n <= 3 || i === mot) return null
+  const nabo = (i + 1) % n === mot || (mot + 1) % n === i
+  if (!nabo) return null
+  return { omriss: omriss.filter((_, k) => k !== i), fall: i }
+}

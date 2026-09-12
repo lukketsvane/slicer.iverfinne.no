@@ -1293,6 +1293,81 @@ async function telefon(browser: Browser) {
 }
 
 /**
+ * SKRIVEBORDET: FLEIRE FILER, BIBLIOTEKET, OG SKIFT.
+ *
+ * Tre ting som berre finst der det er ei mus og eit tastatur, og som heng i
+ * hop: du hentar inn fleire filer på ein gong, dei står i menyen etterpå, og
+ * du plukkar frå lista i staden for å finne fila på nytt.
+ *
+ * BIBLIOTEKET VERT PRØVD OVER EI OMLASTING. Ei liste som berre står så lenge
+ * sida står er ikkje eit bibliotek — det er ein tilstand — og skilnaden
+ * synest ikkje på ein skjerm du ikkje har lasta om.
+ */
+async function skrivebordet(browser: Browser) {
+  console.log("\n=== skrivebordet")
+  const { page, konsoll } = await opne(URL, browser, 1400, 900)
+  const tetra = (a: number) => `v 0 0 0\nv ${a} 0 0\nv 0 ${a} 0\nv 0 0 ${a}\nf 1 3 2\nf 1 2 4\nf 2 3 4\nf 1 4 3\n`
+  const kjeldeknapp = page.locator("[data-kjelde]")
+  const lagra = () => page.locator("[data-meny] [data-lagra]")
+
+  await page.locator("header input[type=file]").setInputFiles([
+    { name: "ein.obj", mimeType: "text/plain", buffer: Buffer.from(tetra(40)) },
+    { name: "to.obj", mimeType: "text/plain", buffer: Buffer.from(tetra(60)) },
+  ])
+  await vent(page, (p) => typeof p.kjelde === "string" && p.kjelde !== "kube", 25000)
+  await roleg(page, 1800)
+  // id-en er ein hash og ikkje filnamnet — det er NAMNET brikka syner, og
+  // det er namnet som seier kva du ser på
+  const vist = (await kjeldeknapp.innerText()).trim()
+  sjekk("den fyrste fila vert kroppen", /ein/.test(vist), vist)
+
+  await kjeldeknapp.click()
+  await roleg(page, 500)
+  const namn = await lagra().allInnerTexts()
+  sjekk("og BEGGE står i menyen etterpå", namn.length >= 2 && namn.some((t) => /ein/.test(t)) && namn.some((t) => /to/.test(t)), namn.join(" · "))
+  await page.keyboard.press("Escape")
+  await roleg(page, 300)
+
+  await page.reload({ waitUntil: "load" })
+  await ferdig(page)
+  await roleg(page, 1800)
+  await kjeldeknapp.click()
+  await roleg(page, 600)
+  const etter = await lagra().allInnerTexts()
+  sjekk("og lista står over ei omlasting", etter.length >= 2, etter.join(" · "))
+
+  const bitFoer = String(hash(page).scene ?? "").split(";").filter(Boolean).length
+  await lagra().filter({ hasText: "to" }).first().click()
+  await vent(page, (p) => String(p.scene ?? "").split(";").filter(Boolean).length > bitFoer, 25000)
+  await roleg(page, 900)
+  sjekk("eit trykk i lista legg nettet i kroppen", String(hash(page).scene ?? "").split(";").filter(Boolean).length > bitFoer, String(hash(page).scene ?? "").slice(0, 50))
+
+  /**
+   * SKIFT-TRYKK PÅ PLANRADENE. Fire plan, og eit skift-trykk frå det fyrste
+   * til det siste skal gjere dei til ÉI gruppe. Vakta krev begge delar: at
+   * gruppa vart til, og at ho tok dei som ligg imellom — ei gruppe på to er
+   * ikkje eit strekk.
+   */
+  await page.evaluate("location.hash = '#p=' + encodeURIComponent(JSON.stringify({ plan: '1@0.2,0.5,0.5/1,0,0;2@0.4,0.5,0.5/1,0,0;3@0.6,0.5,0.5/1,0,0;4@0.8,0.5,0.5/1,0,0' }))")
+  await page.reload({ waitUntil: "load" })
+  await ferdig(page)
+  await roleg(page, 1500)
+  const rader = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]")
+  sjekk("fire plan i lista", (await rader.count()) === 4, `${await rader.count()}`)
+  await rader.nth(0).locator("button").first().click()
+  await roleg(page, 500)
+  await rader.nth(3).locator("button").first().click({ modifiers: ["Shift"] })
+  await roleg(page, 800)
+  const gr = lesPlan(hash(page).plan).map((q) => q.gruppe ?? 0)
+  const ein = [...new Set(gr.filter(Boolean))]
+  sjekk("skift-trykk gjer strekket til éi gruppe", ein.length === 1 && gr.every((g) => g === ein[0]), gr.join(","))
+  sjekk("og gruppa står som ei rad i lista", (await page.locator("[role=option][data-gruppe]").count()) === 1)
+
+  sjekk("ingen konsollfeil på skrivebordet", konsoll.length === 0, konsoll.slice(0, 2).join(" · "))
+  await page.close()
+}
+
+/**
  * VERKTYET FOR KROPPEN, I SIN EIGEN DEL.
  *
  * Det låg i «telefon», og «telefon» var hundre og seksti av dei tre hundre og
@@ -1600,6 +1675,62 @@ async function benk(browser: Browser) {
   await page.keyboard.press("Delete")
   await vent(page, talPlan(n0))
   sjekk("Delete tek det valde bort", plana(page).length === n0)
+
+  /**
+   * OG MELLOMROMMET SKJER, med eitt vilkår: ein knapp som er teken eig
+   * mellomrommet sitt sjølv. Vakta prøver BÅDE at han skjer når ingenting
+   * er teke, OG at han lèt vera når fokus står på ein knapp — den andre er
+   * den som ville brote noko, av di nettlesaren trykkjer knappen med same
+   * tasten og du ville fått to ting av eitt trykk.
+   */
+  await page.evaluate("(document.activeElement instanceof HTMLElement) && document.activeElement.blur()")
+  const s0 = plana(page).length
+  await page.keyboard.press(" ")
+  await vent(page, talPlan(s0 + 1))
+  sjekk("mellomrom skjer òg", plana(page).length === s0 + 1)
+  const knapp = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan] button").first()
+  await knapp.focus()
+  const s1 = plana(page).length
+  await page.keyboard.press(" ")
+  await roleg(page, 400)
+  sjekk("men ikkje når ein knapp er teken — han eig tasten sjølv", plana(page).length === s1, `${s1} → ${plana(page).length}`)
+
+  /**
+   * HØGREMENYEN PÅ EI PLANRAD.
+   *
+   * Han legg ikkje til ei einaste handling — kvar line er ein tast som
+   * fanst frå før — so vakta spør om det: at han opnar seg, at han vel rada
+   * han står på, at ei line GJER det ho seier, og at han lukkar seg att.
+   */
+  const mrad = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first()
+  await mrad.click({ button: "right" })
+  await roleg(page, 300)
+  const hmeny = page.locator("[data-meny]")
+  sjekk("høgreklikk på ei planrad opnar menyen", (await hmeny.count()) === 1)
+  sjekk("og han vel rada han står på", (await mrad.getAttribute("aria-selected")) === "true")
+  const linene = await hmeny.locator("[data-meny-line]").allInnerTexts()
+  sjekk("og linene ber tastane sine", linene.some((t) => /dubler/.test(t) && /D/.test(t)), linene.join(" · ").replace(/\s+/g, " ").slice(0, 60))
+  const f0 = plana(page).length
+  await hmeny.locator("[data-meny-line='dubler']").click()
+  await vent(page, talPlan(f0 + 1))
+  sjekk("og «dubler» dublerer", plana(page).length === f0 + 1)
+  sjekk("og menyen er borte etterpå", (await page.locator("[data-meny]").count()) === 0)
+  await mrad.click({ button: "right" })
+  await roleg(page, 250)
+  await page.keyboard.press("Escape")
+  await roleg(page, 250)
+  sjekk("og escape lukkar han", (await page.locator("[data-meny]").count()) === 0)
+  // og attende til der bolken stod. Rekna på RADENE og ikkje på lenkja:
+  // lenkja kjem etter, og ein lekk som trur det står eitt plan att når
+  // lista er tom ventar på ei rad som aldri kjem.
+  const rader = () => page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]")
+  // × på rada og ikkje trykk + Delete: eit trykk på ei rad som ALT er vald
+  // slepper henne, og då tek Delete ingenting og lekken står og går
+  for (let i = 0; i < 12 && (await rader().count()) > n0; i++) {
+    await rader().last().locator("button[aria-label^='slett plan']").click()
+    await roleg(page, 250)
+  }
+  sjekk("og benken står att som han stod", plana(page).length === n0, `${plana(page).length} plan, venta ${n0}`)
 
   // storleiken er eit tal du DREG i, ikkje skriv: eit tekstfelt zoomar sida
   const felt = page.locator("[aria-label='storleik, tal']")
@@ -2949,6 +3080,97 @@ async function boyen(browser: Browser) {
  * då ryk dei vaktene av travelheita og ikkje av koden.
  */
 /**
+ * SNAPPET I OMRISSET — EIGA BOLK, med si eiga side.
+ *
+ * Grunnen er at prøva ENDRAR forma: ho legg eit hjørne oppå eit anna, og
+ * dei to vert eitt. Stod ho inni «forma» måtte ho leggje alt attende
+ * etterpå, og ei prøve som ryddar etter seg er ei prøve som kan rydde feil.
+ *
+ * Same synet som «forma» treng: eit plan på kant har ikkje ei flate å
+ * lesast mot, so synskuben vert sett før noko vert teke i.
+ */
+async function snappet(browser: Browser) {
+  console.log("\n=== snappet i omrisset")
+  const plan = skrivPlan(rutenett(2, 2))
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })), browser, 390, 844)
+  const h = await page.locator("header").boundingBox()
+  const v = page.viewportSize()!
+  await page.touchscreen.tap(v.width - 38, (h?.height ?? 44) + 38)
+  await roleg(page, 1400)
+  await midt(page)
+  await utbrett(page)
+  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan='3'] button").first().click()
+  await roleg(page, 600)
+  await page.locator(HOVUDLINA).click()
+  await roleg(page, 400)
+  /**
+   * BOKSEN: fire hjørne, langt frå kvarandre. Det MÅ vera eitt dobbelttrykk
+   * og ikkje to trykk — to `click()` etter kvarandre ligg lenger frå
+   * kvarandre enn vindauget, og då frys og slepper du i staden.
+   */
+  const form = page.locator("[data-form]")
+  await page.waitForTimeout(DOBBELT + 80)
+  await form.dblclick()
+  await vent(page, (q) => (lesPlan(q.plan).find((x) => x.id === 3)?.omriss?.length ?? 0) === 4)
+  await roleg(page, 600)
+  sjekk("boksen står med fire hjørne", (await page.locator("[data-punkt]").count()) === 4, `${await page.locator("[data-punkt]").count()} punkt`)
+
+  const pkt = async (i: number) => {
+    const b = await page.locator(`[data-punkt='${i}']`).first().boundingBox().catch(() => null)
+    return b ? { x: b.x + b.width / 2, y: b.y + b.height / 2 } : null
+  }
+  const tal = () => page.locator("[data-punkt]").count()
+  await page.mouse.move(200, 450)
+  await roleg(page, 400)
+  /**
+   * EIT HJØRNE SOM STÅR BAK OBJEKTET ER SKJULT — handtaka fell bort når
+   * punktet ikkje er å sjå. Prøva tek difor dei to fyrste som STÅR, og
+   * krev at dei er naboar: berre naboar slår saman.
+   */
+  const synleg: number[] = []
+  for (let i = 0; i < 4; i++) if (await pkt(i)) synleg.push(i)
+  const iA = synleg.find((i) => synleg.includes((i + 1) % 4)) ?? -1
+  const iB = (iA + 1) % 4
+  const a = iA >= 0 ? await pkt(iA) : null
+  const b = iA >= 0 ? await pkt(iB) : null
+  // EIN BLOKK SOM HOPPAR OVER SEG SJØLV ER EI PRØVE SOM ALLTID HELD.
+  sjekk("to nabohjørne er å ta i", !!a && !!b, a && b ? `${Math.round(Math.hypot(b.x - a.x, b.y - a.y))} px mellom dei` : "fann dei ikkje")
+  if (a && b) {
+    /**
+     * TO PÅSTANDAR, og den andre er den som ber vekta. At eit hjørne som
+     * vert lagt OPPÅ nabohjørnet vert eitt punkt, er det du bad om. At eit
+     * drag som stoggar EIT STYKKE unna IKKJE tek hjørnet, er det du ikkje
+     * bad om — og det var nett det som hende: radien vart rekna i
+     * millimeter medan omrisset står i brøk av storleiken, so han var to
+     * hundre gonger for stor og eit vanleg drag åt opp eit hjørne. Ei prøve
+     * som berre spurde om snappet VERKAR hadde stått grøn gjennom heile
+     * den feilen.
+     */
+    const midtveges = { x: a.x + (b.x - a.x) * 0.45, y: a.y + (b.y - a.y) * 0.45 }
+    await page.mouse.move(a.x, a.y)
+    await page.mouse.down()
+    await page.mouse.move(midtveges.x, midtveges.y, { steps: 10 })
+    await page.mouse.up()
+    await roleg(page, 500)
+    sjekk("eit drag som stoggar eit stykke unna tek ikkje hjørnet", (await tal()) === 4, `${await tal()} punkt att`)
+
+    const c = await pkt(iA)
+    const d = await pkt(iB)
+    sjekk("og hjørna står framleis etter det draget", !!c && !!d)
+    if (c && d) {
+      await page.mouse.move(c.x, c.y)
+      await page.mouse.down()
+      await page.mouse.move(d.x, d.y, { steps: 12 })
+      await page.mouse.up()
+      await roleg(page, 600)
+      sjekk("men lagd OPPÅ nabohjørnet vert dei eitt", (await tal()) === 3, `${await tal()} punkt att`)
+    }
+  }
+  sjekk("ingen konsollfeil i snappet", konsoll.length === 0, konsoll.slice(0, 2).join(" · "))
+  await page.close()
+}
+
+/**
  * FORMA: PROFILEN SOM PUNKT.
  *
  * Eiga bolk, og ikkje ein hale på bøyen, av éin grunn: reiskapen treng eit
@@ -3547,12 +3769,14 @@ const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["andrefingeren", andreFingeren],
   ["boyen", boyen],
   ["forma", forma],
+  ["snappet", snappet],
   ["skalet", skaletOgSovnen],
   ["taket", taket],
   ["flyt", flyt],
   ["mork", mork],
   ["uttaka", uttaka],
   ["benk", benk],
+  ["skrivebordet", skrivebordet],
   ["grupper", grupper],
 ]
 

@@ -101,6 +101,10 @@ export type ArketProps = {
   bitFarge: number | null
   onBitFarge: (farge: number) => void
   onSlett: (id: number) => void
+  /** høgreklikk på ei planrad — berre på benken; sjå `Meny` */
+  onMeny: (id: number, x: number, y: number) => void
+  /** skift-trykk: frå det som er valt, til dette — som ei kvar anna liste */
+  onSkiftVel: (id: number) => void
   busy: boolean
   feil: string | null
   melding: string | null
@@ -250,10 +254,11 @@ function Plana({ p }: { p: ArketProps }) {
               role="option"
               aria-selected={paa}
               data-plan={pl.id}
+              onContextMenu={p.benk ? (e) => { e.preventDefault(); p.onMeny(pl.id, e.clientX, e.clientY) } : undefined}
               className={"flex items-center gap-2 rounded-lg text-[11px] " + (pl.gruppe ? "ml-3 pl-1.5 pr-1.5" : "px-1.5")}
               style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : iGruppa ? { background: "color-mix(in srgb, var(--ink) 4%, transparent)" } : undefined}
             >
-              <button type="button" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => p.onVald(paa ? null : pl.id)}>
+              <button type="button" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={(e) => (e.shiftKey ? p.onSkiftVel(pl.id) : p.onVald(paa ? null : pl.id))}>
                 <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>{pl.id}</span>
                 {lagFarge(pl.farge) !== null && <span aria-hidden="true" className="block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: LAG_FARGAR[pl.farge as number] }} />}
                 <span className="min-w-0 flex-1 truncate">{kvaSlag(pl.n)}</span>
