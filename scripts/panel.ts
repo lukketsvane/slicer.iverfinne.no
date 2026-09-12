@@ -1209,6 +1209,28 @@ async function telefon(browser: Browser) {
     sjekk("familien gjev den fyrste utgåva si", /stolform-01/.test(String(hash(page).scene ?? "")), String(hash(page).scene ?? "").slice(0, 40))
     await page.keyboard.press("z")
     await roleg(page, 600)
+
+    /**
+     * OG KVAR FAMILIE I MENYEN HENTAR NOKO.
+     *
+     * Lina over tel at menyen har rett tal på liner. Eit tal er ikkje ein
+     * kropp: ein familie utan filer under seg står i menyen, vert vald, og
+     * gjev deg kuben attende utan å seie frå — og det er den same feilen
+     * denne fila er full av vakter mot. So kvar av dei vert vald, og
+     * biletet må endre seg.
+     */
+    for (const fam of FORMER.filter((f) => f !== "kube" && f !== "stolform")) {
+      await kjelde.click()
+      await page.waitForTimeout(300)
+      const foer = await page.screenshot({ clip: klipp })
+      await meny2.getByRole("button", { name: fam, exact: true }).click()
+      await vent(page, (p) => new RegExp(`${fam}-01`).test(String(p.scene ?? "")))
+      await roleg(page, 2500)
+      const ny = await page.screenshot({ clip: klipp })
+      sjekk(`«${fam}» hentar ein kropp`, !foer.equals(ny), `${foer.length} B → ${ny.length} B`)
+      await page.keyboard.press("z")
+      await roleg(page, 600)
+    }
     // eit val lèt menyen att; neste prøve tek han fram att
     await kjelde.click()
     await page.waitForTimeout(300)

@@ -721,7 +721,31 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
     if (soup.tris < 1) bryt(`${id}: ingen trekantar`)
     else if (soup.tris > tak) bryt(`${id}: ${soup.tris} trekantar, over taket på ${tak}`)
     else if (flat) bryt(`${id}: boksen er ${boks.join(" × ")} — flat i ei akse`)
-    else console.log(`  ${id.padEnd(13)} ${String(soup.tris).padStart(6)} tri   ${(b.length / 1024).toFixed(0)} kB   ${boks.map((c) => +c.toPrecision(3)).join(" × ")}`)
+    else {
+      /**
+       * OG HO MÅ KUNNE SKJERAST, ikkje berre lesast.
+       *
+       * Vakta over prøver fila: finst ho, har ho trekantar, er ho ikkje
+       * flat. Alt det kan halde medan forma skjer til INGENTING — eit nett
+       * med hòl i, eller eit som er hol inni, gjev null delar, og då fell
+       * skjermen attende på kuben utan å seie frå. Det er den same feilen
+       * som gjekk att heile denne økta: eit svar på eit lettare spørsmål
+       * enn det som vart stilt.
+       *
+       * Difor eit lite rutenett gjennom kvar av dei, og eit krav om at det
+       * kjem delar OG ledd ut. Tre plan kvar veg er nok til å svare, og
+       * billeg nok til at kvar einaste form kan prøvast.
+       */
+      put(id, id, soup)
+      const fp = { ...DEFAULT_PARAMS, kjelde: id, storleik: 200, plan: nett(3, 3) } as unknown as ParamBag
+      const fm = MOTOR.measure(fp)
+      const kutt = fm.parts > 0 && fm.joints > 0
+      console.log(
+        `  ${id.padEnd(13)} ${String(soup.tris).padStart(6)} tri   ${(b.length / 1024).toFixed(0)} kB   ` +
+          `${boks.map((c) => +c.toPrecision(3)).join(" × ")}   ${String(fm.parts).padStart(2)} delar, ${String(fm.joints).padStart(2)} ledd`,
+      )
+      if (!kutt) bryt(`${id}: eit rutenett gjev ${fm.parts} delar og ${fm.joints} ledd — forma skjer ikkje`)
+    }
   }
 }
 

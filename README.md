@@ -34,7 +34,7 @@ no radius.
 ## Use it
 
 1. **Pick a body.** The pill at the top opens the body: one line per family of
-   built-in shape (`kube`, `stolform`, `sau`) and your own files — `.glb`,
+   built-in shape (`kube`, `stolform`, `sau`, `dyr`) and your own files — `.glb`,
    `.gltf`, `.stl`, `.obj`, `.ply`, up to 220 MB, or a `.zip` saved by
    **LAGRE**. A shape is *added* beside what is already there, overlapping it,
    so the body is all of them together — a sheep next to a cube, a stool into
