@@ -277,6 +277,23 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     return narrowOf(s2) >= minGods ? { ord: "del i midten", set: { ledd: 0.5 } } : undefined
   }
 
+  /**
+   * RETT UT DEI SOM MISSER MØTE, og berre dei. Rekna og ikkje lova: snittet
+   * vert bygt om att med bøyen borte, og knappen står berre om møta faktisk
+   * kjem attende som ledd.
+   */
+  const bogKurveFiks = (idar: readonly number[]): Fiks | undefined => {
+    const ny = skrivPlan(lesPlan(p.plan).map((q) => (idar.includes(q.id) ? { ...q, bog: 0 } : q)))
+    if (ny === p.plan) return undefined
+    const etter = makeBygg({ ...p, plan: ny }, DETAIL.mid).s
+    if (etter.kurva.length || etter.ledd <= s.ledd) return undefined
+    return {
+      ord: idar.length === 1 ? "rett ut det eine" : `rett ut dei ${nn(idar.length)}`,
+      set: { plan: ny },
+      riv: true,
+    }
+  }
+
   const ordenFiks = (): Fiks | undefined => {
     if (!s.montering.brot.length) return undefined
     const orden = ordna(s)
@@ -607,6 +624,35 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
           },
         }
       : undefined,
+  })
+
+  /**
+   * OG DEI MØTA SOM ER KURVER (mjuk).
+   *
+   * Den harde regelen over tel ribber UTAN SPOR. Ei bøygd ribbe som har eit
+   * plan langs aksen sin ER festa, og gjekk difor grøn gjennom han — medan
+   * kvart plan som SKRÅR mot aksen fall bort i stille. Eit krumt skal med
+   * tak og botn melde fire og tjue ledd og sa ingenting om dei åtte som
+   * skulle halde golva.
+   *
+   * Difor står dette talet ved sida av det harde: ikkje «ribba heng laust»,
+   * men «so mange møte vart ikkje ledd, og delane kjem ut utan spor for
+   * kvarandre der». Mjuk, av di delane framleis let seg skjere og setje
+   * saman — dei grip berre i færre stader enn du sikta på.
+   */
+  const kurvePlan = [...new Set(s.kurva)]
+  add({
+    id: "bogkurve",
+    label: "møte på bøygde plan",
+    hard: false,
+    ok: s.kurva.length === 0,
+    value: s.kurva.length
+      ? `${nn(s.kurva.length)} møte er kurver`
+      : boygde.length
+        ? "ingen"
+        : "ingen bøygde",
+    why: "Eit flatt plan som SKRÅR mot sylinderaksen til eit bøygt plan møter det i eit kjeglesnitt, og den finnaren er ikkje skriven. Møta er talde her og vart ikkje ledd: dei to delane kjem ut utan spor for kvarandre. Legg planet LANGS aksen — då er møtet ei rett line båe vegar — eller rett ut bøyen.",
+    fiks: raad && kurvePlan.length ? bogKurveFiks(kurvePlan) : undefined,
   })
 
   return out

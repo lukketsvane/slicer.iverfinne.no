@@ -404,6 +404,30 @@ const boygd = (bog: number): Params =>
     const etter = reglane({ ...p, ...q.fiks.set } as Params).find((x) => x.id === q.id)
     ok(`rådet «${q.fiks.ord}» rettar ${q.id}`, !!etter?.ok, etter?.value)
   }
+  // --- OG DEI MØTA SOM ER KURVER ---------------------------------------
+  // Eit krumt skal med tak og botn: dei to golva møter kvart av dei fire
+  // bøygde plana, og alle åtte møta er kurver. Ribbene har spor frå dei
+  // rette møta, so den HARDE regelen går grøn — det var nett difor dei åtte
+  // fall bort i stille før.
+  {
+    const skal: Params = {
+      ...DEFAULT_PARAMS,
+      storleik: 300,
+      plan: skrivPlan([
+        ...lesPlan(nett(4, 4)).map((q) => (q.n[0] === 1 ? { ...q, bog: 0.3 } : q)),
+        { id: 91, o: [0.5, 0.5, 0.35], n: [0, 0, 1], bog: 0, strek: [] },
+        { id: 92, o: [0.5, 0.5, 0.65], n: [0, 0, 1], bog: 0, strek: [] },
+      ]),
+    } as Params
+    const hard = finn(skal, "bogledd")
+    ok("ribbene har spor, so den harde regelen går grøn", !!hard?.ok, hard?.value)
+    prov("men åtte møte er kurver", "bogkurve", skal)
+    const k = finn(skal, "bogkurve")
+    ok("og rådet seier at det riv arbeid", !!k?.fiks?.riv, k?.fiks ? `«${k.fiks.ord}»` : "ingen knapp")
+    const etter = measure({ ...skal, ...k!.fiks!.set } as Params)
+    ok("og møta kjem attende som ledd", etter.joints === measure(skal).joints + 8, `${measure(skal).joints} → ${etter.joints}`)
+  }
+
   // og ein bøy som GÅR skal ikkje seie frå om materialet
   const mild = reglane(boygd(0.4)).find((q) => q.id === "bog")
   ok("ein bøy innanfor det materialet toler er ok", !!mild?.ok, mild?.value)

@@ -13,7 +13,7 @@ import { meshToStl } from "../lib/export-stl"
 import { makeSoup } from "../lib/soup"
 import { unzip } from "../lib/zip"
 import { glb } from "./glbfil"
-import { feltTal, klokke, lesTal, snap, type ParamBag } from "../lib/core"
+import { feltTal, klokke, lesTal, snap, type ParamBag, type Vec3 } from "../lib/core"
 import { PARAM_RANGES } from "../lib/params"
 import { lesPlan, rutenett, skrivPlan, type Plan } from "../lib/plan"
 import { makeKropp } from "../lib/kropp"
@@ -812,6 +812,42 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   const null0 = MOTOR.measure({ ...grunn, plan: skrivPlan(lesPlan(grunn.plan).map((q) => ({ ...q, bog: 0 }))) } as unknown as ParamBag)
   if (flat.cutLen !== null0.cutLen || flat.parts !== null0.parts) bryt("bog 0 gjev eit anna svar enn ingen bog")
   else console.log(`  bog 0 er det same som ingen bog: ${nn(flat.cutLen, 0)} mm kutt`)
+}
+
+/**
+ * EIT KRUMT SKAL MED TAK OG BOTN — og dei møta som fell bort.
+ *
+ * Eit flatt plan LANGS sylinderaksen møter den bøygde flata i ei rett line
+ * og vert eit ledd. Eit plan som SKRÅR mot aksen møter henne i eit
+ * kjeglesnitt, og den finnaren er ikkje skriven. Det siste hende i stille:
+ * ribbene hadde spor frå dei rette møta, so den harde regelen gjekk grøn,
+ * og talet i topplina sa ingenting om resten.
+ *
+ * Her er det rekna: fire bøygde plan, fire flate langs aksen, og to golv på
+ * tvers. Dei to golva møter kvart av dei fire bøygde — åtte møte — og alle
+ * åtte er kurver. Rett ut bøyen, og dei åtte kjem attende som ledd.
+ */
+{
+  console.log("\n=== møte som er kurver ===")
+  const bogna = (bog: number) =>
+    skrivPlan([
+      ...lesPlan(nett(4, 4)).map((q) => (q.n[0] === 1 ? { ...q, bog } : q)),
+      { id: 91, o: [0.5, 0.5, 0.35] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] },
+      { id: 92, o: [0.5, 0.5, 0.65] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] },
+    ])
+  const bag = { ...DEFAULT_PARAMS, storleik: 300, plan: bogna(0.3) } as unknown as ParamBag
+  const krum = MOTOR.measure(bag)
+  const rett = MOTOR.measure({ ...bag, plan: bogna(0) } as unknown as ParamBag)
+  const s = makeBygg(bag as unknown as Params, DETAIL.mid).s
+  const flate = makeBygg({ ...bag, plan: bogna(0) } as unknown as Params, DETAIL.mid).s
+  console.log(`  bøygd     ${krum.joints} ledd, ${s.kurva.length} møte som er kurver`)
+  console.log(`  rett      ${rett.joints} ledd, ${flate.kurva.length} møte som er kurver`)
+  if (s.kurva.length !== 8) bryt(`eit krumt skal med to golv skulle misse åtte møte, ikkje ${s.kurva.length}`)
+  else if (new Set(s.kurva).size !== 4) bryt(`dei åtte møta skulle høyre til fire bøygde plan, ikkje ${new Set(s.kurva).size}`)
+  else if (flate.kurva.length) bryt(`eit rett sett skal ikkje ha eit einaste kurva møte`)
+  else if (rett.joints - krum.joints !== s.kurva.length)
+    bryt(`å rette ut bøyen gav ${rett.joints - krum.joints} ledd, og ${s.kurva.length} møte fall bort`)
+  else console.log(`  og dei er dei same: ${krum.joints} + ${s.kurva.length} = ${rett.joints} ledd når bøyen er borte`)
 }
 
 /**
