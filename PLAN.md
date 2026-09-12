@@ -389,6 +389,44 @@ So ta det i tre steg, og la den harde regelen stå til kvart steg er dekt:
 Verifikasjon finst allereie: `pnpm ledd` prøver at kvart ledd panelet talde
 finst att i kuttprofilane. Steg 1 er ei ny sak i den selen, ikkje ein ny sel.
 
+**OG STEG 2 DELER SEG I TO, DER DET EINE ER MYKJE BILLEGARE ENN DET ANDRE.**
+
+Målt, ikkje gjeten. Eit bøygt plan med aksen langs z og eit GOLV vinkelrett på
+aksen — det motsette ytterpunktet av steg 1, og nett det eit krumt skal med tak
+og botn er. Kryssingskurva rekna i 49 punkt og lese frå båe sidene:
+
+    i det bøygde mønsteret   w er KONSTANT, spenn 0,0e+0 mm
+    i golvet si ramme        sirkelboge, radius 333,33 mm
+                             (sylinderen sin R er 333,33)
+                             største avvik frå bogen 5,7e-14 mm
+                             bogen er 33,2 × 290,0 mm
+
+Planet z = c skjer sylinderen der `w = c`, og `w` er millimeter langs aksen —
+so i det UTBRETTA mønsteret er møtet ei rett line, nett som i steg 1. Sporet på
+den bøygde delen er eit spor som alle andre: eitt punkt, éi retning.
+
+Det som manglar er sporet på den ANDRE sida: ein sirkelboge med nøyaktig
+sylinderradien. Og montasjen går opp — skalet vert skuve rett ned langs aksen
+sin, og bogen i golvet er tverrsnittet hans.
+
+So steg 2 er eigentleg:
+
+    2a  golvet vinkelrett på aksen     éin rett spor og ÉIN BOGE.
+                                       Kjeglesnittet er ein sirkel, og
+                                       delen let seg skuve inn.
+    2b  kva vinkel som helst           ellipse mot sinuskurve, og
+                                       monteringsspørsmålet vert ekte.
+
+`snitt.ts` seier sjølv kvifor ingen av dei er skrivne: «spor-maskineriet
+byggjer heilt igjennom på at møtet er ei RETT LINE, med eitt punkt og éi
+retning». Prisen for 2a er ikkje geometrien — ho er rekna over — det er å la
+eit spor vera ein boge. Det er `Spor`, feltet som skjer spora inn i profilen,
+nettet, uttaka og `pnpm ledd`.
+
+Men 2a er det som står mellom reiskapen og «krumt skal med golv», som er den
+vanlegaste bøygde forma som finst, og som i dag misser ein fjerdedel av ledda
+sine i stille (sjå G).
+
 ## B. ~~Pakkinga: eit ekte søk~~ — fem hundre rekkjefylgjer sparte ikkje éi plate
 
 `lib/pack.ts:502` seier det sjølv, ærleg:
@@ -659,7 +697,11 @@ strukturell: han har ingen frist, og han vert billegare kvar gong nokon
 likevel er inne i fila.
 
 Og A steg 2 står att med ein pris no, og ikkje berre med ei skildring: ein
-fjerdedel av ledda på eit krumt skal med tak og botn (sjå G).
+fjerdedel av ledda på eit krumt skal med tak og botn (sjå G). Han har dessutan
+delt seg i to, og den eine halvparten — golvet vinkelrett på bøyeaksen — treng
+ikkje eit kjeglesnitt i det heile: eitt rett spor og éin sirkelboge, målte i
+sak A. Det er neste steg som er verdt noko, og det er det einaste som står
+mellom reiskapen og eit krumt skal med golv.
 
 **Og det eine som ikkje står i lista:** køyr den selen som dekkjer det du rørte.
 `CLAUDE.md` seier at å endre geometri, uttak eller reglar utan det er den eine
