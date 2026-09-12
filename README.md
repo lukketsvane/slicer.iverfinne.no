@@ -1118,7 +1118,9 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   with it rather than printing a numbered sequence that stops partway. Nothing
   blocks the cut: the tool does not decide for you, and there are reasons to cut
   the parts anyway. But it will not hand you a list that looks like a plan when
-  it is not one.
+  it is not one. The export chips carry the warning colour and name the broken
+  rule, and the ALT zip carries `reglar.txt` — the tool's own reading, written
+  where it survives the session. None of it stops the cut.
 - The order check asks whether each part can be pushed in along its own slots,
   given the parts already placed. It does not sweep the part along that path to
   see whether it collides with something else on the way; a set that passes can

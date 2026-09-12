@@ -2348,6 +2348,29 @@ async function uttaka(browser: Browser) {
   await page.mouse.click(195, 260)
   await page.waitForTimeout(250)
   sjekk("eit trykk utanfor lukkar boksen", (await boks.count()) === 0)
+  /**
+   * OG EIT HARDT BROT FYLGJER MED HIT.
+   *
+   * Tavla har alltid stått raud. Tavla er ei rad du kan ha rulla forbi.
+   * Uttaket er der du gjer noko du ikkje kan gjere om — ei plate finér er
+   * skoren éin gong — so varselet høyrer heime på brikkene òg.
+   *
+   * Tre plan gjennom det same senteret: kvart par kryssar langs si eiga
+   * line, og den tredje kjem ikkje inn same kva rekkjefylgje du tek dei i.
+   * Rutenettet over har ingen harde brot, so prøva ser BÅE sidene.
+   */
+  sjekk("eit rutenett utan brot ber ikkje varselet", (await page.locator("[data-uttakvarsel]").count()) === 0)
+  await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.5/0,1,0;3@0.5,0.5,0.5/0,0,1" })), { waitUntil: "networkidle" })
+  await page.reload({ waitUntil: "networkidle" })
+  await roleg(page, 900)
+  await page.getByRole("button", { name: "eksport", exact: true }).click()
+  await page.waitForTimeout(300)
+  await vent2(page, async () => (await page.locator("[data-uttakvarsel]").count()) > 0, 8000)
+  const varseltekst = ((await page.locator("[data-uttakvarsel]").first().textContent()) ?? "").trim()
+  sjekk("ein umogeleg montasje varslar på uttaket", /går ikkje i hop/.test(varseltekst), varseltekst)
+  const merkte = await page.locator("[role=group][aria-label=uttak] button[data-varsel]").count()
+  sjekk("og brikkene ber merket", merkte > 0, `${merkte} brikker`)
+
   sjekk("ingen konsollfeil i uttaka", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
   await page.close()
 }

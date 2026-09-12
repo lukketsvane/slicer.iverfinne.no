@@ -422,6 +422,26 @@ function fraaMidten(pl: Plan, b: { min: Vec3; max: Vec3 }): string {
  */
 function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
   const { metrics } = p
+  /**
+   * EIT HARDT BROT FYLGJER MED UT.
+   *
+   * Ein hard regel tyder at delane ikkje LET SEG lage eller setje saman:
+   * ein del som ikkje kjem inn same kva du gjer, eit ledd utan gods att,
+   * ein del som ikkje får plass på plata. Han har alltid stått raud i
+   * tavla — og tavla er ei rad du kan ha rulla forbi. Uttaket er der du
+   * gjer noko du ikkje kan gjere om: ei plate finér er skoren éin gong.
+   *
+   * Difor ber brikkene varselet, og tittelen seier kva som er broten.
+   * Dei er ikkje stengde: reiskapen avgjer ikkje for deg, og det finst
+   * grunnar til å skjere delane likevel — du vil sjå dei i handa, du skal
+   * lime i staden for å hekte, du rettar det i neste runde. `stengd` er
+   * for filer som ville vorte TOMME, og det er noko anna: der er det ikkje
+   * eit val, der er det ingenting å skrive.
+   */
+  const harde = p.rules.filter((r) => r.hard && !r.ok)
+  const varsel = harde.length
+    ? `${harde.length === 1 ? "eit hardt brot" : `${harde.length} harde brot`}: ${harde.map((r) => r.label).join(", ")} — delane let seg ikkje setje saman slik dei står`
+    : ""
   return (
     <div className="py-1.5">
       {UTTAK.map((g) => (
@@ -436,13 +456,21 @@ function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
               {g.filer.map((x) => {
                 const stopp = stengd(x.id, metrics)
                 return (
-                  <button key={x.id} type="button" title={stopp || x.hint} disabled={p.busy || stopp !== ""} onClick={() => { p.onExport(x.id); onGjort?.() }} className={CHIP + " uppercase tracking-[0.1em]"} style={{ ...chipStyle(false), opacity: stopp ? 0.3 : undefined, textDecoration: stopp ? "line-through" : undefined }}>
+                  <button key={x.id} type="button" title={stopp || (varsel ? `${varsel}. ${x.hint}` : x.hint)} data-varsel={!stopp && varsel ? "" : undefined} disabled={p.busy || stopp !== ""} onClick={() => { p.onExport(x.id); onGjort?.() }} className={CHIP + " uppercase tracking-[0.1em]"} style={{ ...chipStyle(false), opacity: stopp ? 0.3 : undefined, textDecoration: stopp ? "line-through" : undefined, color: !stopp && varsel ? "var(--warn)" : undefined }}>
                     {x.label}
                   </button>
                 )
               })}
             </span>
           </div>
+          {/* ...og kva varselet ER, med ord. Ein farge åleine er eit spørsmål;
+              reiskapen svarar med det same ordet tavla brukar. Éin gong,
+              under den fyrste bolken, og ikkje ved kvar brikke. */}
+          {varsel && g.bolk === UTTAK[0].bolk && (
+            <p className="pb-0.5 pl-[42px] text-[10px]" style={{ color: "var(--warn)" }} data-uttakvarsel="">
+              {harde.map((r) => r.label).join(", ")} — går ikkje i hop
+            </p>
+          )}
           {/* svart er C00 i LightBurn og køyrer fyrst: difor graverer det */}
           {g.bolk === "plate" && (
             <span className="dim flex items-center gap-3 pb-0.5 pl-[42px] text-[10px] uppercase tracking-[0.14em]" title="svart graverer, blått kutt. fargen er rekkjefylgja">
