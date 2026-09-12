@@ -238,15 +238,44 @@ export const IcoLimInn = ikon("M9 4h6v3H9z|M15 5h3v15H6V5h3|M12 10v7|m9 14 3 3 3
  * målinga, farga av regelen som dømer henne (`Rule.rad`), med rådet i lina.
  * Tom tavle og full tavle er same lista, so dei kan ikkje drive frå kvarandre.
  */
-export function Tavla({ metrics, rules, busy, params, onChange }: {
+export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
   metrics: Metrics | null
   rules: readonly Rule[]
   busy: boolean
   params: ParamBag
   onChange: (p: ParamBag) => void
+  onFiksAlle: () => void
 }) {
+  /**
+   * ALLE RÅDA I EITT TRYKK.
+   *
+   * Kvart råd har alltid vore ein knapp, og det held so lenge det er EITT
+   * som er gale. Eit objekt med åtte og fyrti plan kan ha seks brot på ein
+   * gong, i ei rekkjefylgje ingen har fortalt deg, der kvar av dei endrar
+   * kva dei andre svarar. Då er seks knappar ikkje ein veg ut, det er ei
+   * oppgåve.
+   *
+   * Han står berre når det finst noko TRYGT å trykkje. Eit råd som riv
+   * arbeid — «ta bort dei som står fast» — er ikkje med her; det skal vera
+   * eit trykk du meinte, og det har sin eigen knapp på rada si.
+   */
+  const trygge = rules.filter((r) => !r.ok && r.fiks && !r.fiks.riv)
   const eig = new Map<string, Rule>()
   for (const r of rules) if (r.rad) eig.set(r.rad, r)
+  const fiksKnapp = trygge.length ? (
+    <button
+      type="button"
+      aria-label={`fiks alt: ${trygge.length} råd`}
+      title="trykk alle råda som ikkje riv arbeid, eitt etter eitt, til det ikkje er fleire. eitt steg i angre"
+      disabled={busy}
+      onClick={onFiksAlle}
+      className="hit shrink-0 rounded-full border px-2 py-[2px] text-[10px] leading-[14px] tracking-[0.04em]"
+      style={{ borderColor: "currentColor", opacity: busy ? 0.3 : 0.85 }}
+      data-fiksalle=""
+    >
+      fiks alt · {trygge.length}
+    </button>
+  ) : null
   const rader = metrics ? metrics.list : RADER.map((r) => ({ ...r, text: DASH }))
   /**
    * REGLANE UTAN EI RAD, NÅR DEI RYK.
@@ -299,6 +328,11 @@ export function Tavla({ metrics, rules, busy, params, onChange }: {
           </dd>
         </div>
       ))}
+      {/* ...og eitt trykk som tek alle dei som ikkje riv noko. Nedst, av di
+          han gjeld linene over — og berre når det finst noko å ta. */}
+      {fiksKnapp && (
+        <div className="col-span-2 flex items-baseline justify-end py-[2px] leading-4">{fiksKnapp}</div>
+      )}
     </dl>
   )
 }

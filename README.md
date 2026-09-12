@@ -1121,6 +1121,14 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   it is not one. The export chips carry the warning colour and name the broken
   rule, and the ALT zip carries `reglar.txt` — the tool's own reading, written
   where it survives the session. None of it stops the cut.
+- **One tap presses every advice that is safe.** Each rule has always carried
+  its own fix; that is enough while one thing is wrong. An object with
+  forty-eight planes can break six rules at once, in an order nobody told you,
+  where each fix changes what the others answer. `fiks alt` runs them one at a
+  time, recomputing between, never taking a fix that raises the number of hard
+  breaks, and stopping when nothing changes. It is one step in undo. It skips
+  any fix that destroys work — "remove the ones that are stuck" keeps its own
+  button, because a tap that deletes forty planes should be a tap you meant.
 - The order check asks whether each part can be pushed in along its own slots,
   given the parts already placed. It does not sweep the part along that path to
   see whether it collides with something else on the way; a set that passes can

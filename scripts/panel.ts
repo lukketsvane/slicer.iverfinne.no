@@ -2240,6 +2240,40 @@ async function reglar(browser: Browser) {
     await roleg(page, 400)
     sjekk("og rådet tek brotet bort", !/kan monterast/.test((await tavla.innerText()).replace(/\s+/g, " ")), hash(page).plan.slice(0, 40))
   }
+  /**
+   * OG EITT TRYKK SOM TEK ALLE DEI TRYGGE.
+   *
+   * Eit objekt kan ha fleire brot på ein gong, og då er kvart råd ein knapp
+   * du skal finne i ei rekkjefylgje ingen har fortalt deg. Her er to på ein
+   * gong — objektet får ikkje plass på plata, og snittet et opp sporet — og
+   * eitt trykk skal ta båe.
+   *
+   * Og han skal vera ÉITT steg i angre: motoren gjekk rundane, men du
+   * trykte éin gong.
+   */
+  {
+    const to = { plan: skrivPlan(rutenett(3, 3)), storleik: 1200, arkB: 300, arkH: 200, tjukn: 1, snitt: 6 }
+    await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify(to)), { waitUntil: "networkidle" })
+    await page.reload({ waitUntil: "networkidle" })
+    await roleg(page, 900)
+    await page.locator(HOVUDLINA).click()
+    await page.waitForTimeout(400)
+    await page.getByRole("button", { name: "alle kontrollane" }).click()
+    await roleg(page, 700)
+    const knapp = page.locator("[data-fiksalle]")
+    await vent2(page, async () => (await knapp.count()) > 0, 8000)
+    sjekk("fleire brot gjev éin «fiks alt»-knapp", (await knapp.count()) === 1, ((await knapp.first().textContent()) ?? "").trim())
+    const foer = hash(page)
+    await knapp.first().click()
+    await vent(page, (q) => q.storleik !== foer.storleik || q.snitt !== foer.snitt)
+    await roleg(page, 900)
+    const tav = (await page.locator("[aria-label='kontrollar'] dl").first().innerText()).replace(/\s+/g, " ")
+    sjekk("og eitt trykk tek dei", !/delane får plass|snittet et/i.test(tav), `storleik ${foer.storleik} → ${hash(page).storleik}, snitt ${foer.snitt} → ${hash(page).snitt}`)
+    await page.keyboard.press("z")
+    await vent(page, (q) => q.storleik === foer.storleik)
+    sjekk("og eitt steg i angre tek heile kjeda", hash(page).storleik === foer.storleik && hash(page).snitt === foer.snitt, `${hash(page).storleik} / ${hash(page).snitt}`)
+  }
+
   sjekk("ingen konsollfeil i reglane", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
   await page.close()
 }

@@ -67,6 +67,8 @@ export type ArketProps = {
   boks: { min: Vec3; max: Vec3 } | null
   liste: readonly Kutt[]
   plan: readonly Plan[]
+  /** alle råda, trykte i eitt: sjå `fiksAlt` i `rules.ts` */
+  onFiksAlle: () => void
   /** montasjen, når fana hans står framme — og kva steg han er på, frå 1 */
   mont: Montasje | null
   montSteg: number
@@ -549,7 +551,7 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
         )
       })}
       <div className="mt-3 border-t pt-3" style={HAIR}>
-        <Tavla metrics={metrics} rules={p.rules} busy={p.busy} params={params} onChange={onChange} />
+        <Tavla metrics={metrics} rules={p.rules} busy={p.busy} params={params} onChange={onChange} onFiksAlle={p.onFiksAlle} />
       </div>
       <div ref={uttak} className="border-t" style={HAIR}>
         <Uttaka p={p} />

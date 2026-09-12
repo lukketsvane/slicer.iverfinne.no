@@ -668,6 +668,28 @@ export function Studio() {
         setArk(plata)
         return
       }
+      if (r.kind === "fiksalt") {
+        /**
+         * ALLE RÅDA, TRYKTE I EITT — og ÉITT steg i angre.
+         *
+         * Motoren har gått rundane og prøvt kvart råd mot talet på harde
+         * brot etterpå, so det som kjem attende er ein pose som er betre
+         * eller den same. Han går den vanlege vegen inn: `endre` er det
+         * angre bokfører, so eitt trykk attende tek heile kjeda.
+         *
+         * Og han seier kva han gjorde. Eit knapp som endrar seks ting i
+         * stillheit er ein knapp du ikkje tør trykkje to gonger.
+         */
+        setBusy(false)
+        if (!r.fiksa.length) {
+          setMelding(r.att.length ? `ingen råd å trykkje — ${r.att.join(", ")} står att` : "ingenting å rette")
+          return
+        }
+        endre(r.params)
+        setMelding(r.att.length ? `${r.fiksa.length} retta — ${r.att.join(", ")} står att` : `${r.fiksa.length} retta`)
+        return
+      }
+
       if (r.kind === "montasje") {
         /**
          * OG EIT SVAR SOM KJEM ETTER AT FANA ER FORLATEN, FELL PÅ GOLVET.
@@ -1822,6 +1844,11 @@ export function Studio() {
     })
   }, [vald, valdStrek])
   const askArk = useCallback((i: number) => send({ kind: "ark", id: ++reqId.current, params: naa.current, sheet: Math.max(0, i) }), [send])
+  /** alle råda, trykte i eitt. Rekninga er tung, so ho går i arbeidaren. */
+  const fiksAlle = useCallback(() => {
+    setBusy(true)
+    send({ kind: "fiksalt", id: ++reqId.current, params: naa.current })
+  }, [send])
   /**
    * MONTASJEN VERT SPURD OM NÅR FANA STÅR FRAMME, og på nytt kvar gong noko
    * som endrar delane endrar seg. Ikkje kvar gong KVA SOM HELST endrar seg:
@@ -2910,6 +2937,7 @@ export function Studio() {
         plan={plan}
         mont={mont}
         montSteg={montSteg}
+        onFiksAlle={fiksAlle}
         boks={kropp ? { min: kropp.min, max: kropp.max } : null}
         vald={vald}
         onVald={velPlan}

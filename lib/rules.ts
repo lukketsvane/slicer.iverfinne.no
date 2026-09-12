@@ -12,6 +12,7 @@
  * faktisk har.
  */
 import { bbox, nn, type Fiks, type Metrics, type Rule, type Vec3 } from "./core"
+import { measure } from "./metrics"
 import { fitRoom } from "./pack"
 import { makeBygg, nestGap, type Bygg } from "./bygg"
 import { DETAIL, type Snitt } from "./snitt"
@@ -63,14 +64,33 @@ function ordna(s: Snitt): number[] | null {
     }
     return ds.length
   }
-  const kan = (id: number) => {
-    let d0: Vec3 | null = null
+  const kan = (id: number) => strid(id) === 0
+  /**
+   * KOR MANGE RETNINGAR DELEN STÅR I STRID MED, mot dei som alt ligg. Null
+   * er «han kjem inn»; alt over er kor ille det er.
+   *
+   * Dette var ein ja/nei før, og lykkja under gav opp — `return null` — i
+   * det ingen del kunne leggjast. Alt eller ingenting: eit objekt der EI
+   * rekkjefylgje ville teke deg frå førti fastlåste til fem fekk ikkje eit
+   * råd i det heile, av di rådet ikkje kunne love null.
+   *
+   * No held ho fram med den MINST DÅRLEGE. Ei rekkjefylgje som er betre er
+   * betre, og `ordenFiks` måler etterpå kor mykje ho tok — ho lovar
+   * framleis ingenting ho ikkje har rekna.
+   */
+  const strid = (id: number) => {
+    const ds: Vec3[] = []
     for (const [mot, d] of liner.get(id) ?? []) {
       if (!lagt.includes(mot)) continue
-      if (!d0) d0 = d
-      else if (Math.abs(dot(d0, d)) < par) return false
+      ds.push(d)
     }
-    return true
+    let verst = 0
+    for (let a = 0; a < ds.length; a++) {
+      for (let b = a + 1; b < ds.length; b++) {
+        if (Math.abs(dot(ds[a], ds[b])) < par) verst++
+      }
+    }
+    return verst
   }
   while (att.length) {
     let best = -1
@@ -78,7 +98,12 @@ function ordna(s: Snitt): number[] | null {
       if (!kan(att[i])) continue
       if (best < 0 || klassar(att[i]) > klassar(att[best])) best = i
     }
-    if (best < 0) return null
+    if (best < 0) {
+      // ingen kjem reint inn: ta den som står i strid med færrast, og gå vidare
+      for (let i = 0; i < att.length; i++) {
+        if (best < 0 || strid(att[i]) < strid(att[best])) best = i
+      }
+    }
     lagt.push(att.splice(best, 1)[0])
   }
   return lagt
@@ -86,6 +111,75 @@ function ordna(s: Snitt): number[] | null {
 
 /** `bygg` kan sendast inn av den som alt har rekna det; `raad` er om
  *  reglane skal rekne ut råda sine — søket spør berre om dei harde held. */
+/**
+ * ALLE RÅDA, TRYKTE FOR DEG — til det ikkje er fleire å trykkje.
+ *
+ * Kvar regel har alltid hatt rådet sitt, og kvart råd har alltid vore éin
+ * knapp. Det held so lenge det er eitt som er gale. Eit objekt med åtte og
+ * fyrti plan kan ha seks brot på ein gong, og då er det seks knappar du
+ * skal finne, i ei rekkjefylgje ingen har fortalt deg, der kvar av dei
+ * endrar kva dei andre svarar.
+ *
+ * So: EIN runde om gongen, og reglane vert rekna på nytt mellom kvar. Eit
+ * råd er ei endring i posen, og posen er alt eit råd nummer to les.
+ *
+ * TRE REGLAR FOR SJØLVE LYKKJA:
+ *
+ * Han gjer det ALDRI verre. Kvart råd vert prøvt, og talet på harde brot
+ * lese etterpå; steig det, vert rådet kasta og lykkja går vidare til det
+ * neste. `pnpm raad` har alltid prøvt dette per råd — her gjeld det for
+ * kjeda.
+ *
+ * Han stoggar når ingenting endrar seg. Eit råd som set det same talet om
+ * att er ikkje framgang, og to råd som dreg kvar sin veg ville elles bytt
+ * på i det uendelege.
+ *
+ * Og han har eit tak. Tolv rundar er meir enn nok når kvar runde tek minst
+ * eitt brot — og eit tak er det einaste som skil ei lykkje frå ein hengelås
+ * når nokon seinare legg til eit råd som ikkje oppfører seg.
+ *
+ * Han lovar ikkje å fikse ALT, og kan ikkje: «plana grip» og «delar å
+ * skjere» har ingen råd, av di svaret er å skjere fleire plan, og det er
+ * ikkje reiskapen sitt val. Han fiksar det som HAR eit råd, og seier kva
+ * som står att.
+ */
+/** posen som streng, med nøklane i orden: to posar er like når dette er likt */
+const posen = (q: Params) =>
+  Object.keys(q)
+    .sort()
+    .map((k) => `${k}=${String((q as unknown as Record<string, unknown>)[k])}`)
+    .join("|")
+
+export function fiksAlt(p: Params): { p: Params; runder: number; fiksa: string[]; att: string[] } {
+  const harde = (q: Params) => checkRules(q, measure(q), undefined, false).filter((r) => r.hard && !r.ok).length
+  let naa = p
+  let brot = harde(naa)
+  const fiksa: string[] = []
+  for (let runde = 0; runde < 12; runde++) {
+    const r = checkRules(naa, measure(naa))
+    const vonde = r.filter((q) => !q.ok && q.fiks && !q.fiks.riv)
+    if (!vonde.length) break
+    let tok = false
+    for (const q of vonde) {
+      const prov = { ...naa, ...q.fiks!.set } as Params
+      if (posen(prov) === posen(naa)) continue
+      const etter = harde(prov)
+      // ALDRI VERRE: eit råd som lagar fleire harde brot enn det tek, vert kasta
+      if (etter > brot) continue
+      naa = prov
+      brot = etter
+      fiksa.push(q.id)
+      tok = true
+      break
+    }
+    if (!tok) break
+  }
+  const att = checkRules(naa, measure(naa), undefined, false)
+    .filter((q) => !q.ok && q.hard)
+    .map((q) => q.label)
+  return { p: naa, runder: fiksa.length, fiksa, att }
+}
+
 export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rule[] {
   const { s, dl, ns } = bygg ?? makeBygg(p, DETAIL.mid)
   const out: Rule[] = []
@@ -147,9 +241,35 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     const ny = skrivPlan(orden.map((id) => plan.find((q) => q.id === id)!).filter(Boolean))
     if (ny === p.plan) return undefined
     // rekna, ikkje lova: retningane vert valde på nytt i den nye rekkjefylgja
-    return makeBygg({ ...p, plan: ny }, DETAIL.mid).s.montering.brot.length
-      ? undefined
-      : { ord: "byt rekkjefylgje", set: { plan: ny } }
+    const foer = s.montering.brot.length
+    const etter = makeBygg({ ...p, plan: ny }, DETAIL.mid).s.montering.brot.length
+    // ...og eit råd som tek NOKRE er framleis eit råd. Ordet seier kva han
+    // faktisk gjer, so du ikkje trur han lovar meir enn han kan.
+    if (etter < foer) {
+      return { ord: etter ? `byt rekkjefylgje: ${foer} → ${etter} fast` : "byt rekkjefylgje", set: { plan: ny } }
+    }
+    return undefined
+  }
+
+  /**
+   * OG NÅR INGA REKKJEFYLGJE HJELPER: TA DEI BORT.
+   *
+   * Ein del som har ledd mot to som alt ligg, langs liner som ikkje er
+   * parallelle, kjem ikkje inn i NOKON orden. Regelen sitt eige «kvifor»
+   * seier dei to botemidla: byt rekkjefylgje, eller vinkle planet om. Det
+   * fyrste er prøvt over. Det andre kan reiskapen ikkje gjere for deg — han
+   * veit ikkje kva du ville med planet.
+   *
+   * Det tredje kan han: ta dei ut. Det gjev alltid eit objekt som let seg
+   * setje saman, og det er alltid eit tap. Difor `riv`: knappen står, ordet
+   * seier kor mange, angre tek dei attende — og «fiks alt» rører han ikkje.
+   */
+  const ordenRiv = (): Fiks | undefined => {
+    const fast = s.montering.brot
+    if (!fast.length) return undefined
+    const att = lesPlan(p.plan).filter((q) => !fast.includes(q.id))
+    if (!att.length) return undefined
+    return { ord: `ta bort dei ${nn(fast.length)} som står fast`, set: { plan: skrivPlan(att) }, riv: true }
   }
 
   // --- 1 plana grip (hard) ----------------------------------------------------
@@ -188,7 +308,7 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     ok: brot.length === 0,
     value: brot.length ? `${brot.length} står fast: ${brot.join(", ")}` : "éin veg inn for kvar",
     why: "Ein del vert skuva inn langs spora sine, og ei plate kan berre gå éin veg. Delen har ledd mot to delar som alt ligg, langs liner som ikkje er parallelle. Byt rekkjefylgja, so han kjem inn før den eine av dei — eller vinkle planet om.",
-    fiks: raad ? ordenFiks() : undefined,
+    fiks: raad ? (ordenFiks() ?? ordenRiv()) : undefined,
   })
 
   // --- 4 kvar del heng i noko -------------------------------------------------
