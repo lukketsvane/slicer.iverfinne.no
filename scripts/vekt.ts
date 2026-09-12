@@ -40,12 +40,9 @@ const TAK: [string, number][] = [
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
   // «ingen delar» — to prop-liner og to kommentarliner
-  // +42 den 12.: ingen byggjer det fana ikkje kan syne. Plateflata og
-  // montasjen bad om eit delenett dei aldri teiknar, og tala dei DEI syner
-  // rid vanlegvis på ryggen av det bygget — so dei måtte få sin eigen veg
-  // (`maal`). Det er den lina som betaler for seg sjølv: eit fullt snitt
-  // mindre per skyvarhakk i to av fire faner
-  ["components/studio.tsx", 2969],
+  // +13 den 12.: ribba handa peika på i montasjen — kva lina svarar med, og
+  // kva som fell når lista delar er ei anna
+  ["components/studio.tsx", 2940],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko
