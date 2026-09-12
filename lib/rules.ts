@@ -272,6 +272,42 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     return { ord: `ta bort dei ${nn(fast.length)} som står fast`, set: { plan: skrivPlan(att) }, riv: true }
   }
 
+  /**
+   * OG NÅR TO DELAR STÅR I KVARANDRE: TA EITT PLAN UT — EITT.
+   *
+   * Fyrste utgåva tok alle på ein gong, grådig, og `pnpm raad` felte henne:
+   * to nye harde brot i staden for eitt. Grunnen er at KLEMMA HENG I SPORA.
+   * Tek du eit plan bort, misser naboane spora dei hadde mot det, godset
+   * kjem attende, og par som stod fritt klemmer no. Ei liste rekna på den
+   * gamle geometrien seier ikkje noko om den nye — og tek du nok plan til
+   * at alle dei gamle para er borte, grip ingenting lenger.
+   *
+   * Difor eitt plan: det som er med i flest par. Målt over dei nitten
+   * innebygde formene som klemmer, rutenett 6×6, ved å trykkje knappen om
+   * att til talet er null: åtte og førti steg, og talet FALL i sju og
+   * førti av dei og stod stille i eitt. Det steig aldri. Kvar form er
+   * klemmefri etter høgst fem trykk, og har enno sju plan att av tolv.
+   *
+   * Som `ordenFiks` er dette eit råd som gjer det betre og ikkje ferdig.
+   * `riv` av di det tek eit plan du sette — «fiks alt» skal ikkje rive
+   * arbeid — og ordet seier kva som ryk.
+   */
+  const klemRiv = (): Fiks | undefined => {
+    const par = s.montering.klem
+    if (!par.length) return undefined
+    const tel = new Map<number, number>()
+    for (const [a, b] of par) {
+      tel.set(a, (tel.get(a) ?? 0) + 1)
+      tel.set(b, (tel.get(b) ?? 0) + 1)
+    }
+    let verst = 0
+    let flest = 0
+    for (const [id, n] of tel) if (n > flest || (n === flest && id > verst)) { flest = n; verst = id }
+    const blir = lesPlan(p.plan).filter((q) => q.id !== verst)
+    if (!blir.length) return undefined
+    return { ord: `ta bort plan ${verst} · ${nn(flest)} av ${nn(par.length)} par`, set: { plan: skrivPlan(blir) }, riv: true }
+  }
+
   // --- 1 plana grip (hard) ----------------------------------------------------
   add({
     id: "grip",
@@ -309,6 +345,29 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     value: brot.length ? `${brot.length} står fast: ${brot.join(", ")}` : "éin veg inn for kvar",
     why: "Ein del vert skuva inn langs spora sine, og ei plate kan berre gå éin veg. Delen har ledd mot to delar som alt ligg, langs liner som ikkje er parallelle. Byt rekkjefylgja, so han kjem inn før den eine av dei — eller vinkle planet om.",
     fiks: raad ? (ordenFiks() ?? ordenRiv()) : undefined,
+  })
+
+  // --- 3b ingen delar står i kvarandre (hard) ---------------------------------
+  /**
+   * «Kan monterast» spør om ein del har ÉI retning inn. Denne spør om det
+   * finst ein stad å gjere av han når han er komen: to delar som har gods
+   * på den same lina etter at spora er skorne, står i kvarandre.
+   *
+   * Det er eit anna brot, og eit langt vanlegare. Møtet deira vart nekta av
+   * skuldra — det stod ikkje gods nok ved sida av sporet — so ingen av dei
+   * fekk spor, og båe står att med fullt gods der dei kryssar. Målt på dei
+   * tjue innebygde formene med rutenett 6×6: nitten har minst eitt slikt
+   * par, og «kan monterast» stod grøn på alle tjue.
+   */
+  const klem = s.montering.klem
+  add({
+    id: "klem",
+    label: "ingen står i kvarandre",
+    hard: true,
+    ok: klem.length === 0,
+    value: klem.length ? `${nn(klem.length)} par klemmer: ${klem.slice(0, 4).map(([a, b]) => `${a}–${b}`).join(", ")}${klem.length > 4 ? " …" : ""}` : "ingen klemmer",
+    why: "To plan kryssar der begge har gods, men møtet fekk ikkje spor: det stod for lite gods ved sida av sporet til at noko heldt. Godset står difor att i båe, og dei to delane skal vera same staden — det går ikkje i hop, same rekkjefylgje du tek. Eit grovare rutenett er det som hjelper oftast; tynnare plate gjev færre, tjukkare gjev fleire.",
+    fiks: raad ? klemRiv() : undefined,
   })
 
   // --- 4 kvar del heng i noko -------------------------------------------------

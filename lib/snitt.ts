@@ -156,7 +156,21 @@ export type Montering = {
   /** fartsretninga for kvar del som kjem inn på nokon; null for dei som berre ligg */
   retning: Record<number, Vec3 | null>
   brot: number[]
+  /** par som har gods på den same lina etter at spora er skorne: dei står i
+   *  kvarandre, og bygget går ikkje i hop same kva rekkjefylgje du tek */
+  klem: [number, number][]
 }
+
+/**
+ * KOR MYKJE TO DELAR MÅ OVERLAPPE FØR DET ER EI KLEMME, mm.
+ *
+ * Under dette er det ikkje ei avlesing ein kan stole på: profilen er
+ * forenkla til ein åttedels rutesteg, som er kring ein tidels millimeter
+ * på eit objekt på to hundre. Over det er det ikkje noko ein kan presse i
+ * hop heller — ein millimeter finér som skal vera to stader er ein
+ * millimeter for mykje.
+ */
+const KLEM_MIN = 1
 
 export type Snitt = {
   k: Kropp
@@ -1045,6 +1059,51 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     }
   }
 
+  /**
+   * TO DELAR PÅ DEN SAME STADEN.
+   *
+   * Eit møte skuldra nektar får ikkje spor, og det er rett: eit spor utan
+   * skulder er ei kløft ribba sig gjennom. Men NEKTINGA TEK IKKJE GODSET
+   * BORT. Begge delane står att med gods langs den same lina i rommet, og
+   * to plater kan ikkje vera same staden. Det bygget går ikkje i hop, same
+   * kva rekkjefylgje du tek det i — og reiskapen sa ingenting.
+   *
+   * Regelen «kan monterast» ser ikkje dette. Han spør om ein del har ÉI
+   * retning inn, og det har desse: dei har ikkje eit ledd i det heile på
+   * den lina dei klemmer kvarandre på. Målt på dei tjue innebygde formene
+   * med rutenett 6×6: nitten av dei har minst eitt slikt par, ett og
+   * hundre par i alt — medan «kan monterast» stod grøn på alle tjue.
+   *
+   * LESE PÅ DEI FERDIGE PROFILANE, ikkje på møta. Det er godset som står
+   * att etter at ALLE spora er skorne som avgjer; eit møte som fall kan
+   * vera rydda av eit spor frå eit anna møte, og eit tal som tel nektingar
+   * ville meldt frå om noko som ikkje er der. `avvist` er større enn talet
+   * på par kvar einaste gong, og det er skilnaden mellom mekanismen og
+   * verknaden.
+   *
+   * BERRE FLAT MOT FLAT. Ei bøygd ramme avbildar ikkje lineært, so
+   * buelengda langs kryssingslina er ikkje det same talet sett frå dei to
+   * sidene — og eit tal som tyder ulike ting i dei to ramme er ikkje eit
+   * tal ein kan samanlikne.
+   */
+  const klem: [number, number][] = []
+  for (let i = 0; i < ribber.length; i++) {
+    for (let j = i + 1; j < ribber.length; j++) {
+      const A = ribber[i]
+      const B = ribber[j]
+      if (A.r.k || B.r.k) continue
+      const kr = kryssAv(A.r, B.r)
+      if (!kr) continue
+      const pA = inn(A.r, kr.p)
+      const pB = inn(B.r, kr.p)
+      const a = stykkeLangs([...A.outlines, ...A.holes], pA, ein2(inn(A.r, add3(kr.p, kr.d)), pA))
+      if (!a.length) continue
+      const b = stykkeLangs([...B.outlines, ...B.holes], pB, ein2(inn(B.r, add3(kr.p, kr.d)), pB))
+      if (!b.length) continue
+      if (felles(a, b).some(([lo, hi]) => hi - lo > KLEM_MIN)) klem.push([A.plan.id, B.plan.id])
+    }
+  }
+
   return {
     k,
     ribber,
@@ -1053,7 +1112,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     kasta,
     slotW,
     minGap,
-    montering: { orden: plan.map((q) => q.id), retning, brot },
+    montering: { orden: plan.map((q) => q.id), retning, brot, klem },
   }
 }
 

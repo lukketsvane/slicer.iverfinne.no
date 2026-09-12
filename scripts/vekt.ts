@@ -58,7 +58,13 @@ const TAK: [string, number][] = [
   // +22 den 12.: tabellen over kva oppløysinga kostar og kjøper, målt. Han
   // står over `DETAIL`, av di eit nivå utan tala sine er eit tal nokon
   // kjem til å setje etter kjensle
-  ["lib/snitt.ts", 1304],
+  // +59 den 12.: klemma — to delar som har gods på den same lina etter at
+  // spora er skorne. Regelen «kan monterast» stod grøn på alle dei tjue
+  // innebygde formene medan nitten av dei hadde delar som skulle vera same
+  // staden, so dette er ei avlesing som mangla og ikkje ei som er finare.
+  // Det meste er grunngjevinga: kvifor ho vert lesen på dei FERDIGE
+  // profilane og ikkje på møta som vart nekta
+  ["lib/snitt.ts", 1363],
   ["lib/pack.ts", 955],
 ]
 
