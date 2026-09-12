@@ -812,6 +812,42 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   const null0 = MOTOR.measure({ ...grunn, plan: skrivPlan(lesPlan(grunn.plan).map((q) => ({ ...q, bog: 0 }))) } as unknown as ParamBag)
   if (flat.cutLen !== null0.cutLen || flat.parts !== null0.parts) bryt("bog 0 gjev eit anna svar enn ingen bog")
   else console.log(`  bog 0 er det same som ingen bog: ${nn(flat.cutLen, 0)} mm kutt`)
+
+  /**
+   * OG YTREMÅLET MÅ FYLGJE BOGEN.
+   *
+   * Omrisset er ein mangekant med få punkt, og på ei firkanta ribbe står
+   * alle fire hjørna på same buelengd frå midten — so ein boks kring berre
+   * hjørna er FLAT same kor mykje ribba bognar. Reiskapen sa at eit objekt
+   * på seks centimeter var tre millimeter tjukt.
+   *
+   * Prøvd mot ein heilt annan veg til det same talet: dei tette ringane
+   * profilen vart lesen av, lagde ut i rommet med halve tjukna til kvar
+   * side.
+   */
+  for (const bog of [0, 0.3, 0.9]) {
+    const bag = { ...grunn, plan: skrivPlan(lesPlan(grunn.plan).map((q) => ({ ...q, bog }))) } as unknown as ParamBag
+    const m = MOTOR.measure(bag)
+    const sn = makeBygg(bag as unknown as Params, DETAIL.mid).s
+    const lo = [Infinity, Infinity, Infinity]
+    const hi = [-Infinity, -Infinity, -Infinity]
+    for (const r of sn.ribber) {
+      for (const ring of r.raa) {
+        for (const q of ring) {
+          for (const off of [-3, 3]) {
+            const P = ut(r.r, q, off)
+            for (let i = 0; i < 3; i++) {
+              if (P[i] < lo[i]) lo[i] = P[i]
+              if (P[i] > hi[i]) hi[i] = P[i]
+            }
+          }
+        }
+      }
+    }
+    const av = Math.abs(m.envX - (hi[0] - lo[0]))
+    if (av > 1) bryt(`bog ${bog}: ytremålet seier ${nn(m.envX, 1)} mm, ringane seier ${nn(hi[0] - lo[0], 1)} mm`)
+    else console.log(`  bog ${String(bog).padEnd(5)} ytremål ${nn(m.envX, 1).padStart(6)} mm   ringane ${nn(hi[0] - lo[0], 1).padStart(6)} mm`)
+  }
 }
 
 /**

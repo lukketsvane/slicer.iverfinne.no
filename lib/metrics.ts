@@ -10,7 +10,7 @@
  * eigentleg spurde om: tretti meter kutt på tjue millimeter i sekundet er
  * femogtjue minutt, og det er verdt å vita FØR knappen.
  */
-import { klokke, metric, nn, type Metric, type Metrics } from "./core"
+import { klokke, metric, nn, type Metric, type Metrics, type Pt } from "./core"
 import { makeBygg, type Bygg } from "./bygg"
 import { DETAIL, type Snitt } from "./snitt"
 import { ut } from "./plan"
@@ -100,21 +100,47 @@ export function measure(p: Params, bygg?: Bygg): Metrics {
  * Kor stor plass det ferdige objektet tek: boksen kring dei polygona som
  * faktisk vert skorne, lagde ut i rommet gjennom ramma si, pluss halve
  * tjukna til kvar side av kvart plan. Ikkje omrisset av nettet.
+ *
+ * OG PÅ EI BØYGD RIBBE LIGG BULEN MELLOM HJØRNA.
+ *
+ * Omrisset er ein mangekant med få punkt — ei firkanta ribbe har fire — og
+ * `ut` bøyer kvart punkt rett. Men bogen mellom to punkt er ei RETT LINE i
+ * det flate mønsteret og ein BOGE i rommet, og boksen kring berre hjørna
+ * ser ikkje bogen. På ei firkanta ribbe står alle fire hjørna på same
+ * buelengd frå midten, so dei har nøyaktig same avstand ut — og boksen vart
+ * flat. Målt på ei einsam ribbe på 300 mm med bog 0,9:
+ *
+ *     ytremålet sa      3,0 × 301,4 × 299,9 mm
+ *     ribba i rommet   35,7 × 300,0 × 300,0 mm
+ *
+ * Reiskapen sa altso at det ferdige objektet var tre millimeter tjukt når
+ * det var seks centimeter. Difor vert kanten DELT når ramma er bøygd: kvar
+ * femte millimeter buelengd, som er finare enn ein boge på ein halv meter
+ * treng for eit ytremål i heile millimeter.
  */
+const KANT_STEG = 5
 export function envelope(s: Snitt, tjukn: number) {
   const h = tjukn / 2
   const min = [Infinity, Infinity, Infinity]
   const max = [-Infinity, -Infinity, -Infinity]
+  const ta = (r: Snitt["ribber"][number], q: Pt) => {
+    for (const off of [-h, h]) {
+      const p = ut(r.r, q, off)
+      for (let i = 0; i < 3; i++) {
+        if (p[i] < min[i]) min[i] = p[i]
+        if (p[i] > max[i]) max[i] = p[i]
+      }
+    }
+  }
   for (const r of s.ribber) {
     for (const o of r.outlines) {
-      for (const q of o) {
-        for (const off of [-h, h]) {
-          const p = ut(r.r, q, off)
-          for (let i = 0; i < 3; i++) {
-            if (p[i] < min[i]) min[i] = p[i]
-            if (p[i] > max[i]) max[i] = p[i]
-          }
-        }
+      for (let i = 0; i < o.length; i++) {
+        const a = o[i]
+        ta(r, a)
+        if (!r.r.k) continue
+        const b = o[(i + 1) % o.length]
+        const n = Math.ceil(Math.abs(b[0] - a[0]) / KANT_STEG)
+        for (let t = 1; t < n; t++) ta(r, [a[0] + ((b[0] - a[0]) * t) / n, a[1] + ((b[1] - a[1]) * t) / n])
       }
     }
   }
