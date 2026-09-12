@@ -208,6 +208,18 @@ prov("så vidt for stort", "plate", {
   )
 }
 
+// --- nettoppløysinga -------------------------------------------------------
+// Trekanttaket på det lågaste hakket sitt over ei kule på fire og eit halvt
+// tusen: 384 trekantar att, og profilane vert lesne av dei. Regelen stod på
+// «under to hundre» før, og den lina kunne aldri verta raud — forenklinga
+// stoggar på budsjettet og held ikkje fram under det.
+prov("nettet er teke for langt ned", "nett", {
+  ...DEFAULT_PARAMS,
+  kjelde: "kule",
+  trekant: 0.5,
+  plan: nett(4, 4),
+})
+
 // --- vegen inn -------------------------------------------------------------
 // Plan 1 og 2 kryssar kvarandre utanfor kroppen og har ikkje ledd; plan 3
 // kryssar begge, langs to liner som ikkje er parallelle. Sist i lista har

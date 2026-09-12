@@ -15,6 +15,7 @@ import { bbox, nn, type Fiks, type Metrics, type Rule, type Vec3 } from "./core"
 import { measure } from "./metrics"
 import { fitRoom } from "./pack"
 import { makeBygg, nestGap, type Bygg } from "./bygg"
+import { makeKropp } from "./kropp"
 import { DETAIL, type Snitt } from "./snitt"
 import { cross, dot, len3, lesPlan, skrivPlan } from "./plan"
 import { SNITTVEGAR, lesFest, skrivFest, type Params } from "./params"
@@ -24,6 +25,31 @@ const mm1 = (v: number) => nn(v, 1) + " mm"
 const mm2 = (v: number) => nn(v, 2) + " mm"
 /** eit steg opp eller ned i den skyvaren tala faktisk bur i */
 const snapp = (v: number, steg: number) => Math.round(v / steg) * steg
+
+/**
+ * NÅR NETTET ER FOR GROVT — OG KVIFOR TALET IKKJE ER TO HUNDRE.
+ *
+ * Regelen stod på «under to hundre trekantar», og den lina kunne aldri
+ * verta raud. Skyvaren botnar på eit halvt tusen, `budsjett` gjev heile
+ * taket til ei einsam kjelde, og forenklinga stoggar NÅR ho har nådd
+ * budsjettet — ho held ikkje fram under det. Målt på det lågaste hakket:
+ *
+ *     kule 18 432 trekantar → 384      sylinder 1 024 → 224
+ *     kule  4 608 →  384               rutekube 3 072 → 432
+ *     kule  1 152 →  408               rutekube   768 → 432
+ *
+ * Botnen ligg kring tre hundre og femti, og eit nett som ER under to
+ * hundre har ikkje fleire å miste — då er `tris >= srcTris` og lina er
+ * grøn av den andre grunnen. Ei vakt som ikkje kan verta raud svarar på
+ * eit anna spørsmål enn det som vart stilt.
+ *
+ * Taket sjølv er talet: lina står når forenklinga har teke nettet under
+ * det MINSTE skyvaren kan be om, og den er sann nett på det hakket. Kva
+ * det kostar, målt på ei kule på to hundre millimeter med fire og fire
+ * plan: kuttet 7,413 m mot 7,495 og massen 0,3651 kg mot 0,3759 — tre
+ * prosent gods lese av eit nett som ikkje er der.
+ */
+const NETT_MINST = 500
 
 const narrowOf = (s: Snitt) => s.ribber.reduce((m, r) => (r.spor.length ? Math.min(m, r.narrow) : m), Infinity)
 
@@ -213,6 +239,24 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     if (verst >= 1) return undefined
     const ny = Math.max(40, snapp(p.storleik * verst * 0.98, 5))
     return ny < p.storleik ? { ord: `prøv ${nn(ny)} mm`, set: { storleik: ny } } : undefined
+  }
+
+  /**
+   * EITT HAKK OPP, OG REKNA I STADEN FOR LOVA. Forenklinga stoggar på
+   * budsjettet, so eitt hakk opp doblar det — men nettet vert bygt og talt
+   * før knappen vert tilbydd, av di ei kjelde som er tom for trekantar
+   * ikkje vert finare av eit høgare tak.
+   */
+  const nettFiks = (): Fiks | undefined => {
+    if (m.tris >= NETT_MINST || m.tris >= m.srcTris) return undefined
+    for (const t of [1, 2, 5]) {
+      if (t <= p.trekant) continue
+      const k = makeKropp({ ...p, trekant: t })
+      if (k.soup.tris >= NETT_MINST || k.soup.tris >= k.srcTris) {
+        return { ord: `prøv ${nn(t)} k`, set: { trekant: t } }
+      }
+    }
+    return undefined
   }
 
   const snittFiks = (): Fiks | undefined => {
@@ -456,9 +500,10 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     rad: "nett",
     label: "nettoppløysing",
     hard: false,
-    ok: m.tris >= 200 || m.tris >= m.srcTris,
+    ok: m.tris >= NETT_MINST || m.tris >= m.srcTris,
     value: `${nn(m.tris)} av ${nn(m.srcTris)}`,
-    why: "Forenklinga har teke nettet under eit par hundre trekantar, og då er det grovare enn plana som skal lesast av det. Skru opp trekanttaket.",
+    why: "Trekanttaket står på det lågaste hakket sitt, og nettet hadde meir å gje. Plana vert lesne av nett desse trekantane, so profilen er so grov som dei er. Skru opp taket.",
+    fiks: raad ? nettFiks() : undefined,
   })
 
   // --- 13 utnyttinga (mjuk) ---------------------------------------------------
