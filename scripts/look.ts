@@ -156,7 +156,9 @@ async function flate(namn: string, w: number, h: number) {
   // --- dei fire lesemåtane --------------------------------------------------
   // «lag» sist: resten av kikken står i rommet, og montasjen tek det over
   for (const v of ["flate", "kontur", "montasje", "lag"]) {
-    await page.getByRole("button", { name: v, exact: true }).click()
+    // dei fire er ein `tablist` i topplina, og ikkje fire brytarar — kikken
+    // leita etter knappar etter at dei vart faner, og stogga på den fyrste
+    await page.getByRole("tab", { name: v, exact: true }).click()
     await ferdig(page)
     await page.waitForTimeout(1200)
     if (v !== "lag") await page.screenshot({ path: `${UT}/${namn}-3-${v}.png` })
