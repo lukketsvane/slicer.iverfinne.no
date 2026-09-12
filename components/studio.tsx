@@ -6,7 +6,7 @@ import { erPrimitiv, KUBE } from "@/lib/sources"
 import { gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, omrissLine, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, virvel, vriOm, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, omrissLine, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, vriOm, type Plan, type Strek } from "@/lib/plan"
 import { simplify, type Pt2 } from "@/lib/contour"
 import { byggKey, lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
@@ -16,7 +16,7 @@ import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worke
 import type { Montasje } from "@/lib/montasje"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett, IcoVirvel } from "./deler"
+import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -100,17 +100,6 @@ const BOY_STEG = 0.005
 const MONT_STEG_PX = 160
 /** kor lenge grensesnittet står framme etter siste rørsle, i millisekund */
 const SOV_MS = 2000
-/** eit steg i virvelen: so langt fingrane går for éi ribbe til, og for eit hakk ut frå aksen */
-const VIRVEL_STEG = 40
-const VIRVEL_R_STEG = 0.02
-/** kor nær aksen ribbene får koma. Null er det utarta: alle gjennom same
- *  lina, og tjue plan vart to delar og seks og tretti lause stykke då det
- *  vart målt. Ein halv er tangent til den innskrivne sirkelen. */
-const VIRVEL_R = { min: 0.06, max: 0.5 }
-/** kor mange ribber virvelen opnar med, og kor langt ute */
-const VIRVEL_START: [number, number] = [12, 0.26]
-/** vidda til kroppen i x og y, millimeter: det virvelen treng for å stå rundt */
-const vidd = (k: { min: Vec3; max: Vec3 }): [number, number] => [k.max[0] - k.min[0], k.max[1] - k.min[1]]
 /** det som er KROPPEN: berre desse ber om eit nytt «flate»-bygg */
 const kroppKey = (p: ParamBag) => [p.kjelde, p.scene, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant].join("|")
 /** filnamn utan mellomrom og aksentar; desimalkomma er bråk */
@@ -320,7 +309,6 @@ export function Studio() {
   /** kolonner og rader, medan fingrane set dei: lesinga over kroppen */
   const [ruteTal, setRuteTal] = useState<[number, number] | null>(null)
   /** ribber og avstand, medan fingrane set dei: lesinga over kroppen */
-  const [virvelTal, setVirvelTal] = useState<[number, number] | null>(null)
   /**
    * MONTASJEN: delane med dei to plassane sine, og kvar i animasjonen vi er.
    *
@@ -1217,23 +1205,13 @@ export function Studio() {
       const r = skilRute(lesPlan(p.plan))
       rutGrunn.current = [r.nx, r.ny]
     }
-    if (kva === "virvel") virvGrunn.current = virvNo()
-    else if (kva === null) {
-      setRuteTal(null)
-      setVirvelTal(null)
-    }
+    if (kva === null) setRuteTal(null)
     setGest(kva)
   }, [])
   /** brytaren mellom form og skisse, med lina som seier kva som gjeld no */
   /** rutenettet: to fingrar set kolonner og rader. Eit valt plan er ikkje eit rutenett, so valet går. */
   const vekslRute = useCallback(() => {
     setModus((m) => (m === "rute" ? "form" : "rute"))
-    setValdBit(null)
-    setVald(null)
-  }, [])
-  /** virvelen: to fingrar set kor mange ribber, og kor langt ut frå aksen */
-  const vekslVirvel = useCallback(() => {
-    setModus((m) => (m === "virvel" ? "form" : "virvel"))
     setValdBit(null)
     setVald(null)
   }, [])
@@ -1255,7 +1233,7 @@ export function Studio() {
   /**
    * VERKTYET FOR KROPPEN: bitane står som boksar, og gestane gjeld den valde.
    *
-   * Og han slepper planet, slik rutenettet, virvelen og montasjen gjer det.
+   * Og han slepper planet, slik rutenettet og montasjen gjer det.
    * Utan det stod BEGGE reiskapssetta i spalta samstundes — dei fem for
    * planet og dei to for biten, elleve knappar i alt — og stabelen rakk opp
    * i synskuben og la seg over innrammingsknappen. Du trykte på han, og
@@ -1876,48 +1854,6 @@ export function Studio() {
     if (k?.ark && view === "kontur" && ark && ark.i !== k.ark - 1) askArk(k.ark - 1)
   }, [liste, view, ark, askArk])
 
-  // --- VIRVELEN ------------------------------------------------------------------
-  /**
-   * DET ANDRE RIBBESPRÅKET. Rutenettet gjev ribber på tvers av kvarandre;
-   * virvelen gjev dei kring loddaksen — n ribber, kvar vridd `2π·i/n`, og
-   * kvar skoven ut so ho tek på ein sirkel i staden for å gå gjennom midten.
-   * Vassrett set kor mange, loddrett kor langt ut.
-   *
-   * SKUVET ER HEILE SAKA. Går alle gjennom aksen, kryssar dei kvarandre
-   * langs den same lina: tjue plan vart to delar og seks og tretti lause
-   * stykke då det vart målt. Difor er `r` klemt over null. Og dei to tala
-   * heng saman — tre ribber på 0,30 kryssar ikkje kvarandre i det heile —
-   * so lina over kroppen syner begge medan du dreg, og lina i arket syner
-   * kva som kom ut.
-   *
-   * VIDDA TIL KROPPEN GÅR MED INN, av di eit punkt i eit plan er brøkar av
-   * boksen og boksen ikkje er kvadratisk (sjå `virvel` i plan.ts).
-   */
-  const virvGrunn = useRef<[number, number]>(VIRVEL_START)
-  /** kva virvelen står på no: tala som skreiv lista, om lista er hans. Er ho
-   *  ikkje det, byrjar han der han sist stod — ein virvel lèt seg ikkje lesa
-   *  attende ut av ei vilkårleg liste slik to aksetal gjer. */
-  const virvSist = useRef<[number, number]>(VIRVEL_START)
-  const virvNo = useCallback((): [number, number] => {
-    const k = kroppRef.current
-    const [n, r] = virvSist.current
-    if (k && skrivPlan(virvel(n, r, vidd(k))) === String(naa.current.plan)) return [n, r]
-    return virvSist.current
-  }, [])
-  const dragVirvel = useCallback((dx: number, dy: number) => {
-    const k = kroppRef.current
-    if (!k) return
-    const [n0, r0] = virvGrunn.current
-    const n = Math.max(2, Math.min(PLAN_TAK, n0 + Math.round(dx / VIRVEL_STEG)))
-    const r = Math.max(VIRVEL_R.min, Math.min(VIRVEL_R.max, +(r0 + Math.round(-dy / VIRVEL_STEG) * VIRVEL_R_STEG).toFixed(3)))
-    virvSist.current = [n, r]
-    setVirvelTal([n, r])
-    setParams((cur) => {
-      const plan = skrivPlan(virvel(n, r, vidd(k)))
-      return cur.plan === plan ? cur : { ...cur, plan, fest: "" }
-    })
-  }, [])
-
   // --- RUTENETTET ----------------------------------------------------------------
   /**
    * TO TAL, OG ALT FYLGJER. Rutenettet var reiskapen denne saka byrja med,
@@ -2122,7 +2058,7 @@ export function Studio() {
   const kvile =
     mounted && !verkty && steg === "line" && view !== "kontur" && view !== "montasje" &&
     vald === null && valdStrek === null && valdBit === null &&
-    modus !== "bit" && modus !== "rute" && modus !== "virvel" &&
+    modus !== "bit" && modus !== "rute" &&
     !busy && !drag && !melding && !feil && !hentar
   /**
    * DET FYRSTE TRYKKET VEKKJER, OG GJER ELLES INGENTING.
@@ -2300,7 +2236,6 @@ export function Studio() {
       // plata og i montasjen er det ingen knapp å sjå dei i, og ein tast
       // som slår på noko du ikkje ser er verre enn ingen tast.
       else if (k === "r" && rom) vekslRute()
-      else if (k === "v" && rom) vekslVirvel()
       // K som KROPPEN: det var den einaste reiskapen utan ein tast, og på
       // ein benk er tastane vegen inn til dei — R, V, S og no K.
       else if (k === "k" && rom) vekslBit()
@@ -2358,7 +2293,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslVirvel, vekslMontasje, rom, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslMontasje, rom, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -2390,7 +2325,6 @@ export function Studio() {
     // som er gravert på henne, og steget ho kjem i. Sjå `montLes`.
     view === "montasje" && mont ? montLes
     : gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
-    : gest === "virvel" ? (virvelTal ? `${virvelTal[0]} · ${Math.round(virvelTal[1] * 100)}%` : "virvel")
     : gest
   /** ord, ikkje setningar: gestane i den rekkjefylgja du tek dei */
 
@@ -2450,7 +2384,7 @@ export function Studio() {
             onBitVri={vriBit}
             onBitSide={sideBit}
             rammInn={rammInn}
-            onRute={modus === "virvel" ? dragVirvel : dragRute}
+            onRute={dragRute}
             benk={benk}
           />
         )}
@@ -2646,9 +2580,9 @@ export function Studio() {
               {IcoMontasje}
             </button>
           )}
-          {/* RUTENETTET OG VIRVELEN HØYRER ROMMET TIL. Begge vert sette med
-              TO FINGRAR PÅ OBJEKTET, og på plateflata ligg objektet gøymt
-              under arka — ein brytar du kan slå på og ikkje bruke. */}
+          {/* RUTENETTET HØYRER ROMMET TIL. Han vert sett med TO FINGRAR PÅ
+              OBJEKTET, og på plateflata ligg objektet gøymt under arka — ein
+              brytar du kan slå på og ikkje bruke. */}
           {rom && (<>
           {/* RUTENETTET. Han stod i lina på arket, ved talet han endrar. Men
               han er ein REISKAP og ikkje eit tal: to fingrar set kolonner og
@@ -2664,22 +2598,6 @@ export function Studio() {
             data-ruteverkty=""
           >
             {IcoRute}
-          </button>
-          {/* OG VIRVELEN, UNDER HAN. Dei to er det same slaget reiskap —
-              begge skriv heile plana på nytt, og begge vert sette med to
-              fingrar — so dei står saman, øvst, over dei som gjeld eitt
-              plan. Han hadde berre ein tast ei stund, og ein reiskap du
-              berre når frå eit tastatur finst ikkje på telefonen. */}
-          <button
-            type="button"
-            aria-pressed={modus === "virvel"}
-            aria-label="virvel"
-            title={modus === "virvel" ? "virvelen (V): to fingrar — vassrett er kor mange ribber, loddrett er kor langt ut frå aksen. trykk for å gå ut" : "virvelen (V): to fingrar set ribber kring ein akse, og kor langt ut dei står"}
-            onClick={vekslVirvel}
-            className={TUMME_BTN}
-            data-virvelverkty=""
-          >
-            {IcoVirvel}
           </button>
           </>)}
           {/* Og reiskapane for PLANET står ikkje medan kroppsverktyet er ope.

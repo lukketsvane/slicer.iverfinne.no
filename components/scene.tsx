@@ -57,7 +57,7 @@ function useTema() {
 /** planet slik skissa står no, i motoren sitt rom (mm, z opp) */
 export type Skisse = { o: Vec3; n: Vec3 }
 /** kva ein gest held på med, til lesing på skjermen */
-export type GestKva = "lys" | "snitt" | "zoom" | "strek" | "rute" | "virvel" | "side" | null
+export type GestKva = "lys" | "snitt" | "zoom" | "strek" | "rute" | "side" | null
 /** eit strek medan fingeren har det: teikna her, snitta av motoren, skrive i parametrane fyrst når det vert sleppt */
 type Live = { id: number; i: number; s: Strek }
 /**
@@ -76,16 +76,12 @@ type Live = { id: number; i: number; s: Strek }
  * han (vassrett på golvet, loddrett opp), vrir han kring loddlina og gjer
  * han større. Same gestane, eit anna emne.
  *
- * «virvel» er den femte og syskenet til «rute»: det andre ribbespråket.
- * Draget set kor mange ribber som står kring loddaksen, og kor langt ut frå
- * han dei står. Same forma på gesten, eit anna sett plan.
- *
  * «rute» er den fjerde, og den grovaste: rutenettet. Draget set TALET på
  * plan — vassrett er kolonner, loddrett er rader — og heile lista vert
  * skriven om av dei to tala. Difor er skissa og handtaka borte medan han
  * står på, som i «bit»: det finst ikkje eitt plan å ta i her.
  */
-export type Modus = "form" | "bit" | "rute" | "virvel"
+export type Modus = "form" | "bit" | "rute"
 type Lys = { az: number; el: number }
 
 type Ramma = { cx: number; cy: number; s: number; min: Vec3; max: Vec3; midt: Vec3; fit: Fit }
@@ -599,7 +595,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
    * handtaka hennar står midt i biletet — nett der fingrane skal ta i ein
    * bit. Eit verkty om gongen: her er det kroppen som vert bygd.
    */
-  const synleg = !!f && vald === null && !montasje && modus !== "bit" && modus !== "rute" && modus !== "virvel"
+  const synleg = !!f && vald === null && !montasje && modus !== "bit" && modus !== "rute"
   /** snittet i verda: handtaka står PÅ det — flytt i midten, vri på toppen */
   const snittVerd = useMemo<SnittVerd | null>(() => {
     if (!f || !snitt?.ringar.length) return null
@@ -848,7 +844,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
     /** verktyet for kroppen har fingrane når ein bit er vald; elles som før */
     const bitStil = () => naa.current.modus === "bit" && naa.current.valdBit !== null
     /** rutenettet tek fingrane heilt: det finst ikkje eitt plan å ta i her */
-    const ruteStil = () => naa.current.modus === "rute" || naa.current.modus === "virvel"
+    const ruteStil = () => naa.current.modus === "rute"
     let last = { cx: 0, cy: 0, d: 0, a: 0 }
     let snap: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null
     let tak: Tak | null = null
@@ -1110,10 +1106,10 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       tapDown = pts.size === 0 && e.isPrimary ? { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId } : { x: 0, y: 0, t: 0, id: -1 }
       if (e.pointerType !== "touch") {
         /**
-         * RUTENETTET OG VIRVELEN TEK DRAGET NÅR DEI STÅR PÅ.
+         * RUTENETTET TEK DRAGET NÅR HAN STÅR PÅ.
          *
-         * Dei var to fingrar og ingenting anna: vassrett kolonner, loddrett
-         * rader. Ei mus har éin peikar, og dermed kunne to av dei fem
+         * Han var to fingrar og ingenting anna: vassrett kolonner, loddrett
+         * rader. Ei mus har éin peikar, og dermed kunne ein av dei fire
          * reiskapane ikkje brukast på ein benk i det heile — brytaren stod
          * på og ingenting hende. Med reiskapen open er venstre knappen hans,
          * og orbiten står over so lenge det varer; du slepper han med same
@@ -1125,7 +1121,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
           mode = "musRute"
           musRute = { x: e.clientX, y: e.clientY, id: e.pointerId }
           taKameraet(controls)
-          naa.current.onGest(naa.current.modus === "virvel" ? "virvel" : "rute")
+          naa.current.onGest("rute")
           return
         }
         if (!(e.shiftKey || e.altKey) || e.button !== 0) return
@@ -1308,21 +1304,15 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       if (paaBit && !sam.akt.klyp && Math.abs(klyp - 1) > KLYP_SAM) sam.akt.klyp = true
       /**
        * GESTEN VERT MELD FØR KANALANE ARBEIDER, og det er ikkje ei
-       * smakssak: studioet tek GRUNNSTODA si i `onGest` — kor mange ribber
-       * virvelen stod på, kva rutenettet var, kva bit som var vald — og eit
-       * drag som kom først ville rekna frå grunnstoda til førre gest.
-       * Målt: virvelen fall attende til to ribber i det andre draget.
+       * smakssak: studioet tek GRUNNSTODA si i `onGest` — kva rutenettet
+       * var, kva bit som var vald — og eit drag som kom først ville rekna
+       * frå grunnstoda til førre gest. Målt den gongen det stod feil: talet
+       * fall attende til botnen sin i det andre draget.
        *
        * Talet det melder er kva fingrane held på med, til lina øvst til
        * venstre.
        */
-      const sagt: GestKva = arbeider || (paaBit && sam.akt.klyp)
-        ? rute
-          ? naa.current.modus === "virvel"
-            ? "virvel"
-            : "rute"
-          : "snitt"
-        : null
+      const sagt: GestKva = arbeider || (paaBit && sam.akt.klyp) ? (rute ? "rute" : "snitt") : null
       if (sagt !== sam.sagt) {
         sam.sagt = sagt
         naa.current.onGest(sagt)

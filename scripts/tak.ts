@@ -27,7 +27,7 @@ import { kjeldeNull, kjeldeTal, vendNull, vendTal } from "../lib/kropp"
 import { put } from "../lib/sources"
 import { makeSoup } from "../lib/soup"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
-import { PLAN_TAK, lesPlan, rutenett, skrivPlan, virvel } from "../lib/plan"
+import { PLAN_TAK, lesPlan, rutenett, skrivPlan, type Plan } from "../lib/plan"
 import type { ParamBag } from "../lib/core"
 
 let brot = 0
@@ -230,29 +230,55 @@ if (halv && siste && halv !== siste && siste.n === halv.n * 2) {
 }
 
 /**
- * OG VIRVELEN, SOM ER DET ANDRE RIBBESPRÅKET.
+ * EI VIFTE AV PLAN, som TESTDATA og ikkje som ein reiskap.
  *
- * Eit rutenett har TO retningar same kor mange plan det har; ein virvel har
- * EI PER RIBBE. `vend` snur heile nettet per retning og hugsar svaret, so
- * rutenettet betaler den snuinga to gonger og virvelen n gonger — med
+ * `virvel` var eit verkty i appen og er teken bort. Men det han laga — n
+ * plan kring loddaksen, kvart med si eiga retning — er framleis den
+ * hardaste prøva på hugsen i `vend`: eit rutenett har TO retningar same kor
+ * mange plan det har, ei vifte har éi per plan. Geometrien vert difor laga
+ * her, der ho høyrer heime når ho berre er noko å måle på.
+ */
+const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1): Plan[] => {
+  const W = Math.max(1e-6, vidd[0])
+  const D = Math.max(1e-6, vidd[1])
+  const d = r * Math.min(W, D)
+  const ut: Plan[] = []
+  for (let i = 0; i < n; i++) {
+    const a = (2 * Math.PI * i) / n
+    const nv: [number, number, number] = [+Math.cos(a).toFixed(4), +Math.sin(a).toFixed(4), 0]
+    ut.push({
+      id: fraa + i,
+      o: [+(0.5 + (d * nv[0]) / W).toFixed(4), +(0.5 + (d * nv[1]) / D).toFixed(4), 0.5],
+      n: nv, bog: 0, strek: [], gruppe: 1,
+    })
+  }
+  return ut
+}
+
+/**
+ * OG EI VIFTE, SOM ER DEN HARDASTE PRØVA PÅ HUGSEN.
+ *
+ * Eit rutenett har TO retningar same kor mange plan det har; ei vifte har
+ * EI PER PLAN. `vend` snur heile nettet per retning og hugsar svaret, so
+ * rutenettet betaler den snuinga to gonger og vifta n gonger — med
  * mindre hugsen held. Han heldt ikkje: taket stod på tolv oppslag, og over
  * det fall han i FIFO-fella der same bygget går gjennom retningane i same
  * rekkjefylgja og alltid kastar den eldste rett før han skal brukast att.
  * Målt før rettinga: null treff og førti bom på tjue ribber.
  *
  * Vakta er difor FORMA på kostnaden per plan. Held hugsen, kostar ein
- * virvel med fire gonger så mange ribber om lag fire gonger så mykje — det
+ * vifte med fire gonger så mange plan om lag fire gonger så mykje — det
  * er berre fleire plan å snitte. Fell han attende i fella, betaler kvar
  * ribbe ei heil vending av nettet, og talet per plan spring.
  */
 {
-  const virvelMaal = (n: number) => maal(skrivPlan(virvel(n, 0.25, [1, 1])))
-  const lite = virvelMaal(8)
-  const stort = virvelMaal(32)
+  const vifteMaal = (n: number) => maal(skrivPlan(vifte(n, 0.25, [1, 1])))
+  const lite = vifteMaal(8)
+  const stort = vifteMaal(32)
   const perLite = lite.ms / Math.max(1, lite.plan)
   const perStort = stort.ms / Math.max(1, stort.plan)
   console.log(
-    `\n  virvel: ${lite.plan} ribber ${lite.ms} ms (${perLite.toFixed(1)} ms/plan) · ` +
+    `\n  vifte: ${lite.plan} plan ${lite.ms} ms (${perLite.toFixed(1)} ms/plan) · ` +
       `${stort.plan} ribber ${stort.ms} ms (${perStort.toFixed(1)} ms/plan)`,
   )
   /**
@@ -264,7 +290,7 @@ if (halv && siste && halv !== siste && siste.n === halv.n * 2) {
    * kvar maskin: byggjer du DET SAME plansettet ein gong til, skal `vend`
    * ikkje snu nettet ein einaste gong.
    */
-  const plan32 = skrivPlan(virvel(32, 0.25, [1, 1]))
+  const plan32 = skrivPlan(vifte(32, 0.25, [1, 1]))
   // Eit IDENTISK bygg til når aldri fram til `vend`: heile snittet er
   // hugsa på `snittKey`. Det som skal målast er redigeringssløyfa — ein
   // finger på tjukna, som byggjer om alt NEDANFOR vendinga men spør om

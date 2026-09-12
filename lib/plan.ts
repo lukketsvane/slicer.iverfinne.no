@@ -176,7 +176,7 @@ export type Plan = {
   mjuk?: number
   strek: Strek[]
   /**
-   * GRUPPA. Plan som vart til i éi handling — eit rutenett, ein virvel,
+   * GRUPPA. Plan som vart til i éi handling — eit rutenett, ei spegling,
    * ei spegling, ei dublering av ei gruppe — høyrer i hop, og det er
    * gruppa du tek i når du vil flytte, vinkle eller slette dei alle på ein
    * gong. Eit tal, gjeve når gruppa vert laga, aldri brukt om att; utan
@@ -856,51 +856,6 @@ export function sameSnitt(a: { o: Vec3; n: Vec3 }, b: { o: Vec3; n: Vec3 }, tol 
   const same = a.n.every((c, i) => Math.abs(c - b.n[i]) <= tol)
   const motsett = a.n.every((c, i) => Math.abs(c + b.n[i]) <= tol)
   return same || motsett
-}
-
-/**
- * VIRVELEN: n ribber kring loddaksen, kvar tangent til ein sirkel.
- *
- * Rutenettet er det eine ribbespråket møblane snakkar; dette er det andre.
- * Kvar ribbe står loddrett, vridd `2π·i/n` kring z, og SKOVEN UT frå aksen
- * so ho tek på ein sirkel med radius `r` i staden for å gå gjennom midten.
- * Det er skuvet som gjer det til ein virvel: går alle gjennom aksen, kryssar
- * dei kvarandre langs den same lina, og tjue plan vart to delar og seks og
- * tretti lause stykke då det vart målt.
- *
- * `r` ER EIN BRØK AV DEN SMALASTE VIDDA, og det er ikkje det same som ein
- * brøk av boksen. Punktet i eit plan er brøkar av boksen, og boksen er ikkje
- * kvadratisk: `o = [0.5 + r·cos a, 0.5 + r·sin a]` gjev ein ELLIPSE i
- * millimeter, ikkje ein sirkel. Målt på ein kropp på 450×180 mm sprikte
- * avstanden frå aksen mellom 32,4 og 81,0 mm — to og ein halv gong — og
- * virvelen stod skeiv. Difor vert kvar akse delt på si eiga vidd, og då
- * står han på 64,8 mm heile vegen rundt. På ein rund kropp er dei to
- * rekningane den same; det er berre den skeive kroppen som skil dei.
- *
- * VIDDA VERT BAKA INN, og det er med vilje. Plana er brøkar, so virvelen
- * fylgjer kroppen når han vert skalert — men endrar du FORMA på kroppen
- * etterpå, står ribbene der du la dei og kan drive ut av lag. Det er det
- * same valet som streken i eit plan tek (sjå toppen av fila): reiskapen
- * kastar ikkje arbeid utan å bli beden, og du køyrer verktyet om att.
- */
-/** ein virvel er éi gruppe: ribbene kring aksen svarar saman */
-export function virvel(n: number, r: number, vidd: readonly [number, number], fraa = 1): Plan[] {
-  const W = Math.max(1e-6, vidd[0])
-  const D = Math.max(1e-6, vidd[1])
-  const d = r * Math.min(W, D)
-  const ut: Plan[] = []
-  let id = fraa
-  for (let i = 0; i < n; i++) {
-    const a = (2 * Math.PI * i) / n
-    const nv: Vec3 = [+Math.cos(a).toFixed(4), +Math.sin(a).toFixed(4), 0]
-    ut.push({
-      id: id++,
-      o: [+(0.5 + (d * nv[0]) / W).toFixed(4), +(0.5 + (d * nv[1]) / D).toFixed(4), 0.5],
-      n: nv,
-      bog: 0, strek: [], gruppe: 1,
-    })
-  }
-  return ut
 }
 
 /** eit rutenett er to grupper: rada på tvers og rada på langs, kvar si rekkje */
