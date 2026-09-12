@@ -2348,7 +2348,9 @@ export function Studio() {
     // MONTASJEN STÅR SÅ LENGE FANA GJER DET, og ikkje berre medan ein finger
     // er nede: han er ei lesing og ikkje ein gest, og steget er det du treng
     // å vite medan du ser på — kva runde dette er, og kor mange ribber ho er.
-    view === "montasje" && mont ? `steg ${montSteg}/${mont.steg} · ${mont.delar.filter((d) => d.steg === montSteg - 1).length}`
+    // ...og ein tom montasje seier det: «steg 1/1 · 0» er tre sanne tal som
+    // ikkje seier det einaste som gjeld — du har ikkje skore noko enno.
+    view === "montasje" && mont ? (mont.delar.length ? `steg ${montSteg}/${mont.steg} · ${mont.delar.filter((d) => d.steg === montSteg - 1).length}` : "ingen delar")
     : gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
     : gest === "virvel" ? (virvelTal ? `${virvelTal[0]} · ${Math.round(virvelTal[1] * 100)}%` : "virvel")
     : gest
@@ -2893,6 +2895,8 @@ export function Studio() {
         rules={tal?.rules ?? []}
         liste={liste}
         plan={plan}
+        mont={mont}
+        montSteg={montSteg}
         boks={kropp ? { min: kropp.min, max: kropp.max } : null}
         vald={vald}
         onVald={velPlan}

@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState, type JSX, type RefObject } from 
 import { FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import { MJUK_TAK, type Plan } from "@/lib/plan"
+import type { Montasje, Veg } from "@/lib/montasje"
 import {
   CHIP, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, UTTAK,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
@@ -66,6 +67,9 @@ export type ArketProps = {
   boks: { min: Vec3; max: Vec3 } | null
   liste: readonly Kutt[]
   plan: readonly Plan[]
+  /** montasjen, når fana hans står framme — og kva steg han er på, frå 1 */
+  mont: Montasje | null
+  montSteg: number
   vald: number | null
   onVald: (id: number | null) => void
   /** gruppa som er vald, om nokon: trykk på gruppa i lista vel alle plana i henne */
@@ -138,6 +142,43 @@ function Lina({ p }: { p: ArketProps }) {
  *  Tom liste er tom: rettleiinga og snittet seier alt kva som skal til. */
 /** Lista står der jamvel når ho er tom: ho er staden plana bur, og ei tom
  *  liste teiknar ingenting likevel. */
+/**
+ * STEGET, SOM ORD — spalta si utgåve av `montering.txt`.
+ *
+ * Montasjen syner RØRSLA: kva som reiser seg, og i kva rekkjefylgje. Det er
+ * halve svaret. Den andre halvdelen er kva delane HEITER og kva veg dei
+ * kjem inn, og det stod berre i ei tekstfil inni ALT-pakka — so telefonen i
+ * handa hadde biletet og orda låg på ei anna maskin.
+ *
+ * Planlista høyrer ikkje heime her. Montasjen endrar ikkje eit einaste tal,
+ * so ei rad du kan velje er eit val fana ikkje kan svare på: han merkte seg
+ * sjølv, og ingenting hende nokon stad. Lista er rommet sitt innhald; her
+ * er innhaldet steget.
+ *
+ * Berre det steget som står. Å lista alle ville vore `montering.txt` på ein
+ * skjerm som er for liten til henne, og du treng det som skjer no.
+ */
+function Stega({ p }: { p: ArketProps }) {
+  const VEGORD: Record<Veg, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg" }
+  const mine = (p.mont?.delar ?? []).filter((d) => d.steg === p.montSteg - 1)
+  if (!mine.length) {
+    // EIN TOM MONTASJE SEIER DET. Ingen plan er ein gyldig tilstand — du har
+    // ikkje skore noko enno — og ein blank skjerm er ikkje eit svar.
+    return <p className="dim px-1.5 py-2 text-[11px]">ingen delar</p>
+  }
+  return (
+    <ul className="py-1" aria-label="steget">
+      {mine.map((d) => (
+        <li key={d.adr} data-steg-del={d.adr} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-[11px]">
+          <span className="tab w-8 shrink-0" style={{ color: "var(--ink)" }}>{d.adr}</span>
+          <span className="min-w-0 flex-1 truncate">{VEGORD[d.veg]}</span>
+          <span className="tab dim shrink-0">ark {d.ark}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function Plana({ p }: { p: ArketProps }) {
   /**
    * EI GRUPPE LIGG BRETTA. Eit rutenett er tretti plan i lista, og lista er
@@ -570,7 +611,7 @@ export function Arket(p: ArketProps): JSX.Element {
           <Lagrad no={p.bitFarge} ord="bit" tittel=" · plan med same laget vert skore inne i denne biten" onFarge={p.onBitFarge} />
         </ul>
       )}
-      <Plana p={p} />
+      {p.view === "montasje" ? <Stega p={p} /> : <Plana p={p} />}
     </>
   )
 
