@@ -238,10 +238,20 @@ export function Studio() {
    * plateflata, den andre er delane på veg opp av henne — so rommet held på
    * det synet det hadde medan dei står framme. Å sende «lag» inn i staden
    * ville bytt nettet under eit lerret ingen ser, og bytt det attende, for
-   * ingenting. Det er òg fana du kjem attende til når du forlèt montasjen.
+   * ingenting.
    */
   const romsyn = useRef<Rom>("lag")
   if (rom) romsyn.current = view
+  /**
+   * ...OG FANA DU KOM FRÅ, som ikkje er det same.
+   *
+   * Montasjen er ein veg du går inn i og ut av att, og ut av att tyder dit
+   * du stod. Han las `romsyn`, og `romsyn` er eit ROM — so `kontur` → `M` →
+   * `Esc` landa i «lag», ei fane du ikkje hadde vore i. Dei to spørsmåla
+   * berre såg like ut: kva nett skal rommet halde på, og kvar var eg.
+   */
+  const foer = useRef<View>("lag")
+  if (view !== "montasje") foer.current = view
   /**
    * SKALET: kroppen slik han var, teikna gjennomsiktig kring delane i «lag».
    * Han er der for å seie kor mykje av forma ribbene fangar — og han er i
@@ -1207,7 +1217,7 @@ export function Studio() {
    * Tasten M står att, av di handa hugsar han.
    */
   const vekslMontasje = useCallback(() => {
-    setView((v) => (v === "montasje" ? romsyn.current : "montasje"))
+    setView((v) => (v === "montasje" ? foer.current : "montasje"))
   }, [])
   /**
    * VERKTYET FOR KROPPEN: bitane står som boksar, og gestane gjeld den valde.
@@ -2062,8 +2072,17 @@ export function Studio() {
    * anna objekt, og det skal du sjå. Talet stig, og scena rammar inn.
    */
   const [rammInn, setRammInn] = useState(0)
+  /**
+   * KVILE ER KVILE, og ikkje «ingen har rørt skjermen».
+   *
+   * `kontur` står utanfor av di lerretet ligg gøymt der — det er ingenting
+   * å sjå på, og då er det heller ikkje noko i vegen. Montasjen er det
+   * motsette og høyrer like fullt utanfor: han ER eit bilete i rørsle, med
+   * éin einaste kontroll, og å sjå på noko som rører seg er ikkje kvile.
+   * Han sovna midt i animasjonen og tok steget med seg.
+   */
   const kvile =
-    mounted && !verkty && steg === "line" && view !== "kontur" &&
+    mounted && !verkty && steg === "line" && view !== "kontur" && view !== "montasje" &&
     vald === null && valdStrek === null && valdBit === null &&
     modus !== "bit" && modus !== "rute" && modus !== "virvel" &&
     !busy && !drag && !melding && !feil && !hentar

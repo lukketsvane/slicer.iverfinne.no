@@ -146,9 +146,13 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, onFile, onLeg
             Montasjen er den fjerde: han var ein reiskap i tommelspalta, og
             han endrar ingenting — han er ein måte å lesa det same objektet
             på, som dei tre andre. */}
-        <span className="mx-auto flex items-center">
+        {/* OG DEI ER FANER, so hjelpemiddel les dei som faner. Fire
+            `aria-pressed`-knappar vert lesne som fire brytarar kvar for
+            seg — «av», «på» — og ikkje som «fane 2 av 4», som er det dei
+            ER. Det kostar ingenting og er sant. */}
+        <span role="tablist" aria-label="lesemåte" className="mx-auto flex items-center">
           {VIEWS.map((v) => (
-            <button key={v.id} type="button" title={v.hint} aria-pressed={view === v.id} onClick={() => onView(v.id)} className={ORD}>{v.label}</button>
+            <button key={v.id} type="button" role="tab" title={v.hint} aria-selected={view === v.id} onClick={() => onView(v.id)} className={ORD}>{v.label}</button>
           ))}
         </span>
         <button type="button" onClick={onShare} aria-label="del" title="lenkja ber innstillingane, ikkje nettet" className={ICON_BTN}>{IcoShare}</button>
