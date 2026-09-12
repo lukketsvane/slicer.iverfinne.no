@@ -331,6 +331,10 @@ export function Studio() {
    * er på, og det byter eit par gonger i heile animasjonen.
    */
   const [mont, setMont] = useState<Montasje | null>(null)
+  /** RIBBA HANDA PEIKA PÅ, som adresse: lina svarar med henne og steget
+   *  hennar, og ho står i blekk. Ei ny liste delar er andre adresser. */
+  const [montVald, setMontVald] = useState<string | null>(null)
+  useEffect(() => setMontVald(null), [mont])
   const montT = useRef(0)
   const montSpel = useRef(false)
   const [montSteg, setMontSteg] = useState(1)
@@ -453,6 +457,15 @@ export function Studio() {
   }, [pump])
   const send = useCallback((msg: Req, transfer?: Transferable[]) => {
     worker.current?.postMessage(msg, transfer ?? [])
+  }, [])
+  /** BERRE TALA, utan eit nett. Same bokhaldet som eit bygg — `sisteBygg` er
+   *  det prikken i hjørnet sluttar å snurre på — men ingen port: det kjem
+   *  ikkje eit nett som kunne kome i feil rekkjefylgje, og arbeidaren kastar
+   *  sjølv ei måling som er gått ut på dato. */
+  const maal = useCallback(() => {
+    const id = ++reqId.current
+    sisteBygg.current = id
+    worker.current?.postMessage({ kind: "maal", id, params: naa.current })
   }, [])
   /**
    * SKISSEPORTEN. Skissa er ein straum av punkt og motoren svarar på eitt
@@ -766,6 +779,12 @@ export function Studio() {
         return
       }
       if (r.kind === "feil") {
+        // ei måling som kasta er den same feilen som eit bygg som kasta:
+        // ingenting å syne, og prikken skal slutte å snurre
+        if (r.kva === "maal") {
+          if (r.id >= sisteBygg.current) setBusy(false)
+          return
+        }
         if (r.kva === "build" && r.view) {
           portar.current[r.view].inFlight = false
           pump(r.view)
@@ -849,8 +868,22 @@ export function Studio() {
     if (!mounted) return
     setBusy(true)
     setFeil(null)
+    /**
+     * OG IKKJE I EI FANE SOM IKKJE KAN SYNE DET — den same regelen som
+     * tommelspalta fylgjer, lagd på ARBEIDET. På plateflata ligg lerretet
+     * gøymt under arka, og i montasjen teiknar scena delane reise seg i
+     * staden; delenettet vart bygd for kvart skyvarhakk der òg, og nådde
+     * ingen skjerm. Tala står like fullt — lina, tavla og plateteikninga
+     * les dei — og dei rir vanlegvis på ryggen av bygget, so her må dei
+     * spørjast om for seg. `view` står i lista, so eit steg attende inn i
+     * rommet byggjer på nytt.
+     */
+    if (!rom) {
+      maal()
+      return
+    }
     bygg("lag", detail)
-  }, [params, detail, view, mounted, formTal, bygg])
+  }, [params, detail, view, mounted, formTal, bygg, rom, maal])
 
   /** hent dei formene som står på skjermen og ikkje er bedne om før */
   useEffect(() => {
@@ -2343,6 +2376,11 @@ export function Studio() {
   const mjukNo = iValt.reduce((m, q) => Math.max(m, q.mjuk ?? 0), 0)
   /** ber det valde planet ei form handa har sett? */
   const harOmriss = vald !== null && !!plan.find((q) => q.id === vald)?.omriss?.length
+  /** kva lesinga seier i montasjen: ribba handa held, eller kvar animasjonen står */
+  const montLes =
+    !mont?.delar.length ? "ingen delar"
+    : montVald ? `${montVald} · steg ${(mont.delar.find((d) => d.adr === montVald)?.steg ?? 0) + 1}`
+    : `steg ${montSteg}/${mont.steg} · ${mont.delar.filter((d) => d.steg === montSteg - 1).length}`
   /** kva fingrane held på med, med eitt ord — rutenettet med dei to tala sine */
   const gestTekst =
     // MONTASJEN STÅR SÅ LENGE FANA GJER DET, og ikkje berre medan ein finger
@@ -2350,7 +2388,9 @@ export function Studio() {
     // å vite medan du ser på — kva runde dette er, og kor mange ribber ho er.
     // ...og ein tom montasje seier det: «steg 1/1 · 0» er tre sanne tal som
     // ikkje seier det einaste som gjeld — du har ikkje skore noko enno.
-    view === "montasje" && mont ? (mont.delar.length ? `steg ${montSteg}/${mont.steg} · ${mont.delar.filter((d) => d.steg === montSteg - 1).length}` : "ingen delar")
+    // ...og har handa teke i ei RIBBE, er det ho som er spørsmålet: adressa
+    // som er gravert på henne, og steget ho kjem i. Sjå `montLes`.
+    view === "montasje" && mont ? montLes
     : gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
     : gest === "virvel" ? (virvelTal ? `${virvelTal[0]} · ${Math.round(virvelTal[1] * 100)}%` : "virvel")
     : gest
@@ -2396,6 +2436,8 @@ export function Studio() {
             montSpel={montSpel}
             montVakn={montVakn}
             onMontSteg={setMontSteg}
+            montVald={montVald}
+            onMontVald={(adr) => setMontVald((v) => (v === adr ? null : adr))}
             valdPunkt={valdPunkt}
             onValdPunkt={setValdPunkt}
             onPlan={flyttPlan}

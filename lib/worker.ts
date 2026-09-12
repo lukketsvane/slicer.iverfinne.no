@@ -37,7 +37,18 @@ export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number 
 export type SkisseReq = { kind: "skisse"; id: number; params: ParamBag; plan: Plan }
 /** «rekn montasjen for meg»: kvar kvar del ligg, kvar han skal, og i kva runde */
 export type MontReq = { kind: "montasje"; id: number; params: ParamBag }
-export type Req = BuildReq | ExportReq | ImportReq | ArkReq | SkisseReq | MontReq
+/**
+ * «BERRE TALA» — måltala, reglane og kuttlista, utan eit nett.
+ *
+ * Måltala kjem vanlegvis på ryggen av eit bygg (sjå nedst i fila): du bad om
+ * delane, og rekninga fylgjer dei. Men plateflata og montasjen teiknar ikkje
+ * det nettet — den eine syner arka, den andre syner delane reise seg — og å
+ * byggje eit nett ingen kan sjå er arbeid som berre kostar. Lina, tavla og
+ * sjølve plateteikninga les like fullt dei same tala, so dei må kome ein
+ * annan veg: denne.
+ */
+export type MaalReq = { kind: "maal"; id: number; params: ParamBag }
+export type Req = BuildReq | ExportReq | ImportReq | ArkReq | SkisseReq | MontReq | MaalReq
 
 export type BuildRes = {
   kind: "build"
@@ -126,6 +137,15 @@ function kjeldeId(b: Uint8Array): string {
  */
 let newest = 0
 
+/** måltala, reglane og kuttlista for éin pose — og berre om han er den siste */
+function maal(id: number, params: ParamBag) {
+  if (newest !== id) return
+  const metrics = MOTOR.measure(params)
+  if (newest !== id) return
+  const rules = MOTOR.rules(params, metrics)
+  post({ kind: "maal", id, metrics, rules, liste: MOTOR.liste(params) })
+}
+
 self.onmessage = (e: MessageEvent<Req>) => {
   const req = e.data
   try {
@@ -202,6 +222,14 @@ self.onmessage = (e: MessageEvent<Req>) => {
       return
     }
 
+    if (req.kind === "maal") {
+      // Utanom porten, som montasjen: ingen bygg kjem, so det er ingenting
+      // å stå i kø bak — og det er DEI SISTE tala som tel, som alltid.
+      newest = req.id
+      maal(req.id, req.params)
+      return
+    }
+
     if (req.kind === "export") {
       const out = MOTOR.exportFile(req.params, req.what)
       post({ kind: "export", id: req.id, ...out }, out.data ? [out.data] : [])
@@ -212,12 +240,8 @@ self.onmessage = (e: MessageEvent<Req>) => {
     const out = build(req)
     post(out.res, out.transfer)
     setTimeout(() => {
-      if (newest !== req.id) return
       try {
-        const metrics = MOTOR.measure(req.params)
-        if (newest !== req.id) return
-        const rules = MOTOR.rules(req.params, metrics)
-        post({ kind: "maal", id: req.id, metrics, rules, liste: MOTOR.liste(req.params) })
+        maal(req.id, req.params)
       } catch (err) {
         console.error("slicerman: målinga slo feil", err)
       }
