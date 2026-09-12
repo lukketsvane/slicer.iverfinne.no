@@ -944,7 +944,26 @@ async function telefon(browser: Browser) {
   // innerText — og ei prøve på undefined kastar i staden for å seie frå
   const merke = await maalrute.locator("text").allTextContents()
   sjekk("og ho ber tal i millimeter", merke.length > 0 && merke.every((t) => /^\d+$/.test((t ?? "").trim())), merke.join(" "))
-  sjekk("og ho tek ikkje imot fingrar", (await maalrute.evaluate((el) => getComputedStyle(el).pointerEvents)) === "none")
+  /**
+   * OG HO TEK IKKJE IMOT FINGRAR — prøvt ved å TRYKKJE.
+   *
+   * `pointer-events: none` på gruppa er regelen. Same forma som søvnen
+   * hadde, og der heldt han ikkje: eit barn med `auto` tek fingeren jamvel
+   * om forelderen seier nei. Her er det sant av lukke — ei gruppe med liner
+   * og tal har ingen born som tek noko — men «sant av lukke» er ikkje noko
+   * ei vakt skal byggje på. So ho trykkjer midt i ruta og krev at valet står
+   * som det stod.
+   */
+  sjekk("og regelen står skriven på henne", (await maalrute.evaluate((el) => getComputedStyle(el).pointerEvents)) === "none")
+  {
+    const vald0 = await page.locator("[data-plan][aria-selected='true']").count()
+    const rb = await maalrute.boundingBox()
+    if (rb) {
+      await page.touchscreen.tap(Math.round(rb.x + rb.width / 2), Math.round(rb.y + rb.height / 2))
+      await page.waitForTimeout(400)
+    }
+    sjekk("og eit trykk i ruta endrar ingenting", (await page.locator("[data-plan][aria-selected='true']").count()) === vald0, `${vald0} valde`)
+  }
   /**
    * EIN DEL ER EIT PLAN. Eit trykk på ein del i plata vel planet han vart
    * skoren av — det same valet eit trykk i rommet gjev.
