@@ -58,13 +58,28 @@ const TAK: [string, number][] = [
   // +22 den 12.: tabellen over kva oppløysinga kostar og kjøper, målt. Han
   // står over `DETAIL`, av di eit nivå utan tala sine er eit tal nokon
   // kjem til å setje etter kjensle
+  // +56 den 12.: møta som er kurver vert talde. Eit flatt plan som skrår mot
+  // sylinderaksen fall bort i stille — ribba hadde spor frå dei rette møta,
+  // so den harde regelen gjekk grøn — og eit krumt skal med tak og botn
+  // melde fire og tjue ledd utan å nemne dei åtte som heldt golva. Tjue av
+  // linene er teljinga; resten er kvifor talet ikkje tel det som aldri var
+  // der, og kva som med vilje står utanfor det
+  // +79 den 12.: luka mellom to bøygde ribber vert målt på MIDTLINA og ikkje
+  // langs normalen. Normalen til ei bøygd flate er normalen der buen byrjar,
+  // og to ribber som krøkte seg mot kvarandre las 33,0 mm medan dei stod
+  // 0,4 mm frå kvarandre. Skanninga er femten liner; resten er grunngjevinga
+  // og grensa som gjer at ho berre vert køyrd der ho kan endre svaret
+  // +29 den 12.: lukemålinga er flytt ut av `buildSnitt` og er ein eksportert
+  // funksjon. Rådet som tek plan bort les den SAME rekninga som talet i tavla;
+  // stod dei med kvar si, tok knappen plan regelen ikkje klaga på — eller
+  // fanst ikkje medan lina var raud, som han ikkje gjorde på bøygde ribber
   // +59 den 12.: klemma — to delar som har gods på den same lina etter at
   // spora er skorne. Regelen «kan monterast» stod grøn på alle dei tjue
   // innebygde formene medan nitten av dei hadde delar som skulle vera same
   // staden, so dette er ei avlesing som mangla og ikkje ei som er finare.
   // Det meste er grunngjevinga: kvifor ho vert lesen på dei FERDIGE
   // profilane og ikkje på møta som vart nekta
-  ["lib/snitt.ts", 1363],
+  ["lib/snitt.ts", 1527],
   ["lib/pack.ts", 955],
 ]
 

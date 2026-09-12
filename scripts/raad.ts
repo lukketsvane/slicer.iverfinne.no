@@ -104,7 +104,36 @@ function torus(R: number, r: number, n: number, m: number) {
 }
 put("torus", "torus", torus(50, 14, 48, 24))
 
-const reglane = (p: Params) => checkRules(p, measure(p))
+/** ein kube med EI FLATE borte: tjuefire kantar kring hòlet høyrer til
+ *  éin trekant, og strålane har ingen innside å telje */
+function opnKube(S: number) {
+  const pos: number[] = []
+  const kvad = (a: number[], b: number[], c: number[], d: number[]) => pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+  kvad([-S, -S, -S], [S, -S, -S], [S, S, -S], [-S, S, -S])
+  kvad([-S, -S, S], [-S, S, S], [S, S, S], [S, -S, S])
+  kvad([-S, -S, -S], [-S, -S, S], [S, -S, S], [S, -S, -S])
+  kvad([-S, S, -S], [S, S, -S], [S, S, S], [-S, S, S])
+  kvad([-S, -S, -S], [-S, S, -S], [-S, S, S], [-S, -S, S])
+  // den sjette flata er ikkje der
+  return makeSoup(new Float32Array(pos))
+}
+put("opn", "opn", opnKube(50))
+
+/** ein tynn ring: netto areal er lite mot boksen han ligg i, og hòlet er
+ *  for stort til at noko anna får plass i det */
+put("tynnring", "tynnring", torus(50, 3, 96, 24))
+
+/**
+ * KVAR REGEL SOM HAR VORE RAUD, OVER HEILE KØYRINGA.
+ *
+ * Vakta nedst i fila spør denne. Grunnen står der.
+ */
+const raude = new Set<string>()
+const reglane = (p: Params) => {
+  const r = checkRules(p, measure(p))
+  for (const q of r) if (!q.ok) raude.add(q.id)
+  return r
+}
 const finn = (p: Params, id: string) => reglane(p).find((r) => r.id === id)
 
 /**
@@ -191,9 +220,63 @@ prov("så vidt for stort", "plate", {
   ok("og det tredje festet står", etter.includes("3:") && !etter.includes("2:"), etter)
 }
 
-// --- opning mellom ribbene -------------------------------------------------
-// Tettleiken er rekna på ei jamn stigning over eit ujamnt legeme, so her
-// er to runder tillatne: fyrste rådet skal ta deg mesteparten av vegen.
+// --- opninga mellom plana --------------------------------------------------
+// Eit rutenett på tjuefire kvar veg over hundre millimeter set plana fire
+// millimeter frå kvarandre, og tre av dei er plate: ein millimeter luke, og
+// ingen finger kjem imellom. Rådet tek annakvart plan, og det er `riv` — so
+// «fiks alt» skal la det stå.
+{
+  const p: Params = { ...DEFAULT_PARAMS, storleik: 100, plan: nett(24, 24) }
+  prov("plana står for tett", "opning", p)
+  const r = finn(p, "opning")
+  ok("og rådet seier at det riv arbeid", !!r?.fiks?.riv, r?.fiks ? `«${r.fiks.ord}»` : "ingen knapp")
+  ok(
+    "so «fiks alt» let plana stå",
+    fiksAlt(p).p.plan === p.plan,
+    `${lesPlan(fiksAlt(p).p.plan).length} plan att av ${lesPlan(p.plan).length}`,
+  )
+}
+
+// OG DET SAME PÅ BØYGDE RIBBER, der luka ikkje kan lesast langs normalen.
+// Fire ribber som krøkjer seg annankvar veg står 40 mm frå kvarandre målt på
+// grunnplana og rører kvarandre i rommet. Ei flat rekning i rådet ville ikkje
+// funne eit einaste plan å ta, og knappen hadde vorte borte medan lina stod
+// raud — difor les rådet og talet den SAME funksjonen.
+{
+  const bogpar = (n: number) =>
+    skrivPlan([
+      ...Array.from({ length: n }, (_, i) => ({
+        id: i + 1,
+        o: [0.3 + (0.4 * i) / (n - 1), 0.5, 0.5] as [number, number, number],
+        n: [1, 0, 0] as [number, number, number],
+        bog: i % 2 ? -0.9 : 0.9,
+        strek: [],
+      })),
+      { id: 99, o: [0.5, 0.5, 0.5] as [number, number, number], n: [0, 1, 0] as [number, number, number], bog: 0, strek: [] },
+    ])
+  const p: Params = { ...DEFAULT_PARAMS, storleik: 300, tjukn: 3, plan: bogpar(4) }
+  prov("bøygde ribber som krøkjer seg mot kvarandre", "opning", p)
+  const flat = measure({ ...p, plan: skrivPlan(lesPlan(p.plan).map((q) => ({ ...q, bog: 0 }))) } as Params)
+  ok(
+    "og det er bøyen og ikkje grunnplana som gjer det",
+    flat.minGap > 30 && measure(p).minGap < 3,
+    `flat ${flat.minGap.toFixed(1)} mm, krum ${measure(p).minGap.toFixed(1)} mm`,
+  )
+}
+
+// --- nettoppløysinga -------------------------------------------------------
+// Trekanttaket på det lågaste hakket sitt over ei kule på fire og eit halvt
+// tusen: 384 trekantar att, og profilane vert lesne av dei. Regelen stod på
+// «under to hundre» før, og den lina kunne aldri verta raud — forenklinga
+// stoggar på budsjettet og held ikkje fram under det.
+prov("nettet er teke for langt ned", "nett", {
+  ...DEFAULT_PARAMS,
+  kjelde: "kule",
+  trekant: 0.5,
+  plan: nett(4, 4),
+})
+
+// --- vegen inn -------------------------------------------------------------
 // Plan 1 og 2 kryssar kvarandre utanfor kroppen og har ikkje ledd; plan 3
 // kryssar begge, langs to liner som ikkje er parallelle. Sist i lista har
 // det to vegar inn; fyrst i lista kjem dei to andre inn på det, kvar sin veg.
@@ -249,6 +332,29 @@ prov("godset er tynt", "gods", {
   ok("og han lagar ikkje eit rutenett du ikkje bad om", !r?.fiks, r?.fiks ? `«${r.fiks.ord}»` : "ingen knapp")
   const d = finn({ ...DEFAULT_PARAMS, plan: "" }, "delar")
   ok("det same gjeld «delar å skjere»", !!d && !d.ok && !d.fiks, d?.fiks ? `«${d.fiks.ord}»` : "ingen knapp")
+}
+
+// --- nettet med hòl i -------------------------------------------------------
+// Kommentaren under lova ein prøve på eit nett med hòl i, og køyrde ei kule
+// som er lukka. Her er nettet: ein kube med ei flate borte.
+{
+  const p: Params = { ...DEFAULT_PARAMS, kjelde: "opn", plan: nett(3, 3) }
+  const r = finn(p, "lukka")
+  ok("eit nett med hòl i seier frå", !!r && !r.ok, r?.value)
+  ok("og ingen knapp lovar å lukke det", !r?.fiks, r?.fiks ? `«${r.fiks.ord}»` : "ingen knapp")
+}
+
+// --- utnyttinga -------------------------------------------------------------
+// To ark, og under ein tredel av det som vart skore i vart del: åtte tynne
+// ringar på ei plate som er fire og ein halv desimeter brei og ti centimeter
+// høg. Regelen slepper alt som får plass på EI plate — resten av den siste
+// plata er ikkje svinn — so det måtte to til for å prøve han.
+{
+  const p: Params = { ...DEFAULT_PARAMS, kjelde: "tynnring", storleik: 900, arkB: 450, arkH: 100, plan: nett(2, 2) }
+  const r = finn(p, "utnytting")
+  const m = measure(p)
+  ok("to ark og under ein tredel utnytta seier frå", !!r && !r.ok, `${m.sheets} ark · ${r?.value}`)
+  ok("og ingen knapp lovar ei betre plate", !r?.fiks, r?.fiks ? `«${r.fiks.ord}»` : "ingen knapp")
 }
 
 // =============================================================================
@@ -325,6 +431,30 @@ const boygd = (bog: number): Params =>
     const etter = reglane({ ...p, ...q.fiks.set } as Params).find((x) => x.id === q.id)
     ok(`rådet «${q.fiks.ord}» rettar ${q.id}`, !!etter?.ok, etter?.value)
   }
+  // --- OG DEI MØTA SOM ER KURVER ---------------------------------------
+  // Eit krumt skal med tak og botn: dei to golva møter kvart av dei fire
+  // bøygde plana, og alle åtte møta er kurver. Ribbene har spor frå dei
+  // rette møta, so den HARDE regelen går grøn — det var nett difor dei åtte
+  // fall bort i stille før.
+  {
+    const skal: Params = {
+      ...DEFAULT_PARAMS,
+      storleik: 300,
+      plan: skrivPlan([
+        ...lesPlan(nett(4, 4)).map((q) => (q.n[0] === 1 ? { ...q, bog: 0.3 } : q)),
+        { id: 91, o: [0.5, 0.5, 0.35], n: [0, 0, 1], bog: 0, strek: [] },
+        { id: 92, o: [0.5, 0.5, 0.65], n: [0, 0, 1], bog: 0, strek: [] },
+      ]),
+    } as Params
+    const hard = finn(skal, "bogledd")
+    ok("ribbene har spor, so den harde regelen går grøn", !!hard?.ok, hard?.value)
+    prov("men åtte møte er kurver", "bogkurve", skal)
+    const k = finn(skal, "bogkurve")
+    ok("og rådet seier at det riv arbeid", !!k?.fiks?.riv, k?.fiks ? `«${k.fiks.ord}»` : "ingen knapp")
+    const etter = measure({ ...skal, ...k!.fiks!.set } as Params)
+    ok("og møta kjem attende som ledd", etter.joints === measure(skal).joints + 8, `${measure(skal).joints} → ${etter.joints}`)
+  }
+
   // og ein bøy som GÅR skal ikkje seie frå om materialet
   const mild = reglane(boygd(0.4)).find((q) => q.id === "bog")
   ok("ein bøy innanfor det materialet toler er ok", !!mild?.ok, mild?.value)
@@ -446,6 +576,27 @@ const boygd = (bog: number): Params =>
     }
   }
   ok("rådet står innanfor skyvarane", alleLovlege, sett.join("; "))
+}
+
+/**
+ * OG DEN SISTE: KVAR REGEL MÅ HA VORE RAUD MINST EIN GONG HER.
+ *
+ * Ein regel som ingen prøve har sett raud er ein regel ingen veit om
+ * verkar. Verre: han kan vera umogeleg å bryte, og då er lina hans pynt.
+ * Det var «nettoppløysing»: han stod på «under to hundre trekantar», og
+ * forenklinga kan ikkje koma dit — skyvaren botnar på eit halvt tusen og
+ * forenklinga stoggar når ho har nådd budsjettet. Lina var grøn i kvar
+ * einaste tilstand reiskapen kan koma i, og ingen prøve sa frå, av di
+ * ingen prøve fanst.
+ *
+ * Vakta er lista over kva som har vore raudt, og ho spør ikkje om rådet
+ * — berre om regelen kan brytast i det heile. Legg du til ein regel, må
+ * du leggje til saka som bryt han.
+ */
+{
+  const alle = reglane({ ...GRUNN, klaring: 0 } as Params).map((r) => r.id)
+  const aldri = alle.filter((id) => !raude.has(id))
+  ok("kvar regel har vore raud ein gong i denne køyringa", aldri.length === 0, aldri.length ? `aldri raud: ${aldri.join(", ")}` : `${raude.size} reglar broten og prøvd`)
 }
 
 console.log(brot === 0 ? "\nalle råd rettar\n" : `\n${brot} råd rettar ikkje\n`)
