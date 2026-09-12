@@ -13,9 +13,9 @@ import { meshToStl } from "../lib/export-stl"
 import { makeSoup } from "../lib/soup"
 import { unzip } from "../lib/zip"
 import { glb } from "./glbfil"
-import { feltTal, klokke, lesTal, snap, type ParamBag } from "../lib/core"
+import { feltTal, klokke, lesTal, snap, type ParamBag, type Vec3 } from "../lib/core"
 import { PARAM_RANGES } from "../lib/params"
-import { lesPlan, rutenett, skrivPlan, type Plan } from "../lib/plan"
+import { lesPlan, rutenett, skrivPlan, ut, type Plan } from "../lib/plan"
 import { makeKropp } from "../lib/kropp"
 import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
@@ -813,6 +813,133 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   const null0 = MOTOR.measure({ ...grunn, plan: skrivPlan(lesPlan(grunn.plan).map((q) => ({ ...q, bog: 0 }))) } as unknown as ParamBag)
   if (flat.cutLen !== null0.cutLen || flat.parts !== null0.parts) bryt("bog 0 gjev eit anna svar enn ingen bog")
   else console.log(`  bog 0 er det same som ingen bog: ${nn(flat.cutLen, 0)} mm kutt`)
+
+  /**
+   * OG YTREMÅLET MÅ FYLGJE BOGEN.
+   *
+   * Omrisset er ein mangekant med få punkt, og på ei firkanta ribbe står
+   * alle fire hjørna på same buelengd frå midten — so ein boks kring berre
+   * hjørna er FLAT same kor mykje ribba bognar. Reiskapen sa at eit objekt
+   * på seks centimeter var tre millimeter tjukt.
+   *
+   * Prøvd mot ein heilt annan veg til det same talet: dei tette ringane
+   * profilen vart lesen av, lagde ut i rommet med halve tjukna til kvar
+   * side.
+   */
+  for (const bog of [0, 0.3, 0.9]) {
+    const bag = { ...grunn, plan: skrivPlan(lesPlan(grunn.plan).map((q) => ({ ...q, bog }))) } as unknown as ParamBag
+    const m = MOTOR.measure(bag)
+    const sn = makeBygg(bag as unknown as Params, DETAIL.mid).s
+    const lo = [Infinity, Infinity, Infinity]
+    const hi = [-Infinity, -Infinity, -Infinity]
+    for (const r of sn.ribber) {
+      for (const ring of r.raa) {
+        for (const q of ring) {
+          for (const off of [-3, 3]) {
+            const P = ut(r.r, q, off)
+            for (let i = 0; i < 3; i++) {
+              if (P[i] < lo[i]) lo[i] = P[i]
+              if (P[i] > hi[i]) hi[i] = P[i]
+            }
+          }
+        }
+      }
+    }
+    const av = Math.abs(m.envX - (hi[0] - lo[0]))
+    if (av > 1) bryt(`bog ${bog}: ytremålet seier ${nn(m.envX, 1)} mm, ringane seier ${nn(hi[0] - lo[0], 1)} mm`)
+    else console.log(`  bog ${String(bog).padEnd(5)} ytremål ${nn(m.envX, 1).padStart(6)} mm   ringane ${nn(hi[0] - lo[0], 1).padStart(6)} mm`)
+  }
+}
+
+/**
+ * LUKA MELLOM TO BØYGDE RIBBER — og kvifor ho ikkje kan lesast av normalen.
+ *
+ * Normalen til ei bøygd flate er normalen DER BUEN BYRJAR. Flata sjølv
+ * vender seg bort frå han heile vegen ut, so eit tal lese langs normalen
+ * seier kor langt frå kvarandre GRUNNPLANA står — ikkje ribbene.
+ *
+ * Her er to ribber 36 mm frå kvarandre, den eine bøygd 0,9 og den andre
+ * −0,9, so dei krøkjer seg mot kvarandre. Talet vert prøvt mot ei heilt
+ * anna måling: minste avstanden mellom punkta i dei to profilane, lagde ut
+ * i rommet. To vegar til det same talet, og dei skal møtast.
+ */
+{
+  console.log("\n=== luka mellom to bøygde ===")
+  const S = 300
+  const T = 3
+  const par = (b1: number, b2: number, dx: number) =>
+    skrivPlan([
+      { id: 1, o: [0.5 - dx, 0.5, 0.5] as Vec3, n: [1, 0, 0] as Vec3, bog: b1, strek: [] },
+      { id: 2, o: [0.5 + dx, 0.5, 0.5] as Vec3, n: [1, 0, 0] as Vec3, bog: b2, strek: [] },
+      { id: 3, o: [0.5, 0.5, 0.5] as Vec3, n: [0, 1, 0] as Vec3, bog: 0, strek: [] },
+    ])
+  for (const [namn, b1, b2, dx] of [
+    ["flate", 0, 0, 0.1],
+    ["mot kvarandre", 0.6, -0.6, 0.1],
+    ["mot kvarandre, tett", 0.9, -0.9, 0.06],
+  ] as const) {
+    const p = { ...DEFAULT_PARAMS, storleik: S, tjukn: T, plan: par(b1, b2, dx) } as Params
+    const sn = makeBygg(p as unknown as Params, DETAIL.mid).s
+    const rib = [1, 2].map((id) => sn.ribber.find((r) => r.plan.id === id))
+    if (!rib[0] || !rib[1]) {
+      bryt(`${namn}: ribbene kom ikkje ut`)
+      continue
+    }
+    // den andre vegen til det same talet: punkta i profilane, lagde ut i rommet
+    const sky = rib.map((r) => r!.raa.flatMap((ring) => ring.map((q) => ut(r!.r, q, 0))))
+    let naer = Infinity
+    for (const a of sky[0]) for (const b of sky[1]) naer = Math.min(naer, Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]))
+    const ekte = naer - T
+    const av = Math.abs(sn.minGap - ekte)
+    // ei millimeter mon: midtlina vert skanna i 64 steg, punktskya er alle punkta
+    if (av > 1) bryt(`${namn}: luka er ${nn(sn.minGap, 1)} mm, punkta seier ${nn(ekte, 1)} mm`)
+    else console.log(`  ${namn.padEnd(22)} luke ${nn(sn.minGap, 1).padStart(6)} mm   punkta ${nn(ekte, 1).padStart(6)} mm`)
+  }
+  // og det er ikkje eit tal som berre fylgjer grunnplana: dei står 36 mm frå
+  // kvarandre i alle tre, og luka skal likevel skilje dei
+  const flat = makeBygg({ ...DEFAULT_PARAMS, storleik: S, tjukn: T, plan: par(0, 0, 0.06) } as Params, DETAIL.mid).s
+  const krum = makeBygg({ ...DEFAULT_PARAMS, storleik: S, tjukn: T, plan: par(0.9, -0.9, 0.06) } as Params, DETAIL.mid).s
+  if (!(krum.minGap < 3 && flat.minGap > 30)) {
+    bryt(`same avstand mellom grunnplana, men luka skal skilje dei: flat ${nn(flat.minGap, 1)}, krum ${nn(krum.minGap, 1)}`)
+  } else {
+    console.log(`  same grunnplan, ulik bøy: flat ${nn(flat.minGap, 1)} mm, krum ${nn(krum.minGap, 1)} mm`)
+  }
+}
+
+/**
+ * EIT KRUMT SKAL MED TAK OG BOTN — og dei møta som fell bort.
+ *
+ * Eit flatt plan LANGS sylinderaksen møter den bøygde flata i ei rett line
+ * og vert eit ledd. Eit plan som SKRÅR mot aksen møter henne i eit
+ * kjeglesnitt, og den finnaren er ikkje skriven. Det siste hende i stille:
+ * ribbene hadde spor frå dei rette møta, so den harde regelen gjekk grøn,
+ * og talet i topplina sa ingenting om resten.
+ *
+ * Her er det rekna: fire bøygde plan, fire flate langs aksen, og to golv på
+ * tvers. Dei to golva møter kvart av dei fire bøygde — åtte møte — og alle
+ * åtte er kurver. Rett ut bøyen, og dei åtte kjem attende som ledd.
+ */
+{
+  console.log("\n=== møte som er kurver ===")
+  const bogna = (bog: number) =>
+    skrivPlan([
+      ...lesPlan(nett(4, 4)).map((q) => (q.n[0] === 1 ? { ...q, bog } : q)),
+      { id: 91, o: [0.5, 0.5, 0.35] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] },
+      { id: 92, o: [0.5, 0.5, 0.65] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] },
+    ])
+  const bag = { ...DEFAULT_PARAMS, storleik: 300, plan: bogna(0.3) } as unknown as ParamBag
+  const krum = MOTOR.measure(bag)
+  const rett = MOTOR.measure({ ...bag, plan: bogna(0) } as unknown as ParamBag)
+  const s = makeBygg(bag as unknown as Params, DETAIL.mid).s
+  const flate = makeBygg({ ...bag, plan: bogna(0) } as unknown as Params, DETAIL.mid).s
+  console.log(`  bøygd     ${krum.joints} ledd, ${s.kurva.length} møte som er kurver`)
+  console.log(`  rett      ${rett.joints} ledd, ${flate.kurva.length} møte som er kurver`)
+  if (s.kurva.length !== 8) bryt(`eit krumt skal med to golv skulle misse åtte møte, ikkje ${s.kurva.length}`)
+  else if (new Set(s.kurva).size !== 4) bryt(`dei åtte møta skulle høyre til fire bøygde plan, ikkje ${new Set(s.kurva).size}`)
+  else if (flate.kurva.length) bryt(`eit rett sett skal ikkje ha eit einaste kurva møte`)
+  else if (rett.joints - krum.joints !== s.kurva.length)
+    bryt(`å rette ut bøyen gav ${rett.joints - krum.joints} ledd, og ${s.kurva.length} møte fall bort`)
+  else console.log(`  og dei er dei same: ${krum.joints} + ${s.kurva.length} = ${rett.joints} ledd når bøyen er borte`)
 }
 
 /**

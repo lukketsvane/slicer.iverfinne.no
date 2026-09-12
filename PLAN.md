@@ -41,6 +41,22 @@ kroppsverktyet bør ut av han og verta sin eigen bolk.
 Målinga er frå den 12. `virvelen` er sidan teken bort med verktyet sitt, so
 køyringa er 17,3 s kortare enn tabellen seier.
 
+**Køyrd om att seinare same dag**, etter dei fire sakene under D–G. Alt grønt,
+og kroppsverktyet er sidan teke ut av `telefon` og har vorte sin eigen bolk, so
+framlegget over er gjennomført:
+
+    sjekk 2 s   probe 27 s   rekkje 3 s   vrient 19 s   ledd 8 s   raad 9 s
+    hand 4 s    pakk 13 s    glb 0 s      enkel 2 s
+    panel 428 s, 373 prøver over seksten bolkar, null feil
+
+    telefon 146,7 s   grupper 58,9 s   skalet 41,1 s   benk 31,0 s
+    kroppen 25,7 s    forma 25,4 s     boyen 21,3 s    montasjen 20,4 s
+    handtaka 12,4 s   reglar 11,3 s    taket 11,1 s    flyt 7,9 s
+    symmetri 5,3 s    uttaka 4,8 s     andrefingeren 3,1 s   mork 1,8 s
+
+`raad` er den som voks: 5 s → 9 s og 48 prøver, av di han no bryt kvar einaste
+regel og seier frå om ein av dei ikkje let seg bryte.
+
 CI er grøn på `main` (køyring 70). Typehygiena er uvanleg god: **ein** einaste
 `as any`/`@ts-ignore` i 19 297 liner kjelde. Motoren er rask og lineær der ho
 skal vera:
@@ -373,6 +389,44 @@ So ta det i tre steg, og la den harde regelen stå til kvart steg er dekt:
 Verifikasjon finst allereie: `pnpm ledd` prøver at kvart ledd panelet talde
 finst att i kuttprofilane. Steg 1 er ei ny sak i den selen, ikkje ein ny sel.
 
+**OG STEG 2 DELER SEG I TO, DER DET EINE ER MYKJE BILLEGARE ENN DET ANDRE.**
+
+Målt, ikkje gjeten. Eit bøygt plan med aksen langs z og eit GOLV vinkelrett på
+aksen — det motsette ytterpunktet av steg 1, og nett det eit krumt skal med tak
+og botn er. Kryssingskurva rekna i 49 punkt og lese frå båe sidene:
+
+    i det bøygde mønsteret   w er KONSTANT, spenn 0,0e+0 mm
+    i golvet si ramme        sirkelboge, radius 333,33 mm
+                             (sylinderen sin R er 333,33)
+                             største avvik frå bogen 5,7e-14 mm
+                             bogen er 33,2 × 290,0 mm
+
+Planet z = c skjer sylinderen der `w = c`, og `w` er millimeter langs aksen —
+so i det UTBRETTA mønsteret er møtet ei rett line, nett som i steg 1. Sporet på
+den bøygde delen er eit spor som alle andre: eitt punkt, éi retning.
+
+Det som manglar er sporet på den ANDRE sida: ein sirkelboge med nøyaktig
+sylinderradien. Og montasjen går opp — skalet vert skuve rett ned langs aksen
+sin, og bogen i golvet er tverrsnittet hans.
+
+So steg 2 er eigentleg:
+
+    2a  golvet vinkelrett på aksen     éin rett spor og ÉIN BOGE.
+                                       Kjeglesnittet er ein sirkel, og
+                                       delen let seg skuve inn.
+    2b  kva vinkel som helst           ellipse mot sinuskurve, og
+                                       monteringsspørsmålet vert ekte.
+
+`snitt.ts` seier sjølv kvifor ingen av dei er skrivne: «spor-maskineriet
+byggjer heilt igjennom på at møtet er ei RETT LINE, med eitt punkt og éi
+retning». Prisen for 2a er ikkje geometrien — ho er rekna over — det er å la
+eit spor vera ein boge. Det er `Spor`, feltet som skjer spora inn i profilen,
+nettet, uttaka og `pnpm ledd`.
+
+Men 2a er det som står mellom reiskapen og «krumt skal med golv», som er den
+vanlegaste bøygde forma som finst, og som i dag misser ein fjerdedel av ledda
+sine i stille (sjå G).
+
 ## B. ~~Pakkinga: eit ekte søk~~ — fem hundre rekkjefylgjer sparte ikkje éi plate
 
 `lib/pack.ts:502` seier det sjølv, ærleg:
@@ -483,6 +537,111 @@ billegare, ikkje å prøve færre par.
 
 ---
 
+# Det som kom fram då planen vart køyrt om att
+
+Fire saker, alle funne ved å køyre selane og lesa kva dei IKKJE spør om. Dei
+tre fyrste er den same saka som nummer 1 på denne sida, i tre nye drakter: ei
+prøve som er grøn av di ho ikkje kan verta raud. Den fjerde er eit tal
+reiskapen hadde og ikkje sa.
+
+## D. «For tett» var den einaste raude lina utan ein knapp
+
+Regelen om opninga mellom plana (nr. 10 i `rules.ts`) sa «flytt det eine, eller
+ta det bort», og lét deg gjere båe delar sjølv. Kvar annan mjuk regel som HAR
+eit botemiddel ber det som eit trykk.
+
+Rådet reknar no kva som fell: lukene vert målte nøyaktig slik `minGap` måler
+dei — same vinkelbandet på ti grader, same uttrykket, same rekkjefylgja — og
+ribbene ligg i lista i den rekkjefylgja plana står. Éin gjennomgang, og det som
+står att har luke nok mot kvart av dei andre. Det er den same rekninga regelen
+les etterpå, so knappen kan ikkje bomme.
+
+    kube 100 mm i 3 mm, 24×24     1,2 mm → 5,3 mm     48 plan → 24
+    same, 40×40                  -0,5 mm → 4,5 mm     64 plan → 22
+    kube 60 mm i 6 mm, 12×12     -1,0 mm → 4,0 mm     24 plan → 12
+
+`riv`, av di det tek plan du har sett: knappen står, angre tek han, og «fiks
+alt» rører han ikkje.
+
+## E. Ei line om nettoppløysinga som aldri kunne verta raud
+
+Regelen stod på «under to hundre trekantar». Skyvaren botnar på eit halvt
+tusen, `budsjett` gjev heile taket til ei einsam kjelde, og forenklinga stoggar
+NÅR ho har nådd budsjettet — ho held ikkje fram under det:
+
+    kule 18 432 trekantar → 384      sylinder 1 024 → 224
+    kule  4 608 → 384                rutekube 3 072 → 432
+    kule  1 152 → 408                rutekube   768 → 432
+
+Botnen ligg kring tre hundre og femti. Og eit nett som ER under to hundre har
+ikkje fleire å miste — då er `tris >= srcTris`, og lina er grøn av den andre
+grunnen. Lina kunne altso ikkje verta raud i nokon tilstand reiskapen kan koma
+i.
+
+Taket sjølv er talet no, og det er sant nett på det lågaste hakket. Kva hakket
+kostar, målt på ei kule på 200 mm med fire og fire plan: kuttet 7,413 m mot
+7,495 og massen 0,3651 kg mot 0,3759 — tre prosent gods lese av eit nett som
+ikkje er der.
+
+## F. Og so mekanismen: kvar regel må ha vore raud ein gong
+
+D og E var to enkelttilfelle. Det som tek det tredje er ikkje å finne det —
+det er å gjera det umogeleg å leggje til eit fjerde i stillheit.
+
+`pnpm raad` prøvde at eit råd rettar det det seier. Han prøvde ikkje at
+regelen kan brytast i det heile. No samlar `reglane` kvar regel som har vore
+raud undervegs, og den siste vakta i fila listar dei som aldri var det.
+Prøvd ved å setje nettaket attende til to hundre: **«aldri raud: nett»**.
+
+To reglar hadde ikkje ei sak før:
+
+- **«lukka nett»** — kommentaren i fila lova ein prøve på eit nett med hòl i,
+  og køyrde ei kule som er lukka. No er det ein kube med ei flate borte.
+- **«utnytting»** — regelen slepper alt som får plass på EI plate, so ein sak
+  måtte ha to: åtte tynne ringar på 450 × 100 mm, 27 % over to ark.
+
+Seksten reglar, seksten broten og prøvde. Legg du til ein regel, må du leggje
+til saka som bryt han.
+
+## G. Åtte møte fall bort i stille
+
+Det største av dei fire, og det einaste som er geometri.
+
+Eit bøygt plan er ein sylinder. Eit flatt plan LANGS aksen hans møter han i ei
+generatorline og vert eit ledd — steg éin, gjort. Eit flatt plan som SKRÅR mot
+aksen møter han i eit kjeglesnitt, og den finnaren er ikkje skriven.
+
+Det stod i den harde regelen, men han tel ribber UTAN SPOR. Ei bøygd ribbe som
+har eit plan langs aksen sin ER festa, og gjekk difor grøn — medan kvart skrå
+plan fall bort utan eit ord. Målt på det folk faktisk lagar, eit krumt skal med
+tak og botn (fire bøygde plan, fire flate langs aksen, to golv på tvers):
+
+    bøygd   24 ledd, 8 møte som er kurver
+    rett    32 ledd, 0 møte som er kurver
+
+Åtte av to og tretti ledd — ein fjerdedel av grepet i objektet — borte, og
+topplina sa fire og tjue og ingenting meir. Det er den same saka som `avvist`,
+og svaret er det same: tel dei, og sei talet.
+
+`Snitt.kurva` ber det bøygde planet sin id for kvart møte som fell, ein mjuk
+regel seier kor mange, og rådet rettar ut nett dei plana som misser møte.
+Talet tel ikkje det som aldri var der: kurva
+`w(u) = (n·o − n·ut(kr,[u,0]))/(n·v)` vert skanna over spennet profilen har, og
+møtet er ekte berre om eit punkt på henne ligg INNE i profilen.
+
+Berre bøygd mot flat vert talt. To bøygde flater møtest i ei romkurve, og å
+avgjera om dei i det heile møtest er ei anna rekning; dei står att hjå den
+harde regelen.
+
+Kosta ingenting målbart: 24 bøygde og 24 skrå plan, 1468 ms med teljinga og
+1501 ms utan.
+
+**Og no er det eit tal på kva steg 2 i sak A er verdt.** Framlegget der stod
+utan pris; det står med ein no, og prisen er ein fjerdedel av ledda på den
+vanlegaste bøygde forma som finst.
+
+---
+
 # Rekkjefylgja
 
 Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
@@ -522,11 +681,27 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
                                                  null plater på 14 objekt (sjå B)
    13  ~~Romleg deling av leddpara~~         → strøken: å avvise eit par er
                                                  alt gratis (sjå C)
+   14  Eit råd på «for tett» (D)             → pnpm raad: 1,2 mm → 5,3 mm, og
+                                                 «fiks alt» let plana stå ✓ GJORT
+   15  Nettaket kan verta raudt (E)          → pnpm raad: 384 av 4608 →
+                                                 «prøv 1 k» → 992 ✓ GJORT
+   16  Kvar regel må ha vore raud (F)        → prøvd med taket attende på 200:
+                                                 «aldri raud: nett» ✓ GJORT
+   17  Møta som er kurver vert talde (G)     → pnpm probe: 24 + 8 = 32 ledd når
+                                                 bøyen er borte ✓ GJORT
 
-Ti av tretten er gjorde. To er strøkne av målingar — pakkesøket og den romlege
-delinga — og begge står att på sida med tala som tok dei, av di ein plan som
-stryk feila sine lærer ingen noko. Elleve står att, og han er strukturell: han
-har ingen frist, og han vert billegare kvar gong nokon likevel er inne i fila.
+Fjorten av sytten er gjorde. To er strøkne av målingar — pakkesøket og den
+romlege delinga — og begge står att på sida med tala som tok dei, av di ein
+plan som stryk feila sine lærer ingen noko. Elleve står att, og han er
+strukturell: han har ingen frist, og han vert billegare kvar gong nokon
+likevel er inne i fila.
+
+Og A steg 2 står att med ein pris no, og ikkje berre med ei skildring: ein
+fjerdedel av ledda på eit krumt skal med tak og botn (sjå G). Han har dessutan
+delt seg i to, og den eine halvparten — golvet vinkelrett på bøyeaksen — treng
+ikkje eit kjeglesnitt i det heile: eitt rett spor og éin sirkelboge, målte i
+sak A. Det er neste steg som er verdt noko, og det er det einaste som står
+mellom reiskapen og eit krumt skal med golv.
 
 **Og det eine som ikkje står i lista:** køyr den selen som dekkjer det du rørte.
 `CLAUDE.md` seier at å endre geometri, uttak eller reglar utan det er den eine

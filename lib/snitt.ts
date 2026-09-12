@@ -195,6 +195,30 @@ export type Snitt = {
    * ulike ting i eitt tal er eit tal som seier mindre enn namnet sitt.
    */
   avvist: number
+  /**
+   * MØTE SOM ER KURVER, OG SOM DIFOR IKKJE VART TEKNE.
+   *
+   * Eit bøygt plan er ein sylinder. Eit flatt plan som ligg LANGS aksen
+   * hans møter han i ei generatorline — rett i rommet, rett utbretta, eit
+   * ledd som alle andre. Eit flatt plan som SKRÅR mot aksen møter han i
+   * eit kjeglesnitt, og den finnaren er ikkje skriven (`kryssBoygd`).
+   *
+   * Det stod i den harde regelen, men berre for ribber som ikkje fann eit
+   * einaste spor. Ei bøygd ribbe som har spor frå eit plan langs aksen ER
+   * festa, og dei skrå møta hennar fall bort i stille: eit krumt skal med
+   * tak og botn melde fire og tjue ledd og sa ingenting om dei åtte som
+   * heldt golva. Det er den same saka som `avvist`, og svaret er det same
+   * — tel dei, og sei talet.
+   *
+   * Berre BØYGD MOT FLAT vert talt. To bøygde flater møtest i ei romkurve,
+   * og å avgjera om dei i det heile møtest er ei anna rekning enn denne;
+   * dei står att hjå den harde regelen. Eit tal som dekkjer to ulike ting
+   * seier mindre enn namnet sitt.
+   *
+   * Lista ber DET BØYGDE PLANET sin id, eitt for kvart møte som fall — so
+   * rådet kan rette nett dei og late resten stå.
+   */
+  kurva: number[]
   /** stykke som vart kasta av di dei ikkje hang i eit einaste ledd */
   kasta: number
   slotW: number
@@ -638,6 +662,100 @@ function iGods(ringar: readonly Pt[][], q: Pt): boolean {
 // =============================================================================
 const NETT = new WeakMap<Kropp, Map<string, Snitt>>()
 
+/** ei flate slik lukemålinga treng henne: ramma, og ringane profilen er */
+export type Flate = { r: Ramme; ringar: readonly Pt[][] }
+
+/** to plan innanfor ti grader av kvarandre er naboar */
+const PAR_10 = Math.sin((10 * Math.PI) / 180)
+const MIDT_STEG = 64
+
+/**
+ * LUKENE MELLOM NABOPLAN, EIN STAD.
+ *
+ * Både talet i tavla og rådet som tek plan bort les dette. Stod dei med kvar
+ * si rekning, ville knappen ta bort plan regelen ikkje klaga på — eller la
+ * dei stå medan lina var raud.
+ *
+ * Spenn og sagitta vert rekna éin gong per flate; `luka(i, j, grense)` gjev
+ * luka mellom to av dei, og `Infinity` når dei ikkje er naboar eller når ho
+ * kan prova at luka er større enn `grense`.
+ */
+export function lukene(flater: readonly Flate[], tjukn: number) {
+  const spenn = flater.map((a): [number, number] => {
+    let lo = Infinity
+    let hi = -Infinity
+    for (const ring of a.ringar) {
+      for (const q of ring) {
+        if (q[0] < lo) lo = q[0]
+        if (q[0] > hi) hi = q[0]
+      }
+    }
+    return [lo, hi]
+  })
+  /**
+   * Ei bøygd flate vik aldri lenger frå grunnplanet sitt enn dette:
+   * n-avstanden ved kvar av endane av buen, som er det største han vert.
+   */
+  const sagitta = flater.map((a, i) => {
+    if (!a.r.k) return 0
+    const [lo, hi] = spenn[i]
+    if (!(hi > lo)) return 0
+    const av = (u: number) => Math.abs(dot(a.r.n, ut(a.r, [u, 0], 0)) - dot(a.r.n, a.r.o))
+    return Math.max(av(lo), av(hi))
+  })
+  /** midtlina til flata i rommet, `w = 0`, over det spennet profilen har */
+  const midt: (Vec3[] | null)[] = flater.map(() => null)
+  const midtlina = (i: number): Vec3[] => {
+    const m = midt[i]
+    if (m) return m
+    const a = flater[i]
+    const [lo, hi] = spenn[i]
+    const ut2: Vec3[] = []
+    if (!(hi > lo)) ut2.push(ut(a.r, [0, 0], 0))
+    else for (let t = 0; t <= MIDT_STEG; t++) ut2.push(ut(a.r, [lo + ((hi - lo) * t) / MIDT_STEG, 0], 0))
+    midt[i] = ut2
+    return ut2
+  }
+  /** frå eit punkt til stykket mellom a og b, og ikkje berre til endane:
+   *  eit grovt skann av ei line ville lese ei luke som er større enn ho er */
+  const tilStykket = (q: Vec3, a: Vec3, b: Vec3): number => {
+    const dx = b[0] - a[0]
+    const dy = b[1] - a[1]
+    const dz = b[2] - a[2]
+    const LL = dx * dx + dy * dy + dz * dz
+    const t = LL > 1e-12 ? Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy + (q[2] - a[2]) * dz) / LL)) : 0
+    return Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy, q[2] - a[2] - t * dz)
+  }
+  const midtAvstand = (i: number, j: number): number => {
+    const la = midtlina(i)
+    const lb = midtlina(j)
+    let m = Infinity
+    for (const q of la) for (let t = 1; t < lb.length; t++) m = Math.min(m, tilStykket(q, lb[t - 1], lb[t]))
+    for (const q of lb) for (let t = 1; t < la.length; t++) m = Math.min(m, tilStykket(q, la[t - 1], la[t]))
+    return m
+  }
+  const luka = (i: number, j: number, grense = Infinity): number => {
+    const A = flater[i]
+    const B = flater[j]
+    if (len3(cross(A.r.n, B.r.n)) > PAR_10) return Infinity
+    const g0 = Math.abs(dot(A.r.n, A.r.o) - dot(A.r.n, B.r.o))
+    if (!A.r.k && !B.r.k) return g0 - tjukn
+    // grensa er eit prikk og ei subtraksjon; skanninga er åtte tusen avstandar
+    if (g0 - sagitta[i] - sagitta[j] - tjukn >= grense) return Infinity
+    return midtAvstand(i, j) - tjukn
+  }
+  return {
+    luka,
+    minste: (tak: number) => {
+      let m = tak
+      for (let i = 0; i < flater.length; i++) {
+        for (let j = i + 1; j < flater.length; j++) m = Math.min(m, luka(i, j, m))
+      }
+      return m
+    },
+  }
+}
+
 export function buildSnitt(k: Kropp, p: Params, cells: number): Snitt {
   const key = snittKey(p as unknown as ParamBag, cells)
   let per = NETT.get(k)
@@ -864,6 +982,11 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
    * Lista, og ikkje eitt svar: eit plan kan skjera ein sylinder på to
    * generatorar, og båe er ekte ledd.
    */
+  /** kor fint kurva vert skanna etter eit punkt inne i profilen. Same
+   *  talet som `ROT_STEG` i `plan.ts`: ei bue på ein meter vert prøvd kvar
+   *  sekstande millimeter, og eit møte som er smalare enn det er ikkje eit
+   *  ledd uansett. */
+  const KURVE_STEG = 64
   const uSpenn = (a: Raa): [number, number] => {
     let lo = Infinity
     let hi = -Infinity
@@ -875,15 +998,41 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     }
     return [lo, hi]
   }
+  /**
+   * MØTES DEI TO I DET HEILE, når finnaren sa nei?
+   *
+   * Aksen er `v`, so eit punkt på flata er `ut(kr, [u, w])` og `w` er
+   * millimeter langs han. Eit flatt plan som skrår mot aksen har `n·v ≠ 0`,
+   * og då gjev planlikninga nøyaktig éin `w` per `u`:
+   *
+   *     w(u) = (n·o_fl − n·ut(kr, [u, 0])) / (n·v)
+   *
+   * Kurva vert skanna i `u` over spennet profilen har, og møtet er ekte
+   * dersom eit av punkta på henne ligg INNE i profilen. Utan den prøva
+   * ville kvart skrå plan i rommet telje som eit tapt møte, og eit tal som
+   * tel det som aldri var der er ikkje eit tal.
+   */
+  const kurveInne = (kr: Raa, fl: Ramme, lo: number, hi: number): boolean => {
+    const nv = dot(fl.n, kr.r.v)
+    if (Math.abs(nv) <= 1e-3 || !(hi > lo)) return false
+    const dFl = dot(fl.n, fl.o)
+    for (let i = 0; i <= KURVE_STEG; i++) {
+      const u = lo + ((hi - lo) * i) / KURVE_STEG
+      const w = (dFl - dot(ut(kr.r, [u, 0], 0), fl.n)) / nv
+      for (const ring of kr.ringar) if (inRing(ring, [u, w])) return true
+    }
+    return false
+  }
+  const kurva: number[] = []
   const møta = (A: Raa, B: Raa): { p: Vec3; d: Vec3; sin: number }[] => {
     if (A.boygd && B.boygd) return []
-    if (A.boygd) {
-      const [lo, hi] = uSpenn(A)
-      return kryssBoygd(A.r, B.r, lo, hi)
-    }
-    if (B.boygd) {
-      const [lo, hi] = uSpenn(B)
-      return kryssBoygd(B.r, A.r, lo, hi)
+    if (A.boygd || B.boygd) {
+      const kr = A.boygd ? A : B
+      const fl = A.boygd ? B : A
+      const [lo, hi] = uSpenn(kr)
+      const x = kryssBoygd(kr.r, fl.r, lo, hi)
+      if (!x.length && kurveInne(kr, fl.r, lo, hi)) kurva.push(kr.plan.id)
+      return x
     }
     const x = kryssAv(A.r, B.r)
     return x ? [x] : []
@@ -1048,16 +1197,30 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     }
   })
 
-  // LUKA ER MÅLT MELLOM NABOAR: to plan som er nesten parallelle, og kor
-  // langt frå kvarandre dei står langs normalen, minus plata.
-  let minGap = span
-  for (let i = 0; i < raa.length; i++) {
-    for (let j = i + 1; j < raa.length; j++) {
-      if (len3(cross(raa[i].r.n, raa[j].r.n)) > Math.sin((10 * Math.PI) / 180)) continue
-      const g = Math.abs(dot(raa[i].r.n, raa[i].r.o) - dot(raa[i].r.n, raa[j].r.o))
-      minGap = Math.min(minGap, g - p.tjukn)
-    }
-  }
+  /**
+   * LUKA ER MÅLT MELLOM NABOAR: to plan som er nesten parallelle, og kor
+   * langt frå kvarandre dei står, minus plata.
+   *
+   * FOR TO FLATE PLAN er det eitt tal langs normalen, og det er eksakt.
+   *
+   * FOR EIT BØYGT ER DET IKKJE DET. Normalen til ei bøygd flate er normalen
+   * DER BUEN BYRJAR; flata sjølv vender seg bort frå han heile vegen ut.
+   * Målt slik det stod, på to ribber 36 mm frå kvarandre i eit objekt på
+   * 300 mm, den eine bøygd 0,9 og den andre −0,9:
+   *
+   *     lika langs normalen      33,0 mm
+   *     ekte næraste avstand      0,4 mm  (mellom flatene, so −2,6 mm luke)
+   *
+   * Ribbene rører kvarandre, og lina sa at det var tre centimeter å ta i.
+   * Det er ikkje ei unøyaktigheit — det er eit anna tal.
+   *
+   * So der ei av dei to er bøygd, vert MIDTLINA prøvd: flata ved `w = 0`,
+   * skanna over det spennet profilen har, og minste avstanden mellom dei to
+   * linene. Det er den same blindsona som den flate rekninga alt har — to
+   * plan som står langt frå kvarandre LANGS aksen tel som naboar — og det
+   * er med vilje: regelen spør kor tett plana står, ikkje om dei møtest.
+   */
+  const minGap = lukene(raa, p.tjukn).minste(span)
 
   /**
    * TO DELAR PÅ DEN SAME STADEN.
@@ -1109,6 +1272,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     ribber,
     ledd,
     avvist,
+    kurva,
     kasta,
     slotW,
     minGap,
