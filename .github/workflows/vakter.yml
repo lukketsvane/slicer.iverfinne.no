@@ -38,6 +38,10 @@ jobs:
       # ser det.
       - run: pnpm build
       - run: pnpm sjekk
+      # Vekta står rett etter tsc: ho les berre filer, ho tek eit augeblink,
+      # og ho er den einaste vakta som seier frå om noko som veks utan at
+      # nokon valde det.
+      - run: pnpm vekt
       - run: pnpm probe
       - run: pnpm rekkje
       - run: pnpm vrient

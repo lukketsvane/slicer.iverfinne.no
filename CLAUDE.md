@@ -119,6 +119,7 @@ Every number this tool prints is read off the geometry. So is every check:
 
 ```bash
 pnpm sjekk    # tsc --noEmit
+pnpm vekt     # taket på dei fire store filene: veks ei av dei, er det ei avgjerd
 pnpm build    # webpack (never Turbopack), then guards that the worker bundled
 pnpm probe    # engine without a browser: parts, joints, cut length, files
 pnpm rekkje   # reads the cut files back: engrave, inner cuts, outline, in order
