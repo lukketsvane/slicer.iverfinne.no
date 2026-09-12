@@ -74,9 +74,18 @@ put("t-kule", "kule", makeSoup(kuleSuppe(50, 48)))
 
 const GRUNN = { ...DEFAULT_PARAMS, kjelde: "t-kule", storleik: 200 } as Params
 
-/** eitt mål, med nettet varmt: det er snittinga som skal målast, ikkje sveisinga */
-function maal(plan: string): { ms: number; delar: number; ledd: number; plan: number } {
-  const bag = { ...GRUNN, plan } as unknown as ParamBag
+/**
+ * Eitt mål, med nettet varmt: det er snittinga som skal målast, ikkje
+ * sveisinga.
+ *
+ * `frø` skuvar storleiken ein millimeter per runde. Det er ikkje pynt: både
+ * bygget og snittet vert hugsa på ein nøkkel som har storleiken i seg, so
+ * det SAME plansettet målt to gonger er eit oppslag og ikkje ei rekning. Vil
+ * du måle det same arbeidet om att, må du be om noko som er likt og ikkje
+ * identisk.
+ */
+function maal(plan: string, frø = 0): { ms: number; delar: number; ledd: number; plan: number } {
+  const bag = { ...GRUNN, storleik: 200 + frø, plan } as unknown as ParamBag
   const t0 = Date.now()
   const m = MOTOR.measure(bag)
   return { ms: Date.now() - t0, delar: m.parts, ledd: m.joints, plan: lesPlan(plan).length }
@@ -174,8 +183,37 @@ else {
  */
 const halv = rader.find((r) => r.n === 32)
 if (halv && siste && halv !== siste && siste.n === halv.n * 2) {
-  const dobling = siste.para / Math.max(1, halv.para)
-  ok("snittinga er lineær: dobbelt so mange plan kostar dobbelt", dobling < 2.3, `${halv.para} → ${siste.para} ms (×${dobling.toFixed(2)}, lineært er 2,00)`)
+  /**
+   * OG HO VERT MÅLT TRE GONGER, med den BESTE som svar.
+   *
+   * Brøken er to veggklokkemålingar med kvar sin støy, og denne vakta står i
+   * CI, der naboen er ukjend. Målt her: ×1,84, ×1,95 og ×1,90 på ei roleg
+   * maskin — og ×2,55 medan eit bygg åt fire kjernar, mot ei grense på 2,3.
+   * Det er ikkje koden som endra seg mellom dei to, det er maskina.
+   *
+   * Ei vakt som kan verta raud av ein travel tenar lærer folk å køyre henne
+   * om att, og ei vakt folk køyrer om att er ikkje lenger ei vakt. So ho
+   * køyrer sjølv: trengsel gjer tal STØRRE og aldri mindre, so den beste av
+   * tre er den reinaste målinga, og ein kode som verkeleg har bytt orden
+   * ligg over grensa i alle tre.
+   *
+   * Kvar runde får sitt eige frø — sjå `maal`: det same settet om att er eit
+   * bufferoppslag og ikkje ei måling.
+   */
+  let dobling = siste.para / Math.max(1, halv.para)
+  const alle = [dobling]
+  for (const frø of [1, 2]) {
+    const a = maal(skrivPlan(rutenett(32, 0)), frø)
+    const b = maal(skrivPlan(rutenett(PLAN_TAK, 0)), frø)
+    const d = b.ms / Math.max(1, a.ms)
+    alle.push(d)
+    dobling = Math.min(dobling, d)
+  }
+  ok(
+    "snittinga er lineær: dobbelt so mange plan kostar dobbelt",
+    dobling < 2.3,
+    `beste av ${alle.map((d) => `×${d.toFixed(2)}`).join(" ")} — lineært er 2,00`,
+  )
 }
 
 /**

@@ -437,7 +437,9 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
     5  Eitt byggjenivå og ikkje to           → målt: 452 → 224 ms per hakk
                                                  ✓ GJORT (og premissen retta: å
                                                  hoppe over fana sparar null)
-    6  Vakta på taket måler arbeid           → tre køyringar under last, alle grøne
+    6  Vakta på taket tek den beste av tre   → prøvd under to samtidige bygg:
+                                                 ×2,20 ×2,17 ×1,61 → held
+                                                 ✓ GJORT
     7  Retninga inn i montasjenyttelasta     → probe: kopla del↔line held
                                                  ✓ GJORT
     8  Steglista og tomt-meldinga ✓ GJORT    → panel montasjen
