@@ -648,6 +648,100 @@ function iGods(ringar: readonly Pt[][], q: Pt): boolean {
 // =============================================================================
 const NETT = new WeakMap<Kropp, Map<string, Snitt>>()
 
+/** ei flate slik lukemålinga treng henne: ramma, og ringane profilen er */
+export type Flate = { r: Ramme; ringar: readonly Pt[][] }
+
+/** to plan innanfor ti grader av kvarandre er naboar */
+const PAR_10 = Math.sin((10 * Math.PI) / 180)
+const MIDT_STEG = 64
+
+/**
+ * LUKENE MELLOM NABOPLAN, EIN STAD.
+ *
+ * Både talet i tavla og rådet som tek plan bort les dette. Stod dei med kvar
+ * si rekning, ville knappen ta bort plan regelen ikkje klaga på — eller la
+ * dei stå medan lina var raud.
+ *
+ * Spenn og sagitta vert rekna éin gong per flate; `luka(i, j, grense)` gjev
+ * luka mellom to av dei, og `Infinity` når dei ikkje er naboar eller når ho
+ * kan prova at luka er større enn `grense`.
+ */
+export function lukene(flater: readonly Flate[], tjukn: number) {
+  const spenn = flater.map((a): [number, number] => {
+    let lo = Infinity
+    let hi = -Infinity
+    for (const ring of a.ringar) {
+      for (const q of ring) {
+        if (q[0] < lo) lo = q[0]
+        if (q[0] > hi) hi = q[0]
+      }
+    }
+    return [lo, hi]
+  })
+  /**
+   * Ei bøygd flate vik aldri lenger frå grunnplanet sitt enn dette:
+   * n-avstanden ved kvar av endane av buen, som er det største han vert.
+   */
+  const sagitta = flater.map((a, i) => {
+    if (!a.r.k) return 0
+    const [lo, hi] = spenn[i]
+    if (!(hi > lo)) return 0
+    const av = (u: number) => Math.abs(dot(a.r.n, ut(a.r, [u, 0], 0)) - dot(a.r.n, a.r.o))
+    return Math.max(av(lo), av(hi))
+  })
+  /** midtlina til flata i rommet, `w = 0`, over det spennet profilen har */
+  const midt: (Vec3[] | null)[] = flater.map(() => null)
+  const midtlina = (i: number): Vec3[] => {
+    const m = midt[i]
+    if (m) return m
+    const a = flater[i]
+    const [lo, hi] = spenn[i]
+    const ut2: Vec3[] = []
+    if (!(hi > lo)) ut2.push(ut(a.r, [0, 0], 0))
+    else for (let t = 0; t <= MIDT_STEG; t++) ut2.push(ut(a.r, [lo + ((hi - lo) * t) / MIDT_STEG, 0], 0))
+    midt[i] = ut2
+    return ut2
+  }
+  /** frå eit punkt til stykket mellom a og b, og ikkje berre til endane:
+   *  eit grovt skann av ei line ville lese ei luke som er større enn ho er */
+  const tilStykket = (q: Vec3, a: Vec3, b: Vec3): number => {
+    const dx = b[0] - a[0]
+    const dy = b[1] - a[1]
+    const dz = b[2] - a[2]
+    const LL = dx * dx + dy * dy + dz * dz
+    const t = LL > 1e-12 ? Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy + (q[2] - a[2]) * dz) / LL)) : 0
+    return Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy, q[2] - a[2] - t * dz)
+  }
+  const midtAvstand = (i: number, j: number): number => {
+    const la = midtlina(i)
+    const lb = midtlina(j)
+    let m = Infinity
+    for (const q of la) for (let t = 1; t < lb.length; t++) m = Math.min(m, tilStykket(q, lb[t - 1], lb[t]))
+    for (const q of lb) for (let t = 1; t < la.length; t++) m = Math.min(m, tilStykket(q, la[t - 1], la[t]))
+    return m
+  }
+  const luka = (i: number, j: number, grense = Infinity): number => {
+    const A = flater[i]
+    const B = flater[j]
+    if (len3(cross(A.r.n, B.r.n)) > PAR_10) return Infinity
+    const g0 = Math.abs(dot(A.r.n, A.r.o) - dot(A.r.n, B.r.o))
+    if (!A.r.k && !B.r.k) return g0 - tjukn
+    // grensa er eit prikk og ei subtraksjon; skanninga er åtte tusen avstandar
+    if (g0 - sagitta[i] - sagitta[j] - tjukn >= grense) return Infinity
+    return midtAvstand(i, j) - tjukn
+  }
+  return {
+    luka,
+    minste: (tak: number) => {
+      let m = tak
+      for (let i = 0; i < flater.length; i++) {
+        for (let j = i + 1; j < flater.length; j++) m = Math.min(m, luka(i, j, m))
+      }
+      return m
+    },
+  }
+}
+
 export function buildSnitt(k: Kropp, p: Params, cells: number): Snitt {
   const key = snittKey(p as unknown as ParamBag, cells)
   let per = NETT.get(k)
@@ -1112,72 +1206,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
    * plan som står langt frå kvarandre LANGS aksen tel som naboar — og det
    * er med vilje: regelen spør kor tett plana står, ikkje om dei møtest.
    */
-  const PAR_10 = Math.sin((10 * Math.PI) / 180)
-  const MIDT_STEG = 64
-  /** midtlina til flata i rommet, `w = 0`, over det spennet profilen har */
-  const midtlina = (a: Raa): Vec3[] => {
-    const [lo, hi] = uSpenn(a)
-    if (!(hi > lo)) return [ut(a.r, [0, 0], 0)]
-    const ut2: Vec3[] = []
-    for (let i = 0; i <= MIDT_STEG; i++) ut2.push(ut(a.r, [lo + ((hi - lo) * i) / MIDT_STEG, 0], 0))
-    return ut2
-  }
-  /** frå eit punkt til stykket mellom a og b, og ikkje berre til endane:
-   *  eit grovt skann av ei line ville lese ei luke som er større enn ho er */
-  const tilStykket = (q: Vec3, a: Vec3, b: Vec3): number => {
-    const dx = b[0] - a[0]
-    const dy = b[1] - a[1]
-    const dz = b[2] - a[2]
-    const LL = dx * dx + dy * dy + dz * dz
-    const t = LL > 1e-12 ? Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy + (q[2] - a[2]) * dz) / LL)) : 0
-    return Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy, q[2] - a[2] - t * dz)
-  }
-  const midtAvstand = (A: Raa, B: Raa): number => {
-    const la = midtlina(A)
-    const lb = midtlina(B)
-    let m = Infinity
-    for (const q of la) for (let i = 1; i < lb.length; i++) m = Math.min(m, tilStykket(q, lb[i - 1], lb[i]))
-    for (const q of lb) for (let i = 1; i < la.length; i++) m = Math.min(m, tilStykket(q, la[i - 1], la[i]))
-    return m
-  }
-  /**
-   * OG SKANNINGA VERT BERRE GJORD DER HO KAN ENDRE SVARET.
-   *
-   * Ei bøygd flate vik aldri lenger frå grunnplanet sitt enn `sagitta` —
-   * n-avstanden ved kvar av endane av buen, som er det største han vert.
-   * To flater kan difor aldri koma nærare kvarandre enn lika langs
-   * normalane minus dei to sagittaene, og er DEN grensa alt større enn det
-   * minste vi har funne, kan paret ikkje senke det. Grensa er eit prikk og
-   * ei subtraksjon; skanninga er åtte tusen avstandar.
-   *
-   * Målt på det verste tilfellet som finst — 24 bøygde plan og 24 skrå, tre
-   * køyringar kvar — kostar heile rekninga 1734–1770 ms utan grensa og
-   * 1570–1597 ms med, mot 1468–1501 ms slik ho stod då ho las feil tal.
-   */
-  const sagitta = raa.map((a) => {
-    if (!a.boygd) return 0
-    const [lo, hi] = uSpenn(a)
-    const av = (u: number) => {
-      const q = ut(a.r, [u, 0], 0)
-      return Math.abs(dot(a.r.n, q) - dot(a.r.n, a.r.o))
-    }
-    return Math.max(av(lo), av(hi))
-  })
-  let minGap = span
-  for (let i = 0; i < raa.length; i++) {
-    for (let j = i + 1; j < raa.length; j++) {
-      const A = raa[i]
-      const B = raa[j]
-      if (len3(cross(A.r.n, B.r.n)) > PAR_10) continue
-      const g0 = Math.abs(dot(A.r.n, A.r.o) - dot(A.r.n, B.r.o))
-      let g = g0
-      if (A.boygd || B.boygd) {
-        if (g0 - sagitta[i] - sagitta[j] - p.tjukn >= minGap) continue
-        g = midtAvstand(A, B)
-      }
-      minGap = Math.min(minGap, g - p.tjukn)
-    }
-  }
+  const minGap = lukene(raa, p.tjukn).minste(span)
 
   return {
     k,

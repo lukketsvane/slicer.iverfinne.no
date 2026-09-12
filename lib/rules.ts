@@ -16,8 +16,8 @@ import { measure } from "./metrics"
 import { fitRoom } from "./pack"
 import { makeBygg, nestGap, type Bygg } from "./bygg"
 import { makeKropp } from "./kropp"
-import { DETAIL, type Snitt } from "./snitt"
-import { cross, dot, len3, lesPlan, skrivPlan } from "./plan"
+import { DETAIL, lukene, type Snitt } from "./snitt"
+import { dot, lesPlan, skrivPlan } from "./plan"
 import { SNITTVEGAR, lesFest, skrivFest, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
@@ -341,12 +341,17 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
    * veit ikkje kva du ville med planet, og å skuve eit plan er noko du
    * gjer med fingeren på det.
    *
-   * Det andre kan han. Lukene vert målte NØYAKTIG SLIK `minGap` måler dei
-   * — same vinkelbandet, same uttrykket, same rekkjefylgja — og ribbene
-   * ligg i lista i den rekkjefylgja plana står. So går han gjennom dei
-   * ein gong: eit plan som står for tett på eitt som alt er halde, fell.
-   * Det som står att har luke nok mot kvart av dei andre, og det er den
-   * same rekninga regelen les etterpå.
+   * Det andre kan han. Lukene vert målte med DEN SAME funksjonen som talet
+   * i tavla er rekna med — `lukene` i `snitt.ts` — og ribbene ligg i lista
+   * i den rekkjefylgja plana står. So går han gjennom dei ein gong: eit
+   * plan som står for tett på eitt som alt er halde, fell. Det som står att
+   * har luke nok mot kvart av dei andre, og det er den same rekninga
+   * regelen les etterpå.
+   *
+   * To rekningar her ville vore verre enn ingen knapp: han ville teke plan
+   * regelen ikkje klaga på, eller late dei stå medan lina var raud. Ei
+   * bøygd flate er nett der dei to ville skilt lag — normalen hennar er
+   * normalen der buen byrjar, og flata sjølv ligg ein annan stad.
    *
    * `riv`: knappen står, ordet seier kor mange, angre tek dei attende — og
    * «fiks alt» rører han ikkje. Eit trykk som tek tjuefire plan du har sett
@@ -354,15 +359,12 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
    */
   const opningRiv = (): Fiks | undefined => {
     if (m.minGap >= 3) return undefined
-    const par = Math.sin((10 * Math.PI) / 180)
-    const heldt: typeof s.ribber = []
+    const maal = lukene(s.ribber.map((r) => ({ r: r.r, ringar: r.raa })), p.tjukn)
+    const heldt: number[] = []
     const ute = new Set<number>()
-    for (const r of s.ribber) {
-      const tett = heldt.some(
-        (h) => len3(cross(h.r.n, r.r.n)) <= par && Math.abs(dot(h.r.n, h.r.o) - dot(h.r.n, r.r.o)) - p.tjukn < 3,
-      )
-      if (tett) ute.add(r.plan.id)
-      else heldt.push(r)
+    for (let i = 0; i < s.ribber.length; i++) {
+      if (heldt.some((h) => maal.luka(h, i, 3) < 3)) ute.add(s.ribber[i].plan.id)
+      else heldt.push(i)
     }
     if (!ute.size) return undefined
     const att = lesPlan(p.plan).filter((q) => !ute.has(q.id))
