@@ -32,7 +32,9 @@ import { readFileSync } from "node:fs"
 /** fila, og kor mange liner ho får vega. Sett den 12. september 2026. */
 const TAK: [string, number][] = [
   ["components/scene.tsx", 3436],
-  ["components/studio.tsx", 2916],
+  // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
+  // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
+  ["components/studio.tsx", 2923],
   ["lib/snitt.ts", 1234],
   ["lib/pack.ts", 955],
 ]

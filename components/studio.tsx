@@ -825,11 +825,22 @@ export function Studio() {
    * laseren får: trappetrinn i omrisset som ikkje finst i kuttfila.
    *
    * No er nivået det same på begge flatene, og det same som uttaket og
-   * måltala: grovt medan fingeren dreg, det verkelege når han stoggar.
+   * måltala.
+   *
+   * OG DET ER EITT NIVÅ, ikkje to. Det stod grovt fyrst og fint etterpå, og
+   * den avveginga løner seg berre om det grove er RASKARE. Det er det ikkje:
+   * 60, 120, 220 og 320 celler kostar 230, 212, 211 og 215 ms på ei kule med
+   * seksten plan. Snittinga er flat i celletalet — arbeidet ligg i
+   * trekantane per plan og ikkje i feltet — so `DETAIL` styrer kor fint
+   * resultatet vert, og ingenting anna.
+   *
+   * Det grove passet kjøpte altso eit dårlegare omriss til full pris, og
+   * buffernøkkelen har celletalet i seg, so dei to bygga delte ingenting:
+   * «lav so mid» 452 ms, «mid åleine» 224, «mid to gonger» 219 — det andre
+   * bygget på same posen er gratis. Kvart parameterhakk, i kvar fane, betalte
+   * for to fulle snittingar og synte den dårlegaste fyrst.
    */
   const detail: DetailKey = "mid"
-  // Kroppen berre når kroppen endrar seg; delane kvar gong noko gjer det —
-  // grovt med det same, fint når fingeren stoggar.
   const kk = kroppKey(params)
   useEffect(() => {
     if (mounted) bygg("flate", "lav")
@@ -838,11 +849,7 @@ export function Studio() {
     if (!mounted) return
     setBusy(true)
     setFeil(null)
-    bygg("lag", "lav")
-    const t = window.setTimeout(() => {
-      bygg("lag", detail)
-    }, 300)
-    return () => window.clearTimeout(t)
+    bygg("lag", detail)
   }, [params, detail, view, mounted, formTal, bygg])
 
   /** hent dei formene som står på skjermen og ikkje er bedne om før */
