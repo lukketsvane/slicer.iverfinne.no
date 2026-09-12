@@ -181,6 +181,30 @@ export type Snitt = {
    * ulike ting i eitt tal er eit tal som seier mindre enn namnet sitt.
    */
   avvist: number
+  /**
+   * MØTE SOM ER KURVER, OG SOM DIFOR IKKJE VART TEKNE.
+   *
+   * Eit bøygt plan er ein sylinder. Eit flatt plan som ligg LANGS aksen
+   * hans møter han i ei generatorline — rett i rommet, rett utbretta, eit
+   * ledd som alle andre. Eit flatt plan som SKRÅR mot aksen møter han i
+   * eit kjeglesnitt, og den finnaren er ikkje skriven (`kryssBoygd`).
+   *
+   * Det stod i den harde regelen, men berre for ribber som ikkje fann eit
+   * einaste spor. Ei bøygd ribbe som har spor frå eit plan langs aksen ER
+   * festa, og dei skrå møta hennar fall bort i stille: eit krumt skal med
+   * tak og botn melde fire og tjue ledd og sa ingenting om dei åtte som
+   * heldt golva. Det er den same saka som `avvist`, og svaret er det same
+   * — tel dei, og sei talet.
+   *
+   * Berre BØYGD MOT FLAT vert talt. To bøygde flater møtest i ei romkurve,
+   * og å avgjera om dei i det heile møtest er ei anna rekning enn denne;
+   * dei står att hjå den harde regelen. Eit tal som dekkjer to ulike ting
+   * seier mindre enn namnet sitt.
+   *
+   * Lista ber DET BØYGDE PLANET sin id, eitt for kvart møte som fall — so
+   * rådet kan rette nett dei og late resten stå.
+   */
+  kurva: number[]
   /** stykke som vart kasta av di dei ikkje hang i eit einaste ledd */
   kasta: number
   slotW: number
@@ -850,6 +874,11 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
    * Lista, og ikkje eitt svar: eit plan kan skjera ein sylinder på to
    * generatorar, og båe er ekte ledd.
    */
+  /** kor fint kurva vert skanna etter eit punkt inne i profilen. Same
+   *  talet som `ROT_STEG` i `plan.ts`: ei bue på ein meter vert prøvd kvar
+   *  sekstande millimeter, og eit møte som er smalare enn det er ikkje eit
+   *  ledd uansett. */
+  const KURVE_STEG = 64
   const uSpenn = (a: Raa): [number, number] => {
     let lo = Infinity
     let hi = -Infinity
@@ -861,15 +890,41 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     }
     return [lo, hi]
   }
+  /**
+   * MØTES DEI TO I DET HEILE, når finnaren sa nei?
+   *
+   * Aksen er `v`, so eit punkt på flata er `ut(kr, [u, w])` og `w` er
+   * millimeter langs han. Eit flatt plan som skrår mot aksen har `n·v ≠ 0`,
+   * og då gjev planlikninga nøyaktig éin `w` per `u`:
+   *
+   *     w(u) = (n·o_fl − n·ut(kr, [u, 0])) / (n·v)
+   *
+   * Kurva vert skanna i `u` over spennet profilen har, og møtet er ekte
+   * dersom eit av punkta på henne ligg INNE i profilen. Utan den prøva
+   * ville kvart skrå plan i rommet telje som eit tapt møte, og eit tal som
+   * tel det som aldri var der er ikkje eit tal.
+   */
+  const kurveInne = (kr: Raa, fl: Ramme, lo: number, hi: number): boolean => {
+    const nv = dot(fl.n, kr.r.v)
+    if (Math.abs(nv) <= 1e-3 || !(hi > lo)) return false
+    const dFl = dot(fl.n, fl.o)
+    for (let i = 0; i <= KURVE_STEG; i++) {
+      const u = lo + ((hi - lo) * i) / KURVE_STEG
+      const w = (dFl - dot(ut(kr.r, [u, 0], 0), fl.n)) / nv
+      for (const ring of kr.ringar) if (inRing(ring, [u, w])) return true
+    }
+    return false
+  }
+  const kurva: number[] = []
   const møta = (A: Raa, B: Raa): { p: Vec3; d: Vec3; sin: number }[] => {
     if (A.boygd && B.boygd) return []
-    if (A.boygd) {
-      const [lo, hi] = uSpenn(A)
-      return kryssBoygd(A.r, B.r, lo, hi)
-    }
-    if (B.boygd) {
-      const [lo, hi] = uSpenn(B)
-      return kryssBoygd(B.r, A.r, lo, hi)
+    if (A.boygd || B.boygd) {
+      const kr = A.boygd ? A : B
+      const fl = A.boygd ? B : A
+      const [lo, hi] = uSpenn(kr)
+      const x = kryssBoygd(kr.r, fl.r, lo, hi)
+      if (!x.length && kurveInne(kr, fl.r, lo, hi)) kurva.push(kr.plan.id)
+      return x
     }
     const x = kryssAv(A.r, B.r)
     return x ? [x] : []
@@ -1050,6 +1105,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     ribber,
     ledd,
     avvist,
+    kurva,
     kasta,
     slotW,
     minGap,

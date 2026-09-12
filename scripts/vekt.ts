@@ -58,7 +58,13 @@ const TAK: [string, number][] = [
   // +22 den 12.: tabellen over kva oppløysinga kostar og kjøper, målt. Han
   // står over `DETAIL`, av di eit nivå utan tala sine er eit tal nokon
   // kjem til å setje etter kjensle
-  ["lib/snitt.ts", 1304],
+  // +56 den 12.: møta som er kurver vert talde. Eit flatt plan som skrår mot
+  // sylinderaksen fall bort i stille — ribba hadde spor frå dei rette møta,
+  // so den harde regelen gjekk grøn — og eit krumt skal med tak og botn
+  // melde fire og tjue ledd utan å nemne dei åtte som heldt golva. Tjue av
+  // linene er teljinga; resten er kvifor talet ikkje tel det som aldri var
+  // der, og kva som med vilje står utanfor det
+  ["lib/snitt.ts", 1360],
   ["lib/pack.ts", 955],
 ]
 
