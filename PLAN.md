@@ -370,7 +370,7 @@ So ta det i tre steg, og la den harde regelen stå til kvart steg er dekt:
 Verifikasjon finst allereie: `pnpm ledd` prøver at kvart ledd panelet talde
 finst att i kuttprofilane. Steg 1 er ei ny sak i den selen, ikkje ein ny sel.
 
-## B. Pakkinga: eit ekte søk, utanfor den kritiske vegen
+## B. ~~Pakkinga: eit ekte søk~~ — fem hundre rekkjefylgjer sparte ikkje éi plate
 
 `lib/pack.ts:502` seier det sjølv, ærleg:
 
@@ -402,6 +402,49 @@ vente to sekund på eit betre svar er noko ein person gjerne gjer.
 
 Måltalet er allereie definert og allereie prøvd: `pnpm pakk` skriv utnytting og
 platetal per sak. Ein plan med eit tal å slå.
+
+---
+
+**OG SO VART DET PRØVT, OG SVARET VAR NEI.**
+
+Strategilista vart mellombels utvida frå fire til **502** rekkjefylgjer, med
+budsjettet ope, og `pnpm pakk` køyrt på alle fjorten sakene sine:
+
+    objekt                    ark (4 → 502)   utnytting
+    kube 6×6                       2 → 2        68 → 68
+    kube 400, 12×9 i 12 mm         6 → 6        53 → 53
+    kube vend/700                  3 → 3        56 → 56
+    kule 7×7                       2 → 2        53 → 53
+    egg 8×8                        1 → 1        56 → 59
+    torus ståande                  1 → 1        46 → 46
+    kule stor plate                1 → 1        53 → 53
+    kule 1600×1000                 2 → 2        63 → 68
+    kube finerplate                7 → 7        79 → 79
+    egg i 6 mm                     1 → 1        51 → 54
+    kam med tre tindar             1 → 1        44 → 44
+    breitt snitt                   2 → 2        53 → 54
+    same objekt, smalt snitt       6 → 6        59 → 59
+    same objekt, breitt snitt      6 → 6        55 → 55
+
+**Platetalet stod stille på alle fjorten.** Utnyttinga flytta seg på fire av
+dei, med eitt til fem poeng — ei ryddigare siste plate, ikkje material spart.
+Kostnaden var 12 s → 112 s, ni gonger.
+
+`pack.ts` sa «ei plate mindre krev tusen». Fem hundre gav null, so tusen gjev
+det truleg òg. Grådig botn-venstre med fire vendingar er alt på platået sitt
+for desse formene, og det som står mellom oss og ei plate mindre er ikkje
+FLEIRE rekkjefylgjer — det er ein annan algoritme.
+
+To lovande retningar, båe umålte:
+
+- **Fleire vendingar.** Pakkinga prøver fire. Ei ribbe frå eit krumt objekt er
+  ei tunge; to tunger som ligg 15° mot kvarandre kan gripe i kvarandre slik
+  fire rette vendingar aldri får dei til. Dette er den billegaste å prøve.
+- **Ekte nesting med no-fit-polygon.** Det er det kommersielle pakkarar gjer,
+  og det er ei anna mengd arbeid enn dette.
+
+Å byggje søket slik det stod skildra ville kosta arbeidarplass, ei ny melding,
+og ein stat som bryt «eitt bygg, éi sanning» — for null plater.
 
 ## C. ~~Taket på plana~~ — og kvifor ei romleg deling ikkje er svaret
 
@@ -465,7 +508,8 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
                                                  ledd, alle i profilane ✓ GJORT
    11  Ein kanal ut av `Handa`, når du       → panel telefon + handtaka
        likevel er inne i han
-   12  Pakkesøket i arbeidaren               → pnpm pakk: utnytting opp, 0 overlapp
+   12  ~~Pakkesøket i arbeidaren~~           → strøken: 502 rekkjefylgjer sparte
+                                                 null plater på 14 objekt (sjå B)
    13  ~~Romleg deling av leddpara~~         → strøken: å avvise eit par er
                                                  alt gratis (sjå C)
 
