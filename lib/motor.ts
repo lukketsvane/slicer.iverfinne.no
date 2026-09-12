@@ -111,6 +111,38 @@ function retningOrd(m: Vec3 | null): string {
 }
 
 /**
+ * DOMEN, SOM TEKST — reiskapen si eiga lesing, med ut i pakka.
+ *
+ * Tavla står på skjermen, og skjermen er ikkje med når plata ligg på
+ * laseren. Ei hard line tyder at delane ikkje LET SEG lage eller setje
+ * saman; ei mjuk er noko som kan gå betre. Begge høyrer med ut, av di ei
+ * pakke med kuttfiler i er det som overlever økta.
+ *
+ * Ho stoggar ingenting. Ho står der so ingen kan seie at han ikkje visste.
+ */
+function reglarTxt(p: Params): string {
+  const m = measure(p)
+  const r = checkRules(p, m, undefined, false)
+  const harde = r.filter((q) => q.hard && !q.ok)
+  const mjuke = r.filter((q) => !q.hard && !q.ok)
+  const line = (q: Rule) => `  ${q.ok ? "  " : "!!"} ${q.label.padEnd(22)} ${q.value}`
+  return [
+    `REGLAR — ${srcLabel(p.kjelde)}`,
+    "",
+    harde.length
+      ? `${harde.length} HARDT BROT. Delane let seg ikkje lage eller setje saman slik dei står. Filene i denne pakka er skrivne likevel — reiskapen avgjer ikkje for deg — men dette er kva han veit:`
+      : "Ingen harde brot: delane let seg lage og setje saman.",
+    "",
+    ...harde.flatMap((q) => [line(q), `     ${q.why}`, ""]),
+    ...(mjuke.length ? ["Og desse kan gå betre:", "", ...mjuke.map(line), ""] : []),
+    "Alle linene:",
+    "",
+    ...r.map(line),
+    "",
+  ].join("\n")
+}
+
+/**
  * MONTERINGA, SOM TEKST. Den som står ved benken med tjue delar og ein
  * telefon med tomt batteri treng det på papir: kva del fyrst, kva veg han
  * kjem inn, og mot kva. Adressa på delen er nøkkelen.
@@ -303,6 +335,7 @@ export const MOTOR: EngineDef = {
           { name: `passprove-${num(p.tjukn)}mm-${p.material}.svg`, text: couponSvg(p.tjukn, kerf, p.snitt, p.material) },
           { name: "kuttliste.csv", text: kuttCsv(MOTOR.liste(bag)) },
           { name: "montering.txt", text: montering(p, s) },
+          { name: "reglar.txt", text: reglarTxt(p) },
           { name: "oppsett.json", text: oppsett() },
         ]),
       }

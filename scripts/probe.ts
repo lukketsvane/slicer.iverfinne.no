@@ -953,6 +953,24 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
     // og eit rutenett skal IKKJE bera varselet
     const greitt = montering(GRUNN as unknown as Params, makeBygg(GRUNN, DETAIL.mid).s)
     if (greitt.includes("DETTE GÅR IKKJE OPP")) bryt("eit rutenett som går opp fekk varselet likevel")
+
+    /**
+     * OG DOMEN FYLGJER MED I PAKKA.
+     *
+     * Tavla står på skjermen, og skjermen er ikkje med når plata ligg på
+     * laseren. `reglar.txt` er reiskapen si eiga lesing, skriven ned der ho
+     * overlever økta. Ho stoggar ingenting — ho står der so ingen kan seie
+     * at han ikkje visste.
+     */
+    const pakka = unzip(MOTOR.exportFile(umogeleg as unknown as ParamBag, "alt").data as ArrayBuffer)
+    const reglar = pakka.find((f) => f.name === "reglar.txt")
+    if (!reglar) bryt("alt-pakka ber ingen reglar.txt")
+    else {
+      const t = new TextDecoder().decode(reglar.data)
+      if (!/HARDT BROT/.test(t)) bryt("reglar.txt melder ikkje det harde brotet")
+      else if (!/kan monterast/.test(t)) bryt("reglar.txt namngjev ikkje regelen som er broten")
+      else console.log(`  og domen fylgjer med i pakka: reglar.txt, ${t.length} teikn`)
+    }
   }
 
   if (!prøvde) bryt("fann ingen liner i montering.txt å samanlikne vegen med")
