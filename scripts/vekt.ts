@@ -69,7 +69,11 @@ const TAK: [string, number][] = [
   // og to ribber som krøkte seg mot kvarandre las 33,0 mm medan dei stod
   // 0,4 mm frå kvarandre. Skanninga er femten liner; resten er grunngjevinga
   // og grensa som gjer at ho berre vert køyrd der ho kan endre svaret
-  ["lib/snitt.ts", 1439],
+  // +29 den 12.: lukemålinga er flytt ut av `buildSnitt` og er ein eksportert
+  // funksjon. Rådet som tek plan bort les den SAME rekninga som talet i tavla;
+  // stod dei med kvar si, tok knappen plan regelen ikkje klaga på — eller
+  // fanst ikkje medan lina var raud, som han ikkje gjorde på bøygde ribber
+  ["lib/snitt.ts", 1468],
   ["lib/pack.ts", 955],
 ]
 

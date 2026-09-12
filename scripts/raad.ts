@@ -237,6 +237,33 @@ prov("så vidt for stort", "plate", {
   )
 }
 
+// OG DET SAME PÅ BØYGDE RIBBER, der luka ikkje kan lesast langs normalen.
+// Fire ribber som krøkjer seg annankvar veg står 40 mm frå kvarandre målt på
+// grunnplana og rører kvarandre i rommet. Ei flat rekning i rådet ville ikkje
+// funne eit einaste plan å ta, og knappen hadde vorte borte medan lina stod
+// raud — difor les rådet og talet den SAME funksjonen.
+{
+  const bogpar = (n: number) =>
+    skrivPlan([
+      ...Array.from({ length: n }, (_, i) => ({
+        id: i + 1,
+        o: [0.3 + (0.4 * i) / (n - 1), 0.5, 0.5] as [number, number, number],
+        n: [1, 0, 0] as [number, number, number],
+        bog: i % 2 ? -0.9 : 0.9,
+        strek: [],
+      })),
+      { id: 99, o: [0.5, 0.5, 0.5] as [number, number, number], n: [0, 1, 0] as [number, number, number], bog: 0, strek: [] },
+    ])
+  const p: Params = { ...DEFAULT_PARAMS, storleik: 300, tjukn: 3, plan: bogpar(4) }
+  prov("bøygde ribber som krøkjer seg mot kvarandre", "opning", p)
+  const flat = measure({ ...p, plan: skrivPlan(lesPlan(p.plan).map((q) => ({ ...q, bog: 0 }))) } as Params)
+  ok(
+    "og det er bøyen og ikkje grunnplana som gjer det",
+    flat.minGap > 30 && measure(p).minGap < 3,
+    `flat ${flat.minGap.toFixed(1)} mm, krum ${measure(p).minGap.toFixed(1)} mm`,
+  )
+}
+
 // --- nettoppløysinga -------------------------------------------------------
 // Trekanttaket på det lågaste hakket sitt over ei kule på fire og eit halvt
 // tusen: 384 trekantar att, og profilane vert lesne av dei. Regelen stod på
