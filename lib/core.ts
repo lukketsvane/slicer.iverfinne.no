@@ -456,16 +456,18 @@ export type Fiks = {
 // =============================================================================
 export type DetailKey = "lav" | "mid" | "hog"
 
-/** Dei tre lesemåtane av eitt og same objekt:
- *   flate   nettet slik det kom inn — etter forenkling og glatting
- *   lag     ribbene slik dei faktisk står, med spor
- *   kontur  delane liggjande på plata, der dei vert skorne ut
+/** Dei fire lesemåtane av eitt og same objekt:
+ *   flate     nettet slik det kom inn — etter forenkling og glatting
+ *   lag       ribbene slik dei faktisk står, med spor
+ *   kontur    delane liggjande på plata, der dei vert skorne ut
+ *   montasje  kroppen som reiser seg av platene sine, steg for steg
  *
  * Dei to fyrste er ROM og vert bygde av motoren. Konturen er PLATA, og ho
- * kjem av nestinga («ark»), ikkje av eit nett — difor `Rom` under: det
- * `build` svarar for. */
-export type View = "flate" | "lag" | "kontur"
-export type Rom = Exclude<View, "kontur">
+ * kjem av nestinga («ark»), ikkje av eit nett. Montasjen er dei same delane
+ * med to matriser kvar (`lib/montasje.ts`) — difor `Rom` fyrst: det `build`
+ * svarar for, og ikkje meir. */
+export type Rom = "flate" | "lag"
+export type View = Rom | "kontur" | "montasje"
 
 export type ExportKind =
   | "stl"

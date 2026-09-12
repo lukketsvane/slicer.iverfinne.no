@@ -93,7 +93,7 @@ The iPhone 16e, saved to the home screen, is the target device — the only one:
 one thumb, a 390-point screen, the object visible while you work. The page
 itself never zooms, scrolls or lets you select anything; every gesture belongs
 to the object. A slim bar at the top carries the body you are working on
-(tap it for a primitive or another file), the three views, undo and the link.
+(tap it for a primitive or another file), the four views, undo and the link.
 A sheet at the bottom has three heights: one line (the live count, the grid
 tool, export), the middle (size and the plane list), everything (material and thickness, the
 sliders, the table with the rules and their fixes, the tools). The tools
@@ -102,9 +102,21 @@ bottom; the column is a band from the top line down to the sheet, so a long
 stack stops at the line instead of disappearing behind it. The two layout
 tools — the grid and the vortex — sit at the top of it, above everything that
 belongs to a single plane, because they are the same kind of thing: both write
-the whole plane list, and both are set with two fingers. Above them is the
-montage, the one tool that changes nothing at all. A tool you can only
+the whole plane list, and both are set with two fingers. A tool you can only
 reach from a keyboard does not exist on the phone.
+
+**The column carries what the view can show.** A tool is a question and an
+answer: you press, and something changes in front of you. If the answer is
+drawn in a picture that is not up, the button is only the question — and a
+question with no answer is worse than no button. So in the room (`flate` and
+`lag`), where the body, the planes and the sketch are drawn, all of them
+stand. On the plate surface only the two a button can do on its own and the
+sheet shows at once — duplicate and delete the selected part's plane. The
+hole, the outline, the bend and `fordel` all draw themselves on the canvas,
+which lies hidden under the sheets there; the grid, the vortex, the body tool
+and `skjer` are all set with fingers *on* the object, and the object is not
+there. In the montage the column carries the step, and nothing else: it
+changes nothing at all.
 
 The band **starts below the view cube**, not below the top line. Both columns
 sit in the same edge of the screen — the cube with the padlock, the reframe and
@@ -159,7 +171,7 @@ one millimetre and ten with shift, `B` switches it between corner and arc,
 `⌫` removes it, tab and shift-tab walk
 the plane list, `F` reframes, and the right mouse button (or the wheel pressed)
 pans the view — the reframe button puts it back. Every tool has a letter: `R`
-the grid, `V` the whirl, `M` the montage, `K` the body, and `B` leafs the
+the grid, `V` the whirl, `K` the body, `M` the montage view, and `B` leafs the
 selected piece to the next version of its family (or, with an outline point
 held, switches that point between corner and arc). **The grid and the whirl
 take the mouse too**: they were two fingers and nothing else, so on a bench
@@ -216,10 +228,13 @@ no way to touch it. Now the third view *is* the sheet: the parts where the
 laser will cut them, one finger to drag a part, hold for its menu (pin, turn,
 next sheet), two fingers to drag and turn a selected one, one finger on bare
 board to pan, double-tap for the whole sheet. Tapping a part selects the plane
-it was cut from, so the profile tools sit under your thumb as they do in the
-object view. There was a pen and an eraser here for a while — one finger inside
-the frame drew a freehand mark into the plate — and they are gone; marks on a
-plane are placed in the object view, where you can see what you are marking.
+it was cut from, and the thumb column then offers the two things a button can
+do on its own here: another plane like it, or that plane gone — both of which
+the sheet redraws in front of you. The rest of the profile tools stay in the
+object view, where their handles are drawn. There was a pen and an eraser here
+for a while — one finger inside the frame drew a freehand mark into the plate —
+and they are gone; marks on a plane are placed in the object view, where you
+can see what you are marking.
 
 The 3D room stays mounted behind it, hidden rather than torn down, so stepping
 out and back does not reset the camera. "plater" is no longer a drawer tool —
@@ -359,6 +374,23 @@ axis alone stretches — a cube becomes a plate, a cylinder an oval. The pinch
 still scales all three at once and keeps the proportions; the dot is for when
 you want a stool and not an inflated cube.
 
+**A dot owns the finger, and the camera with it.** A dot is DOM over the
+canvas, so *its* finger never reaches the orbit — but the other hand's does.
+A hand holding the phone rests against the glass while the thumb drags, and
+that resting finger was the first one the canvas saw: the orbit read it as a
+single finger and swung the body right round while you were stretching one
+side of a piece. The dots now take the camera the way the sketch handles, the
+slot dots and the outline points already did, and the canvas takes no pointer
+at all while one is held. The listener had to stop depending on the canvas
+size first: that value is rewritten more often than a canvas changes shape,
+and every rewrite ran the listener's *cleanup* — which is the line that hands
+the orbit back. The gesture announces itself as the finger goes down, the
+studio redraws, and the cleanup switched the orbit on again mid-drag. A
+listener that must survive a drag cannot hang on anything that changes during
+one. `pnpm panel telefon` puts the fingers down one after the other, because
+that order is the whole bug: a two-finger touch dispatched as one event
+never had it.
+
 The size of a piece used to be one number. It is three now, one per axis, and
 three equal ones are written as the single number they used to be — so a link
 from last year opens the same object, and a link with a plain cube in it does
@@ -408,12 +440,16 @@ of you stays. While it is gone the interface takes no touches, which is why it
 only dozes at rest — the first tap then has nothing to hit on the object
 either, so it wakes and does nothing else.
 
-**Words, not pills.** The three views and the three mirror axes were rings with
+**Words, not pills.** The views and the three mirror axes were rings with
 a filled pill under whichever one applied. The ring said nothing the word did
-not, and three filled shapes sat in the middle of the picture. They are words
+not, and the filled shapes sat in the middle of the picture. They are words
 now, in the same ink the icons use: full ink when it applies, dimmed when it
 does not. The mirror axes moved to sit directly above `skjer`, which is what
-they change.
+they change — and they stand in the room only, since a mirrored cut is
+something you see on the object. Four words and a long file name are wider than
+390 points, so the name is the one thing in that bar that gives: it truncates,
+because a shortened file name still means something and half a view word does
+not.
 
 **The shell has a switch.** In the parts view the body you started from is
 drawn transparent around the ribs, so you can see how much of the shape they
@@ -425,7 +461,9 @@ Keys: `L` cut, `O` freeze the profile, `R` grid tool, `V` vortex, `M` montage,
 `B` corner or
 arc on a held point (else leaf the selected piece), `⌫` remove what is
 held — an outline point, else a stroke, else the plane,
-`Z` undo, `⇧Z` redo, `1` `2` `3` views, `Esc` close.
+`Z` undo, `⇧Z` redo, `1` `2` `3` `4` views, `Esc` close. The tool keys are the
+room's, like the buttons: on the plate and in the montage they do nothing,
+because there is nothing there to see them do it.
 
 **Three ways to keep an afternoon's work, and you press none of them.** The
 link carries every setting — planes included — and no mesh. **LAGRE** gives a
@@ -701,13 +739,18 @@ in any order; then it is the plane, not the list, that has to change.
 `montering.txt` in the ALT bundle writes the order out, part by part, with the
 direction each comes in.
 
-**And you can watch it.** The montage tool — the top button in the thumb
-column, or `M` — puts the parts back on their plates and lets the body rise out
-of them, one group of ribs at a time. Tap it and it plays; tap again and you
-are back to the object. Drag the button up and down to stop anywhere in it,
-because an animation you cannot stop in the middle is an animation you have to
-watch four times. The line over the object reads which round you are in and how
-many ribs are in it.
+**And you can watch it.** `montasje` is the fourth view, in the top bar next to
+`flate`, `lag` and `kontur` (or `4`, or `M`): it puts the parts back on their
+plates and lets the body rise out of them, one group of ribs at a time. It was
+a tool in the thumb column, and it was the wrong kind of thing to have there —
+every other button in that column rewrites the planes, and this one changes
+nothing at all. It is a way of *reading* the same object, which is what the
+other three words are. Its column carries one control, the step: drag it up and
+down to stop anywhere in the animation, because an animation you cannot stop in
+the middle is an animation you have to watch four times, and tap it to play the
+whole thing again from the plate. The line over the object reads which round
+you are in and how many ribs are in it. Any other view — or escape — leaves it,
+and the object stands where you left it.
 
 The order is not a second opinion. It is `montering.orden` — the same order
 `montering.txt` writes and the **kan monterast** rule guards — grouped into
