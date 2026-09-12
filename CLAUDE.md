@@ -88,9 +88,12 @@ a flag on the points that are arcs rather than corners — all encoded as the
 is not a new geometry: the curve is worked out from the point's neighbours and
 turned back into points (`omrissLine`) before anything geometric sees it, so
 everything below still gets the polygon it always got. A bent plane is a cylinder, not a plane: developable, so the part is
-still cut flat, and the radius is limited by what the material takes. Bent
-planes do not carry joints yet — two bent surfaces cross along a curve, and
-that finder is not written; a hard rule says so.
+still cut flat, and the radius is limited by what the material takes. A bent
+plane carries joints where a flat plane lies along its cylinder axis — there
+the meeting is a generator line, straight in space and straight unrolled
+(`kryssBoygd`). A plane slanted to the axis, and two bent surfaces, meet in a
+curve, and that finder is not written; the hard rule counts ribs WITHOUT
+SLOTS, not bent planes.
 
 `lib/montasje.ts` is the way from the plate to the object: one mesh per part in
 its own flat frame plus two rigid matrices — where it lies on the plate, where

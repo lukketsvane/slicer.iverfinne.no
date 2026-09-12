@@ -364,23 +364,45 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
   })
 
   /**
-   * OG EIT BØYGT PLAN BER IKKJE LEDD ENNO (hard).
+   * OG EI BØYGD RIBBE UTAN LEDD HENG IKKJE I NOKO (hard).
    *
-   * To plan kryssar langs ei LINE, og heile spor-maskineriet byggjer på
-   * det. To bøygde flater kryssar langs ei kurve, og den finnaren er ikkje
-   * skriven. Snittinga hoppar difor over ledd på eit bøygt plan — og ei
-   * ribbe utan ledd heng ikkje i noko. Regelen seier det rett ut i staden
-   * for å late deg finne det i eska.
+   * Heile spor-maskineriet byggjer på at to flater møtest i ei LINE. To
+   * plan gjer alltid det. Ein sylinder og eit plan gjer det i eitt tilfelle:
+   * ligg planet LANGS sylinderaksen, er møtet ein generator, og han er rett
+   * både i rommet og utbretta. Det tilfellet ber ledd no (`kryssBoygd`), og
+   * det er nett «krumt skal med flate ribber på tvers».
+   *
+   * Resten står att: eit plan som skrår mot aksen møter sylinderen i eit
+   * kjeglesnitt, og to bøygde flater i ei romkurve. Ei bøygd ribbe som ikkje
+   * fann eit einaste ledd kjem ut som ei laus plate, og regelen seier det i
+   * staden for å late deg finne det i eska.
+   *
+   * Difor tel han RIBBER UTAN SPOR og ikkje bøygde plan: det er skilnaden
+   * på «bøygd» og «laus», og etter steg éin er dei to ikkje lenger det same.
    */
+  const lauseBog = s.ribber.filter((r) => !!r.r.k && !r.spor.length)
   add({
     id: "bogledd",
     label: "ledd på bøygde plan",
-    hard: boygde.length > 0,
-    ok: boygde.length === 0,
-    value: boygde.length ? `${nn(boygde.length)} plan utan ledd` : "ingen",
-    why: "Eit bøygt plan vert skore rett, men det får ingen spor: kryssinga mellom to bøygde flater er ei kurve, og den finnaren er ikkje skriven enno. Ribba kjem ut som ei laus plate du må feste sjølv. Rett ut bøyen om delen skal gripe i noko.",
-    fiks: boygde.length
-      ? { ord: "rett ut alle", set: { plan: skrivPlan(lesPlan(p.plan).map((q) => (q.bog ? { ...q, bog: 0 } : q))) } }
+    hard: lauseBog.length > 0,
+    ok: lauseBog.length === 0,
+    value: lauseBog.length
+      ? `${nn(lauseBog.length)} plan utan ledd`
+      : boygde.length
+        ? `${nn(boygde.length)} bøygde, alle med ledd`
+        : "ingen",
+    why: "Ei bøygd ribbe får spor der eit flatt plan ligg LANGS sylinderaksen hennar — då er møtet ei rett line både i rommet og utbretta. Desse ribbene fann ingen: eit plan som skrår mot aksen møter flata i ei kurve, og den finnaren er ikkje skriven. Dei kjem ut som lause plater du må feste sjølv. Rett ut bøyen, eller legg eit plan langs aksen.",
+    fiks: lauseBog.length
+      ? {
+          // berre DEI SOM HENG LAUST. Å rette ut alle ville teke bøyen av
+          // ribber som gjer nett det dei skal.
+          ord: lauseBog.length === boygde.length ? "rett ut alle" : "rett ut dei lause",
+          set: {
+            plan: skrivPlan(
+              lesPlan(p.plan).map((q) => (lauseBog.some((r) => r.plan.id === q.id) ? { ...q, bog: 0 } : q)),
+            ),
+          },
+        }
       : undefined,
   })
 
