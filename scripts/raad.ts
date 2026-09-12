@@ -191,9 +191,24 @@ prov("så vidt for stort", "plate", {
   ok("og det tredje festet står", etter.includes("3:") && !etter.includes("2:"), etter)
 }
 
-// --- opning mellom ribbene -------------------------------------------------
-// Tettleiken er rekna på ei jamn stigning over eit ujamnt legeme, so her
-// er to runder tillatne: fyrste rådet skal ta deg mesteparten av vegen.
+// --- opninga mellom plana --------------------------------------------------
+// Eit rutenett på tjuefire kvar veg over hundre millimeter set plana fire
+// millimeter frå kvarandre, og tre av dei er plate: ein millimeter luke, og
+// ingen finger kjem imellom. Rådet tek annakvart plan, og det er `riv` — so
+// «fiks alt» skal la det stå.
+{
+  const p: Params = { ...DEFAULT_PARAMS, storleik: 100, plan: nett(24, 24) }
+  prov("plana står for tett", "opning", p)
+  const r = finn(p, "opning")
+  ok("og rådet seier at det riv arbeid", !!r?.fiks?.riv, r?.fiks ? `«${r.fiks.ord}»` : "ingen knapp")
+  ok(
+    "so «fiks alt» let plana stå",
+    fiksAlt(p).p.plan === p.plan,
+    `${lesPlan(fiksAlt(p).p.plan).length} plan att av ${lesPlan(p.plan).length}`,
+  )
+}
+
+// --- vegen inn -------------------------------------------------------------
 // Plan 1 og 2 kryssar kvarandre utanfor kroppen og har ikkje ledd; plan 3
 // kryssar begge, langs to liner som ikkje er parallelle. Sist i lista har
 // det to vegar inn; fyrst i lista kjem dei to andre inn på det, kvar sin veg.
