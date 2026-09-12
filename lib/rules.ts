@@ -16,7 +16,7 @@ import { measure } from "./metrics"
 import { fitRoom } from "./pack"
 import { makeBygg, nestGap, type Bygg } from "./bygg"
 import { DETAIL, type Snitt } from "./snitt"
-import { dot, lesPlan, skrivPlan } from "./plan"
+import { cross, dot, len3, lesPlan, skrivPlan } from "./plan"
 import { SNITTVEGAR, lesFest, skrivFest, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
@@ -272,6 +272,43 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     return { ord: `ta bort dei ${nn(fast.length)} som står fast`, set: { plan: skrivPlan(att) }, riv: true }
   }
 
+  /**
+   * TO PLAN SOM STÅR FOR TETT: TA BORT DET EINE.
+   *
+   * Regelen sitt eige «kvifor» seier dei to botemidla: flytt det eine,
+   * eller ta det bort. Det fyrste kan reiskapen ikkje gjere for deg — han
+   * veit ikkje kva du ville med planet, og å skuve eit plan er noko du
+   * gjer med fingeren på det.
+   *
+   * Det andre kan han. Lukene vert målte NØYAKTIG SLIK `minGap` måler dei
+   * — same vinkelbandet, same uttrykket, same rekkjefylgja — og ribbene
+   * ligg i lista i den rekkjefylgja plana står. So går han gjennom dei
+   * ein gong: eit plan som står for tett på eitt som alt er halde, fell.
+   * Det som står att har luke nok mot kvart av dei andre, og det er den
+   * same rekninga regelen les etterpå.
+   *
+   * `riv`: knappen står, ordet seier kor mange, angre tek dei attende — og
+   * «fiks alt» rører han ikkje. Eit trykk som tek tjuefire plan du har sett
+   * skal vera eit trykk du meinte.
+   */
+  const opningRiv = (): Fiks | undefined => {
+    if (m.minGap >= 3) return undefined
+    const par = Math.sin((10 * Math.PI) / 180)
+    const heldt: typeof s.ribber = []
+    const ute = new Set<number>()
+    for (const r of s.ribber) {
+      const tett = heldt.some(
+        (h) => len3(cross(h.r.n, r.r.n)) <= par && Math.abs(dot(h.r.n, h.r.o) - dot(h.r.n, r.r.o)) - p.tjukn < 3,
+      )
+      if (tett) ute.add(r.plan.id)
+      else heldt.push(r)
+    }
+    if (!ute.size) return undefined
+    const att = lesPlan(p.plan).filter((q) => !ute.has(q.id))
+    if (!att.length) return undefined
+    return { ord: `ta bort dei ${nn(ute.size)} som står for tett`, set: { plan: skrivPlan(att) }, riv: true }
+  }
+
   // --- 1 plana grip (hard) ----------------------------------------------------
   add({
     id: "grip",
@@ -399,6 +436,7 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     ok: m.minGap >= 3,
     value: mm1(m.minGap),
     why: "To nesten parallelle plan står so tett at fingrane ikkje kjem imellom dei når du monterer. Flytt det eine, eller ta det bort.",
+    fiks: raad ? opningRiv() : undefined,
   })
 
   // --- 11 lukka nett (mjuk) ---------------------------------------------------
