@@ -398,12 +398,17 @@ async function telefon(browser: Browser) {
    * fekk ein større krakk.
    */
   const kamDist = async () => Number((await page.locator(".handtak").getAttribute("data-avstand")) ?? 0)
+  /** ...og STADEN. Ein orbit held avstanden og flyttar synet; sjå `kamPos`. */
+  const kamStad = async () => ((await page.locator(".handtak").getAttribute("data-kamera")) ?? "0,0,0").split(",").map(Number)
+  const stadAv = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2])
   const s0 = hash(page).storleik
   const d0 = await kamDist()
+  const p0 = await kamStad()
   await toFingrar(page, (t) => [[195 - 30 - 70 * t, 380], [195 + 30 + 70 * t, 380]])
   await roleg(page, 600)
   const d1 = await kamDist()
-  sjekk("eit reint klyp på objektet rører ikkje kameraet", Math.abs(d1 - d0) < 1e-3, `avstand ${d0.toFixed(3)} → ${d1.toFixed(3)}`)
+  const p1 = await kamStad()
+  sjekk("eit reint klyp på objektet rører ikkje kameraet", Math.abs(d1 - d0) < 1e-3 && stadAv(p0, p1) < 1e-3, `avstand ${d0.toFixed(3)} → ${d1.toFixed(3)}, staden ${stadAv(p0, p1).toFixed(4)}`)
   sjekk("og storleiken på kroppen står", hash(page).storleik === s0, `${s0} mm`)
 
   /**
@@ -598,7 +603,21 @@ async function telefon(browser: Browser) {
    * kameraet er den same etterpå. Eit drag på planet er ikkje ein zoom.
    */
   const avstandNo = async () => Number((await page.locator(".handtak").getAttribute("data-avstand")) ?? 0)
+  /**
+   * KAMERAET ER EIN STAD, IKKJE EIN AVSTAND.
+   *
+   * Kvar einaste kameraprøve i denne fila las `data-avstand`. Ein ORBIT
+   * held avstanden konstant — han går i ring kring det same punktet — so
+   * eit sving på atten grader måler null. Målt på koden som stod: den
+   * fyrste fingeren aleine på lerretet svinga synet 4,6 einingar på ein
+   * avstand av 14,45, og `restore()` sette det attende i det den andre
+   * fingeren landa. Sluttilstanden var perfekt, avstanden var perfekt, og
+   * det einaste som var gale var det du såg.
+   */
+  const kamPos = async () => ((await page.locator(".handtak").getAttribute("data-kamera")) ?? "0,0,0").split(",").map(Number)
+  const kamAv = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2])
   const kamFør = await avstandNo()
+  const stadFør = await kamPos()
   const planStod = plana(page)[0]
   await toFingrar(page, (t) => {
     const glid = 50 + 7 * t
@@ -606,9 +625,14 @@ async function telefon(browser: Browser) {
   })
   await page.waitForTimeout(600)
   const kamEtter = await avstandNo()
+  const stadEtter = await kamPos()
   const planKom = plana(page)[0]
   const flytta = Math.hypot(planKom.o[0] - planStod.o[0], planKom.o[1] - planStod.o[1], planKom.o[2] - planStod.o[2])
-  sjekk("og eit drag som glir frå kvarandre rører ikkje kameraet", Math.abs(kamEtter - kamFør) < 1e-3 && flytta > 0.005, `avstand ${kamFør.toFixed(3)} → ${kamEtter.toFixed(3)}, planet flytta ${flytta.toFixed(3)}`)
+  sjekk(
+    "og eit drag som glir frå kvarandre rører ikkje kameraet",
+    Math.abs(kamEtter - kamFør) < 1e-3 && kamAv(stadFør, stadEtter) < 1e-3 && flytta > 0.005,
+    `avstand ${kamFør.toFixed(3)} → ${kamEtter.toFixed(3)}, staden ${kamAv(stadFør, stadEtter).toFixed(4)}, planet flytta ${flytta.toFixed(3)}`,
+  )
   /**
    * OG DET GJELD FRÅ DET FYRSTE HAKKET.
    *
@@ -659,7 +683,7 @@ async function telefon(browser: Browser) {
    * ved fjerde hakket tok draget gesten og `restore()` sette det attende.
    * Eit rykk ut og eit rykk inn, kvar einaste gong.
    */
-  const kamFør3 = await avstandNo()
+  const kamFør3 = await kamPos()
   const planStod3 = plana(page)[0]
   const undervegs: number[] = []
   await toFingrar(
@@ -670,12 +694,12 @@ async function telefon(browser: Browser) {
       return [[170 + dx, 380 - glid], [170 + dx, 380 + glid]]
     },
     12,
-    async () => { undervegs.push(await avstandNo()) },
+    async () => { undervegs.push(kamAv(kamFør3, await kamPos())) },
   )
   await page.waitForTimeout(600)
   const planKom3 = plana(page)[0]
   const flytta3 = Math.hypot(planKom3.o[0] - planStod3.o[0], planKom3.o[1] - planStod3.o[1], planKom3.o[2] - planStod3.o[2])
-  const verst = Math.max(...undervegs.map((v) => Math.abs(v - kamFør3)))
+  const verst = Math.max(...undervegs)
   sjekk(
     "og kameraet står i KVART hakk av draget, ikkje berre til slutt",
     verst < 1e-3 && flytta3 > 0.005,

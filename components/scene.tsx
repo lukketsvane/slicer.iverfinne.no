@@ -1076,6 +1076,32 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       }
     }
 
+    /**
+     * DEN FYRSTE FINGEREN SNUR IKKJE SYNET FØR HAN HAR SAGT AT HAN ER EIN DRAG.
+     *
+     * Ei hand set aldri to fingrar ned i det same augeblinken: den eine når
+     * glaset fyrst, og i det glipet er han éin finger åleine — som er
+     * orbiten sin gest. So kvar einaste to-finger-gest byrja med at synet
+     * svinga, og `restore()` sette det attende i det den andre fingeren
+     * landa. Sluttilstanden var perfekt; det einaste som var gale var det
+     * du SÅG. Målt på koden som stod: opp til 4,6 einingar på ein avstand
+     * av 14,45 — kring atten grader — og ingen vakt såg det, av di dei alle
+     * las AVSTANDEN, og ein orbit går i ring om det same punktet.
+     *
+     * Grensa er ikkje ny, ho står alt i `opp`: under tolv pikslar er rørsla
+     * eit TRYKK og ikkje eit drag. Då er ho heller ikkje ein orbit. So
+     * lerretet får ikkje peikaren med det same — han vert halden att til
+     * fingeren har gått dei tolv, og fyrst då vert han sleppt gjennom, frå
+     * der fingeren ER. Kjem den andre fingeren fyrst, vart han aldri sleppt,
+     * og då er det ingenting å setje attende.
+     *
+     * Ingen klokke. Ei hand som er treg skal ikkje få eit anna svar enn ei
+     * som er kvikk, og eit tidsvindauge gjev nett det.
+     */
+    const DRAG_PX = 12
+    /** den fyrste fingeren, so lenge han ikkje har sagt at han er eit drag */
+    let attheld: { id: number; x: number; y: number } | null = null
+
     const ned = (e: PointerEvent) => {
       svelgKlikk = false
       // eit handtak er teke: ein finger til på lerretet skal ikkje snu eller zoome medan det varer
@@ -1112,9 +1138,15 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
         naa.current.onGest("snitt")
         return
       }
+      // Orbiten får hendinga som før — R3F lyttar på det same lerretet, og
+      // ein stogg her tek bort trykket på ein del og på synskuben med. Det
+      // er RESULTATET hans som vert halde att, i `rorsle`.
+      if (e.pointerType === "touch" && pts.size === 0) attheld = { id: e.pointerId, x: e.clientX, y: e.clientY }
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pts.size === 1 && controls) snap = { pos: camera.position.clone(), target: controls.target.clone() }
       if (pts.size === 2 && mode !== "lys") {
+        // den andre fingeren er her: peikaren vert aldri sleppt til orbiten
+        attheld = null
         taKameraet(controls)
         const c = measure2()
         last = c
@@ -1137,6 +1169,23 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
     }
 
     const rorsle = (e: PointerEvent) => {
+      /**
+       * ...OG SYNET STÅR TIL FINGEREN HAR SAGT AT HAN ER EIT DRAG.
+       *
+       * Orbiten har fått hendinga og reknar i veg; det er RESULTATET som
+       * vert halde att. `restore()` set kameraet attende på kvar rørsle, og
+       * orbiten reknar spelet sitt ut av kameraet sin eigen stilling kvar
+       * gong han vert oppdatert — so ingenting hopar seg opp, og når
+       * grensa er passert held han fram derifrå utan eit hopp.
+       *
+       * Passerer fingeren tolv pikslar åleine, ER han eit drag, og då er
+       * han orbiten sin. Kjem den andre fingeren fyrst, har synet ikkje
+       * rørt seg eitt bilete.
+       */
+      if (attheld && e.pointerId === attheld.id && pts.size === 1 && mode === "none") {
+        if (Math.hypot(e.clientX - attheld.x, e.clientY - attheld.y) < DRAG_PX) restore()
+        else attheld = null
+      }
       if (mode === "sFlytt" || mode === "sStor" || mode === "sVri") {
         if (!stak || e.pointerId !== stak.id) return
         const q = paaPlanet(e.clientX, e.clientY, stak.r)
@@ -1331,6 +1380,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
         snapp.current = { vri: false, pos: false }
         return sleppHandtak()
       }
+      if (attheld && e.pointerId === attheld.id) attheld = null
       if (!pts.delete(e.pointerId)) return
       if (pts.size === 0) {
         slepp()
