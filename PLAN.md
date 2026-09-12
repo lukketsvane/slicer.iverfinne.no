@@ -438,9 +438,10 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
                                                  ✓ GJORT (og premissen retta: å
                                                  hoppe over fana sparar null)
     6  Vakta på taket måler arbeid           → tre køyringar under last, alle grøne
-    7  Retninga inn i montasjenyttelasta     → probe: feltet står; panel: arket listar steget
-    8  Steglista, tomt-meldinga, trykk på    → panel montasjen
-       ein del                                   (tablist og romsyn ✓ GJORT)
+    7  Retninga inn i montasjenyttelasta     → probe: kopla del↔line held
+                                                 ✓ GJORT
+    8  Steglista og tomt-meldinga ✓ GJORT    → panel montasjen
+       Trykk på ein del i biletet står att       (tablist og romsyn ✓ GJORT)
     9  `toFingrar` med lag                   → dei gamle to-finger-bolkane, grøne ved 0, 6, 14
    10  Steg 1 av bøygde ledd                 → pnpm ledd: ei ny sak, bøygt kryssa av flatt
    11  Ein kanal ut av `Handa`, når du       → panel telefon + handtaka

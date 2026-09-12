@@ -3283,6 +3283,27 @@ async function montasjen(browser: Browser) {
     sjekk("og han går heile vegen opp att", (await lesing()).startsWith("steg 2/2"), await lesing())
   }
 
+  /**
+   * OG ARKET BER STEGET, IKKJE PLANLISTA.
+   *
+   * Montasjen endrar ikkje eit einaste tal, so ei planrad du kan velje er
+   * eit val fana ikkje kan svare på: ho merkte seg sjølv, og ingenting hende
+   * nokon stad. Det arket skal bere her er det `montering.txt` alltid har
+   * skrive og som berre låg inni ALT-pakka — kva delane HEITER, og kva veg
+   * dei kjem inn.
+   */
+  // arket ligg lukka på ein telefon; lina opnar det
+  await page.locator(HOVUDLINA).click()
+  await roleg(page, 600)
+  const rader = page.locator("[aria-label='steget'] [data-steg-del]")
+  const planrader = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]")
+  await vent2(page, async () => (await rader.count()) > 0, 8000)
+  sjekk("arket ber stega og ikkje plana", (await rader.count()) > 0 && (await planrader.count()) === 0, `${await rader.count()} stegrader · ${await planrader.count()} planrader`)
+  const fyrste = ((await rader.first().innerText()) ?? "").replace(/\s+/g, " ").trim()
+  sjekk("og kvar rad ber adressa, vegen inn og plata", /^\S+ (ned|opp|frå sida|ligg) ark \d+$/.test(fyrste), fyrste)
+  await page.locator(HOVUDLINA).click()
+  await roleg(page, 500)
+
   // ei anna fane slepper han, og kroppen står som han stod
   await page.getByRole("tab", { name: "lag", exact: true }).click()
   await roleg(page, 700)

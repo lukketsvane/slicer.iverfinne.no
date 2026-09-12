@@ -34,7 +34,9 @@ const TAK: [string, number][] = [
   ["components/scene.tsx", 3436],
   // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
-  ["components/studio.tsx", 2923],
+  // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
+  // «ingen delar» — to prop-liner og to kommentarliner
+  ["components/studio.tsx", 2927],
   ["lib/snitt.ts", 1234],
   ["lib/pack.ts", 955],
 ]
