@@ -192,21 +192,53 @@ låsen, nålene og kvart tilfelle per akse er ei form kvar i dag og skulle vore
 
 ---
 
-## 3. Rekning for fanar som ikkje kan syne henne
+## 3. ~~Rekning for fanar som ikkje kan syne henne~~ — feil premiss, og den ekte kostnaden låg ein annan stad
 
-`components/studio.tsx:827` køyrer `bygg("lag", "lav")` og eit avdempa
-`bygg("lag", detail)` på **kvar** parameterendring, i **kvar** fane. I `kontur`
-ligg lerretet gøymt; i `montasje` teiknar scena `Montasjen` i staden. Måltala
-kjem frå ei eiga `maal`-spørjing, so ingenting på skjermen heng på det der.
+**Denne saka stod feil på sida, og målinga tok henne.** Ho står att som ho vart
+retta, av di ein plan som stryk feila sine lærer ingen noko.
 
-Målt (NESTE.md): eit hakk på storleiksskyvaren kostar ~460 ms i `lag` og
-~200 ms i `montasje` — der ingen ser resultatet. Eg har stadfest at rekninga
-verkeleg køyrer i kvar fane, ikkje sjølve tala. Det er den same regelen økta
-den 12. tok på knappane (*ein reiskap høyrer heime der du ser kva han gjorde*),
-berre lagd på **arbeid**: rekn ikkje det fana ikkje kan syne.
+Påstanden var: `bygg("lag", …)` køyrer i kvar fane, og i `kontur` og `montasje`
+ser ingen resultatet, so hopp over det. To ting ved han heldt ikkje.
 
-Hopp over når `!rom`, og bygg éin gong på veg inn att. Mål på telefonen før og
-etter — eit tal frå ein leigd tenar er ikkje eit tal nokon kan argumentere med.
+**Måltala kjem ikkje frå ei eiga spørjing.** `maal` vert posta hundre
+millisekund etter kvart BYGG, inne i bygg-greina (`lib/worker.ts:213`). Å
+hoppe over bygget i `kontur` og `montasje` ville teke topplina — plan, delar,
+ark og tid — bort i dei to fanene.
+
+**Og det ville ikkje spart noko.** Snittinga er memoisert og delt av alt som
+spør. Målt på ei kule med seksten plan:
+
+    montasje åleine            213 ms
+    bygg + maal + montasje     210 ms
+    ark åleine                 228 ms
+    bygg + maal + ark          220 ms
+
+Rombygget oppå det fana alt treng er gratis, av di snittinga alt er rekna.
+Innsparinga er null, og prisen er topplina.
+
+**Den ekte kostnaden stod ei line unna.** Koden bygde TO gonger på kvar
+parameterendring — `lav` med det same, `mid` tre hundre millisekund etter —
+og det er ei avveging som berre løner seg om det grove er raskare. Det er det
+ikkje:
+
+    60 celler   230 ms        lav so mid (som det stod)   452 ms
+   120 celler   212 ms        mid åleine                  224 ms
+   220 celler   211 ms        mid to gonger               219 ms
+   320 celler   215 ms
+
+Snittinga er **flat i celletalet** — arbeidet ligg i trekantane per plan og
+ikkje i feltet — so `DETAIL` styrer kor fint resultatet vert og ingenting anna.
+Det grove passet kjøpte eit dårlegare omriss til full pris, og buffernøkkelen
+har celletalet i seg, so dei to bygga delte ingenting. Eit andre bygg på same
+posen er derimot gratis.
+
+Eitt nivå i staden for to: **452 → 224 ms per parameterhakk, i kvar fane**, og
+det du ser fyrst er det laseren får. På ein telefon, tre til fem gonger
+tregare, er det halvsekundet eit heilt sekund.
+
+Lærdomen er den same som sak 1: eit tal som ikkje er målt er ei gjetting med
+sifre i. NESTE.md sitt «~460 ms» var rett i storleik og feil i årsak, og ei
+retting etter årsaka ville kosta topplina og spart null.
 
 ## 4. `kvile` gjeld ikkje montasjen
 
@@ -402,7 +434,9 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
                                                  ✓ GJORT — `pnpm vekt`
     4  `kvile` og montasjen                  → panel skalet: søv ikkje i montasjen
                                                  ✓ GJORT
-    5  Bygg ikkje det fana ikkje kan syne    → mål hakket på skyvaren før/etter, på telefonen
+    5  Eitt byggjenivå og ikkje to           → målt: 452 → 224 ms per hakk
+                                                 ✓ GJORT (og premissen retta: å
+                                                 hoppe over fana sparar null)
     6  Vakta på taket måler arbeid           → tre køyringar under last, alle grøne
     7  Retninga inn i montasjenyttelasta     → probe: feltet står; panel: arket listar steget
     8  Steglista, tomt-meldinga, trykk på    → panel montasjen
