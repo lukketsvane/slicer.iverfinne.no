@@ -8,7 +8,7 @@ import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./del
 
 /**
  * TOPPLINA. Det som ikkje skal ligge to steg ned i eit ark: angre og gjer
- * om, kroppen du står på (og vegen til ein annan), dei tre lesemåtane,
+ * om, kroppen du står på (og vegen til ein annan), dei fire lesemåtane,
  * lenkja. Éi smal line på begge flatene, over lerretet; kameraet rammar inn
  * under henne. På ein telefon som er lagd på heimeskjermen ligg statuslina
  * over sida, so lina tek den tryggje sona som luft over seg. Ein knapp er
@@ -85,14 +85,21 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, onFile, onLeg
         {/* KROPPEN. Brikka seier kva han er laga av og opnar lista: fem
             primitiv som vert lagde til det som alt står, og di eiga fil,
             som byrjar på nytt. Bitane står i ei rad og går i kvarandre. */}
-        <span ref={boks} className="relative ml-1">
+        {/* OG BRIKKA VIK FØR LINA BRISTAR. Fire lesemåtar og eit langt
+            filnamn er breiare enn 390 px, og ein flexboks som ikkje kan
+            krympe skuvar lenkja ut av skjermen i staden. `min-w-0` seier at
+            denne — og berre denne — gjev etter: namnet er det einaste her
+            som har ei kortform som framleis tyder noko. `w-full` er halve
+            regelen: utan han krympa lappen og knappen inni heldt breidda si,
+            so namnet vart teikna oppå «flate». */}
+        <span ref={boks} className="relative ml-1 min-w-0">
           <button
             type="button"
             onClick={() => setMeny((m) => !m)}
             aria-expanded={meny}
             aria-label="kroppen"
             title={byt ? "kroppen: byt forma i den valde biten, eller hent ei fil i han" : "kroppen: legg til ei form, eller hent ei fil"}
-            className={ORD + " block max-w-[108px] truncate text-left"}
+            className={ORD + " block w-full max-w-[108px] truncate text-left"}
             data-kjelde=""
           >
             {bitar > 1 ? `${kjelde} +${bitar - 1}` : kjelde}
@@ -133,9 +140,12 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, onFile, onLeg
             </span>
           )}
         </span>
-        {/* DEI TRE LESEMÅTANE, som ord. Den som gjeld står i fullt blekk og dei
-            andre dempa — same skalaen ikona bruker. Ringen og den fylte pilla
-            var tre flater midt i biletet, og dei sa ikkje eitt ord meir. */}
+        {/* DEI FIRE LESEMÅTANE, som ord. Den som gjeld står i fullt blekk og
+            dei andre dempa — same skalaen ikona bruker. Ringen og den fylte
+            pilla var flater midt i biletet, og dei sa ikkje eitt ord meir.
+            Montasjen er den fjerde: han var ein reiskap i tommelspalta, og
+            han endrar ingenting — han er ein måte å lesa det same objektet
+            på, som dei tre andre. */}
         <span className="mx-auto flex items-center">
           {VIEWS.map((v) => (
             <button key={v.id} type="button" title={v.hint} aria-pressed={view === v.id} onClick={() => onView(v.id)} className={ORD}>{v.label}</button>

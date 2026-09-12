@@ -16,7 +16,7 @@ import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worke
 import type { Montasje } from "@/lib/montasje"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
-import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett, IcoVirvel } from "./deler"
+import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett, IcoVirvel } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -220,6 +220,28 @@ function medGruppa(l: Plan[], i: number, o: Vec3, n: Vec3, g: number | null, for
 export function Studio() {
   const [params, setParams] = useState<ParamBag>(() => ({ ...MOTOR.defaults }))
   const [view, setView] = useState<View>("lag")
+  /** ...og den same lesemåten til lyttarar som vart sette opp éin gong */
+  const viewRef = useRef<View>("lag")
+  viewRef.current = view
+  /**
+   * ROMMET: dei to lesemåtane der kroppen og plana ER det du ser.
+   *
+   * Reiskapane bur her og ingen annan stad. Plateflata syner delane
+   * liggjande og montasjen syner dei reise seg; eit rutenett, ein bøy eller
+   * eit hòl skorne der ville vore ei endring ingen såg — og ein knapp du
+   * ikkje ser verknaden av er ein knapp som lyg. Difor står tommelspalta,
+   * speglingane og skjer berre i «flate» og «lag».
+   */
+  const rom = view === "flate" || view === "lag"
+  /**
+   * SYNET ROMMET STÅR I. Konturen og montasjen er ikkje romsyn — den eine er
+   * plateflata, den andre er delane på veg opp av henne — so rommet held på
+   * det synet det hadde medan dei står framme. Å sende «lag» inn i staden
+   * ville bytt nettet under eit lerret ingen ser, og bytt det attende, for
+   * ingenting. Det er òg fana du kjem attende til når du forlèt montasjen.
+   */
+  const romsyn = useRef<Rom>("lag")
+  if (rom) romsyn.current = view
   /**
    * SKALET: kroppen slik han var, teikna gjennomsiktig kring delane i «lag».
    * Han er der for å seie kor mykje av forma ribbene fangar — og han er i
@@ -330,9 +352,6 @@ export function Studio() {
   const [kubeBotn, setKubeBotn] = useState(0)
   /** gestmodusen: «form» er dei gamle gestane på objektet, «skisse» er gestane på planet */
   const [modus, setModus] = useState<Modus>("form")
-  /** ...og den same modusen til lyttarar som vart sette opp éin gong */
-  const modusRef = useRef<Modus>("form")
-  modusRef.current = modus
   /** kor mange millimeter virr du har lagt på gruppa du står i, denne økta */
   const [virr, setVirr] = useState(0)
   /**
@@ -532,7 +551,7 @@ export function Studio() {
       // spør; ei importert fil ligg i din eigen base, under det same namnet,
       // og `hentInn` spør etter henne der.
       setParams((p) => MOTOR.clamp(obj, p))
-      if (obj.view === "lag" || obj.view === "kontur" || obj.view === "flate") setView(obj.view)
+      if (VIEWS.some((v) => v.id === obj.view)) setView(obj.view as View)
       if (typeof obj.skal === "boolean") setSkal(obj.skal)
       hentInn(obj)
     } catch {
@@ -637,19 +656,18 @@ export function Studio() {
       }
       if (r.kind === "montasje") {
         /**
-         * OG EIT SVAR SOM KJEM ETTER AT REISKAPEN ER LUKKA, FELL PÅ GOLVET.
+         * OG EIT SVAR SOM KJEM ETTER AT FANA ER FORLATEN, FELL PÅ GOLVET.
          *
-         * To trykk tett i hop er «sjå det ein gong til» — knappen sin eigen
-         * lære — men på ein kropp med mange plan tek montasjen opp mot eit
-         * halvt sekund, so det andre trykket rekk å lukke reiskapen FØR
-         * svaret på det fyrste kjem. Sette vi han då, stod du att med
-         * stabelen av plater medan knappen sa at verktyet var av: kroppen,
-         * snittet og skjer var borte, og berre to trykk til henta dei.
+         * På ein kropp med mange plan tek montasjen opp mot eit halvt
+         * sekund, so eit byte av fane rekk å skje FØR svaret kjem. Sette vi
+         * han då, stod du att med stabelen av plater i ei fane som ikkje er
+         * montasjen: kroppen, snittet og skjer var borte, og berre to byte
+         * til henta dei.
          *
-         * Refen og ikkje `modus`: denne lyttaren er sett opp éin gong, og
-         * ser difor alltid modusen frå det fyrste biletet.
+         * Refen og ikkje `view`: denne lyttaren er sett opp éin gong, og
+         * ser difor alltid lesemåten frå det fyrste biletet.
          */
-        if (modusRef.current !== "montasje") return
+        if (viewRef.current !== "montasje") return
         const { kind, id, ...m } = r
         void kind
         void id
@@ -778,12 +796,13 @@ export function Studio() {
     if (!mounted || !kropp) return
     // verktyet for kroppen snittar ingenting: der byggjer du emnet, ikkje delane
     if (modus === "bit") return spørSkisse(null)
-    // og konturen snittar ingenting: der ligg delane alt på plata
-    if (view === "kontur") return spørSkisse(null)
+    // og berre rommet snittar: på plata ligg delane alt, og i montasjen er
+    // dei på veg opp av henne
+    if (!rom) return spørSkisse(null)
     if (vald !== null) return spørSkisse(plan.find((q) => q.id === vald) ?? null)
     const s = skisse.current
     spørSkisse(s ? { id: 0, o: broek(s.o, kropp.min, kropp.max), n: s.n, bog: 0, strek: [] } : null)
-  }, [mounted, kropp, vald, plan, params, modus, view, spørSkisse])
+  }, [mounted, kropp, vald, plan, params, modus, rom, spørSkisse])
   const harSnitt = !!snitt?.ringar.length
 
   /**
@@ -1178,21 +1197,18 @@ export function Studio() {
   /**
    * MONTASJEN: kroppen som reiser seg av platene sine.
    *
-   * Reiskapen er ei LESING og ikkje ei endring — han rører ikkje eit einaste
-   * tal — so han slepper det valde planet og biten på veg inn, av di
-   * handtaka deira ville stått i eit objekt som er halvvegs teke frå
-   * kvarandre.
+   * Han var ein reiskap i tommelspalta og er ei FANE no. Det er den same
+   * skilnaden som mellom «lag» og «kontur»: dei tre andre fanene syner
+   * kvar sin lesemåte av det same objektet, og montasjen er den fjerde —
+   * delane med vegen frå plata til kroppen i seg. Ein reiskap ENDRAR noko;
+   * montasjen rører ikkje eit einaste tal, og han stod difor i ei spalte
+   * full av knappar som gjer det.
+   *
+   * Tasten M står att, av di handa hugsar han.
    */
   const vekslMontasje = useCallback(() => {
-    if (modus === "montasje") {
-      setMont(null)
-      setModus("form")
-      return
-    }
-    setModus("montasje")
-    setValdBit(null)
-    setVald(null)
-  }, [modus])
+    setView((v) => (v === "montasje" ? romsyn.current : "montasje"))
+  }, [])
   /**
    * VERKTYET FOR KROPPEN: bitane står som boksar, og gestane gjeld den valde.
    *
@@ -1681,6 +1697,26 @@ export function Studio() {
     setValdStrek(null)
     setPeikt(liste.find((k) => k.plan === id)?.adr ?? null)
   }, [liste])
+  /**
+   * EIN REISKAP STÅR DER HAN VERKAR.
+   *
+   * Går du frå rommet til plata eller montasjen, er reiskapen sleppt med
+   * det same: knappen hans står ikkje der, og eit rutenett som er på utan
+   * ein knapp å slå det av med er ein modus du ikkje kjem ut av.
+   *
+   * MONTASJEN SLEPPER VALET MED. Handtaka på eit plan ville stått i eit
+   * objekt som er halvvegs teke frå kvarandre. Plata held på det: ei rad i
+   * lista og ein del på arket er det same valet, og laget på det er ein
+   * operasjon du SER der.
+   */
+  useEffect(() => {
+    if (rom) return
+    setModus("form")
+    setValdBit(null)
+    if (view !== "montasje") return
+    setValdPunkt(null)
+    velPlan(null)
+  }, [rom, view, velPlan])
   // ei ny gruppe er ei ny rad: virret du la på den førre fylgjer ikkje med
   useEffect(() => { setVirr(0) }, [valdGruppe])
   // ei gruppe er vald berre so lenge leiaren står i henne: eit anna plan, eit angre, ei sletting slepper gruppa
@@ -1766,7 +1802,7 @@ export function Studio() {
   }, [vald, valdStrek])
   const askArk = useCallback((i: number) => send({ kind: "ark", id: ++reqId.current, params: naa.current, sheet: Math.max(0, i) }), [send])
   /**
-   * MONTASJEN VERT SPURD OM NÅR REISKAPEN ER PÅ, og på nytt kvar gong noko
+   * MONTASJEN VERT SPURD OM NÅR FANA STÅR FRAMME, og på nytt kvar gong noko
    * som endrar delane endrar seg. Ikkje kvar gong KVA SOM HELST endrar seg:
    * eit drag i lyset eller eit byte av lesemåte lagar ikkje ein einaste ny
    * del, og å rekne heile montasjen om att for det ville teke reiskapen frå
@@ -1779,9 +1815,9 @@ export function Studio() {
    * alt `params.ts` seier tel — so eit drag i «vend x» let animasjonen
    * spele delane til den forrige kroppen, med gamle steg i lina.
    */
-  const montNokkel = modus === "montasje" ? byggKey(params, 0) : ""
+  const montNokkel = view === "montasje" ? byggKey(params, 0) : ""
   useEffect(() => {
-    if (!montNokkel) return
+    if (!montNokkel) return setMont(null)
     send({ kind: "montasje", id: ++reqId.current, params: naa.current })
   }, [montNokkel, send])
   const velDel = useCallback((adr: string | null) => {
@@ -2164,8 +2200,9 @@ export function Studio() {
       if (e.metaKey || e.ctrlKey) return
       // same som knappen: med eit plan valt er skissa gøymd, og L slepp valet
       if (k === "l") {
-        if (vald === null) laas()
-        else velPlan(null)
+        if (vald !== null) velPlan(null)
+        // og skjer finst berre der skissa finst — sjå tommelspalta
+        else if (rom) laas()
       } else if (k === "delete" || k === "backspace") {
         // det minste emnet fyrst: eit punkt, so eit strek, so planet. Handa
         // tek bort det ho held i, ikkje det som held det.
@@ -2173,12 +2210,15 @@ export function Studio() {
         else if (valdStrek !== null) slettStrek()
         else if (vald !== null) slett(vald)
       } else if (k === "z") (e.shiftKey ? gjerOm : angre)()
-      else if (k === "r") vekslRute()
-      else if (k === "v") vekslVirvel()
+      // REISKAPANE HØYRER ROMMET TIL, og tastane deira gjer det same: på
+      // plata og i montasjen er det ingen knapp å sjå dei i, og ein tast
+      // som slår på noko du ikkje ser er verre enn ingen tast.
+      else if (k === "r" && rom) vekslRute()
+      else if (k === "v" && rom) vekslVirvel()
       // K som KROPPEN: det var den einaste reiskapen utan ein tast, og på
       // ein benk er tastane vegen inn til dei — R, V, S og no K.
-      else if (k === "k") vekslBit()
-      // M som MONTASJEN: same knappen, og han spelar når han opnar seg
+      else if (k === "k" && rom) vekslBit()
+      // M som MONTASJEN: fana, og handa hugsar tasten frå då han var ein reiskap
       else if (k === "m") vekslMontasje()
       // B SOM BOGE, når du held eit punkt: hjørne eller boge, same handling
       // som dobbelttrykket på punktet. Det minste emnet fyrst, som ⌫ — held
@@ -2191,23 +2231,24 @@ export function Studio() {
       else if (k === "1") setView("flate")
       else if (k === "2") setView("lag")
       else if (k === "3") setView("kontur")
+      else if (k === "4") setView("montasje")
       // den same knappen som under synskuben: innramminga er éi handling, og tasten er vegen til henne
       else if (k === "f") document.querySelector<HTMLButtonElement>("[data-heim]")?.click()
-      else if (k === "d" && vald !== null) dupliserPlan(vald)
-      else if (k === "h" && vald !== null && view !== "kontur") leggStrek("hol")
+      else if (k === "d" && vald !== null && rom) dupliserPlan(vald)
+      else if (k === "h" && vald !== null && rom) leggStrek("hol")
       // O som OMRISSET: same knappen, og eit trykk til innan vindauget gjev
       // boksen — eit dobbelttrykk er eit dobbelttrykk på ein tast òg.
-      else if (k === "o" && vald !== null && valdGruppe === null && view !== "kontur") formTrykk()
+      else if (k === "o" && vald !== null && valdGruppe === null && rom) formTrykk()
       // PILENE FLYTTAR DET VALDE PLANET, ikkje synet: opp og høgre er langs
       // normalen, ned og venstre er mot. Ein skrubbar i fokus eig pilene
       // sine sjølv, og på plata er det delen pilene flyttar (sjå `Plater`).
       // EIT PUNKT FYRST: held du eit punkt, er det DET pilene flyttar — i
       // profilen si eiga ramme, og ikkje planet langs normalen sin.
-      else if (k.startsWith("arrow") && vald !== null && valdPunkt !== null && view !== "kontur" && t?.getAttribute("role") !== "slider") {
+      else if (k.startsWith("arrow") && vald !== null && valdPunkt !== null && rom && t?.getAttribute("role") !== "slider") {
         const mm = e.shiftKey ? 10 : 1
         stegPunkt(vald, valdPunkt, k === "arrowright" ? mm : k === "arrowleft" ? -mm : 0, k === "arrowup" ? mm : k === "arrowdown" ? -mm : 0)
       }
-      else if (k.startsWith("arrow") && vald !== null && valdStrek === null && view !== "kontur" && t?.getAttribute("role") !== "slider") {
+      else if (k.startsWith("arrow") && vald !== null && valdStrek === null && rom && t?.getAttribute("role") !== "slider") {
         const retn = k === "arrowup" || k === "arrowright" ? 1 : -1
         stegPlan(vald, retn * (e.shiftKey ? 10 : 1))
       }
@@ -2222,27 +2263,19 @@ export function Studio() {
         else if (valdPunkt !== null) setValdPunkt(null)
         else if (valdStrek !== null) setValdStrek(null)
         else if (vald !== null) velPlan(null)
-        // montasjen er ei lesing og ikkje eit val: escape slepper han som
-        // han slepper alt anna du står inne i
-        else if (modus === "montasje") vekslMontasje()
+        // montasjen er ei lesing og ikkje eit val: escape tek deg attende til
+        // rommet, som han slepper alt anna du står inne i
+        else if (view === "montasje") vekslMontasje()
         else setSteg("line")
       } else return
       e.preventDefault()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslVirvel, vekslMontasje, modus, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslVirvel, vekslMontasje, rom, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
-  /**
-   * SYNET ROMMET STÅR I. Konturen er ikkje eit romsyn lenger — han er
-   * plateflata — so rommet held på det synet det hadde medan ho står
-   * framme. Å sende «lag» inn i staden ville bytt nettet under eit lerret
-   * ingen ser, og bytt det attende, for ingenting.
-   */
-  const romsyn = useRef<Rom>("lag")
-  if (view !== "kontur") romsyn.current = view
   const rute: Rute = useMemo(
     () => ({ W: vindu.w, H: vindu.h, venstre: 0, hogre: benk ? KOL : 0, topp: toppH, botn: benk ? (verkty ? skuffH : 0) : arkH }),
     [vindu, benk, verkty, skuffH, arkH, toppH],
@@ -2257,10 +2290,10 @@ export function Studio() {
   const harOmriss = vald !== null && !!plan.find((q) => q.id === vald)?.omriss?.length
   /** kva fingrane held på med, med eitt ord — rutenettet med dei to tala sine */
   const gestTekst =
-    // MONTASJEN STÅR SÅ LENGE HAN ER PÅ, og ikkje berre medan ein finger er
-    // nede: han er ei lesing og ikkje ein gest, og steget er det du treng å
-    // vite medan du ser på — kva runde dette er, og kor mange ribber ho er.
-    modus === "montasje" && mont ? `steg ${montSteg}/${mont.steg} · ${mont.delar.filter((d) => d.steg === montSteg - 1).length}`
+    // MONTASJEN STÅR SÅ LENGE FANA GJER DET, og ikkje berre medan ein finger
+    // er nede: han er ei lesing og ikkje ein gest, og steget er det du treng
+    // å vite medan du ser på — kva runde dette er, og kor mange ribber ho er.
+    view === "montasje" && mont ? `steg ${montSteg}/${mont.steg} · ${mont.delar.filter((d) => d.steg === montSteg - 1).length}`
     : gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
     : gest === "virvel" ? (virvelTal ? `${virvelTal[0]} · ${Math.round(virvelTal[1] * 100)}%` : "virvel")
     : gest
@@ -2282,6 +2315,7 @@ export function Studio() {
             onSkal={() => setSkal((q) => !q)}
             sov={sov}
             modus={modus}
+            montasje={view === "montasje"}
             material={String(params.material ?? "finer")}
             rute={rute}
             liste={liste}
@@ -2370,7 +2404,7 @@ export function Studio() {
           hjørnet, synskuben det høgre. Bandet tek ingen fingrar; berre orda
           gjer det — og orda ligg UNDER handtaka, so eit handtak som kjem
           til å stå oppå eit av dei tek fingeren sin (sjå `.speil`). */}
-      {mounted && vald === null && view !== "kontur" && modus !== "bit" && (
+      {mounted && vald === null && rom && modus !== "bit" && (
         <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="symmetri">
           {(["x", "y", "z"] as const).map((ord, a) => (
             <button
@@ -2403,6 +2437,17 @@ export function Studio() {
         hans. Er eit strek valt, er det streken slett tek. Ikon, aldri ord.
         Prikken i hjørnet er motoren som reknar. På benken står spalta nedst
         i lerretet, ved kolonna.
+
+        OG HO BER BERRE DET FANA KAN SYNE.
+
+        Ein reiskap er eit spørsmål og eit svar: du trykkjer, og noko
+        endrar seg framfor deg. Står svaret i eit bilete som ikkje er oppe,
+        er knappen berre eit spørsmål — og eit spørsmål utan svar er verre
+        enn ingen knapp. Difor: i rommet («flate» og «lag») står alle,
+        av di det er DER kroppen, plana og skissa er teikna. På plateflata
+        står dei to som ein knapp kan gjere åleine og arket syner med ein
+        gong — dubler og slett. I montasjen står steget, og ikkje anna: han
+        endrar ingenting i det heile.
       */}
       {mounted && (
         <div
@@ -2432,6 +2477,82 @@ export function Studio() {
             if (same && !b.disabled) b.click()
           }}
         >
+          {/*
+            MONTASJEN HAR ÉIN KONTROLL, OG DET ER STEGET.
+
+            Fana er reiskapen no: du står i montasjen av di du valde han
+            øvst, og spalta ber det einaste som er att å gjere her.
+
+            TO GESTAR, OG BEGGE ER LÆRDE FRÅ FØR. Eit drag opp og ned tek
+            deg dit du vil sjå og let deg STÅ der, som bøyen og lupa: ein
+            animasjon du ikkje kan stoppe midt i er ein animasjon du må sjå
+            fire gonger. Og eit trykk spelar han om att frå golvet — «sjå det
+            ein gong til», utan at nokon må lære eit dobbelttrykk til.
+          */}
+          {view === "montasje" && (
+            <button
+              type="button"
+              data-montasje=""
+              aria-label="steget"
+              title={`montasjen: steg ${montSteg} av ${mont?.steg ?? 1}. dra opp og ned for å stå midt i han; trykk for å sjå han om att`}
+              className={TUMME_BTN}
+              style={{ touchAction: "none", cursor: "ns-resize" }}
+              onPointerDown={(e) => {
+                // BERRE DEN PEIKAREN SOM TOK I KNAPPEN. Landa ein annan
+                // finger borti han medan den fyrste heldt, skreiv han over
+                // kvar trykket byrja — og trykket vart lese som eit drag og
+                // gjorde ingenting. (Spalta les ein finger som ikkje er den
+                // primære med vilje; difor eit namn og ikkje `isPrimary`.)
+                if (montNed.current) return
+                montNed.current = { id: e.pointerId, y: e.clientY }
+                e.currentTarget.setPointerCapture(e.pointerId)
+                montDra.current = e.clientY
+                montSpel.current = false
+                setSkrubbar(true)
+              }}
+              onPointerMove={(e) => {
+                if (montDra.current === null || !mont) return
+                const dy = e.clientY - montDra.current
+                montDra.current = e.clientY
+                // opp er mot ferdig og ned er attende mot plata: den vegen delane går
+                montT.current = Math.min(mont.steg, Math.max(0, montT.current - dy / MONT_STEG_PX))
+                montVakn.current?.()
+              }}
+              onPointerUp={(e) => {
+                const ned = montNed.current
+                if (!ned || ned.id !== e.pointerId) return
+                montDra.current = null
+                montNed.current = null
+                setSkrubbar(false)
+                // eit trykk er eit trykk berre når det ikkje flytte seg — elles
+                // er det byrjinga på eit drag, og eit drag spelar ingenting om att
+                if (Math.abs(e.clientY - ned.y) > 6) return
+                montT.current = 0
+                montSpel.current = true
+                setMontSteg(1)
+                montVakn.current?.()
+              }}
+              onPointerCancel={(e) => {
+                if (montNed.current && montNed.current.id !== e.pointerId) return
+                montDra.current = null
+                montNed.current = null
+                setSkrubbar(false)
+              }}
+              /*
+                OG INGEN `onClick`. Han er den same knappen som bøyen: alt
+                går gjennom peikaren, av di eit drag og eit trykk berre kan
+                skiljast der. Den andre fingeren når han likevel: handlarane
+                her høyrer på kvar peikar, primær eller ikkje (sjå spalta
+                over).
+              */
+            >
+              {IcoMontasje}
+            </button>
+          )}
+          {/* RUTENETTET OG VIRVELEN HØYRER ROMMET TIL. Begge vert sette med
+              TO FINGRAR PÅ OBJEKTET, og på plateflata ligg objektet gøymt
+              under arka — ein brytar du kan slå på og ikkje bruke. */}
+          {rom && (<>
           {/* RUTENETTET. Han stod i lina på arket, ved talet han endrar. Men
               han er ein REISKAP og ikkje eit tal: to fingrar set kolonner og
               rader, som skissa og kroppen gjer det, og reiskapane bur i denne
@@ -2446,87 +2567,6 @@ export function Studio() {
             data-ruteverkty=""
           >
             {IcoRute}
-          </button>
-          {/*
-            MONTASJEN, ØVST: den einaste reiskapen som ikkje endrar noko.
-
-            Han svarar på det kuttfila ikkje svarar på — kva går kvar, og
-            kva må ned FØRST — og han svarar av geometrien.
-
-            TRE GESTAR, OG ALLE TRE ER LÆRDE FRÅ FØR. Eit trykk slår han på
-            og av, som rutenettet og virvelen. Å slå han PÅ spelar heile
-            montasjen, av di det er det du opna han for — so to trykk er
-            «sjå det ein gong til», utan at nokon må lære eit dobbelttrykk
-            til. Og eit drag opp og ned tek deg dit du vil sjå og let deg
-            STÅ der, som bøyen og lupa: ein animasjon du ikkje kan stoppe
-            midt i er ein animasjon du må sjå fire gonger.
-          */}
-          <button
-            type="button"
-            data-montasje=""
-            aria-pressed={modus === "montasje"}
-            aria-label="montasje"
-            title={modus === "montasje" ? `montasjen (M): steg ${montSteg} av ${mont?.steg ?? 1}. dra opp og ned for å stå midt i han; trykk for å gå ut` : "montasjen (M): sjå kroppen reise seg av platene sine, ein gjeng ribber om gongen"}
-            className={TUMME_BTN}
-            style={modus === "montasje" ? { touchAction: "none", cursor: "ns-resize" } : undefined}
-            onPointerDown={(e) => {
-              // trykket vert notert same kva: det er DET som slår verktyet
-              // på og av. Draget finst berre når han alt er på — utan ein
-              // montasje er det ingenting å dra i.
-              // BERRE DEN PEIKAREN SOM TOK I KNAPPEN. Landa ein annan finger
-              // borti han medan den fyrste heldt, skreiv han over kvar
-              // trykket byrja — og trykket vart lese som eit drag og gjorde
-              // ingenting. (Spalta les ein finger som ikkje er den primære
-              // med vilje; difor eit namn og ikkje `isPrimary`.)
-              if (montNed.current) return
-              montNed.current = { id: e.pointerId, y: e.clientY }
-              if (modus !== "montasje") return
-              e.currentTarget.setPointerCapture(e.pointerId)
-              montDra.current = e.clientY
-              montSpel.current = false
-              setSkrubbar(true)
-            }}
-            onPointerMove={(e) => {
-              if (montDra.current === null || !mont) return
-              const dy = e.clientY - montDra.current
-              montDra.current = e.clientY
-              // opp er mot ferdig og ned er attende mot plata: den vegen delane går
-              montT.current = Math.min(mont.steg, Math.max(0, montT.current - dy / MONT_STEG_PX))
-              montVakn.current?.()
-            }}
-            onPointerUp={(e) => {
-              const ned = montNed.current
-              if (!ned || ned.id !== e.pointerId) return
-              montDra.current = null
-              montNed.current = null
-              setSkrubbar(false)
-              // eit trykk er eit trykk berre når det ikkje flytte seg — elles
-              // er det byrjinga på eit drag, og eit drag slepper ikkje verktyet
-              if (Math.abs(e.clientY - ned.y) <= 6) vekslMontasje()
-            }}
-            onPointerCancel={(e) => {
-              if (montNed.current && montNed.current.id !== e.pointerId) return
-              montDra.current = null
-              montNed.current = null
-              setSkrubbar(false)
-            }}
-            /*
-              OG INGEN `onClick`. Han er den same knappen som bøyen: alt går
-              gjennom peikaren, av di eit drag og eit trykk berre kan
-              skiljast der.
-
-              Ein `onClick` ved sida av ville dessutan seia det same ein
-              gong til, og React les rekvisittane som gjeld NÅR hendinga
-              vert send — ikkje slik dei stod då fingeren gjekk ned. So
-              `pointerup` slo verktyet av, og klikket som kom etter såg ein
-              knapp som var av og slo han på att. Målt: eit trykk gjorde
-              ingenting i det heile.
-
-              Den andre fingeren når han likevel: handlarane her høyrer på
-              kvar peikar, primær eller ikkje (sjå spalta over).
-            */
-          >
-            {IcoMontasje}
           </button>
           {/* OG VIRVELEN, UNDER HAN. Dei to er det same slaget reiskap —
               begge skriv heile plana på nytt, og begge vert sette med to
@@ -2544,21 +2584,33 @@ export function Studio() {
           >
             {IcoVirvel}
           </button>
+          </>)}
           {/* Og reiskapane for PLANET står ikkje medan kroppsverktyet er ope.
               Der er det bitane du held på med, og eit trykk på objektet vel
               ein bit — men det vel planet under han òg, og då stod begge
               setta i spalta samstundes: elleve knappar, klemte ned til 40
               px kvar. Verktyet seier kva du arbeider med. */}
-          {vald !== null && modus !== "bit" && (
+          {/*
+            OG PÅ PLATA STÅR BERRE DEI SOM EIN KNAPP KAN GJERE ÅLEINE.
+
+            Ein del på plata ER eit plan, so eit trykk på han vel planet —
+            og då skal det gå an å ta planet bort, eller ta eitt til likt
+            det. Dei to er knappar og ikkje anna, og svaret på dei er
+            teikna rett framfor deg: ei rute mindre, eller ei rute meir.
+
+            Resten treng ROMMET. Hòlet legg ein ring du flyttar og dreg med
+            handtaka på snittet, forma frys profilen til punkt du dreg i,
+            bøyen er ein skrubbar med snittet som avlesing, fordel gjeld
+            eit drag på ei gruppe — og alle fire teiknar seg på lerretet,
+            som ligg gøymt under arka her. Ein reiskap du kan trykkje på og
+            ikkje sjå er ein reiskap som lyg.
+
+            OG I MONTASJEN STÅR INGEN AV DEI. Han ER ei lesing: han endrar
+            ingenting, og ei rad du trykte på i arket skal ikkje gje deg to
+            knappar som gjer det.
+          */}
+          {vald !== null && modus !== "bit" && view !== "montasje" && (
             <>
-              {/* TO REISKAPAR MED TO LESEMÅTAR. I rommet legg dei ein
-                  firkant eller ein ring midt i snittet. I teikninga er dei
-                  ein PENN og eit VISKELÊR som låser seg: éin finger inne i
-                  ramma teiknar merket i full breidd, den andre knappen byter
-                  forteikn utan at du går ut, den tende slokner. Ordet og
-                  ikonet fylgjer handlinga, ikkje knappen. Dei var teikna i
-                  konturen òg før, og skreiv eit strek ingen kunne sjå —
-                  `Streka` står berre i rommet. */}
               <button
                 type="button"
                 aria-label={valdGruppe !== null ? "dubler gruppa" : "dubler planet"}
@@ -2568,7 +2620,7 @@ export function Studio() {
               >
                 {IcoDupliser}
               </button>
-              {valdGruppe === null && (
+              {rom && valdGruppe === null && (
                 <button
                   type="button"
                   aria-label="skjer hòl"
@@ -2583,7 +2635,7 @@ export function Studio() {
                   dobbelttrykk gjer dei fire til boksen kring forma, og eit
                   trykk til slepper det heile. Merket seier om planet ber ei
                   form no; kva det NESTE trykket gjer, seier tittelen. */}
-              {valdGruppe === null && (
+              {rom && valdGruppe === null && (
                 <button
                   type="button"
                   aria-pressed={harOmriss}
@@ -2602,7 +2654,7 @@ export function Studio() {
               {/* FORDEL: kva rada gjer med det leiaren får. Saman, eller
                   frå den eine enden til leiaren — ei dreiing vert ei vifte,
                   eit skuv eit nytt mellomrom. Eit ord, av di det er eit ord. */}
-              {valdGruppe !== null && (
+              {rom && valdGruppe !== null && (
                 <button
                   type="button"
                   aria-pressed={fordel}
@@ -2625,7 +2677,7 @@ export function Studio() {
                   bommar på siste hundredelen; knappen er sin eigen veg ut,
                   som forma er det. Eit trykk er eit trykk berre når det
                   ikkje flytte seg — elles er det byrjinga på eit drag. */}
-              {valdStrek === null && valdGruppe === null && (
+              {rom && valdStrek === null && valdGruppe === null && (
                 <button
                   type="button"
                   data-boy=""
@@ -2673,6 +2725,7 @@ export function Studio() {
               </button>
             </>
           )}
+          {rom && (<>
           {/* VERKTYET FOR KROPPEN: bitane står som boksar, trykk vel ein, og
               to fingrar flyttar, vrir og gjer han større. Med ein bit valt
               står han til å dublere eller ta bort. */}
@@ -2703,14 +2756,11 @@ export function Studio() {
               eit trykk utanfor planet, eit trykk på rada hans, escape —
               alle tre slepper han frå før. So med eit plan valt står den
               store knappen tom, og reiskapane hans fell ned i staden. */}
-          {/* SKJER STÅR IKKJE I MONTASJEN. Han er ei LESING: det finst inga
-              skisse å skjere der, og ein stor knapp som ikkje gjer noko er
-              verre enn ingen knapp. */}
-          {vald === null && modus !== "montasje" && (
+          {vald === null && (
             <button
               type="button"
               onClick={laas}
-              disabled={view === "kontur" || !harSnitt}
+              disabled={!harSnitt}
               aria-label="skjer"
               title="skjer: skissa vert ein del (L)"
               className="skjer ikon"
@@ -2719,6 +2769,7 @@ export function Studio() {
               <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full" style={{ background: "var(--ink)", opacity: busy ? 1 : 0, transition: "opacity 200ms ease" }} />
             </button>
           )}
+          </>)}
         </div>
       )}
 
@@ -2736,7 +2787,7 @@ export function Studio() {
         med familien — so angre, lenkja og økta ser det same bytet dei
         alltid har sett.
       */}
-      {mounted && modus === "bit" && bla && (
+      {mounted && rom && modus === "bit" && bla && (
         <div
           className="bla"
           style={{ left: 16, bottom: benk ? rute.botn + 16 : `calc(${arkH}px + env(safe-area-inset-bottom) + 4px)` }}

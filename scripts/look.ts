@@ -153,8 +153,9 @@ async function flate(namn: string, w: number, h: number) {
   await page.waitForTimeout(400)
   if (planTal(await lina(page)) !== før) brot(`${namn}: slett tok ikkje planet bort`)
 
-  // --- dei tre lesemåtane ---------------------------------------------------
-  for (const v of ["flate", "kontur", "lag"]) {
+  // --- dei fire lesemåtane --------------------------------------------------
+  // «lag» sist: resten av kikken står i rommet, og montasjen tek det over
+  for (const v of ["flate", "kontur", "montasje", "lag"]) {
     await page.getByRole("button", { name: v, exact: true }).click()
     await ferdig(page)
     await page.waitForTimeout(1200)

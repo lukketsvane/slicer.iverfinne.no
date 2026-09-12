@@ -14,6 +14,7 @@ export const VIEWS: readonly { id: View; label: string; hint: string }[] = [
   { id: "flate", label: "flate", hint: "nettet slik det kom inn (1)" },
   { id: "lag", label: "lag", hint: "kroppen som skugge, delane som står (2)" },
   { id: "kontur", label: "kontur", hint: "dei flate kuttprofilane (3)" },
+  { id: "montasje", label: "montasje", hint: "kroppen reiser seg av platene sine, ein gjeng ribber om gongen (4)" },
 ]
 
 /**

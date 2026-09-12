@@ -868,8 +868,15 @@ async function telefon(browser: Browser) {
   sjekk("og ho tek ikkje imot fingrar", (await maalrute.evaluate((el) => getComputedStyle(el).pointerEvents)) === "none")
   /**
    * EIN DEL ER EIT PLAN. Eit trykk på ein del i plata vel planet han vart
-   * skoren av — det same valet eit trykk i rommet gjev — og då står
-   * reiskapane for profilen hans under tommelen.
+   * skoren av — det same valet eit trykk i rommet gjev.
+   *
+   * OG SPALTA BER DET PLATA KAN SYNE, og ikkje meir. Dubler og slett er
+   * knappar og ikkje anna, og svaret på dei ligg rett framfor deg: ei rute
+   * meir, eller ei rute mindre. Hòlet, forma, bøyen og fordel teiknar seg
+   * alle på lerretet — som ligg gøymt under arka her — so dei står i
+   * rommet, der du kan sjå kva dei gjorde. Det same gjeld rutenettet,
+   * virvelen, kroppsverktyet og skjer: alle fire vert sette med fingrane
+   * PÅ objektet, og objektet er ikkje her.
    */
   // Trykket må kome når hovudtråden er ledig. Eit trykk gjennom CDP ber
   // klokka si frå då det vart sendt, ikkje frå då fingeren letta, so eit
@@ -878,11 +885,15 @@ async function telefon(browser: Browser) {
   // maskinvara si eiga klokke og møter det aldri.
   await roleg(page, 700)
   await delar.first().click()
-  const skjerHol = page.getByRole("button", { name: "skjer hòl", exact: true })
-  await skjerHol.waitFor({ timeout: 5000 }).catch(() => {})
-  sjekk("eit trykk på ein del vel planet hans", (await skjerHol.count()) === 1, `${await skjerHol.count()} knapp`)
+  const slettPlan = page.getByRole("button", { name: "slett", exact: true })
+  await slettPlan.waitFor({ timeout: 5000 }).catch(() => {})
+  sjekk("eit trykk på ein del vel planet hans", (await slettPlan.count()) === 1, `${await slettPlan.count()} knapp`)
+  const spalta = await page.locator(".tumme button").evaluateAll((el) => el.map((e) => (e.getAttribute("aria-label") || e.textContent || "?").trim()))
+  sjekk("og spalta ber berre det plata kan syne", JSON.stringify(spalta) === JSON.stringify(["dubler planet", "slett"]), JSON.stringify(spalta))
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
+  const tom = await page.locator(".tumme button").count()
+  sjekk("og utan eit plan valt står ho tom", tom === 0, `${tom} knappar`)
 
   const adr = await delar.first().getAttribute("data-del")
   await delar.first().dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch", isPrimary: true, button: 0, buttons: 1 })
@@ -1350,6 +1361,39 @@ async function telefon(browser: Browser) {
       sjekk("eit drag i prikken rører NØYAKTIG éin akse", rort === 1, `${foer.join(",")} → ${etter.join(",")}`)
       await roleg(page, 900)
       sjekk("og synet står stille medan du dreg", (await kamera()) === kamFoer, `${kamFoer} → ${await kamera()}`)
+      /**
+       * OG DEN ANDRE FINGEREN SNUR HAN IKKJE HELLER.
+       *
+       * Ei hand som held telefonen kviler mot glaset medan tommelen dreg.
+       * Prikken er DOM over lerretet, so HANS finger når aldri orbiten —
+       * men den som kviler gjer det, og han var den fyrste lerretet såg:
+       * orbiten las han som ein finger åleine og snudde kroppen heilt rundt
+       * medan du drog i sida av biten.
+       *
+       * Prøva må difor setje fingrane NED ETTER KVARANDRE. `toFingrar`
+       * sender begge i den same `touchStart`-en — det er greitt når begge
+       * høyrer til den same gesten, men ei hand gjer aldri det, og nett den
+       * rekkjefylgja er heile feilen.
+       */
+      {
+        const cdp = await page.context().newCDPSession(page)
+        const pt = (px: number, py: number, id: number) => ({ x: px, y: py, id, radiusX: 4, radiusY: 4, force: 1 })
+        const kamHald = await kamera()
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pt(cx, cy, 0)] })
+        await page.waitForTimeout(24)
+        // den andre fingeren landar på lerretet, langt frå prikkane
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pt(cx, cy, 0), pt(60, 700, 1)] })
+        await page.waitForTimeout(24)
+        for (let i = 1; i <= 12; i++) {
+          const t = i / 12
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [pt(cx + 50 * t, cy, 0), pt(60 + 30 * t, 700 - 40 * t, 1)] })
+          await page.waitForTimeout(16)
+        }
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+        await cdp.detach()
+        await roleg(page, 900)
+        sjekk("og ein finger til på lerretet snur han ikkje", (await kamera()) === kamHald, `${kamHald} → ${await kamera()}`)
+      }
       // og innrammingsknappen ramar framleis inn: synet er ei avgjerd, ikkje ei låsing
       await page.locator("[data-heim]").click()
       await roleg(page, 900)
@@ -2560,8 +2604,9 @@ async function boyen(browser: Browser) {
    * OG HEILE TOMMELSPALTA STÅR PÅ SKJERMEN — OG UNDER SYNSKUBEN.
    *
    * Med eit plan valt og arket ope er ho på sitt lengste og bandet på sitt
-   * kortaste — rutenett, montasje, virvel, dubler, hòl, form, bøy, slett,
-   * kropp — so det er her ho ryk om ho skal ryke.
+   * kortaste — rutenett, virvel, dubler, hòl, form, bøy, slett, kropp — so
+   * det er her ho ryk om ho skal ryke. (Montasjen stod her ein gong; han er
+   * ei fane no, og spalta hans ber berre steget.)
    *
    * TO TING VERT KREVDE. Ein reiskap utanfor ruta er ein reiskap som ikkje
    * finst, og det HAR hendt: stabelen gjekk 156 pikslar over topplina før
@@ -2600,7 +2645,7 @@ async function boyen(browser: Browser) {
   })()`) as { ute: string[]; over: string[]; smaa: string[]; n: number; topp: number; H: number; tek: string }
   sjekk(
     "og heile tommelspalta står på skjermen, under topplina",
-    spalta.ute.length === 0 && spalta.n >= 9,
+    spalta.ute.length === 0 && spalta.n >= 8,
     `${spalta.n} knappar mellom ${spalta.topp} og ${spalta.H} px${spalta.ute.length ? " · " + spalta.ute.slice(0, 3).join(" · ") : ""}`,
   )
   sjekk("og ingen av dei legg seg over synskuben", spalta.over.length === 0, spalta.over.slice(0, 3).join(" · "))
@@ -3060,35 +3105,50 @@ async function montasjen(browser: Browser) {
   // eit rutenett med to retningar: to steg, og tre ribber i kvart
   const bag = { plan: skrivPlan(rutenett(3, 3)), storleik: 150, tjukn: 6 }
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
+  const fana = page.getByRole("button", { name: "montasje", exact: true })
   const kn = page.locator(".tumme [data-montasje]")
   /**
    * LESINGA OVER OBJEKTET — og `count()` FØR `textContent()`.
    *
    * Ein locator som ikkje råkar noko ventar heile standardtimeouten sin før
    * han gjev opp: to slike kall er seksti sekund i ein del som elles tek
-   * ti. Her er «ingenting» eit gyldig svar — verktyet er av — so
+   * ti. Her er «ingenting» eit gyldig svar — fana er ikkje framme — so
    * spørsmålet må vera «finst han?» og ikkje «kva står det i han?».
    */
   const lesing = async () => {
     const e = page.locator("[data-lesing] .tab").first()
     return (await e.count()) ? ((await e.textContent()) ?? "").trim() : ""
   }
-  sjekk("montasjen står i tommelspalta", (await kn.count()) === 1 && (await kn.getAttribute("aria-pressed")) === "false")
-  sjekk("og han er av til nokon trykkjer", (await lesing()) === "")
+  /**
+   * MONTASJEN ER EI FANE, og ikkje ein reiskap i tommelspalta lenger.
+   *
+   * Han endrar ingenting — han er ein måte å LESA det same objektet på,
+   * som «flate», «lag» og «kontur» — og han stod i ei spalte der kvar
+   * einaste andre knapp skriv om plana. Difor: eit ord i topplina, ved sida
+   * av dei tre andre, og spalta hans ber det eine som er att å gjere.
+   */
+  sjekk("montasjen er ei fane i topplina", (await fana.count()) === 1 && (await fana.getAttribute("aria-pressed")) === "false")
+  sjekk("og ingen montasjeknapp står i tommelspalta", (await kn.count()) === 0)
+  sjekk("og han er av til nokon vel fana", (await lesing()) === "")
 
-  await kn.click()
+  await fana.click()
   await vent2(page, async () => /^steg /.test(await lesing()), 8000)
   const opna = await lesing()
-  sjekk("eit trykk opnar han, og lina seier kva steg vi er på", /^steg 1\/2 · 3$/.test(opna), opna)
+  sjekk("fana opnar han, og lina seier kva steg vi er på", /^steg 1\/2 · 3$/.test(opna), opna)
   /**
-   * OG SKJER STÅR IKKJE HER. Montasjen endrar ingenting — det finst inga
-   * skisse å skjere — og ein stor knapp som ikkje gjer noko er verre enn
-   * ingen knapp.
+   * OG REISKAPANE STÅR IKKJE HER — INGEN AV DEI.
+   *
+   * Montasjen endrar ingenting: det finst inga skisse å skjere, ingen plan
+   * å bøye, ingen bit å dra i. Ein knapp du ikkje ser verknaden av er ein
+   * knapp som lyg, so spalta ber ÉITT: steget.
    */
-  sjekk("og skjer-knappen er borte medan han står på", (await page.getByRole("button", { name: "skjer", exact: true }).count()) === 0)
+  const spalta = async () =>
+    page.locator(".tumme button").evaluateAll((el) => el.map((e) => (e.getAttribute("aria-label") || e.textContent || "?").trim()))
+  sjekk("og spalta ber berre steget", JSON.stringify(await spalta()) === JSON.stringify(["steget"]), JSON.stringify(await spalta()))
+  sjekk("og speglingane er borte med resten", (await page.locator(".speil").count()) === 0)
 
   /**
-   * HAN SPELAR AV SEG SJØLV. Du opna reiskapen for å SJÅ montasjen, og eit
+   * HAN SPELAR AV SEG SJØLV. Du valde fana for å SJÅ montasjen, og eit
    * objekt som står stille i utgangsstillinga si seier ingenting.
    */
   const klipp = { x: 20, y: 120, width: 350, height: 560 }
@@ -3130,20 +3190,37 @@ async function montasjen(browser: Browser) {
     await page.waitForTimeout(700)
     const staaOgso = await bilete()
     sjekk("og han vert STÅANDE der fingeren slapp han", Math.abs(staaOgso - attende) < 200, `${attende} B → ${staaOgso} B`)
+    /**
+     * OG EIT TRYKK SPELAR HAN OM ATT. Han slo verktyet av før; no er det
+     * fana som gjer det, so trykket står ledig til det du eigenleg ville:
+     * sjå det ein gong til.
+     */
+    await page.mouse.click(cx, cy)
+    await page.waitForTimeout(400)
+    const omatt = await lesing()
+    sjekk("og eit trykk spelar han om att frå golvet", omatt.startsWith("steg 1/2"), omatt)
+    await vent2(page, async () => (await lesing()).startsWith("steg 2/"), 8000)
+    sjekk("og han går heile vegen opp att", (await lesing()).startsWith("steg 2/2"), await lesing())
   }
 
-  // eit trykk til slepper han, og kroppen står som han stod
-  await kn.click()
+  // ei anna fane slepper han, og kroppen står som han stod
+  await page.getByRole("button", { name: "lag", exact: true }).click()
   await roleg(page, 700)
-  sjekk("eit trykk til slepper verktyet", (await kn.getAttribute("aria-pressed")) === "false" && (await lesing()) === "")
+  sjekk("ei anna fane slepper montasjen", (await fana.getAttribute("aria-pressed")) === "false" && (await lesing()) === "")
   sjekk("og skjer er attende", (await page.getByRole("button", { name: "skjer", exact: true }).count()) === 1)
-  // og tasten gjer det same, for benken
+  // og tasten gjer det same, for benken — handa hugsar M frå då han var ein reiskap
   await page.keyboard.press("m")
   await vent2(page, async () => /^steg /.test(await lesing()), 8000)
-  sjekk("og M gjer det same frå tastaturet", (await kn.getAttribute("aria-pressed")) === "true")
+  sjekk("og M gjer det same frå tastaturet", (await fana.getAttribute("aria-pressed")) === "true")
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
-  sjekk("og escape slepper han, som han slepper alt anna", (await kn.getAttribute("aria-pressed")) === "false")
+  sjekk("og escape tek deg attende dit du kom frå", (await fana.getAttribute("aria-pressed")) === "false" && (await page.getByRole("button", { name: "lag", exact: true }).getAttribute("aria-pressed")) === "true")
+  // og talet gjer det, som dei tre andre
+  await page.keyboard.press("4")
+  await vent2(page, async () => /^steg /.test(await lesing()), 8000)
+  sjekk("og 4 er fana hans, som 1, 2 og 3 er dei andre sine", (await fana.getAttribute("aria-pressed")) === "true")
+  await page.keyboard.press("2")
+  await roleg(page, 500)
   sjekk("ingen konsollfeil i montasjen", konsoll.length === 0, konsoll.slice(0, 2).join(" · "))
   await page.close()
 }
