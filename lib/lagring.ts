@@ -147,30 +147,55 @@ export async function hentNett(idar: readonly string[]): Promise<LagraNett[]> {
 }
 
 /**
- * ALT SOM IKKJE STÅR PÅ SKJERMEN, GÅR.
+ * DET DU HAR HENTA INN ÉIN GONG, STÅR I LISTA.
  *
- * Ein brukar som har prøvd seks filer treng ikkje dei fem fyrste, og eit
- * skann er lett hundre megabyte. Same regelen som `forget` i `sources.ts`,
- * berre på disken i staden for i minnet: kroppen som står er lista, og
- * lista er sanninga. Går summen likevel over taket, ryk dei største fyrst
- * — dei er dei som gjer at ingenting kan skrivast.
+ * Regelen var «alt som ikkje står på skjermen, går»: kroppen som står var
+ * lista, og alt anna vart sletta. Det var rett då nettet berre var noko som
+ * måtte finnast att ved neste opning. No er det òg eit BIBLIOTEK — du
+ * hentar ei fil inn, og ho står i menyen etterpå — og eit bibliotek som
+ * tømmer seg sjølv kvar gong du byter objekt er ikkje eit bibliotek.
+ *
+ * So det som går, går av PLASS og ikkje av bruk: er summen over taket, ryk
+ * dei største fyrst, av di det er dei som gjer at ingenting kan skrivast.
+ * Det som står på skjermen er verna — å slette det du ser på ville kosta
+ * deg arbeid — og det er det `hald` er.
  */
 export async function ryddNett(hald: readonly string[]): Promise<void> {
   const db = await opne()
   if (!db) return
   const alle = (await køyr<LagraNett[]>(db, NETT, "readonly", (s) => s.getAll())) ?? []
   const halde = new Set(hald)
-  const bort = alle.filter((v) => !halde.has(v.id)).map((v) => v.id)
-  // og om det som STÅR er meir enn taket, må noko av det gå òg
-  const att = alle.filter((v) => halde.has(v.id)).sort((a, b) => b.bytes.byteLength - a.bytes.byteLength)
-  let sum = att.reduce((n, v) => n + v.bytes.byteLength, 0)
-  for (const v of att) {
+  let sum = alle.reduce((n, v) => n + v.bytes.byteLength, 0)
+  if (sum <= MAX_ALLE) {
+    db.close()
+    return
+  }
+  // dei største fyrst, og det som står på skjermen sist av alt
+  const bort: string[] = []
+  for (const v of [...alle].sort((a, b) => b.bytes.byteLength - a.bytes.byteLength)) {
     if (sum <= MAX_ALLE) break
+    if (halde.has(v.id)) continue
     bort.push(v.id)
     sum -= v.bytes.byteLength
   }
   for (const id of bort) await køyr(db, NETT, "readwrite", (s) => s.delete(id))
   db.close()
+}
+
+/**
+ * HEILE LISTA, UTAN BYTANE.
+ *
+ * Menyen treng namna og ikkje netta: eit skann er lett hundre megabyte, og
+ * ei liste som dreg alle inn i minnet for å skrive fem ord er ei liste som
+ * gjer opninga treg for ingenting. Bytane vert henta fyrst når nokon vel
+ * ein av dei.
+ */
+export async function alleNett(): Promise<{ id: string; label: string; byte: number }[]> {
+  const db = await opne()
+  if (!db) return []
+  const alle = (await køyr<LagraNett[]>(db, NETT, "readonly", (s) => s.getAll())) ?? []
+  db.close()
+  return alle.map((v) => ({ id: v.id, label: v.label, byte: v.bytes.byteLength })).sort((a, b) => a.label.localeCompare(b.label, "nn"))
 }
 
 export async function gløym(): Promise<void> {

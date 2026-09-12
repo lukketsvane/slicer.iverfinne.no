@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { bbox, shoelace, type ArkSyn, type ExportKind, type DetailKey, type ParamBag, type Pt, type Rom, type Vec3, type View } from "@/lib/core"
 import { erPrimitiv, KUBE } from "@/lib/sources"
-import { gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
+import { alleNett, gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, omrissLine, ramme as planRamme, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, sub3, vriOm, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, omrissLine, ramme as planRamme, rutenett, sameSnitt, skilRute, slaaSaman, spegla, speglingar, skrivPlan, sub3, vriOm, type Plan, type Strek } from "@/lib/plan"
 import { simplify, type Pt2 } from "@/lib/contour"
 import { byggKey, lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
@@ -16,6 +16,7 @@ import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worke
 import type { Montasje } from "@/lib/montasje"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
+import { Meny, type MenyStad } from "./meny"
 import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
@@ -737,6 +738,8 @@ export function Studio() {
         if (bs) {
           void lagreNett(r.src.id, r.src.label, bs.buf).then((ok) => {
             if (!ok) setMelding("for stort å hugse — lagre prosjektfila")
+            // og lista i menyen er ei anna enn ho var
+            else lesBibliotek()
           })
         }
         if (gamaltNett.current) {
@@ -750,6 +753,13 @@ export function Studio() {
         if (formSvar.current.delete(r.id)) {
           setFormTal((n) => n + 1)
           setHentar(false)
+          // og eit nett som vart henta AV DI nokon valde det i menyen, skal
+          // inn i scena no som det er framme
+          const vent = leggEtter.current
+          if (vent && r.src.id === vent) {
+            leggEtter.current = null
+            leggBit(vent)
+          }
           return
         }
         // OG EIN IMPORT MED EIN BIT VALD ER EIT BYTE. Nettet går inn i den
@@ -1545,6 +1555,27 @@ export function Studio() {
       return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
+  /**
+   * TO PUNKT SOM VART EITT.
+   *
+   * `slaaSaman` avgjer om dei kan: berre naboar, og aldri under fire punkt.
+   * Her står berre det som fylgjer av at eit punkt fell bort — bogeflagga
+   * flyttar seg med indeksane, som når eit punkt vert teke bort med ⌫, og
+   * handa slepper det ho ikkje lenger held i.
+   */
+  const slaaSamanPunkt = useCallback((id: number, i: number, mot: number) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const j = l.findIndex((p) => p.id === id)
+      const om = l[j]?.omriss
+      if (!om) return cur
+      const ny = slaaSaman(om, i, mot)
+      if (!ny) return cur
+      l[j] = { ...l[j], omriss: ny.omriss, ...skiftRunde(l[j].runde, (k) => (k === i ? null : k > i ? k - 1 : k)) }
+      setValdPunkt(null)
+      return { ...cur, plan: skrivPlan(l) }
+    })
+  }, [])
   /** eit punkt drege, der fingeren slapp det */
   const flyttPunkt = useCallback((id: number, i: number, q: Pt) => {
     setParams((cur) => {
@@ -1734,6 +1765,44 @@ export function Studio() {
     setPeikt(id === null ? null : (liste.find((k) => k.plan === id)?.adr ?? null))
   }, [liste])
   /** gruppa vald: det siste planet i rada er leiaren handa held i */
+  /**
+   * SKIFT-TRYKK PÅ EI PLANRAD: FRÅ DET SOM ER VALT, TIL DET DU TRYKTE.
+   *
+   * Ei mus har ei rad og ein tast, og dette er den gesten alle desktop-lister
+   * har hatt sidan åttitalet: eitt trykk vel eitt, skift-trykk vel strekket
+   * imellom. Det finst ikkje eit «fleire valde» i denne reiskapen — det
+   * finst GRUPPER — so skiftet lagar gruppa. Det er ikkje ein ny idé lagd
+   * oppå ein gammal; det er den gamle idéen gjeven den inndata ho manglar.
+   *
+   * Rekkjefylgja i lista er monteringsrekkjefylgja, so «imellom» tyder
+   * imellom DER, og ikkje i rommet. Den du trykte på vert leiaren, av di
+   * det er han handa står på.
+   *
+   * Ligg det alt ei gruppe inni strekket, vert ho slukt: eitt strekk er éi
+   * gruppe. To grupper som overlappar er ein tilstand ingen kan sjå på
+   * skjermen og ingen bad om.
+   */
+  const skiftVel = useCallback((id: number) => {
+    const l = lesPlan(naa.current.plan)
+    const frå = valdRef.current
+    const a = l.findIndex((q) => q.id === (frå ?? id))
+    const b = l.findIndex((q) => q.id === id)
+    if (a < 0 || b < 0) return
+    if (a === b) return velPlan(id)
+    const lo = Math.min(a, b)
+    const hi = Math.max(a, b)
+    const g = nyGruppe(l)
+    const ny = l.map((q, i) => (i >= lo && i <= hi ? { ...q, gruppe: g } : q))
+    setParams((cur) => {
+      const m = lesPlan(cur.plan)
+      const sett = new Set(ny.filter((q) => q.gruppe === g).map((q) => q.id))
+      return { ...cur, plan: skrivPlan(m.map((q) => (sett.has(q.id) ? { ...q, gruppe: g } : q))) }
+    })
+    setVald(id)
+    setValdGruppe(g)
+    setValdStrek(null)
+  }, [velPlan])
+
   const velGruppe = useCallback((g: number) => {
     const rad = iGruppa(lesPlan(naa.current.plan), g)
     if (!rad.length) return
@@ -1988,24 +2057,80 @@ export function Studio() {
    * det er fyrst i svaret nettet får namnet sitt — og namnet er det basen
    * skal leggje henne under. Kopien går so snart ho er skriven ned.
    */
-  const takeFile = useCallback(async (f: File) => {
-    if (f.size > MAX_FIL) return setFeil("for stor")
-    setFeil(null)
+  /**
+   * FILER INN — FLEIRE PÅ EIN GONG.
+   *
+   * DEN FYRSTE ER KROPPEN, som ei einsleg fil alltid har vore. Resten vert
+   * berre LESNE OG LAGDE NED: dei går i basen og står i menyen etterpå, men
+   * dei rører korkje kjelda eller plana. Å leggje fem filer oppå kvarandre i
+   * scena er ikkje det nokon ber om når dei merkjer fem filer — dei vil ha
+   * dei inn, og so velje.
+   *
+   * `formSvar` er vegen: den same luka dei lagra netta kjem attende gjennom
+   * ved opning, og ho tyder nett dette — «bygg det, men rør ikkje scena».
+   */
+  /** kva nett som skal leggjast i scena så snart importen er framme */
+  const leggEtter = useRef<string | null>(null)
+  const takeFile = useCallback(async (filer: File[]) => {
+    const gode = filer.filter((f) => f.size <= MAX_FIL)
+    if (!gode.length) return setFeil("for stor")
+    setFeil(gode.length < filer.length ? `${filer.length - gode.length} for stor` : null)
     setBusy(true)
     setHentar(true)
-    try {
-      const buf = await f.arrayBuffer()
-      const id = ++reqId.current
-      bytar.current.set(id, { namn: f.name, buf: buf.slice(0) })
-      // ein bit vald: fila byter HAN. Ei prosjektfil er eit heilt oppsett og
-      // byter ingen bit — ho kjem attende som «prosjekt» og les seg sjølv.
-      if (bitRef.current !== null && !/\.zip$/i.test(f.name)) bytSvar.current.set(id, bitRef.current)
-      send({ kind: "import", id, name: f.name, buf }, [buf])
-    } catch {
-      setFeil("ulesbar fil")
-      setHentar(false)
-      setBusy(false)
+    for (let k = 0; k < gode.length; k++) {
+      const f = gode[k]
+      try {
+        const buf = await f.arrayBuffer()
+        const id = ++reqId.current
+        bytar.current.set(id, { namn: f.name, buf: buf.slice(0) })
+        // ein bit vald: fila byter HAN. Ei prosjektfil er eit heilt oppsett og
+        // byter ingen bit — ho kjem attende som «prosjekt» og les seg sjølv.
+        if (k === 0 && bitRef.current !== null && !/\.zip$/i.test(f.name)) bytSvar.current.set(id, bitRef.current)
+        if (k > 0) formSvar.current.add(id)
+        send({ kind: "import", id, name: f.name, buf }, [buf])
+      } catch {
+        setFeil("ulesbar fil")
+        setHentar(false)
+        setBusy(false)
+      }
     }
+  }, [send])
+
+  /**
+   * BIBLIOTEKET: det du har henta inn før.
+   *
+   * Lista vert lesen ved opning og skriven om att kvar gong noko nytt er
+   * lagt ned. Berre namn og id — bytane vert henta fyrst når nokon vel ein
+   * av dei, av di eit skann er lett hundre megabyte og menyen treng fem ord.
+   */
+  const [bibliotek, setBibliotek] = useState<{ id: string; label: string }[]>([])
+  const lesBibliotek = useCallback(() => {
+    void alleNett().then((l) => setBibliotek(l.map((v) => ({ id: v.id, label: v.label }))))
+  }, [])
+  useEffect(lesBibliotek, [lesBibliotek])
+
+  /**
+   * OG EIN AV DEI, VALD.
+   *
+   * Ligg nettet alt i minnet, er dette nøyaktig det same som å leggje ei
+   * innebygd form til. Gjer det ikkje det, må bytane opp av basen fyrst —
+   * og so er det det same att. `formSvar` byggjer det utan å røre scena, og
+   * `leggBit` er det som faktisk legg han inn.
+   */
+  const leggLagra = useCallback((id: string) => {
+    setHentar(true)
+    void hentNett([id]).then((funne) => {
+      const v = funne[0]
+      if (!v) {
+        setHentar(false)
+        return setMelding("fann ikkje nettet")
+      }
+      const rid = ++reqId.current
+      formSvar.current.add(rid)
+      leggEtter.current = id
+      setNamn((m) => ({ ...m, [v.id]: v.label }))
+      send({ kind: "import", id: rid, name: v.label, buf: v.bytes, som: v.id, etikett: v.label }, [v.bytes])
+    })
   }, [send])
   // slepp ei fil kvar som helst på sida: ein reiskap som krev ein bestemt firkant har ikkje forstått drag-og-slepp
   useEffect(() => {
@@ -2015,8 +2140,10 @@ export function Studio() {
     const over = (e: DragEvent) => { if (filer(e)) e.preventDefault() }
     const ut = () => { djup = Math.max(0, djup - 1); if (!djup) setDrag(false) }
     const slepp = (e: DragEvent) => {
-      const f = e.dataTransfer?.files?.[0]
-      if (!f) return
+      // og slepper du fleire på ein gong, gjeld den same regelen som i
+      // veljaren: den fyrste er kroppen, resten går i lista
+      const f = [...(e.dataTransfer?.files ?? [])]
+      if (!f.length) return
       e.preventDefault()
       djup = 0
       setDrag(false)
@@ -2233,6 +2360,34 @@ export function Studio() {
    * uendra på ein familie av éi, so spørsmålet er alt svara i `scene.ts`.
    */
   const bla = valdBit !== null && bitar[valdBit] && nesteForm(bitar[valdBit].id) !== bitar[valdBit].id ? familien(bitar[valdBit].id) : ""
+  /**
+   * HØGREMENYEN PÅ EI PLANRAD.
+   *
+   * Kvar line finst frå før som ein tast: menyen syner kva som går an og
+   * lærer deg vegen, han legg ikkje til ei einaste handling. Difor står
+   * tasten ved sida av ordet, og difor står ei line som ikkje går an dempa
+   * i staden for å vera borte.
+   *
+   * Planet vert VALT når menyen opnar seg. Ein meny som handlar om noko
+   * anna enn det du ser er merkt er ein meny som gjer feil ting eit halvt
+   * sekund etter at du har slutta å sjå på han.
+   */
+  const [meny, setMeny] = useState<MenyStad | null>(null)
+  const planMeny = useCallback((id: number, x: number, y: number) => {
+    velPlan(id)
+    const pl = lesPlan(naa.current.plan).find((q) => q.id === id)
+    setMeny({
+      x, y,
+      liner: [
+        { ord: "dubler", tast: "D", gjer: () => dupliserPlan(id) },
+        { ord: pl?.omriss?.length ? "slepp forma" : "omriss", tast: "O", gjer: () => formTrykk() },
+        { ord: "hol", tast: "H", gjer: () => leggStrek("hol") },
+        { ord: "gods", gjer: () => leggStrek("gods") },
+        { ord: "slett", tast: "⌫", gjer: () => slett(id) },
+      ],
+    })
+  }, [velPlan, dupliserPlan, formTrykk, leggStrek, slett])
+
   // TASTANE. Eit felt som er teke eig sine eigne.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -2245,6 +2400,28 @@ export function Studio() {
         return e.shiftKey ? gjerOm() : angre()
       }
       if (e.metaKey || e.ctrlKey) return
+      /**
+       * MELLOMROM SKJER, og gjer ikkje anna.
+       *
+       * L gjer det òg, men L har to jobbar — med eit plan valt slepper han
+       * valet — og «skjer» er den handlinga som vert gjord oftast. Ein tast
+       * med éi meining, og den største tasten på brettet.
+       *
+       * EIN KNAPP SOM ER TEKEN EIG MELLOMROMMET SITT SJØLV: nettlesaren
+       * trykkjer han med det. Ein tast som både trykkjer knappen under
+       * fingeren OG skjer eit plan er ein tast du ikkje tør bruke, so han
+       * står over når fokus ligg på noko som allereie svarar på han.
+       *
+       * Og som skjer-knappen finst han berre der skissa finst: på plata og
+       * i montasjen er det ingenting å skjere, og eit mellomrom som gjorde
+       * noko der ville gjort det usett.
+       */
+      if (k === " ") {
+        if (t?.closest("button,[role=slider],[role=tab],[role=option],[role=checkbox]")) return
+        e.preventDefault()
+        if (rom) laas()
+        return
+      }
       // same som knappen: med eit plan valt er skissa gøymd, og L slepp valet
       if (k === "l") {
         if (vald !== null) velPlan(null)
@@ -2385,6 +2562,7 @@ export function Studio() {
             onDeling={setjDeling}
             onValdStrek={setValdStrek}
             onPunkt={flyttPunkt}
+            onSlaaSaman={slaaSamanPunkt}
             onLeggPunkt={leggPunkt}
             onTaPunkt={taPunkt}
             onVriPunkt={vriPunkt}
@@ -2437,7 +2615,7 @@ export function Studio() {
         </section>
       )}
 
-      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
+      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
 
       {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til VENSTRE i
           det frie bandet — synskuben har det høgre hjørnet */}
@@ -2895,6 +3073,8 @@ export function Studio() {
         bitFarge={valdBit !== null ? (bitar[valdBit]?.farge ?? 0) : null}
         onBitFarge={fargBit}
         onSlett={slett}
+        onMeny={planMeny}
+        onSkiftVel={skiftVel}
         busy={busy}
         feil={feil}
         melding={melding}
@@ -2906,6 +3086,7 @@ export function Studio() {
         onVerkty={opneVerkty}
         onHogd={setArkH}
       />
+      <Meny stad={meny} onLukk={() => setMeny(null)} />
     </main>
   )
 }

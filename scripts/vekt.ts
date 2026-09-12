@@ -39,7 +39,16 @@ const TAK: [string, number][] = [
   // gått tolv pikslar. Det meste er grunngjevinga — kvifor ein orbit ikkje
   // kan målast på avstand, og kvifor grensa er px og ikkje ei klokke
   // −22 den 12.: virvelen er ute. Fyrste gongen eit tak her gjeng NED
-  ["components/scene.tsx", 3505],
+  // +60 den 12.: snappet i omrisset. Eit punkt som vert drege les kva det
+  // sikta på — eit anna punkt, ei kant, aksen til ein nabo — og seier frå i
+  // blekk medan fingeren går. Sjølve geometrien ligg i `plan.ts` og vert
+  // prøvd av `pnpm hand`; det som står her er omrekninga frå pikslar til
+  // omrisset sine einingar, og grunngjevinga for at radien er i pikslar
+  // +12 den 12.: radien til snappet vert delt på storleiken. `paaFlata`
+  // svarar i millimeter og omrisset står i brøk, so han var to hundre gonger
+  // for stor og eit heilt vanleg drag åt opp eit hjørne. Grunngjevinga er
+  // lengre enn rettinga, av di neste mann elles rettar henne attende
+  ["components/scene.tsx", 3577],
   // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
@@ -56,7 +65,16 @@ const TAK: [string, number][] = [
   // fast eller to delar stod i kvarandre — ein film som seier at det gjekk.
   // Det meste er grunngjevinga for kvifor fana vert stengd medan uttaka
   // ikkje vert det
-  ["components/studio.tsx", 2911],
+  // +75 den 12.: mellomrommet skjer, og høgremenyen på ei planrad. Menyen
+  // legg ikkje til ei einaste handling — kvar line er ein tast som fanst
+  // frå før — so det meste er grunngjevinga for kvifor han likevel er verdt
+  // plassen, og for kvifor ein knapp som er teken eig mellomrommet sitt
+  // +100 den 12.: fleire filer på ein gong, biblioteket i menyen, og
+  // skift-trykk på ei planrad. Dei to fyrste heng i hop: du hentar inn det
+  // du har, og plukkar etterpå — og då må det du henta inn STÅ ein stad.
+  // Skiftet lagar ei gruppe og ikkje eit nytt slag utval: det finst ikkje
+  // «fleire valde» i denne reiskapen, det finst grupper
+  ["components/studio.tsx", 3092],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko

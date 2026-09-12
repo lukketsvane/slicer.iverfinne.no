@@ -14,7 +14,7 @@ import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./del
  * over sida, so lina tek den tryggje sona som luft over seg. Ein knapp er
  * eit ikon eller eit ord, aldri begge; filnamnet er innhald og står som det er.
  */
-export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, hopHint, onFile, onLegg, onTom, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, onHogd }: {
+export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, hopHint, onFile, bibliotek, onLeggLagra, onLegg, onTom, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, onHogd }: {
   benk: boolean
   kjelde: string
   /** kor mange bitar kroppen er sett saman av: eitt er ei kjelde åleine */
@@ -33,7 +33,16 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
   montasjeOk: boolean
   /** kva som er i vegen, ordrett frå regelen — det er han som veit det */
   hopHint: string
-  onFile: (f: File) => void
+  onFile: (f: File[]) => void
+  /**
+   * DET DU HAR HENTA INN FØR.
+   *
+   * Ei fil du har opna éin gong står i basen, og då skal ho stå i menyen
+   * òg — det er heile skilnaden mellom ein reiskap du hentar fram att og
+   * ein du hentar fila til på nytt kvar gong.
+   */
+  bibliotek: readonly { id: string; label: string }[]
+  onLeggLagra: (id: string) => void
   /** eit primitiv til i kroppen */
   onLegg: (id: string) => void
   /** attende til kjelda åleine */
@@ -82,7 +91,10 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
       className="fixed inset-x-0 top-0 z-30 border-b"
       style={{ ...HAIR, background: "var(--paper)", color: "var(--ink)", paddingTop: "env(safe-area-inset-top)" }}
     >
-      <input ref={pick} type="file" accept={FORMAT.join(",")} className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = "" }} />
+      {/* FLEIRE PÅ EIN GONG. Den fyrste vert kroppen, som ei einsleg fil
+          alltid har vorte; resten går rett i lista under. Du hentar inn det
+          du har, og plukkar etterpå. */}
+      <input ref={pick} type="file" multiple accept={FORMAT.join(",")} className="hidden" onChange={(e) => { const f = [...(e.target.files ?? [])]; if (f.length) onFile(f); e.target.value = "" }} />
       <div className="flex h-11 items-center gap-1 px-2">
         <button type="button" onClick={onAngre} disabled={!kanAngre} aria-label="angre" title="angre siste endring (Z)" className={ICON_BTN}>{IcoAngre}</button>
         <button type="button" onClick={onGjerOm} disabled={!kanGjerOm} aria-label="gjer om" title="gjer om det du angra (⇧Z)" className={ICON_BTN}>{IcoGjerOm}</button>
@@ -120,6 +132,21 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
                   style={HAIR}
                 >
                   {id}
+                </button>
+              ))}
+              {/* OG DET DU HAR HENTA INN FØR, under ein hårstrek: dei fem
+                  fyrste er forma reiskapen har med seg, desse er dine. */}
+              {bibliotek.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  data-lagra={v.id}
+                  onClick={() => { onLeggLagra(v.id); setMeny(false) }}
+                  title={byt ? `byt den valde biten til ${v.label}` : `legg ${v.label} til kroppen`}
+                  className="hit border-b px-3 py-2.5 text-left text-[11px] leading-none"
+                  style={{ ...HAIR, borderTopWidth: v === bibliotek[0] ? 1 : undefined }}
+                >
+                  <span className="block truncate">{v.label}</span>
                 </button>
               ))}
               <button
