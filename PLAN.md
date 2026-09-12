@@ -487,8 +487,11 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
     1  Søvnen tek ikkje imot fingrar         → panel skalet, skriven om til å
        (CSS + svelgt klikk + vakta om)          lesa VERKNADEN: raud før, grøn etter
                                                  ✓ GJORT — tre nye prøver, grøne
-    2  Gjennomgang av dei 75 eigenskaps-     → kvar omskriven vakt skal vera raud
-       lesingane i panel.ts                     når ho vert prøvd mot den gamle feilen
+    2  Gjennomgang av dei 79 eigenskaps-     → dei fleste er rette: huset SEIER at
+       lesingane i panel.ts                     ein knapp skal vera flat, so å lesa
+                                                 skuggen ER verknaden. Éi var ein
+                                                 proxy for åtferd (målruta), og ho
+                                                 trykkjer no. ✓ GJORT
     3  Tak per fil i vakter.yml              → CI ryk på ei line over taket
                                                  ✓ GJORT — `pnpm vekt`
     4  `kvile` og montasjen                  → panel skalet: søv ikkje i montasjen
@@ -501,19 +504,26 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
                                                  ✓ GJORT
     7  Retninga inn i montasjenyttelasta     → probe: kopla del↔line held
                                                  ✓ GJORT
-    8  Steglista og tomt-meldinga ✓ GJORT    → panel montasjen
-       Trykk på ein del i biletet står att       (tablist og romsyn ✓ GJORT)
-    9  `toFingrar` med lag                   → dei gamle to-finger-bolkane, grøne ved 0, 6, 14
+    8  Steglista, tomt-meldinga, trykk på    → panel montasjen
+       ein del, tablist, romsyn                  ✓ GJORT (trykket og vakta hans
+                                                 kom frå den andre økta)
+    9  `toFingrar` med lag                   → `LAG` er ein miljøvariabel med
+                                                 standard 6, på ALLE to-finger-
+                                                 gestane ✓ GJORT (den andre økta;
+                                                 betre enn framlegget her)
    10  Steg 1 av bøygde ledd                 → pnpm ledd: tre nye saker, 32/24/92
                                                  ledd, alle i profilane ✓ GJORT
    11  Ein kanal ut av `Handa`, når du       → panel telefon + handtaka
-       likevel er inne i han
+       likevel er inne i han                     ← DET EINASTE SOM STÅR ATT
    12  ~~Pakkesøket i arbeidaren~~           → strøken: 502 rekkjefylgjer sparte
                                                  null plater på 14 objekt (sjå B)
    13  ~~Romleg deling av leddpara~~         → strøken: å avvise eit par er
                                                  alt gratis (sjå C)
 
-Ein til ni er ei økt eller to. Ti til tretten er kvar sin.
+Ti av tretten er gjorde. To er strøkne av målingar — pakkesøket og den romlege
+delinga — og begge står att på sida med tala som tok dei, av di ein plan som
+stryk feila sine lærer ingen noko. Elleve står att, og han er strukturell: han
+har ingen frist, og han vert billegare kvar gong nokon likevel er inne i fila.
 
 **Og det eine som ikkje står i lista:** køyr den selen som dekkjer det du rørte.
 `CLAUDE.md` seier at å endre geometri, uttak eller reglar utan det er den eine
