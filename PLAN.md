@@ -403,21 +403,37 @@ vente to sekund på eit betre svar er noko ein person gjerne gjer.
 Måltalet er allereie definert og allereie prøvd: `pnpm pakk` skriv utnytting og
 platetal per sak. Ein plan med eit tal å slå.
 
-## C. Taket på plana
+## C. ~~Taket på plana~~ — og kvifor ei romleg deling ikkje er svaret
 
-`REBUILD.md` svarar «kring førti» på kor mange handsette plan ein telefon toler,
-og det er rekna: ~10 ms per plan og ~1 ms per ledd, der ledda veks kvadratisk av
-di kvart par som kryssar må finne ledda sine. 64 plan er 1,4 s her og tre til
-fem gonger det på ein telefon.
+**Framlegget her var å luke bort par før dei vert rekna. Tala seier at det ikkje
+er noko å luke.**
 
-Det er ikkje snittinga som er problemet — ho er lineær og målt. Det er **paret**.
-732 ledd ved 64 plan, og talet går som *n²*. Ei romleg deling (kvart plan i eit
-rutenett, berre par som deler ei celle vert prøvde) tek dei fleste para bort før
-dei vert rekna, og dei fleste plan i eit verkeleg objekt kryssar ikkje kvarandre.
+Påstanden var: ledda veks kvadratisk, so ei romleg deling som berre prøver par
+som deler ei celle tek dei fleste bort. Det fyrste er sant; det andre fylgjer
+ikkje av det.
 
-Dette er den minst hastande av dei tre: taket er nåbart, det seier frå når du når
-det, og førti er mange plan. Men det er det som står mellom «ein reiskap med eit
-tak» og «ein reiskap utan eitt», og `pnpm tak` måler allereie nett dette talet.
+Sjå på dei to kolonnane `pnpm tak` allereie skriv. Ved 64 plan:
+
+    parallelle (2016 par prøvde, 0 kryssar)      628 ms
+    rutenett   (1024 par kryssar, 732 ledd)     1359 ms
+
+Dei parallelle prøver kvart einaste par og forkastar alle: `kryss` reknar eit
+kryssprodukt og gjev null når normalane er parallelle. Det er O(1) per par, og
+64 plan rein snitting er kring 640 ms åleine — so dei 2016 avvisingane kostar
+ikkje målbart noko. **Å luke bort eit par er allereie gratis.**
+
+Det som kostar er ledda SJØLVE: 732 av dei ved 64 plan, kring ei millisekund
+kvar. Dei er ikkje bortkasta arbeid — dei er svaret. Ei deling kan ikkje fjerne
+eit ledd som finst.
+
+Det står att eit mindre stykke: kring 300 av dei 1024 kryssande para gjev
+ingenting likevel (for lite overlapp, eller skuldra seier nei), og dei betaler
+for `stykkeLangs` på båe ribbene fyrst. Det er ekte, men det er ikkje det
+kvadratiske leddet, og det er ikkje skilnaden mellom førti og hundre plan.
+
+**So taket står, og grunnen er ærleg: eit objekt med hundre plan HAR tusenvis
+av ledd, og dei må reknast.** Vil nokon heve taket, er vegen å gjera kvart ledd
+billegare, ikkje å prøve færre par.
 
 ---
 
@@ -450,7 +466,8 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
    11  Ein kanal ut av `Handa`, når du       → panel telefon + handtaka
        likevel er inne i han
    12  Pakkesøket i arbeidaren               → pnpm pakk: utnytting opp, 0 overlapp
-   13  Romleg deling av leddpara             → pnpm tak: ms/ledd ned ved 64, ledd-talet likt
+   13  ~~Romleg deling av leddpara~~         → strøken: å avvise eit par er
+                                                 alt gratis (sjå C)
 
 Ein til ni er ei økt eller to. Ti til tretten er kvar sin.
 
