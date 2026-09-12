@@ -458,15 +458,6 @@ export function Studio() {
   const send = useCallback((msg: Req, transfer?: Transferable[]) => {
     worker.current?.postMessage(msg, transfer ?? [])
   }, [])
-  /** BERRE TALA, utan eit nett. Same bokhaldet som eit bygg — `sisteBygg` er
-   *  det prikken i hjørnet sluttar å snurre på — men ingen port: det kjem
-   *  ikkje eit nett som kunne kome i feil rekkjefylgje, og arbeidaren kastar
-   *  sjølv ei måling som er gått ut på dato. */
-  const maal = useCallback(() => {
-    const id = ++reqId.current
-    sisteBygg.current = id
-    worker.current?.postMessage({ kind: "maal", id, params: naa.current })
-  }, [])
   /**
    * SKISSEPORTEN. Skissa er ein straum av punkt og motoren svarar på eitt
    * om gongen: éin i lufta, det siste ventar, og eit svar som er eldre enn
@@ -779,12 +770,6 @@ export function Studio() {
         return
       }
       if (r.kind === "feil") {
-        // ei måling som kasta er den same feilen som eit bygg som kasta:
-        // ingenting å syne, og prikken skal slutte å snurre
-        if (r.kva === "maal") {
-          if (r.id >= sisteBygg.current) setBusy(false)
-          return
-        }
         if (r.kva === "build" && r.view) {
           portar.current[r.view].inFlight = false
           pump(r.view)
@@ -868,22 +853,8 @@ export function Studio() {
     if (!mounted) return
     setBusy(true)
     setFeil(null)
-    /**
-     * OG IKKJE I EI FANE SOM IKKJE KAN SYNE DET — den same regelen som
-     * tommelspalta fylgjer, lagd på ARBEIDET. På plateflata ligg lerretet
-     * gøymt under arka, og i montasjen teiknar scena delane reise seg i
-     * staden; delenettet vart bygd for kvart skyvarhakk der òg, og nådde
-     * ingen skjerm. Tala står like fullt — lina, tavla og plateteikninga
-     * les dei — og dei rir vanlegvis på ryggen av bygget, so her må dei
-     * spørjast om for seg. `view` står i lista, so eit steg attende inn i
-     * rommet byggjer på nytt.
-     */
-    if (!rom) {
-      maal()
-      return
-    }
     bygg("lag", detail)
-  }, [params, detail, view, mounted, formTal, bygg, rom, maal])
+  }, [params, detail, view, mounted, formTal, bygg])
 
   /** hent dei formene som står på skjermen og ikkje er bedne om før */
   useEffect(() => {
