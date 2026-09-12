@@ -399,6 +399,7 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
     2  Gjennomgang av dei 75 eigenskaps-     → kvar omskriven vakt skal vera raud
        lesingane i panel.ts                     når ho vert prøvd mot den gamle feilen
     3  Tak per fil i vakter.yml              → CI ryk på ei line over taket
+                                                 ✓ GJORT — `pnpm vekt`
     4  `kvile` og montasjen                  → panel skalet: søv ikkje i montasjen
                                                  ✓ GJORT
     5  Bygg ikkje det fana ikkje kan syne    → mål hakket på skyvaren før/etter, på telefonen
