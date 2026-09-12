@@ -98,9 +98,21 @@ av geometrien; det same er kvar prøve*. Ei prøve som les ein CSS-eigenskap i
 staden for ein verknad er nett det motsette — ho les det vi skreiv, ikkje det
 som skjedde.
 
-**Tiltak, i to delar.** Det fyrste er fem liner CSS (`main[data-sov] .tumme > *`
-og dei fire syskena). Det andre er det som er verdt noko: skriv vakta om so ho
-les verknaden.
+**Tiltak, i to delar — og den fyrste er ikkje den ein trur.**
+
+CSS-en åleine rettar det ikkje, og det synte seg fyrst då vakta vart skriven om.
+Rekkjefylgja er heile saka: vekkjaren høyrer `pointerdown`, og nettlesaren lagar
+`click` fyrst ved `touchend`. Fingeren vekkjer altso grensesnittet, `data-sov`
+fell bort, knappane er levande att — og so kjem klikket og landar på ein knapp
+som stod usynleg då fingeren gjekk ned. Med berre CSS-en på plass var vakta
+framleis raud, av nett den grunnen.
+
+So fingeren som vekkjer må svelgje sitt eige klikk — same grepet scena alt gjer
+med det klikket eit drag lagar. CSS-en skal med likevel, og er ikkje overflødig:
+utan han tek eit handtak fingeren og eit drag byrjar med det same, og der finst
+det ikkje noko klikk å svelgje.
+
+Det andre er det som er verdt mest: skriv vakta om so ho les verknaden.
 
     lat det sovne
     for kvar overlagd kontroll:
@@ -382,7 +394,8 @@ tak» og «ein reiskap utan eitt», og `pnpm tak` måler allereie nett dette tal
 Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
 
     1  Søvnen tek ikkje imot fingrar         → panel skalet, skriven om til å
-       (CSS + vakta skriven om)                 lesa VERKNADEN: raud før, grøn etter
+       (CSS + svelgt klikk + vakta om)          lesa VERKNADEN: raud før, grøn etter
+                                                 ✓ GJORT — tre nye prøver, grøne
     2  Gjennomgang av dei 75 eigenskaps-     → kvar omskriven vakt skal vera raud
        lesingane i panel.ts                     når ho vert prøvd mot den gamle feilen
     3  Tak per fil i vakter.yml              → CI ryk på ei line over taket
