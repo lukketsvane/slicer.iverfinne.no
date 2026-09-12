@@ -5,7 +5,7 @@
  *
  *   npx tsx scripts/probe.ts
  */
-import { MOTOR } from "../lib/motor"
+import { MOTOR, montering } from "../lib/motor"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { parseMesh } from "../lib/io"
 import { put } from "../lib/sources"
@@ -858,6 +858,42 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   }
   if (fall) bryt(`${fall} stader går steget nedover i monteringsordenen`)
   else console.log(`  og stega fylgjer montering.txt: ${orden.length} plan, aldri eit steg attende`)
+
+  /**
+   * OG VEGEN INN HØYRER RETT DEL TIL.
+   *
+   * At ORDLYDEN stemmer, er det ingen prøve som treng å seie: båe utgåvene
+   * spør `vegen` om det same, so dei kan ikkje verta usamde. Ein prøve på
+   * det ville vore ein prøve på at koden er den koden han er.
+   *
+   * Det som KAN ryke er kopla. Arket går gjennom monteringsordenen og
+   * nummererer plan; fana går gjennom delar og finn dei på ADRESSE, og ein
+   * plan kan verta fleire delar. Ei bom der gjev kvar del vegen til
+   * nabodelen — kvart ord rett, kvart ord på feil rad — og ingenting anna
+   * i huset ville sagt frå. Det er den kopla denne prøva går gjennom.
+   */
+  const arket = montering(bag as unknown as Params, b.s)
+  const ORD: Record<string, RegExp> = {
+    ned: /ovanfrå og ned/,
+    opp: /nedanfrå og opp/,
+    side: /sidelengs/,
+    ligg: /^ligg\b|ligg —/,
+  }
+  let ulike = 0
+  let prøvde = 0
+  for (const [i, id] of orden.entries()) {
+    const del = b.dl.delar.find((d) => d.plan === id)
+    const md = del ? m.delar.find((q) => q.adr === del.adr) : undefined
+    if (!md) continue
+    // lina i arket er nummerert med plassen i ordenen
+    const line = arket.split("\n").find((l) => new RegExp(`^\\s*${i + 1}\\s+${id}\\b`).test(l))
+    if (!line) continue
+    prøvde++
+    if (!ORD[md.veg]?.test(line)) ulike++
+  }
+  if (!prøvde) bryt("fann ingen liner i montering.txt å samanlikne vegen med")
+  else if (ulike) bryt(`${ulike} av ${prøvde} delar har vegen til ein annan del enn seg sjølv`)
+  else console.log(`  og vegen inn høyrer rett del til: ${prøvde} delar`)
 
   const v = { ...DEFAULT_PARAMS, plan: skrivPlan(virvel(9, 0.3, [1, 1])) } as unknown as ParamBag
   const vm = MOTOR.montasje(v)

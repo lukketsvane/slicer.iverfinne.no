@@ -17,7 +17,7 @@ import { flatDelar, flateMesh, lagDelar, lagMesh, type DelMesh } from "./mesh"
 import { measure } from "./metrics"
 import { checkRules } from "./rules"
 import { makeBygg } from "./bygg"
-import { montasjen, type Montasje } from "./montasje"
+import { montasjen, vegen, type Montasje } from "./montasje"
 import { fitSize, strokesAt } from "./stroke"
 import { placedRings } from "./nest"
 import { apply } from "./pack"
@@ -89,12 +89,25 @@ const stem = (p: Params) => filnamnStamme(srcLabel(p.kjelde))
 /** delane slik GLB-en vil ha dei: adressa er namnet på noden */
 const nodar = (delar: readonly DelMesh[]) => delar.map((d) => ({ namn: d.adr, positions: d.positions, tris: d.tris }))
 
-/** kva veg ein del kjem inn, med ord */
+/**
+ * KVA VEG EIN DEL KJEM INN, med ord — arket si utgåve.
+ *
+ * Kva veg det ER, seier `vegen` i `montasje.ts`, og han seier det til båe
+ * som spør. Her står berre ordlyden: dette er ei tekstfil ved sida av ein
+ * haug med delar, og ho har plass til ei heil setning der spalta på
+ * telefonen har plass til eit ord.
+ */
 function retningOrd(m: Vec3 | null): string {
-  if (!m) return "ligg — ingen ledd mot delar som alt ligg"
-  if (m[2] < -0.7) return "ovanfrå og ned"
-  if (m[2] > 0.7) return "nedanfrå og opp"
-  return `sidelengs, langs (${m.map((c) => nn(c, 2)).join(", ")})`
+  switch (vegen(m)) {
+    case "ligg":
+      return "ligg — ingen ledd mot delar som alt ligg"
+    case "ned":
+      return "ovanfrå og ned"
+    case "opp":
+      return "nedanfrå og opp"
+    default:
+      return `sidelengs, langs (${(m as Vec3).map((c) => nn(c, 2)).join(", ")})`
+  }
 }
 
 /**
@@ -102,7 +115,7 @@ function retningOrd(m: Vec3 | null): string {
  * telefon med tomt batteri treng det på papir: kva del fyrst, kva veg han
  * kjem inn, og mot kva. Adressa på delen er nøkkelen.
  */
-function montering(p: Params, s: Snitt): string {
+export function montering(p: Params, s: Snitt): string {
   const liner = s.montering.orden.map((id, i) => {
     const r = s.ribber.find((q) => q.plan.id === id)
     const mot = [...new Set((r?.spor ?? []).map((q) => q.mot))].filter((m) => s.montering.orden.indexOf(m) < i)

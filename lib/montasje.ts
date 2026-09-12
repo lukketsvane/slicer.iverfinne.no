@@ -40,6 +40,25 @@ import { placedRings, type Nesting } from "./nest"
 import type { Del, Snitt } from "./snitt"
 import type { Ramme } from "./plan"
 
+/**
+ * KVA VEG EIN DEL KJEM INN — og berre KVA VEG.
+ *
+ * Ordlyden høyrer lesaren til: `montering.txt` står på eit ark ved sida av
+ * ein haug med delar og har plass til ei setning, spalta i montasjefana har
+ * plass til eit ord. Men KVA VEG er det same spørsmålet, og det skal difor
+ * svarast éin stad. Elles er det to sanningar om den same delen, og dei
+ * kjem til å gå frå kvarandre.
+ */
+export type Veg = "ned" | "opp" | "side" | "ligg"
+
+/** grensa er den same som teksten alltid har brukt: 0,7 på loddrett */
+export function vegen(m: Vec3 | null): Veg {
+  if (!m) return "ligg"
+  if (m[2] < -0.7) return "ned"
+  if (m[2] > 0.7) return "opp"
+  return "side"
+}
+
 export type MontDel = {
   /** det som står gravert på plata: «3a» */
   adr: string
@@ -47,6 +66,15 @@ export type MontDel = {
   steg: number
   /** kva plate han ligg på, frå 1 */
   ark: number
+  /**
+   * KVA VEG HAN KJEM INN.
+   *
+   * Motoren har rekna dette heile tida — `snitt.montering.retning` — og det
+   * gjekk berre éin veg: inn i `montering.txt`, som ligg inni ALT-pakka. So
+   * telefonen i handa synte RØRSLA, og ordet for henne låg i ei fil på ei
+   * anna maskin. Det er den eine tingen ein som skrur faktisk treng.
+   */
+  veg: Veg
   /** trekantane i delen si EIGA flate ramme: profilen i xy, plata frå 0 til tjukna */
   positions: Float32Array
   /**
@@ -217,6 +245,7 @@ export function montasjen(sn: Snitt, delar: readonly Del[], ns: Nesting, t: numb
       adr: d.adr,
       steg: steg.get(d.plan) ?? 0,
       ark: p.ark,
+      veg: vegen(sn.montering.retning[d.plan] ?? null),
       positions: new Float32Array(s.pos),
       ferdig: ferdigMat(r, t),
       flat: flatMat(p.m, p.off),
