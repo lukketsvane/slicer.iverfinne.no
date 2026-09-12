@@ -445,7 +445,8 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
     8  Steglista og tomt-meldinga ✓ GJORT    → panel montasjen
        Trykk på ein del i biletet står att       (tablist og romsyn ✓ GJORT)
     9  `toFingrar` med lag                   → dei gamle to-finger-bolkane, grøne ved 0, 6, 14
-   10  Steg 1 av bøygde ledd                 → pnpm ledd: ei ny sak, bøygt kryssa av flatt
+   10  Steg 1 av bøygde ledd                 → pnpm ledd: tre nye saker, 32/24/92
+                                                 ledd, alle i profilane ✓ GJORT
    11  Ein kanal ut av `Handa`, når du       → panel telefon + handtaka
        likevel er inne i han
    12  Pakkesøket i arbeidaren               → pnpm pakk: utnytting opp, 0 overlapp

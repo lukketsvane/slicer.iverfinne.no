@@ -328,6 +328,26 @@ const boygd = (bog: number): Params =>
   // og ein bøy som GÅR skal ikkje seie frå om materialet
   const mild = reglane(boygd(0.4)).find((q) => q.id === "bog")
   ok("ein bøy innanfor det materialet toler er ok", !!mild?.ok, mild?.value)
+
+  /**
+   * OG EIT BØYGT PLAN SOM FAKTISK BER LEDD SKAL IKKJE SEIE FRÅ.
+   *
+   * `boygd()` over brukar `nett(3, 0)` — berre éin familie — so det bøygde
+   * planet har ingenting å krysse, og regelen har rett. Legg du den andre
+   * familien til, ligg han LANGS sylinderaksen, møtet er ein generator, og
+   * ribba får spora sine. Regelen tel ribber utan spor og ikkje bøygde plan,
+   * og skilnaden er nett denne saka.
+   */
+  const medTvers = {
+    ...DEFAULT_PARAMS,
+    kjelde: "kule",
+    storleik: 300,
+    tjukn: 6,
+    material: "finer",
+    plan: skrivPlan(lesPlan(nett(3, 3)).map((q, i) => (i === 1 ? { ...q, bog: 0.4 } : q))),
+  } as Params
+  const bærande = reglane(medTvers).find((q) => q.id === "bogledd")
+  ok("eit bøygt plan med flate plan langs aksen ber ledd", !!bærande?.ok && !bærande.hard, bærande?.value)
 }
 
 {

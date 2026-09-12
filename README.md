@@ -424,11 +424,19 @@ edges become curves on the way, so edges longer than `√(8·R·tol)` are split
 first; without that a cube would come out as a box with straight sides
 claiming to be bent.
 
-**Bent planes carry no joints yet.** Two planes cross along a line, and the
-whole slot machinery is built on that; two bent surfaces cross along a curve,
-and that finder is not written. Slicing therefore skips joints on a bent
-plane, and a hard rule says so instead of letting you find it in the box. That
-is the next step.
+**A bent plane carries joints where a flat plane lies along its axis.** The
+whole slot machinery is built on two surfaces meeting in a *line*. Two planes
+always do. A cylinder and a plane do it in exactly one case: when the plane
+lies along the cylinder axis, the meeting is a generator line — straight in
+space and straight unrolled, because `u` is arc length and the line has
+constant `u`. That is the curved-shell-with-flat-ribs-across-it case, which is
+what people actually build, and it works.
+
+The rest is still open. A plane slanted to the axis meets the cylinder in a
+conic; two bent surfaces meet in a space curve. A bent rib that finds no joint
+at all comes out as a loose plate, and a hard rule says so — it counts *ribs
+without slots*, not bent planes, because after this step those are no longer
+the same thing.
 
 **The chrome dozes.** Two seconds without a finger and everything that is not
 the object fades away — the top line, the thumb column, the sheet, the sketch

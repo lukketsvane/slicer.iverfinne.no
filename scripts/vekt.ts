@@ -37,7 +37,10 @@ const TAK: [string, number][] = [
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
   // «ingen delar» — to prop-liner og to kommentarliner
   ["components/studio.tsx", 2927],
-  ["lib/snitt.ts", 1234],
+  // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
+  // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
+  // det er den generaliseringa som let ei bøygd ribbe gripe i noko
+  ["lib/snitt.ts", 1282],
   ["lib/pack.ts", 955],
 ]
 

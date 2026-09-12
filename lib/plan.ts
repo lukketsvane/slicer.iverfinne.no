@@ -412,6 +412,78 @@ export function kryss(a: Ramme, b: Ramme): { p: Vec3; d: Vec3; sin: number } | n
   return { p: add3(mul3(a.n, ka), mul3(b.n, kb)), d: mul3(d, 1 / L), sin: L }
 }
 
+/**
+ * KRYSSINGA MELLOM EI BØYGD FLATE OG EIT FLATT PLAN — steg éin.
+ *
+ * Ei bøygd flate er ein sylinder med aksen langs `v`. Eit flatt plan skjer
+ * han i ei kurve, og ei kurve er ikkje noko spor-maskineriet kan bruke: det
+ * byggjer heilt igjennom på at møtet er ei RETT LINE, med eitt punkt og éi
+ * retning, lesen frå kvar si side av det same talet.
+ *
+ * Men det finst eitt tilfelle der kurva ER rett, og det er ikkje eit
+ * sernemne: eit plan som ligg PARALLELT MED SYLINDERAKSEN skjer sylinderen
+ * langs generatorlinene hans — dei rette linene som går langs aksen — og ei
+ * generatorline brettar seg ut til ei rett line i det flate mønsteret, av di
+ * `u` er buelengd og lina har konstant `u`. Det er «krumt skal med flate
+ * ribber på tvers», som er det folk faktisk lagar.
+ *
+ * Kor parallelt er parallelt? Ikkje ei gradgrense — ei KUTTGRENSE. Vippar
+ * planet θ ut av aksen, vandrar møtet sidelengs med lengda på delen gonga
+ * tangens θ; skal den vandringa halde seg under ei snittbreidd på ein del
+ * på tre hundre millimeter, må tan θ vera under kring 7e-4. `PARALLELT`
+ * står der, og alt utanfor er framleis den harde regelen sitt.
+ *
+ * Svaret er ei LISTE: eit plan kan skjera sylinderen på to generatorar — inn
+ * på den eine sida og ut på den andre — og båe er ekte ledd.
+ */
+const PARALLELT = 1e-3
+/** kor fint buen vert skanna etter teiknskifte før kvar rot vert klemt inn */
+const ROT_STEG = 64
+
+export function kryssBoygd(kr: Ramme, fl: Ramme, u0: number, u1: number): { p: Vec3; d: Vec3; sin: number }[] {
+  if (!kr.k || fl.k) return []
+  if (Math.abs(dot(fl.n, kr.v)) > PARALLELT) return []
+  if (!(u1 > u0)) return []
+  const dFl = dot(fl.n, fl.o)
+  /** kor langt frå det flate planet punktet på buen ligg, som funksjon av buelengda */
+  const f = (u: number) => dot(ut(kr, [u, 0], 0), fl.n) - dFl
+  const rot: number[] = []
+  let ua = u0
+  let fa = f(ua)
+  for (let i = 1; i <= ROT_STEG; i++) {
+    const ub = u0 + ((u1 - u0) * i) / ROT_STEG
+    const fb = f(ub)
+    if (fa === 0) rot.push(ua)
+    else if (fa * fb < 0) {
+      // klem rota inn. Tjue halveringar tek eit spenn på ein meter ned
+      // under ein mikrometer, og funksjonen er glatt heile vegen.
+      let lo = ua
+      let hi = ub
+      let flo = fa
+      for (let it = 0; it < 20; it++) {
+        const m = (lo + hi) / 2
+        const fm = f(m)
+        if (flo * fm <= 0) hi = m
+        else {
+          lo = m
+          flo = fm
+        }
+      }
+      rot.push((lo + hi) / 2)
+    }
+    ua = ub
+    fa = fb
+  }
+  return rot.map((u) => {
+    // FLATENORMALEN DER BUEN ER, og ikkje der han byrja: han vrir seg med
+    // flata, nett som tjukna gjer det i `ut`. Sporbreidda vert lesen av
+    // vinkelen mellom DENNE og det flate planet.
+    const a = kr.k * u
+    const nu = norm3(sub3(mul3(kr.n, Math.cos(a)), mul3(kr.u, Math.sin(a))))
+    return { p: ut(kr, [u, 0], 0), d: kr.v, sin: len3(cross(nu, fl.n)) }
+  })
+}
+
 // =============================================================================
 // LISTA SOM STRENG
 // =============================================================================

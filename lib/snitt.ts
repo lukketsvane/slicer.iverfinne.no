@@ -35,7 +35,7 @@ import { bbox, inRing, MATERIALS, MIN_AREA, perimeter, shoelace, type Material, 
 import { contour, simplify } from "./contour"
 import type { Solid, Span } from "./mesh/solid"
 import { rull, vend, type BitBoks, type Kropp } from "./kropp"
-import { akser, cross, dot, kryss as kryssAv, len3, lesPlan, mul3, norm3, omrissLine, skrivPlan, ut, type Plan, type Ramme, type Strek } from "./plan"
+import { add3, akser, cross, dot, inn, kryss as kryssAv, kryssBoygd, len3, lesPlan, mul3, norm3, omrissLine, skrivPlan, ut, type Plan, type Ramme, type Strek } from "./plan"
 import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 
 /**
@@ -762,7 +762,14 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
   let avvist = 0
   const retning: Record<number, Vec3 | null> = {}
   const brot: number[] = []
-  const til2 = (r: Ramme, q: Vec3): Pt => [dot(q, r.u), dot(q, r.v)]
+  /** retninga i ramma si flate, lesen som skilnaden mellom to punkt på lina
+   *  og normert — den einaste måten som held for ei BØYGD ramme, der
+   *  avbildinga ikkje er lineær og ein prikk mot aksane ikkje seier noko */
+  const ein2 = (b: Pt, a: Pt): Pt => {
+    const q: Pt = [b[0] - a[0], b[1] - a[1]]
+    const L = Math.hypot(q[0], q[1]) || 1
+    return [q[0] / L, q[1] / L]
+  }
 
   /** gods på begge sider av sporet, i den høgda sporet står i */
   const rom = (a: Raa, p0: Pt, d0: Pt, t: number, sw: number) => {
@@ -805,35 +812,74 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     return opp ? Math.min(e, grense) : Math.max(e, grense)
   }
 
+  /**
+   * KVAR TO FLATER MØTEST — og eit møte er alltid ei RETT LINE.
+   *
+   * Spor-maskineriet under byggjer heilt igjennom på det: eitt punkt, éi
+   * retning, og eitt tal som styrer båe sidene. Difor er det HER, og berre
+   * her, det vert avgjort kva par som kan bera ledd.
+   *
+   * To flate plan møtest i ei line, alltid. Ei bøygd flate og eit flatt plan
+   * møtest i ei kurve — utan om det eine tilfellet der planet ligg langs
+   * sylinderaksen og møtet vert ein generator, som er rett både i rommet og
+   * utbretta (sjå `kryssBoygd`). To bøygde flater står att, og dei er
+   * framleis den harde regelen sitt.
+   *
+   * Lista, og ikkje eitt svar: eit plan kan skjera ein sylinder på to
+   * generatorar, og båe er ekte ledd.
+   */
+  const uSpenn = (a: Raa): [number, number] => {
+    let lo = Infinity
+    let hi = -Infinity
+    for (const ring of a.ringar) {
+      for (const q of ring) {
+        if (q[0] < lo) lo = q[0]
+        if (q[0] > hi) hi = q[0]
+      }
+    }
+    return [lo, hi]
+  }
+  const møta = (A: Raa, B: Raa): { p: Vec3; d: Vec3; sin: number }[] => {
+    if (A.boygd && B.boygd) return []
+    if (A.boygd) {
+      const [lo, hi] = uSpenn(A)
+      return kryssBoygd(A.r, B.r, lo, hi)
+    }
+    if (B.boygd) {
+      const [lo, hi] = uSpenn(B)
+      return kryssBoygd(B.r, A.r, lo, hi)
+    }
+    const x = kryssAv(A.r, B.r)
+    return x ? [x] : []
+  }
+
   for (let j = 1; j < raa.length; j++) {
     const B = raa[j]
     let felt3: Vec3 | null = null
-    // STEG EIN: EIT BØYGT PLAN BER IKKJE LEDD ENNO.
-    //
-    // `kryssAv` er kryssinga mellom to PLAN, og svaret er ei rett line. To
-    // bøygde flater kryssar langs ei kurve, og dei bur i kvar sitt utrulla
-    // rom — heile spor-maskineriet under (`p`, `d`, `munn`, `botn`, og
-    // delinga som styrer båe sidene med eitt tal) byggjer på at det er ei
-    // line. Å late det stå ville gjeve eit spor som ligg feil på plata og
-    // ingen som sa frå. Regelen `bogledd` seier frå i staden.
-    if (B.boygd) continue
     for (let i = 0; i < j; i++) {
       const A = raa[i]
-      if (A.boygd) continue
-      const x = kryssAv(A.r, B.r)
-      if (!x) continue
+      let fann = false
+      let treff = 0
+      for (const x of møta(A, B)) {
       const d3 = kanonisk(x.d)
       // helst nedover; på ei vassrett line er retninga eit val, og valet
       // er det same kvar gong
       const retn = Math.abs(d3[2]) > 0.3 ? (d3[2] > 0 ? -1 : 1) : -1
-      const pA = til2(A.r, x.p)
-      const dA = til2(A.r, d3)
-      const pB = til2(B.r, x.p)
-      const dB = til2(B.r, d3)
+      /**
+       * INN I RAMMA SI EIGA FLATE — og `inn` er den same avbildinga for båe
+       * slag. Ho trekkjer frå `r.o`, men `r.o` er punktet på planet nærast
+       * origo (`mul3(pl.n, d)`), so `u`- og `v`-komponentane hans er null:
+       * for eit flatt plan er `inn` difor ordrett det same som å prikke mot
+       * aksane. For ei bøygd flate gjer ho det ingen prikk kan — vinkelen
+       * kring aksen vert buelengd — og det er nett dei koordinatane ringane
+       * hennar alt ligg i (`rull` i `kropp.ts` byggjer dei med den same).
+       */
+      const pA = inn(A.r, x.p)
+      const dA = ein2(inn(A.r, add3(x.p, d3)), pA)
+      const pB = inn(B.r, x.p)
+      const dB = ein2(inn(B.r, add3(x.p, d3)), pB)
       const runs = felles(stykkeLangs(A.ringar, pA, dA), stykkeLangs(B.ringar, pB, dB))
       const w = slotW / x.sin
-      let fann = false
-      let treff = 0
       for (const [lo, hi] of runs) {
         if (hi - lo < minLap) continue
         /**
@@ -872,10 +918,12 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
         ledd++
         fann = true
       }
-      if (!fann) continue
       const m = mul3(d3, retn)
-      if (!felt3) felt3 = m
-      else if (dot(felt3, m) < Math.cos((3 * Math.PI) / 180) && !brot.includes(B.plan.id)) brot.push(B.plan.id)
+      if (fann) {
+        if (!felt3) felt3 = m
+        else if (dot(felt3, m) < Math.cos((3 * Math.PI) / 180) && !brot.includes(B.plan.id)) brot.push(B.plan.id)
+      }
+      }
     }
     retning[B.plan.id] = felt3
   }

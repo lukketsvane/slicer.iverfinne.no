@@ -34,6 +34,19 @@ import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 /**
+ * EIT NETT DER DEN EINE FAMILIEN ER BØYGD.
+ *
+ * Ei bøygd flate er ein sylinder med aksen langs `v`, og for eit plan med
+ * normalen langs x er `v` loddrett. Y-familien har normalen sin vassrett og
+ * ligg difor PARALLELT med den aksen — og eit plan langs aksen skjer
+ * sylinderen i generatorlinene hans, som er rette både i rommet og utbretta.
+ * Det er «krumt skal med flate ribber på tvers», og det er tilfellet steg
+ * éin av dei bøygde ledda dekkjer.
+ */
+const bogNett = (nx: number, ny: number, bog: number) =>
+  skrivPlan(rutenett(nx, ny).map((q) => (q.n[0] === 1 ? { ...q, bog } : q)))
+
+/**
  * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
  * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
  * det same rutenettet standarden hadde før, og det same objektet.
@@ -368,6 +381,12 @@ const SAKER: [string, Partial<Params>][] = [
     plan: nett(4, 4),
     deling: [leddNokkel(1, 5, 0), 0.72].join(":") + ";" + [leddNokkel(2, 6, 0), 0.28].join(":"),
   }],
+  // BØYGDE LEDD, STEG EIN: ein sylinder kryssa av flate plan som ligg langs
+  // aksen hans. Møtet er ein generator — rett i rommet OG utbretta — so
+  // spora skal stå i profilane som alle andre.
+  ["kube, x-familien bøygd", { plan: bogNett(4, 4, 0.3) }],
+  ["kule, x-familien bøygd", { kjelde: "kule", plan: bogNett(4, 4, 0.25) }],
+  ["kule, x-familien bøygd, tett", { kjelde: "kule", plan: bogNett(8, 8, 0.2) }],
   ["kule, strek tvers over ei plate", {
     kjelde: "kule",
     plan: medStrek(nett(6, 6), 3, { slag: "hol", form: "rekt", x: 0, y: 0.1, w: 1.2, h: 0.04, a: 0 }),
