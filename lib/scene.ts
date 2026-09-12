@@ -42,6 +42,12 @@ export const FAMILIAR: readonly { namn: string; tal: number }[] = [
   { namn: "kube", tal: 1 },
   { namn: "stolform", tal: 10 },
   { namn: "sau", tal: 4 },
+  // Fem dyr i ein familie og ikkje fem liner: hund, vêr, ei blokkete
+  // skulptur, hest og ramn. Dei er ulike emne, og det er nett difor dei
+  // høyrer saman her — menyen dekkjer objektet, og det du vil er å BLA
+  // gjennom former med kroppen framme. Ein familie per dyr hadde gjort
+  // menyen nesten tre gonger så lang for å spare deg eitt trykk.
+  { namn: "dyr", tal: 5 },
 ]
 /** utgåve nummer `n` i familien, ein-indeksert: «stolform», 3 → «stolform-03» */
 const utgaave = (namn: string, n: number) => `${namn}-${String(n).padStart(2, "0")}`
