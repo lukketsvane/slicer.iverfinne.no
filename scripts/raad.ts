@@ -104,7 +104,36 @@ function torus(R: number, r: number, n: number, m: number) {
 }
 put("torus", "torus", torus(50, 14, 48, 24))
 
-const reglane = (p: Params) => checkRules(p, measure(p))
+/** ein kube med EI FLATE borte: tjuefire kantar kring hòlet høyrer til
+ *  éin trekant, og strålane har ingen innside å telje */
+function opnKube(S: number) {
+  const pos: number[] = []
+  const kvad = (a: number[], b: number[], c: number[], d: number[]) => pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+  kvad([-S, -S, -S], [S, -S, -S], [S, S, -S], [-S, S, -S])
+  kvad([-S, -S, S], [-S, S, S], [S, S, S], [S, -S, S])
+  kvad([-S, -S, -S], [-S, -S, S], [S, -S, S], [S, -S, -S])
+  kvad([-S, S, -S], [S, S, -S], [S, S, S], [-S, S, S])
+  kvad([-S, -S, -S], [-S, S, -S], [-S, S, S], [-S, -S, S])
+  // den sjette flata er ikkje der
+  return makeSoup(new Float32Array(pos))
+}
+put("opn", "opn", opnKube(50))
+
+/** ein tynn ring: netto areal er lite mot boksen han ligg i, og hòlet er
+ *  for stort til at noko anna får plass i det */
+put("tynnring", "tynnring", torus(50, 3, 96, 24))
+
+/**
+ * KVAR REGEL SOM HAR VORE RAUD, OVER HEILE KØYRINGA.
+ *
+ * Vakta nedst i fila spør denne. Grunnen står der.
+ */
+const raude = new Set<string>()
+const reglane = (p: Params) => {
+  const r = checkRules(p, measure(p))
+  for (const q of r) if (!q.ok) raude.add(q.id)
+  return r
+}
 const finn = (p: Params, id: string) => reglane(p).find((r) => r.id === id)
 
 /**
@@ -276,6 +305,29 @@ prov("godset er tynt", "gods", {
   ok("og han lagar ikkje eit rutenett du ikkje bad om", !r?.fiks, r?.fiks ? `«${r.fiks.ord}»` : "ingen knapp")
   const d = finn({ ...DEFAULT_PARAMS, plan: "" }, "delar")
   ok("det same gjeld «delar å skjere»", !!d && !d.ok && !d.fiks, d?.fiks ? `«${d.fiks.ord}»` : "ingen knapp")
+}
+
+// --- nettet med hòl i -------------------------------------------------------
+// Kommentaren under lova ein prøve på eit nett med hòl i, og køyrde ei kule
+// som er lukka. Her er nettet: ein kube med ei flate borte.
+{
+  const p: Params = { ...DEFAULT_PARAMS, kjelde: "opn", plan: nett(3, 3) }
+  const r = finn(p, "lukka")
+  ok("eit nett med hòl i seier frå", !!r && !r.ok, r?.value)
+  ok("og ingen knapp lovar å lukke det", !r?.fiks, r?.fiks ? `«${r.fiks.ord}»` : "ingen knapp")
+}
+
+// --- utnyttinga -------------------------------------------------------------
+// To ark, og under ein tredel av det som vart skore i vart del: åtte tynne
+// ringar på ei plate som er fire og ein halv desimeter brei og ti centimeter
+// høg. Regelen slepper alt som får plass på EI plate — resten av den siste
+// plata er ikkje svinn — so det måtte to til for å prøve han.
+{
+  const p: Params = { ...DEFAULT_PARAMS, kjelde: "tynnring", storleik: 900, arkB: 450, arkH: 100, plan: nett(2, 2) }
+  const r = finn(p, "utnytting")
+  const m = measure(p)
+  ok("to ark og under ein tredel utnytta seier frå", !!r && !r.ok, `${m.sheets} ark · ${r?.value}`)
+  ok("og ingen knapp lovar ei betre plate", !r?.fiks, r?.fiks ? `«${r.fiks.ord}»` : "ingen knapp")
 }
 
 // =============================================================================
@@ -473,6 +525,27 @@ const boygd = (bog: number): Params =>
     }
   }
   ok("rådet står innanfor skyvarane", alleLovlege, sett.join("; "))
+}
+
+/**
+ * OG DEN SISTE: KVAR REGEL MÅ HA VORE RAUD MINST EIN GONG HER.
+ *
+ * Ein regel som ingen prøve har sett raud er ein regel ingen veit om
+ * verkar. Verre: han kan vera umogeleg å bryte, og då er lina hans pynt.
+ * Det var «nettoppløysing»: han stod på «under to hundre trekantar», og
+ * forenklinga kan ikkje koma dit — skyvaren botnar på eit halvt tusen og
+ * forenklinga stoggar når ho har nådd budsjettet. Lina var grøn i kvar
+ * einaste tilstand reiskapen kan koma i, og ingen prøve sa frå, av di
+ * ingen prøve fanst.
+ *
+ * Vakta er lista over kva som har vore raudt, og ho spør ikkje om rådet
+ * — berre om regelen kan brytast i det heile. Legg du til ein regel, må
+ * du leggje til saka som bryt han.
+ */
+{
+  const alle = reglane({ ...GRUNN, klaring: 0 } as Params).map((r) => r.id)
+  const aldri = alle.filter((id) => !raude.has(id))
+  ok("kvar regel har vore raud ein gong i denne køyringa", aldri.length === 0, aldri.length ? `aldri raud: ${aldri.join(", ")}` : `${raude.size} reglar broten og prøvd`)
 }
 
 console.log(brot === 0 ? "\nalle råd rettar\n" : `\n${brot} råd rettar ikkje\n`)
