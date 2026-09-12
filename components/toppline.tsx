@@ -14,7 +14,7 @@ import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./del
  * over sida, so lina tek den tryggje sona som luft over seg. Ein knapp er
  * eit ikon eller eit ord, aldri begge; filnamnet er innhald og står som det er.
  */
-export function Toppline({ benk, kjelde, bitar, byt, view, onView, onFile, onLegg, onTom, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, onHogd }: {
+export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, hopHint, onFile, onLegg, onTom, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, onHogd }: {
   benk: boolean
   kjelde: string
   /** kor mange bitar kroppen er sett saman av: eitt er ei kjelde åleine */
@@ -29,6 +29,10 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, onFile, onLeg
   byt: string
   view: View
   onView: (v: View) => void
+  /** går objektet i hop? Er det ikkje det, er montasjefana slegen av */
+  montasjeOk: boolean
+  /** kva som er i vegen, ordrett frå regelen — det er han som veit det */
+  hopHint: string
   onFile: (f: File) => void
   /** eit primitiv til i kroppen */
   onLegg: (id: string) => void
@@ -151,9 +155,15 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, onFile, onLeg
             seg — «av», «på» — og ikkje som «fane 2 av 4», som er det dei
             ER. Det kostar ingenting og er sant. */}
         <span role="tablist" aria-label="lesemåte" className="mx-auto flex items-center">
-          {VIEWS.map((v) => (
-            <button key={v.id} type="button" role="tab" title={v.hint} aria-selected={view === v.id} onClick={() => onView(v.id)} className={ORD}>{v.label}</button>
-          ))}
+          {VIEWS.map((v) => {
+            // montasjen er ei lesing av ein montasje: finst det ingen, er det
+            // ingenting å lesa, og fana seier det på den eine måten eit
+            // flatt grensesnitt har — dempa blekk
+            const av = v.id === "montasje" && !montasjeOk
+            return (
+              <button key={v.id} type="button" role="tab" title={av ? hopHint : v.hint} aria-selected={view === v.id} disabled={av} data-fane={v.id} onClick={() => onView(v.id)} className={ORD} style={av ? { opacity: 0.25 } : undefined}>{v.label}</button>
+            )
+          })}
         </span>
         <button type="button" onClick={onShare} aria-label="del" title="lenkja ber innstillingane, ikkje nettet" className={ICON_BTN}>{IcoShare}</button>
         {benk && <a href="https://iverfinne.no" target="_blank" rel="noopener noreferrer" className="pl-2 text-[11px] tracking-wide opacity-60 hover:opacity-100">iverfinne.no</a>}

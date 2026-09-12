@@ -51,7 +51,12 @@ const TAK: [string, number][] = [
   // seks ting i stillheit er ein knapp ingen tør trykkje to gonger
   // −82 den 12.: virvelen er ute — knappen, dei to konstantane, staten,
   // tasten og heile blokka som rekna vifta ut. Ein kanal mindre i `Handa`
-  ["components/studio.tsx", 2886],
+  // +25 den 12.: montasjefana vert slegen av når objektet ikkje går i hop.
+  // Animasjonen synte delane kome inn éin etter éin sjølv om ein del stod
+  // fast eller to delar stod i kvarandre — ein film som seier at det gjekk.
+  // Det meste er grunngjevinga for kvifor fana vert stengd medan uttaka
+  // ikkje vert det
+  ["components/studio.tsx", 2911],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko

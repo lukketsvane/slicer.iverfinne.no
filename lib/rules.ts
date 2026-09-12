@@ -522,8 +522,8 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     hard: false,
     ok: p.klaring >= 0.05 && p.klaring <= 0.35,
     value: mm2(p.klaring),
-    why: "Under 0,05 mm får du ikkje delane i hop utan hammar, og finér som vert slegen i hop flisar seg. Over 0,35 mm sit dei ikkje fast, og då treng bygget lim, som er nett det det ikkje skulle treng.",
-    fiks: p.klaring < 0.05 || p.klaring > 0.35 ? { ord: "prøv 0,15 mm", set: { klaring: 0.15 } } : undefined,
+    why: "Sporet er tjukna pluss klaringa, so talet gjeld den MÅLTE plata: 3 mm MDF måler jamt 2,8–2,9, og set du 3 er sporet 0,2 for vidt før klaringa er talt med. Mål plata med skyvelær og set tjukna til det. Under 0,05 mm får du ikkje delane i hop utan hammar, og finér som vert slegen i hop flisar seg. Over 0,35 mm sit dei ikkje fast. Passprøva skjer heile stigen og let deg kjenne etter.",
+    fiks: p.klaring < 0.05 || p.klaring > 0.35 ? { ord: "prøv 0,10 mm", set: { klaring: 0.1 } } : undefined,
   })
 
   // --- 8 nokon tek snittbreidda (mjuk) ----------------------------------------

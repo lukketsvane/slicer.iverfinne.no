@@ -1216,6 +1216,30 @@ export function Studio() {
     setVald(null)
   }, [])
   /**
+   * MONTASJEN: han er ei LESING av ein montasje, og finst det ingen er det
+   * ingenting å lesa.
+   *
+   * Animasjonen syner delane kome inn éin etter éin, i motoren si eiga
+   * rekkjefylgje. Står ein del fast, eller står to delar i kvarandre, so
+   * er den rekkjefylgja ikkje noko som KAN hende — og filmen syner deg
+   * likevel at det gjekk fint. Det er den eine lygna eit verkty som dette
+   * ikkje har råd til: du ser henne, du trur henne, og du oppdagar det
+   * fyrst med delane i handa.
+   *
+   * Difor er fana slegen av medan det er sant, og er du inni henne når det
+   * vert sant, vert du sett attende der du kom frå. Uttaka vert IKKJE
+   * stengde — der står varselet, og det var avgjerda: reiskapen skjer kva
+   * som helst, men han seier kva han skar. Skilnaden er at eit kutt du kan
+   * sjå på er noko anna enn ein film som seier at det gjekk.
+   */
+  const hopBrot = (tal?.rules ?? []).filter((r) => (r.id === "orden" || r.id === "klem") && !r.ok)
+  const gaarIHop = useRef(true)
+  gaarIHop.current = hopBrot.length === 0
+  useEffect(() => {
+    if (!gaarIHop.current && view === "montasje") setView(foer.current)
+  }, [view, hopBrot.length])
+
+  /**
    * MONTASJEN: kroppen som reiser seg av platene sine.
    *
    * Han var ein reiskap i tommelspalta og er ei FANE no. Det er den same
@@ -1228,6 +1252,7 @@ export function Studio() {
    * Tasten M står att, av di handa hugsar han.
    */
   const vekslMontasje = useCallback(() => {
+    if (!gaarIHop.current) return
     setView((v) => (v === "montasje" ? foer.current : "montasje"))
   }, [])
   /**
@@ -2252,7 +2277,7 @@ export function Studio() {
       else if (k === "1") setView("flate")
       else if (k === "2") setView("lag")
       else if (k === "3") setView("kontur")
-      else if (k === "4") setView("montasje")
+      else if (k === "4") { if (gaarIHop.current) setView("montasje") }
       // den same knappen som under synskuben: innramminga er éi handling, og tasten er vegen til henne
       else if (k === "f") document.querySelector<HTMLButtonElement>("[data-heim]")?.click()
       else if (k === "d" && vald !== null && rom) dupliserPlan(vald)
@@ -2412,7 +2437,7 @@ export function Studio() {
         </section>
       )}
 
-      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
+      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
 
       {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til VENSTRE i
           det frie bandet — synskuben har det høgre hjørnet */}
