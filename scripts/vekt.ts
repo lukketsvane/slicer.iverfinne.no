@@ -35,7 +35,10 @@ const TAK: [string, number][] = [
   // svara ikkje på «kva er DEN der» — no seier lina adressa og steget, og
   // ribba står i blekk. Ein `tak()`-handlar på kvart nett, og fargen som seier
   // kva ein du tok
-  ["components/scene.tsx", 3465],
+  // +62 den 12.: den fyrste fingeren vert halden att frå orbiten til han har
+  // gått tolv pikslar. Det meste er grunngjevinga — kvifor ein orbit ikkje
+  // kan målast på avstand, og kvifor grensa er px og ikkje ei klokke
+  ["components/scene.tsx", 3527],
   // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier

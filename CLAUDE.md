@@ -113,8 +113,10 @@ curve goes through its points and never has control arms, the view flattens to
 2° when you look straight down an axis and never gets a second camera, the
 montage never computes an assembly order of its own — it groups the engine's —
 two fingers belong to the object and never move the camera — zoom is the
-magnifier, and in the body tool the pinch is the piece — and there are
-two colours and no more.
+magnifier, and in the body tool the pinch is the piece — a lone finger does
+not turn the view until it has travelled the twelve pixels that make it a
+drag, because a hand lands its two fingers one after the other and the first
+one alone is the orbit's gesture — and there are two colours and no more.
 
 ## Verify with the harnesses, not by eye
 
