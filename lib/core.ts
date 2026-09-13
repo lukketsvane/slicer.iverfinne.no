@@ -20,13 +20,29 @@ export type Vec3 = [number, number, number]
 // =============================================================================
 // MATERIALE
 // =============================================================================
-export type Material = "finer" | "mdf" | "akryl" | "papp"
+export type Material = "bjork" | "finer" | "mdf" | "akryl" | "papp"
 
 export const MATERIALS: Record<
   Material,
   { label: string; rho: number; hex: string }
 > = {
   // rho i kg/m³ — det er han massen vert rekna av
+  /**
+   * BJØRK, OG HO ER MASSIVT TRE OG IKKJE EI PLATE AV LIM OG FINER.
+   *
+   * Fargen er MÅLD og ikkje vald: dei opplyste flatene på ein bjørkekrakk,
+   * lese piksel for piksel med bakgrunn og skugge filtrerte bort på metning.
+   * Snittet over tre flater er #dbb589, og det er talet som står her. Han
+   * skil seg tydeleg frå mdf i veljaren — mdf er gråare, bjørka varmare og
+   * lysare — og det måtte prøvast, av di prikken er det einaste som skil to
+   * material frå kvarandre der.
+   *
+   * Massivt tre er ikkje kryssfinér, og det synest to stader: det bøyer seg
+   * DÅRLEGARE (ingen kryssande lag til å stogge ei flis som vil gå langs
+   * fiberen) og det vil ha tettare riller av den same grunnen. Sjå
+   * `BOG_FAKTOR` og `STEG` i `rille.ts`.
+   */
+  bjork: { label: "bjørk", rho: 670, hex: "#dbb589" },
   finer: { label: "kryssfinér", rho: 680, hex: "#e9dcc0" },
   mdf: { label: "mdf", rho: 750, hex: "#c9a889" },
   akryl: { label: "akryl", rho: 1190, hex: "#dfe7ea" },

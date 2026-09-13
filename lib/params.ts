@@ -379,9 +379,15 @@ export const snittKey = (p: ParamBag, cells: number) =>
  * eit skal, skissa står gjennom han, og det fyrste du gjer er å skjere.
  * Vil du ha rutenettet, ligg det eit trykk unna under framlegga.
  *
- * Resten er den maskina folk faktisk står ved. Tre millimeter MDF er det
- * som ligg i hylla på eit makerspace, og 600 × 400 er bordet på den
+ * Resten er den maskina folk faktisk står ved: 600 × 400 er bordet på den
  * vanlege CO2-laseren — «6040» heiter han i katalogen.
+ *
+ * MATERIALET VAR MDF, OG ER BJØRK FRÅ DEN 13. Mdf er det som ligg i hylla på
+ * eit makerspace, og det er eit godt argument for ei prøveplate. Men
+ * standarden er ikkje prøveplata — han er det reiskapen SEIER at han er til
+ * for, og det fyrste eit nytt auge ser. Ein reiskap som opnar i mdf seier
+ * «modell»; ein som opnar i bjørk seier «møbel». Det siste er sant om
+ * denne.
  *
  * Trekanttaket er FØRTI tusen og ikkje tjue. Tjue tusen er nok til å måle
  * ein kropp med, men ikkje til å sjå på: ein skanna eller modellert figur
@@ -420,7 +426,7 @@ export const DEFAULT_PARAMS: Params = {
   arkB: 600,
   arkH: 400,
 
-  material: "mdf",
+  material: "bjork",
   plan: "",
   fest: "",
   deling: "",
