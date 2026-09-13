@@ -180,7 +180,12 @@ const TAK: [string, number][] = [
   // rillelinje kostar kuttlengd og ikkje areal. Sperresona er dei fleste
   // linene, og ho er grunngjeving: ho held `stykkeLangs` sant, og det er
   // ikkje synleg av koden som les henne.
-  ["lib/snitt.ts", 1811],
+  // +16 den 13.: eit ledd mot ein BØYGD partnar bind inga retning, og det
+  // gjeld begge vegar. Fritaket stod her frå før på den eine sida. Linene er
+  // tre; resten er grunngjevinga, og ho er heile verdien: at eit golv med
+  // fire bogar mot huda og fire rette mot ribbene HAR ein veg inn er ikkje
+  // synleg av koden, det er noko nokon har målt.
+  ["lib/snitt.ts", 1827],
   ["lib/pack.ts", 955],
 ]
 

@@ -431,6 +431,13 @@ that carries a joint is not perforated. That band is also what keeps the joint
 arithmetic true: joints are measured along their slot line, and a score cut
 across that line would hand the joint a shoulder that is not there.
 
+A bent part is bent into place, not pushed into place, and that holds from both
+sides: a joint against a bent partner constrains no insertion direction, whether
+the bent part is the one arriving or the one already there. That is what makes
+the useful construction work — a scored skin over a rigid frame. Build the
+waffle flat, wrap the skin around it. Each floor carries arcs against the skin
+and straight slots against the ribs; only the straight ones are the way in.
+
 So the rule is no longer hard, and it no longer only offers to straighten: it
 says what the pattern costs. It goes red only when the pattern cannot be laid
 at all — when the tool is so coarse that the kerf eats the row spacing. What
