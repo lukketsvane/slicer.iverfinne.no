@@ -453,6 +453,29 @@ function ExportTab({ p }: { p: ArketProps }) {
   )
 }
 
+/**
+ * KOR HØG SKUFFA ER NÅR HO ER OPE — EITT TAL, OG DET SAME FOR KVAR FANE.
+ *
+ * Ho var `maxHeight` og ikkje `height`: eit TAK, so kvar fane fekk den
+ * høgda innhaldet sitt bad om. Målt på ein kube med rutenett 4×4, 390×844:
+ *
+ *     form 220   grupper 172   materiale 204   kutt 240   sjekk 156   uttak 192
+ *
+ * Fire og åtti pikslar mellom den lågaste og den høgaste — so skuffa
+ * hoppa kvar gong du bytte fane, og objektet over henne hoppa med, av di
+ * `onHogd` melder høgda til kameraet som rammar inn i det som er att.
+ *
+ * Ei skuff med faner som endrar storleik når du byter fane er det same som
+ * ei dør som flyttar seg når du går gjennom henne. Tala over er kva det
+ * KOSTA; talet her er kva ho ER.
+ *
+ * Seks og tjue prosent av høgda er 219 px på telefonen. Den høgaste fana er
+ * 204 når lina ikkje står der lenger, so det dekkjer alle seks med ei rad
+ * att og lite luft under dei låge. Ei fane som veks forbi det rullar — ho
+ * vert ikkje klipt, og skuffa står like høg.
+ */
+const SKUFF_H = "26dvh"
+
 function MobileArket(p: ArketProps) {
   const open = p.steg !== "line"
   const [fane, setFane] = useState<Fane>("grupper")
@@ -474,14 +497,17 @@ function MobileArket(p: ArketProps) {
     setFane(f)
     if (!open) p.onSteg("midt")
   }
+  /** sett når eit DRAG alt har opna eller lete att: klikket som kjem etter
+   *  eit drag skal ikkje vippe det attende */
+  const dro = useRef(false)
   const dragOpp = (e: ReactPointerEvent) => {
     const d = drag.current
     if (!d || d.id !== e.pointerId) return
     drag.current = null
     setPull(0)
     const dy = e.clientY - d.y
-    if (dy < -24 && !open) p.onSteg("midt")
-    if (dy > 24 && open) p.onSteg("line")
+    if (dy < -24 && !open) { dro.current = true; p.onSteg("midt") }
+    if (dy > 24 && open) { dro.current = true; p.onSteg("line") }
   }
 
   const content =
@@ -502,14 +528,22 @@ function MobileArket(p: ArketProps) {
         style={{
           ...HAIR,
           width: "calc(100vw - 24px)",
-          maxHeight: "40dvh",
+          height: open ? SKUFF_H : undefined,
+          maxHeight: SKUFF_H,
           background: "var(--paper)",
           color: "var(--ink)",
           transform: pull ? `translateY(${pull}px)` : undefined,
         }}
       >
-        <div
-          className="shrink-0"
+        {/* GREPET. Han var berre eit merke å dra i; no er han òg knappen som
+            lèt att, av di lina under er borte når skuffa er open. Eit drag
+            gjer det same som før, og klikket som fylgjer eit drag vert
+            svelgd (`dro`) so han ikkje vippar attende. */}
+        <button
+          type="button"
+          aria-label={open ? "lat att kontrollane" : "opne kontrollane"}
+          aria-expanded={open}
+          className="hit w-full shrink-0 pb-1"
           style={{ touchAction: "none" }}
           onPointerDown={(e) => { if (e.pointerType !== "mouse") drag.current = { y: e.clientY, id: e.pointerId } }}
           onPointerMove={(e) => {
@@ -518,34 +552,47 @@ function MobileArket(p: ArketProps) {
           }}
           onPointerUp={dragOpp}
           onPointerCancel={dragOpp}
+          onClick={() => {
+            if (dro.current) { dro.current = false; return }
+            if (open) p.onSteg("line")
+            else { setFane("grupper"); p.onSteg("midt") }
+          }}
         >
-          <div aria-hidden="true" className="mx-auto mt-2 h-1 w-9 rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 22%, transparent)" }} />
-        </div>
+          <span aria-hidden="true" className="mx-auto mt-2 block h-1 w-9 rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 22%, transparent)" }} />
+        </button>
 
-        <div className="flex h-9 shrink-0 items-center gap-1 px-2">
-          <button
-            type="button"
-            aria-label="plan, delar, ark og tid"
-            onClick={() => {
-              if (open) p.onSteg("line")
-              else {
-                setFane("grupper")
-                p.onSteg("midt")
-              }
-            }}
-            className="hit tab min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em]"
-          >
-            <Summary p={p} />
-          </button>
-          <button type="button" aria-label="eksport" title="uttak" onClick={() => setOpenFane("uttak")} className={ICON_BTN} aria-pressed={open && fane === "uttak"}>
-            {IcoUttak}
-          </button>
-        </div>
+        {/**
+          * LINA ER SKUFFA NÅR HO ER LUKKA, OG INGENTING NÅR HO ER OPEN.
+          *
+          * Ho stod i båe tilstandane, og open var ho ei rad som sa det same
+          * fanene under alt seier — med eit uttaksikon som er den siste fana
+          * ein gong til. To inngangar til det same, éin rad frå kvarandre.
+          *
+          * So ho er det lukka arket, og berre det. Grepet over lèt att.
+          */}
+        {!open && (
+          <div className="flex h-9 shrink-0 items-center gap-1 px-2">
+            <button
+              type="button"
+              aria-label="plan, delar, ark og tid"
+              onClick={() => { setFane("grupper"); p.onSteg("midt") }}
+              className="hit tab min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em]"
+            >
+              <Summary p={p} />
+            </button>
+            <button type="button" aria-label="eksport" title="uttak" onClick={() => setOpenFane("uttak")} className={ICON_BTN}>
+              {IcoUttak}
+            </button>
+          </div>
+        )}
 
         {open && (
           <>
             <Tabs fane={fane} onFane={setFane} />
-            <div className="min-h-0 shrink overflow-hidden">
+            {/* fanen fyller det som er att av den faste høgda, og rullar
+                om ho treng meir enn det. `overscroll-contain` av di sida
+                sjølv aldri rullar. */}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {content}
             </div>
           </>

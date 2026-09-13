@@ -1040,15 +1040,17 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
     // trykket: kort, og stillestandande
     let tapDown = { x: 0, y: 0, t: 0, id: -1 }
 
-    const restore = () => {
-      if (!snap || !controls) return
+    const restore = (til: { pos: THREE.Vector3; target: THREE.Vector3 } | null = snap) => {
+      if (!til || !controls) return
       // resten av draget FYRST: elles legg han seg oppå det vi nett sette
       roOrbit(controls)
-      camera.position.copy(snap.pos)
-      controls.target.copy(snap.target)
+      camera.position.copy(til.pos)
+      controls.target.copy(til.target)
       controls.update?.()
       invalidate()
     }
+    /** kameraet slik det STÅR i dette biletet — det ein gest stoggar det på */
+    const her = () => (controls ? { pos: camera.position.clone(), target: controls.target.clone() } : null)
     const measure2 = () => {
       const [a, b] = [...pts.values()]
       return { cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y), a: Math.atan2(b.y - a.y, b.x - a.x) }
@@ -1328,14 +1330,39 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       if (pts.size === 1 && controls) snap = { pos: camera.position.clone(), target: controls.target.clone() }
       if (pts.size === 2 && mode !== "lys") {
         // den andre fingeren er her: peikaren vert aldri sleppt til orbiten
+        const heldAtt = !!attheld
+        const staar = her()
         attheld = null
         taKameraet(controls)
         const c = measure2()
         last = c
-        // Den fyrste fingeren rakk å snu synet litt før den andre landa; det
-        // høyrer ikkje til gesten, so det vert lagt attende. Og alle tre
-        // gestane er levande frå no, kvar med si daudsone.
-        restore()
+        /**
+         * EIT SYN DU FAKTISK SNUDDE VERT IKKJE TEKE ATTENDE.
+         *
+         * Vart den fyrste fingeren halden att heile vegen, har synet ikkje
+         * rørt seg eitt bilete, og `restore()` er ei forsikring som kostar
+         * ingenting. Slapp han derimot forbi grensa, ER han eit drag: synet
+         * har snudd, du SÅG det snu, og du gjorde det sjølv. Å leggje det
+         * attende i det den andre fingeren landar er ikkje å halde kameraet
+         * i ro — det er å rykkje det.
+         *
+         * Målt på koden som stod, med den fyrste fingeren på vandring dei
+         * seksti pikslane ei hand går medan ho legg seg ned: synet svinga ut
+         * til 3,2 einingar på ein avstand av 14,5 og vart rykt heilt attende
+         * i eitt bilete. Sluttilstanden var perfekt, og difor gjekk han
+         * gjennom kvar einaste vakt — dei las alle SLUTTEN.
+         *
+         * OG DET STOGGAR DER DET STÅR, ikkje der orbiten var på veg. `roOrbit`
+         * brukar opp resten av dempinga for at synet ikkje skal drive vidare
+         * etter at kontrollane er slegne av — men «brukt opp» er eit steg
+         * framover, og det steget er eit rykk: målt til 1,4 einingar i det
+         * biletet den andre fingeren landa. Kameraet vert difor sett attende
+         * til der det stod FØR resten vart brukt opp.
+         *
+         * Regelen står: TO FINGRAR RØRER ALDRI KAMERAET. Det som hende før
+         * den andre fingeren, hende med éin.
+         */
+        restore(heldAtt ? snap : staar)
         tak = taTak(c.cx, c.cy)
         sam = { x0: c.cx, y0: c.cy, d0: Math.max(1, c.d), sistA: c.a, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null }
         mode = "sam"
@@ -1344,8 +1371,11 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
         mode = "lys"
         const c = centroid()
         last = { cx: c.x, cy: c.y, d: 0, a: 0 }
+        const staar3 = her()
         taKameraet(controls)
-        restore()
+        // same saka som over: den tredje fingeren tek ikkje attende eit syn
+        // du snudde, han stoggar det der det står
+        restore(attheld ? snap : staar3)
         naa.current.onGest("lys")
       }
     }
