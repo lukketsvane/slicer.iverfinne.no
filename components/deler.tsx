@@ -45,21 +45,22 @@ export const UTTAK: readonly { bolk: string; filer: readonly { id: ExportKind; l
       { id: "ark", label: "ark", hint: "platene slik dei er pakka, ei fil per plate" },
       { id: "png", label: "png", hint: "dei same platene som bilete — til meldingar, ikkje til maskina" },
       { id: "prove", label: "passprøve", hint: "sju spor, kvart 0,05 mm breiare. skjer i di eiga plate og set klaringa" },
+      { id: "bogprove", label: "bøyeprøve", hint: "fem rilla felt, kvart med sitt steg. bøy dei, og tak det grovaste som held" },
     ],
   },
   {
     bolk: "alt",
     filer: [
-      { id: "alt", label: "alt", hint: "heile jobben i éi nedlasting: stl, dxf, profilar, plater, passprøve, kuttliste, oppsett" },
+      { id: "alt", label: "alt", hint: "heile jobben i éi nedlasting: stl, dxf, profilar, plater, prøvene, kuttliste, oppsett" },
       { id: "prosjekt", label: "lagre", hint: "oppsettet og nettet i lag. slepp fila inn att, og du står der du gjekk frå" },
     ],
   },
 ]
 
-/** Ein knapp som leverer ei tom fil lyg, og han lyg i LightBurn. Passprøva
- *  og prosjektfila treng ingen delar. */
+/** Ein knapp som leverer ei tom fil lyg, og han lyg i LightBurn. Dei to
+ *  prøvene og prosjektfila treng ingen delar. */
 export function stengd(x: ExportKind, m: Metrics | null): string {
-  if (x === "prove" || x === "prosjekt" || !m) return ""
+  if (x === "prove" || x === "bogprove" || x === "prosjekt" || !m) return ""
   if (m.parts === 0) return "ville vorte ei tom fil: ingen delar"
   // «flat» og «3mf» er nestinga si: får ingen del plass på plata, ligg ingen del flatt
   if ((x === "ark" || x === "png" || x === "dxf" || x === "alt" || x === "flat" || x === "3mf") && m.sheets === 0) {

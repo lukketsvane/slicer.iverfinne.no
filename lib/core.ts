@@ -512,6 +512,8 @@ export type ExportKind =
   /** platene som bilete. Rasterisert på hovudtråden, sjå `pngAvArk`. */
   | "png"
   | "prove"
+  /** og den andre prøva: fem rilla felt med kvart sitt steg, til å bøye */
+  | "bogprove"
   | "alt"
   | "prosjekt"
 
