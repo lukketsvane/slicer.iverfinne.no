@@ -205,6 +205,24 @@ ynske ikkje gjer det:
    han for å rette noko. Kvar kanal er det same: kva ho eig, kva ho melder, kva
    ho slepper. Det er `arbitrering`, og i dag er ho fordelt utover 925 liner.
 
+   **Gjort den 13., for STREKHANDTAKA.** `Handa` 976 → 921 liner, og `Streket`
+   er 126. To ting kom ut av det som er verdt meir enn dei femti linene:
+
+   - **Arbitreringa er eitt ord.** `arb` seier kven som held gesten, og `Handa`
+     les han i `handtakGaar()`. Det var `mode` som gjorde den jobben, og `mode`
+     er eit delt skop — nett det ein kanal utanfor ikkje kan nå. Kanal nummer
+     to treng ikkje finne opp mønsteret på nytt.
+   - **Grepet må liggje i ein ref, ikkje i ein `let` inni effekten.** Fyrste
+     utgåva mista det: køyrde effekten om att medan fingeren var nede, vart
+     closuren riven ned, og rørslene etterpå fann ingenting å flytte. Det
+     gjeld kvar einaste kanal som vert flytta ut.
+
+   **Og vakta kom FØRST.** Kanalen har tre modus, og berre «flytt» var prøvd —
+   storleik og vri stod utan dekning, medan alle tre deler stat og slepp. Ei
+   utflytting utan dei to hadde vore ein refaktor i blinde på to tredelar av
+   koden. Dei to nye prøvene felte utflyttinga med ein gong, og det er heile
+   grunnen til at rekkjefylgja er det ho er.
+
 `REBUILD.md` punkt 1 seier kva som kollapsar når han vert teken: rutenettet,
 låsen, nålene og kvart tilfelle per akse er ei form kvar i dag og skulle vore
 éi liste. Det er den store innsparinga, og han er framleis uteken.

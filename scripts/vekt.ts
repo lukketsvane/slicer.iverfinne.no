@@ -58,7 +58,17 @@ const TAK: [string, number][] = [
   // sjølv, og ikkje eit resultat. Han er ein EIGEN komponent og ikkje ein
   // kanal til i `Handa`, av di det er den eine vegen som ikkje gjer den
   // funksjonen større
-  ["components/scene.tsx", 3759],
+  // +118 den 13.: fyrste kanalen UT AV `Handa` — strekhandtaka. `PLAN.md`
+  // punkt 2: kvar gest er den same saka, og alle seks låg i eitt skop på ni
+  // hundre liner. `Handa` gjeng 976 → 921, og `Streket` er 126 med
+  // grunngjeving.
+  //
+  // FILA VERT STØRRE AV EI UTFLYTTING, og det er ærleg: koden som flytta
+  // seg bar lite med seg, medan kanalen fekk skrive ned kva han EIG, kva
+  // han MELDER og kva han SLEPP — og arbitreringa, som var eit delt `mode`
+  // og no er eitt ord (`arb`) båe kan lesa. Det er den skrivinga som gjer
+  // at kanal nummer to kan flyttast utan å finne opp mønsteret på nytt
+  ["components/scene.tsx", 3890],
   // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
