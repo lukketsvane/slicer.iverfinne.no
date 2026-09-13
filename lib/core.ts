@@ -333,6 +333,15 @@ export type Delplass = {
   ut: string
   /** hòla, kvart som si eiga bane */
   inn: string[]
+  /**
+   * RILLA, SOM ÉIN BANE MED MANGE DELSTREKK.
+   *
+   * Éin streng og ikkje ei liste, av di ho aldri vert fylt og aldri peikt
+   * på: eit mønster er éi handling. Og av di ei bøygd plate har seks hundre
+   * av dei — seks hundre element i treet, per del, ville kosta meir enn
+   * alt anna på plata til saman.
+   */
+  rille: string
   /** boksen kring han, til å ramme inn den som er peikt på */
   boks: { x: number; y: number; w: number; h: number }
   /**

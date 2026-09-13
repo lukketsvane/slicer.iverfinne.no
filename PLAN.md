@@ -704,6 +704,73 @@ att, og `pnpm raad` bryt regelen med to plan på 45°.
 
 ---
 
+## H. ~~Ein bøygd del kan ikkje vera strammare enn plata toler~~ — no vert han RILLA
+
+**Gjort den 13.** `lib/rille.ts`, 237 liner.
+
+Sak A gav den bøygde delen ledd. Han hadde framleis ei grense som ingenting kom
+forbi: `bog`-regelen. Tre millimeter finér toler 300 mm radius, seks toler 600,
+og under det stod lina hard med eitt einaste råd — «rett ut bøyen». Ein
+krakksete i den radien folk faktisk sit på fanst ikkje i reiskapen.
+
+Regelen sa sjølv kvar vegen gjekk, og det hadde han sagt sidan han vart
+skriven: *«Bøyeplate og kerfsnitt kjem under dette — og det er den vegen steg
+to går.»*
+
+No gjer det det. Under grensa får plata RADER MED SNITT på tvers av bøyen, eit
+steg på ei platetjukn, anna kvar rad forskuva ein halv periode so bruene ikkje
+står på line. Plata bøyer seg ikkje lenger som ei plate; ho bøyer seg som eit
+hengsle.
+
+**OG SPERRESONA ER IKKJE EIN FUNKSJON — HO ER DET SOM HELD RESTEN SANT.** Eit
+band langs heile sporlina, tre tjukner til kvar side, der ingen snitt kjem.
+Fysisk er det opplagt: godset som ber eit ledd skal ikkje vera perforert. Men
+det er samstundes det einaste som gjer at leddrekninga framleis stemmer —
+`stykkeLangs` les godset LANGS sporlina, og eit rillesnitt som kryssa henne
+ville gjeve leddet ein skulder som ikkje finst. `pnpm ledd` er prøva, og ho
+står: 0 tapte, 0 utan gods på begge sider, i alle 26 sakene.
+
+Tre ting kom fram undervegs som ikkje stod i planen:
+
+**Eit rillesnitt er ei LINE og ikkje ein ring.** Fyrste utgåva la snitta blant
+`holes`. Då rauk `pnpm ledd` på volum — 20 % — av di øyreklippet ikkje greier
+seks hundre tynne hòl i eitt polygon. Og kuttlengda vart dobbel: ein ring vert
+gått ned den eine sida og attende den andre. Målt på eit krumt skal i 3 mm
+finér: 44 meter som ringar, 22 som liner. So rilla vart ein TREDJE SLAGS BANE i
+kuttfila — open, utan kompensasjon, av di opninga ER snittbreidda — og
+`pnpm rekkje` måtte lære han: vakta las areal null som «ikkje eit hòl» og
+dimed som eit omriss.
+
+**Materialet rører geometrien no, og det gjorde det ikkje før.** `snittKey`
+heldt materialet utanfor med vilje — «det rører ikkje geometrien» — og det er
+ikkje sant lenger: kva materialet toler avgjer OM det er eit mønster. Eit
+snitt hugsa utan materialet i nøkkelen gav papp sitt mønster, altso ingen, til
+ei finérplate, og ingenting feila. `params.ts` åtvarar mot nett den feilen og
+seier at ho har hendt to gonger; dette var den tredje, og ho vart fanga av at
+tala ikkje endra seg når materialet gjorde det.
+
+**Og tidsvakta måtte gjevast opp, tre gonger, før ho vart til noko anna.**
+Fyrste freistnad varma opp med den same saka og las eit bufra null. Andre dropp
+oppvarminga og målte JIT-en: 1,1 s fyrste kallet, 0,3 s andre, same kva for eit
+material som kom fyrst — talet sa 2,6× og meinte «V8 hadde ikkje sett denne
+koden før». Tredje bygde kroppen inni målinga, og han vert bufra mellom dei to,
+so det RILLA bygget kom ut RASKARE enn det urilla. Tida er målt ved å kalle
+mønsteret direkte — 50 ms for 3000 snitt, mot ei snitting på kring 300 — og ho
+står i `tak.ts` som eit TAL. Vakta tel snittliner i staden, og måler at radene
+ligg eit heilt tal steg frå kvarandre. Det er determinert, og det prøver
+mekanismen.
+
+**Kva reiskapen ikkje seier, og det står i regelen:** om brua held. Det er
+vriding i eit materiale som ikkje er likt i to retningar, og det talet er ikkje
+lese av geometrien. Regelen går raud berre når mønsteret ikkje LET SEG LEGGJE —
+når verktyet er so grovt at snittet et rada. Alt anna er ein prøvestrimmel.
+
+**Att står dei fem andre konstruksjonsprinsippa**, og dei er eit anna slag
+arbeid enn dette: kryss-lask, kile, glidande spor, bøy-til-lås, og hud på
+waffle. Rilla var føresetnaden for dei fire fyrste av dei.
+
+---
+
 # Rekkjefylgja
 
 Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
@@ -752,7 +819,14 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
    17  Møta som er kurver vert talde (G)     → pnpm probe: 24 + 8 = 32 ledd når
                                                  bøyen er borte ✓ GJORT
 
-Fjorten av sytten er gjorde. To er strøkne av målingar — pakkesøket og den
+   18  Rilla, og den stive øya (H)          → pnpm ledd: 0 tapte i 26 saker ·
+                                                 pnpm rekkje: 660 opne baner i
+                                                 den innvendige bunken, SVG og
+                                                 DXF like · pnpm tak: 53 rader,
+                                                 eit heilt steg frå kvarandre,
+                                                 verst 0,0000 mm ✓ GJORT
+
+Femten av atten er gjorde. To er strøkne av målingar — pakkesøket og den
 romlege delinga — og begge står att på sida med tala som tok dei, av di ein
 plan som stryk feila sine lærer ingen noko. Elleve står att, og han er
 strukturell: han har ingen frist, og han vert billegare kvar gong nokon

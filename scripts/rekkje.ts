@@ -67,7 +67,17 @@ function pathPts(d: string): Pt[] {
     .map((q) => q.split(",").map(Number) as Pt)
 }
 
-type Steg = { grav: boolean; areal: number; y: number; bb: [number, number, number, number] }
+/**
+ * `open` er DEN TREDJE SLAGS BANA, og ho kom med rilla.
+ *
+ * Ei kuttfil hadde to slag: ein lukka ring som er eit omriss, og ein lukka
+ * ring som er eit hòl — og kven som er kven vert lese av VINDINGA. Eit
+ * rillesnitt er korkje: det er ei OPA line, arealet er null, og vindinga
+ * seier ingenting. Utan dette flagget les vakta arealet null som «ikkje eit
+ * hòl» og dimed som eit omriss, og so stod kvar einaste rille som eit omriss
+ * midt i bunken med innvendige kutt.
+ */
+type Steg = { grav: boolean; open: boolean; areal: number; y: number; bb: [number, number, number, number] }
 
 const boks = (pts: Pt[]): [number, number, number, number] =>
   pts.length
@@ -86,7 +96,7 @@ function svgSteg(namn: string, svg: string): Steg[] {
     const grav = GRAV_FARGE.test(m[2])
     fargar.add((m[2].match(/stroke="([^"]+)"/i)?.[1] ?? "").toLowerCase())
     const pts = pathPts(m[1])
-    out.push({ grav, areal: grav ? 0 : shoelace(pts), y: 0, bb: boks(pts) })
+    out.push({ grav, open: !/Z\s*$/i.test(m[1].trim()), areal: grav ? 0 : shoelace(pts), y: 0, bb: boks(pts) })
   }
   // To fargar, og ikkje ein til — utan at handa har bede om det. Ein
   // tredje farge er eit tredje lag i LightBurn: eitt nokon må hugse å slå
@@ -207,7 +217,9 @@ function vinding(steg: Steg[]): number {
 
 function sjekkSteg(namn: string, steg: Steg[]) {
   const v = vinding(steg)
-  const innvendig = (s: Steg) => !s.grav && s.areal * v < 0
+  // ei OPA line er alltid eit innvendig kutt: ho er rilla, og ho skal
+  // skjerast medan delen framleis sit fast i plata
+  const innvendig = (s: Steg) => !s.grav && (s.open || s.areal * v < 0)
   let settKutt = false
   let settOmriss = false
   for (const s of steg) {
@@ -258,6 +270,7 @@ function dxfSteg(namn: string, dxf: string): Steg[] {
   const t = dxf.split(/\r\n/)
   const out: Steg[] = []
   let lag = ""
+  let open = false
   let pts: Pt[] | null = null
   let x = 0
   let iEnt = false
@@ -273,9 +286,11 @@ function dxfSteg(namn: string, dxf: string): Steg[] {
     else if (kind === "ENDSEC" || kind === "EOF") iEnt = false
     else if (iEnt && !DXF_ENT.has(kind)) framandeEnt.add(kind)
     if (kind === "POLYLINE") {
-      if (pts) out.push(steg(lag, pts))
+      if (pts) out.push(steg(lag, pts, open))
       lag = t[i + 3] === undefined ? "" : t[i + 3]
       if (!lovlegLag(lag)) framandeLag.add(lag)
+      // 70 er lukka-flagget, og det står rett etter «66 1» i den same bolken
+      open = t[i + 6] === "70" && t[i + 7] === "0"
       pts = []
     } else if (kind === "VERTEX" && pts) {
       for (let j = i; j < i + 14; j++) {
@@ -287,14 +302,15 @@ function dxfSteg(namn: string, dxf: string): Steg[] {
       }
     }
   }
-  if (pts) out.push(steg(lag, pts))
+  if (pts) out.push(steg(lag, pts, open))
   if (framandeLag.size) feil(namn, `framande lag: ${[...framandeLag].join(", ")}`)
   if (framandeEnt.size) feil(namn, `framande entitetar: ${[...framandeEnt].join(", ")}`)
   return out
 }
 
-const steg = (lag: string, pts: Pt[]): Steg => ({
+const steg = (lag: string, pts: Pt[], open = false): Steg => ({
   grav: lag === "GRAVER",
+  open,
   areal: lag === "GRAVER" ? 0 : shoelace(pts),
   y: pts.length ? Math.min(...pts.map((q) => q[1])) : 0,
   bb: boks(pts),
@@ -373,6 +389,26 @@ const saker: [string, Params][] = [
   // før — gravering, hòl, omriss — sjølv om to av delane er i ein annan
   // farge. Kva fargen gjeld, prøver `merkteLag` under.
   ["kube, to plan merkte", { ...GRUNN, plan: medFarge(medFarge(nett(4, 4), 2, 3), 5, 5) }],
+  /**
+   * RILLA I FILA: DEN TREDJE SLAGS BANA.
+   *
+   * Eit krumt skal i 3 mm finér med radius 250 mm. Finéren toler 300, so
+   * x-familien vert RILLA — seks hundre opne liner per del — medan
+   * y-familien står flat og urørt. Saka prøver tre ting ingen av dei andre
+   * kan prøve: at linene i det heile kjem med i fila, at dei står i den
+   * INNVENDIGE bunken (ei rille skorne etter omrisset er ei rille i ein del
+   * som alt har falle ned i maskina), og at SVG og DXF skriv det same talet.
+   *
+   * Utan denne saka var heile rilla usynleg for `pnpm rekkje`: dei andre
+   * sakene har ikkje eit einaste bøygd plan.
+   */
+  ["kube, x-familien rilla", {
+    ...GRUNN,
+    storleik: 300,
+    tjukn: 3,
+    material: "finer",
+    plan: skrivPlan(lesPlan(nett(3, 3)).map((q) => (q.n[0] === 1 ? { ...q, bog: 1.2 } : q))),
+  }],
 ]
 
 /** kuttfila er éi fil per plate, so kvar plate vert prøvd for seg */
@@ -496,7 +532,7 @@ function merkteLag(namn: string, p: Params) {
     const vent = new Map<number, number>()
     for (const q of sheet.placed) {
       if (!q.part.farge) continue
-      vent.set(q.part.farge, (vent.get(q.part.farge) ?? 0) + 1 + placedRings(q).holes.length)
+      vent.set(q.part.farge, (vent.get(q.part.farge) ?? 0) + 1 + q.part.holes.length + q.part.rille.length)
     }
     for (const [farge, tal] of vent) {
       const hex = LAG_FARGAR[farge]
@@ -510,7 +546,7 @@ function merkteLag(namn: string, p: Params) {
     }
     // kuttet elles er blått, graveringa svart, og ikkje noko anna
     const blaa = (svg.match(/stroke="#0000ff"/g) ?? []).length
-    const alle = sheet.placed.reduce((a, q) => a + 1 + placedRings(q).holes.length, 0)
+    const alle = sheet.placed.reduce((a, q) => a + 1 + q.part.holes.length + q.part.rille.length, 0)
     const merkte = [...vent.values()].reduce((a, b) => a + b, 0)
     if (blaa !== alle - merkte) feil(`${namn} · ark ${i + 1}`, `${blaa} blå baner, venta ${alle - merkte}`)
     const lagOrden = [...dxf.matchAll(/\r\n2\r\n(GRAVER|KUTT|C\d\d)\r\n70\r\n/g)].map((m) => m[1])
@@ -607,7 +643,7 @@ function inventar(namn: string, p: Params, svg: Steg[][], dxf: Steg[][]) {
     feil(namn, `pakkinga: ${dl.delar.length} delar inn, ${lagde} lagde + ${ns.spilt} spilte ut`)
   }
 
-  const venta = ns.sheets.map((s) => s.placed.reduce((n, q) => n + 1 + q.part.holes.length, 0))
+  const venta = ns.sheets.map((s) => s.placed.reduce((n, q) => n + 1 + q.part.holes.length + q.part.rille.length, 0))
   const talde = (steg: Steg[][]) => steg.map((q) => q.filter((r) => !r.grav).length)
 
   for (const [fil, fekk] of [

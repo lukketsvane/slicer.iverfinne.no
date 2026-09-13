@@ -202,9 +202,12 @@ function prøvd(tekst: string, r: Ringar, p: Pt, room: number, wide: number) {
 }
 
 /** delen sine konturar der han faktisk ligg på plata */
-export function placedRings(q: Placed): { outline: Pt[]; holes: Pt[][] } {
+export function placedRings(q: Placed): { outline: Pt[]; holes: Pt[][]; rille: Pt[][] } {
   return {
     outline: q.part.outline.map((p) => apply(q.slot.m, p)),
     holes: q.part.holes.map((h) => h.map((p) => apply(q.slot.m, p))),
+    // rilla gjennom den SAME plasseringa som omrisset: ho er kutt i den same
+    // fila, og ei line som vart snudd for seg ville lege på tvers av delen
+    rille: q.part.rille.map((l) => l.map((p) => apply(q.slot.m, p))),
   }
 }

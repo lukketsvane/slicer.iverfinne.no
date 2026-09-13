@@ -37,6 +37,7 @@ import type { Solid, Span } from "./mesh/solid"
 import { rull, vend, type BitBoks, type Kropp } from "./kropp"
 import { add3, akser, bogPar, cross, dot, ein2, inn, kryss as kryssAv, kryssBoygd, kryssRing, len3, lesPlan, moteInn, mul3, norm3, omrissLine, skrivPlan, ut, type Mote, type Plan, type Ramme, type Strek } from "./plan"
 import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
+import { bogMin, rilla } from "./rille"
 
 /**
  * Ruter langs den lengste sida av objektet, per detaljnivå.
@@ -220,6 +221,16 @@ export type Ribbe = {
   holes: Pt[][]
   /** profilen FØR spora: ringane ledda vart lesne av. Vaktene spør dei. */
   raa: Pt[][]
+  /**
+   * RILLA: opne snittliner, kvar med to punkt, i profilen si eiga ramme.
+   *
+   * Dei er IKKJE hòl, og det er ei avgjerd med to grunnar. Fysisk er eit
+   * rillesnitt ei line laseren går ein gong, ikkje ein ring han går rundt.
+   * Og i huset er eit hòl noko som vert triangulert inn i plata: seks hundre
+   * tynne hòl braut øyreklippet og tok tjue prosent av volumet i `pnpm ledd`.
+   * Mønsteret høyrer heime i KUTTFILA, og ribba ber det dit.
+   */
+  rille: Pt[][]
   spor: Spor[]
   /** netto areal etter spor og hòl, mm² */
   area: number
@@ -345,6 +356,8 @@ export type Del = {
   farge?: number
   outline: Pt[]
   holes: Pt[][]
+  /** rillesnitta som fell i dette stykket — opne liner. Sjå `Ribbe.rille`. */
+  rille: Pt[][]
   t: number
   area: number
   mass: number
@@ -1381,6 +1394,42 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       holes = holes.filter((h) => heil.some((o) => inRing(o, h[0])))
       outlines = heil
     }
+    /**
+     * RILLA — og den STIVE ØYA rundt kvart spor.
+     *
+     * Eit bøygt plan strammare enn plata toler fekk til no ein hard regel og
+     * eit råd om å rette ut bøyen. No får det eit mønster i staden (sjå
+     * `rille.ts`), og regelen seier kva mønsteret kostar.
+     *
+     * SPERRESONA ER IKKJE PYNT. Ho er det som held resten av huset sant: eit
+     * ledd vert lese av `stykkeLangs` LANGS sporlina si, gjennom omriss og
+     * hòl, og eit rillesnitt som kryssa den lina ville delt godset i to og
+     * gjeve leddet ein botn som ikkje finst. Difor er sona eit BAND langs
+     * heile lina og ikkje ein flekk rundt sporet — og det er samstundes det
+     * rette svaret fysisk: godset som ber eit ledd skal ikkje vera
+     * perforert. `pnpm ledd` er prøva på at bandet er breitt nok.
+     */
+    const rille: Pt[][] = []
+    const R = a.r.k ? 1 / Math.abs(a.r.k) : Infinity
+    if (R < bogMin(String(p.material), p.tjukn)) {
+      // langt nok til å dekkje HEILE stykket uansett kvar sporlina har
+      // nullpunktet sitt: bandet skal ut av delen i begge endar
+      const b = bbox(outlines.flat())
+      const lang = 2 * Math.hypot(Math.max(Math.abs(b.x0), Math.abs(b.x1)), Math.max(Math.abs(b.y0), Math.abs(b.y1)))
+      const h = 3 * p.tjukn
+      const sperr = a.spor.map((q) => {
+        const ring: Pt[] = []
+        const n = q.k ? 16 : 1
+        for (let i = 0; i <= n; i++) ring.push(sporPunkt(q, -lang + (2 * lang * i) / n, h))
+        for (let i = n; i >= 0; i--) ring.push(sporPunkt(q, -lang + (2 * lang * i) / n, -h))
+        return ring
+      })
+      for (const o of outlines) {
+        rille.push(
+          ...rilla({ omriss: o, hol: holesOf(o), sperr, k: a.r.k, tjukn: p.tjukn, material: p.material }),
+        )
+      }
+    }
     let area = 0
     let cut = 0
     for (const o of outlines) {
@@ -1391,6 +1440,11 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       area -= Math.abs(shoelace(h))
       cut += perimeter(h)
     }
+    // RILLA KOSTAR KUTTLENGD OG IKKJE AREAL. Lengda er lina éin gong — ein
+    // ring ville vore to. Arealet står: eit rillesnitt tek ei snittbreidd,
+    // det 3D-nettet ikkje syner heller, og to sanningar om kor mykje gods
+    // delen har er verre enn ein halv prosent på massen.
+    for (const l of rille) cut += Math.hypot(l[1][0] - l[0][0], l[1][1] - l[0][1])
     // Det tynnaste godset: målt langs sporet, frå botnen til den andre
     // kanten av det stykket botnen står i. Botnen og ikkje munnen peikar
     // ut stykket: munnen ligg per definisjon PÅ kanten og svarar på to.
@@ -1409,6 +1463,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       outlines,
       holes,
       raa: a.ringar,
+      rille,
       spor: a.spor,
       area,
       narrow: Number.isFinite(narrow) ? narrow : 0,
@@ -1584,7 +1639,11 @@ export function buildDelar(sn: Snitt, p: Params): DelListe {
       }
       const b = bbox(o)
       const mineSpor = sporIn(r.spor, o)
-      const key = [ringSig(o, b.x0, b.y0), ...mine.map((h) => ringSig(h, b.x0, b.y0))].join("|")
+      const mineRille = fleire ? r.rille.filter((l) => inRing(o, l[0])) : r.rille
+      for (const l of mineRille) cut += Math.hypot(l[1][0] - l[0][0], l[1][1] - l[0][1])
+      // Rilla er med i signaturen: to stykke med same omriss og ulikt mønster
+      // er to ulike kuttfiler, og dei skal ikkje dele oppspenning.
+      const key = [ringSig(o, b.x0, b.y0), ...mine.map((h) => ringSig(h, b.x0, b.y0)), mineRille.length].join("|")
       let id = seen.get(key)
       if (!id) {
         id = `D${String(ids.length + 1).padStart(2, "0")}`
@@ -1598,6 +1657,7 @@ export function buildDelar(sn: Snitt, p: Params): DelListe {
         ...(r.plan.farge ? { farge: r.plan.farge } : {}),
         outline: o,
         holes: mine,
+        rille: mineRille,
         t,
         area,
         mass: (area * t * rho) / 1e9,

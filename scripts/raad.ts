@@ -405,9 +405,16 @@ prov("godset er tynt", "gods", {
  */
 /**
  * BØYEN, BROTEN MED VILJE. Ein halv meter kropp i seks millimeter finér
- * toler seks hundre millimeter radius; `bog` på 1,5 gjev to hundre, og
- * begge bøyereglane skal seie frå — den om materialet og den om at eit
- * bøygt plan ikkje ber ledd enno.
+ * toler seks hundre millimeter radius; `bog` på 1,5 gjev to hundre.
+ *
+ * AVGJERDA HER ER SNUDD DEN 13. Før var ein for stram bøy eit HARDT brot, og
+ * det einaste rådet var å rette han ut. No vert plata RILLA i staden — rader
+ * med snitt på tvers av bøyen, med ei stiv øy rundt kvart spor (`rille.ts`)
+ * — og då er ein stram bøy ei avgjerd med ein pris, ikkje ein feil. Prøva
+ * under les difor det motsette av det ho las før, og saka som faktisk BRYT
+ * `bog` står lenger nede: ho er ikkje lenger radien, ho er snittet.
+ *
+ * `bogledd` er urørt: eit bøygt plan som ikkje ber ledd er framleis hardt.
  */
 const boygd = (bog: number): Params =>
   ({
@@ -424,9 +431,9 @@ const boygd = (bog: number): Params =>
   const r = reglane(p)
   const bogR = r.find((q) => q.id === "bog")
   const leddR = r.find((q) => q.id === "bogledd")
-  ok("ein for stram bøy er eit hardt brot", !!bogR && bogR.hard && !bogR.ok, bogR?.value)
+  ok("ein for stram bøy vert RILLA og er ikkje eit brot", !!bogR && !bogR.hard && bogR.ok && /rilla/.test(bogR.value), bogR?.value)
   ok("og eit bøygt plan seier at det ikkje ber ledd", !!leddR && leddR.hard && !leddR.ok, leddR?.value)
-  for (const q of [bogR, leddR]) {
+  for (const q of [leddR]) {
     if (!q?.fiks) { ok(`${q?.id} har eit råd`, false); continue }
     const etter = reglane({ ...p, ...q.fiks.set } as Params).find((x) => x.id === q.id)
     ok(`rådet «${q.fiks.ord}» rettar ${q.id}`, !!etter?.ok, etter?.value)
@@ -488,6 +495,23 @@ const boygd = (bog: number): Params =>
   // og ein bøy som GÅR skal ikkje seie frå om materialet
   const mild = reglane(boygd(0.4)).find((q) => q.id === "bog")
   ok("ein bøy innanfor det materialet toler er ok", !!mild?.ok, mild?.value)
+
+  /**
+   * OG DET SOM FAKTISK BRYT `bog`: SNITTET ET RADA.
+   *
+   * Rilla er svaret på ein stram bøy, men ho har ei grense, og ho er
+   * verktyet og ikkje materialet. Rada ligg ei platetjukn frå den neste i
+   * finér; skjer du med ein fres på to millimeter, er det ikkje att gods
+   * mellom to rader i det heile. Då er det ikkje eit hengsle, og regelen
+   * skal seie frå — og rådet skal rette DET han kan rette.
+   */
+  const grov = { ...boygd(1.5), tjukn: 3, snitt: 2 } as Params
+  const grovR = reglane(grov).find((q) => q.id === "bog")
+  ok("ein fres som et rada er eit hardt brot", !!grovR && grovR.hard && !grovR.ok, grovR?.value)
+  if (grovR?.fiks) {
+    const etter = reglane({ ...grov, ...grovR.fiks.set } as Params).find((q) => q.id === "bog")
+    ok(`rådet «${grovR.fiks.ord}» rettar bog`, !!etter?.ok, etter?.value)
+  } else ok("bog har eit råd", false)
 
   /**
    * OG EIT BØYGT PLAN SOM FAKTISK BER LEDD SKAL IKKJE SEIE FRÅ.

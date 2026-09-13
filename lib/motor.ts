@@ -26,7 +26,7 @@ import { meshToGlb } from "./export-glb"
 import { delarTo3mf } from "./export-3mf"
 import { meshToUsdz } from "./export-usdz"
 import { sheetDxf } from "./export-dxf"
-import { couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
+import { bane, couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
 import { zip } from "./zip"
 import { DEFAULT_PARAMS, GROUPS, PARAM_KEYS, PARAM_RANGES, clampParams, type Params } from "./params"
 
@@ -439,6 +439,10 @@ export const MOTOR: EngineDef = {
           id: q.part.id,
           ut: ring(utr),
           inn: r.holes.map((h) => ring(offsetPoly(h, -kerf / 2))),
+          // rilla står i synet av di ho står i fila: plata på skjermen ER
+          // plata, og eit mønster du ikkje ser før fila er opna er eit
+          // mønster ingen kontrollerer
+          rille: r.rille.map((l) => bane(l)).join(" "),
           boks: { x: bb.x0, y: bb.y0, w: bb.x1 - bb.x0, h: bb.y1 - bb.y0 },
           plass: { sheet: q.slot.sheet, rot: q.slot.rot, x: q.slot.sx, y: q.slot.sy },
           merke: merket(q.part.adr, q.label),
