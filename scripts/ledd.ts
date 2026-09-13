@@ -30,7 +30,7 @@ import { DETAIL, jointsIn, sporPunkt, stykkeLangs, type Snitt, type Ribbe as Rib
 import { DEFAULT_PARAMS, leddNokkel, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
-import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
+import { lesPlan, rutenett, skrivPlan, ut, type Strek } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 /**
@@ -269,7 +269,56 @@ function sjekk(namn: string, p: Params): number {
 
   const vol = volumAvvik(g, p.tjukn)
 
-  const ok = tapt === 0 && uteneskulder === 0 && nabo === 0 && godsOk && vol.tal === 0 && hopp === 0
+  /**
+   * OG DEI TO SIDENE AV EIT LEDD SKAL VERA DET SAME LEDDET.
+   *
+   * Alt over prøver kvar ribbe FOR SEG: at sporet står i profilen, at det er
+   * gods på begge sider, at det ikkje går inn i nabostykket. Ingenting av det
+   * spør om det andre sporet — og eit ledd er to spor som skal møtast.
+   *
+   * Påstanden ligg i `Spor`: «buelengd er òg det som gjer at dei to sidene av
+   * eit ledd kan lesa det same talet». Han vert prøvd slik: botnen på kvar
+   * side, ført ut i ROMMET gjennom kvar si ramme. To tal som tyder det same
+   * skal gje det same punktet.
+   *
+   * DET ER HER EIT BØYGT LEDD KAN RYKE UTAN AT NOKO ANNA SEIER FRÅ. På flate
+   * plan er lengd lengd og påstanden er triviell. På ei bøygd flate er `u`
+   * BUELENGD, og at han framleis tyder det same på den andre sida av leddet
+   * er ei rekning — ikkje ein definisjon. Går ho gale, kjem begge delane ut
+   * med spor som ser rette ut kvar for seg, og møtest ikkje i verkstaden.
+   *
+   * Og `t` — kvar i overlappet botnen står — skal vera det same talet på båe
+   * sidene. Det er det som gjer at eit djupare spor i den eine er eit
+   * grunnare i den andre, utan at nokon reknar det om.
+   */
+  const par = new Map<string, { r: Rib; q: Spor }[]>()
+  for (const r of g.ribber) {
+    for (const q of r.spor) {
+      if (!r.outlines.some((o) => jointsIn([q], o) > 0)) continue
+      const l = par.get(q.nokkel)
+      if (l) l.push({ r, q })
+      else par.set(q.nokkel, [{ r, q }])
+    }
+  }
+  let motVerst = 0
+  let motUlikT = 0
+  let motTal = 0
+  for (const [, sider] of par) {
+    if (sider.length !== 2) continue
+    const [A, B] = sider
+    const pa = ut(A.r.r, paa(A.q, A.q.botn))
+    const pb = ut(B.r.r, paa(B.q, B.q.botn))
+    motVerst = Math.max(motVerst, Math.hypot(pa[0] - pb[0], pa[1] - pb[1], pa[2] - pb[2]))
+    const ta = (A.q.botn - A.q.lo) / (A.q.hi - A.q.lo || 1)
+    const tb = (B.q.botn - B.q.lo) / (B.q.hi - B.q.lo || 1)
+    if (Math.abs(ta - tb) > 1e-9) motUlikT++
+    motTal++
+  }
+  // ein tidels snittbreidd: under det maskina kan halde, og fire storleiksordenar
+  // over det rekninga faktisk kjem ut på (1,6e−6 mm på eit bøygt skal)
+  const motOk = motVerst < 0.02 && motUlikT === 0
+
+  const ok = tapt === 0 && uteneskulder === 0 && nabo === 0 && godsOk && vol.tal === 0 && hopp === 0 && motOk
   if (!ok) brot++
   console.log(
     `${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ` +
@@ -278,6 +327,7 @@ function sjekk(namn: string, p: Params): number {
       `${nabo} inn i nabostykket${nabo ? ` (verst ${naboVerst.toFixed(1)} mm)` : ""}` +
       `${godsOk ? "" : ` · GODS ${godsVerst.toFixed(1)} mm`}` +
       `${vol.tal ? ` · VOLUM ${vol.tal} ribber, verst ${(vol.verst * 100).toFixed(0)} %` : ""}` +
+      `${motOk ? ` · ${motTal} par møtest` : ` · PAR ${motVerst.toFixed(3)} mm frå kvarandre, ${motUlikT} med ulik t`}` +
       `${hopp ? ` · HOPP i nummereringa på ${hopp} kryssingsliner` : ""}` +
       `${g.avvist ? ` · ${g.avvist} avviste av skuldra` : ""}`,
   )
