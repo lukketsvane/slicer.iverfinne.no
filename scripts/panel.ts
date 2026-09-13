@@ -785,6 +785,62 @@ async function telefon(browser: Browser) {
     // draget må få falle på plass i angrestakken før neste endring, elles er
     // dei to éi bokføring — som er meint, men ikkje det vakta måler her
     await page.waitForTimeout(1400)
+
+    /**
+     * OG DEI TO ANDRE HANDTAKA, som stod uprøvde.
+     *
+     * Kanalen har tre modus — flytt, storleik, vri — og berre den fyrste
+     * var måld. Dei tre deler stat (`stak`) og slepp (`sleppHandtak`), so
+     * ein feil i den delte delen synte seg berre i ein tredel av han.
+     *
+     * Kvar av dei vert prøvd på SITT EIGE TAL: storleiken på `w`, vridinga
+     * på `a`. Ei prøve som berre spurde «endra strengen seg» ville stått
+     * grøn om draget flytta streken i staden for å vri han.
+     */
+    const drag = async (vel: string, dx: number, dy: number) => {
+      const b = await page.locator(vel).boundingBox()
+      if (!b) return false
+      /**
+       * OG STARTPUNKTET MÅ VERA PÅ SKJERMEN.
+       *
+       * Handtaka fylgjer streken, og har du drege han ut mot kanten ligg
+       * eit av dei halvvegs utanfor. Midten av boksen er då x = 390 på ein
+       * skjerm som er 390 brei, og fingeren landar ingen stad: vrihandtaket
+       * stod «a 0 → 0» av det og ikkje av koden.
+       */
+      const vp = page.viewportSize()!
+      const x = Math.max(2, Math.min(b.x + b.width / 2, vp.width - 2))
+      const y = Math.max(2, Math.min(b.y + b.height / 2, vp.height - 2))
+      const cdp2 = await page.context().newCDPSession(page)
+      const pk = (px: number, py: number) => [{ x: px, y: py, id: 0, radiusX: 4, radiusY: 4, force: 1 }]
+      await cdp2.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pk(x, y) })
+      for (let i = 1; i <= 12; i++) {
+        await cdp2.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pk(Math.max(2, Math.min(x + (dx * i) / 12, vp.width - 2)), Math.max(2, Math.min(y + (dy * i) / 12, vp.height - 2))) })
+        await page.waitForTimeout(16)
+      }
+      await cdp2.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+      await cdp2.detach()
+      await roleg(page, 600)
+      return true
+    }
+    const strek0 = plana(page)[0].strek[0]
+    if (await drag("[data-handtak='strek-storleik']", 40, 40)) {
+      const na = plana(page)[0].strek[0]
+      sjekk("storleikshandtaket endrar BREIDDA og ikkje staden", Math.abs((na?.w ?? 0) - (strek0?.w ?? 0)) > 0.01, `w ${strek0?.w} → ${na?.w} · x ${strek0?.x} → ${na?.x}`)
+      await page.waitForTimeout(1400)
+    }
+    const strek1 = plana(page)[0].strek[0]
+    // PÅ TVERS AV RADIEN og ikkje langs han: handtaket ligg ut frå midten,
+    // so eit drag rett utover endrar avstanden og ikkje vinkelen. Fyrste
+    // utgåva drog langs, fekk «a 0 → 0», og det var prøva som var feil.
+    // OG LANGT NOK: vridinga snappar til 0° og 90° innan fem grader, so eit
+    // kort drag vert dregest attende dit det kom frå. Prøva må ut av det
+    // vindauget for å måle noko anna enn snappet.
+    if (await drag("[data-handtak='strek-vri']", 0, 180)) {
+      const na = plana(page)[0].strek[0]
+      sjekk("vrihandtaket endrar VINKELEN", Math.abs((na?.a ?? 0) - (strek1?.a ?? 0)) > 0.5, `a ${strek1?.a} → ${na?.a}`)
+      await page.waitForTimeout(1400)
+    }
   }
   await page.keyboard.press("Backspace")
   await vent(page, (p) => lesPlan(p.plan)[0]?.strek.length === 0)

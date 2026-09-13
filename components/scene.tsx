@@ -126,6 +126,26 @@ const tilVerd = (f: Ramma, p: Vec3) => new THREE.Vector3(f.s * (p[0] - f.cx), f.
 const fraaVerd = (f: Ramma, v: THREE.Vector3): Vec3 => [v.x / f.s + f.cx, f.cy - v.z / f.s, (v.y - GROUND_Y) / f.s]
 const nTilVerd = (n: Vec3) => new THREE.Vector3(n[0], n[2], -n[1])
 const nFraaVerd = (v: THREE.Vector3): Vec3 => [v.x, -v.z, v.y]
+
+/**
+ * DER STRÅLEN GJENNOM EIT SKJERMPUNKT RÅKAR EIT PLAN, i planet si ramme —
+ * millimeter frå planet sitt punkt. Null når planet står på kant.
+ *
+ * Han stod inni `Handa`, og to kanalar der las han: trykket som vel eit
+ * strek, og draget i strekhandtaka. Det er den same rekninga for begge, og
+ * det er ei rekning som ikkje treng vita noko om kva ein gest er — ho tek
+ * eit kamera, ei ramme og eit punkt, og svarar. Difor står han her: ein
+ * kanal som vert flytta ut skal kunne ta han med seg utan å ta `Handa` med.
+ */
+function paaPlanetAv(camera: THREE.Camera, size: { width: number; height: number }, f: Ramma, r: Ramme, px: number, py: number): Pt | null {
+  const ray = new THREE.Vector3((px / size.width) * 2 - 1, 1 - (py / size.height) * 2, 0.5).unproject(camera).sub(camera.position).normalize()
+  const n = nTilVerd(r.n)
+  const k = ray.dot(n)
+  if (Math.abs(k) < 0.02) return null
+  const t = tilVerd(f, r.o).sub(camera.position).dot(n) / k
+  if (t <= 0) return null
+  return inn(r, fraaVerd(f, camera.position.clone().addScaledVector(ray, t)))
+}
 const diag = (f: Ramma) => Math.hypot(f.max[0] - f.min[0], f.max[1] - f.min[1], f.max[2] - f.min[2])
 /** vinkelskilnad inn i (-π, π] */
 const vinkel = (ny: number, gml: number) => {
@@ -529,10 +549,166 @@ type Tak = {
 /** snappet: fem grader til loddrett og vassrett på skjermen, fire pikslar til midtplanet i kroppen */
 const SNAPP_VRI = (5 * Math.PI) / 180
 const SNAPP_PX = 4
+/**
+ * STREKHANDTAKA — fyrste kanalen ute av `Handa`.
+ *
+ * `PLAN.md` punkt 2: kvar gest i `Handa` er den same saka — kva ho EIG, kva
+ * ho MELDER, kva ho SLEPP — og i dag ligg alle seks i eitt skop på ni
+ * hundre liner. Kvar feil som er retta i gestane har vore den same feilen:
+ * ein kanal las ei hending som høyrde ein annan til. Det er ikkje uflaks,
+ * det er forma på funksjonen.
+ *
+ * Denne eig `stak`: kva strek som vert drege, kva han var, og kva peikar
+ * som held han. Ho melder gjennom `setLive` og `onSynStrek` medan fingeren
+ * går, og gjennom `onStrek` når han slepper — det er den einaste skrivinga
+ * som hamnar i angrestakken. Og ho slepper ved å tømme `stak` og gje
+ * kameraet attende.
+ *
+ * ARBITRERINGA ER EITT ORD. `arb` seier kven som held gesten, og `Handa`
+ * les han: ein finger til på lerretet medan eit handtak går skal ikkje snu
+ * synet. Det var `mode` som gjorde den jobben før, og `mode` er eit delt
+ * skop — det er nett det ein kanal ute av huset ikkje kan nå.
+ */
+function Streket({ f, r, valt, valdStrek, S, boks, arb, snapp, setLive, onSynStrek, onStrek }: {
+  f: Ramma | null
+  /** ramma til det valde planet */
+  r: Ramme | null
+  valt: Plan | null
+  valdStrek: number | null
+  S: number
+  /** handtaksboksen scena eig; kanalen finn sine eigne tre der */
+  boks: HTMLElement | null
+  arb: MutableRefObject<string | null>
+  snapp: MutableRefObject<{ vri: boolean; pos: boolean }>
+  setLive: (l: Live | null) => void
+  onSynStrek: (id: number, i: number, s: Strek) => void
+  onStrek: (id: number, i: number, s: Strek) => void
+}): null {
+  const camera = useThree((q) => q.camera)
+  const size = useThree((q) => q.size)
+  const controls = useThree((q) => q.controls) as Orbit | null
+  const invalidate = useThree((q) => q.invalidate)
+  const naa = useRef({ f, r, valt, valdStrek, S, setLive, onSynStrek, onStrek })
+  naa.current = { f, r, valt, valdStrek, S, setLive, onSynStrek, onStrek }
+
+  /**
+   * GREPET LEVER LENGER ENN EFFEKTEN.
+   *
+   * Det stod som ein `let` inni `useEffect` fyrst, og det er den vanlege
+   * feilen: køyrer effekten om att medan fingeren er nede — ei ny `size`,
+   * eit `controls` som kjem til — vert closuren riven ned, `stak` er borte,
+   * og rørslene etterpå finn ingenting å flytte. Målt: `ned` sette grepet,
+   * og fyrste `rorsle` las `stak=false`.
+   *
+   * Ein ref høyrer komponenten til og ikkje køyringa av effekten, so grepet
+   * står til fingeren slepper det.
+   */
+  const stakRef = useRef<{ id: number; i: number; plan: number; slag: "flytt" | "stor" | "vri"; s0: Strek; s: Strek | null; r: Ramme; q0: Pt; ang0: number } | null>(null)
+
+  useEffect(() => {
+    if (!boks) return
+    const slepp = () => {
+      stakRef.current = null
+      arb.current = null
+      if (controls) controls.enabled = true
+    }
+    const ned = (e: PointerEvent) => {
+      const h = (e.target as Element).closest<HTMLElement>("[data-handtak]")
+      const slag = h?.dataset.handtak ?? ""
+      if (!h || !slag.startsWith("strek-")) return
+      if ((e.pointerType === "mouse" && e.button !== 0) || arb.current) return
+      const { valt: pl, valdStrek: vi, r: rr, S: SS } = naa.current
+      const s0 = pl && vi !== null ? pl.strek[vi] : undefined
+      if (!pl || vi === null || !s0 || !rr) return
+      e.preventDefault()
+      e.stopPropagation()
+      const midt = strekMidt(s0, SS)
+      const q0 = (naa.current.f && paaPlanetAv(camera, size, naa.current.f, rr, e.clientX, e.clientY)) || midt
+      stakRef.current = {
+        id: e.pointerId, i: vi, plan: pl.id,
+        slag: slag === "strek-flytt" ? "flytt" : slag === "strek-storleik" ? "stor" : "vri",
+        s0, s: null, r: rr, q0, ang0: Math.atan2(q0[1] - midt[1], q0[0] - midt[0]),
+      }
+      arb.current = "strek"
+      taKameraet(controls)
+      try {
+        h.setPointerCapture(e.pointerId)
+      } catch {
+        /* peikaren kan vera borte alt */
+      }
+    }
+    const rorsle = (e: PointerEvent) => {
+      // BERRE DEN PEIKAREN SOM TOK TAK. Den andre fingeren kjem hit òg.
+      const stak = stakRef.current
+      if (!stak || e.pointerId !== stak.id) return
+      const g = naa.current.f
+      const q = g && paaPlanetAv(camera, size, g, stak.r, e.clientX, e.clientY)
+      if (!q) return
+      const SS = naa.current.S
+      const s0 = stak.s0
+      const sn = { vri: false, pos: false }
+      let s: Strek
+      if (stak.slag === "flytt") {
+        s = { ...s0, x: klem(s0.x + (q[0] - stak.q0[0]) / SS, 1.5), y: klem(s0.y + (q[1] - stak.q0[1]) / SS, 1.5) }
+      } else if (stak.slag === "stor") {
+        // hjørnet nede til høgre fylgjer fingeren og midten står: det fingeren
+        // har gått i streken si eiga ramme, lagt til halvsidene — som skilnad
+        // frå der han tok tak, so handtaket kan stå utanfor hjørnet utan at
+        // storleiken hoppar. Ein rund strek held same mål begge vegar.
+        const a = (s0.a * Math.PI) / 180
+        const dx = q[0] - stak.q0[0]
+        const dy = q[1] - stak.q0[1]
+        const lx = dx * Math.cos(a) + dy * Math.sin(a)
+        const ly = -dx * Math.sin(a) + dy * Math.cos(a)
+        const minst = 0.01 * SS
+        let hw = Math.max(minst, (s0.w * SS) / 2 + lx)
+        let hh = Math.max(minst, (s0.h * SS) / 2 - ly)
+        if (s0.form === "rund") hw = hh = Math.max(minst, (s0.w * SS) / 2 + (lx - ly) / 2)
+        s = { ...s0, w: Math.min(2, (2 * hw) / SS), h: Math.min(2, (2 * hh) / SS) }
+      } else {
+        // vinkelen i planet, kring midten; snappar til 0 og 90 innan fem grader
+        const ang = Math.atan2(q[1] - s0.y * SS, q[0] - s0.x * SS)
+        let a = (((s0.a + ((ang - stak.ang0) * 180) / Math.PI) % 360) + 360) % 360
+        const naer = Math.round(a / 90) * 90
+        if (Math.abs(a - naer) < 5) {
+          a = naer % 360
+          sn.vri = true
+        }
+        s = { ...s0, a: +a.toFixed(2) }
+      }
+      stak.s = s
+      snapp.current = sn
+      naa.current.setLive({ id: stak.plan, i: stak.i, s })
+      naa.current.onSynStrek(stak.plan, stak.i, s)
+      invalidate()
+    }
+    const opp = (e: PointerEvent) => {
+      const stak = stakRef.current
+      if (!stak || e.pointerId !== stak.id) return
+      // sleppt: det streken vart til er ÉI endring i parametrane — og eitt steg i angre
+      if (stak.s) naa.current.onStrek(stak.plan, stak.i, stak.s)
+      naa.current.setLive(null)
+      snapp.current = { vri: false, pos: false }
+      slepp()
+    }
+    boks.addEventListener("pointerdown", ned)
+    window.addEventListener("pointermove", rorsle, { passive: true })
+    window.addEventListener("pointerup", opp, { passive: true })
+    window.addEventListener("pointercancel", opp, { passive: true })
+    return () => {
+      boks.removeEventListener("pointerdown", ned)
+      window.removeEventListener("pointermove", rorsle)
+      window.removeEventListener("pointerup", opp)
+      window.removeEventListener("pointercancel", opp)
+    }
+  }, [boks, camera, size, controls, invalidate, arb, snapp])
+  return null
+}
+
 /** snittet i verda, til handtaka: midten av det største stykket, og punkta på ringane (tynna) */
 type SnittVerd = { midt: THREE.Vector3; punkt: THREE.Vector3[] }
 
-function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
+function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, arb, snapp, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
   f: Ramma | null
   fri: ReturnType<typeof fritt>
   /** grensesnittet søv: skissa fell bort med resten */
@@ -540,6 +716,19 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
   modus: Modus
   /** kva vinklar snappet kjenner, i grader. Null er av. */
   snappSteg: number
+  /**
+   * KVEN SOM HELD GESTEN, på tvers av kanalar.
+   *
+   * `mode` inni her seier kva DENNE funksjonen driv med. Ein kanal som er
+   * flytta ut har sin eigen stat, og `Handa` må likevel vita at han går —
+   * elles landar ein finger til på lerretet midt i eit handtaksdrag og snur
+   * synet. Det er heile arbitreringa, og ho er eitt ord i staden for eit
+   * delt skop.
+   */
+  arb: MutableRefObject<string | null>
+  /** det siste snappet ein gest gjorde: tikken på lappen. Delt, av di
+   *  fleire kanalar snappar og ÉI line les det. */
+  snapp: MutableRefObject<{ vri: boolean; pos: boolean }>
   /** montasjen står: handa teiknar ingenting, og fingrane endrar ingenting */
   montasje: boolean
   /** ein prikk på ei side av ein bit er teken — sjå `Sidehandtak` */
@@ -634,8 +823,6 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
   const kamSist = useRef({ x: NaN, y: NaN, z: NaN, d: NaN, fov: NaN })
   /** skissa slik ho sist gjekk til motoren, i verda: flyttar ho seg ikkje, spør vi ikkje om att */
   const sist = useRef<{ o: THREE.Vector3; n: THREE.Vector3 } | null>(null)
-  /** det siste snappet ein gest gjorde: tikken på lappen */
-  const snapp = useRef({ vri: false, pos: false })
   const skrive = useRef("")
 
   /** kameraet sine aksar i verda */
@@ -824,7 +1011,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
   useEffect(() => {
     const el = gl.domElement
     const pts = new Map<number, { x: number; y: number }>()
-    type Gest = "none" | "sam" | "lys" | "hFlytt" | "hVri" | "musFlytt" | "musVri" | "musRute" | "sFlytt" | "sStor" | "sVri"
+    type Gest = "none" | "sam" | "lys" | "hFlytt" | "hVri" | "musFlytt" | "musVri" | "musRute"
     let mode: Gest = "none"
     /** der musa tok rutenettet, og kva peikar det var: draget vert lese
      *  frå det punktet, og berre frå den peikaren */
@@ -835,9 +1022,9 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
      * handtak som alle andre, og dei står i sin eigen komponent, so dei
      * melder seg gjennom refen (`Sidehandtak`).
      */
-    const handtakGaar = () => sideDra.current || mode === "hFlytt" || mode === "hVri" || mode === "sFlytt" || mode === "sStor" || mode === "sVri"
+    /** noko held ein gest: eit handtak her, eller ein kanal som er flytta ut */
+    const handtakGaar = () => sideDra.current || !!arb.current || mode === "hFlytt" || mode === "hVri"
     /** taket på eit strek: kva plan og kva strek, slik han stod, planet si ramme, og punktet under fingeren i henne */
-    let stak: { id: number; i: number; plan: number; s0: Strek; s: Strek | null; r: Ramme; q0: Pt; ang0: number } | null = null
     /** eit trykk som valde eller slepte eit strek: klikket som fylgjer skal ikkje òg velje ein del eller sleppe planet */
     let svelgKlikk = false
     /** to fingrar: dra, vri og klyp SAMSTUNDES, kvar med si daudsone */
@@ -1021,7 +1208,6 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
     const slepp = () => {
       mode = "none"
       tak = null
-      stak = null
       naa.current.onGest(null)
     }
     /** handtaket sleppt: orbiten får kameraet att */
@@ -1029,17 +1215,10 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       if (controls) controls.enabled = true
       slepp()
     }
-    /** der strålen gjennom eit skjermpunkt råkar planet, i planet si ramme — millimeter frå planet sitt punkt. Null når planet står på kant. */
+    /** sjå `paaPlanetAv`: ramma kjem herifrå, rekninga står utanfor */
     const paaPlanet = (px: number, py: number, r: Ramme): Pt | null => {
       const { f } = naa.current
-      if (!f) return null
-      const ray = straale(px, py)
-      const n = nTilVerd(r.n)
-      const k = ray.dot(n)
-      if (Math.abs(k) < 0.02) return null
-      const t = tilVerd(f, r.o).sub(camera.position).dot(n) / k
-      if (t <= 0) return null
-      return inn(r, fraaVerd(f, camera.position.clone().addScaledVector(ray, t)))
+      return f ? paaPlanetAv(camera, size, f, r, px, py) : null
     }
     /**
      * EIT TRYKK MED EIT PLAN VALT: på eit strek vel det streken, på snittet
@@ -1189,49 +1368,6 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
         if (Math.hypot(e.clientX - attheld.x, e.clientY - attheld.y) < DRAG_PX) restore()
         else attheld = null
       }
-      if (mode === "sFlytt" || mode === "sStor" || mode === "sVri") {
-        if (!stak || e.pointerId !== stak.id) return
-        const q = paaPlanet(e.clientX, e.clientY, stak.r)
-        if (!q) return
-        const S = naa.current.storleik
-        const s0 = stak.s0
-        const sn = { vri: false, pos: false }
-        let s: Strek
-        if (mode === "sFlytt") {
-          s = { ...s0, x: klem(s0.x + (q[0] - stak.q0[0]) / S, 1.5), y: klem(s0.y + (q[1] - stak.q0[1]) / S, 1.5) }
-        } else if (mode === "sStor") {
-          // hjørnet nede til høgre fylgjer fingeren og midten står: det fingeren
-          // har gått i streken si eiga ramme, lagt til halvsidene — som skilnad
-          // frå der han tok tak, so handtaket kan stå utanfor hjørnet utan at
-          // storleiken hoppar. Ein rund strek held same mål begge vegar.
-          const a = (s0.a * Math.PI) / 180
-          const dx = q[0] - stak.q0[0]
-          const dy = q[1] - stak.q0[1]
-          const lx = dx * Math.cos(a) + dy * Math.sin(a)
-          const ly = -dx * Math.sin(a) + dy * Math.cos(a)
-          const minst = 0.01 * S
-          let hw = Math.max(minst, (s0.w * S) / 2 + lx)
-          let hh = Math.max(minst, (s0.h * S) / 2 - ly)
-          if (s0.form === "rund") hw = hh = Math.max(minst, (s0.w * S) / 2 + (lx - ly) / 2)
-          s = { ...s0, w: Math.min(2, (2 * hw) / S), h: Math.min(2, (2 * hh) / S) }
-        } else {
-          // vinkelen i planet, kring midten; snappar til 0 og 90 innan fem grader
-          const ang = Math.atan2(q[1] - s0.y * S, q[0] - s0.x * S)
-          let a = (((s0.a + ((ang - stak.ang0) * 180) / Math.PI) % 360) + 360) % 360
-          const naer = Math.round(a / 90) * 90
-          if (Math.abs(a - naer) < 5) {
-            a = naer % 360
-            sn.vri = true
-          }
-          s = { ...s0, a: +a.toFixed(2) }
-        }
-        stak.s = s
-        snapp.current = sn
-        naa.current.setLive({ id: stak.plan, i: stak.i, s })
-        naa.current.onSynStrek(stak.plan, stak.i, s)
-        invalidate()
-        return
-      }
       if (mode === "musRute") {
         // BERRE PEIKAREN SOM TOK DRAGET. Ei rørsle frå ein annan — ein
         // finger som landar, ei melding nokon andre sender — er ikkje dette
@@ -1370,13 +1506,6 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       if (mode === "musRute") return sleppHandtak()
       if (mode === "musFlytt" || mode === "musVri") return slepp()
       if ((mode === "hFlytt" || mode === "hVri") && tak && e.pointerId === tak.id) return sleppHandtak()
-      if ((mode === "sFlytt" || mode === "sStor" || mode === "sVri") && stak && e.pointerId === stak.id) {
-        // sleppt: det streken vart til er éi endring i parametrane — og eitt steg i angre
-        if (stak.s) naa.current.onStrek(stak.plan, stak.i, stak.s)
-        naa.current.setLive(null)
-        snapp.current = { vri: false, pos: false }
-        return sleppHandtak()
-      }
       if (attheld && e.pointerId === attheld.id) attheld = null
       if (!pts.delete(e.pointerId)) return
       if (pts.size === 0) {
@@ -1425,35 +1554,27 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
     const nedHandtak = (e: PointerEvent) => {
       const h = (e.target as Element).closest<HTMLElement>("[data-handtak]")
       if (!h || (e.pointerType === "mouse" && e.button !== 0)) return
+      const slag = h.dataset.handtak ?? ""
+      // STREKHANDTAKA HØYRER `Streket` TIL. Han lyttar på den same boksen og
+      // tek sine eigne tre; denne skal ikkje stogge hendinga på veg dit.
+      if (slag.startsWith("strek-")) return
       e.preventDefault()
       e.stopPropagation()
       if (handtakGaar()) return
-      const slag = h.dataset.handtak ?? ""
-      const strek = slag.startsWith("strek-")
-      if (strek) {
-        const { valt, valdStrek, rValt, storleik: S } = naa.current
-        const s0 = valt && valdStrek !== null ? valt.strek[valdStrek] : undefined
-        if (!valt || valdStrek === null || !s0 || !rValt) return
-        const midt = strekMidt(s0, S)
-        const q0 = paaPlanet(e.clientX, e.clientY, rValt) ?? midt
-        stak = { id: e.pointerId, i: valdStrek, plan: valt.id, s0, s: null, r: rValt, q0, ang0: Math.atan2(q0[1] - midt[1], q0[0] - midt[0]) }
-        mode = slag === "strek-flytt" ? "sFlytt" : slag === "strek-storleik" ? "sStor" : "sVri"
-      } else {
-        const t = taTak(e.clientX, e.clientY, e.pointerId)
-        if (!t) return
-        if (slag === "vri") {
-          t.a0 = Math.atan2(e.clientY - t.senter.y, e.clientX - t.senter.x)
-          mode = "hVri"
-        } else mode = "hFlytt"
-        tak = t
-      }
+      const t = taTak(e.clientX, e.clientY, e.pointerId)
+      if (!t) return
+      if (slag === "vri") {
+        t.a0 = Math.atan2(e.clientY - t.senter.y, e.clientX - t.senter.x)
+        mode = "hVri"
+      } else mode = "hFlytt"
+      tak = t
       try {
         h.setPointerCapture(e.pointerId)
       } catch {
         // ein peikar som alt er sleppt
       }
       taKameraet(controls)
-      naa.current.onGest(strek ? "strek" : "snitt")
+      naa.current.onGest("snitt")
     }
     const svelg = (e: MouseEvent) => {
       if (!svelgKlikk) return
@@ -3433,6 +3554,15 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   /** prikkane på ledda, som DOM over lerretet — sjå `Spora` */
   const [sporBoks, setSporBoks] = useState<HTMLDivElement | null>(null)
   /** og prikkane på punkta i omrisset — sjå `Omrisset` */
+  /**
+   * KVEN SOM HELD GESTEN. Sjå `Streket`: ein kanal som er flytta ut av
+   * `Handa` treng eitt ord båe kan lesa, i staden for det delte skopet
+   * `mode` var.
+   */
+  const arb = useRef<string | null>(null)
+  /** det siste snappet ein gest gjorde: tikken på lappen. Fleire kanalar
+   *  skriv han, og éi line les han. */
+  const snapp = useRef({ vri: false, pos: false })
   const [punktBoks, setPunktBoks] = useState<HTMLDivElement | null>(null)
   const [teiknSvg, setTeiknSvg] = useState<SVGSVGElement | null>(null)
   const [sein, setSein] = useState(false)
@@ -3585,7 +3715,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             gong du trykte på ei side av kuben. */}
         <Skodda />
         <Demping onSein={setSein} />
-        <Handa f={f} fri={fri} sov={sov} modus={modus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
+        <Streket f={f} r={rValt} valt={valt} valdStrek={valdStrek} S={storleik} boks={boks} arb={arb} snapp={snapp} setLive={setLive} onSynStrek={onSynStrek} onStrek={onStrek} />
+        <Handa f={f} fri={fri} sov={sov} modus={modus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} arb={arb} snapp={snapp} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
         {/* Kroppen snur heile vegen rundt — undersida er der ledda sit, og
             eit syn du ikkje kjem til er ein kontroll som manglar. */}
         <OrbitControls
