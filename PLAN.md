@@ -807,8 +807,28 @@ frå. Dette er nett den falske raude lina sak A skildrar, sett andre vegen.
 `orden` kan framleis brytast — `pnpm raad` har henne raud på eit plan med to
 vegar inn, og alle sytten reglane var raude ein gong i køyringa.
 
-**Att står fire konstruksjonsprinsipp**: kryss-lask, kile, glidande spor og
-bøy-til-lås. Dei tre siste er eit anna slag arbeid enn dette — kile og
+**KRYSS-LASK VERKA ALT, og det er målt no i staden for gjeta.** Prinsipp 6 på
+lista var «ei flat ribbe går halvvegs inn i den bøygde delen — half-lap som
+blir korrekt først etter bend». Det er `Spor.botn`, og det har stått heile
+tida: båe spora i eit ledd har det same strekket og det same t-et, so eit
+djupare spor i den eine ER eit grunnare i den andre.
+
+Men INGEN PRØVDE DET. Alt i `pnpm ledd` prøver kvar ribbe for seg — at sporet
+står i profilen, at det er gods på begge sider, at det ikkje går inn i
+nabostykket — og eit ledd er to spor som skal MØTAST. Påstanden som bar heile
+den bøygde geometrien, «buelengd er det som gjer at dei to sidene av eit ledd
+kan lesa det same talet», var aldri lesen attende.
+
+No er han det: botnen på kvar side, ført ut i ROMMET gjennom kvar si ramme.
+Målt over alle 26 sakene, og på eit krumt skal ved kvar deling frå 0,2 til
+0,8: **verst 1,6e−6 mm, og 0 par med ulik t.** Vakta er prøvd ved å flytte
+botnen 1 mm på den eine sida — då er kvar einaste sak raud, og ingenting anna
+i heile selen la merke til det.
+
+Det er her eit bøygt ledd kunne ryke i stille: på flate plan er lengd lengd og
+påstanden triviell, på ei bøygd flate er det ei rekning.
+
+**Att står tre konstruksjonsprinsipp**: kile, glidande spor og bøy-til-lås. Dei tre siste er eit anna slag arbeid enn dette — kile og
 glidande spor er «sporet er ikkje eit rektangel», og bøy-til-lås treng
 monteringsvegen og ikkje berre sluttforma.
 
@@ -876,8 +896,13 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
                                                  0 lause, 0 står fast, og øya
                                                  9,1 mm frå sporlina mot krav
                                                  9 ✓ GJORT
+   21  Kryss-lask: dei to sidene av eit     → pnpm ledd: 26 saker, verst
+       ledd møtest i rommet (H)                  1,6e−6 mm, 0 med ulik t. Prøvd
+                                                 raud ved å flytte botnen 1 mm
+                                                 ✓ GJORT — og det var ei
+                                                 MÅLING, ikkje eit bygg
 
-Sytten av tjue er gjorde. To er strøkne av målingar — pakkesøket og den
+Atten av tjueein er gjorde. To er strøkne av målingar — pakkesøket og den
 romlege delinga — og begge står att på sida med tala som tok dei, av di ein
 plan som stryk feila sine lærer ingen noko. Elleve står att, og han er
 strukturell: han har ingen frist, og han vert billegare kvar gong nokon
