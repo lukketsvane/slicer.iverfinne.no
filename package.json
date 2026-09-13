@@ -21,7 +21,9 @@
     "enkel": "tsx scripts/enkel.ts",
     "raad": "tsx scripts/raad.ts",
     "ark": "tsx scripts/ark.ts",
-    "glb": "tsx scripts/glb-sjekk.ts"
+    "glb": "tsx scripts/glb-sjekk.ts",
+    "ios": "node --import tsx scripts/ios-tabs.mts",
+    "skisse": "tsx scripts/skisseverkty.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

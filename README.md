@@ -94,16 +94,31 @@ one thumb, a 390-point screen, the object visible while you work. The page
 itself never zooms, scrolls or lets you select anything; every gesture belongs
 to the object. A slim bar at the top carries the body you are working on
 (tap it for a primitive or another file), the four views, undo and the link.
-A sheet at the bottom has three heights: one line (the live count, the grid
-tool, export), the middle (size and the plane list), everything (material and thickness, the
-sliders, the table with the rules and their fixes, the tools). The tools
-float above it in a column under the right thumb, with the cut button at the
-bottom; the column is a band from the top line down to the sheet, so a long
-stack stops at the line instead of disappearing behind it. The two layout
-tools — the grid and the vortex — sit at the top of it, above everything that
-belongs to a single plane, because they are the same kind of thing: both write
-the whole plane list, and both are set with two fingers. A tool you can only
-reach from a keyboard does not exist on the phone.
+The bottom sheet opens into task tabs: **form, grupper, materiale, kutt,
+sjekk, eksport**. Each has a short second row of settings. The sheet uses at
+most two fifths of the available viewport; long lists and settings use pages,
+not vertical scrolling. Short tabs shrink to their content. The source menu
+has separate pages for built-in forms and saved meshes; cut lists and settings
+use the same page controls. Landscape puts the two tab rows alongside each
+other. All controls retain the existing ink, hairlines and flat states.
+
+**Sketch a profile, then repeat it.** Under **form → skisse**, choose an axis
+and add a plate, round profile, C-profile, cross, saddle or frame. These are
+editable outlines, not replacement meshes: drag their existing point handles,
+add holes, or choose **teikn** to draw your own. Under **form → gjenta**, choose
+a straight row, a fan or a twisted row, set the rib count and centre spacing
+in millimetres, and press **lag rekkje**. Fan and twist also take the total
+angle from the first rib to the last. The original stays put; the new ribs
+form one selected group. Undo removes the whole operation. Individual ribs
+can then be selected and edited. Duplication carries outlines, curves, strokes,
+smoothing and operation colours along with the part. A twisted row requires a
+flat outline. The engine's existing joints, checks and export rules still apply:
+a starter profile or rib array is a sketch, not a verified furniture design.
+
+The tools remain under the right thumb. With the sheet open they wrap into a
+short row above it, so small screens keep the controls clear of the sheet.
+On screens narrower than 361 px the top bar wraps the view tabs to a second
+row to keep the source button reachable.
 
 **The column carries what the view can show.** A tool is a question and an
 answer: you press, and something changes in front of you. If the answer is

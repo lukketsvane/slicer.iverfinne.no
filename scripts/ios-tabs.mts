@@ -4,7 +4,7 @@
 import { chromium, type Page } from "playwright"
 import { spawn } from "node:child_process"
 import { mkdirSync } from "node:fs"
-import { rutenett, skrivPlan } from "../lib/plan"
+import { lesPlan, rutenett, skrivPlan } from "../lib/plan"
 
 const port = 3217
 const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-H", "127.0.0.1", "-p", String(port)])
@@ -93,8 +93,8 @@ try {
       assert(/\.(dxf|zip)$/.test((await download).suggestedFilename()), "DXF export failed")
       await p.getByRole("tablist", { name: "eksport: innstillingar" }).getByRole("tab", { name: "alt", exact: true }).click()
       const toolsNext = p.getByRole("button", { name: "neste side: eksport: alt", exact: true })
-      if (!await p.getByRole("button", { name: "oppsett", exact: true }).count()) await toolsNext.click()
-      await p.waitForTimeout(200)
+      await p.waitForTimeout(150)
+      while (!await p.getByRole("button", { name: "oppsett", exact: true }).count()) { await toolsNext.click(); await p.waitForTimeout(100) }
       await p.getByRole("button", { name: "oppsett", exact: true }).click()
       await pages(p, "oppsett", ".telefon-skuff")
       await p.getByRole("button", { name: "lat att verktyet" }).click()
@@ -105,6 +105,46 @@ try {
       await p.locator("[data-kjelde]").click()
       await p.getByRole("button", { name: "eksport", exact: true }).click()
     }
+    // Ei ny skisse, ei rekkje og eitt angresteg på kvar telefonstorleik.
+    await p.goto(`http://127.0.0.1:${port}/#p=${encodeURIComponent(JSON.stringify({ plan: "", storleik: 150 }))}`)
+    await p.reload()
+    await settled(p)
+    await p.getByRole("button", { name: "plan, delar, ark og tid" }).click()
+    await p.getByRole("tablist", { name: "kontrollfaner", exact: true }).getByRole("tab", { name: "form", exact: true }).click()
+    const skissefaner = p.getByRole("tablist", { name: "form: innstillingar", exact: true })
+    await skissefaner.getByRole("tab", { name: "skisse", exact: true }).click()
+    await p.waitForTimeout(150)
+    const nå = async (mål: ReturnType<Page["getByRole"]>) => {
+      const førre = p.getByRole("button", { name: /^førre side: form:/ })
+      while (await førre.count() && await førre.isEnabled()) { await førre.click(); await p.waitForTimeout(80) }
+      for (let i = 0; !await mål.count() && i < 6; i++) { await p.getByRole("button", { name: /^neste side: form:/ }).click(); await p.waitForTimeout(80) }
+      return mål
+    }
+    await (await nå(p.getByRole("button", { name: "legg til c-profil", exact: true }))).click()
+    await settled(p)
+    const planNo = () => lesPlan(JSON.parse(decodeURIComponent(p.url().split("#p=")[1])).plan)
+    await p.waitForFunction(() => JSON.parse(decodeURIComponent(location.hash.slice(3))).plan?.includes("p:"))
+    assert(planNo().length === 1 && !!planNo()[0].omriss, "startprofil manglar omriss")
+    await skissefaner.getByRole("tab", { name: "gjenta", exact: true }).click()
+    await p.waitForTimeout(150)
+    await (await nå(p.getByRole("spinbutton", { name: "ribber", exact: true }))).fill("6")
+    await p.getByRole("spinbutton", { name: "avstand", exact: true }).fill("8")
+    await (await nå(p.getByRole("button", { name: "lag rekkje", exact: true }))).click()
+    await settled(p)
+    await p.waitForFunction(() => JSON.parse(decodeURIComponent(location.hash.slice(3))).plan?.split(";").length === 6)
+    assert(planNo().every(q => q.omriss && q.gruppe), "rekkja må bere profilen og gruppa")
+    if (out) await p.screenshot({ path: `${out}/skisse-${width}-${height}.png` })
+    await p.getByRole("button", { name: "angre", exact: true }).click()
+    await settled(p)
+    assert(planNo().length === 1, "angre må ta heile rekkja")
+    await p.getByRole("tablist", { name: "kontrollfaner", exact: true }).getByRole("tab", { name: "grupper", exact: true }).click()
+    await p.getByRole("tablist", { name: "grupper: innstillingar", exact: true }).getByRole("tab", { name: "plan", exact: true }).click()
+    await p.getByRole("button", { name: "plan 1", exact: true }).click()
+    await p.getByRole("button", { name: height > 500 ? "plan, delar, ark og tid" : "lat att kontrollane", exact: true }).click()
+    await p.getByRole("tab", { name: "lag", exact: true }).click()
+    await p.getByRole("button", { name: "dubler planet", exact: true }).click()
+    await settled(p)
+    assert(planNo().length === 2 && planNo().every(q => q.omriss?.length === 12), "dubler mista C-profilen")
     if (out) await p.screenshot({ path: `${out}/ios-${width}-${height}-${scheme}.png` })
     console.log(`OK ${width}×${height} ${scheme}: tabs, pages, bounds${height > 500 ? ", values, undo, DXF and settings" : ""}`)
     await p.close()

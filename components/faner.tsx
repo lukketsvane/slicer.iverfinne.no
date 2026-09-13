@@ -3,7 +3,7 @@
 import { Children, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { HAIR } from "./deler"
 
-/** Same ink and hairline as the view tabs. The entire cell is a touch target. */
+/** Same blekk og strek som lesefanene. Heile ruta tek trykket. */
 export function Faner({ label, tabs, value, onChange }: {
   label: string
   tabs: readonly { id: string; label: string; icon?: ReactNode; warn?: boolean }[]
@@ -26,8 +26,8 @@ export function Faner({ label, tabs, value, onChange }: {
   </div>
 }
 
-/** Page through rows, using the space Safari actually leaves us. Never hide a
- * control below a clipped or scrolling sheet; resizing recalculates each page. */
+/** Sidevising etter plassen Safari etterlet. Ei endra rute reknar sidene om,
+ * so ingen kontroll vert gøymd under arket. */
 export function Sidevis({ children, label, rowHeight = 44, selected }: {
   children: ReactNode; label: string; rowHeight?: number; selected?: number
 }) {

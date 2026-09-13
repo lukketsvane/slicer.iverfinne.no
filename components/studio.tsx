@@ -21,7 +21,7 @@ import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupli
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
-
+import { kopierPlan } from "@/lib/skisseverkty"
 /**
  * STUDIOET. Ein parameterpose, ein arbeidar, og det som skal til for at
  * posen overlever: angre, lenkja, økta i nettlesaren, prosjektfila. Alt
@@ -1402,7 +1402,7 @@ export function Studio() {
   /**
    * DUPLISER DET VALDE PLANET.
    *
-   * Same normal, same strek, skuva eitt hakk langs normalen sin so det ikkje
+   * Heile profilen, skuva eitt hakk langs normalen sin so det ikkje
    * vert liggjande oppi det du kopierte. Hakket er to platetjukner, i BRØK
    * av kroppen — plana bur i brøk, og eit tal i millimeter ville flytta seg
    * når du skalerte kroppen. Det nye planet vert valt: du dupliserer for å
@@ -1424,7 +1424,7 @@ export function Studio() {
     const skuv = (p: Plan): Vec3 =>
       p.o.map((c, a) => {
         const vidd = Math.max(1e-6, k.max[a] - k.min[a])
-        return Math.min(1, Math.max(0, +(c + (p.n[a] * 2 * t) / vidd).toFixed(4)))
+        return Math.min(1 + PLAN_ROM, Math.max(-PLAN_ROM, +(c + (p.n[a] * 2 * t) / vidd).toFixed(4)))
       }) as Vec3
     const nyG = kjelde.length > 1 ? nyGruppe(l) : 0
     let ny = nyId(l)
@@ -1434,7 +1434,7 @@ export function Studio() {
       if (m.length + kjelde.length > PLAN_TAK) return cur
       let i = nyId(m)
       ny = i
-      return { ...cur, plan: skrivPlan([...m, ...kjelde.map((p) => ({ id: i++, o: skuv(p), n: p.n, bog: p.bog, strek: p.strek, ...(nyG ? { gruppe: nyG } : {}) }))]) }
+      return { ...cur, plan: skrivPlan([...m, ...kjelde.map((p) => ({ ...kopierPlan(p), id: i++, o: skuv(p), gruppe: nyG || undefined }))]) }
     })
     setVald(leiar)
     setValdGruppe(nyG || null)
@@ -3246,7 +3246,7 @@ export function Studio() {
         hentar={hentar}
 
         onExport={doExport}
-        onReset={() => endre({ ...MOTOR.defaults, kjelde: params.kjelde })}
+        onTeikn={vekslTeikn} onReset={() => endre({ ...MOTOR.defaults, kjelde: params.kjelde })}
         verkty={verkty}
         onVerkty={opneVerkty}
         onHogd={setArkH}

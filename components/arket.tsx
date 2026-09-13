@@ -11,9 +11,10 @@ import {
 } from "./deler"
 import type { VerktyId } from "./verkty"
 import { Faner, Sidevis } from "./faner"
+import { useSkisseverkty } from "./skisseverkty"
 
-/** On iPhone the sheet has a summary and compact task tabs. Long lists
- * have pages; the desktop inspector remains a continuous column. */
+/** Telefonen har ei målline og faner; lange lister har sider.
+ * På benken står kontrollane framleis i ei samanhengande kolonne. */
 export type Steg = "line" | "midt" | "alt"
 export const KOL = 340
 /** storleiken står framme; plata står saman med materialet */
@@ -90,6 +91,7 @@ export type ArketProps = {
 
   onExport: (k: ExportKind) => void
   onReset: () => void
+  onTeikn: () => void
   verkty: VerktyId | null
   onVerkty: (id: VerktyId) => void
   onHogd: (px: number) => void
@@ -560,7 +562,7 @@ const TELEFON_FANER = [
   { id: "eksport", label: "eksport", icon: IcoUttak },
 ] as const
 const TELEFON_BOLKAR: Record<TelefonFane, readonly string[]> = {
-  form: ["storleik", "transform", "nett"],
+  form: ["skisse", "gjenta", "storleik", "transform", "nett"],
   grupper: ["grupper", "plan", "profil", "lag", "snapp"],
   materiale: ["materiale", "tjukn", "plate", "delar"],
   kutt: ["ledd", "kutt", "forenkling"],
@@ -568,10 +570,10 @@ const TELEFON_BOLKAR: Record<TelefonFane, readonly string[]> = {
   eksport: ["rom", "plate", "alt"],
 }
 
-/** One task at a time, inside a sheet that occupies at most two fifths of
- * the viewport. Desktop keeps its existing continuous inspector. */
+/** Ei oppgåve om gongen, i høgst to femdelar av skjermen. */
 function TelefonInnhald({ p, fane, onFane, onInnhaldH }: { p: ArketProps; fane: TelefonFane; onFane: (f: TelefonFane) => void; onInnhaldH: (h: number) => void }) {
   const [val, setVal] = useState<Record<string, string>>({})
+  const skisseverkty = useSkisseverkty(p)
   const tabs = TELEFON_BOLKAR[fane]
   const bolk = val[fane] ?? tabs[0]
   const setParam = (k: string, v: number) => p.onChange({ ...p.params, [k]: v })
@@ -638,6 +640,7 @@ function TelefonInnhald({ p, fane, onFane, onInnhaldH }: { p: ArketProps; fane: 
     for (let i = 0; i < buttons.length; i += 3) rows.push(<div key={i} className="telefon-uttak">{buttons.slice(i, i + 3)}</div>)
     if (broken.length) rows.push(<button key="warning" type="button" className="telefon-rad telefon-varsel" data-uttakvarsel="" onClick={() => { setVal({ ...val, sjekk: "reglar" }); onFane("sjekk") }}>{broken.length} harde brot — sjå sjekk</button>)
   }
+  if (fane === "form" && (bolk === "skisse" || bolk === "gjenta")) rows = skisseverkty[bolk]
   useLayoutEffect(() => onInnhaldH(Math.max(1, rows.length) * rowHeight), [rows.length, rowHeight, onInnhaldH])
   return <>
     <Faner label={`${fane}: innstillingar`} tabs={tabs.map(id => ({ id, label: id }))} value={bolk} onChange={id => setVal({ ...val, [fane]: id })} />

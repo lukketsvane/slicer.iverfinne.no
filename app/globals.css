@@ -854,3 +854,21 @@ main:has(.telefon-ark[data-open]) .tumme {
   justify-content: flex-end;
 }
 main:has(.telefon-ark[data-open]) .tumme > :first-child { margin-top: 0; }
+
+/* To tal side om side: rekkja vert laga fyrst når handa bed om det. */
+.skisse-mål { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; font-size: 10px; }
+.skisse-tal { display: flex; align-items: center; gap: 5px; min-width: 0; flex: 1; }
+.skisse-tal input { width: 48px; min-width: 0; height: 44px; background: transparent; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; text-align: right; font: inherit; color: var(--ink); user-select: text; -webkit-user-select: text; }
+.skisse-tal input:focus { outline: 1px solid var(--ink); outline-offset: -4px; }
+.skisse-tal input::-webkit-inner-spin-button { -webkit-appearance: none; }
+[data-sidekant] .skisse-mål { gap: 4px; font-size: 9px; }
+[data-sidekant] .skisse-tal { gap: 2px; }
+[data-sidekant] .skisse-tal input { width: 30px; }
+
+/* På dei smalaste skjermane må filnamnet framleis kunne trykkjast. */
+@media (max-width: 360px) {
+  .toppline-rad { display: grid; height: auto; grid-template-columns: 36px 36px 1fr 36px; }
+  .toppline-rad > [role="tablist"] { grid-row: 2; grid-column: 1 / -1; justify-content: center; }
+  .toppline-rad > [aria-label="del"] { grid-column: 4; grid-row: 1; }
+  .toppline-rad [data-kjelde] { max-width: 100%; }
+}
