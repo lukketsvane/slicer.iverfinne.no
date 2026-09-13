@@ -87,7 +87,7 @@ const TAK: [string, number][] = [
   // fekk ikkje vera større enn halvanna storleik. Begge kom frå den tida ei
   // flate berre kunne frysast ut av kroppen. Tala er målte og ikkje gjetta:
   // kva ei flate kostar heng ikkje saman med kor stor ho er
-  ["components/studio.tsx", 3175],
+  ["components/studio.tsx", 3181],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko
