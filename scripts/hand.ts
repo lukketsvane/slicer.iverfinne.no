@@ -10,7 +10,7 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
-import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, slaaSaman, snappPunkt, vriOm, MJUK_TAK, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
+import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, slaaSaman, snappPunkt, vriOm, MJUK_TAK, PLAN_ROM, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
@@ -817,6 +817,42 @@ console.log("\nhandtaka på spor-endane:")
   sjekk("to som IKKJE er naboar vert ikkje eitt — ringen ville klemt seg til eit åttetal", over === null)
   const tre = slaaSaman([[0, 0], [1, 0], [0, 1]], 0, 1)
   sjekk("og tre punkt slår aldri saman: under fire er det ikkje ei flate", tre === null)
+
+  /**
+   * OG STEGET STYRER KVA VINKLAR SOM FINST.
+   *
+   * Same punktet, tre ulike steg. Med 45 finst diagonalen frå naboen og
+   * punktet fell på henne; med 90 finst han ikkje og punktet står fritt.
+   * Det er heile skilnaden knappen gjer, og han er prøvd på det eine
+   * punktet der dei to svara IKKJE er like.
+   */
+  // strålen på 45° ned frå naboen (0,1) er lina x + y = 1. Punktet ligg
+  // like utanfor henne — nær nok til å fangast, langt nok til at det SYNEST
+  const diag = snappPunkt(kv, 0, [0.55, 0.48], R, 0.02, 45)
+  sjekk("med steg 45 finst diagonalen frå naboen", diag.slag === "akse" && Math.abs(diag.p[0] + diag.p[1] - 1) < 1e-4, `${diag.slag} → ${diag.p.join(",")}`)
+  const ikkje = snappPunkt(kv, 0, [0.55, 0.48], R, 0.02, 90)
+  sjekk("og med steg 90 finst han ikkje: punktet står der det stod", ikkje.slag === null && ikkje.p[0] === 0.55, `${ikkje.slag} → ${ikkje.p.join(",")}`)
+  const utan = snappPunkt(kv, 0, [0.04, 0.5], R, 0.02, 0)
+  sjekk("og steg null slår vinkelsnappet heilt av", utan.slag === null, `${utan.slag}`)
+
+  /**
+   * OG EIT PLAN FÅR STÅ UTANFOR KROPPEN.
+   *
+   * Grensa var ein halv boks kvar veg, og ho kom frå den tida eit plan berre
+   * kunne skjere noko. Eit plan som ber eit omriss teiknar si eiga flate, og
+   * då er det heilt vanleg å setje han VED SIDA AV kroppen. Det verste med
+   * den gamle grensa var at ho var still: planet vart ikkje flytta, det vart
+   * borte — og fyrst ved neste lesing av strengen.
+   *
+   * Vakta krev begge sidene: at fire boksbreidder står, og at sludder framleis
+   * fell. Ei grense som slepper alt gjennom er ikkje ei grense.
+   */
+  const utePlan = lesPlan(`1@0.5,4,0.5/0,1,0`)
+  sjekk("eit plan fire boksbreidder ute står", utePlan.length === 1, `${utePlan.length} plan`)
+  const langtUte = lesPlan(`1@0.5,9,0.5/0,1,0`)
+  sjekk("og eitt langt utanfor det fell framleis", langtUte.length === 0, `${langtUte.length} plan`)
+  const paaGrensa = lesPlan(`1@0.5,${1 + PLAN_ROM},0.5/0,1,0`)
+  sjekk("og grensa sjølv står", paaGrensa.length === 1, `${paaGrensa.length} plan ved ${1 + PLAN_ROM}`)
 
   // OG RADIEN STYRER: null radius fangar ingenting
   const av = snappPunkt(kv, 0, [0.95, 0.03], 0)

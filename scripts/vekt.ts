@@ -48,7 +48,10 @@ const TAK: [string, number][] = [
   // svarar i millimeter og omrisset står i brøk, so han var to hundre gonger
   // for stor og eit heilt vanleg drag åt opp eit hjørne. Grunngjevinga er
   // lengre enn rettinga, av di neste mann elles rettar henne attende
-  ["components/scene.tsx", 3577],
+  // +12 den 13.: snappet sitt steg er eit tal og ikkje ein konstant — det
+  // gjeld både punkta i eit omriss og vridinga av eit plan, av di det er
+  // den same avgjerda: kva vinklar reiskapen kjenner
+  ["components/scene.tsx", 3589],
   // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
@@ -74,7 +77,17 @@ const TAK: [string, number][] = [
   // du har, og plukkar etterpå — og då må det du henta inn STÅ ein stad.
   // Skiftet lagar ei gruppe og ikkje eit nytt slag utval: det finst ikkje
   // «fleire valde» i denne reiskapen, det finst grupper
-  ["components/studio.tsx", 3092],
+  // +54 den 13.: fire former å stemple, og snappknappen. Formene er ein
+  // runddans på den knappen som fanst — eitt trykk frys, to gjev boksen, og
+  // trykket etter det byter form — so det er ingen ny knapp for dei. Snappet
+  // ER ein ny knapp, og han seier eit TAL: eit ikon for «45 grader» er ei
+  // teikning av eit tal
+  // +29 den 13.: grensene som batt teikninga til kroppen. Eit plan utanfor
+  // boksen vart STILT teke bort når strengen vart lesen, og ei teikna flate
+  // fekk ikkje vera større enn halvanna storleik. Begge kom frå den tida ei
+  // flate berre kunne frysast ut av kroppen. Tala er målte og ikkje gjetta:
+  // kva ei flate kostar heng ikkje saman med kor stor ho er
+  ["components/studio.tsx", 3175],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko
