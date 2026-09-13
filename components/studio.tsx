@@ -1350,6 +1350,13 @@ export function Studio() {
   /**
    * TEIKNE EI FLATE: eit plan som ikkje skjer noko, men som ER noko.
    *
+   * EIN FIRKANT, DREGEN. Reiskapen bad før om eit trykk per hjørne og eit
+   * til på det fyrste for å lukke — fem handlingar for det som er starten
+   * på arbeidet. Og starten var alt han var: kvart hjørne er eit handtak i
+   * `Omrisset` so snart flata finst, og der kan du dra det, leggje til
+   * punkt på midtmerka og vri eit hjørne til ein boge. Kjeda gav difor
+   * ingenting handtaka ikkje alt gav, og tok fem trykk om det.
+   *
    * Skisseplanet vert FROSE i det du tek reiskapen. Det må det: teiknar du
    * mot eit plan som fylgjer kameraet, flyttar flata seg under handa di
    * kvar gong du snur synet for å sjå kvar du er — og du ser det fyrst når
@@ -1362,30 +1369,39 @@ export function Studio() {
    * andre sida. Å spegle henne likevel ville laga ei flate du ikkje har
    * teikna og ikkje kan sjå at du ikkje har teikna.
    */
-  const [teikn, setTeikn] = useState<{ punkt: Pt[] } | null>(null)
+  const [teikn, setTeikn] = useState<{ boks: [Pt, Pt] | null } | null>(null)
   const teiknRef = useRef<typeof teikn>(null)
   teiknRef.current = teikn
   const vekslTeikn = useCallback(() => {
     setTeikn((t) => {
       if (t) return null
       setVald(null)
-      setMelding("teikn: trykk for punkt, lukk på det fyrste")
-      return { punkt: [] }
+      setMelding("teikn: dra ein firkant")
+      return { boks: null }
     })
   }, [])
-  const teiknLegg = useCallback((q: Pt) => {
-    setTeikn((t) => (t && t.punkt.length < OMRISS_TAK ? { punkt: [...t.punkt, klemPunkt(q)] } : t))
+  // ein firkant utan sider er ingen firkant: det er fingeren som står der
+  // han landa, og då er det ingenting å teikne
+  const teiknDra = useCallback((a: Pt, b: Pt) => {
+    setTeikn((t) => (t ? { boks: a[0] === b[0] && a[1] === b[1] ? null : [klemPunkt(a), klemPunkt(b)] } : t))
   }, [])
   /**
    * PLANET KJEM FRÅ SCENA, av di det er ho som veit kvar kameraet står.
    * Teikneplanet er det som VENDER MOT DEG — skisseplanet står på kant og
    * projiserer til ei line — og det er frose frå fyrste trykket.
+   *
+   * Hjørna vert skrivne mot klokka i planet si eiga ramme, der `v` er so
+   * nær «opp» som planet tillèt: firkanten står oppreist i kroppen.
    */
   const teiknLukk = useCallback((po: Vec3, pn: Vec3) => {
     const t = teiknRef.current
     setTeikn(null)
     const k = kroppRef.current
-    if (!t || !k || t.punkt.length < 3) return
+    if (!t?.boks || !k) return
+    const [[ax, ay], [bx, by]] = t.boks
+    const [x0, x1] = ax < bx ? [ax, bx] : [bx, ax]
+    const [y0, y1] = ay < by ? [ay, by] : [by, ay]
+    const omriss: Pt[] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
     const o = broek(po, k.min, k.max)
     if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) return setMelding("for langt ute")
     const naaPlan = lesPlan(naa.current.plan)
@@ -1394,7 +1410,7 @@ export function Studio() {
     setParams((cur) => {
       const l = lesPlan(cur.plan)
       if (l.length >= PLAN_TAK) return cur
-      return { ...cur, plan: skrivPlan([...l, { id: nyId(l), o, n: pn, bog: 0, strek: [], omriss: t.punkt }]) }
+      return { ...cur, plan: skrivPlan([...l, { id: nyId(l), o, n: pn, bog: 0, strek: [], omriss }]) }
     })
     setBlink(id)
   }, [])
@@ -2684,7 +2700,7 @@ export function Studio() {
             onValdStrek={setValdStrek}
             snappSteg={SNAPPSTEG[Math.round(Number(params.snapp ?? 3)) as 0 | 1 | 2 | 3] ?? 90}
             teikn={teikn}
-            onTeiknLegg={teiknLegg}
+            onTeiknDra={teiknDra}
             onTeiknLukk={teiknLukk}
             onPunkt={flyttPunkt}
             onSlaaSaman={slaaSamanPunkt}
@@ -2912,18 +2928,18 @@ export function Studio() {
               OBJEKTET, og på plateflata ligg objektet gøymt under arka — ein
               brytar du kan slå på og ikkje bruke. */}
           {rom && (<>
-              {/* TEIKNE EI FLATE: trykk for punkt, lukk på det fyrste.
-                  Han står FØRST i reiskapane, av di han er den eine som
-                  lagar noko frå ingenting — resten endrar det som står. */}
+              {/* TEIKNE EI FLATE: dra ein firkant. Han står FØRST i
+                  reiskapane, av di han er den eine som lagar noko frå
+                  ingenting — resten endrar det som står. */}
               {rom && valdGruppe === null && (
                 <button
                   type="button"
                   aria-pressed={!!teikn}
                   aria-label="teikn ei flate"
-                  title={teikn ? `teikn (T): ${teikn.punkt.length} punkt. trykk på det fyrste for å lukke; escape avbryt` : "teikn ei flate (T): trykk for kvart hjørne på skisseplanet, og lukk på det fyrste"}
+                  title={teikn ? "teikn (T): dra ein firkant på skisseplanet; escape avbryt" : "teikn ei flate (T): dra ein firkant på skisseplanet. Hjørna er handtak etterpå"}
                   onClick={vekslTeikn}
                   className={TUMME_BTN}
-                  data-teiknknapp={teikn ? teikn.punkt.length : ""}
+                  data-teiknknapp={teikn ? (teikn.boks ? "dreg" : "klar") : ""}
                 >
                   {IcoTeikn}
                 </button>
