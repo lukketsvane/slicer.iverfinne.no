@@ -1030,6 +1030,72 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
 }
 
 /**
+ * LAMELLAR — DEN ANDRE MÅTEN Å GJERA EI KRUM FLATE PÅ.
+ *
+ * Huda over er EI plate som vert rilla. Dette er det motsette: mange smale
+ * plater ved sida av kvarandre, kvar bøygd langs si eiga lengd, haldne av
+ * ribber på tvers. Ein krakk du skal sitje på er truleg betre tent med denne
+ * enn med å gjera tolv millimeter finér om til eitt stort hengsle.
+ *
+ * OG HO TRENG INGEN NY GEOMETRI. Ein lamell er eit BØYGT PLAN MED EIT SMALT
+ * OMRISS: `u` er bøyeretninga, `v` er sylinderaksen, og kvar lamell får sin
+ * eigen strimmel i `v`. Ribbene har normal langs `u` og ligg dimed LANGS
+ * aksen, so kvar av dei møter kvar lamell i ei generatorline — det reine
+ * tilfellet `kryssBoygd` alt dekkjer.
+ *
+ * SAKA ER HER AV DI HO FANN EIN FEIL, som waffelen gjorde. Lamellane er det
+ * SAME planet med kvar sin profil, so `o` og `n` er like — og `lukene` målte
+ * plan mot plan og sa −3,0 mm om fingrar som ikkje kjem imellom to delar det
+ * er sju centimeter mellom. Ho sa det alltid, for kvar lamellkonstruksjon som
+ * finst. Ei line som står raud same kva er like ubrukeleg som ei som aldri
+ * kan verta det.
+ *
+ * Og talet som er heile poenget står under: kutt.
+ */
+{
+  console.log("\n=== lamellar ===")
+  const V3 = (x: number, y: number, z: number) => [x, y, z] as Vec3
+  const lamell = (n: number, bog: number, glipe: number): Plan[] => {
+    const ut: Plan[] = []
+    const w = (0.8 / n) * (1 - glipe)
+    for (let i = 0; i < n; i++) {
+      const v0 = -0.4 + (0.8 * i) / n
+      ut.push({ id: i + 1, o: V3(0.5, 0.5, 0.5), n: V3(1, 0, 0), bog, strek: [],
+        omriss: [[-0.4, v0], [0.4, v0], [0.4, v0 + w], [-0.4, v0 + w]] })
+    }
+    return ut
+  }
+  const tvers = (n: number, fraa: number): Plan[] =>
+    Array.from({ length: n }, (_, i) => ({ id: fraa + i, o: V3(0.5, 0.15 + (0.7 * i) / (n - 1), 0.5), n: V3(0, 1, 0), bog: 0, strek: [] }))
+
+  const bag = { ...DEFAULT_PARAMS, kjelde: "kube", storleik: 300, tjukn: 3, material: "finer",
+    plan: skrivPlan([...lamell(6, 1.2, 0.25), ...tvers(3, 90)]) } as unknown as ParamBag
+  const b = makeBygg(bag as unknown as Params, DETAIL.mid)
+  const m = MOTOR.measure(bag)
+  const raude = checkRules(bag as unknown as Params, m, b).filter((r) => !r.ok)
+  const rilla = b.s.ribber.filter((r) => r.rille.length)
+  console.log(`  ${b.dl.delar.length} delar, ${m.joints} ledd, ${b.dl.lause} lause · ${(b.dl.cutLen / 1000).toFixed(1)} m kutt`)
+  console.log(`  ${rilla.length} rilla lamellar, ${rilla.reduce((a, r) => a + r.rille.length, 0)} snittliner`)
+  if (b.dl.delar.length !== 9) bryt(`seks lamellar og tre ribber skulle gje ni delar, ikkje ${b.dl.delar.length}`)
+  else if (!m.joints) bryt("lamellane greip ikkje ribbene")
+  else if (b.dl.lause) bryt(`${b.dl.lause} lamell(ar) heng i ingenting`)
+  else if (b.s.montering.brot.length) bryt(`${b.s.montering.brot.length} står fast`)
+  else if (raude.length) bryt(`lamellar skal ikkje bryte ein regel: ${raude.map((r) => `${r.id} ${r.value}`).join(", ")}`)
+  else console.log(`  og han let seg montere utan at ein einaste regel ryk: 0 står fast, 0 raude liner`)
+
+  /**
+   * OG DÅ ER SPØRSMÅLET KVA HO KOSTAR MOT HUDA. Den same krumminga, det same
+   * materialet, den same plata — ei rilla hud mot seks lamellar.
+   */
+  const hud = { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 300, tjukn: 3, material: "finer",
+    plan: skrivPlan([...lesPlan(nett(4, 4)).map((q) => (q.n[0] === 1 ? { ...q, bog: 1.2 } : q)),
+      { id: 91, o: [0.5, 0.5, 0.2] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] },
+      { id: 92, o: [0.5, 0.5, 0.8] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] }]) } as unknown as ParamBag
+  const hb = makeBygg(hud as unknown as Params, DETAIL.mid)
+  console.log(`  mot rilla hud: ${(b.dl.cutLen / 1000).toFixed(1)} m lamellar mot ${(hb.dl.cutLen / 1000).toFixed(1)} m hud — ${(hb.dl.cutLen / b.dl.cutLen).toFixed(1)}× kortare køyretur`)
+}
+
+/**
  * MONTASJEN — vegen frå plata til objektet.
  *
  * Heile reiskapen kviler på éin påstand: at ein del ligg på plata og står i

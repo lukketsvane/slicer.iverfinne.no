@@ -894,17 +894,20 @@ const MIDT_STEG = 64
  * kan prova at luka er større enn `grense`.
  */
 export function lukene(flater: readonly Flate[], tjukn: number) {
-  const spenn = flater.map((a): [number, number] => {
-    let lo = Infinity
-    let hi = -Infinity
+  /** boksen profilen fyller i si eiga ramme: [u0, u1, v0, v1] */
+  const boks = flater.map((a): [number, number, number, number] => {
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity
     for (const ring of a.ringar) {
       for (const q of ring) {
-        if (q[0] < lo) lo = q[0]
-        if (q[0] > hi) hi = q[0]
+        if (q[0] < u0) u0 = q[0]
+        if (q[0] > u1) u1 = q[0]
+        if (q[1] < v0) v0 = q[1]
+        if (q[1] > v1) v1 = q[1]
       }
     }
-    return [lo, hi]
+    return [u0, u1, v0, v1]
   })
+  const spenn = boks.map((b): [number, number] => [b[0], b[1]])
   /**
    * Ei bøygd flate vik aldri lenger frå grunnplanet sitt enn dette:
    * n-avstanden ved kvar av endane av buen, som er det største han vert.
@@ -951,6 +954,27 @@ export function lukene(flater: readonly Flate[], tjukn: number) {
     const A = flater[i]
     const B = flater[j]
     if (len3(cross(A.r.n, B.r.n)) > PAR_10) return Infinity
+    /**
+     * OG DEI MÅ FAKTISK LIGGJE OVER KVARANDRE.
+     *
+     * Eit plan som ber eit omriss er ikkje heile planet — han er det
+     * omrisset. To LAMELLAR er det same planet med kvar sin smale profil ved
+     * sida av kvarandre: `o` og `n` er like, so plana ligg oppå kvarandre
+     * medan delane ikkje rører kvarandre. Utan dette sa lina −3,0 mm om
+     * fingrar som ikkje kjem imellom to delar det er sju centimeter mellom,
+     * og ho sa det ALLTID — ei line som står raud same kva er like ubrukeleg
+     * som ei som aldri kan verta det.
+     *
+     * Boksen er grov med vilje: han slepper gjennom alt som KAN vera tett og
+     * stoggar berre det som beviseleg ikkje er det. Plana er nesten
+     * parallelle her, so A si ramme held for båe.
+     */
+    const d: Vec3 = [B.r.o[0] - A.r.o[0], B.r.o[1] - A.r.o[1], B.r.o[2] - A.r.o[2]]
+    const [au0, au1, av0, av1] = boks[i]
+    const [bu0, bu1, bv0, bv1] = boks[j]
+    const du = dot(d, A.r.u)
+    const dv = dot(d, A.r.v)
+    if (bu0 + du > au1 || bu1 + du < au0 || bv0 + dv > av1 || bv1 + dv < av0) return Infinity
     const g0 = Math.abs(dot(A.r.n, A.r.o) - dot(A.r.n, B.r.o))
     if (!A.r.k && !B.r.k) return g0 - tjukn
     // grensa er eit prikk og ei subtraksjon; skanninga er åtte tusen avstandar

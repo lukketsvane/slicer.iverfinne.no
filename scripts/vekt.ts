@@ -185,7 +185,18 @@ const TAK: [string, number][] = [
   // tre; resten er grunngjevinga, og ho er heile verdien: at eit golv med
   // fire bogar mot huda og fire rette mot ribbene HAR ein veg inn er ikkje
   // synleg av koden, det er noko nokon har målt.
-  ["lib/snitt.ts", 1827],
+    // +24 den 13.: luka måler PLAN mot plan, og eit plan som ber eit omriss
+  // er ikkje heile planet. To lamellar er det same planet med kvar sin
+  // smale profil ved sida av kvarandre, og lina sa −3,0 mm om delar det
+  // er sju centimeter mellom. Ein boks-test framfor rekninga.
+  //
+  // TREDJE HEVINGA DENNE DAGEN, og det er verdt å seie høgt: rilla (+60),
+  // det bøygde fritaket begge vegar (+16) og denne. Alle tre kom av den
+  // same saka — bøygde delar som skal BYGGJAST med og ikkje berre teiknast
+  // — og alle tre er meir grunngjeving enn kode. Neste gong denne fila
+  // skal veksa, bør `lukene` flytte ut i si eiga: ho veit ingenting om
+  // snitting, berre om flater som ligg nær kvarandre.
+  ["lib/snitt.ts", 1851],
   ["lib/pack.ts", 955],
 ]
 
