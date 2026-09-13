@@ -46,8 +46,15 @@ import { inRing, type Material, type Pt } from "./core"
  * halvparten av det han gjer på tvers, og verkstaden veit ikkje kva veg plata
  * ligg. Faktoren er 1/2ε — finér på 100 er ein ytterfiber som toler ein halv
  * prosent.
+ *
+ * BJØRK PÅ 150 STÅR MELLOM FINÉR OG MDF, og det er ikkje ei utleiing — det er
+ * den same verkstadstabellen med ei line til. Massivt tre har GRUNN til å
+ * bøye seg betre enn mdf: der er det fiber som ber. Men det har ingen
+ * kryssande lag slik finéren har, og utan dei går ei flis som byrjar langs
+ * fiberen heile vegen. Difor dårlegare enn finér, betre enn mdf, og målt av
+ * ingen: skjer bøyeprøva.
  */
-export const BOG_FAKTOR: Record<string, number> = { finer: 100, mdf: 200, akryl: 230, papp: 10 }
+export const BOG_FAKTOR: Record<string, number> = { bjork: 150, finer: 100, mdf: 200, akryl: 230, papp: 10 }
 
 /** radien ei HEIL plate av dette toler, mm */
 export const bogMin = (material: string, tjukn: number) => (BOG_FAKTOR[material] ?? 100) * tjukn
@@ -58,8 +65,11 @@ export const bogMin = (material: string, tjukn: number) => (BOG_FAKTOR[material]
  * Sprøtt materiale vil ha tettare snitt: akryl og mdf har ingen fiber å bera
  * vridinga med og må dele henne på fleire bruer, medan papp toler nær kva som
  * helst og ikkje treng mønsteret i det heile før radien er svært stram.
+ *
+ * Bjørk ligg litt tettare enn finér av den same grunnen som over: brua i
+ * massivt tre ryk langs fiberen, og fleire bruer deler vridinga på fleire.
  */
-const STEG: Record<string, number> = { finer: 1, mdf: 0.8, akryl: 0.8, papp: 2 }
+const STEG: Record<string, number> = { bjork: 0.9, finer: 1, mdf: 0.8, akryl: 0.8, papp: 2 }
 
 // =============================================================================
 // MØNSTERET, SOM TAL

@@ -631,7 +631,7 @@ for (const s of SØPPEL) {
     const v = q[k as keyof Params] as number
     if (v < r.min || v > r.max) feil("hash", `${k} hamna på ${v}, utanfor ${r.min}..${r.max}`)
   }
-  if (!(q.material in { finer: 1, mdf: 1, akryl: 1, papp: 1 })) {
+  if (!(q.material in { bjork: 1, finer: 1, mdf: 1, akryl: 1, papp: 1 })) {
     feil("hash", `materialet vart «${q.material}»`)
   }
 }
