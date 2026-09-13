@@ -1336,8 +1336,24 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       }
       const m = mul3(d3, retn)
       if (fann) {
-        if (!felt3) felt3 = m
-        else if (dot(felt3, m) < Math.cos((3 * Math.PI) / 180) && !brot.includes(B.plan.id) && !B.boygd) brot.push(B.plan.id)
+        /**
+         * EIT LEDD MOT EIN BØYGD PARTNAR BIND INGA RETNING — BEGGE VEGAR.
+         *
+         * At ein bøygd del vert BØYGD inn og ikkje skuva inn stod her frå før,
+         * men berre på den eine sida: `!B.boygd` fritok delen som KJEM. Den som
+         * LIGG var ikkje fritatt, og det er den same fysikken — ein sylinder
+         * grip som ein glidelås same kva side ein ser han frå.
+         *
+         * Målt på eit krumt skal med waffle: kvart golv har åtte spor, fire
+         * BOGAR mot huda og fire RETTE mot ribbene. Dei fire rette er
+         * parallelle og er vegen inn — golvet søkk ned på ribbene. Dei fire
+         * bogane peika kvar sin veg, og golvet vart meldt «står fast» for ein
+         * montasje du gjer med hendene: byggj waffelen flat, bøy huda kring.
+         */
+        if (!A.boygd) {
+          if (!felt3) felt3 = m
+          else if (dot(felt3, m) < Math.cos((3 * Math.PI) / 180) && !brot.includes(B.plan.id) && !B.boygd) brot.push(B.plan.id)
+        }
         if (B.boygd && !boygde.includes(B.plan.id)) boygde.push(B.plan.id)
       }
       }

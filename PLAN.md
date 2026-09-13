@@ -784,9 +784,33 @@ prøvde noko anna enn delen — og strekfonten har korkje Ø, Æ eller Å, so «
 kom ut som «B Y». `strokesAt` slepp det han ikkje kjenner i stille; teksten er
 omskriven, og hòlet i alfabetet står att som noko nokon bør sjå på.
 
-**Att står dei fem andre konstruksjonsprinsippa**, og dei er eit anna slag
-arbeid enn dette: kryss-lask, kile, glidande spor, bøy-til-lås, og hud på
-waffle. Rilla var føresetnaden for dei fire fyrste av dei.
+**Og HUD PÅ WAFFLE, det fyrste av konstruksjonsprinsippa, står.** Det kosta
+tre liner kode, og saka er at det fann ein feil.
+
+Fire bøygde hud, fire flate ribber langs sylinderaksen, to golv vinkelrett på
+han. Skjelettet set radien; huda er rilla og vert bøygd kring han. Målt med
+`pnpm probe`: 10 delar, 30 ledd, 0 lause, 43,5 m kutt, alle fire huda rilla med
+811 snittliner, og næraste rillesnitt 9,1 mm frå ei sporline mot eit krav på 9.
+
+Men GOLVA STOD FAST — hard `orden` — for ein montasje du gjer med hendene på
+eitt minutt. Kvart golv har åtte spor: fire BOGAR mot huda og fire RETTE mot
+ribbene. Dei fire rette er parallelle og er vegen inn — golvet søkk ned på
+ribbene — men dei fire bogane peika kvar sin veg, og rekninga las dei som fire
+krav som ikkje kunne oppfyllast samstundes.
+
+Fritaket fanst alt: «ein bøygd del vert BØYGD inn og ikkje skuva inn», skrive
+då sak A steg 2a vart gjort. Men det stod berre på den eine sida — `!B.boygd`
+fritok delen som KJEM. Her er den bøygde parten den som LIGG, og det er den
+same fysikken: ein sylinder grip som ein glidelås same kva side ein ser han
+frå. Dette er nett den falske raude lina sak A skildrar, sett andre vegen.
+
+`orden` kan framleis brytast — `pnpm raad` har henne raud på eit plan med to
+vegar inn, og alle sytten reglane var raude ein gong i køyringa.
+
+**Att står fire konstruksjonsprinsipp**: kryss-lask, kile, glidande spor og
+bøy-til-lås. Dei tre siste er eit anna slag arbeid enn dette — kile og
+glidande spor er «sporet er ikkje eit rektangel», og bøy-til-lås treng
+monteringsvegen og ikkje berre sluttforma.
 
 ---
 
@@ -848,8 +872,12 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
                                                  29+19+15+10+8 rader over fem
                                                  felt, verste avvik frå det
                                                  graverte 0,0000 mm ✓ GJORT
+   20  Hud på waffle (H)                    → pnpm probe: 10 delar, 30 ledd,
+                                                 0 lause, 0 står fast, og øya
+                                                 9,1 mm frå sporlina mot krav
+                                                 9 ✓ GJORT
 
-Seksten av nitten er gjorde. To er strøkne av målingar — pakkesøket og den
+Sytten av tjue er gjorde. To er strøkne av målingar — pakkesøket og den
 romlege delinga — og begge står att på sida med tala som tok dei, av di ein
 plan som stryk feila sine lærer ingen noko. Elleve står att, og han er
 strukturell: han har ingen frist, og han vert billegare kvar gong nokon

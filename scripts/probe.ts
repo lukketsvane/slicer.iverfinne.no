@@ -960,6 +960,76 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
 }
 
 /**
+ * HUD PÅ WAFFLE — DET RILLA SKALET OVER EIT STIVT SKJELETT.
+ *
+ * Dette er den fyrste konstruksjonen som brukar rilla til noko, og han er
+ * heile grunnen til at ho vart skriven: eit krumt skal folk faktisk kan
+ * sitje på. Fire bøygde hud, fire flate ribber LANGS sylinderaksen, og to
+ * golv VINKELRETT på han. Skjelettet set radien; huda er rilla og vert bøygd
+ * kring han.
+ *
+ * SAKA ER HER AV DI HO FANN EIN FEIL. Golva stod «fast» — hard `orden` — for
+ * ein montasje du gjer med hendene på eitt minutt. Kvart golv har åtte spor:
+ * fire BOGAR mot huda og fire RETTE mot ribbene. Dei fire rette er
+ * parallelle og er vegen inn, men dei fire bogane peika kvar sin veg, og
+ * rekninga las dei som fire krav som ikkje kunne oppfyllast samstundes.
+ *
+ * Fritaket «ein bøygd del vert BØYGD inn og ikkje skuva inn» stod alt i
+ * `snitt.ts`, men berre for delen som KJEM. Her er den bøygde parten den som
+ * LIGG, og fysikken er den same. Den falske raude lina PLAN.md sak A skildrar
+ * — «kvar einaste bøygd ribbe med golv ville stått raud for ein montasje som
+ * går heilt fint» — sett frå den andre sida.
+ */
+{
+  console.log("\n=== hud på waffle ===")
+  const waffle = (bog: number) =>
+    skrivPlan([
+      ...lesPlan(nett(4, 4)).map((q) => (q.n[0] === 1 ? { ...q, bog } : q)),
+      { id: 91, o: [0.5, 0.5, 0.2] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] },
+      { id: 92, o: [0.5, 0.5, 0.8] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] },
+    ])
+  // 3 mm finér toler 300 mm radius; storleik 300 med bog 1,2 gjev 250, so
+  // huda MÅ rillast for at dette i det heile skal vera ein lovleg del
+  const bag = { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 300, tjukn: 3, material: "finer", plan: waffle(1.2) } as unknown as ParamBag
+  const b = makeBygg(bag as unknown as Params, DETAIL.mid)
+  const m = MOTOR.measure(bag)
+  const rilla = b.s.ribber.filter((r) => r.rille.length)
+  const hud = b.s.ribber.filter((r) => r.r.k)
+  const golv = b.s.ribber.filter((r) => r.plan.id === 91 || r.plan.id === 92)
+  const bogSpor = golv.reduce((a, r) => a + r.spor.filter((q) => q.k).length, 0)
+  const rettSpor = golv.reduce((a, r) => a + r.spor.filter((q) => !q.k).length, 0)
+  console.log(`  ${b.dl.delar.length} delar, ${m.joints} ledd, ${b.dl.lause} lause · ${(b.dl.cutLen / 1000).toFixed(1)} m kutt`)
+  console.log(`  huda er rilla: ${rilla.length} av ${hud.length} bøygde ribber, ${rilla.reduce((a, r) => a + r.rille.length, 0)} snittliner`)
+  console.log(`  golva: ${bogSpor} bogna spor mot huda, ${rettSpor} rette mot ribbene`)
+  if (rilla.length !== hud.length) bryt(`${hud.length} bøygde ribber, berre ${rilla.length} rilla — under bogMin skal alle vera det`)
+  else if (b.dl.lause) bryt(`${b.dl.lause} del(ar) heng i ingenting`)
+  else if (bogSpor !== 8 || rettSpor !== 8) bryt(`golva skulle ha fire bogar og fire rette kvar, ikkje ${bogSpor} og ${rettSpor}`)
+  else if (b.s.montering.brot.length) bryt(`${b.s.montering.brot.length} del(ar) står fast: ${b.s.montering.brot.join(", ")} — waffelen vert bygd flat og huda bøygd kring han`)
+  else console.log(`  og han let seg montere: 0 står fast, ${b.s.montering.orden.length} plan i orden`)
+
+  /**
+   * OG DEN STIVE ØYA SKAL FINNAST ATT I HUDA: ingen rillesnitt får krysse ei
+   * sporline. `pnpm ledd` prøver dette på godset; her vert det lese direkte,
+   * av di det er DENNE konstruksjonen som har flest spor i ei rilla flate.
+   */
+  let naer = Infinity
+  for (const r of rilla) {
+    for (const sp of r.spor) {
+      for (const l of r.rille) {
+        for (const q of l) {
+          const dx = q[0] - sp.p[0]
+          const dy = q[1] - sp.p[1]
+          naer = Math.min(naer, Math.abs(-dx * sp.d[1] + dy * sp.d[0]))
+        }
+      }
+    }
+  }
+  const KRAV = 3 * 3 // tre platetjukner, sona sin halve breidd
+  if (naer < KRAV - 0.01) bryt(`eit rillesnitt ligg ${nn(naer, 2)} mm frå ei sporline, og sona er ${KRAV} mm`)
+  else console.log(`  og den stive øya held: næraste rillesnitt ${nn(naer, 1)} mm frå ei sporline, krav ${KRAV} mm`)
+}
+
+/**
  * MONTASJEN — vegen frå plata til objektet.
  *
  * Heile reiskapen kviler på éin påstand: at ein del ligg på plata og står i
