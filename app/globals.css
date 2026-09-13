@@ -703,3 +703,154 @@ main[data-sov] .synskube button {
   overflow: visible;
   pointer-events: none;
 }
+
+/* iPhone inspector: one task per tab, with pages for unbounded lists.
+   Keep the existing paper, ink, type, radii and hairlines. No shadows. */
+.telefon-ramme {
+  padding: 0 12px calc(env(safe-area-inset-bottom) + 12px);
+}
+.telefon-ark {
+  width: min(100%, 576px);
+  overflow: hidden;
+}
+.telefon-ark[data-open] {
+  height: min(340px, calc(40dvh - env(safe-area-inset-bottom) - 12px));
+}
+.telefon-hovud { height: 44px; }
+.telefon-hovud > div { height: 44px; padding-block: 4px; }
+.telefon-faner {
+  display: flex;
+  flex-shrink: 0;
+  height: 44px;
+  border-top: 1px solid var(--rule);
+  padding-inline: 8px;
+}
+.telefon-faner button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  font-size: 11px;
+  opacity: .6;
+}
+.telefon-faner button[aria-selected="true"] { opacity: 1; }
+.telefon-faner button[aria-selected="true"]::before {
+  position: absolute;
+  content: "";
+  bottom: 0;
+  width: 20px;
+  border-bottom: 1px solid currentColor;
+}
+.telefon-faner button:focus-visible,
+.telefon-sideval button:focus-visible { outline: 1px solid var(--ink); outline-offset: -4px; }
+.telefon-innhald { flex: 1; min-height: 0; padding-inline: 12px; }
+.telefon-sider { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.telefon-rader { flex: 1; min-height: 0; }
+.telefon-sideval {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  height: 44px;
+  border-top: 1px solid var(--rule);
+  font-size: 10px;
+}
+.telefon-sideval button { display: grid; place-items: center; width: 44px; height: 44px; }
+.telefon-sideval button:disabled { opacity: .25; }
+.telefon-rad, .telefon-listeval, .telefon-material, .telefon-preset, .telefon-uttak {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 8px;
+  font-size: 11px;
+}
+.telefon-rad { justify-content: space-between; }
+.telefon-listeval { flex: 1; text-align: left; justify-content: space-between; opacity: .65; }
+.telefon-listeval[aria-pressed="true"] { opacity: 1; }
+.telefon-listeval[aria-pressed="true"] > span:first-child { text-decoration: underline; text-underline-offset: 4px; }
+.telefon-material button { width: 44px; height: 44px; display: grid; place-items: center; flex-shrink: 0; }
+.telefon-material button > span { width: 24px; height: 24px; border: 2px solid; border-radius: 50%; }
+.telefon-material { gap: 0; }
+.telefon-material > span { margin-left: auto; }
+.telefon-preset { gap: 6px; }
+.telefon-preset button { flex: 1; padding-inline: 4px; }
+.telefon-uttak { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.telefon-uttak button { padding-inline: 4px; }
+.telefon-varsel { color: var(--warn); }
+.telefon-regel p { font-size: 11px; line-height: 16px; }
+/* Here every row is a real 44 px cell; pseudo targets must not overlap a
+   neighbouring row, tab or colour. Horizontal palette scrolling remains. */
+.telefon-ark .hit::after { width: 100%; height: 100%; }
+.telefon-ark .ikon { width: 44px; height: 44px; }
+.telefon-ark [data-lag] { height: 44px; padding-block: 0; }
+.telefon-ark [data-lag] button { width: 44px; height: 44px; }
+.telefon-ark [data-profil], .telefon-ark [data-virr] { padding-block: 0; }
+.telefon-ark .skrubb { height: 44px; }
+.telefon-lukk { display: none; }
+/* A landscape iPhone has room for the two tab bars side by side. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .telefon-ark[data-open] { width: 100%; max-width: none; height: calc(40dvh - 12px); display: grid; grid-template-columns: 44px 1fr 1fr; grid-template-rows: 44px 1fr; }
+  .telefon-ark[data-open] .telefon-hovud { display: none; }
+  .telefon-ark[data-open] .telefon-lukk { display: grid; place-items: center; width: 44px; height: 44px; }
+  .telefon-ark[data-open] .telefon-innhald { grid-column: 1 / -1; }
+  .telefon-ark[data-open] .telefon-sider { flex-direction: row; align-items: flex-start; gap: 16px; }
+  .telefon-ark[data-open] .telefon-sideval { width: 120px; border-top: 0; }
+}
+.kjelde-meny {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 50px);
+  left: 12px;
+  width: min(320px, calc(100vw - 24px));
+  height: min(264px, calc(40dvh - env(safe-area-inset-top) - 12px));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--paper);
+}
+.kjelde-meny > .telefon-faner { border-top: 0; border-bottom: 1px solid var(--rule); }
+.kjelde-innhald { flex: 1; min-height: 0; padding-inline: 12px; }
+.kjelde-rad { display: grid; grid-template-columns: 1fr 1fr; height: 44px; gap: 12px; }
+.kjelde-rad button, .kjelde-fil { height: 44px; text-align: left; font-size: 11px; }
+.kjelde-fil { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kjelde-fot { display: flex; align-items: center; justify-content: space-between; height: 44px; flex-shrink: 0; border-top: 1px solid var(--rule); padding-inline: 12px; }
+.telefon-forklaring { display: flex; align-items: center; min-height: 44px; font-size: 11px; line-height: 15px; }
+.telefon-skuff { border-radius: 24px; overflow: hidden; }
+.telefon-skuff > div:first-child { height: 44px; flex-shrink: 0; padding-block: 0; align-items: center; }
+.telefon-skuff > div:first-child button { min-height: 44px; }
+.telefon-skuff > div:first-child > button { min-width: 44px; font-size: 20px; }
+.telefon-skuff .hit::after { width: 100%; height: 100%; }
+.telefon-kuttliste, .telefon-oppsett { flex: 1; min-height: 0; padding-inline: 12px; }
+.telefon-kuttliste { display: flex; flex-direction: column; }
+.telefon-kuttliste > .telefon-kuttrad { flex-shrink: 0; }
+.telefon-kuttrad { display: grid; grid-template-columns: 36px 1fr 36px 32px; gap: 8px; align-items: center; width: 100%; height: 44px; text-align: right; font-size: 11px; }
+.telefon-kuttrad > :first-child { text-align: left; }
+button.telefon-kuttrad[aria-pressed="true"] { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.telefon-verktyfot { display: flex; justify-content: space-between; align-items: center; height: 44px; flex-shrink: 0; border-top: 1px solid var(--rule); padding-inline: 12px; font-size: 10px; }
+.telefon-oppsettline { height: 44px; display: flex; align-items: center; overflow-x: auto; font-size: 11px; }
+/* Når Safari etterlet mindre enn to rader, står sidepilene ved sida av
+   innhaldet. Dei er framleis 44 px og tek aldri plassen til ein kontroll. */
+.telefon-sider[data-sidekant] { flex-direction: row; align-items: flex-start; gap: 8px; }
+.telefon-sider[data-sidekant] .telefon-sideval { width: 88px; border-top: 0; }
+.telefon-sider[data-sidekant] .telefon-sideval > span { display: none; }
+.telefon-sider[data-sidekant] .skrubb { gap: 6px; }
+.telefon-sider[data-sidekant] .skrubb > span:first-child { width: 56px; font-size: 9px; }
+.telefon-sider[data-sidekant] .skrubb > span:last-child { width: 60px; }
+.telefon-sider[data-sidekant] .telefon-uttak { gap: 4px; }
+.telefon-sider[data-sidekant] .telefon-uttak button { font-size: 9px; }
+.telefon-sider[data-sidekant] .telefon-forklaring { font-size: 10px; line-height: 14px; }
+/* Eit ope ark må aldri liggje under kniven. Når kontrollane er framme,
+   legg reiskapane seg i ei kort rad over arket, med same ikon og treffeflater. */
+main:has(.telefon-ark[data-open]) .tumme {
+  top: auto !important;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+main:has(.telefon-ark[data-open]) .tumme > :first-child { margin-top: 0; }

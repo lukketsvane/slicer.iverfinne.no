@@ -9,6 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from "react"
 import { kuttCsv, nn, type Kutt, type ParamBag } from "@/lib/core"
+import { Sidevis } from "./faner"
 import { ALLE_KEYS, PARAM_RANGES } from "@/lib/params"
 import { CHIP, HAIR, ICON_BTN, IcoKopier, IcoLimInn, chipStyle } from "./deler"
 
@@ -33,7 +34,8 @@ const KOLONNAR: Kolonne[] = [
   { id: "ark", ord: "plate", tal: true, les: (k) => (k.ark ? nn(k.ark, 0) : "–") },
 ]
 
-function Kuttliste({ liste, peikt, onPeik, onOrd }: {
+function Kuttliste({ liste, peikt, onPeik, onOrd, benk }: {
+  benk: boolean
   liste: readonly Kutt[]
   peikt: string | null
   onPeik: (adr: string | null) => void
@@ -64,6 +66,15 @@ function Kuttliste({ liste, peikt, onPeik, onOrd }: {
   }, [liste])
   if (!liste.length) return <p className="dim p-4 text-[11px]">ingen delar</p>
   const celle = (q: Kolonne) => (q.tal ? "text-right " : "text-left ") + (q.smal ? "hidden sm:table-cell" : "")
+  if (!benk) return <>
+    <div className="telefon-kuttliste">
+      <div className="telefon-kuttrad dim"><span>del</span><span>mål mm</span><span>ledd</span><span>ark</span></div>
+      <Sidevis label="kuttliste" selected={liste.findIndex(k => k.adr === peikt)}>
+        {liste.map(k => <button key={k.adr} type="button" className="telefon-kuttrad" aria-label={`del ${k.adr}`} aria-pressed={peikt === k.adr} onClick={() => onPeik(peikt === k.adr ? null : k.adr)}><span>{k.adr}</span><span>{nn(k.w, 1)} × {nn(k.h, 1)}</span><span>{k.joints}</span><span>{k.ark || "–"}</span></button>)}
+      </Sidevis>
+    </div>
+    <div className="telefon-verktyfot" style={HAIR}><span className="dim">{liste.length} delar · {former.size} former</span><button type="button" className={CHIP} style={chipStyle(false)} onClick={() => onOrd(kuttCsv(liste))} title="kopier heile kuttlista som csv">csv</button></div>
+  </>
   return (
     <>
       <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
@@ -132,7 +143,8 @@ const Fragmentet = ({ children }: { children: React.ReactNode }) => <>{children}
  * henne attende og set det som står der. Klemminga er motoren si eiga, og
  * ingenting vert sett før du trykkjer.
  */
-function Oppsett({ params, clamp, onChange }: {
+function Oppsett({ params, clamp, onChange, benk }: {
+  benk: boolean
   params: ParamBag
   clamp: (o: unknown, prev: ParamBag) => ParamBag
   onChange: (p: ParamBag) => void
@@ -170,7 +182,7 @@ function Oppsett({ params, clamp, onChange }: {
   }
   return (
     <>
-      <textarea className="mono min-h-0 flex-1 resize-none overscroll-contain bg-transparent p-3 text-[12px] leading-relaxed outline-none" readOnly tabIndex={-1} spellCheck={false} value={tekst} aria-label="alle innstillingane som tekst" />
+      {benk ? <textarea className="mono min-h-0 flex-1 resize-none overscroll-contain bg-transparent p-3 text-[12px] leading-relaxed outline-none" readOnly tabIndex={-1} spellCheck={false} value={tekst} aria-label="alle innstillingane som tekst" /> : <div className="telefon-oppsett"><Sidevis label="oppsett">{tekst.split("\n").map((line, i) => <pre key={i} className="rull-x telefon-oppsettline">{line}</pre>)}</Sidevis></div>}
       {maal && (
         <textarea
           className="mono border-t p-3 text-[16px]"
@@ -196,6 +208,7 @@ function Oppsett({ params, clamp, onChange }: {
 // SKUFFA
 // =============================================================================
 export function Skuff(props: {
+  benk: boolean
   open: VerktyId | null
   /** kvar skuffa står, i CSS-pikslar */
   rute: CSSProperties
@@ -212,17 +225,17 @@ export function Skuff(props: {
   const { open } = props
   if (!open) return null
   return (
-    <section aria-label="verkty" className="benk fixed z-40 flex flex-col border" style={{ ...props.rute, background: "var(--paper)", borderColor: "var(--rule)" }}>
+    <section aria-label="verkty" className={"benk fixed z-40 flex flex-col border" + (props.benk ? "" : " telefon-skuff")} style={{ ...props.rute, background: "var(--paper)", borderColor: "var(--rule)" }}>
       <div className="flex items-baseline gap-3 border-b px-3 py-2 text-[10px] uppercase tracking-[0.14em]" style={HAIR}>
         <span className="mono min-w-0 flex-1 truncate">
           {VERKTY.map((v) => (
             <button key={v.id} type="button" className="hit px-1 first:pl-0" style={{ opacity: v.id === open ? 1 : 0.4 }} aria-current={v.id === open} onClick={() => props.onBytt(v.id)}>{v.ord}</button>
           ))}
         </span>
-        <button type="button" className="hit dim shrink-0 px-1.5" onClick={props.onClose} aria-label="lat att verktyet" title="lat att (esc)">lat att</button>
+        <button type="button" className="hit dim shrink-0 px-1.5" onClick={props.onClose} aria-label="lat att verktyet" title="lat att (esc)">{props.benk ? "lat att" : "×"}</button>
       </div>
-      {open === "kuttliste" && <Kuttliste liste={props.liste} peikt={props.peikt} onPeik={props.onPeik} onOrd={props.onOrd} />}
-      {open === "oppsett" && <Oppsett params={props.params} clamp={props.clamp} onChange={props.onChange} />}
+      {open === "kuttliste" && <Kuttliste benk={props.benk} liste={props.liste} peikt={props.peikt} onPeik={props.onPeik} onOrd={props.onOrd} />}
+      {open === "oppsett" && <Oppsett benk={props.benk} params={props.params} clamp={props.clamp} onChange={props.onChange} />}
     </section>
   )
 }

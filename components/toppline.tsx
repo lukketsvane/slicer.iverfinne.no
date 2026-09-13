@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, type JSX } from "react"
 import type { View } from "@/lib/core"
 import { FORMAT } from "@/lib/io"
 import { FORMER } from "@/lib/scene"
-import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./deler"
+import { Faner, Sidevis } from "./faner"
+import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, IcoSlett, VIEWS } from "./deler"
 
 /**
  * TOPPLINA. Det som ikkje skal ligge to steg ned i eit ark: angre og gjer
@@ -64,6 +65,7 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
    * ein meny som står att er ein meny som dekkjer objektet.
    */
   const [meny, setMeny] = useState(false)
+  const [kjeldeFane, setKjeldeFane] = useState("former")
   const boks = useRef<HTMLSpanElement | null>(null)
   useEffect(() => {
     if (!meny) return
@@ -132,7 +134,7 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
                 det er meir. `rull` rullar inni seg sjølv — sida bak står
                 stille, som ho gjer overalt elles i huset. */}
           {meny && (
-            <span
+            benk ? (            <span
               className="rull absolute left-0 top-[calc(100%+6px)] z-40 flex w-36 flex-col border"
               style={{ ...HAIR, background: "var(--paper)", maxHeight: "calc(100dvh - 100% - 6px - env(safe-area-inset-top) - 8px)" }}
               data-meny=""
@@ -183,7 +185,20 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
                   tøm
                 </button>
               )}
-            </span>
+            </span>) : (
+              <span className="kjelde-meny ark" data-meny="">
+                <Faner label="kjelder" tabs={[{ id: "former", label: "former" }, { id: "lagra", label: `lagra (${bibliotek.length})` }]} value={kjeldeFane} onChange={setKjeldeFane} />
+                <span className="kjelde-innhald">
+                  <Sidevis key={kjeldeFane} label={kjeldeFane}>
+                    {kjeldeFane === "former" ? Array.from({ length: Math.ceil(FORMER.length / 2) }, (_, i) => <span key={i} className="kjelde-rad">{FORMER.slice(i * 2, i * 2 + 2).map(id => <button key={id} type="button" title={byt === id ? `neste ${id}` : byt ? `byt den valde biten til ${id}` : `legg ${id} til kroppen`} onClick={() => { onLegg(id); setMeny(false) }}>{id}</button>)}</span>) : bibliotek.length ? bibliotek.map(v => <button key={v.id} type="button" data-lagra={v.id} className="kjelde-fil" title={v.label} onClick={() => { onLeggLagra(v.id); setMeny(false) }}>{v.label}</button>) : <span className="telefon-rad dim">ingen lagra filer</span>}
+                  </Sidevis>
+                </span>
+                <span className="kjelde-fot" style={HAIR}>
+                  <button type="button" className={ICON_BTN} aria-label="hent fil" title={`hent eit nett: ${FORMAT.join(" ")}`} onClick={() => { pick.current?.click(); setMeny(false) }}>{IcoShare}</button>
+                  {bitar > 1 && <button type="button" className={ICON_BTN} aria-label="tøm kroppen" title="attende til kjelda åleine" style={{ color: "var(--warn)" }} onClick={() => { onTom(); setMeny(false) }}>{IcoSlett}</button>}
+                </span>
+              </span>
+            )
           )}
         </span>
         {/* DEI FIRE LESEMÅTANE, som ord. Den som gjeld står i fullt blekk og

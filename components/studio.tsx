@@ -2626,7 +2626,7 @@ export function Studio() {
   )
   const skuffRute: CSSProperties = benk
     ? { left: 0, right: KOL, bottom: 0, height: skuffH }
-    : { left: 8, right: 8, top: toppH + 8, bottom: `calc(${LUKKA_ARK}px + env(safe-area-inset-bottom))` }
+    : { left: 12, right: 12, bottom: "calc(12px + env(safe-area-inset-bottom))", height: "min(340px, calc(40dvh - env(safe-area-inset-bottom) - 12px))" }
   /** operatorane på det valde planet — eller på heile gruppa: står dei, og kor mykje */
   const iValt = vald === null ? [] : plan.filter((q) => (valdGruppe !== null && q.gruppe === valdGruppe ? true : q.id === vald))
   const mjukNo = iValt.reduce((m, q) => Math.max(m, q.mjuk ?? 0), 0)
@@ -3194,7 +3194,7 @@ export function Studio() {
         </div>
       )}
 
-      <Skuff
+      <Skuff benk={benk}
         open={verkty}
         rute={skuffRute}
         liste={liste}

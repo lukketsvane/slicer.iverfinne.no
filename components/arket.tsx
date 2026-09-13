@@ -1,43 +1,21 @@
 "use client"
 
-import { Fragment, useEffect, useRef, useState, type JSX, type RefObject } from "react"
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from "react"
 import { FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import { MJUK_TAK, type Plan } from "@/lib/plan"
 import type { Montasje, Veg } from "@/lib/montasje"
 import {
-  CHIP, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, UTTAK,
+  CHIP, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, IcoBit, IcoRute, IcoSlett, Fiksen, UTTAK,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
 } from "./deler"
 import type { VerktyId } from "./verkty"
+import { Faner, Sidevis } from "./faner"
 
-/**
- * ARKET. Tre høgder på ein telefon: éi line, midten av jobben, alt. På
- * benken er det ei fast spalte til høgre med det same innhaldet.
- *
- * Lina er det som avgjer om uttaket er verdt å skjere: kor mange plan, kor
- * mange delar, kor mange plater, kor lang tid — og rutenettet og uttaket
- * eitt trykk unna. Sjølve handlinga, skjer, står ikkje her: ho står under høgre
- * tommel, i spalta over arket (sjå studio.tsx). Midten er plana
- * du har låst — berre dei låste; eit skissa plan finst ikkje nokon annan
- * stad enn på lerretet. Alt er resten: materialet, skyvarane, tavla,
- * uttaka, verktya. Fila, lesemåtane, angre og lenkja står i topplina.
- */
+/** On iPhone the sheet has a summary and compact task tabs. Long lists
+ * have pages; the desktop inspector remains a continuous column. */
 export type Steg = "line" | "midt" | "alt"
-const STEG: readonly Steg[] = ["line", "midt", "alt"]
 export const KOL = 340
-/**
- * TOMMELSPALTA EIG DEN HØGRE KANTEN, og ein boks over arket må vike for
- * henne. Skjer er 64 px brei og spalta står 16 frå kanten av ruta, so ho
- * tek dei ytste 80. Arket ligg 12 frå kanten, og då er det 68 att å halde
- * fri langs si eiga høgre side.
- *
- * Utan det la den femte brikka i «rom» seg under skjer: ho stod der, ho
- * var synleg, og eit trykk midt på henne gjekk til kniven. `pnpm panel
- * uttaka` trykkjer på KVAR brikke og fangar det — ei prøve på berre den
- * fyrste ville sagt ja, av di den fyrste står lengst frå spalta.
- */
-const TUMME_FRI = 68
 /** storleiken står framme; plata står saman med materialet */
 const FRAMME = new Set(["storleik", "arkB", "arkH"])
 
@@ -572,23 +550,112 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
   )
 }
 
+type TelefonFane = "form" | "grupper" | "materiale" | "kutt" | "sjekk" | "eksport"
+const TELEFON_FANER = [
+  { id: "form", label: "form", icon: IcoBit },
+  { id: "grupper", label: "grupper", icon: IcoRute },
+  { id: "materiale", label: "materiale", icon: <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M12 3a9 9 0 0 0 0 18" fill="currentColor"/></svg> },
+  { id: "kutt", label: "kutt", icon: IcoSliders },
+  { id: "sjekk", label: "sjekk", icon: <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/></svg> },
+  { id: "eksport", label: "eksport", icon: IcoUttak },
+] as const
+const TELEFON_BOLKAR: Record<TelefonFane, readonly string[]> = {
+  form: ["storleik", "transform", "nett"],
+  grupper: ["grupper", "plan", "profil", "lag", "snapp"],
+  materiale: ["materiale", "tjukn", "plate", "delar"],
+  kutt: ["ledd", "kutt", "forenkling"],
+  sjekk: ["mål", "reglar"],
+  eksport: ["rom", "plate", "alt"],
+}
+
+/** One task at a time, inside a sheet that occupies at most two fifths of
+ * the viewport. Desktop keeps its existing continuous inspector. */
+function TelefonInnhald({ p, fane, onFane, onInnhaldH }: { p: ArketProps; fane: TelefonFane; onFane: (f: TelefonFane) => void; onInnhaldH: (h: number) => void }) {
+  const [val, setVal] = useState<Record<string, string>>({})
+  const tabs = TELEFON_BOLKAR[fane]
+  const bolk = val[fane] ?? tabs[0]
+  const setParam = (k: string, v: number) => p.onChange({ ...p.params, [k]: v })
+  const slider = (k: string) => <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(p.params, k, PARAM_RANGES[k].min)} onChange={setParam} onSkrubb={p.onSkrubb}
+    bi={k === "storleik" && p.metrics ? `${n0(p.metrics.envX)}×${n0(p.metrics.envY)}×${n0(p.metrics.envZ)}` : undefined} />
+  let rows: ReactNode[] = []
+  let selected: number | undefined
+  const rowHeight = 44
+  if (fane === "form") {
+    rows = (bolk === "storleik" ? ["storleik"] : bolk === "transform" ? ["rotX", "rotY", "rotZ"] : ["glatt", "trekant"]).map(slider)
+    if (bolk === "storleik" && p.bitFarge !== null) rows.push(<ul key="bit"><Lagrad no={p.bitFarge} ord="bit" tittel=" · plan med same laget vert skore inne i denne biten" onFarge={p.onBitFarge} /></ul>)
+    if (bolk === "storleik") rows.push(<div key="reset" className="telefon-rad"><span className="dim">{p.metrics ? `${nn(p.metrics.cutLen / 1000, 1)} m kutt` : ""}</span><button type="button" className={ICON_BTN} onClick={p.onReset} aria-label="attende til standarden" title="attende til standarden. nettet ditt står">{IcoReset}</button></div>)
+  } else if (fane === "grupper") {
+    if (p.view === "montasje" && (bolk === "plan" || bolk === "grupper")) {
+      const ord: Record<Veg, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg" }
+      rows = (p.mont?.delar ?? []).filter(d => d.steg === p.montSteg - 1).map(d => <div key={d.adr} className="telefon-rad" data-steg-del={d.adr}><span>{d.adr}</span><span>{ord[d.veg]}</span><span className="dim">ark {d.ark}</span></div>)
+    } else if (bolk === "grupper") {
+      const groups = [...new Set(p.plan.map(q => q.gruppe).filter((g): g is number => !!g))]
+      selected = groups.indexOf(p.valdGruppe ?? -1)
+      rows = groups.map(g => <div key={g} className="telefon-rad" data-gruppe={g}>
+        <button type="button" className="telefon-listeval" aria-label={`gruppe ${g}`} aria-pressed={p.valdGruppe === g} onClick={() => p.valdGruppe === g ? p.onVald(null) : p.onVelGruppe(g)}>
+          <span className="tab">G{g}</span><span className="dim">{p.plan.filter(q => q.gruppe === g).length} plan</span>
+        </button><button type="button" className={ICON_BTN} aria-label={`slett gruppe ${g}`} onClick={() => p.onSlettGruppe(g)}>{IcoSlett}</button>
+      </div>)
+      if (p.plan.some(q => !q.gruppe)) rows.push(<button key="single" type="button" className="telefon-listeval" onClick={() => setVal({ ...val, grupper: "plan" })}>enkeltplan <span className="dim">{p.plan.filter(q => !q.gruppe).length}</span></button>)
+    } else if (bolk === "plan") {
+      selected = p.plan.findIndex(q => q.id === p.vald)
+      rows = p.plan.map(pl => {
+        const parts = p.liste.filter(k => k.plan === pl.id)
+        return <div key={pl.id} className="telefon-rad" data-plan={pl.id}>
+          <button type="button" className="telefon-listeval" aria-label={`plan ${pl.id}`} aria-pressed={p.vald === pl.id} onClick={() => p.onVald(p.vald === pl.id ? null : pl.id)}>
+            <span className="tab">{pl.id}</span><span className="truncate">{kvaSlag(pl.n)}</span><span className="dim">{parts.reduce((n, q) => n + q.joints, 0)} ledd</span>
+          </button><button type="button" className={ICON_BTN} aria-label={`slett plan ${pl.id}`} onClick={() => p.onSlett(pl.id)}>{IcoSlett}</button>
+        </div>
+      })
+    } else if (bolk === "profil" && p.vald !== null) {
+      rows = [<ul key="profil"><Profilen p={p} /></ul>]
+      if (p.valdGruppe !== null) rows.push(<ul key="virr"><Virret p={p} /></ul>)
+    } else if (bolk === "lag" && p.vald !== null) rows = [<ul key="lag"><Laga p={p} /></ul>]
+    else if (bolk === "snapp") rows = [slider("snapp")]
+    if (!rows.length) rows = [<p key="tom" className="telefon-rad dim">{p.plan.length ? "vel eit plan eller ei gruppe" : "ingen plan enno"}</p>]
+  } else if (fane === "materiale") {
+    if (bolk === "materiale") rows = [<div key="material" className="telefon-material">{(Object.keys(MATERIALS) as Material[]).map(m => <button key={m} type="button" aria-label={`materiale: ${MATERIALS[m].label}`} title={MATERIALS[m].label} aria-pressed={p.params.material === m} onClick={() => p.onChange({ ...p.params, material: m })}><span style={{ background: MATERIALS[m].hex, borderColor: p.params.material === m ? "var(--ink)" : "var(--rule)" }} /></button>)}<span className="dim truncate">{MATERIALS[p.params.material as Material]?.label}</span></div>]
+    if (bolk === "tjukn") rows = [<div key="preset" className="telefon-preset">{TJUKNER.map(t => <button key={t} type="button" aria-label={`${tjukn(t)} mm plate`} aria-pressed={p.params.tjukn === t} className={CHIP} style={chipStyle(p.params.tjukn === t)} onClick={() => setParam("tjukn", t)}>{tjukn(t)}</button>)}</div>, slider("tjukn")]
+    if (bolk === "plate") rows = ["arkB", "arkH"].map(slider)
+    if (bolk === "delar") rows = ["lause", "merk"].map(slider)
+  } else if (fane === "kutt") rows = (GROUPS.find(g => g.id === bolk)?.keys ?? []).map(slider)
+  else if (fane === "sjekk") {
+    if (bolk === "mål") rows = (p.metrics?.list ?? []).map(q => <div key={q.id} className="telefon-rad"><span className="dim">{q.label}</span><span className="tab">{q.text} {q.unit}</span></div>)
+    else {
+      const broken = p.rules.filter(r => !r.ok)
+      rows = broken.flatMap(r => [<div key={r.id} className="telefon-rad" style={{ color: r.hard ? "var(--warn)" : undefined }}><span>{r.label}</span><span className="tab">{r.value}</span><Fiksen rule={r} params={p.params} onChange={p.onChange} /></div>, ...(r.why.match(/.{1,90}(?:\s|$)|\S+/g) ?? []).map((text, i) => <p key={`${r.id}-${i}`} className="telefon-forklaring">{text.trim()}</p>)])
+      if (broken.some(r => r.fiks && !r.fiks.riv)) rows.push(<div key="fix" className="telefon-rad"><button type="button" className={CHIP} style={chipStyle(false)} disabled={p.busy} onClick={p.onFiksAlle} aria-label="fiks alle trygge råd">fiks alt</button></div>)
+      if (!rows.length) rows = [<p key="ok" className="telefon-rad dim">ingen brot</p>]
+    }
+  } else if (fane === "eksport") {
+    const files = UTTAK.find(g => g.bolk === bolk)?.filer ?? []
+    const broken = p.rules.filter(r => r.hard && !r.ok)
+    const buttons: ReactNode[] = files.map(x => {
+      const stop = stengd(x.id, p.metrics)
+      return <button key={x.id} type="button" title={stop || x.hint} disabled={p.busy || !!stop} data-varsel={!stop && broken.length ? "" : undefined} className={CHIP + " uppercase"} style={{ ...chipStyle(false), color: !stop && broken.length ? "var(--warn)" : undefined }} onClick={() => p.onExport(x.id)}>{x.label}</button>
+    })
+    if (bolk === "alt") for (const tool of ["kuttliste", "oppsett"] as const) buttons.push(<button key={tool} type="button" className={CHIP} style={chipStyle(false)} onClick={() => p.onVerkty(tool)}>{tool}</button>)
+    for (let i = 0; i < buttons.length; i += 3) rows.push(<div key={i} className="telefon-uttak">{buttons.slice(i, i + 3)}</div>)
+    if (broken.length) rows.push(<button key="warning" type="button" className="telefon-rad telefon-varsel" data-uttakvarsel="" onClick={() => { setVal({ ...val, sjekk: "reglar" }); onFane("sjekk") }}>{broken.length} harde brot — sjå sjekk</button>)
+  }
+  useLayoutEffect(() => onInnhaldH(Math.max(1, rows.length) * rowHeight), [rows.length, rowHeight, onInnhaldH])
+  return <>
+    <Faner label={`${fane}: innstillingar`} tabs={tabs.map(id => ({ id, label: id }))} value={bolk} onChange={id => setVal({ ...val, [fane]: id })} />
+    <div className="telefon-innhald" role="tabpanel" aria-label={`${fane}: ${bolk}`}>
+      <Sidevis key={`${fane}-${bolk}`} label={`${fane}: ${bolk}`} rowHeight={rowHeight} selected={selected}>{rows}</Sidevis>
+    </div>
+  </>
+}
+
 export function Arket(p: ArketProps): JSX.Element {
   const { benk, steg, onSteg, onHogd } = p
   const open = benk || steg !== "line"
-  /** uttaka eitt trykk unna: ein liten boks over lina. I «alt» står dei alt i arket, og knappen rullar dit. */
-  const [visUttak, setVisUttak] = useState(false)
+  const [fane, setFane] = useState<TelefonFane>("grupper")
+  const [innhaldH, setInnhaldH] = useState(88)
   const uttak = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    if (!visUttak) return
-    const ute = (e: PointerEvent) => { if (!(e.target as Element).closest("[data-uttak]")) setVisUttak(false) }
-    const tast = (e: KeyboardEvent) => { if (e.key === "Escape") setVisUttak(false) }
-    window.addEventListener("pointerdown", ute, true)
-    window.addEventListener("keydown", tast, true)
-    return () => { window.removeEventListener("pointerdown", ute, true); window.removeEventListener("keydown", tast, true) }
-  }, [visUttak])
   const eksport = () => {
-    if (steg === "alt") uttak.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
-    else setVisUttak((v) => !v)
+    setFane("eksport")
+    onSteg(open && fane === "eksport" ? "line" : "midt")
   }
   // Kor mykje av ruta arket tek, MÅLT: kameraet stiller objektet inn i det
   // som er att. Grovkorna, so ei line til i arket ikkje rykkjer kameraet.
@@ -607,7 +674,7 @@ export function Arket(p: ArketProps): JSX.Element {
   const drag = useRef<{ y0: number; id: number } | null>(null)
   const [pull, setPull] = useState(0)
   const svelg = useRef(false)
-  const stegOm = (dir: 1 | -1) => onSteg(STEG[Math.min(2, Math.max(0, STEG.indexOf(steg) + dir))])
+  const stegOm = (dir: 1 | -1) => onSteg(dir > 0 ? "midt" : "line")
   const dragOpp = (e: React.PointerEvent) => {
     const d = drag.current
     if (!d || e.pointerId !== d.id) return
@@ -627,7 +694,7 @@ export function Arket(p: ArketProps): JSX.Element {
       </button>
 
       {!benk && (
-        <button type="button" aria-label="eksport" aria-expanded={visUttak} title="uttaka: rom — stl, glb, flat, 3mf, usdz. plate — dxf, svg, ark, png, passprøve. alt og lagre" onClick={eksport} className={ICON_BTN} aria-pressed={visUttak} data-uttak="">
+        <button type="button" aria-label="eksport" aria-expanded={open && fane === "eksport"} title="uttaka: rom — stl, glb, flat, 3mf, usdz. plate — dxf, svg, ark, png, passprøve. alt og lagre" onClick={eksport} className={ICON_BTN} aria-pressed={open && fane === "eksport"} data-uttak="">
           {IcoUttak}
         </button>
       )}
@@ -677,68 +744,23 @@ export function Arket(p: ArketProps): JSX.Element {
     )
   }
 
-  /**
-   * UTTAKSBOKSEN STÅR OVER ARKET OG IKKJE INNI DET.
-   *
-   * Han låg inne i arket, absolutt plassert over toppen av det. Arket
-   * klipper: `overflow-x-hidden` gjer at nettlesaren reknar den andre
-   * aksen som `auto`, og alt som stikk opp over kanten vert skore bort.
-   * Boksen hadde difor plass, mål og knappar — og teikna ingenting. Ei
-   * rute du kan måle og ikkje sjå er den verste sorten feil: han syner
-   * seg ikkje i eit einaste tal.
-   *
-   * No er han eit sysken av arket i den same faste ramma, over det.
-   * Søvnen tek han med (sjå `.uttak` i globals.css), som han tek alt
-   * anna som ikkje er objektet.
-   */
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex flex-col items-center px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-      {visUttak && steg !== "alt" && (
-        <div
-          data-uttak=""
-          role="group"
-          aria-label="uttak"
-          className="uttak ark pointer-events-auto mb-2 min-w-0 max-w-md rounded-2xl border px-3 sm:max-w-xl"
-          style={{ ...HAIR, width: "calc(100vw - 24px)", paddingRight: TUMME_FRI, background: "var(--paper)", color: "var(--ink)" }}
-        >
-          <Uttaka p={p} onGjort={() => setVisUttak(false)} />
-        </div>
-      )}
-      <section
-        ref={el}
-        aria-label="kontrollar"
-        aria-busy={p.busy}
-        className="ark pointer-events-auto relative flex min-w-0 max-w-md flex-col overflow-x-hidden rounded-3xl border sm:max-w-xl"
-        style={{
-          ...HAIR,
-          // aldri breiare enn skjermen: ei rad med for lang tekst skal ikkje skuve arket ut av kanten
-          width: "calc(100vw - 24px)",
-          background: "var(--paper)",
-          color: "var(--ink)",
-          // taket ligg på ARKET, og trygdesona tel med: summen er taket
-          maxHeight: steg === "alt" ? "calc(72dvh - env(safe-area-inset-bottom) - 12px)" : "calc(48dvh - env(safe-area-inset-bottom) - 12px)",
-          transform: pull ? `translateY(${pull}px)` : undefined,
-        }}
-      >
-        <div
-          className="shrink-0"
-          style={{ touchAction: "none" }}
-          onPointerDown={(e) => { if (e.pointerType !== "mouse") drag.current = { y0: e.clientY, id: e.pointerId } }}
-          onPointerMove={(e) => { const d = drag.current; if (d && e.pointerId === d.id) setPull(Math.max(-26, Math.min(26, (e.clientY - d.y0) * 0.3))) }}
-          onPointerUp={dragOpp}
-          onPointerCancel={dragOpp}
-          onClickCapture={(e) => { if (svelg.current) { svelg.current = false; e.preventDefault(); e.stopPropagation() } }}
-        >
-          <div aria-hidden="true" className="mx-auto mt-2 h-1 w-9 rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 22%, transparent)" }} />
+    <div className="telefon-ramme pointer-events-none fixed inset-x-0 bottom-0 z-10 flex flex-col items-center">
+      <section ref={el} aria-label="kontrollar" aria-busy={p.busy} data-open={open ? "" : undefined}
+        className="ark telefon-ark pointer-events-auto relative flex min-w-0 flex-col rounded-3xl border"
+        style={{ ...HAIR, background: "var(--paper)", color: "var(--ink)", height: open ? `min(${134 + innhaldH}px, 340px, calc(40dvh - env(safe-area-inset-bottom) - 12px))` : undefined, transform: pull ? `translateY(${pull}px)` : undefined }}>
+        <div className="telefon-hovud shrink-0" style={{ touchAction: "none" }}
+          onPointerDown={e => { if (e.pointerType !== "mouse") { drag.current = { y0: e.clientY, id: e.pointerId } } }}
+          onPointerMove={e => { const d = drag.current; if (d && e.pointerId === d.id) setPull(Math.max(-26, Math.min(26, (e.clientY - d.y0) * 0.3))) }}
+          onPointerUp={dragOpp} onPointerCancel={() => { drag.current = null; setPull(0) }}
+          onClickCapture={e => { if (svelg.current) { svelg.current = false; e.preventDefault(); e.stopPropagation() } }}>
           {linja}
         </div>
-        {open && (
-          <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-1">
-            {midt}
-            {steg === "alt" && <Alt p={p} uttak={uttak} />}
-          </div>
-        )}
-        {open && <div className="shrink-0 px-3 pb-1">{fot}</div>}
+        {open && <>
+          <button type="button" className="telefon-lukk" aria-label="lat att kontrollane" onClick={() => onSteg("line")}>{IcoDown}</button>
+          <Faner label="kontrollfaner" tabs={TELEFON_FANER.map(t => ({ ...t, warn: t.id === "sjekk" && p.rules.some(r => !r.ok && r.hard) }))} value={fane} onChange={id => setFane(id as TelefonFane)} />
+          <TelefonInnhald p={p} fane={fane} onFane={setFane} onInnhaldH={setInnhaldH} />
+        </>}
       </section>
     </div>
   )
