@@ -1309,6 +1309,19 @@ async function skrivebordet(browser: Browser) {
   const tetra = (a: number) => `v 0 0 0\nv ${a} 0 0\nv 0 ${a} 0\nv 0 0 ${a}\nf 1 3 2\nf 1 2 4\nf 2 3 4\nf 1 4 3\n`
   const kjeldeknapp = page.locator("[data-kjelde]")
   const lagra = () => page.locator("[data-meny] [data-lagra]")
+  /**
+   * OPNA KJELDEMENYEN SLIK EI HAND GJER DET.
+   *
+   * Det fyrste trykket etter at chromen har vakna vert ete med vilje — ein
+   * orbit skal ikkje ende i ein knapp — so ei prøve som trykkjer éin gong og
+   * krev at menyen står open, prøver svelgjaren og ikkje menyen.
+   */
+  const opneKjelde = async () => {
+    for (let i = 0; i < 3 && (await kjeldeknapp.getAttribute("aria-expanded")) !== "true"; i++) {
+      await kjeldeknapp.click()
+      await roleg(page, 600)
+    }
+  }
 
   await page.locator("header input[type=file]").setInputFiles([
     { name: "ein.obj", mimeType: "text/plain", buffer: Buffer.from(tetra(40)) },
@@ -1321,8 +1334,7 @@ async function skrivebordet(browser: Browser) {
   const vist = (await kjeldeknapp.innerText()).trim()
   sjekk("den fyrste fila vert kroppen", /ein/.test(vist), vist)
 
-  await kjeldeknapp.click()
-  await roleg(page, 500)
+  await opneKjelde()
   const namn = await lagra().allInnerTexts()
   sjekk("og BEGGE står i menyen etterpå", namn.length >= 2 && namn.some((t) => /ein/.test(t)) && namn.some((t) => /to/.test(t)), namn.join(" · "))
   await page.keyboard.press("Escape")
@@ -1331,12 +1343,64 @@ async function skrivebordet(browser: Browser) {
   await page.reload({ waitUntil: "load" })
   await ferdig(page)
   await roleg(page, 1800)
-  await kjeldeknapp.click()
-  await roleg(page, 600)
+  await opneKjelde()
   const etter = await lagra().allInnerTexts()
   sjekk("og lista står over ei omlasting", etter.length >= 2, etter.join(" · "))
 
+  /**
+   * OG HO RULLAR NÅR HO VERT LANG.
+   *
+   * Lista var fem former og ei fil-line: ho fekk plass same kva. No er ho òg
+   * biblioteket ditt, og tjue filer er lengre enn ein telefon er høg — menyen
+   * rann ut nedanfor skjermen, og linene du nett hadde henta inn var dei du
+   * ikkje kunne nå.
+   *
+   * Prøva står på TELEFONSTORLEIK, av di det er der han rann ut, og ho
+   * krev to ting: at nedkanten er på skjermen, og at lista faktisk rullar.
+   * Ei liste som får plass av di ho er klipt er ikkje ei liste som får plass.
+   */
+  await page.locator("header input[type=file]").setInputFiles(
+    Array.from({ length: 22 }, (_, i) => ({ name: `fyll-${i}.obj`, mimeType: "text/plain", buffer: Buffer.from(tetra(20 + i)) })),
+  )
+  // ti importar på ein gong er ti bygg: vent til han er ferdig, ikkje til
+  // klokka seier at han burde vera det
+  await ferdig(page)
+  await roleg(page, 2000)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await roleg(page, 800)
+  // VEKK CHROMEN FYRST: to sekund utan ein finger og alt som ikkje er
+  // objektet er borte, og medan det er borte tek grensesnittet ingen trykk.
+  // Innlastinga over tek lenger enn det, so det fyrste trykket vart ete.
+  // og VENT UT SVELGJAREN: det fyrste trykket etter at chromen vaknar vert
+  // ete med vilje, so ein orbit ikkje endar i ein knapp. Han slepper etter
+  // eit lite bel, og prøva må vera på den andre sida av det.
+  await page.mouse.move(200, 400)
+  await roleg(page, 1000)
+  await opneKjelde()
+  const boks = page.locator("[data-meny]")
+  sjekk("menyen er open etter trykket", (await boks.count()) === 1, (await kjeldeknapp.getAttribute("aria-expanded")) ?? "?")
+  const mm = (await boks.count()) ? await boks.boundingBox() : null
+  const vh = page.viewportSize()!.height
+  sjekk("menyen held seg innanfor skjermen", !!mm && mm.y + mm.height <= vh, mm ? `botn ${Math.round(mm.y + mm.height)} av ${vh} px` : "fann han ikkje")
+  const rullar = await boks.evaluate((e) => ({ s: e.scrollHeight, c: e.clientHeight, t: e.getBoundingClientRect().top }))
+  // OG SITUASJONEN MÅ VERA EKTE: hadde innhaldet fått plass på skjermen
+  // likevel, målte prøva ingenting — ho ville stått grøn på den koden som
+  // rann ut nedanfor kanten.
+  sjekk("lista er lengre enn skjermen", rullar.t + rullar.s > vh, `${Math.round(rullar.t + rullar.s)} px mot ${vh} px skjerm`)
+  sjekk("og ho rullar inni seg sjølv", rullar.s > rullar.c + 4, `${rullar.s} px innhald i ${rullar.c} px`)
+  // og den SISTE lina er å nå: ei liste som rullar utan å kome fram er ikkje betre enn ei som er klipt
+  await boks.evaluate((e) => { e.scrollTop = e.scrollHeight })
+  await roleg(page, 400)
+  const sist = boks.locator("[data-lagra]").last()
+  const sb = await sist.boundingBox()
+  sjekk("og den siste lina er å nå", !!sb && sb.y >= 0 && sb.y + sb.height <= vh, sb ? `${Math.round(sb.y)}..${Math.round(sb.y + sb.height)} px` : "fann henne ikkje")
+  await page.keyboard.press("Escape")
+  await roleg(page, 300)
+  await page.setViewportSize({ width: 1400, height: 900 })
+  await roleg(page, 800)
+
   const bitFoer = String(hash(page).scene ?? "").split(";").filter(Boolean).length
+  await opneKjelde()
   await lagra().filter({ hasText: "to" }).first().click()
   await vent(page, (p) => String(p.scene ?? "").split(";").filter(Boolean).length > bitFoer, 25000)
   await roleg(page, 900)
@@ -1923,30 +1987,11 @@ async function benk(browser: Browser) {
   // og attende til der bolken stod. Rekna på RADENE og ikkje på lenkja:
   // lenkja kjem etter, og ein lekk som trur det står eitt plan att når
   // lista er tom ventar på ei rad som aldri kjem.
-  // × på rada og ikkje trykk + Delete: eit trykk på ei rad som ALT er vald
-  // slepper henne, og då tek Delete ingenting og lekken står og går.
-  //
-  // OG BÅDE PLAN OG GRUPPER: ei gruppe som ligg saman GØYMER plana sine, so
-  // ein lekk som berre tel planradene ser null medan det står to att — og
-  // går ut med arbeid liggjande som resten av bolken snublar i.
-  const rader = () => page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]")
-  const grupper = () => page.locator("[role=listbox][aria-label='plan'] [role=option][data-gruppe]")
-  /**
-   * OG LISTA FYLGJER MOTOREN, IKKJE LENKJA.
-   *
-   * Radene er dei plana som er BYGDE; lenkja ber dei som er SETTE. Mellom
-   * dei to ligg ein arbeidar, og han er ikkje ferdig i same augneblinken.
-   * Ein lekk som les lenkja og klikkar rader les difor to ulike tal, og
-   * gjekk ut med arbeid liggjande — som resten av bolken so snubla i.
-   */
-  await vent2(page, async () => (await rader().count()) + (await grupper().count()) > 0 || plana(page).length <= n0, 15000)
-  for (let i = 0; i < 16 && plana(page).length > n0; i++) {
-    if (await grupper().count()) await grupper().last().locator("button[aria-label^='slett gruppe']").click()
-    else if (await rader().count()) await rader().last().locator("button[aria-label^='slett plan']").click()
-    else break
-    await roleg(page, 250)
-  }
-  sjekk("og benken står att som han stod", plana(page).length === n0, `${plana(page).length} plan, venta ${n0}`)
+  // OG INGA OPPRYDDING: sida vert lukka to liner under, so alt som vert
+  // teke bort her vert teke bort frå noko som forsvinn uansett. Det stod ei
+  // her, og ho var ikkje berre unyttig — ho las lenkja og klikka rader, og
+  // dei to tala kjem frå kvar si side av ein arbeidar. Ho stod raud av å
+  // rydde, i ein bolk der det ikkje var noko å rydde for.
 
   sjekk("ingen konsollfeil på benken", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
