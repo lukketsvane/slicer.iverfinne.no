@@ -68,7 +68,10 @@ const TAK: [string, number][] = [
   // han MELDER og kva han SLEPP — og arbitreringa, som var eit delt `mode`
   // og no er eitt ord (`arb`) båe kan lesa. Det er den skrivinga som gjer
   // at kanal nummer to kan flyttast utan å finne opp mønsteret på nytt
-  ["components/scene.tsx", 3890],
+  // +16 den 13.: bandet eit spor-handtak kan dragast i fylgjer BOGEN når
+  // leddet ligg mot eit bøygt plan. Punkta kjem ferdig rekna frå motoren
+  // (`spor.boge`), so det som står her er berre at ei line er fleire bitar
+  ["components/scene.tsx", 3906],
   // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
@@ -136,7 +139,30 @@ const TAK: [string, number][] = [
   // staden, so dette er ei avlesing som mangla og ikkje ei som er finare.
   // Det meste er grunngjevinga: kvifor ho vert lesen på dei FERDIGE
   // profilane og ikkje på møta som vart nekta
-  ["lib/snitt.ts", 1527],
+  // +224 den 13.: bøygde ledd, steg TO — golvet. Eit flatt plan vinkelrett
+  // på sylinderaksen møter den bøygde flata i ein SIRKEL med sylinderradien,
+  // og då er ei sporline ikkje lenger alltid ei rett line. `Spor` får ei
+  // krumming, og fire rekningar må fylgje henne: punktet på lina
+  // (`sporPunkt`), punktet attende (`sporInn`), stykka ei line går gjennom
+  // gods i (`stykkeBoge`), og lina som brotne line til teikning
+  // (`sporBoge`). Det er den eine staden i huset ei sporline er bogna, og
+  // `PLAN.md` punkt A seier kvifor prisen ligg her og ikkje i geometrien:
+  // «det er å la eit spor vera ein boge».
+  //
+  // (og `ein2` gjekk den andre vegen: han fanst i to kopiar, og den eine er
+  // borte — `moteInn` treng den same, so han bur i `plan.ts` no)
+  //
+  // Tretti og fem av linene er MÅLINGA over den eine lykkja som vert køyrd
+  // for kvar celle i ruta: kva tre måtar å skrive henne på kostar, og kvifor
+  // den som ser styggast ut er den som står. Utan tala er det ein kommentar
+  // nokon «ryddar» neste veke.
+  //
+  // Kring seksti av dei er rekningane, resten er grunngjeving: kvifor eit
+  // golv er reint der eit SKRÅ plan ikkje er det, kvifor buelengd er det
+  // eine talet båe sidene av eit ledd kan lesa, kvifor ein lukka sirkel må
+  // ha pariteten lesen éin stad når ei open line ikkje treng det, og kvifor
+  // ein bøygd del ikkje vert skuva inn men BØYGD inn.
+  ["lib/snitt.ts", 1751],
   ["lib/pack.ts", 955],
 ]
 

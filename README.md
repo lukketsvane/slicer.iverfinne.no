@@ -424,19 +424,44 @@ edges become curves on the way, so edges longer than `√(8·R·tol)` are split
 first; without that a cube would come out as a box with straight sides
 claiming to be bent.
 
-**A bent plane carries joints where a flat plane lies along its axis.** The
-whole slot machinery is built on two surfaces meeting in a *line*. Two planes
-always do. A cylinder and a plane do it in exactly one case: when the plane
-lies along the cylinder axis, the meeting is a generator line — straight in
-space and straight unrolled, because `u` is arc length and the line has
-constant `u`. That is the curved-shell-with-flat-ribs-across-it case, which is
-what people actually build, and it works.
+**A bent plane carries joints against flat ribs along its axis, and against
+floors across it.** The slot machinery is built on two surfaces meeting in one
+line with one curvature. Two planes always meet in a line. A cylinder and a
+plane do it in two clean cases, and they are each other's opposite extreme:
 
-The rest is still open. A plane slanted to the axis meets the cylinder in a
-conic; two bent surfaces meet in a space curve. A bent rib that finds no joint
-at all comes out as a loose plate, and a hard rule says so — it counts *ribs
-without slots*, not bent planes, because after this step those are no longer
-the same thing.
+- **along the axis** — the meeting is a generator line, straight in space and
+  straight unrolled, because `u` is arc length and the line has constant `u`.
+  That is the curved shell with flat ribs across it.
+- **perpendicular to the axis** — a floor, a deck, a lid. The plane cuts the
+  cylinder in a *circle* of exactly the cylinder radius. In the unrolled
+  pattern that circle is a straight line at constant distance along the axis,
+  so the bent part's slot is an ordinary slot; in the floor's own frame it is
+  an **arc**, and the floor's slot follows it. That is the curved shell with
+  floors, and it is the other half of what people actually build.
+
+So a slot line has a curvature now, and it is the only place in the house
+where one does. The two sides of a joint still share one number: mouth,
+bottom and exit are *arc length*, and both maps into the two frames preserve
+length — unrolling a cylinder is an isometry — so a deeper slot on one side is
+still a shallower one on the other, with nobody converting anything. The probe
+reads the radius back off the cut slot: 1000.0 mm against a cylinder of
+1000.0 mm, worst error 1.4e-12 mm, and the same set bent and flat counts the
+same 32 joints — bending takes no joint away and invents none.
+
+**And a bent part is not pushed into place, it is bent into place.** A flat
+part can only go one way, which is why joints along non-parallel lines are a
+break for it. A cylinder has only two kinds of joint — generators along the
+axis, arcs across it — and rolling the part down takes both: the generator
+stands still while the surface curves, the arc engages like a zip. So a bent
+part is exempt from that rule, and `montering.txt` says *bent into place* where
+it would otherwise say a direction.
+
+What is left open is the *slanted* plane — neither along the axis nor across
+it, where the conic neither straightens nor closes into a circle — and two bent
+surfaces, which meet in a space curve. Those meetings are counted and named, a
+bent rib that finds no joint at all comes out as a loose plate, and a hard rule
+says so — it counts *ribs without slots*, not bent planes, because after this
+step those are no longer the same thing.
 
 **The chrome dozes.** Two seconds without a finger and everything that is not
 the object fades away — the top line, the thumb column, the sheet, the sketch
@@ -1040,7 +1065,7 @@ pnpm sjekk   # tsc --noEmit
 pnpm probe   # engine without a browser: parts, joints, cut length, files
 pnpm rekkje  # reads the cut files back: engrave, inner cuts, outline, in order
 pnpm vrient  # meshes that aren't meshes, hostile plane strings, a hostile URL
-pnpm ledd    # every joint the panel counted, found again in the cut profiles — grids and oblique planes
+pnpm ledd    # every joint the panel counted, found again in the cut profiles — grids, oblique planes, bent ribs with floors
 pnpm raad    # breaks each rule, presses the fix it offers, checks it worked
 pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps

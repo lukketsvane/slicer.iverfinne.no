@@ -26,7 +26,7 @@
 import { inRing, shoelace, type Pt } from "../lib/core"
 import { makeBygg } from "../lib/bygg"
 import { newSoup, ribSolid, soupToMesh } from "../lib/mesh"
-import { DETAIL, jointsIn, stykkeLangs, type Snitt, type Ribbe as Rib, type Spor } from "../lib/snitt"
+import { DETAIL, jointsIn, sporPunkt, stykkeLangs, type Snitt, type Ribbe as Rib, type Spor } from "../lib/snitt"
 import { DEFAULT_PARAMS, leddNokkel, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
@@ -45,6 +45,21 @@ const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
  */
 const bogNett = (nx: number, ny: number, bog: number) =>
   skrivPlan(rutenett(nx, ny).map((q) => (q.n[0] === 1 ? { ...q, bog } : q)))
+
+/**
+ * OG DET SAME MED GOLV I.
+ *
+ * Steg to: eit flatt plan VINKELRETT på sylinderaksen møter flata i ein
+ * SIRKEL med sylinderradien. Sporet på den bøygde delen er ei rett line i
+ * det utbretta mønsteret — `u` er buelengd — medan sporet i golvet er ein
+ * BOGE. Det er den eine staden i huset ei sporline ikkje er rett, og difor
+ * den eine saka denne vakta ikkje kunne sjå før.
+ */
+const bogGolv = (nx: number, ny: number, bog: number, golv: readonly number[]) =>
+  skrivPlan([
+    ...lesPlan(bogNett(nx, ny, bog)),
+    ...golv.map((z, i) => ({ id: 90 + i, o: [0.5, 0.5, z] as [number, number, number], n: [0, 0, 1] as [number, number, number], bog: 0, strek: [] })),
+  ])
 
 /**
  * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
@@ -82,7 +97,7 @@ function inniNabo(r: Rib): { tal: number; verst: number } {
   let tal = 0
   let verst = 0
   for (const q of r.spor) {
-    const runs = stykkeLangs(r.raa, q.p, q.d)
+    const runs = stykkeLangs(r.raa, q.p, q.d, q.k)
     const i = runs.findIndex(([lo, hi]) => q.munn >= lo - 0.6 && q.munn <= hi + 0.6)
     if (i < 0) continue
     const opp = q.munn > q.botn
@@ -151,8 +166,8 @@ function sjekk(namn: string, p: Params): number {
   let nabo = 0
   let naboVerst = 0
 
-  /** punktet `t` langs sporet, `s` til sides */
-  const paa = (q: Spor, t: number, s = 0): Pt => [q.p[0] + q.d[0] * t - q.d[1] * s, q.p[1] + q.d[1] * t + q.d[0] * s]
+  /** punktet `t` langs sporet, `s` til sides — og sporet kan vera ein BOGE */
+  const paa = (q: Spor, t: number, s = 0): Pt => sporPunkt(q, t, s)
   for (const r of g.ribber) {
     const n = inniNabo(r)
     nabo += n.tal
@@ -387,6 +402,28 @@ const SAKER: [string, Partial<Params>][] = [
   ["kube, x-familien bøygd", { plan: bogNett(4, 4, 0.3) }],
   ["kule, x-familien bøygd", { kjelde: "kule", plan: bogNett(4, 4, 0.25) }],
   ["kule, x-familien bøygd, tett", { kjelde: "kule", plan: bogNett(8, 8, 0.2) }],
+  /**
+   * BØYGDE LEDD, STEG TO: sylindrar med GOLV på tvers av aksen.
+   *
+   * Møtet er ein sirkelboge, og sporet i golvet fylgjer han. Vakta måler
+   * luft midt i sporet og gods ein halv millimeter utanfor kvar vegg — og
+   * ho gjer det langs BOGEN, so eit spor som stod att som ei KORDE ville
+   * slått ut med gods midt i sporet. Det er prøva på at bogen er rekna og
+   * ikkje rett ut.
+   *
+   * TO FAMILIAR OG IKKJE TRE. Eit rutenett med x, y OG golv er noko anna
+   * enn eit bøyespørsmål: tre familiar halvved-spor som kryssar kvarandre
+   * sagar kvar ribbe i lause øyer, av di kvart spor går til midten og to
+   * spor som kryssar der tek godset to gonger. Det gjer dei like mykje
+   * FLATT som bøygt — målt, med det same settet og `bog: 0`: 32 av 64 ledd
+   * utan skulder, båe vegar. Det er den saka `orden`, `klem` og delinga er
+   * til for, og ho høyrer ikkje heime i ei prøve på om ein boge er rekna
+   * rett.
+   */
+  ["kube, bøygd med to golv", { plan: bogGolv(4, 0, 0.3, [0.35, 0.65]) }],
+  ["kule, bøygd med tre golv", { kjelde: "kule", plan: bogGolv(4, 0, 0.25, [0.3, 0.5, 0.7]) }],
+  ["egg, bøygd med golv, tjukk plate", { kjelde: "egg", plan: bogGolv(3, 0, 0.4, [0.4, 0.6]), tjukn: 12, storleik: 400 }],
+
   ["kule, strek tvers over ei plate", {
     kjelde: "kule",
     plan: medStrek(nett(6, 6), 3, { slag: "hol", form: "rekt", x: 0, y: 0.1, w: 1.2, h: 0.04, a: 0 }),

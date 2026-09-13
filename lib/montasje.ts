@@ -49,10 +49,18 @@ import type { Ramme } from "./plan"
  * svarast éin stad. Elles er det to sanningar om den same delen, og dei
  * kjem til å gå frå kvarandre.
  */
-export type Veg = "ned" | "opp" | "side" | "ligg"
+export type Veg = "ned" | "opp" | "side" | "ligg" | "boygd"
 
-/** grensa er den same som teksten alltid har brukt: 0,7 på loddrett */
-export function vegen(m: Vec3 | null): Veg {
+/**
+ * Grensa er den same som teksten alltid har brukt: 0,7 på loddrett.
+ *
+ * «Bøygd» er ikkje ei retning ved sida av dei tre — det er at delen ikkje
+ * vert SKUVA i det heile. Han kjem flat frå plata og vert rulla på plass,
+ * og rullinga tek ledda hans i båe retningane flata krummar seg i. Sjå
+ * `Montering.boygde` i `snitt.ts`.
+ */
+export function vegen(m: Vec3 | null, boygd = false): Veg {
+  if (boygd) return "boygd"
   if (!m) return "ligg"
   if (m[2] < -0.7) return "ned"
   if (m[2] > 0.7) return "opp"
@@ -245,7 +253,7 @@ export function montasjen(sn: Snitt, delar: readonly Del[], ns: Nesting, t: numb
       adr: d.adr,
       steg: steg.get(d.plan) ?? 0,
       ark: p.ark,
-      veg: vegen(sn.montering.retning[d.plan] ?? null),
+      veg: vegen(sn.montering.retning[d.plan] ?? null, sn.montering.boygde.includes(d.plan)),
       positions: new Float32Array(s.pos),
       ferdig: ferdigMat(r, t),
       flat: flatMat(p.m, p.off),
