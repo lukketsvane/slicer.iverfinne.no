@@ -10,7 +10,7 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
-import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, slaaSaman, snappPunkt, vriOm, MJUK_TAK, PLAN_ROM, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
+import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, slaaSaman, snappPunkt, snappTeikn, vriOm, MJUK_TAK, PLAN_ROM, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
@@ -853,6 +853,25 @@ console.log("\nhandtaka på spor-endane:")
   sjekk("og eitt langt utanfor det fell framleis", langtUte.length === 0, `${langtUte.length} plan`)
   const paaGrensa = lesPlan(`1@0.5,${1 + PLAN_ROM},0.5/0,1,0`)
   sjekk("og grensa sjølv står", paaGrensa.length === 1, `${paaGrensa.length} plan ved ${1 + PLAN_ROM}`)
+
+  /**
+   * OG SNAPPET MEDAN DU TEIKNAR er eit anna spørsmål enn snappet i ein ring.
+   *
+   * Ei open kjede har eitt punkt før og eit fyrste punkt å lukke mot. Vakta
+   * krev at LUKKINGA vinn — ho er den eine handlinga som ikkje berre flyttar
+   * noko — og at ho ikkje slår til før det finst ei flate å lukke.
+   */
+  const kjede: Pt[] = [[0, 0], [1, 0], [1, 1]]
+  const lukk = snappTeikn(kjede, [0.02, 0.02], 0.1, 0.05, 90)
+  sjekk("nær det fyrste punktet lukkar flata seg", lukk.lukk && lukk.p[0] === 0 && lukk.p[1] === 0, `${lukk.lukk} → ${lukk.p.join(",")}`)
+  const foerTre = snappTeikn([[0, 0], [1, 0]], [0.02, 0.02], 0.1, 0.05, 90)
+  sjekk("men to punkt er inga flate, so ho lukkar seg ikkje", !foerTre.lukk, `${foerTre.lukk}`)
+  const vink = snappTeikn(kjede, [0.97, 1.4], 0.1, 0.05, 90)
+  sjekk("og vinkelen gjeng frå DET SISTE punktet", vink.slag === "akse" && vink.p[0] === 1, `${vink.slag} → ${vink.p.join(",")}`)
+  const fri2 = snappTeikn(kjede, [0.5, 1.4], 0.1, 0.05, 0)
+  sjekk("og steg null teiknar fritt", fri2.slag === null && fri2.p[0] === 0.5, `${fri2.slag}`)
+  const tom = snappTeikn([], [0.3, 0.3], 0.1, 0.05, 90)
+  sjekk("det aller fyrste punktet fangar ingenting", tom.slag === null && !tom.lukk)
 
   // OG RADIEN STYRER: null radius fangar ingenting
   const av = snappPunkt(kv, 0, [0.95, 0.03], 0)

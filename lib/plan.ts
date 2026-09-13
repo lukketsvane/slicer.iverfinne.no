@@ -1147,3 +1147,54 @@ export function formPunkt(slag: FormSlag, b: { x0: number; y0: number; x1: numbe
   }
   return { omriss: ut }
 }
+
+/**
+ * SNAPPET MEDAN DU TEIKNAR EI FLATE.
+ *
+ * Eit omriss som er ferdig er ein RING: kvart punkt har to naboar, og
+ * `snappPunkt` les begge. Ei flate som vert teikna er ei OPEN KJEDE: det
+ * finst berre eitt punkt før, og eitt punkt heilt i byrjinga som du kan
+ * lukke mot. Det er to ulike spørsmål, og eit svar på det eine er feil svar
+ * på det andre — difor står dei kvar for seg i staden for å dele ein
+ * funksjon med eit flagg i.
+ *
+ * TO TING FANGAR, og den fyrste er lukkinga: er du nær det fyrste punktet
+ * og har minst tre frå før, er flata ferdig. Det er den eine handlinga som
+ * ikkje berre flyttar noko, so ho må vera den som vinn.
+ *
+ * Den andre er vinkelen frå DET SISTE punktet, same steg som elles i huset.
+ * Ingen kant-snapp: kjeda har ingen kantar du ikkje nett har teikna, og å
+ * snappe til den du kom frå ville limt kvart punkt til det førre.
+ */
+export function snappTeikn(
+  punkt: readonly Pt[],
+  p: Pt,
+  r: number,
+  rPunkt: number,
+  steg: number,
+): { p: Pt; lukk: boolean; slag: "punkt" | "akse" | null } {
+  const n = punkt.length
+  if (n >= 3 && Math.hypot(p[0] - punkt[0][0], p[1] - punkt[0][1]) < rPunkt) {
+    return { p: [punkt[0][0], punkt[0][1]], lukk: true, slag: "punkt" }
+  }
+  if (!n || !steg || r <= 0) return { p, lukk: false, slag: null }
+  const a = punkt[n - 1]
+  const rad = (steg * Math.PI) / 180
+  const m = Math.round((2 * Math.PI) / rad)
+  let best = r
+  let paa: Pt | null = null
+  for (let k = 0; k < m; k++) {
+    const v = k * rad
+    const dx = Math.cos(v)
+    const dy = Math.sin(v)
+    const t = (p[0] - a[0]) * dx + (p[1] - a[1]) * dy
+    if (t <= 0) continue
+    const q: Pt = [a[0] + dx * t, a[1] + dy * t]
+    const d = Math.hypot(p[0] - q[0], p[1] - q[1])
+    if (d < best) {
+      best = d
+      paa = q
+    }
+  }
+  return paa ? { p: reint(paa), lukk: false, slag: "akse" } : { p, lukk: false, slag: null }
+}

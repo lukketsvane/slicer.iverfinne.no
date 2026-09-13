@@ -691,3 +691,15 @@ main[data-sov] .synskube button {
   outline-offset: 2px;
   border-radius: 9999px;
 }
+
+/* FLATA DU TEIKNAR. Ho ligg over objektet og under kontrollane — same
+   laget punkta har — og tek ingen trykk: trykket høyrer lerretet til, og
+   det er `Teikninga` som les det. Ho er ikkje med i dovninga: ei kjede du
+   held på med skal ikkje forsvinne av at handa står stille eit bel. */
+.teiknflate {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  overflow: visible;
+  pointer-events: none;
+}

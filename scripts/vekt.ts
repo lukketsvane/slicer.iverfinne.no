@@ -51,7 +51,14 @@ const TAK: [string, number][] = [
   // +12 den 13.: snappet sitt steg er eit tal og ikkje ein konstant — det
   // gjeld både punkta i eit omriss og vridinga av eit plan, av di det er
   // den same avgjerda: kva vinklar reiskapen kjenner
-  ["components/scene.tsx", 3589],
+  // +131 den 13.: `Teikninga`. Alt anna i fila teiknar noko motoren har
+  // rekna; denne teiknar noko som ENNO IKKJE FINST — ei kjede av punkt på
+  // eit frose skisseplan, som vert eit plan fyrst når du lukkar henne.
+  // Difor ligg linene på hovudtråden: dei er inndata, som skisseplanet
+  // sjølv, og ikkje eit resultat. Han er ein EIGEN komponent og ikkje ein
+  // kanal til i `Handa`, av di det er den eine vegen som ikkje gjer den
+  // funksjonen større
+  ["components/scene.tsx", 3759],
   // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
@@ -87,7 +94,11 @@ const TAK: [string, number][] = [
   // fekk ikkje vera større enn halvanna storleik. Begge kom frå den tida ei
   // flate berre kunne frysast ut av kroppen. Tala er målte og ikkje gjetta:
   // kva ei flate kostar heng ikkje saman med kor stor ho er
-  ["components/studio.tsx", 3181],
+  // +76 den 13.: teiknereiskapen. Skisseplanet vert FROSE i det du tek han
+  // — teiknar du mot eit plan som fylgjer kameraet, flyttar flata seg under
+  // handa kvar gong du snur synet — og det meste her er grunngjevinga for
+  // det og for at ei teikna flate IKKJE vert spegla av symmetrien
+  ["components/studio.tsx", 3257],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko

@@ -1,11 +1,11 @@
 "use client"
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
-import { GizmoHelper, GizmoViewcube, OrbitControls } from "@react-three/drei"
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react"
+import { GizmoHelper, GizmoViewcube, Html, OrbitControls } from "@react-three/drei"
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactElement, type ReactNode } from "react"
 import * as THREE from "three"
 import { LAG_FARGAR, MATERIALS, inRing, lagFarge, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
-import { akser, broek, dot, inn, OMRISS_TAK, omrissLine, omrissMidt, ramme as planRamme, snappPunkt, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
+import { akser, broek, dot, inn, OMRISS_TAK, omrissLine, omrissMidt, ramme as planRamme, snappPunkt, snappTeikn, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
 import type { Montasje } from "@/lib/montasje"
 import { FOV_FLAT, FOV_NAER, GROUND_Y, MAX_DIST, MIN_DIST, NAER_LUFT, SKODDE_FJERN, SKODDE_NAER, fovSkala, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
@@ -1726,6 +1726,146 @@ function Spora({ f, snitt, boks, onDeling }: {
  */
 const MIDT_MIN = 84
 /**
+ * FLATA DU TEIKNAR.
+ *
+ * Alt anna i denne fila teiknar noko motoren har rekna. Denne teiknar noko
+ * som ENNO IKKJE FINST: ei kjede av punkt på skisseplanet, som vert eit
+ * plan fyrst når du lukkar henne. Difor er linene her og ikkje i arbeidaren
+ * — dei er INNDATA, som skisseplanet sjølv, og ikkje eit resultat.
+ *
+ * Trykk og ikkje drag: eit drag på lerretet er orbiten sin, og han skal
+ * halde fram med å vera det medan du teiknar. Eit trykk er kort og står
+ * stille; alt anna er synet.
+ */
+/**
+ * SKISSEPLANET DUGER IKKJE TIL Å TEIKNE PÅ.
+ *
+ * Han er SIKTA LANGS SYNSAKSEN — det er heile ideen med han, og difor står
+ * eit nylåst plan på kant — so han projiserer til ei LINE på skjermen. Du
+ * kan ikkje setje eit hjørne på ei line: kvart trykk ville lese den same
+ * staden, og strålen frå auget ligg nesten i planet, so svaret er anten
+ * ingenting eller eit tal som spring.
+ *
+ * Teikneplanet er difor eit anna plan: det som VENDER MOT DEG, gjennom
+ * midten av kroppen. Det er flata du faktisk ser, og skjermen er ei ærleg
+ * avbilding av henne.
+ *
+ * Og han vert FROSEN når reiskapen vert teken. Elles fylgjer han kameraet,
+ * og flata di vrir seg under handa kvar gong du snur synet for å sjå kvar
+ * du er — du ser det fyrst når du er ferdig.
+ */
+function Teikninga({ f, S, punkt, snappSteg, svg, onLegg, onLukk }: {
+  f: Ramma
+  S: number
+  punkt: readonly Pt[]
+  snappSteg: number
+  /** teikneflata scena eig — som `.punkt`, so ingen overlegg tek trykka */
+  svg: SVGSVGElement | null
+  onLegg: (q: Pt) => void
+  onLukk: (o: Vec3, n: Vec3) => void
+}): null {
+  const camera = useThree((q) => q.camera)
+  const gl = useThree((q) => q.gl)
+  const size = useThree((q) => q.size)
+  /** planet som vender mot deg, frose ved fyrste teikninga */
+  const frose = useRef<Ramme | null>(null)
+  if (!frose.current) {
+    const fwd = new THREE.Vector3()
+    camera.getWorldDirection(fwd)
+    frose.current = planRamme({ o: broek(f.midt, f.min, f.max), n: nFraaVerd(fwd.multiplyScalar(-1)) }, f.min, f.max)
+  }
+  const r = frose.current
+  const naa = useRef({ f, r, S, punkt, snappSteg, onLegg, onLukk })
+  naa.current = { f, r, S, punkt, snappSteg, onLegg, onLukk }
+
+  /** eit punkt i skisseplanet si ramme, ut på skjermen i CSS-pikslar */
+  const paaSkjerm = useCallback((q: Pt) => {
+    const v = tilVerd(naa.current.f, ut(naa.current.r, [q[0] * naa.current.S, q[1] * naa.current.S])).project(camera)
+    return { x: ((v.x + 1) / 2) * size.width, y: ((1 - v.y) / 2) * size.height }
+  }, [camera, size.width, size.height])
+
+  // teikninga vert skriven kvar ramme: synet kan snu medan kjeda ligg der
+  useFrame(() => {
+    if (!svg) return
+    camera.updateMatrixWorld()
+    const px = naa.current.punkt.map(paaSkjerm)
+    const bane = svg.querySelector("polyline")
+    if (bane) bane.setAttribute("points", px.map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(" "))
+    const merka = svg.querySelectorAll("circle")
+    for (let i = 0; i < merka.length; i++) {
+      const q = px[i]
+      if (!q) continue
+      merka[i].setAttribute("cx", q.x.toFixed(1))
+      merka[i].setAttribute("cy", q.y.toFixed(1))
+    }
+  })
+
+  useEffect(() => {
+    const lerret = gl.domElement
+    /**
+     * KOR MYKJE EIN PIKSEL ER VERD HER, i skisseplanet si eining — same
+     * rekninga som omrisset gjer, og av same grunnen: ein radius i
+     * millimeter er fire pikslar på eit stort objekt og førti på eit lite.
+     */
+    const paaFlata = (cx: number, cy: number): Pt | null => {
+      const g = naa.current.f
+      const rr = naa.current.r
+      const rute = lerret.getBoundingClientRect()
+      const d = new THREE.Vector3(((cx - rute.left) / rute.width) * 2 - 1, 1 - ((cy - rute.top) / rute.height) * 2, 0.5)
+        .unproject(camera)
+        .sub(camera.position)
+        .normalize()
+      const n = nTilVerd(rr.n)
+      const k = d.dot(n)
+      if (Math.abs(k) < 0.02) return null
+      const t = tilVerd(g, rr.o).sub(camera.position).dot(n) / k
+      if (t <= 0) return null
+      // `inn` svarar i MILLIMETER; punkta står i brøk av storleiken, som dei
+      // gjer i eit omriss. Same delinga, og av same grunnen.
+      const q = inn(rr, fraaVerd(g, camera.position.clone().addScaledVector(d, t)))
+      return [q[0] / naa.current.S, q[1] / naa.current.S]
+    }
+    let ned: { id: number; x: number; y: number; t: number } | null = null
+    /**
+     * KVA SOM ER «PÅ LERRETET».
+     *
+     * Ikkje «målet ER lerretet»: eit overlegg eller eit av våre eigne merke
+     * ligg oppå og er målet i staden, og då fall trykket bort utan at
+     * nokon såg kvifor. Spørsmålet er kva som IKKJE er lerretet — ein
+     * kontroll, topplina, arket, spalta — og alt anna er teikneflata.
+     */
+    const paa = (e: PointerEvent) => {
+      const t = e.target as Element | null
+      if (!e.isPrimary || !t || t.closest("button, a, input, [role=slider], [role=tab], [role=option], header, aside, section[aria-label='verkty']")) return
+      ned = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() }
+    }
+    const av = (e: PointerEvent) => {
+      const d = ned
+      ned = null
+      if (!d || e.pointerId !== d.id) return
+      // eit drag er synet sitt, og eit langt trykk er ikkje eit trykk
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 12 || performance.now() - d.t > 700) return
+      const q = paaFlata(e.clientX, e.clientY)
+      if (!q) return
+      const a = paaFlata(e.clientX, e.clientY)
+      const b2 = paaFlata(e.clientX + 12, e.clientY)
+      const rPx = a && b2 ? Math.hypot(b2[0] - a[0], b2[1] - a[1]) : 0
+      const sn = snappTeikn(naa.current.punkt, q, rPx, (rPx * 5) / 12, naa.current.snappSteg)
+      if (sn.lukk) return naa.current.onLukk(naa.current.r.o, naa.current.r.n)
+      naa.current.onLegg(sn.p)
+    }
+    window.addEventListener("pointerdown", paa)
+    window.addEventListener("pointerup", av)
+    return () => {
+      window.removeEventListener("pointerdown", paa)
+      window.removeEventListener("pointerup", av)
+    }
+  }, [camera, gl])
+
+  return null
+}
+
+/**
  * KOR LENGE EIT TRYKK MÅ STÅ FØR PUNKTET GÅR.
  *
  * Dobbelttrykket tok punktet bort før; no vrir det hjørne til boge, og
@@ -3155,7 +3295,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, onTeiknLegg, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -3187,6 +3327,10 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   /** eit punkt i omrisset drege: plassen i lista, og punktet i planet si ramme */
   /** kva vinklar snappet kjenner, i grader. Null er av. */
   snappSteg: number
+  /** punkta i flata som vert teikna no; planet er scena sitt og vert frose der */
+  teikn: { punkt: Pt[] } | null
+  onTeiknLegg: (q: Pt) => void
+  onTeiknLukk: (o: Vec3, n: Vec3) => void
   onPunkt: (id: number, i: number, q: Pt) => void
   onSlaaSaman: (id: number, i: number, mot: number) => void
   /** eit punkt til, sett inn rett etter `i` */
@@ -3290,6 +3434,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   const [sporBoks, setSporBoks] = useState<HTMLDivElement | null>(null)
   /** og prikkane på punkta i omrisset — sjå `Omrisset` */
   const [punktBoks, setPunktBoks] = useState<HTMLDivElement | null>(null)
+  const [teiknSvg, setTeiknSvg] = useState<SVGSVGElement | null>(null)
   const [sein, setSein] = useState(false)
   /** ein prikk på ei side av ein bit er teken: lerretet tek ingen fingrar imens */
   const sideDra = useRef(false)
@@ -3361,6 +3506,19 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           {f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
           {/* teiknar ingenting — han set berre prikkane, so han står ikkje i
               `Sovnen`: dovninga tek `.punkt` i stilarket, som ho tek ledda */}
+          {/* FLATA DU TEIKNAR. Ho står over alt anna medan ho vert til, av
+              di ho er det einaste på skjermen som ikkje finst enno. */}
+          {f && teikn && (
+            <Teikninga
+              f={f}
+              S={storleik}
+              punkt={teikn.punkt}
+              snappSteg={snappSteg}
+              svg={teiknSvg}
+              onLegg={onTeiknLegg}
+              onLukk={onTeiknLukk}
+            />
+          )}
           {f && valt?.omriss?.length && rValt ? (
             <Omrisset
               f={f}
@@ -3547,6 +3705,18 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           enno. Firkanta er eit hjørne som står, rundt er ein stad eit hjørne
           kan verte til. Scena gøymer dei der kanten er for kort til at
           fingeren kan skilje dei frå punkta i endane. */}
+      {/* FLATA DU TEIKNAR, som DOM og ikkje som eit overlegg inni lerretet:
+          eit overlegg ligg oppå og stel trykka. React set kor mange punkt
+          det er; `Teikninga` set KVAR dei er, kvar ramme — nøyaktig same
+          arbeidsdelinga som `.punkt` har. */}
+      {teikn && (
+        <svg ref={setTeiknSvg} data-teikn={teikn.punkt.length} className="teiknflate" aria-hidden="true">
+          <polyline points="" fill="none" stroke="var(--warn)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          {teikn.punkt.map((_, i) => (
+            <circle key={i} r={i === 0 ? 6 : 4} fill={i === 0 ? "var(--paper)" : "var(--warn)"} stroke="var(--warn)" strokeWidth="2" />
+          ))}
+        </svg>
+      )}
       <div ref={setPunktBoks} className="punkt">
         {(montasje ? [] : valt?.omriss ?? []).map((_, i) => (
           <button key={`m${i}`} type="button" data-midt={i} hidden aria-label={`legg til eit punkt mellom ${i + 1} og ${((i + 1) % (valt?.omriss?.length ?? 1)) + 1}`} title="dra: eit punkt til, midt på kanten">
