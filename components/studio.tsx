@@ -17,7 +17,7 @@ import type { Montasje } from "@/lib/montasje"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
 import { Meny, type MenyStad } from "./meny"
-import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett } from "./deler"
+import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett, IcoTeikn } from "./deler"
 import { Plater } from "./plater"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -1348,6 +1348,58 @@ export function Studio() {
     setBlink(id)
   }, [speil])
   /**
+   * TEIKNE EI FLATE: eit plan som ikkje skjer noko, men som ER noko.
+   *
+   * Skisseplanet vert FROSE i det du tek reiskapen. Det må det: teiknar du
+   * mot eit plan som fylgjer kameraet, flyttar flata seg under handa di
+   * kvar gong du snur synet for å sjå kvar du er — og du ser det fyrst når
+   * du er ferdig.
+   *
+   * INGA SPEGLING. `laas` speglar snittet om midtplana når symmetrien står
+   * på, og det er rett for eit SNITT: spegelbiletet av eit snitt er eit
+   * snitt. Spegelbiletet av ei teikna flate er ikkje den same flata — ramma
+   * hennar kjem av normalen, so dei same punkta gjev ei anna form på den
+   * andre sida. Å spegle henne likevel ville laga ei flate du ikkje har
+   * teikna og ikkje kan sjå at du ikkje har teikna.
+   */
+  const [teikn, setTeikn] = useState<{ punkt: Pt[] } | null>(null)
+  const teiknRef = useRef<typeof teikn>(null)
+  teiknRef.current = teikn
+  const vekslTeikn = useCallback(() => {
+    setTeikn((t) => {
+      if (t) return null
+      setVald(null)
+      setMelding("teikn: trykk for punkt, lukk på det fyrste")
+      return { punkt: [] }
+    })
+  }, [])
+  const teiknLegg = useCallback((q: Pt) => {
+    setTeikn((t) => (t && t.punkt.length < OMRISS_TAK ? { punkt: [...t.punkt, klemPunkt(q)] } : t))
+  }, [])
+  /**
+   * PLANET KJEM FRÅ SCENA, av di det er ho som veit kvar kameraet står.
+   * Teikneplanet er det som VENDER MOT DEG — skisseplanet står på kant og
+   * projiserer til ei line — og det er frose frå fyrste trykket.
+   */
+  const teiknLukk = useCallback((po: Vec3, pn: Vec3) => {
+    const t = teiknRef.current
+    setTeikn(null)
+    const k = kroppRef.current
+    if (!t || !k || t.punkt.length < 3) return
+    const o = broek(po, k.min, k.max)
+    if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) return setMelding("for langt ute")
+    const naaPlan = lesPlan(naa.current.plan)
+    if (naaPlan.length >= PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+    const id = nyId(naaPlan)
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      if (l.length >= PLAN_TAK) return cur
+      return { ...cur, plan: skrivPlan([...l, { id: nyId(l), o, n: pn, bog: 0, strek: [], omriss: t.punkt }]) }
+    })
+    setBlink(id)
+  }, [])
+
+  /**
    * DUPLISER DET VALDE PLANET.
    *
    * Same normal, same strek, skuva eitt hakk langs normalen sin so det ikkje
@@ -2521,6 +2573,8 @@ export function Studio() {
       // S SOM SNAPPET: han gjeld overalt der noko kan snappe, so tasten
       // spør ikkje kva du har valt
       else if (k === "s" && rom) vekslSnapp()
+      // T SOM TEIKN. Escape avbryt, som han slepper alt anna du står inne i.
+      else if (k === "t" && rom) vekslTeikn()
       else if (k === "d" && vald !== null && rom) dupliserPlan(vald)
       else if (k === "h" && vald !== null && rom) leggStrek("hol")
       // O som OMRISSET: same knappen, og eit trykk til innan vindauget gjev
@@ -2546,7 +2600,10 @@ export function Studio() {
         const i = plan.findIndex((p) => p.id === vald)
         velPlan(plan[(i + (e.shiftKey ? plan.length - 1 : 1)) % plan.length].id)
       } else if (k === "escape") {
-        if (verkty) setVerkty(null)
+        // det minste emnet fyrst, som ⌫: held du på å teikne, er det DET
+        // escape slepper — og han slepper det UTAN å lage flata
+        if (teikn) setTeikn(null)
+        else if (verkty) setVerkty(null)
         else if (valdPunkt !== null) setValdPunkt(null)
         else if (valdStrek !== null) setValdStrek(null)
         else if (vald !== null) velPlan(null)
@@ -2559,7 +2616,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslMontasje, rom, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view, vekslSnapp])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslMontasje, rom, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view, vekslSnapp, vekslTeikn, teikn])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -2626,6 +2683,9 @@ export function Studio() {
             onDeling={setjDeling}
             onValdStrek={setValdStrek}
             snappSteg={SNAPPSTEG[Math.round(Number(params.snapp ?? 3)) as 0 | 1 | 2 | 3] ?? 90}
+            teikn={teikn}
+            onTeiknLegg={teiknLegg}
+            onTeiknLukk={teiknLukk}
             onPunkt={flyttPunkt}
             onSlaaSaman={slaaSamanPunkt}
             onLeggPunkt={leggPunkt}
@@ -2852,6 +2912,22 @@ export function Studio() {
               OBJEKTET, og på plateflata ligg objektet gøymt under arka — ein
               brytar du kan slå på og ikkje bruke. */}
           {rom && (<>
+              {/* TEIKNE EI FLATE: trykk for punkt, lukk på det fyrste.
+                  Han står FØRST i reiskapane, av di han er den eine som
+                  lagar noko frå ingenting — resten endrar det som står. */}
+              {rom && valdGruppe === null && (
+                <button
+                  type="button"
+                  aria-pressed={!!teikn}
+                  aria-label="teikn ei flate"
+                  title={teikn ? `teikn (T): ${teikn.punkt.length} punkt. trykk på det fyrste for å lukke; escape avbryt` : "teikn ei flate (T): trykk for kvart hjørne på skisseplanet, og lukk på det fyrste"}
+                  onClick={vekslTeikn}
+                  className={TUMME_BTN}
+                  data-teiknknapp={teikn ? teikn.punkt.length : ""}
+                >
+                  {IcoTeikn}
+                </button>
+              )}
           {/* RUTENETTET. Han stod i lina på arket, ved talet han endrar. Men
               han er ein REISKAP og ikkje eit tal: to fingrar set kolonner og
               rader, som skissa og kroppen gjer det, og reiskapane bur i denne

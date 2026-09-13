@@ -177,6 +177,21 @@ export const IcoForm = (
     ))}
   </svg>
 )
+/**
+ * TEIKN EI FLATE: ei open kjede med eit ope hjørne att.
+ *
+ * Skilnaden frå `IcoForm` er heile poenget: DEN er ei lukka mangekant med
+ * handtak i hjørna — ei form som står. Denne er tre strekar og eit hjørne
+ * som ikkje er sett enno, med det fyrste punktet i papirfarge: det er DET
+ * du lukkar mot. Ikonet seier kva handlinga er, ikkje kva ho endar i.
+ */
+export const IcoTeikn = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 19 4 7l9-3 7 6" />
+    <path d="M20 10l-2 5" strokeDasharray="2 2.6" />
+    <circle cx={5} cy={19} r={2.2} fill="var(--paper)" />
+  </svg>
+)
 /** SKJER: kniven. Handlinga som gjer skissa til ein del — eit ikon og aldri eit ord. */
 export const IcoSkjer = ikon("M3 21l6-6|M9 15 20.5 3.5c1.3 3.3.4 6.3-2.4 8.4L9 15z", "h-7 w-7")
 /** slett det valde planet */

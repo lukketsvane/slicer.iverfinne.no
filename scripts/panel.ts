@@ -1720,6 +1720,76 @@ async function kroppen(browser: Browser) {
   await page.close()
 }
 
+/**
+ * TEIKNE EI FLATE.
+ *
+ * Reiskapen lagar noko frå ingenting: du trykkjer eit hjørne om gongen på
+ * skisseplanet, og lukkar på det fyrste. Vakta går heile vegen — frå ingen
+ * plan til ein DEL som kan skjerast — av di det er den vegen som seier at
+ * flata vart ei flate og ikkje berre ei line på skjermen.
+ *
+ * Og ho prøver det som skil reiskapen frå eit uhell: at ei kjede på to
+ * punkt IKKJE vert eit plan, og at escape slepper alt utan å lage noko.
+ */
+async function teikninga(browser: Browser) {
+  console.log("\n=== teikne ei flate")
+  const { page, konsoll } = await opne(URL, browser, 1400, 900)
+  await roleg(page, 800)
+  const knapp = page.locator("[data-teiknknapp]")
+  sjekk("reiskapen står i spalta", (await knapp.count()) === 1)
+
+  const mid = { x: 700, y: 430 }
+  const hjorne = [
+    { x: mid.x - 90, y: mid.y - 90 },
+    { x: mid.x + 90, y: mid.y - 90 },
+    { x: mid.x + 90, y: mid.y + 90 },
+    { x: mid.x - 90, y: mid.y + 90 },
+  ]
+  await knapp.click()
+  await roleg(page, 500)
+  sjekk("og eit trykk tek han", (await knapp.getAttribute("aria-pressed")) === "true")
+  for (const h of hjorne) {
+    await page.mouse.click(h.x, h.y)
+    await roleg(page, 250)
+  }
+  const teikna = await page.locator("[data-teikn]").getAttribute("data-teikn")
+  sjekk("fire trykk gjev fire punkt", teikna === "4", `${teikna} punkt`)
+
+  const foer = plana(page).length
+  await page.mouse.click(hjorne[0].x, hjorne[0].y)
+  await vent(page, talPlan(foer + 1), 15000)
+  await roleg(page, 900)
+  sjekk("og eit trykk på det fyrste lukkar flata til eit plan", plana(page).length === foer + 1)
+  const pl = lesPlan(hash(page).plan)[foer]
+  sjekk("og planet ber omrisset du teikna", (pl?.omriss?.length ?? 0) === 4, `${pl?.omriss?.length ?? 0} punkt i omrisset`)
+  sjekk("og reiskapen slepper seg sjølv etterpå", (await knapp.getAttribute("aria-pressed")) === "false")
+
+  /**
+   * OG FLATA ER EIN DEL. Det er den eine påstanden som seier at ho vart
+   * geometri: eit omriss i ein streng er ein streng, men ein del i lista er
+   * noko som kan skjerast.
+   */
+  await vent2(page, async () => (await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").count()) > 0, 15000)
+  const rad = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").last()
+  const tekst = (await rad.innerText()).replace(/\s+/g, " ")
+  sjekk("og flata står i lista som ein del", !/utanfor/.test(tekst), tekst.slice(0, 60))
+
+  const foer2 = plana(page).length
+  await knapp.click()
+  await roleg(page, 400)
+  await page.mouse.click(mid.x - 40, mid.y + 140)
+  await roleg(page, 250)
+  await page.mouse.click(mid.x + 40, mid.y + 140)
+  await roleg(page, 250)
+  await page.keyboard.press("Escape")
+  await roleg(page, 700)
+  sjekk("escape slepper teikninga utan å lage noko", plana(page).length === foer2 && (await knapp.getAttribute("aria-pressed")) === "false", `${plana(page).length} plan, venta ${foer2}`)
+
+  sjekk("ingen konsollfeil i teikninga", konsoll.length === 0, konsoll.slice(0, 2).join(" · "))
+  await page.close()
+}
+
+
 async function benk(browser: Browser) {
   console.log("\n=== benk 1400×900")
   const { page, konsoll } = await opne(URL, browser, 1400, 900)
@@ -3894,6 +3964,7 @@ const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["mork", mork],
   ["uttaka", uttaka],
   ["benk", benk],
+  ["teikninga", teikninga],
   ["skrivebordet", skrivebordet],
   ["grupper", grupper],
 ]
