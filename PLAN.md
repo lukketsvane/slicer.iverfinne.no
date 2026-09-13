@@ -828,7 +828,36 @@ i heile selen la merke til det.
 Det er her eit bøygt ledd kunne ryke i stille: på flate plan er lengd lengd og
 påstanden triviell, på ei bøygd flate er det ei rekning.
 
-**Att står tre konstruksjonsprinsipp**: kile, glidande spor og bøy-til-lås. Dei tre siste er eit anna slag arbeid enn dette — kile og
+**OG LAMELLANE, som var brukaren sin eigen innvending mot heile rilla:** ein
+belasta krakk er kanskje betre tent med mange smale plater enn med å gjera tolv
+millimeter finér om til eitt stort hengsle. Det er rett, og no er det målt.
+
+Ein lamell TRENG INGEN NY GEOMETRI. Han er eit bøygt plan med eit smalt omriss:
+`u` er bøyeretninga, `v` er sylinderaksen, kvar lamell får sin strimmel i `v`.
+Ribbene har normal langs `u`, ligg dimed LANGS aksen, og møter kvar lamell i ei
+generatorline — det reine tilfellet `kryssBoygd` alt dekte.
+
+Målt i `pnpm probe`: seks lamellar og tre ribber gjev 9 delar, 18 ledd, 0
+lause, 0 står fast, 0 raude liner. Og talet som er heile poenget:
+
+    lamellar   12,7 m kutt
+    rilla hud  43,5 m kutt        3,4× kortare køyretur
+
+**Og saka fann ein feil, som waffelen gjorde.** Lamellane er det SAME planet
+med kvar sin profil, so `o` og `n` er like — og `lukene` målte plan mot plan.
+Ho sa «−3,0 mm» om fingrar som ikkje kjem imellom to delar det er sju
+centimeter mellom, og ho sa det ALLTID, for kvar lamellkonstruksjon som finst.
+Ei line som står raud same kva er like ubrukeleg som ei som aldri kan verta
+det — det er sak 1 og sak E på denne sida, spegla.
+
+Rettinga er ein boks-test framfor rekninga: ligg dei to profilane ikkje over
+kvarandre i det heile, er det inga luke å måle. `opning` kan framleis verta
+raud — `pnpm raad` har henne på 1,2 mm.
+
+**Att står tre konstruksjonsprinsipp**: kile, glidande spor og bøy-til-lås.
+Dei to fyrste er den same saka — «sporet er ikkje eit rektangel» — og ho gjeld
+flate delar like mykje som bøygde. Den siste treng monteringsvegen, ikkje berre
+sluttforma, og det er det einaste som står att av dei ti stega i brevet. Dei tre siste er eit anna slag arbeid enn dette — kile og
 glidande spor er «sporet er ikkje eit rektangel», og bøy-til-lås treng
 monteringsvegen og ikkje berre sluttforma.
 
@@ -901,8 +930,11 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
                                                  raud ved å flytte botnen 1 mm
                                                  ✓ GJORT — og det var ei
                                                  MÅLING, ikkje eit bygg
+   22  Lamellar, og luka som las plana      → pnpm probe: 9 delar, 0 raude
+       og ikkje profilane (H)                    liner, 12,7 m mot huda sine
+                                                 43,5 ✓ GJORT
 
-Atten av tjueein er gjorde. To er strøkne av målingar — pakkesøket og den
+Nitten av tjueto er gjorde. To er strøkne av målingar — pakkesøket og den
 romlege delinga — og begge står att på sida med tala som tok dei, av di ein
 plan som stryk feila sine lærer ingen noko. Elleve står att, og han er
 strukturell: han har ingen frist, og han vert billegare kvar gong nokon

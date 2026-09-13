@@ -431,6 +431,14 @@ that carries a joint is not perforated. That band is also what keeps the joint
 arithmetic true: joints are measured along their slot line, and a score cut
 across that line would hand the joint a shoulder that is not there.
 
+**Or don't score at all — slat it.** A slat is a bent plane carrying a narrow
+outline: `u` is the bend, `v` is the cylinder axis, and each slat takes its own
+strip of `v`. Ribs with their normal along `u` lie along the axis, so they meet
+every slat in a generator line — the clean case. Six slats and three ribs on the
+same curve as a scored skin: 12.7 m of cutting against 43.5 m. For anything you
+sit on, that is usually the better answer than turning a sheet into one large
+hinge.
+
 A bent part is bent into place, not pushed into place, and that holds from both
 sides: a joint against a bent partner constrains no insertion direction, whether
 the bent part is the one arriving or the one already there. That is what makes
