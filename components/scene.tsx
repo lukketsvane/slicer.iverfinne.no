@@ -532,12 +532,14 @@ const SNAPP_PX = 4
 /** snittet i verda, til handtaka: midten av det største stykket, og punkta på ringane (tynna) */
 type SnittVerd = { midt: THREE.Vector3; punkt: THREE.Vector3[] }
 
-function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
+function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
   f: Ramma | null
   fri: ReturnType<typeof fritt>
   /** grensesnittet søv: skissa fell bort med resten */
   sov: boolean
   modus: Modus
+  /** kva vinklar snappet kjenner, i grader. Null er av. */
+  snappSteg: number
   /** montasjen står: handa teiknar ingenting, og fingrane endrar ingenting */
   montasje: boolean
   /** ein prikk på ei side av ein bit er teken — sjå `Sidehandtak` */
@@ -656,8 +658,8 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
     return { x: ((p.x + 1) / 2) * size.width, y: ((1 - p.y) / 2) * size.height }
   }
 
-  const naa = useRef({ f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute })
-  naa.current = { f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }
+  const naa = useRef({ f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute })
+  naa.current = { f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }
 
   useFrame(() => {
     const g = gruppe.current
@@ -904,9 +906,13 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
           // SNAPPET: sporet på skjermen fell på loddrett eller vassrett innan fem grader.
           // Ei dreiing om «fram» aukar skjermvinkelen til normalen like mykje.
           const ns = new THREE.Vector2(n.dot(right), -n.dot(up))
-          if (ns.length() > 0.05) {
+          // STEGET SEIER KVA VINKLAR SOM FINST, og null tyder at ingen gjer
+          // det. Toleransen — fem grader — er noko anna: han seier kor nær
+          // du må vera for å bli teken, og han står fast.
+          const steg = (naa.current.snappSteg * Math.PI) / 180
+          if (steg && ns.length() > 0.05) {
             const a = Math.atan2(ns.y, ns.x)
-            const q = Math.round(a / (Math.PI / 2)) * (Math.PI / 2)
+            const q = Math.round(a / steg) * steg
             if (Math.abs(a - q) < SNAPP_VRI) {
               n.applyAxisAngle(fwd, q - a)
               sn.vri = true
@@ -933,8 +939,9 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       } else {
         const p = pose.current
         let phi = t.pose.phi - ang
-        if (ang) {
-          const q = Math.round(phi / (Math.PI / 2)) * (Math.PI / 2)
+        const stegP = (naa.current.snappSteg * Math.PI) / 180
+        if (ang && stegP) {
+          const q = Math.round(phi / stegP) * stegP
           if (Math.abs(phi - q) < SNAPP_VRI) {
             phi = q
             sn.vri = true
@@ -1731,7 +1738,7 @@ const MIDT_MIN = 84
  */
 const LANG_MS = 600
 
-function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt, onSlaaSaman }: {
+function Omrisset({ f, r, omriss, runde, S, fri, boks, snappSteg, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt, onSlaaSaman }: {
   f: Ramma
   /** ramma til det valde planet: punkta er brøkar av `S` kring `r.o` */
   r: Ramme
@@ -1746,6 +1753,8 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
    */
   fri: ReturnType<typeof fritt>
   boks: HTMLDivElement | null
+  /** kva vinklar snappet kjenner, i grader. Null er av. Sjå `SNAPPSTEG`. */
+  snappSteg: number
   onPunkt: (i: number, q: Pt) => void
   /** to punkt som fall saman ved slippet — `slaaSaman` avgjer om dei kan */
   onSlaaSaman: (i: number, mot: number) => void
@@ -1761,8 +1770,8 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
   const size = useThree((s) => s.size)
   const gl = useThree((s) => s.gl)
   const controls = useThree((s) => s.controls) as Orbit | null
-  const naa = useRef({ f, r, omriss, runde, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt, onSlaaSaman })
-  naa.current = { f, r, omriss, runde, S, fri, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt, onSlaaSaman }
+  const naa = useRef({ f, r, omriss, runde, S, fri, snappSteg, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt, onSlaaSaman })
+  naa.current = { f, r, omriss, runde, S, fri, snappSteg, onPunkt, onLeggPunkt, onTaPunkt, onVriPunkt, onValdPunkt, onSlaaSaman }
   /** plassen kvart merke sist vart skrive til, so ei teikning som ikkje flytta
    *  noko ikkje skriv noko — som i `Spora` */
   const skrive = useRef<Record<string, string>>({})
@@ -2001,7 +2010,7 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, onPunkt, onLeggPunkt, onT
         naa.current.onPunkt(dra.i, fri)
         return
       }
-      const sn = snappPunkt(naa.current.omriss, dra.i, fri, dra.rPx, (dra.rPx * SNAPP_SAMAN_PX) / SNAPP_PX_OMRISS)
+      const sn = snappPunkt(naa.current.omriss, dra.i, fri, dra.rPx, (dra.rPx * SNAPP_SAMAN_PX) / SNAPP_PX_OMRISS, naa.current.snappSteg)
       dra.snapp = sn.slag ? { slag: sn.slag, mot: sn.mot } : null
       const merke = boks.querySelector<HTMLElement>(`[data-punkt="${dra.i}"]`)
       if (merke) {
@@ -3146,7 +3155,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -3176,6 +3185,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   onDeling: (nokkel: string, t: number) => void
   onValdStrek: (i: number | null) => void
   /** eit punkt i omrisset drege: plassen i lista, og punktet i planet si ramme */
+  /** kva vinklar snappet kjenner, i grader. Null er av. */
+  snappSteg: number
   onPunkt: (id: number, i: number, q: Pt) => void
   onSlaaSaman: (id: number, i: number, mot: number) => void
   /** eit punkt til, sett inn rett etter `i` */
@@ -3359,6 +3370,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
               S={storleik}
               fri={fri}
               boks={punktBoks}
+              snappSteg={snappSteg}
               onPunkt={(i, q) => onPunkt(valt.id, i, q)}
               onSlaaSaman={(i, mot) => onSlaaSaman(valt.id, i, mot)}
               onLeggPunkt={(i, q) => onLeggPunkt(valt.id, i, q)}
@@ -3415,7 +3427,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             gong du trykte på ei side av kuben. */}
         <Skodda />
         <Demping onSein={setSein} />
-        <Handa f={f} fri={fri} sov={sov} modus={modus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
+        <Handa f={f} fri={fri} sov={sov} modus={modus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
         {/* Kroppen snur heile vegen rundt — undersida er der ledda sit, og
             eit syn du ikkje kjem til er ein kontroll som manglar. */}
         <OrbitControls

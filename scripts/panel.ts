@@ -1676,61 +1676,6 @@ async function benk(browser: Browser) {
   await vent(page, talPlan(n0))
   sjekk("Delete tek det valde bort", plana(page).length === n0)
 
-  /**
-   * OG MELLOMROMMET SKJER, med eitt vilkår: ein knapp som er teken eig
-   * mellomrommet sitt sjølv. Vakta prøver BÅDE at han skjer når ingenting
-   * er teke, OG at han lèt vera når fokus står på ein knapp — den andre er
-   * den som ville brote noko, av di nettlesaren trykkjer knappen med same
-   * tasten og du ville fått to ting av eitt trykk.
-   */
-  await page.evaluate("(document.activeElement instanceof HTMLElement) && document.activeElement.blur()")
-  const s0 = plana(page).length
-  await page.keyboard.press(" ")
-  await vent(page, talPlan(s0 + 1))
-  sjekk("mellomrom skjer òg", plana(page).length === s0 + 1)
-  const knapp = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan] button").first()
-  await knapp.focus()
-  const s1 = plana(page).length
-  await page.keyboard.press(" ")
-  await roleg(page, 400)
-  sjekk("men ikkje når ein knapp er teken — han eig tasten sjølv", plana(page).length === s1, `${s1} → ${plana(page).length}`)
-
-  /**
-   * HØGREMENYEN PÅ EI PLANRAD.
-   *
-   * Han legg ikkje til ei einaste handling — kvar line er ein tast som
-   * fanst frå før — so vakta spør om det: at han opnar seg, at han vel rada
-   * han står på, at ei line GJER det ho seier, og at han lukkar seg att.
-   */
-  const mrad = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first()
-  await mrad.click({ button: "right" })
-  await roleg(page, 300)
-  const hmeny = page.locator("[data-meny]")
-  sjekk("høgreklikk på ei planrad opnar menyen", (await hmeny.count()) === 1)
-  sjekk("og han vel rada han står på", (await mrad.getAttribute("aria-selected")) === "true")
-  const linene = await hmeny.locator("[data-meny-line]").allInnerTexts()
-  sjekk("og linene ber tastane sine", linene.some((t) => /dubler/.test(t) && /D/.test(t)), linene.join(" · ").replace(/\s+/g, " ").slice(0, 60))
-  const f0 = plana(page).length
-  await hmeny.locator("[data-meny-line='dubler']").click()
-  await vent(page, talPlan(f0 + 1))
-  sjekk("og «dubler» dublerer", plana(page).length === f0 + 1)
-  sjekk("og menyen er borte etterpå", (await page.locator("[data-meny]").count()) === 0)
-  await mrad.click({ button: "right" })
-  await roleg(page, 250)
-  await page.keyboard.press("Escape")
-  await roleg(page, 250)
-  sjekk("og escape lukkar han", (await page.locator("[data-meny]").count()) === 0)
-  // og attende til der bolken stod. Rekna på RADENE og ikkje på lenkja:
-  // lenkja kjem etter, og ein lekk som trur det står eitt plan att når
-  // lista er tom ventar på ei rad som aldri kjem.
-  const rader = () => page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]")
-  // × på rada og ikkje trykk + Delete: eit trykk på ei rad som ALT er vald
-  // slepper henne, og då tek Delete ingenting og lekken står og går
-  for (let i = 0; i < 12 && (await rader().count()) > n0; i++) {
-    await rader().last().locator("button[aria-label^='slett plan']").click()
-    await roleg(page, 250)
-  }
-  sjekk("og benken står att som han stod", plana(page).length === n0, `${plana(page).length} plan, venta ${n0}`)
 
   // storleiken er eit tal du DREG i, ikkje skriv: eit tekstfelt zoomar sida
   const felt = page.locator("[aria-label='storleik, tal']")
@@ -1920,6 +1865,88 @@ async function benk(browser: Browser) {
     sjekk("pilene festar delen ein millimeter om gongen på plata", !!hash(page).fest && hash(page).fest !== fest0, hash(page).fest.slice(0, 40))
   } else sjekk("plata har ein del å flytte", false)
   await page.keyboard.press("2")
+
+  /**
+   * OG DESSE TO STÅR SIST I BOLKEN, med vilje.
+   *
+   * Begge LAGAR plan, og lista på benken fylgjer motoren medan lenkja
+   * fylgjer parametrane — mellom dei to ligg ein arbeidar som ikkje er
+   * ferdig i same augneblinken. Ei opprydding som klikkar rader les difor
+   * to ulike tal, og under full køyring rakk ho ikkje alltid å finne dei.
+   * Ei prøve som må rydde etter seg for at dei under skal halde, er ei
+   * prøve som kan rydde feil. Her er det ingenting under.
+   */
+  /**
+   * OG MELLOMROMMET SKJER, med eitt vilkår: ein knapp som er teken eig
+   * mellomrommet sitt sjølv. Vakta prøver BÅDE at han skjer når ingenting
+   * er teke, OG at han lèt vera når fokus står på ein knapp — den andre er
+   * den som ville brote noko, av di nettlesaren trykkjer knappen med same
+   * tasten og du ville fått to ting av eitt trykk.
+   */
+  await page.evaluate("(document.activeElement instanceof HTMLElement) && document.activeElement.blur()")
+  const s0 = plana(page).length
+  await page.keyboard.press(" ")
+  await vent(page, talPlan(s0 + 1))
+  sjekk("mellomrom skjer òg", plana(page).length === s0 + 1)
+  const knapp = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan] button").first()
+  await knapp.focus()
+  const s1 = plana(page).length
+  await page.keyboard.press(" ")
+  await roleg(page, 400)
+  sjekk("men ikkje når ein knapp er teken — han eig tasten sjølv", plana(page).length === s1, `${s1} → ${plana(page).length}`)
+
+  /**
+   * HØGREMENYEN PÅ EI PLANRAD.
+   *
+   * Han legg ikkje til ei einaste handling — kvar line er ein tast som
+   * fanst frå før — so vakta spør om det: at han opnar seg, at han vel rada
+   * han står på, at ei line GJER det ho seier, og at han lukkar seg att.
+   */
+  const mrad = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first()
+  await mrad.click({ button: "right" })
+  await roleg(page, 300)
+  const hmeny = page.locator("[data-meny]")
+  sjekk("høgreklikk på ei planrad opnar menyen", (await hmeny.count()) === 1)
+  sjekk("og han vel rada han står på", (await mrad.getAttribute("aria-selected")) === "true")
+  const linene = await hmeny.locator("[data-meny-line]").allInnerTexts()
+  sjekk("og linene ber tastane sine", linene.some((t) => /dubler/.test(t) && /D/.test(t)), linene.join(" · ").replace(/\s+/g, " ").slice(0, 60))
+  const f0 = plana(page).length
+  await hmeny.locator("[data-meny-line='dubler']").click()
+  await vent(page, talPlan(f0 + 1))
+  sjekk("og «dubler» dublerer", plana(page).length === f0 + 1)
+  sjekk("og menyen er borte etterpå", (await page.locator("[data-meny]").count()) === 0)
+  await mrad.click({ button: "right" })
+  await roleg(page, 250)
+  await page.keyboard.press("Escape")
+  await roleg(page, 250)
+  sjekk("og escape lukkar han", (await page.locator("[data-meny]").count()) === 0)
+  // og attende til der bolken stod. Rekna på RADENE og ikkje på lenkja:
+  // lenkja kjem etter, og ein lekk som trur det står eitt plan att når
+  // lista er tom ventar på ei rad som aldri kjem.
+  // × på rada og ikkje trykk + Delete: eit trykk på ei rad som ALT er vald
+  // slepper henne, og då tek Delete ingenting og lekken står og går.
+  //
+  // OG BÅDE PLAN OG GRUPPER: ei gruppe som ligg saman GØYMER plana sine, so
+  // ein lekk som berre tel planradene ser null medan det står to att — og
+  // går ut med arbeid liggjande som resten av bolken snublar i.
+  const rader = () => page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]")
+  const grupper = () => page.locator("[role=listbox][aria-label='plan'] [role=option][data-gruppe]")
+  /**
+   * OG LISTA FYLGJER MOTOREN, IKKJE LENKJA.
+   *
+   * Radene er dei plana som er BYGDE; lenkja ber dei som er SETTE. Mellom
+   * dei to ligg ein arbeidar, og han er ikkje ferdig i same augneblinken.
+   * Ein lekk som les lenkja og klikkar rader les difor to ulike tal, og
+   * gjekk ut med arbeid liggjande — som resten av bolken so snubla i.
+   */
+  await vent2(page, async () => (await rader().count()) + (await grupper().count()) > 0 || plana(page).length <= n0, 15000)
+  for (let i = 0; i < 16 && plana(page).length > n0; i++) {
+    if (await grupper().count()) await grupper().last().locator("button[aria-label^='slett gruppe']").click()
+    else if (await rader().count()) await rader().last().locator("button[aria-label^='slett plan']").click()
+    else break
+    await roleg(page, 250)
+  }
+  sjekk("og benken står att som han stod", plana(page).length === n0, `${plana(page).length} plan, venta ${n0}`)
 
   sjekk("ingen konsollfeil på benken", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
@@ -2971,12 +2998,13 @@ async function boyen(browser: Browser) {
    * Med eit plan valt og arket ope er ho på sitt lengste og bandet på sitt
    * kortaste — rutenett, dubler, hòl, form, bøy, slett, kropp — so
    * det er her ho ryk om ho skal ryke. (Montasjen stod her ein gong; han er
-   * ei fane no, og spalta hans ber berre steget. Virvelen stod her òg, som
-   * den åttande; han er teken heilt bort.)
+   * ei fane no, og spalta hans ber berre steget. Virvelen stod her òg og er
+   * teken heilt bort; den åttande er snappknappen, som seier talet sitt.)
    *
    * TALET ER EI NEDRE GRENSE, ikkje ei teljing. `ute.length === 0` er sann
    * av seg sjølv om spørjinga ikkje finn ein einaste knapp, so golvet er
-   * det som gjer prøva verd å køyre. Det står på dei sju som er lista over.
+   * det som gjer prøva verd å køyre. Det står på dei sju reiskapane som er
+   * lista over — snappknappen er den åttande og er ikkje ein reiskap.
    *
    * TO TING VERT KREVDE. Ein reiskap utanfor ruta er ein reiskap som ikkje
    * finst, og det HAR hendt: stabelen gjekk 156 pikslar over topplina før
@@ -3114,6 +3142,51 @@ async function snappet(browser: Browser) {
   await vent(page, (q) => (lesPlan(q.plan).find((x) => x.id === 3)?.omriss?.length ?? 0) === 4)
   await roleg(page, 600)
   sjekk("boksen står med fire hjørne", (await page.locator("[data-punkt]").count()) === 4, `${await page.locator("[data-punkt]").count()} punkt`)
+
+  /**
+   * FIRE FORMER Å STEMPLE, I EIN RUNDDANS.
+   *
+   * Kvart dobbelttrykk er eitt steg vidare — det fyrste trykket slepper
+   * forma, det andre stemplar den neste — so vakta tel punkt etter kvart
+   * trykk. Ho krev at TALA er dei rette og at SIRKELEN har bogar: fire
+   * punkt utan bogeflagg er ein firkant, og fire med er ein sirkel. Utan
+   * det siste ville dei to vore det same for ei prøve som berre tel.
+   */
+  const om3 = () => lesPlan(hash(page).plan).find((q) => q.id === 3)
+  const runde = () => (om3()?.runde ?? []).length
+  const spor: string[] = [`${om3()?.omriss?.length ?? 0}`]
+  for (const venta of [3, 6, 4]) {
+    await page.waitForTimeout(DOBBELT + 80)
+    await form.dblclick()
+    await vent(page, (q) => (lesPlan(q.plan).find((x) => x.id === 3)?.omriss?.length ?? 0) === venta, 8000)
+    await roleg(page, 400)
+    spor.push(`${om3()?.omriss?.length ?? 0}`)
+  }
+  sjekk("kvart dobbelttrykk stemplar den neste forma", spor.join(" → ") === "4 → 3 → 6 → 4", spor.join(" → "))
+  sjekk("og sirkelen er fire punkt med boge på alle fire", runde() === 4, `${runde()} bogar`)
+  // og attende til firkanten, som resten av bolken står på
+  await page.waitForTimeout(DOBBELT + 80)
+  await form.dblclick()
+  await vent(page, (q) => (lesPlan(q.plan).find((x) => x.id === 3)?.omriss?.length ?? 0) === 4, 8000)
+  await roleg(page, 500)
+  sjekk("og ein runde til er firkanten att", (om3()?.runde ?? []).length === 0, `${runde()} bogar`)
+
+  /**
+   * OG SNAPPKNAPPEN SYNER TALET SITT.
+   *
+   * Han er ikkje eit ikon: det han seier ER eit tal. Vakta krev at ordet på
+   * knappen og talet i lenkja er det same etter kvart trykk — ein brytar
+   * som syner eitt og gjer eit anna er verre enn ingen brytar.
+   */
+  const sknapp = page.locator("[data-snapp]")
+  const runda: string[] = []
+  for (let i = 0; i < 4; i++) {
+    runda.push(`${(await sknapp.getAttribute("data-snapp")) ?? "?"}:${(await sknapp.innerText()).trim()}`)
+    await sknapp.click()
+    await roleg(page, 300)
+  }
+  sjekk("snappknappen går runden: 90, av, 15, 45", runda.join(" ") === "90:90° 0:av 15:15° 45:45°", runda.join(" "))
+  sjekk("og talet står i lenkja", String(hash(page).snapp) === "3", `snapp=${hash(page).snapp}`)
 
   const pkt = async (i: number) => {
     const b = await page.locator(`[data-punkt='${i}']`).first().boundingBox().catch(() => null)

@@ -669,6 +669,29 @@ const lesOmriss = (s: string): Pt[] | null => {
 }
 
 /**
+ * KOR LANGT UTANFOR KROPPEN EIT PLAN FÅR STÅ, i boksbreidder.
+ *
+ * Planet står som brøkdelar av boksen kring kroppen, so 0 og 1 er sidene
+ * hans. Grensa var ein halv boks kvar veg, og ho kom frå den tida eit plan
+ * berre kunne SKJERE noko: eit plan som ikkje råkar kroppen skar ingenting,
+ * og eit tal langt utanfor var difor ei skriveleif eller ei fiendtleg
+ * lenkje.
+ *
+ * Det stemmer ikkje lenger. Eit plan som ber eit OMRISS tek profilen sin
+ * frå punkta og ikkje frå kroppen — det er ei teikna flate — og då er det
+ * ein heilt vanleg ting å setje han ved sida av kroppen i staden for inni
+ * han. Med den gamle grensa vart eit slikt plan STILT BORTE når strengen
+ * vart lesen: du sette det, du såg det, og det var vekk etter ei omlasting.
+ *
+ * Fire boksbreidder kvar veg, og ikkje uendeleg: grensa er der framleis for
+ * å ta imot ei lenkje med sludder i, og eit tal som er ti tusen er sludder
+ * same kva du hadde tenkt. Målt: kva ei flate KOSTAR heng ikkje saman med
+ * kor stor ho er — ruta dekkjer omrisset sin eigen boks med eit fast
+ * celletal — so grensa vernar ikkje om farten, berre om vitet.
+ */
+export const PLAN_ROM = 4
+
+/**
  * BOGANE INN. Plassar i omrisset, so alt som ikkje er eit heiltal innanfor
  * lista fell bort — og eit omriss utan bogar er berre hjørne, som før.
  */
@@ -695,7 +718,7 @@ export function lesPlan(s: unknown): Plan[] {
     const n0 = lesVec(rest[0])
     if (!o || !n0 || len3(n0) < 1e-6) continue
     // Eit punkt langt utanfor boksen er eit plan som ikkje råkar kroppen.
-    if (o.some((c) => c < -0.5 || c > 1.5)) continue
+    if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) continue
     const n = norm3(n0).map((c) => +c.toFixed(4)) as Vec3
     const strek: Strek[] = []
     let bog = 0
@@ -790,6 +813,7 @@ export function delAv(rad: readonly Plan[], leiar: number, fordel: boolean): Map
 }
 
 /** ein streng inn, den same lista ut i normalform */
+
 export const reinPlan = (s: unknown) => skrivPlan(lesPlan(s))
 
 /** det neste namnet som aldri har vore i bruk i denne lista */
@@ -967,6 +991,17 @@ export type Snapp = {
   mot?: number
 }
 
+/**
+ * EIT SNAPPA PUNKT SKAL VERA EIT REINT TAL.
+ *
+ * Omrisset vert lagra med fire desimalar, so eit snapp som svarar
+ * −9,18e−17 i staden for 0 gjev ein streng som seier noko anna enn
+ * rekninga gjorde. Det er ikkje ein skjønnheitsfeil: det er heile poenget
+ * med eit snapp at punktet ER på lina, og «nesten» er den tilstanden
+ * snappet finst for å ta bort.
+ */
+const reint = (q: Pt): Pt => [+q[0].toFixed(4), +q[1].toFixed(4)]
+
 /** næraste punktet på strekket a–b, og kor langt unna det er */
 function paaKanten(p: Pt, a: Pt, b: Pt): { q: Pt; d: number } {
   const vx = b[0] - a[0]
@@ -978,7 +1013,7 @@ function paaKanten(p: Pt, a: Pt, b: Pt): { q: Pt; d: number } {
   return { q, d: Math.hypot(p[0] - q[0], p[1] - q[1]) }
 }
 
-export function snappPunkt(omriss: readonly Pt[], i: number, p: Pt, r: number, rPunkt = r): Snapp {
+export function snappPunkt(omriss: readonly Pt[], i: number, p: Pt, r: number, rPunkt = r, steg = 90): Snapp {
   const n = omriss.length
   if (n < 3 || r <= 0 || !omriss[i]) return { p, slag: null }
 
@@ -1007,26 +1042,43 @@ export function snappPunkt(omriss: readonly Pt[], i: number, p: Pt, r: number, r
       paa = q
     }
   }
-  if (paa) return { p: paa, slag: "kant" }
+  if (paa) return { p: reint(paa), slag: "kant" }
 
-  // 3. aksen til ein nabo — kvar koordinat for seg, so eit punkt kan stå
-  //    rett over den eine naboen og fritt i den andre retninga
-  const naboar = [omriss[(i - 1 + n) % n], omriss[(i + 1) % n]]
-  let u = p[0]
-  let v = p[1]
-  let du = r
-  let dv = r
-  for (const q of naboar) {
-    if (Math.abs(p[0] - q[0]) < du) {
-      du = Math.abs(p[0] - q[0])
-      u = q[0]
-    }
-    if (Math.abs(p[1] - q[1]) < dv) {
-      dv = Math.abs(p[1] - q[1])
-      v = q[1]
+  /**
+   * 3. EIN VINKEL FRÅ EIN NABO.
+   *
+   * Punktet fell ned på den strålen frå naboen sin som ligg på eit heilt
+   * tal steg. Lengda står fritt — det er RETNINGA som vert fanga — so du
+   * dreg so langt du vil langs ei kant som er beint opp, eller på skrå i
+   * nøyaktig førtifem.
+   *
+   * Med steg 90 er dette nøyaktig det aksesnappet som stod her før: strålen
+   * rett opp frå naboen ER «same u som naboen». Steget generaliserer det;
+   * det byter det ikkje ut.
+   */
+  if (!steg) return { p, slag: null }
+  const rad = (steg * Math.PI) / 180
+  const m = Math.round((2 * Math.PI) / rad)
+  let bestV = r
+  let paaV: Pt | null = null
+  for (const q of [omriss[(i - 1 + n) % n], omriss[(i + 1) % n]]) {
+    for (let k = 0; k < m; k++) {
+      const a = k * rad
+      const dx = Math.cos(a)
+      const dy = Math.sin(a)
+      // projeksjonen på strålen, og berre framover: ein stråle bakover er
+      // den same lina som ein annan stråle i lista
+      const t = (p[0] - q[0]) * dx + (p[1] - q[1]) * dy
+      if (t <= 0) continue
+      const qq: Pt = [q[0] + dx * t, q[1] + dy * t]
+      const d = Math.hypot(p[0] - qq[0], p[1] - qq[1])
+      if (d < bestV) {
+        bestV = d
+        paaV = qq
+      }
     }
   }
-  if (u !== p[0] || v !== p[1]) return { p: [u, v], slag: "akse" }
+  if (paaV) return { p: reint(paaV), slag: "akse" }
   return { p, slag: null }
 }
 
@@ -1049,4 +1101,49 @@ export function slaaSaman(omriss: readonly Pt[], i: number, mot: number): { omri
   const nabo = (i + 1) % n === mot || (mot + 1) % n === i
   if (!nabo) return null
   return { omriss: omriss.filter((_, k) => k !== i), fall: i }
+}
+
+// =============================================================================
+// FORMER Å STEMPLE
+// =============================================================================
+/**
+ * FIRE FORMER, I EIN RUNDDANS.
+ *
+ * Frysinga gjev deg profilen som punkt, og boksen gjev deg fire hjørne. Men
+ * det du ofte vil ha er ikkje kroppen sin profil i det heile — det er ei
+ * form: ein trekant, ein sekskant, ein sirkel. Å teikne han for hand er sju
+ * drag med ein tommel; å stemple han er eitt trykk til.
+ *
+ * Alle fire står i den SAME BOKSEN — den profilen alt har — so dei byter
+ * kvarandre ut utan å flytte seg, og eit trykk til tek deg vidare i ringen.
+ * Det er den same ideen som ligg i knappen frå før: eitt trykk frys, to
+ * trykk gjev boksen, og trykket etter det gjev noko meir.
+ *
+ * SIRKELEN ER IKKJE EI NY GEOMETRI. Han er fire punkt midt på kvar side med
+ * BOGEFLAGG på alle fire, og bogen er den som alt er der (`omrissLine`).
+ * Ein tool med ein eigen sirkeltype ville hatt to måtar å vera rund på, og
+ * den eine av dei ville ikkje late seg dra i.
+ */
+export type FormSlag = "firkant" | "trekant" | "sekskant" | "sirkel"
+export const FORM_SLAG: readonly FormSlag[] = ["firkant", "trekant", "sekskant", "sirkel"] as const
+
+/** ei form i boksen, med bogeflagga ho treng */
+export function formPunkt(slag: FormSlag, b: { x0: number; y0: number; x1: number; y1: number }): { omriss: Pt[]; runde?: number[] } {
+  const cx = (b.x0 + b.x1) / 2
+  const cy = (b.y0 + b.y1) / 2
+  const rx = (b.x1 - b.x0) / 2
+  const ry = (b.y1 - b.y0) / 2
+  // firkanten er boksen SJØLV og ikkje ein firkant i han: det er den forma
+  // som skal falle nøyaktig saman med profilen ho kom frå
+  if (slag === "firkant") return { omriss: [[b.x0, b.y0], [b.x1, b.y0], [b.x1, b.y1], [b.x0, b.y1]] }
+  // og sirkelen er fire punkt midt på sidene, kvart med boge
+  if (slag === "sirkel") return { omriss: [[cx, b.y0], [b.x1, cy], [cx, b.y1], [b.x0, cy]], runde: [0, 1, 2, 3] }
+  const n = slag === "trekant" ? 3 : 6
+  // fyrste punktet NEDST, so ein trekant står på foten sin og ikkje på nasen
+  const ut: Pt[] = []
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI / 2 + (2 * Math.PI * i) / n
+    ut.push([+(cx + rx * Math.cos(a)).toFixed(4), +(cy + ry * Math.sin(a)).toFixed(4)])
+  }
+  return { omriss: ut }
 }

@@ -6,9 +6,9 @@ import { erPrimitiv, KUBE } from "@/lib/sources"
 import { alleNett, gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, omrissLine, ramme as planRamme, rutenett, sameSnitt, skilRute, slaaSaman, spegla, speglingar, skrivPlan, sub3, vriOm, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_ROM, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, omrissLine, ramme as planRamme, formPunkt, FORM_SLAG, rutenett, sameSnitt, skilRute, slaaSaman, spegla, speglingar, skrivPlan, sub3, vriOm, type FormSlag, type Plan, type Strek } from "@/lib/plan"
 import { simplify, type Pt2 } from "@/lib/contour"
-import { byggKey, lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
+import { byggKey, lesDeling, lesFest, skrivDeling, skrivFest, SNAPPSTEG, SNAPP_NAMN } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
@@ -40,7 +40,20 @@ const storleikAv = (p: ParamBag) => (typeof p.storleik === "number" && p.storlei
  * margin, og det gjeld kvar veg eit punkt kjem inn: frose, dregen, eller
  * som eit hjørne i boksen.
  */
-const klemPunkt = (q: Pt): Pt => [+Math.min(1.5, Math.max(-1.5, q[0])).toFixed(4), +Math.min(1.5, Math.max(-1.5, q[1])).toFixed(4)]
+/**
+ * KOR STOR EI TEIKNA FLATE FÅR VERTA, i storleikar.
+ *
+ * Punkta i eit omriss står i brøk av `storleik`, so 1 er heile objektet.
+ * Grensa var halvanna, og ho kosta ingenting å halde so lenge ei flate var
+ * noko du FRØYS ut av kroppen — ho var aldri stort større enn han.
+ *
+ * Teiknar du henne sjølv er det eit anna spørsmål. Målt kva ei stor flate
+ * kostar, frå ±0,5 til ±24: tida gjeng NED og ikkje opp, av di ruta dekkjer
+ * omrisset sin eigen boks med eit fast celletal. Grensa vernar altso ikkje
+ * om farten. Fire er sett for å ta imot sludder, ikkje for å halde deg inne.
+ */
+const OMRISS_ROM = 4
+const klemPunkt = (q: Pt): Pt => [+Math.min(OMRISS_ROM, Math.max(-OMRISS_ROM, q[0])).toFixed(4), +Math.min(OMRISS_ROM, Math.max(-OMRISS_ROM, q[1])).toFixed(4)]
 /** bogane er plassar i omrisset: flyttar punkta seg, må plassane fylgje med */
 const skiftRunde = (r: readonly number[] | undefined, f: (i: number) => number | null) =>
   r?.length ? { runde: r.map(f).filter((i): i is number => i !== null) } : {}
@@ -179,7 +192,9 @@ type Port = { inFlight: boolean; pending: Req | null; shown: number }
 
 const INGEN: readonly number[] = []
 /** brøkane må halde seg nær boksen: eit plan langt utanfor råkar ingenting */
-const klemO = (o: Vec3): Vec3 => o.map((c) => Math.min(1.5, Math.max(-0.5, c))) as Vec3
+// same rommet `lesPlan` slepper gjennom: klemmer handa til eitt tal og
+// strengen til eit anna, forsvinn planet du nett drog dit ved neste lesing
+const klemO = (o: Vec3): Vec3 => o.map((c) => Math.min(1 + PLAN_ROM, Math.max(-PLAN_ROM, c))) as Vec3
 
 /**
  * GRUPPA FYLGJER LEIAREN. Plan `i` i lista har fått eit nytt punkt og ei ny
@@ -1292,8 +1307,8 @@ export function Studio() {
     const k = kroppRef.current
     if (!s || !k) return
     const o = broek(s.o, k.min, k.max)
-    if (o.some((c) => c < -0.5 || c > 1.5)) {
-      setMelding("utanfor kroppen")
+    if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) {
+      setMelding("for langt ute")
       return
     }
     // TAKET SEIER FRÅ. Lista stogga på seksti og fire og gav att posen han
@@ -1440,7 +1455,7 @@ export function Studio() {
    * profilen, om ingen står — er fire punkt, og dei er punkt som alle andre:
    * du dreg eitt hjørne skeivt og har ei trapes.
    */
-  const firkantOmriss = useCallback((id: number) => {
+  const formOmriss = useCallback((id: number, slag: FormSlag) => {
     const k = kroppRef.current
     if (!k) return
     setParams((cur) => {
@@ -1463,8 +1478,10 @@ export function Studio() {
       }
       const { x0, y0, x1, y1 } = b
       if (!(x1 > x0 && y1 > y0)) return cur
-      // ein boks er fire hjørne, og ingen ting anna
-      l[j] = { ...l[j], omriss: [klemPunkt([x0, y0]), klemPunkt([x1, y0]), klemPunkt([x1, y1]), klemPunkt([x0, y1])], runde: undefined }
+      // forma står i den boksen profilen alt har, so ein runddans gjennom
+      // dei fire byter form utan å flytte noko
+      const f = formPunkt(slag, { x0, y0, x1, y1 })
+      l[j] = { ...l[j], omriss: f.omriss.map(klemPunkt), runde: f.runde }
       return { ...cur, plan: skrivPlan(l) }
     })
   }, [])
@@ -1601,17 +1618,61 @@ export function Studio() {
    * Vindauget er det same som eit trykk på lerretet får: eit trykk er kort,
    * og to trykk som er lengre frå kvarandre enn dette er to trykk.
    */
+  /**
+   * SNAPPET: kva plass i ringen vi står på, og eitt trykk vidare.
+   *
+   * Talet ligg i parameterposen som alle andre tal — det fylgjer med i
+   * lenkja, og det er ei avgjerd om objektet like mykje som tjukna er.
+   */
+  const snappNo = Math.min(SNAPPSTEG.length - 1, Math.max(0, Math.round(Number(params.snapp ?? 3))))
+  const vekslSnapp = useCallback(() => {
+    setParams((cur) => {
+      const i = Math.min(SNAPPSTEG.length - 1, Math.max(0, Math.round(Number(cur.snapp ?? 3))))
+      const ny = (i + 1) % SNAPPSTEG.length
+      setMelding(`snapp ${SNAPP_NAMN[ny]}`)
+      return { ...cur, snapp: ny }
+    })
+  }, [])
+
   const sisteForm = useRef(0)
+  /**
+   * KOR LANGT I RINGEN DU ER KOMEN.
+   *
+   * Han står på null kvar gong kjeda vert broten — eit trykk som ligg
+   * lenger frå det førre enn vindauget er eit NYTT trykk — so ein runddans
+   * du gjekk i går byrjar ikkje midt inne neste gong du tek i knappen.
+   */
+  const formSteg = useRef(0)
+  // og han byrjar på nytt når du byter plan: runddansen høyrer forma til, og
+  // eit anna plan er ei anna form
+  useEffect(() => {
+    formSteg.current = 0
+  }, [vald])
   const formTrykk = useCallback(() => {
     const id = valdRef.current
     if (id === null) return
     const no = performance.now()
     const dobbelt = no - sisteForm.current < DOBBELT_MS
     sisteForm.current = no
-    if (dobbelt) return firkantOmriss(id)
+    if (dobbelt) {
+      const slag = FORM_SLAG[formSteg.current % FORM_SLAG.length]
+      formSteg.current++
+      setMelding(slag)
+      return formOmriss(id, slag)
+    }
+    /**
+     * OG EITT TRYKK NULLSTILLER IKKJE RINGEN.
+     *
+     * Eit dobbelttrykk er to trykk: det fyrste slepper forma, det andre
+     * stemplar den neste. Nullstilte det fyrste ringen, kom du aldri forbi
+     * firkanten — du ville trunge TRE trykk tett i hop for å nå trekanten,
+     * og eit tretrykk er ikkje ein gest ei hand gjer. Slik er kvart
+     * dobbelttrykk eitt steg vidare, og det er den korte vegen gjennom
+     * alle fire.
+     */
     if (lesPlan(naa.current.plan).find((q) => q.id === id)?.omriss?.length) losOmriss(id)
     else frysOmriss(id)
-  }, [firkantOmriss, frysOmriss, losOmriss])
+  }, [formOmriss, frysOmriss, losOmriss])
   /**
    * VIRRET: EI RAD SOM IKKJE STÅR PÅ LINE.
    *
@@ -2335,7 +2396,7 @@ export function Studio() {
       const vidd = [0, 1, 2].map((a) => Math.max(1e-6, k.max[a] - k.min[a]))
       const les = (o: Vec3) => o.reduce((s, c, a) => s + (c - 0.5) * vidd[a] * q.n[a], 0)
       const maal = les(q.o) + mm
-      const rund = (c: number) => Math.min(1.5, Math.max(-0.5, +c.toFixed(4)))
+      const rund = (c: number) => Math.min(1 + PLAN_ROM, Math.max(-PLAN_ROM, +c.toFixed(4)))
       const g = q.o.map((c, a) => rund(c + (q.n[a] * mm) / vidd[a])) as Vec3
       let best = g
       let feil = Math.abs(les(g) - maal)
@@ -2457,6 +2518,9 @@ export function Studio() {
       else if (k === "4") { if (gaarIHop.current) setView("montasje") }
       // den same knappen som under synskuben: innramminga er éi handling, og tasten er vegen til henne
       else if (k === "f") document.querySelector<HTMLButtonElement>("[data-heim]")?.click()
+      // S SOM SNAPPET: han gjeld overalt der noko kan snappe, so tasten
+      // spør ikkje kva du har valt
+      else if (k === "s" && rom) vekslSnapp()
       else if (k === "d" && vald !== null && rom) dupliserPlan(vald)
       else if (k === "h" && vald !== null && rom) leggStrek("hol")
       // O som OMRISSET: same knappen, og eit trykk til innan vindauget gjev
@@ -2495,7 +2559,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslMontasje, rom, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view])
+  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslMontasje, rom, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view, vekslSnapp])
 
   /** ruta og kva som ligg over henne: kameraet rammar inn i det som er att */
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
@@ -2561,6 +2625,7 @@ export function Studio() {
             onVald={velPlan}
             onDeling={setjDeling}
             onValdStrek={setValdStrek}
+            snappSteg={SNAPPSTEG[Math.round(Number(params.snapp ?? 3)) as 0 | 1 | 2 | 3] ?? 90}
             onPunkt={flyttPunkt}
             onSlaaSaman={slaaSamanPunkt}
             onLeggPunkt={leggPunkt}
@@ -2848,6 +2913,30 @@ export function Studio() {
                 >
                   {IcoHol}
                 </button>
+              )}
+              {/* SNAPPET, SOM EIT ORD.
+                  Knappen er ikkje eit ikon: det han seier er eit TAL, og eit
+                  ikon for «45 grader» er ei teikning av eit tal. Eitt trykk
+                  tek deg eitt steg vidare i ringen — av, 15, 45, 90 — og
+                  ordet på knappen er alltid det som gjeld NO. Ein brytar som
+                  syner kva han vil gjere i staden for kva han gjer er ein
+                  brytar du må trykkje på for å lesa. */}
+              {/* og han høyrer ROMMET til, som dei andre reiskapane: på plata
+                  snappar delane til rutenettet på arket, og det er ein annan
+                  snapp med eit anna tal. To brytarar som såg like ut og
+                  styrte kvar sitt ville vore verre enn ein knapp for lite. */}
+              {rom && (
+              <button
+                type="button"
+                aria-label={`snapp ${SNAPP_NAMN[snappNo]}`}
+                title="kva vinklar snappet kjenner: av, 15°, 45°, 90°. gjeld både punkta i eit omriss og vridinga av eit plan (S)"
+                onClick={vekslSnapp}
+                className={TUMME_BTN + " tab text-[11px] leading-none"}
+                data-snapp={SNAPPSTEG[snappNo]}
+                style={snappNo === 0 ? { opacity: 0.35 } : undefined}
+              >
+                {SNAPP_NAMN[snappNo]}
+              </button>
               )}
               {/* FORMA: eitt trykk frys profilen til punkt du kan dra i, eit
                   dobbelttrykk gjer dei fire til boksen kring forma, og eit

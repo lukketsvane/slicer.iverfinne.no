@@ -45,6 +45,7 @@ export type Params = {
   tjukn: number // platetjukn MÅLT med skyvelær, mm — ikkje det ho heiter
   lause: number // 0 tek med stykke utan ledd, 1 kastar dei
   merk: number // 0 glatte delar i 3D-filene, 1 med adressa skoren ned i framsida
+  snapp: number // kva steg snappet kjenner: plassen i `SNAPPSTEG`
 
   // --- LEDD ---------------------------------------------------------------
   klaring: number // sporet breiare enn den MÅLTE plata, mm
@@ -127,6 +128,23 @@ export const LAUSE = ["ta med", "kast"] as const
 export const MERK = ["utan", "nummer"] as const
 
 /**
+ * SNAPPET SITT STEG, I GRADER.
+ *
+ * Ikkje ein toleranse — eit STEG. Det du set er kva vinklar som finst: med
+ * 90 går ei kant beint opp eller beint bortover, med 45 får du diagonalane
+ * med, og med 15 kan du teikne ei takhelling. «Av» er av, og det er eit
+ * val nokon treng: ei form som skal fylgje eit skann har ingen rette
+ * vinklar å snappe til, og eit snapp som ikkje kan slåast av er eit snapp
+ * som til slutt teiknar for deg.
+ *
+ * Det gjeld BÅDE punkta i eit omriss og vridinga av eit plan: det er den
+ * same avgjerda — kva vinklar reiskapen kjenner — og to tal for henne ville
+ * vore to svar på det same spørsmålet.
+ */
+export const SNAPPSTEG = [0, 15, 45, 90] as const
+export const SNAPP_NAMN = ["av", "15°", "45°", "90°"] as const
+
+/**
  * ETIKETTANE STÅR UNDER SI EIGA OVERSKRIFT.
  *
  * Skyvarane er grupperte, og gruppa har namnet sitt over seg. Ein skyvar
@@ -159,6 +177,7 @@ export const PARAM_RANGES: Record<string, Range> = {
   tjukn: { min: 1, max: 25, step: 0.05, label: "tjukn", unit: "mm" },
   lause: { min: 0, max: 1, step: 1, label: "lause", int: true, names: LAUSE },
   merk: { min: 0, max: 1, step: 1, label: "merk", int: true, names: MERK },
+  snapp: { min: 0, max: SNAPPSTEG.length - 1, step: 1, label: "snapp", int: true, names: SNAPP_NAMN },
 
   klaring: { min: 0, max: 0.6, step: 0.01, label: "klaring", unit: "mm" },
   ledd: { min: 0.2, max: 0.8, step: 0.01, label: "deling" },
@@ -180,6 +199,7 @@ export const GROUPS: readonly Group[] = [
   { id: "form", label: "form", keys: ["storleik", "rotX", "rotY", "rotZ"] },
   { id: "nett", label: "nett", keys: ["glatt", "trekant"] },
   { id: "delar", label: "delar", keys: ["tjukn", "lause", "merk"] },
+  { id: "snapp", label: "snapp", keys: ["snapp"] },
   { id: "forenkling", label: "forenkling", keys: ["forenkl", "hol"] },
   { id: "ledd", label: "ledd", keys: ["klaring", "ledd"] },
   { id: "kutt", label: "kutt", keys: ["snitt", "snittveg", "fart"] },
@@ -379,6 +399,8 @@ export const DEFAULT_PARAMS: Params = {
   tjukn: 3,
   lause: 1,
   merk: 0,
+  // 90° frå fyrst av: det er dei vinklane som fanst før valet vart eit val
+  snapp: 3,
 
   klaring: 0.1,
   ledd: 0.5,
