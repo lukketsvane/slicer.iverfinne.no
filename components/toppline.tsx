@@ -120,8 +120,23 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
           >
             {bitar > 1 ? `${kjelde} +${bitar - 1}` : kjelde}
           </button>
+          {/* OG HO RULLAR NÅR HO VERT LANG.
+                Lista var fem former og ei fil-line: ho fekk plass same kva.
+                No er ho òg biblioteket ditt, og tjue filer er lengre enn ein
+                telefon er høg — menyen rann ut nedanfor skjermen, og linene
+                du nett hadde henta inn var dei du ikkje kunne nå.
+
+                Taket er rekna frå der menyen STÅR og ikkje frå skjermhøgda:
+                han heng under topplina, so det er avstanden ned herifrå som
+                er plassen han har. Åtte pikslar att nedst, so kanten seier at
+                det er meir. `rull` rullar inni seg sjølv — sida bak står
+                stille, som ho gjer overalt elles i huset. */}
           {meny && (
-            <span className="absolute left-0 top-[calc(100%+6px)] z-40 flex w-36 flex-col border" style={{ ...HAIR, background: "var(--paper)" }} data-meny="">
+            <span
+              className="rull absolute left-0 top-[calc(100%+6px)] z-40 flex w-36 flex-col border"
+              style={{ ...HAIR, background: "var(--paper)", maxHeight: "calc(100dvh - 100% - 6px - env(safe-area-inset-top) - 8px)" }}
+              data-meny=""
+            >
               {FORMER.map((id) => (
                 <button
                   key={id}
