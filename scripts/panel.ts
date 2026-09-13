@@ -163,6 +163,18 @@ const SKJELV = 1
  * `lag` er kor mange bilete den fyrste fingeren er åleine, og han RØRER seg
  * i det glipet: ein finger som ligg heilt i ro er ikkje ein gest, og då
  * prøver ein ikkje det som hender. Null er den gamle åtferda.
+ *
+ * OG HAN SKJELV IKKJE BERRE — HAN KAN VANDRE.
+ *
+ * `SKJELV` er éin piksel, og éin piksel er under dei tolv som skil eit trykk
+ * frå eit drag. Ein finger som aldri kryssar den grensa vert aldri sleppt til
+ * orbiten, so heile den vegen gjennom koden stod uprøvd: synet svinga fritt
+ * medan den fyrste fingeren gjekk, og vart rykt attende i det den andre
+ * landa. Sluttilstanden var perfekt, og difor sa kvar einaste vakt ok.
+ *
+ * `vandre` er kor mange pikslar han går FØR den andre landar, og gesten held
+ * fram der han sluttar — ein finger teleporterer ikkje attende når handa
+ * legg seg ned.
  */
 async function toFingrar(
   page: Page,
@@ -173,6 +185,8 @@ async function toFingrar(
   mellom?: () => Promise<void>,
   /** kor mange hakk den andre fingeren kjem etter den fyrste; sjå `LAG` */
   lag = LAG,
+  /** kor mange pikslar den fyrste fingeren VANDRAR åleine; sjå over */
+  vandre = 0,
 ) {
   const cdp = await page.context().newCDPSession(page)
   const pkt = (t: number) => steg(t).map(([x, y], id) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 }))
@@ -182,7 +196,8 @@ async function toFingrar(
     const a = pkt(0)[0]
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [a] })
     for (let i = 1; i <= l; i++) {
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...a, y: a.y + (i % 2 ? SKJELV : -SKJELV) }] })
+      const x = a.x + (vandre * i) / l
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...a, x, y: a.y + (i % 2 ? SKJELV : -SKJELV) }] })
       await page.waitForTimeout(16)
       if (mellom) await mellom()
     }
@@ -1861,6 +1876,123 @@ async function teikninga(browser: Browser) {
   await page.close()
 }
 
+
+/**
+ * KAMERAET MEDAN TO FINGRAR FLYTTAR EIT PLAN.
+ *
+ * Regelen står i `CLAUDE.md`: to fingrar høyrer objektet til og rører aldri
+ * kameraet. Vakta for det las SLUTTEN — og sluttilstanden var perfekt heile
+ * tida. Det som var gale var det du SÅG: den fyrste fingeren gjekk sin veg
+ * åleine medan handa la seg ned, kryssa dei tolv pikslane som skil eit trykk
+ * frå eit drag, og synet svinga. I det den andre fingeren landa vart heile
+ * svingen rykt attende i eitt bilete.
+ *
+ * Målt på koden som stod, med den fyrste fingeren på vandring seksti pikslar:
+ * ut til 3,2 einingar på ein avstand av 14,5, og heile vegen attende i eitt
+ * bilete.
+ *
+ * Vakta står for seg og ikkje i «telefon», av di ho måler ÉIN ting og skal
+ * kunne køyrast åleine medan ein arbeider med henne.
+ *
+ * HO MÅLER FRÅ DET BEGGE FINGRANE ER NEDE. Det som hende før, hende med éin
+ * finger, og ein finger har lov til å snu synet — det er gesten hans. Det
+ * som ikkje har lov er at kameraet rører seg når to fingrar dreg.
+ */
+async function kamera(browser: Browser) {
+  console.log("\n=== kameraet under to fingrar")
+  const { page, konsoll } = await opne(URL, browser, 390, 844)
+  // tre plan utan gruppe, so kvart av dei er si eiga rad i lista
+  await page.evaluate(() => {
+    location.hash = "p=" + encodeURIComponent(JSON.stringify({ kjelde: "kube", storleik: 300, plan: "1@0.3,0.5,0.5/1,0,0;2@0.7,0.5,0.5/1,0,0;3@0.5,0.5,0.5/0,1,0" }))
+    location.reload()
+  })
+  await roleg(page, 1500)
+
+  // vel eit plan gjennom lista i skuffa, som handa gjer det
+  await page.locator(HOVUDLINA).click()
+  await roleg(page, 500)
+  await page.locator("[role=tab][aria-label='grupper']").click()
+  await roleg(page, 500)
+  const rad = page.locator("[role=option][data-plan]").first()
+  sjekk("planlista står i skuffa", (await page.locator("[role=option][data-plan]").count()) >= 2, `${await page.locator("[role=option][data-plan]").count()} rader`)
+  await rad.locator("button").first().click()
+  await roleg(page, 400)
+  // grepet lèt att — lina er borte når skuffa er open
+  await page.getByRole("button", { name: "lat att kontrollane" }).click()
+  await roleg(page, 500)
+  sjekk("og eit plan er valt", (await page.locator(".handtak").getAttribute("data-slag")) === "plan", (await page.locator(".handtak").getAttribute("data-slag")) ?? "?")
+
+  const kamPos = async () => ((await page.locator(".handtak").getAttribute("data-kamera")) ?? "0,0,0").split(",").map(Number)
+  const kamAv = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2])
+
+  /**
+   * VANDRINGA er seksti pikslar: godt forbi dei tolv som slepper orbiten
+   * laus, so heile den vegen gjennom koden vert prøvd. GLIDET er femten
+   * prosent — meir enn nok til å låse opp klypet.
+   */
+  const VANDRE = 60
+  const planStod = plana(page)[0]
+  const kamFor = await kamPos()
+  /** kvart hakk, med eit merke om kor mange fingrar som var nede */
+  const spor: { ein: boolean; p: number[] }[] = []
+  let hakk = 0
+  await toFingrar(
+    page,
+    (t) => {
+      const glid = 50 * (1 + 0.15 * t)
+      const cx = 170 + VANDRE + 70 * t
+      return [[cx, 380 - glid], [cx, 380 + glid]]
+    },
+    12,
+    async () => {
+      hakk++
+      spor.push({ ein: hakk <= LAG, p: await kamPos() })
+    },
+    LAG,
+    VANDRE,
+  )
+  await roleg(page, 700)
+  const planKom = plana(page)[0]
+  const flytta = Math.hypot(planKom.o[0] - planStod.o[0], planKom.o[1] - planStod.o[1], planKom.o[2] - planStod.o[2])
+  const ein = spor.filter((q) => q.ein)
+  const to = spor.filter((q) => !q.ein)
+
+  /**
+   * FYRST: PRØVA MÅ VERA EI PRØVE. Gjekk ikkje den eine fingeren forbi dei
+   * tolv pikslane, vart orbiten aldri sleppt laus, og alt under er vakuum.
+   */
+  const einSvinga = ein.length ? kamAv(kamFor, ein[ein.length - 1].p) : 0
+  sjekk("den eine fingeren snudde synet før den andre landa", einSvinga > 0.5, `${einSvinga.toFixed(2)} einingar`)
+
+  /**
+   * OG SÅ SJØLVE SAKA: synet vert ikkje teke ATTENDE i det den andre
+   * fingeren landar. Ein orbit går i ring, so avstanden til kameraet
+   * fortel ingenting — det som fortel er om kameraet nærmar seg der det
+   * STOD FØR gesten. Gjer det det, er svingen din rykt bort.
+   */
+  const etterTo = to.length ? kamAv(kamFor, to[0].p) : 0
+  /**
+   * EIN TIDEL, og ikkje null. Mellom det siste biletet med éin finger og
+   * det fyrste med to ligg det eit bilete der dempinga framleis lettar av
+   * svingen din — det er den fysikken ein orbit har, og han er på nokre få
+   * promille av avstanden. Koden som stod mista HEILE svingen; 3,21 → 0,00.
+   */
+  sjekk(
+    "og den andre fingeren tek ikkje svingen attende",
+    etterTo >= einSvinga * 0.9,
+    `${einSvinga.toFixed(2)} → ${etterTo.toFixed(2)} einingar frå der synet stod`,
+  )
+
+  /** og frå då av står kameraet, hakk for hakk, medan planet flyttar seg */
+  const verst = to.length > 1 ? Math.max(...to.slice(1).map((q) => kamAv(to[0].p, q.p))) : Infinity
+  sjekk(
+    "kameraet står i kvart hakk etter at BEGGE fingrane er nede",
+    verst < 1e-3 && flytta > 0.005,
+    `verste avvik ${verst.toFixed(4)} over ${to.length - 1} hakk, planet flytta ${flytta.toFixed(3)}`,
+  )
+  sjekk("ingen konsollfeil", konsoll.length === 0, konsoll.slice(0, 2).join(" · "))
+  await page.close()
+}
 
 async function benk(browser: Browser) {
   console.log("\n=== benk 1400×900")
@@ -4037,6 +4169,7 @@ const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["uttaka", uttaka],
   ["benk", benk],
   ["teikninga", teikninga],
+  ["kamera", kamera],
   ["skrivebordet", skrivebordet],
   ["grupper", grupper],
 ]

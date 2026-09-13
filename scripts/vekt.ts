@@ -75,7 +75,13 @@ const TAK: [string, number][] = [
   // Ein firkant frå hjørne til hjørne krev tre handlarar der eit trykk
   // greidde seg med to, og orbiten må stå av so lenge dragat varer. Resten
   // er grunngjevinga for at «trykk og ikkje drag» vart snudd
-  ["components/scene.tsx", 3915],
+  // +30 den 13.: to fingrar tek ikkje attende eit syn du snudde med éin.
+  // `restore()` tek ein stad å gå til, og den andre fingeren gjev han der
+  // kameraet STÅR — ikkje der det stod før gesten, og ikkje der orbiten var
+  // på veg. Sju liner er rekninga; resten er tala som seier kvifor: 3,2
+  // einingar rykt attende i eitt bilete, gjennom eit grønt harness, av di
+  // kvar einaste vakt las SLUTTEN og slutten var perfekt
+  ["components/scene.tsx", 3945],
   // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
