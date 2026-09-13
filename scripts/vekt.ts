@@ -71,7 +71,11 @@ const TAK: [string, number][] = [
   // +16 den 13.: bandet eit spor-handtak kan dragast i fylgjer BOGEN når
   // leddet ligg mot eit bøygt plan. Punkta kjem ferdig rekna frå motoren
   // (`spor.boge`), so det som står her er berre at ei line er fleire bitar
-  ["components/scene.tsx", 3906],
+  // +9 den 13.: teiknereiskapen les EITT DRAG og ikkje ei kjede av trykk.
+  // Ein firkant frå hjørne til hjørne krev tre handlarar der eit trykk
+  // greidde seg med to, og orbiten må stå av so lenge dragat varer. Resten
+  // er grunngjevinga for at «trykk og ikkje drag» vart snudd
+  ["components/scene.tsx", 3915],
   // +7 den 12.: målinga som viser at det grove byggjepasset kosta full pris
   // står i fila, og eit tal utan grunngjevinga si er eit tal ingen tør røre
   // +4 den 12.: montasjen og steget hans ned i arket, og lina som seier
@@ -111,7 +115,11 @@ const TAK: [string, number][] = [
   // — teiknar du mot eit plan som fylgjer kameraet, flyttar flata seg under
   // handa kvar gong du snur synet — og det meste her er grunngjevinga for
   // det og for at ei teikna flate IKKJE vert spegla av symmetrien
-  ["components/studio.tsx", 3257],
+  // +16 den 13.: den andre halvparten av den same saka. `teikn` er ein BOKS
+  // og ikkje ei kjede, og dei fire hjørna vert rekna i `teiknLukk`. Kring
+  // ti av linene er grunngjevinga: kvifor kjeda ikkje gav noko handtaka i
+  // `Omrisset` ikkje alt gjev, og kvifor firkanten står oppreist
+  ["components/studio.tsx", 3273],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko

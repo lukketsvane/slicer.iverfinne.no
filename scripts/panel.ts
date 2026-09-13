@@ -1779,13 +1779,14 @@ async function kroppen(browser: Browser) {
 /**
  * TEIKNE EI FLATE.
  *
- * Reiskapen lagar noko frå ingenting: du trykkjer eit hjørne om gongen på
- * skisseplanet, og lukkar på det fyrste. Vakta går heile vegen — frå ingen
- * plan til ein DEL som kan skjerast — av di det er den vegen som seier at
- * flata vart ei flate og ikkje berre ei line på skjermen.
+ * Reiskapen lagar noko frå ingenting: du dreg EIN firkant på skisseplanet,
+ * og slepper. Vakta går heile vegen — frå ingen plan til ein DEL som kan
+ * skjerast — av di det er den vegen som seier at flata vart ei flate og
+ * ikkje berre ei line på skjermen.
  *
- * Og ho prøver det som skil reiskapen frå eit uhell: at ei kjede på to
- * punkt IKKJE vert eit plan, og at escape slepper alt utan å lage noko.
+ * Og ho prøver det som skil reiskapen frå eit uhell: at eit TRYKK ikkje
+ * vert eit plan, at fire hjørne kjem ut av eitt drag, og at escape slepper
+ * alt utan å lage noko.
  */
 async function teikninga(browser: Browser) {
   console.log("\n=== teikne ei flate")
@@ -1795,29 +1796,43 @@ async function teikninga(browser: Browser) {
   sjekk("reiskapen står i spalta", (await knapp.count()) === 1)
 
   const mid = { x: 700, y: 430 }
-  const hjorne = [
-    { x: mid.x - 90, y: mid.y - 90 },
-    { x: mid.x + 90, y: mid.y - 90 },
-    { x: mid.x + 90, y: mid.y + 90 },
-    { x: mid.x - 90, y: mid.y + 90 },
-  ]
   await knapp.click()
   await roleg(page, 500)
   sjekk("og eit trykk tek han", (await knapp.getAttribute("aria-pressed")) === "true")
-  for (const h of hjorne) {
-    await page.mouse.click(h.x, h.y)
-    await roleg(page, 250)
-  }
-  const teikna = await page.locator("[data-teikn]").getAttribute("data-teikn")
-  sjekk("fire trykk gjev fire punkt", teikna === "4", `${teikna} punkt`)
 
+  /**
+   * EIT TRYKK ER IKKJE EIN FIRKANT. Fingeren landa og gjekk att; det finst
+   * ingen flate å lage, og reiskapen skal stå att og vente.
+   */
+  const foer0 = plana(page).length
+  await page.mouse.click(mid.x, mid.y)
+  await roleg(page, 400)
+  sjekk("eit trykk lagar ingenting, og reiskapen står att", plana(page).length === foer0 && (await knapp.getAttribute("aria-pressed")) === "true", `${plana(page).length} plan, venta ${foer0}`)
+
+  // og dragat: ned i eit hjørne, over til det motsette, slepp
   const foer = plana(page).length
-  await page.mouse.click(hjorne[0].x, hjorne[0].y)
+  await page.mouse.move(mid.x - 90, mid.y - 90)
+  await page.mouse.down()
+  await page.mouse.move(mid.x, mid.y - 40, { steps: 4 })
+  await roleg(page, 250)
+  const undervegs = await page.locator("[data-teikn]").getAttribute("data-teikn")
+  const hjorne = await page.evaluate(() => (document.querySelector(".teiknflate polygon")?.getAttribute("points") ?? "").trim().split(/\s+/).filter(Boolean).length)
+  sjekk("firkanten står på skjermen medan fingeren går", undervegs === "dreg" && hjorne === 4, `${undervegs}, ${hjorne} hjørne`)
+  await page.mouse.move(mid.x + 90, mid.y + 90, { steps: 6 })
+  await page.mouse.up()
   await vent(page, talPlan(foer + 1), 15000)
   await roleg(page, 900)
-  sjekk("og eit trykk på det fyrste lukkar flata til eit plan", plana(page).length === foer + 1)
+  sjekk("og eitt drag gjev eitt plan", plana(page).length === foer + 1)
   const pl = lesPlan(hash(page).plan)[foer]
-  sjekk("og planet ber omrisset du teikna", (pl?.omriss?.length ?? 0) === 4, `${pl?.omriss?.length ?? 0} punkt i omrisset`)
+  sjekk("og planet ber ein firkant på fire punkt", (pl?.omriss?.length ?? 0) === 4, `${pl?.omriss?.length ?? 0} punkt i omrisset`)
+  /**
+   * OG HAN ER EIN EKTE FIRKANT: to u-verdiar og to v-verdiar, kvar to
+   * gonger. Det er prøva på at hjørna vart rekna og ikkje berre samla.
+   */
+  const om = pl?.omriss ?? []
+  const uu = [...new Set(om.map((q) => q[0]))]
+  const vv = [...new Set(om.map((q) => q[1]))]
+  sjekk("og hjørna står på to u og to v", uu.length === 2 && vv.length === 2, `${uu.length} u, ${vv.length} v`)
   sjekk("og reiskapen slepper seg sjølv etterpå", (await knapp.getAttribute("aria-pressed")) === "false")
 
   /**
@@ -1833,11 +1848,12 @@ async function teikninga(browser: Browser) {
   const foer2 = plana(page).length
   await knapp.click()
   await roleg(page, 400)
-  await page.mouse.click(mid.x - 40, mid.y + 140)
-  await roleg(page, 250)
-  await page.mouse.click(mid.x + 40, mid.y + 140)
+  await page.mouse.move(mid.x - 40, mid.y + 120)
+  await page.mouse.down()
+  await page.mouse.move(mid.x + 40, mid.y + 190, { steps: 4 })
   await roleg(page, 250)
   await page.keyboard.press("Escape")
+  await page.mouse.up()
   await roleg(page, 700)
   sjekk("escape slepper teikninga utan å lage noko", plana(page).length === foer2 && (await knapp.getAttribute("aria-pressed")) === "false", `${plana(page).length} plan, venta ${foer2}`)
 

@@ -115,7 +115,9 @@ the part and never get reused, it is a laser tool with no cutter diameter,
 colour is the operation and carries the order, kerf is taken exactly once,
 slots are cut in the field and not in the polygon, a plane that carries an
 outline takes its profile from that outline and not from the body, an outline
-curve goes through its points and never has control arms, the view flattens to
+curve goes through its points and never has control arms, a face is drawn as
+ONE dragged rectangle and shaped afterwards with the handles it already has,
+the view flattens to
 2° when you look straight down an axis and never gets a second camera, the
 montage never computes an assembly order of its own — it groups the engine's —
 two fingers belong to the object and never move the camera — zoom is the

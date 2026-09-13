@@ -164,7 +164,8 @@ that is where the keyboard is. Every number in the column can be typed:
 double-click it (or press enter with the row focused), type, enter sets it and
 escape leaves it; arrows step it, shift-arrows step ten. A selected plane moves
 one millimetre along its normal per arrow press, ten with shift, and its row
-reads where it stands in millimetres from the centre of the body, live. `D`
+reads where it stands in millimetres from the centre of the body, live. `T`
+draws a face, `D`
 duplicates the selected plane, `H` cuts a hole in it, `O` freezes its profile
 into points (twice quickly for the box), the arrows move a held outline point
 one millimetre and ten with shift, `B` switches it between corner and arc,
@@ -638,6 +639,35 @@ joint can be set on its own, and setting it deepens one slot and shallows the
 other by itself: the bottom of A's slot and the bottom of B's are *the same
 number*, read from either side of the same line. Nothing keeps them in step; they
 are not two values.
+
+**Draw a face where there is nothing.** The first tool in the column (`T`)
+makes something out of nothing; everything else changes what already stands.
+**Drag one rectangle** on the sketch plane and let go: a plane exists, with
+that rectangle as its outline. It is not a section of the body — it cuts
+nothing — it *is* something, and it takes its profile from the four corners.
+
+It used to be a tap per corner and one more on the first to close: five
+actions for the start of the work, and the start was all it ever was. Every
+corner is a handle in the outline editor the moment the face exists — drag
+it anywhere, add points on the middle marks, turn a corner into an arc — so
+the chain gave nothing the handles did not already give, and charged five
+presses for it. One drag, and the shaping happens where shaping happens.
+
+The cost is that a lone finger does not turn the view *while the tool is on*,
+which reverses the reason the chain existed. That is a price a mode may take:
+it lasts one drag and then lets go of itself. Two fingers still belong to the
+object. A press that does not travel the same twelve pixels that make a drag
+anywhere else is a finger that did not move, so the tool stays armed and
+waits rather than making a face you cannot see.
+
+The sketch plane is **frozen** when you take the tool, and the face is drawn
+on the plane that *faces you* — the sketch plane is sighted along the view
+axis and projects to a line, which is nothing to put a corner on. Frozen,
+because a plane that follows the camera moves the face under your hand every
+time you turn to see where you are, and you find out only when you are done.
+There is **no mirroring**: the mirror image of a *section* is a section, but
+the mirror image of a drawn face is not the same face — its frame comes from
+the normal, so the same points give a different shape on the other side.
 
 **The profile is a proposal, and `form` takes it over.** The contour is the
 mesh read off, and sometimes that is not the rib you have in mind. Select a
