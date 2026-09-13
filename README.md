@@ -413,9 +413,30 @@ The number stored is curvature times size, not a radius in millimetres, so a
 bend follows the body when you scale it. The radius in millimetres is what the
 material has an opinion about: bending strains the outer fibre by `t/2R`, and
 past what the material takes, the sheet splits — in the workshop, not on the
-screen. So it is a hard rule, not a hint: plywood 100×t, MDF 200×t, acrylic
-230×t cold, cardboard 10×t. 6 mm plywood bends to 600 mm and no tighter; 3 mm
-to 300. The rule offers to straighten to exactly what will go.
+screen. Plywood takes 100×t, MDF 200×t, acrylic 230×t cold, cardboard 10×t: 6
+mm plywood bends to 600 mm as a solid sheet, 3 mm to 300.
+
+**Tighter than that, the sheet is scored.** Rows of cuts across the bend,
+parallel to the cylinder axis, one plate thickness apart, staggered so the
+ligaments between them never line up — the plate stops bending as a plate and
+starts bending as a hinge. The cuts are open lines, not rings: the opening is
+the kerf itself, which is the one place in the tool where kerf is the shape
+rather than an error to compensate away. They are written into the cut file
+with the inner cuts, before the outline, so they are made while the part is
+still held by the sheet.
+
+Around every joint the pattern stops. A band runs the full length of each slot
+line, three thicknesses to either side, and no cut crosses it — the material
+that carries a joint is not perforated. That band is also what keeps the joint
+arithmetic true: joints are measured along their slot line, and a score cut
+across that line would hand the joint a shoulder that is not there.
+
+So the rule is no longer hard, and it no longer only offers to straighten: it
+says what the pattern costs. It goes red only when the pattern cannot be laid
+at all — when the tool is so coarse that the kerf eats the row spacing. What
+the tool does **not** compute is whether the ligaments survive the twist: that
+is torsion in a material that is not the same in two directions, and it is not
+read off the geometry. Cut a test strip.
 
 Inside, a bent plane does not slice the body — it unrolls the *space*. The
 cylinder becomes a plane again in the unrolled space, the slice is the same

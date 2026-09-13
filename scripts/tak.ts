@@ -23,12 +23,13 @@
  *   npx tsx scripts/tak.ts
  */
 import { MOTOR } from "../lib/motor"
-import { kjeldeNull, kjeldeTal, vendNull, vendTal } from "../lib/kropp"
+import { kjeldeNull, kjeldeTal, makeKropp, vendNull, vendTal } from "../lib/kropp"
 import { put } from "../lib/sources"
 import { makeSoup } from "../lib/soup"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { PLAN_TAK, lesPlan, rutenett, skrivPlan, type Plan } from "../lib/plan"
 import type { ParamBag } from "../lib/core"
+import { DETAIL, buildSnitt } from "../lib/snitt"
 
 let brot = 0
 const bryt = (kva: string) => {
@@ -386,6 +387,70 @@ const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1):
     "32 omriss med boge på kvart punkt kostar under det doble av ingen bogar",
     med.n === utan.n && med.ms < utan.ms * 2,
     `${utan.ms} ms utan → ${med.ms} ms med (${(med.ms / Math.max(1, utan.ms)).toFixed(2)}×), ${med.n} delar`,
+  )
+}
+
+/**
+ * RILLA VED TAKET — OG HO VERT MÅLT I SNITT, IKKJE I MILLISEKUND.
+ *
+ * TRE FREISTNADER PÅ EI TIDSMÅLING MÅLTE NOKO ANNA ENN DEI SA, og dei står
+ * her av di den neste elles prøver dei om att. Den fyrste varma opp med den
+ * same saka og las eit bufra null. Den andre dropp oppvarminga og målte
+ * JIT-EN: fyrste kallet 1,1 s, andre 0,3 s, same kva for eit material som
+ * kom fyrst — talet sa 2,6× og meinte «V8 hadde ikkje sett denne koden før».
+ * Den tredje bygde kroppen inni målinga, og han vert bufra mellom dei to, so
+ * det RILLA bygget kom ut raskare enn det urilla. `buildSnitt` hugsar
+ * dessutan på `snittKey`, so det fjerde forsøket målte eit oppslag.
+ *
+ * Tida ER målt, ved å kalle mønsteret direkte: 50 ms for 3000 snitt, mot ei
+ * snitting på kring 300. Det talet står her som eit TAL og ikkje som ein
+ * påstand, av di det ikkje let seg lesa stabilt gjennom fire lag med bufring.
+ *
+ * Det som ER stabilt, og som er sjølve kostnadsdrivaren, er KOR MANGE SNITT
+ * mønsteret legg. Eksploderer det talet, eksploderer alt som fylgjer: kuttfila,
+ * platesynet, nestinga. Difor er taket eit tal på snitt — og saka er den
+ * same geometrien to gonger, der berre materialet skil: papp toler R = 30 mm
+ * og vert ikkje rilla, finér krev 300 og vert det. At dei to i det heile er
+ * ulike er sjølv ei prøve, av di materialet kom inn i snittnøkkelen den dagen
+ * rilla vart skriven.
+ */
+{
+  console.log("\n=== rilla ved taket ===")
+  const plan = skrivPlan(
+    lesPlan(skrivPlan(rutenett(6, 6))).map((q) => (q.n[0] === 1 ? { ...q, bog: 1.2 } : q)),
+  )
+  const snitt = (material: string) => {
+    const p = { ...GRUNN, storleik: 300, tjukn: 3, material, plan } as unknown as Params
+    return buildSnitt(makeKropp(p), p, DETAIL.mid)
+  }
+  const utan = snitt("papp").ribber.reduce((a, q) => a + q.rille.length, 0)
+  const rilla = snitt("finer")
+  const med = rilla.ribber.reduce((a, q) => a + q.rille.length, 0)
+  const TAK_SNITT = 2400
+  ok(
+    `eit rilla snitt legg under ${TAK_SNITT} snittliner, og eit urilla ingen`,
+    utan === 0 && med > 0 && med < TAK_SNITT,
+    `papp ${utan} · finér ${med} snittliner over ${rilla.ribber.filter((q) => q.r.k).length} bøygde ribber`,
+  )
+  /**
+   * OG RADENE SKAL STÅ DER STEGET SEIER. Talet over seier kor mange; dette
+   * seier at dei ligg som eit mønster og ikkje som ein haug. Tre millimeter
+   * finér gjev eit steg på ei tjukn — og u er BUELENGD, so avstanden er den
+   * same heile vegen rundt bogen.
+   */
+  const ribbe = rilla.ribber.find((q) => q.r.k && q.rille.length)
+  const us = [...new Set((ribbe?.rille ?? []).map((l) => +l[0][0].toFixed(3)))].sort((a, b) => a - b)
+  // EIT HEILT TAL STEG og ikkje eitt steg: ei rad der kvart einaste snitt
+  // fall i ei sperresone er ei rad utan liner, og då er hoppet to steg. Det
+  // er mønsteret som fungerer, ikkje mønsteret som sviktar.
+  const verst = us.slice(1).reduce((m, v, i) => {
+    const n = (v - us[i]) / 3
+    return Math.max(m, Math.abs(n - Math.round(n)))
+  }, 0)
+  ok(
+    "og radene ligg eit heilt tal steg frå kvarandre, heile vegen rundt bogen",
+    us.length > 10 && verst < 0.01,
+    `${us.length} rader i ei ribbe, verste avvik frå eit heilt steg på 3,0 mm: ${(verst * 3).toFixed(4)} mm`,
   )
 }
 

@@ -696,6 +696,10 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
                   <path d={[d.ut, ...d.inn].join(" ")} fillRule="evenodd" style={{ fill: paa ? "color-mix(in srgb, var(--ink) 14%, transparent)" : fast ? "color-mix(in srgb, var(--ink) 9%, transparent)" : "transparent" }} />
                   <path d={d.ut} strokeWidth={paa || q ? 2 : 1} vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: strek }} />
                   {d.inn.map((h, j) => <path key={j} d={h} strokeWidth={paa || q ? 2 : 1} vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: strek }} />)}
+                  {/* rilla kjem fram når du har klypt deg nærare, som adressa:
+                      utspelt på heile plata er seks hundre hårstrek per del ei
+                      grå smurning som gøymer forma dei står i */}
+                  {syn && d.rille && <path d={d.rille} vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: strek }} />}
                   {/* adressa slik laseren skriv henne — berre når du har klypt deg nærare */}
                   {syn && d.merke && <path d={d.merke} data-merke="" vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: "var(--ink)", opacity: 0.55 }} />}
                   <title>{d.adr}{fast ? " · fast" : ""}{d.kross ? " · ligg i ein annan" : ""}</title>

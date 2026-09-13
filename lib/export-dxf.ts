@@ -72,6 +72,8 @@ export function sheetDxf(n: Nesting, i: number, kerf: number): string {
     }
     for (const q of sheet.placed) {
       for (const hole of placedRings(q).holes) poly(out, lag(q), offsetPoly(hole, -h))
+      // rilla: opne liner utan kompensasjon — opninga ER snittbreidda
+      for (const l of placedRings(q).rille) poly(out, lag(q), l, false)
     }
     for (const q of sheet.placed) {
       poly(out, lag(q), offsetPoly(placedRings(q).outline, +h))

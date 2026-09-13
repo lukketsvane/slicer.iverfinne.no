@@ -170,7 +170,17 @@ const TAK: [string, number][] = [
   // eine talet båe sidene av eit ledd kan lesa, kvifor ein lukka sirkel må
   // ha pariteten lesen éin stad når ei open line ikkje treng det, og kvifor
   // ein bøygd del ikkje vert skuva inn men BØYGD inn.
-  ["lib/snitt.ts", 1751],
+  //
+  // +60 den 13.: RILLA, og den stive øya rundt kvart spor. Sjølve mønsteret
+  // bur i `lib/rille.ts` og vart lagt der med vilje — han kunne ikkje lege
+  // her, og ikkje berre av vekt: mønsteret kan reknast av eit omriss, ei
+  // krumming og ein tabell, og det er heile det han treng vita. Det som
+  // MÅTTE lege her er koplinga, og ho er tre ting: kva for ribber som er
+  // strammare enn plata toler, SPERRESONA kvart spor får, og at ei
+  // rillelinje kostar kuttlengd og ikkje areal. Sperresona er dei fleste
+  // linene, og ho er grunngjeving: ho held `stykkeLangs` sant, og det er
+  // ikkje synleg av koden som les henne.
+  ["lib/snitt.ts", 1811],
   ["lib/pack.ts", 955],
 ]
 

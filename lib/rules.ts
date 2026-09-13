@@ -18,6 +18,7 @@ import { makeBygg, nestGap, type Bygg } from "./bygg"
 import { makeKropp } from "./kropp"
 import { DETAIL, lukene, type Snitt } from "./snitt"
 import { dot, lesPlan, skrivPlan } from "./plan"
+import { bogMin as bogMinAv, rilleMal } from "./rille"
 import { SNITTVEGAR, lesFest, skrivFest, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
@@ -614,24 +615,56 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
    *
    * Talet er konservativt med vilje: langs fiberen toler finéren under
    * halvparten av det han gjer på tvers, og verkstaden veit ikkje kva veg
-   * plata ligg. Bøyeplate («wiggle board») og kerfsnitt kjem under dette —
-   * og det er den vegen steg to går.
+   * plata ligg.
+   *
+   * OG DEN VEGEN GJEKK STEG TO: kerfsnitta er skrivne, og tabellen bur i
+   * `rille.ts` saman med mønsteret som er svaret på han. To kopiar av dette
+   * talet ville vore to meiningar om kva finér toler.
+   *
+   * REGELEN ER DIFOR IKKJE LENGER HARD. Under grensa vert plata RILLA, og
+   * det er ei avgjerd og ikkje ein feil: du får ei flate som bøyer seg, mot
+   * mindre gods og ein lengre køyretur. Regelen seier kva det kostar. Han
+   * står raud berre når mønsteret ikkje KAN leggjast — når fasetten vert
+   * grovare enn plata er tjukk, og forma du ser ikkje er den du får.
    */
-  const BOG_FAKTOR: Record<string, number> = { finer: 100, mdf: 200, akryl: 230, papp: 10 }
-  const bogFaktor = BOG_FAKTOR[String(p.material)] ?? 100
-  const bogMin = bogFaktor * p.tjukn
+  const bogMin = bogMinAv(String(p.material), p.tjukn)
   const boygde = lesPlan(p.plan).filter((q) => q.bog)
   /** den strammaste radien i lista, i millimeter */
   const strammast = boygde.reduce((m, q) => Math.min(m, p.storleik / Math.abs(q.bog)), Infinity)
+  /**
+   * OG KVA MØNSTERET KOSTAR, NÅR HAN FYRST VERT LAGD.
+   *
+   * Under grensa vert plata rilla, og då er spørsmålet ikkje lenger om ho
+   * sprekk — det er om mønsteret i det heile LET SEG LEGGJE. Éin ting
+   * stengjer for det, og han er geometri: SNITTET ET RADA. Er avstanden
+   * mellom to rader ikkje romsleg større enn snittet er breitt, er det ikkje
+   * eit hengsle — det er ei rad hòl med ingenting imellom. Ein grov fres i ei
+   * tynn plate kjem hit, og han er den einaste som gjer det.
+   *
+   * KVA REGELEN IKKJE SEIER: om brua held. Det er eit vridingsproblem i eit
+   * materiale som ikkje er likt i to retningar, og det talet står ikkje her,
+   * av di det ikkje er lese av geometrien. Skjer ein prøvestrimmel.
+   */
+  const mal = rilleMal(strammast, p.tjukn, String(p.material))
+  const kanRilla = mal.steg > 3 * p.snitt
+  const stram = boygde.length > 0 && strammast < bogMin
   add({
     id: "bog",
     label: "bøyeradius",
-    hard: boygde.length > 0 && strammast < bogMin,
-    ok: !boygde.length || strammast >= bogMin,
-    value: boygde.length ? `${mm1(strammast)} av minst ${mm1(bogMin)}` : "ingen bøygde plan",
-    why: `Ei plate som vert bøygd strekkjer ytterfiberen med t/2R. ${nn(p.tjukn, 1)} mm ${p.material} toler ned til ${mm1(bogMin)}; strammare enn det sprekk ho. Rett ut bøyen, eller ta ei tynnare plate — halv tjukn er halv radius.`,
+    hard: stram && !kanRilla,
+    ok: !stram || kanRilla,
+    value: !boygde.length
+      ? "ingen bøygde plan"
+      : !stram
+        ? `${mm1(strammast)} av minst ${mm1(bogMin)}`
+        : kanRilla
+          ? `${mm1(strammast)} — rilla, ${nn(mal.steg, 1)} mm steg`
+          : `${mm1(strammast)} av minst ${mm1(bogMin)}`,
+    why: stram && !kanRilla
+      ? `Ei plate som vert bøygd strekkjer ytterfiberen med t/2R, og ${nn(p.tjukn, 1)} mm ${p.material} toler ned til ${mm1(bogMin)}. Strammare enn det må ho RILLAST — rader med snitt på tvers av bøyen tek vekk godset som elles vart strekt — og her går ikkje det: snittbreidda på ${nn(p.snitt, 1)} mm et opp ei rad på ${nn(mal.steg, 1)} mm. Rett ut bøyen, ta eit finare snitt, eller ei tjukkare plate — rada fylgjer tjukna.`
+      : `Under ${mm1(bogMin)} vert plata RILLA: rader med snitt på tvers av bøyen, ${nn(mal.steg, 1)} mm mellom kvar, som tek vekk godset som elles vart strekt. Rundt kvart spor står ei stiv øy — godset som ber eit ledd skal ikkje vera perforert. Prisen er kuttlengd og mindre gods. Om brua held er ikkje rekna her: skjer ein prøvestrimmel.`,
     fiks:
-      boygde.length && strammast < bogMin
+      stram && !kanRilla
         ? {
             ord: `rett ut til ${nn(bogMin)} mm`,
             set: {

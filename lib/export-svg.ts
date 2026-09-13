@@ -44,7 +44,9 @@ const f = (v: number) => (Math.abs(v) < 1e-4 ? "0" : v.toFixed(2))
  *  kvarandre. */
 export const ring = (pts: Pt[]) =>
   pts.map((q, i) => `${i ? "L" : "M"}${f(q[0])},${f(q[1])}`).join(" ") + "Z"
-const open = (pts: Pt[]) =>
+/** Ein OPA bane — same grunnen som `ring` er eksportert: graveringa og rilla
+ *  vert teikna av synet og skrivne av fila, og det skal vera den same lina. */
+export const bane = (pts: Pt[]) =>
   pts.map((q, i) => `${i ? "L" : "M"}${f(q[0])},${f(q[1])}`).join(" ")
 
 /**
@@ -142,10 +144,15 @@ export function sheetSvg(n: Nesting, index: number, kerf: number): string {
     for (const h of r.holes) {
       innvendig.push(`<path d="${ring(offsetPoly(h, -kerf / 2))}" ${KUTT}/>`)
     }
+    // RILLA: opne liner, og UTAN kompensasjon. Eit rillesnitt har ikkje ei
+    // innside og ei utside å kompensere mot — opninga ER snittbreidda. Dei
+    // ligg i den innvendige bunken av di dei skal skjerast medan delen
+    // framleis sit fast i plata, som kvart anna innvendig kutt.
+    for (const l of r.rille) innvendig.push(`<path d="${bane(l)}" ${KUTT}/>`)
     const size = fitSize(q.part.adr, q.label.room, q.label.wide)
     if (size) {
       for (const line of strokesAt(q.part.adr, q.label.p[0], q.label.p[1], size)) {
-        gravert.push(`<path d="${open(line)}" ${GRAV}/>`)
+        gravert.push(`<path d="${bane(line)}" ${GRAV}/>`)
       }
     }
   }
@@ -213,7 +220,7 @@ export function couponSvg(
   // kjem ut rett veg.
   const merk = (t: string, cx: number, cy: number, size: number) => {
     for (const line of strokesAt(t, cx, cy, size)) {
-      body.push(`<path d="${open(line)}" ${GRAV}/>`)
+      body.push(`<path d="${bane(line)}" ${GRAV}/>`)
     }
   }
   for (let i = 0; i < STEG.length; i++) {
@@ -352,11 +359,15 @@ export function profileSvg(sn: Snitt, kerf: number): string {
         for (const q of o) olo = Math.min(olo, q[0])
         const adr = String(r.plan.id) + (fleire ? bokstav(i) : "")
         for (const line of nedover(strokes(adr, x + (olo - lo) + 1, 0, 8), yOff + 11)) {
-          gravert.push(`<path d="${open(line)}" ${GRAV}/>`)
+          gravert.push(`<path d="${bane(line)}" ${GRAV}/>`)
         }
       })
       for (const q of r.holes) {
         innvendig.push(`<path d="${ring(lagd(q, -kerf / 2))}" ${KUTT}/>`)
+      }
+      // rilla gjennom den same plasseringa, utan kompensasjon
+      for (const l of r.rille) {
+        innvendig.push(`<path d="${bane(lagd(l, 0))}" ${KUTT}/>`)
       }
       for (const q of r.outlines) {
         omriss.push(`<path d="${ring(lagd(q, kerf / 2))}" ${KUTT}/>`)

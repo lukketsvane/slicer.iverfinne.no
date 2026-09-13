@@ -321,7 +321,16 @@ export const leddNokkel = (a: number, b: number, k: number) =>
 /** Det som berre er FILA: korleis kuttet vert skrive, ikkje kva som vert
  *  skore. Kven som kompenserer for snittet, og kor fort maskina går. */
 const BERRE_FIL = ["snittveg", "fart"] as const
-const BERRE_ARK = ["arkB", "arkH", "material"] as const
+/**
+ * MATERIALET STOD HER TIL DEN 13., og grunnen var at det ikkje rører
+ * geometrien. NO GJER DET DET: under den radien materialet toler vert eit
+ * bøygt plan RILLA (`rille.ts`), og kva materialet toler er materialet. Eit
+ * snitt hugsa utan materialet i nøkkelen ville gjeve papp sitt mønster —
+ * altso ingen — til ei finérplate, og ingenting ville feila. Prisen er ei
+ * snitting til når nokon byter material, og det er ein knapp folk trykkjer
+ * nokre gonger i timen.
+ */
+const BERRE_ARK = ["arkB", "arkH"] as const
 /**
  * Snittbreidda rører ikkje snittet — plana står der dei står same kor brei
  * stråla er. Men ho rører PAKKINGA: luka mellom delane er `max(4, 2·snitt
