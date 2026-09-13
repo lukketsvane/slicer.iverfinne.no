@@ -1,207 +1,270 @@
 "use client"
 
-import { Fragment, useEffect, useRef, useState, type JSX, type RefObject } from "react"
-import { FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
+import { useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react"
+import {
+  FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge,
+  type Material, type Metric, type Rule,
+} from "@/lib/core"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import { MJUK_TAK, type Plan } from "@/lib/plan"
-import type { Montasje, Veg } from "@/lib/montasje"
 import {
-  CHIP, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, UTTAK,
+  CHIP, HAIR, ICON_BTN, IcoReset, IcoUttak, UTTAK,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
 } from "./deler"
-import type { VerktyId } from "./verkty"
+import {
+  Arket as LegacyArket,
+  KOL as LEGACY_KOL,
+  kvaSlag,
+  type ArketProps as LegacyArketProps,
+  type Steg as LegacySteg,
+} from "./arket-legacy"
 
-/**
- * ARKET. Tre høgder på ein telefon: éi line, midten av jobben, alt. På
- * benken er det ei fast spalte til høgre med det same innhaldet.
- *
- * Lina er det som avgjer om uttaket er verdt å skjere: kor mange plan, kor
- * mange delar, kor mange plater, kor lang tid — og rutenettet og uttaket
- * eitt trykk unna. Sjølve handlinga, skjer, står ikkje her: ho står under høgre
- * tommel, i spalta over arket (sjå studio.tsx). Midten er plana
- * du har låst — berre dei låste; eit skissa plan finst ikkje nokon annan
- * stad enn på lerretet. Alt er resten: materialet, skyvarane, tavla,
- * uttaka, verktya. Fila, lesemåtane, angre og lenkja står i topplina.
- */
-export type Steg = "line" | "midt" | "alt"
-const STEG: readonly Steg[] = ["line", "midt", "alt"]
-export const KOL = 340
-/**
- * TOMMELSPALTA EIG DEN HØGRE KANTEN, og ein boks over arket må vike for
- * henne. Skjer er 64 px brei og spalta står 16 frå kanten av ruta, so ho
- * tek dei ytste 80. Arket ligg 12 frå kanten, og då er det 68 att å halde
- * fri langs si eiga høgre side.
- *
- * Utan det la den femte brikka i «rom» seg under skjer: ho stod der, ho
- * var synleg, og eit trykk midt på henne gjekk til kniven. `pnpm panel
- * uttaka` trykkjer på KVAR brikke og fangar det — ei prøve på berre den
- * fyrste ville sagt ja, av di den fyrste står lengst frå spalta.
- */
-const TUMME_FRI = 68
-/** storleiken står framme; plata står saman med materialet */
-const FRAMME = new Set(["storleik", "arkB", "arkH"])
+export const KOL = LEGACY_KOL
+export { kvaSlag }
+export type Steg = LegacySteg
+export type ArketProps = LegacyArketProps
 
-/** kva planet er, lese av normalen: loddrett, vassrett eller skrått, med kursen */
-export function kvaSlag(n: Vec3): string {
-  const tilt = (Math.asin(Math.min(1, Math.abs(n[2]))) * 180) / Math.PI
-  const kurs = (((Math.atan2(n[1], n[0]) * 180) / Math.PI + 360) % 180 + 360) % 180
-  if (tilt > 85) return "vassrett"
-  if (tilt < 5) return `loddrett ${n0(kurs)}°`
-  return `skrå ${n0(tilt)}°/${n0(kurs)}°`
+type Fane = "form" | "grupper" | "materiale" | "kutt" | "sjekk" | "uttak"
+
+const ikon = (d: string) => (
+  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    {d.split("|").map((x, i) => <path key={i} d={x} />)}
+  </svg>
+)
+
+const FANER: readonly { id: Fane; ord: string; icon: ReactNode }[] = [
+  { id: "form", ord: "form", icon: ikon("M4 17 12 3l8 14z|M7 17h10") },
+  { id: "grupper", ord: "grupper", icon: ikon("M4 6h16|M4 12h16|M4 18h16|M7 4v4|M13 10v4|M17 16v4") },
+  { id: "materiale", ord: "materiale", icon: ikon("M12 3 4 7v10l8 4 8-4V7z|M4 7l8 4 8-4|M12 11v10") },
+  { id: "kutt", ord: "kutt", icon: ikon("M4 5h16|M7 10h10|M5 15h14|M9 20h6") },
+  { id: "sjekk", ord: "sjekk", icon: ikon("M5 12l4 4L19 6|M4 20h16") },
+  { id: "uttak", ord: "uttak", icon: IcoUttak },
+]
+
+const IcoVenstre = ikon("M15 5l-7 7 7 7")
+const IcoHogre = ikon("M9 5l7 7-7 7")
+
+function Pager({ side, tal, onSide, ord, ekstra }: {
+  side: number
+  tal: number
+  onSide: (n: number) => void
+  ord: string
+  ekstra?: ReactNode
+}) {
+  if (tal <= 1 && !ekstra) return null
+  return (
+    <div className="flex h-8 items-center gap-1 border-t pt-1" style={HAIR}>
+      {tal > 1 ? (
+        <>
+          <button type="button" aria-label={`førre ${ord}`} disabled={side <= 0} onClick={() => onSide(side - 1)} className={CHIP + " flex h-7 w-9 items-center justify-center px-0"} style={{ ...chipStyle(false), opacity: side <= 0 ? 0.25 : 1 }}>
+            {IcoVenstre}
+          </button>
+          <span className="dim tab min-w-0 flex-1 text-center text-[10px] uppercase tracking-[0.12em]">
+            {ord} · {side + 1}/{tal}
+          </span>
+          <button type="button" aria-label={`neste ${ord}`} disabled={side >= tal - 1} onClick={() => onSide(side + 1)} className={CHIP + " flex h-7 w-9 items-center justify-center px-0"} style={{ ...chipStyle(false), opacity: side >= tal - 1 ? 0.25 : 1 }}>
+            {IcoHogre}
+          </button>
+        </>
+      ) : <span className="min-w-0 flex-1" />}
+      {ekstra}
+    </div>
+  )
 }
 
-export type ArketProps = {
-  benk: boolean
-  steg: Steg
-  onSteg: (s: Steg) => void
-  params: ParamBag
-  onChange: (p: ParamBag) => void
-  /** ein verdi vert dregen: angre ventar til fingeren slepper */
-  onSkrubb: (aktiv: boolean) => void
-  view: View
-  /** kor høg topplina er: kolonna på benken byrjar under henne */
-  topp: number
-  metrics: Metrics | null
-  rules: readonly Rule[]
-  /** boksen kring kroppen, i millimeter: der planet står, lese av som eit tal */
-  boks: { min: Vec3; max: Vec3 } | null
-  liste: readonly Kutt[]
-  plan: readonly Plan[]
-  /** alle råda, trykte i eitt: sjå `fiksAlt` i `rules.ts` */
-  onFiksAlle: () => void
-  /** montasjen, når fana hans står framme — og kva steg han er på, frå 1 */
-  mont: Montasje | null
-  montSteg: number
-  vald: number | null
-  onVald: (id: number | null) => void
-  /** gruppa som er vald, om nokon: trykk på gruppa i lista vel alle plana i henne */
-  valdGruppe: number | null
-  onVelGruppe: (g: number) => void
-  onSlettGruppe: (g: number) => void
-  /**
-   * MJUKINGA PÅ PROFILEN til det valde planet — eller til heile den valde
-   * gruppa. Ho bur i arket og ikkje i tommelspalta: eit TAL høyrer heime på
-   * ei rad, saman med laget. Firkanten stod her ved sida av henne og er
-   * flytt: han var ei HANDLING på forma, og handlingar bur under tommelen —
-   * sjå forma i spalta (`studio.tsx`).
-   *
-   * Som brøkdel av den lengste sida; rada syner henne i millimeter.
-   */
-  mjuk: number
-  onMjuk: (v: number) => void
-  /**
-   * VIRRET: kor mange millimeter du har skuva rada ut av lina, denne økta.
-   * Berre med ei gruppe vald — ein einsleg plan har ingen line å bryte.
-   */
-  virr: number
-  onVirr: (mm: number) => void
-  /** laget (C02–C29) på det valde planet — eller heile den valde gruppa; 0 er ikkje noko lag */
-  onFarge: (farge: number) => void
-  /** laget på den valde biten, eller null når ingen bit står vald */
-  bitFarge: number | null
-  onBitFarge: (farge: number) => void
-  onSlett: (id: number) => void
-  /** høgreklikk på ei planrad — berre på benken; sjå `Meny` */
-  onMeny: (id: number, x: number, y: number) => void
-  /** skift-trykk: frå det som er valt, til dette — som ei kvar anna liste */
-  onSkiftVel: (id: number) => void
-  busy: boolean
-  feil: string | null
-  melding: string | null
-  hentar: boolean
-
-  onExport: (k: ExportKind) => void
-  onReset: () => void
-  verkty: VerktyId | null
-  onVerkty: (id: VerktyId) => void
-  onHogd: (px: number) => void
-}
-
-/** dei fire tala i lina, farga av den harde regelen som dømer kvart av dei */
-function Lina({ p }: { p: ArketProps }) {
-  const { metrics: m, rules, plan, feil, melding, hentar } = p
-  if (feil) return <span style={{ color: "var(--warn)" }}>{feil}</span>
-  if (melding) return <span className="opacity-70">{melding}</span>
-  if (hentar) return <span className="dim">les …</span>
+function Summary({ p }: { p: ArketProps }) {
+  const m = p.metrics
+  if (p.feil) return <span style={{ color: "var(--warn)" }}>{p.feil}</span>
+  if (p.melding) return <span className="opacity-70">{p.melding}</span>
+  if (p.hentar) return <span className="dim">les …</span>
   if (!m) return <span className="dim">snittar …</span>
-  const raud = new Set(rules.filter((r) => !r.ok && r.hard && r.rad).map((r) => r.rad))
-  const tal: { id: string; text: string; smal?: boolean }[] = [
-    { id: "plan", text: `${plan.length} plan` },
-    { id: "delar", text: `${n0(m.parts)} delar` },
-    { id: "ark", text: `${n0(m.sheets)} ark` },
-    // tida er det fyrste som må vike på ein smal telefon: ho står òg i tavla
-    { id: "tid", text: klokke(m.cutTime), smal: true },
-  ]
+  const raud = new Set(p.rules.filter((r) => !r.ok && r.hard && r.rad).map((r) => r.rad))
+  const tal = [
+    ["plan", `${p.plan.length} plan`],
+    ["delar", `${n0(m.parts)} delar`],
+    ["ark", `${n0(m.sheets)} ark`],
+    ["tid", klokke(m.cutTime)],
+  ] as const
   return (
     <>
-      {tal.map((t, i) => (
-        <span key={t.id} className={t.smal ? "hidden min-[430px]:inline" : undefined}>
+      {tal.map(([id, text], i) => (
+        <span key={id} className={id === "tid" ? "hidden min-[430px]:inline" : undefined}>
           {i > 0 && <span className="px-0.5 opacity-30">·</span>}
-          <span style={raud.has(t.id) ? { color: "var(--warn)" } : { opacity: 0.62 }}>{t.text}</span>
+          <span style={raud.has(id) ? { color: "var(--warn)" } : { opacity: 0.62 }}>{text}</span>
         </span>
       ))}
     </>
   )
 }
 
-/** éi rad per låst plan: namn, kva det er, streka handa la i det, ledd (og stykke når det er fleire), og vegen ut.
- *  Tom liste er tom: rettleiinga og snittet seier alt kva som skal til. */
-/** Lista står der jamvel når ho er tom: ho er staden plana bur, og ei tom
- *  liste teiknar ingenting likevel. */
-/**
- * STEGET, SOM ORD — spalta si utgåve av `montering.txt`.
- *
- * Montasjen syner RØRSLA: kva som reiser seg, og i kva rekkjefylgje. Det er
- * halve svaret. Den andre halvdelen er kva delane HEITER og kva veg dei
- * kjem inn, og det stod berre i ei tekstfil inni ALT-pakka — so telefonen i
- * handa hadde biletet og orda låg på ei anna maskin.
- *
- * Planlista høyrer ikkje heime her. Montasjen endrar ikkje eit einaste tal,
- * so ei rad du kan velje er eit val fana ikkje kan svare på: han merkte seg
- * sjølv, og ingenting hende nokon stad. Lista er rommet sitt innhald; her
- * er innhaldet steget.
- *
- * Berre det steget som står. Å lista alle ville vore `montering.txt` på ein
- * skjerm som er for liten til henne, og du treng det som skjer no.
- */
-function Stega({ p }: { p: ArketProps }) {
-  const VEGORD: Record<Veg, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg" }
-  const mine = (p.mont?.delar ?? []).filter((d) => d.steg === p.montSteg - 1)
-  if (!mine.length) {
-    // EIN TOM MONTASJE SEIER DET. Ingen plan er ein gyldig tilstand — du har
-    // ikkje skore noko enno — og ein blank skjerm er ikkje eit svar.
-    return <p className="dim px-1.5 py-2 text-[11px]">ingen delar</p>
-  }
+function Tabs({ fane, onFane }: { fane: Fane; onFane: (f: Fane) => void }) {
   return (
-    <ul className="py-1" aria-label="steget">
-      {mine.map((d) => (
-        <li key={d.adr} data-steg-del={d.adr} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5 text-[11px]">
-          <span className="tab w-8 shrink-0" style={{ color: "var(--ink)" }}>{d.adr}</span>
-          <span className="min-w-0 flex-1 truncate">{VEGORD[d.veg]}</span>
-          <span className="tab dim shrink-0">ark {d.ark}</span>
-        </li>
-      ))}
-    </ul>
+    <div role="tablist" aria-label="kontrollfaner" className="flex shrink-0 items-center gap-0.5 border-y px-1 py-1" style={HAIR}>
+      {FANER.map((f) => {
+        const paa = fane === f.id
+        return (
+          <button
+            key={f.id}
+            type="button"
+            role="tab"
+            aria-selected={paa}
+            aria-label={f.ord}
+            title={f.ord}
+            onClick={() => onFane(f.id)}
+            className="hit flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg"
+            style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)", color: "var(--ink)" } : { opacity: 0.52 }}
+          >
+            {f.icon}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
-function Plana({ p }: { p: ArketProps }) {
-  /**
-   * EI GRUPPE LIGG BRETTA. Eit rutenett er tretti plan i lista, og lista er
-   * det meste av det du ser på ein telefon — so gruppa er si eine rad til
-   * du ber om noko anna. Trykket på henne gjer det han alltid har gjort —
-   * han TEK henne, so handtaka, pilene, slett og dubler gjeld alle plana i
-   * henne — og han brettar henne ut medan han gjer det. Trykk att, og ho
-   * vert sleppt og lagd saman.
-   *
-   * Det du HELD står likevel: planet som er valt er med i lista jamvel om
-   * gruppa hans ligg saman, av di lista alltid skal syne kva handa har.
-   *
-   * Bretten fylgjer trykket og ikkje valet: vel du ei anna gruppe, ligg den
-   * fyrste open vidare. Gruppetalet vert aldri brukt om att (`nyGruppe`),
-   * so eit tal som ligg att her etter ei sletta gruppe kan aldri treffe ei ny.
-   */
+function FormTab({ p }: { p: ArketProps }) {
+  const keys = ["storleik", "rotX", "rotY", "rotZ"] as const
+  const [side, setSide] = useState(0)
+  const sider = 2
+  const mine = keys.slice(side * 2, side * 2 + 2)
+  return (
+    <div className="px-3 pb-1 pt-1">
+      {mine.map((k) => (
+        <SliderRow
+          key={k}
+          k={k}
+          r={PARAM_RANGES[k]}
+          value={num(p.params, k, PARAM_RANGES[k].min)}
+          benk={false}
+          onChange={(key, v) => p.onChange({ ...p.params, [key]: v })}
+          onSkrubb={p.onSkrubb}
+          bi={k === "storleik" && p.metrics ? `${n0(p.metrics.envX)}×${n0(p.metrics.envY)}×${n0(p.metrics.envZ)}` : undefined}
+        />
+      ))}
+      <Pager
+        side={side}
+        tal={sider}
+        onSide={setSide}
+        ord="form"
+        ekstra={(
+          <button type="button" onClick={p.onReset} aria-label="attende til standarden" title="attende til standarden. nettet ditt står" className={CHIP + " flex h-7 w-9 items-center justify-center px-0"} style={chipStyle(false)}>
+            {IcoReset}
+          </button>
+        )}
+      />
+    </div>
+  )
+}
+
+function LayerRow({ no, ord, onFarge }: { no: number; ord: string; onFarge: (n: number) => void }) {
+  return (
+    <div role="group" aria-label={`lag ${ord}`} className="flex h-9 items-center gap-1">
+      <span className="dim w-8 shrink-0 text-[9px] uppercase tracking-[0.12em]">{ord}</span>
+      <span className="rull-x flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overscroll-contain">
+        <button type="button" aria-label="ikkje noko lag" aria-pressed={no === 0} onClick={() => onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+          <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ borderColor: no === 0 ? "var(--ink)" : "var(--rule)" }} />
+        </button>
+        {LAG_FARGAR.map((hex, i) => i < FARGE_MIN ? null : (
+          <button key={`${hex}-${i}`} type="button" aria-label={`lag C${String(i).padStart(2, "0")}`} aria-pressed={no === i} onClick={() => onFarge(i)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
+            <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ background: hex, borderColor: no === i ? "var(--ink)" : "transparent" }} />
+          </button>
+        ))}
+      </span>
+    </div>
+  )
+}
+
+function ProfileRow({ p }: { p: ArketProps }) {
+  const S = num(p.params, "storleik", 150)
+  const tak = +(MJUK_TAK * S).toFixed(1)
+  return (
+    <SliderRow
+      k="mjuk"
+      r={{ label: "mjuk", min: 0, max: tak, step: 0.5, unit: "mm" }}
+      value={Math.min(tak, +(p.mjuk * S).toFixed(1))}
+      benk={false}
+      onChange={(_, v) => p.onMjuk(S > 0 ? v / S : 0)}
+      onSkrubb={p.onSkrubb}
+    />
+  )
+}
+
+function VirrRow({ p }: { p: ArketProps }) {
+  const S = num(p.params, "storleik", 150)
+  return (
+    <SliderRow
+      k="virr"
+      r={{ label: "virr", min: 0, max: Math.round(S * 0.12), step: 0.5, unit: "mm" }}
+      value={Math.min(Math.round(S * 0.12), p.virr)}
+      benk={false}
+      onChange={(_, v) => p.onVirr(v)}
+      onSkrubb={p.onSkrubb}
+    />
+  )
+}
+
+type GruppeRad =
+  | { kind: "gruppe"; id: number; tal: number }
+  | { kind: "plan"; plan: Plan }
+
+function AssemblyRows({ p }: { p: ArketProps }) {
+  const rows = (p.mont?.delar ?? []).filter((d) => d.steg === p.montSteg - 1)
+  const [side, setSide] = useState(0)
+  const tal = Math.max(1, Math.ceil(rows.length / 2))
+  useEffect(() => setSide((s) => Math.min(s, tal - 1)), [tal])
+  const mine = rows.slice(side * 2, side * 2 + 2)
+  const veg: Record<string, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg" }
+  return (
+    <div className="px-3 pb-1 pt-1">
+      {mine.length ? mine.map((d) => (
+        <div key={d.adr} className="flex h-9 items-center gap-2 rounded-lg px-1.5 text-[11px]">
+          <span className="tab w-8 shrink-0">{d.adr}</span>
+          <span className="min-w-0 flex-1 truncate">{veg[d.veg] ?? d.veg}</span>
+          <span className="tab dim shrink-0">ark {d.ark}</span>
+        </div>
+      )) : <p className="dim h-9 px-1.5 py-2 text-[11px]">ingen delar</p>}
+      <Pager side={side} tal={tal} onSide={setSide} ord={`steg ${p.montSteg}`} />
+    </div>
+  )
+}
+
+function GroupsTab({ p }: { p: ArketProps }) {
   const [utbretta, setUtbretta] = useState<ReadonlySet<number>>(() => new Set())
+  const [side, setSide] = useState(0)
+  const [detalj, setDetalj] = useState(0)
+
+  const rader = useMemo(() => {
+    const out: GruppeRad[] = []
+    const sett = new Set<number>()
+    for (const pl of p.plan) {
+      if (pl.gruppe && !sett.has(pl.gruppe)) {
+        sett.add(pl.gruppe)
+        out.push({ kind: "gruppe", id: pl.gruppe, tal: p.plan.filter((q) => q.gruppe === pl.gruppe).length })
+      }
+      const syne = !pl.gruppe || utbretta.has(pl.gruppe) || p.vald === pl.id
+      if (syne) out.push({ kind: "plan", plan: pl })
+    }
+    return out
+  }, [p.plan, p.vald, utbretta])
+
+  const leiar = p.plan.find((q) => q.id === p.vald)
+  const detaljar: { ord: string; node: ReactNode }[] = []
+  if (p.valdGruppe !== null) detaljar.push({ ord: "virr", node: <VirrRow p={p} /> })
+  if (p.vald !== null) {
+    detaljar.push({ ord: "profil", node: <ProfileRow p={p} /> })
+    detaljar.push({ ord: "lag", node: <LayerRow no={lagFarge(leiar?.farge) ?? 0} ord="lag" onFarge={p.onFarge} /> })
+  } else if (p.bitFarge !== null) {
+    detaljar.push({ ord: "bit", node: <LayerRow no={p.bitFarge} ord="bit" onFarge={p.onBitFarge} /> })
+  }
+
+  const perSide = detaljar.length ? 1 : 2
+  const sider = Math.max(1, Math.ceil(rader.length / perSide))
+  useEffect(() => setSide((s) => Math.min(s, sider - 1)), [sider])
+  useEffect(() => setDetalj((s) => Math.min(s, Math.max(0, detaljar.length - 1))), [detaljar.length])
+
+  if (p.view === "montasje") return <AssemblyRows p={p} />
+
+  const mine = rader.slice(side * perSide, side * perSide + perSide)
   const brett = (g: number) => {
     const paa = p.valdGruppe === g
     setUtbretta((s) => {
@@ -213,533 +276,286 @@ function Plana({ p }: { p: ArketProps }) {
     if (paa) p.onVald(null)
     else p.onVelGruppe(g)
   }
-  /** gruppene, i den rekkja dei fyrst syner seg: ei rad over det fyrste planet i kvar */
-  const sett = new Set<number>()
+
   return (
-    <ul className="py-1" role="listbox" aria-label="plan">
-      {p.plan.map((pl) => {
-        const mine = p.liste.filter((k) => k.plan === pl.id)
-        const ledd = mine.reduce((a, k) => a + k.joints, 0)
-        const paa = p.vald === pl.id
-        const iGruppa = !!pl.gruppe && p.valdGruppe === pl.gruppe
-        const hovud = pl.gruppe && !sett.has(pl.gruppe) ? pl.gruppe : 0
-        if (hovud) sett.add(hovud)
-        const tal = hovud ? p.plan.filter((q) => q.gruppe === hovud).length : 0
-        const att = !!pl.gruppe && !utbretta.has(pl.gruppe) && !paa
-        return (
-          <Fragment key={pl.id}>
-          {/* GRUPPA SOM RAD: ho ligg saman, og trykket brettar henne ut og
-              vel alle plana i henne, med det siste som leiar. Plana hennar
-              står inndregne under henne. × tek heile gruppa. */}
-          {hovud > 0 && (
-            <li
-              role="option"
-              aria-selected={p.valdGruppe === hovud}
-              data-gruppe={hovud}
-              className="flex items-center gap-2 rounded-lg px-1.5 text-[11px]"
-              style={p.valdGruppe === hovud ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : undefined}
-            >
-              <button type="button" aria-label={`gruppe ${hovud}`} aria-expanded={utbretta.has(hovud)} title="brett gruppa ut og tak henne: handtaka, pilene, slett og dubler tek alle plana i henne. trykk att slepper henne og legg henne saman att" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={() => brett(hovud)}>
-                <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>G{hovud}</span>
+    <div className="px-3 pb-1 pt-1">
+      {mine.length ? mine.map((rad) => {
+        if (rad.kind === "gruppe") {
+          const paa = p.valdGruppe === rad.id
+          return (
+            <div key={`g-${rad.id}`} role="option" aria-selected={paa} data-gruppe={rad.id} className="flex h-9 items-center gap-1 rounded-lg px-1.5 text-[11px]" style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : undefined}>
+              <button type="button" aria-expanded={utbretta.has(rad.id)} aria-label={`gruppe ${rad.id}`} onClick={() => brett(rad.id)} className="hit flex min-w-0 flex-1 items-center gap-2 text-left">
+                <span className="tab w-7 shrink-0">G{rad.id}</span>
                 <span className="min-w-0 flex-1 truncate">gruppe</span>
-                <span className="tab dim shrink-0">· {tal} plan</span>
+                <span className="tab dim shrink-0">{rad.tal} plan</span>
               </button>
-              <button type="button" aria-label={`slett gruppe ${hovud}`} title="ta heile gruppa bort" className="hit dim h-9 w-11 shrink-0" onClick={() => p.onSlettGruppe(hovud)}>
-                ×
-              </button>
-            </li>
-          )}
-          {!att && (
-            <li
-              role="option"
-              aria-selected={paa}
-              data-plan={pl.id}
-              onContextMenu={p.benk ? (e) => { e.preventDefault(); p.onMeny(pl.id, e.clientX, e.clientY) } : undefined}
-              className={"flex items-center gap-2 rounded-lg text-[11px] " + (pl.gruppe ? "ml-3 pl-1.5 pr-1.5" : "px-1.5")}
-              style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : iGruppa ? { background: "color-mix(in srgb, var(--ink) 4%, transparent)" } : undefined}
-            >
-              <button type="button" className="hit flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left" onClick={(e) => (e.shiftKey ? p.onSkiftVel(pl.id) : p.onVald(paa ? null : pl.id))}>
-                <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>{pl.id}</span>
-                {lagFarge(pl.farge) !== null && <span aria-hidden="true" className="block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: LAG_FARGAR[pl.farge as number] }} />}
-                <span className="min-w-0 flex-1 truncate">{kvaSlag(pl.n)}</span>
-                {/* KVAR PLANET STÅR, SOM EIT TAL: millimeter frå midten av kroppen,
-                    langs normalen. Det er inndata lese av — punktet og normalen
-                    planet ER — og ikkje eit mål frå kuttet. Pilene flyttar det
-                    éin om gongen, og talet fylgjer. Berre på benken: på
-                    telefonen er rada 390 pikslar, og ledda står der alt. */}
-                {p.benk && p.boks && (
-                  <span className="tab dim shrink-0" title="millimeter frå midten av kroppen, langs normalen. pilene flyttar planet éin om gongen">
-                    {fraaMidten(pl, p.boks)}
-                  </span>
-                )}
-                <span className="tab dim shrink-0" style={{ color: mine.length && !ledd ? "var(--warn)" : undefined }} title={`${mine.length} stykke, ${ledd} ledd`}>
-                  {mine.length ? `· ${mine.length > 1 ? `${mine.length} stk · ` : ""}${ledd} ledd` : "· utanfor"}
-                </span>
-                {pl.strek.length > 0 && (
-                  <span className="tab dim shrink-0 rounded-full border px-1.5 text-[9px] leading-[14px]" style={HAIR} title="handteikna strek i profilen">{pl.strek.length} strek</span>
-                )}
-              </button>
-              <button type="button" aria-label={`slett plan ${pl.id}`} title="ta planet bort" className="hit dim h-9 w-11 shrink-0" onClick={() => p.onSlett(pl.id)}>
-                ×
-              </button>
-            </li>
-          )}
-          </Fragment>
-        )
-      })}
-      {p.valdGruppe !== null && <Virret p={p} />}
-      {p.vald !== null && <Profilen p={p} />}
-      {p.vald !== null && <Laga p={p} />}
-    </ul>
-  )
-}
-
-/**
- * LAGET, SOM EI RAD MED FARGAR. LightBurn sine eigne, C02 til C29, i
- * palettorden — svart og blått er graveringa og kuttet og står ikkje til
- * val. Ringen fyrst er «ikkje noko lag»: kuttet blått som alle andre.
- *
- * Rada står under det valde PLANET, og under den valde BITEN, og ho er den
- * same rada båe stader — av di fargen er den same fargen. Merkjer du ein
- * bit og eit plan med det same laget, høyrer planet til biten og vert
- * skore inne i han åleine; det er heile grunnen til at biten har eit lag i
- * det heile. Med ei gruppe vald gjeld valet heile gruppa.
- */
-function Lagrad({ no, ord, tittel, onFarge }: {
-  no: number
-  /** ordet i margen: kva det er som får laget — og kva rada er, for vaktene */
-  ord: string
-  /** eitt kort tillegg til kvar farge si forklaring, om det trengst */
-  tittel: string
-  onFarge: (farge: number) => void
-}) {
-  return (
-    /* ÉI RAD, OG HO RULLAR. Åtte og tjue fargar braut i tre rader og tok
-       ein tredjedel av arket for eit val du gjer sjeldan. No er det éi
-       line som rullar sidelengs inni seg sjølv: like mange fargar, og
-       arket får høgda si attende. Prikkane kunne ikkje krympast i staden
-       — tolv pikslar kvar er tolv pikslar med treffesoner som ligg oppå
-       kvarandre, og då tek feil farge trykket. */
-    <li role="group" aria-label="lag" data-lag={ord} className="flex items-center gap-1 px-1.5 pb-1 pt-0.5">
-      <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">{ord}</span>
-      <span className="rull-x flex min-w-0 flex-1 items-center gap-x-0.5 overflow-x-auto overscroll-contain">
-        <button type="button" aria-pressed={no === 0} aria-label="ikkje noko lag" title="ikkje noko lag: kuttet er blått som dei andre" onClick={() => onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
-          <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ borderColor: no === 0 ? "var(--ink)" : "var(--rule)" }} />
-        </button>
-        {LAG_FARGAR.map((hex, i) =>
-          i < FARGE_MIN ? null : (
-            <button key={hex} type="button" aria-pressed={no === i} aria-label={`lag C${String(i).padStart(2, "0")}`} title={`lag C${String(i).padStart(2, "0")} i LightBurn · ${hex}${tittel}`} onClick={() => onFarge(i)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
-              <span aria-hidden="true" className="block h-4 w-4 rounded-full border-2" style={{ background: hex, borderColor: no === i ? "var(--ink)" : "transparent" }} />
+              <button type="button" aria-label={`slett gruppe ${rad.id}`} onClick={() => p.onSlettGruppe(rad.id)} className="hit dim h-8 w-9 shrink-0">×</button>
+            </div>
+          )
+        }
+        const pl = rad.plan
+        const mineKutt = p.liste.filter((k) => k.plan === pl.id)
+        const ledd = mineKutt.reduce((a, k) => a + k.joints, 0)
+        const paa = p.vald === pl.id
+        return (
+          <div key={`p-${pl.id}`} role="option" aria-selected={paa} data-plan={pl.id} className="flex h-9 items-center gap-1 rounded-lg px-1.5 text-[11px]" style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)" } : undefined}>
+            <button type="button" onClick={() => p.onVald(paa ? null : pl.id)} className="hit flex min-w-0 flex-1 items-center gap-2 text-left">
+              <span className="tab w-7 shrink-0">{pl.id}</span>
+              <span className="min-w-0 flex-1 truncate">{kvaSlag(pl.n)}</span>
+              <span className="tab dim shrink-0">{mineKutt.length ? `${ledd} ledd` : "utanfor"}</span>
             </button>
-          ),
-        )}
-      </span>
-    </li>
-  )
-}
-
-/**
- * VIRRET: RADA UT AV LINA.
- *
- * Eit rutenett er jamt, og jamt er ærleg — men ei rad ribber som står
- * millimeteren jamt er òg ei rad ingen har teke i. Rada her skuvar kvart
- * plan i gruppa langs si eiga normal, med eit hakk som er gjeve av namnet:
- * same planet får same hakket kvar gong, so du kan dra deg attende.
- *
- * Talet er det du har lagt på MEDAN DU STÅR HER, og ikkje noko som ligg i
- * lenkja: det som ligg der er kvar plana står. Difor byrjar rada på null
- * kvar gong du tek ei gruppe — virret er ikkje ei innstilling, det er ei
- * hand som skuvar.
- */
-function Virret({ p }: { p: ArketProps }) {
-  const S = num(p.params, "storleik", 150)
-  return (
-    <li role="group" aria-label="virr" data-virr="" className="px-1.5 pt-1">
-      <SliderRow
-        k="virr"
-        r={{ label: "virr", min: 0, max: Math.round(S * 0.12), step: 0.5, unit: "mm" }}
-        value={Math.min(Math.round(S * 0.12), p.virr)}
-        benk={p.benk}
-        onChange={(_, v) => p.onVirr(v)}
-        onSkrubb={p.onSkrubb}
-      />
-    </li>
-  )
-}
-
-/**
- * PROFILEN: KVA SOM SKJER MED KANTEN FØR SPORA VERT SKORNE.
- *
- * Mjukinga rundar av hakket trekantane i nettet la att, og ho tek heile
- * gruppa når ho er vald, som laget under.
- *
- * Ho står i MILLIMETER her og som ein brøk i strengen: brøken fylgjer
- * kroppen når han vert skalert, og millimeteren er det du ser på plata.
- * Rada er den same skrubbaren som alle andre tal — drag, piler, hjul, og
- * skriving på benken.
- */
-function Profilen({ p }: { p: ArketProps }) {
-  const S = num(p.params, "storleik", 150)
-  const tak = +(MJUK_TAK * S).toFixed(1)
-  return (
-    <li role="group" aria-label="profil" data-profil="" className="px-1.5 pb-0.5 pt-1">
-      {/* INGEN ETIKETT I MARGEN: rada seier «mjuk» sjølv, og eit ord til
-          framfor henne er eit ord som berre tek plass — «profil» er seks
-          teikn i ein marg som er tre. */}
-      <SliderRow
-        k="mjuk"
-        r={{ label: "mjuk", min: 0, max: tak, step: 0.5, unit: "mm" }}
-        value={Math.min(tak, +(p.mjuk * S).toFixed(1))}
-        benk={p.benk}
-        onChange={(_, v) => p.onMjuk(S > 0 ? v / S : 0)}
-        onSkrubb={p.onSkrubb}
-      />
-    </li>
-  )
-}
-
-function Laga({ p }: { p: ArketProps }) {
-  const leiar = p.plan.find((q) => q.id === p.vald)
-  return (
-    <Lagrad
-      no={lagFarge(leiar?.farge) ?? 0}
-      ord="lag"
-      tittel={p.valdGruppe !== null ? " · heile gruppa" : ""}
-      onFarge={p.onFarge}
-    />
-  )
-}
-
-/** planet sitt punkt, som avstand frå midten av kroppen langs normalen, i millimeter */
-function fraaMidten(pl: Plan, b: { min: Vec3; max: Vec3 }): string {
-  let d = 0
-  for (let a = 0; a < 3; a++) d += (pl.o[a] - 0.5) * (b.max[a] - b.min[a]) * pl.n[a]
-  return `${d < -0.05 ? "−" : "+"}${nn(Math.abs(d), 1)} mm`
-}
-
-/**
- * UTTAKA: éi rad per bolk, éi brikke per fil, og kva dei to fargane tyder.
- *
- * Bolken står i margen — rom, plate, alt — der skyvargruppene har ordet
- * sitt. Eit dusin brikker på ei line er ein haug du må lesa gjennom kvar
- * gong; tre korte rader med eit ord framfor seg er tre stader å sjå.
- *
- * Fargeforklaringa høyrer til PLATA og står under henne. Ho sat nedst,
- * ved sida av «lagre», og forklarte noko som ikkje stod der.
- */
-function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
-  const { metrics } = p
-  /**
-   * EIT HARDT BROT FYLGJER MED UT.
-   *
-   * Ein hard regel tyder at delane ikkje LET SEG lage eller setje saman:
-   * ein del som ikkje kjem inn same kva du gjer, eit ledd utan gods att,
-   * ein del som ikkje får plass på plata. Han har alltid stått raud i
-   * tavla — og tavla er ei rad du kan ha rulla forbi. Uttaket er der du
-   * gjer noko du ikkje kan gjere om: ei plate finér er skoren éin gong.
-   *
-   * Difor ber brikkene varselet, og tittelen seier kva som er broten.
-   * Dei er ikkje stengde: reiskapen avgjer ikkje for deg, og det finst
-   * grunnar til å skjere delane likevel — du vil sjå dei i handa, du skal
-   * lime i staden for å hekte, du rettar det i neste runde. `stengd` er
-   * for filer som ville vorte TOMME, og det er noko anna: der er det ikkje
-   * eit val, der er det ingenting å skrive.
-   */
-  const harde = p.rules.filter((r) => r.hard && !r.ok)
-  const varsel = harde.length
-    ? `${harde.length === 1 ? "eit hardt brot" : `${harde.length} harde brot`}: ${harde.map((r) => r.label).join(", ")} — delane let seg ikkje setje saman slik dei står`
-    : ""
-  return (
-    <div className="py-1.5">
-      {UTTAK.map((g) => (
-        <div key={g.bolk} role="group" aria-label={g.bolk} data-bolk={g.bolk}>
-          {/* Ordet står på FYRSTE brikkerada og ikkje midt i bolken: ei rad
-              som bryt til to sender eit midtstilt ord ned mellom dei, og
-              då peikar det ikkje lenger på noko. Trettan pikslar er halve
-              brikkehøgda minus halve ordet. */}
-          <div className="flex items-start gap-1.5 py-0.5">
-            <span aria-hidden="true" className="dim mt-[13px] w-9 shrink-0 text-[9px] uppercase leading-none tracking-[0.12em]">{g.bolk}</span>
-            <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-              {g.filer.map((x) => {
-                const stopp = stengd(x.id, metrics)
-                return (
-                  <button key={x.id} type="button" title={stopp || (varsel ? `${varsel}. ${x.hint}` : x.hint)} data-varsel={!stopp && varsel ? "" : undefined} disabled={p.busy || stopp !== ""} onClick={() => { p.onExport(x.id); onGjort?.() }} className={CHIP + " uppercase tracking-[0.1em]"} style={{ ...chipStyle(false), opacity: stopp ? 0.3 : undefined, textDecoration: stopp ? "line-through" : undefined, color: !stopp && varsel ? "var(--warn)" : undefined }}>
-                    {x.label}
-                  </button>
-                )
-              })}
-            </span>
+            <button type="button" aria-label={`slett plan ${pl.id}`} onClick={() => p.onSlett(pl.id)} className="hit dim h-8 w-9 shrink-0">×</button>
           </div>
-          {/* ...og kva varselet ER, med ord. Ein farge åleine er eit spørsmål;
-              reiskapen svarar med det same ordet tavla brukar. Éin gong,
-              under den fyrste bolken, og ikkje ved kvar brikke. */}
-          {varsel && g.bolk === UTTAK[0].bolk && (
-            <p className="pb-0.5 pl-[42px] text-[10px]" style={{ color: "var(--warn)" }} data-uttakvarsel="">
-              {harde.map((r) => r.label).join(", ")} — går ikkje i hop
-            </p>
-          )}
-          {/* svart er C00 i LightBurn og køyrer fyrst: difor graverer det */}
-          {g.bolk === "plate" && (
-            <span className="dim flex items-center gap-3 pb-0.5 pl-[42px] text-[10px] uppercase tracking-[0.14em]" title="svart graverer, blått kutt. fargen er rekkjefylgja">
-              {[["#000000", "graver"], ["#0000ff", "kutt"]].map(([farge, ord]) => (
-                // ringen kring prikken: den svarte er ein svart prikk på svart papir når systemet står mørkt
-                <span key={ord} className="flex items-center gap-1.5"><span aria-hidden="true" className="block h-[7px] w-[7px] rounded-full border" style={{ background: farge, borderColor: "var(--rule)" }} />{ord}</span>
-              ))}
-            </span>
-          )}
+        )
+      }) : <p className="dim h-9 px-1.5 py-2 text-[11px]">ingen plan</p>}
+
+      {detaljar.length > 0 && (
+        <div className="border-t pt-0.5" style={HAIR}>
+          {detaljar[detalj]?.node}
+          <Pager side={detalj} tal={detaljar.length} onSide={setDetalj} ord={detaljar[detalj]?.ord ?? "val"} />
         </div>
-      ))}
+      )}
+      <Pager side={side} tal={sider} onSide={setSide} ord="grupper" />
     </div>
   )
 }
 
-/** alt: material og plate, verdiane, tavla med reglane i, uttaka, verktya. Reglane står HER og i dei raude tala i lina, ikkje i midten. */
-function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | null> }) {
-  const { params, onChange, metrics } = p
-  const setParam = (k: string, v: number) => onChange({ ...params, [k]: v })
-  const naaTjukn = num(params, "tjukn", TJUKNER[0])
-  /** bolkane du har bretta saman: overskrifta er knappen, som gruppa i planlista */
-  const [bretta, setBretta] = useState<ReadonlySet<string>>(() => new Set())
-  const brett = (id: string) =>
-    setBretta((s) => {
-      const n = new Set(s)
-      if (!n.delete(id)) n.add(id)
-      return n
-    })
+function MaterialTab({ p }: { p: ArketProps }) {
+  const [side, setSide] = useState(0)
+  const naaTjukn = num(p.params, "tjukn", TJUKNER[0])
   return (
-    <>
-      {/* materialet og tjukna på éi rad der det er plass, og på to der det ikkje er */}
-      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 py-2">
-        {(Object.keys(MATERIALS) as Material[]).map((mk) => (
-          <button
-            key={mk}
-            type="button"
-            aria-pressed={params.material === mk}
-            aria-label={`materiale: ${MATERIALS[mk].label}`}
-            title={MATERIALS[mk].label}
-            onClick={() => onChange({ ...params, material: mk })}
-            className="hit flex h-9 w-9 shrink-0 items-center justify-center"
-          >
-            <span aria-hidden="true" className="block h-6 w-6 rounded-full border-2" style={{ backgroundColor: MATERIALS[mk].hex, borderColor: params.material === mk ? "var(--ink)" : "var(--rule)" }} />
-          </button>
-        ))}
-        <span className="ml-auto flex items-center gap-1">
-          {TJUKNER.map((t) => (
-            <button key={t} type="button" aria-pressed={naaTjukn === t} title={`${tjukn(t)} mm plate`} onClick={() => onChange({ ...params, tjukn: t })} className={CHIP + " tab min-w-[44px] px-2"} style={chipStyle(naaTjukn === t)}>
-              {tjukn(t)}
-            </button>
-          ))}
-        </span>
-      </div>
-      {["arkB", "arkH"].map((k) => (
-        <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(params, k, PARAM_RANGES[k].min)} benk={p.benk} onChange={setParam} onSkrubb={p.onSkrubb} />
-      ))}
-      {/* BOLKANE BRETTAR SEG. Sju overskrifter og tjue skyvarar er meir enn
-          ein telefon syner på ein gong, og du arbeider i éin bolk om gongen.
-          Overskrifta er knappen: trykk henne, og skyvarane under henne fell
-          bort til du trykkjer att. */}
-      {GROUPS.map((g) => {
-        const keys = g.keys.filter((k) => !FRAMME.has(k))
-        if (!keys.length) return null
-        const att = bretta.has(g.id)
-        return (
-          <div key={g.id} className="pt-3">
-            <h3>
-              <button type="button" aria-expanded={!att} title={att ? `syn ${g.label}` : `brett ${g.label} saman`} onClick={() => brett(g.id)} className="hit dim block w-full pb-0.5 text-left text-[10px] uppercase leading-none tracking-[0.24em]" data-bolk={g.id}>
-                {g.label}
+    <div className="px-3 pb-1 pt-1">
+      {side === 0 ? (
+        <>
+          <div className="rull-x flex h-9 items-center gap-1 overflow-x-auto overscroll-contain">
+            {(Object.keys(MATERIALS) as Material[]).map((mk) => (
+              <button key={mk} type="button" aria-pressed={p.params.material === mk} aria-label={`materiale: ${MATERIALS[mk].label}`} title={MATERIALS[mk].label} onClick={() => p.onChange({ ...p.params, material: mk })} className="hit flex h-8 w-8 shrink-0 items-center justify-center">
+                <span aria-hidden="true" className="block h-5 w-5 rounded-full border-2" style={{ backgroundColor: MATERIALS[mk].hex, borderColor: p.params.material === mk ? "var(--ink)" : "var(--rule)" }} />
               </button>
-            </h3>
-            {!att && keys.map((k) => (
-              <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(params, k, PARAM_RANGES[k].min)} benk={p.benk} onChange={setParam} onSkrubb={p.onSkrubb} />
             ))}
           </div>
-        )
-      })}
-      <div className="mt-3 border-t pt-3" style={HAIR}>
-        <Tavla metrics={metrics} rules={p.rules} busy={p.busy} params={params} onChange={onChange} onFiksAlle={p.onFiksAlle} />
-      </div>
-      <div ref={uttak} className="border-t" style={HAIR}>
-        <Uttaka p={p} />
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5 py-1">
-        {([["kuttliste", "kuttliste", "kvar del, med adresse, mål og plate"], ["oppsett", "oppsett", "alle innstillingane som tekst"]] as const).map(([id, ord, hint]) => (
-          <button key={id} type="button" title={hint} aria-pressed={p.verkty === id} onClick={() => p.onVerkty(id)} className={CHIP + " uppercase tracking-[0.1em]"} style={chipStyle(p.verkty === id)}>
-            {ord}
-          </button>
-        ))}
-      </div>
-    </>
+          <div className="rull-x flex h-9 items-center gap-1 overflow-x-auto overscroll-contain">
+            <span className="dim mr-1 shrink-0 text-[9px] uppercase tracking-[0.12em]">tjukn</span>
+            {TJUKNER.map((t) => (
+              <button key={t} type="button" aria-pressed={naaTjukn === t} title={`${tjukn(t)} mm plate`} onClick={() => p.onChange({ ...p.params, tjukn: t })} className={CHIP + " tab min-w-[42px] shrink-0 px-2"} style={chipStyle(naaTjukn === t)}>
+                {tjukn(t)}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          {(["arkB", "arkH"] as const).map((k) => (
+            <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(p.params, k, PARAM_RANGES[k].min)} benk={false} onChange={(key, v) => p.onChange({ ...p.params, [key]: v })} onSkrubb={p.onSkrubb} />
+          ))}
+        </>
+      )}
+      <Pager side={side} tal={2} onSide={setSide} ord={side === 0 ? "materiale" : "plate"} />
+    </div>
   )
 }
 
-export function Arket(p: ArketProps): JSX.Element {
-  const { benk, steg, onSteg, onHogd } = p
-  const open = benk || steg !== "line"
-  /** uttaka eitt trykk unna: ein liten boks over lina. I «alt» står dei alt i arket, og knappen rullar dit. */
-  const [visUttak, setVisUttak] = useState(false)
-  const uttak = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    if (!visUttak) return
-    const ute = (e: PointerEvent) => { if (!(e.target as Element).closest("[data-uttak]")) setVisUttak(false) }
-    const tast = (e: KeyboardEvent) => { if (e.key === "Escape") setVisUttak(false) }
-    window.addEventListener("pointerdown", ute, true)
-    window.addEventListener("keydown", tast, true)
-    return () => { window.removeEventListener("pointerdown", ute, true); window.removeEventListener("keydown", tast, true) }
-  }, [visUttak])
-  const eksport = () => {
-    if (steg === "alt") uttak.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
-    else setVisUttak((v) => !v)
-  }
-  // Kor mykje av ruta arket tek, MÅLT: kameraet stiller objektet inn i det
-  // som er att. Grovkorna, so ei line til i arket ikkje rykkjer kameraet.
+const KUTT_GRUPPER = GROUPS
+  .filter((g) => g.id !== "form" && g.id !== "plate")
+  .map((g) => ({ ...g, keys: g.keys.filter((k) => k !== "tjukn") }))
+  .filter((g) => g.keys.length)
+
+function CuttingTab({ p }: { p: ArketProps }) {
+  const [side, setSide] = useState(0)
+  const g = KUTT_GRUPPER[side] ?? KUTT_GRUPPER[0]
+  useEffect(() => setSide((s) => Math.min(s, KUTT_GRUPPER.length - 1)), [])
+  return (
+    <div className="px-3 pb-1 pt-1">
+      <div className="dim h-5 px-1.5 pt-1 text-[9px] uppercase leading-none tracking-[0.18em]">{g?.label}</div>
+      {g?.keys.map((k) => (
+        <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(p.params, k, PARAM_RANGES[k].min)} benk={false} onChange={(key, v) => p.onChange({ ...p.params, [key]: v })} onSkrubb={p.onSkrubb} />
+      ))}
+      <Pager side={side} tal={KUTT_GRUPPER.length} onSide={setSide} ord="kutt" />
+    </div>
+  )
+}
+
+type CheckPage = { metrics: Metric[]; rules: Rule[] }
+
+function ChecksTab({ p }: { p: ArketProps }) {
+  const pages = useMemo<CheckPage[]>(() => {
+    if (!p.metrics) return []
+    const out: CheckPage[] = []
+    const m = p.metrics.list
+    for (let i = 0; i < m.length; i += 2) {
+      const mine = m.slice(i, i + 2)
+      const ids = new Set(mine.map((x) => x.id))
+      out.push({ metrics: mine, rules: p.rules.filter((r) => !!r.rad && ids.has(r.rad)) })
+    }
+    const frie = p.rules.filter((r) => !r.rad && !r.ok)
+    for (let i = 0; i < frie.length; i += 2) out.push({ metrics: [], rules: frie.slice(i, i + 2) })
+    return out.length ? out : [{ metrics: [], rules: [] }]
+  }, [p.metrics, p.rules])
+  const [side, setSide] = useState(0)
+  useEffect(() => setSide((s) => Math.min(s, Math.max(0, pages.length - 1))), [pages.length])
+
+  if (!p.metrics) return <div className="dim px-4 py-4 text-[11px]">måler …</div>
+  const page = pages[side] ?? pages[0]
+  const metrics = { ...p.metrics, list: page.metrics }
+  return (
+    <div className="px-3 pb-1 pt-2">
+      <Tavla metrics={metrics} rules={page.rules} busy={p.busy} params={p.params} onChange={p.onChange} onFiksAlle={p.onFiksAlle} />
+      <Pager side={side} tal={pages.length} onSide={setSide} ord="sjekk" />
+    </div>
+  )
+}
+
+function ExportTab({ p }: { p: ArketProps }) {
+  const sider = UTTAK.length + 1
+  const [side, setSide] = useState(0)
+  const harde = p.rules.filter((r) => r.hard && !r.ok)
+  const g = side < UTTAK.length ? UTTAK[side] : null
+  return (
+    <div className="px-3 pb-1 pt-2">
+      {g ? (
+        <>
+          <div className="dim h-5 px-1 text-[9px] uppercase leading-none tracking-[0.18em]">{g.bolk}</div>
+          <div className="flex min-h-9 flex-wrap items-center gap-1.5">
+            {g.filer.map((x) => {
+              const stopp = stengd(x.id, p.metrics)
+              return (
+                <button
+                  key={x.id}
+                  type="button"
+                  disabled={p.busy || !!stopp}
+                  data-varsel={!stopp && harde.length ? "" : undefined}
+                  title={stopp || x.hint}
+                  onClick={() => p.onExport(x.id)}
+                  className={CHIP + " uppercase tracking-[0.1em]"}
+                  style={{ ...chipStyle(false), opacity: stopp ? 0.3 : undefined, color: !stopp && harde.length ? "var(--warn)" : undefined }}
+                >
+                  {x.label}
+                </button>
+              )
+            })}
+          </div>
+          {harde.length > 0 && <p className="pt-1 text-[9px]" style={{ color: "var(--warn)" }}>{harde.map((r) => r.label).join(", ")} — går ikkje i hop</p>}
+        </>
+      ) : (
+        <div className="flex min-h-14 items-center gap-1.5">
+          {([
+            ["kuttliste", "kuttliste", "kvar del, med adresse, mål og plate"],
+            ["oppsett", "oppsett", "alle innstillingane som tekst"],
+          ] as const).map(([id, ord, hint]) => (
+            <button key={id} type="button" title={hint} aria-pressed={p.verkty === id} onClick={() => p.onVerkty(id)} className={CHIP + " uppercase tracking-[0.1em]"} style={chipStyle(p.verkty === id)}>
+              {ord}
+            </button>
+          ))}
+        </div>
+      )}
+      <Pager side={side} tal={sider} onSide={setSide} ord="uttak" />
+    </div>
+  )
+}
+
+function MobileArket(p: ArketProps) {
+  const open = p.steg !== "line"
+  const [fane, setFane] = useState<Fane>("grupper")
   const el = useRef<HTMLElement | null>(null)
+  const drag = useRef<{ y: number; id: number } | null>(null)
+  const [pull, setPull] = useState(0)
+
   useEffect(() => {
     const s = el.current
-    if (!s || benk) return
-    const meld = () => onHogd(Math.round((s.getBoundingClientRect().height + 24) / 40) * 40)
+    if (!s) return
+    const meld = () => p.onHogd(Math.round((s.getBoundingClientRect().height + 24) / 40) * 40)
     const ro = new ResizeObserver(meld)
     ro.observe(s)
     meld()
     return () => ro.disconnect()
-  }, [onHogd, benk])
+  }, [p.onHogd, open, fane])
 
-  // iOS-ark: dra i hovudlina, opp for meir og ned for mindre
-  const drag = useRef<{ y0: number; id: number } | null>(null)
-  const [pull, setPull] = useState(0)
-  const svelg = useRef(false)
-  const stegOm = (dir: 1 | -1) => onSteg(STEG[Math.min(2, Math.max(0, STEG.indexOf(steg) + dir))])
-  const dragOpp = (e: React.PointerEvent) => {
+  const setOpenFane = (f: Fane) => {
+    setFane(f)
+    if (!open) p.onSteg("midt")
+  }
+  const dragOpp = (e: ReactPointerEvent) => {
     const d = drag.current
-    if (!d || e.pointerId !== d.id) return
+    if (!d || d.id !== e.pointerId) return
     drag.current = null
     setPull(0)
-    const dy = e.clientY - d.y0
-    svelg.current = Math.abs(dy) > 12
-    if (dy < -34) stegOm(1)
-    else if (dy > 34) stegOm(-1)
+    const dy = e.clientY - d.y
+    if (dy < -24 && !open) p.onSteg("midt")
+    if (dy > 24 && open) p.onSteg("line")
   }
 
-  const linja = (
-    <div className="flex items-center gap-1 px-2 py-2">
-      {/* tala fyrst: dei er det lina er til. Skjer og skissebrytaren står i tommelspalta. */}
-      <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className="hit tab min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em]" aria-label="plan, delar, ark og tid">
-        <Lina p={p} />
-      </button>
+  const content =
+    fane === "form" ? <FormTab p={p} /> :
+    fane === "grupper" ? <GroupsTab p={p} /> :
+    fane === "materiale" ? <MaterialTab p={p} /> :
+    fane === "kutt" ? <CuttingTab p={p} /> :
+    fane === "sjekk" ? <ChecksTab p={p} /> :
+    <ExportTab p={p} />
 
-      {!benk && (
-        <button type="button" aria-label="eksport" aria-expanded={visUttak} title="uttaka: rom — stl, glb, flat, 3mf, usdz. plate — dxf, svg, ark, png, passprøve. alt og lagre" onClick={eksport} className={ICON_BTN} aria-pressed={visUttak} data-uttak="">
-          {IcoUttak}
-        </button>
-      )}
-    </div>
-  )
-
-  const midt = (
-    <>
-      <SliderRow k="storleik" r={PARAM_RANGES.storleik} value={num(p.params, "storleik", 150)} benk={benk} onChange={(k, v) => p.onChange({ ...p.params, [k]: v })} onSkrubb={p.onSkrubb} bi={p.metrics ? `${n0(p.metrics.envX)}×${n0(p.metrics.envY)}×${n0(p.metrics.envZ)}` : undefined} />
-      {/* BITEN SITT LAG. Same rada som planet sitt, av di det er den same
-          fargen: eit plan merkt likt høyrer til biten og vert skore inne i
-          han. Ho står her og ikkje i tommelspalta — spalta er ikon, og eit
-          lag er åtte og tjue fargar. */}
-      {p.bitFarge !== null && (
-        <ul className="pt-1">
-          <Lagrad no={p.bitFarge} ord="bit" tittel=" · plan med same laget vert skore inne i denne biten" onFarge={p.onBitFarge} />
-        </ul>
-      )}
-      {p.view === "montasje" ? <Stega p={p} /> : <Plana p={p} />}
-    </>
-  )
-
-  const fot = (
-    <div className="flex items-center gap-1.5 py-1">
-      <span className="dim tab text-[10px]">{p.metrics ? `${nn(p.metrics.cutLen / 1000, 1)} m kutt` : ""}</span>
-      <span className="ml-auto flex items-center gap-1.5">
-        <button type="button" onClick={p.onReset} aria-label="attende til standarden" title="attende til standarden. nettet ditt står" className={CHIP} style={chipStyle(false)}>{IcoReset}</button>
-        {!benk && (
-          <button type="button" aria-expanded={steg === "alt"} aria-label={steg === "alt" ? "færre kontrollar" : "alle kontrollane"} onClick={() => onSteg(steg === "alt" ? "midt" : "alt")} className={CHIP} style={chipStyle(steg === "alt")}>
-            {steg === "alt" ? IcoDown : IcoSliders}
-          </button>
-        )}
-      </span>
-    </div>
-  )
-
-  if (benk) {
-    return (
-      <aside aria-label="kontrollar" aria-busy={p.busy} className="benk fixed bottom-0 right-0 z-20 flex flex-col border-l" style={{ ...HAIR, top: p.topp, width: KOL, background: "var(--paper)", color: "var(--ink)" }}>
-        {linja}
-        <div className="rull min-h-0 flex-1 px-3 pb-2">
-          {midt}
-          <Alt p={p} uttak={uttak} />
-        </div>
-        <div className="border-t px-3" style={HAIR}>{fot}</div>
-      </aside>
-    )
-  }
-
-  /**
-   * UTTAKSBOKSEN STÅR OVER ARKET OG IKKJE INNI DET.
-   *
-   * Han låg inne i arket, absolutt plassert over toppen av det. Arket
-   * klipper: `overflow-x-hidden` gjer at nettlesaren reknar den andre
-   * aksen som `auto`, og alt som stikk opp over kanten vert skore bort.
-   * Boksen hadde difor plass, mål og knappar — og teikna ingenting. Ei
-   * rute du kan måle og ikkje sjå er den verste sorten feil: han syner
-   * seg ikkje i eit einaste tal.
-   *
-   * No er han eit sysken av arket i den same faste ramma, over det.
-   * Søvnen tek han med (sjå `.uttak` i globals.css), som han tek alt
-   * anna som ikkje er objektet.
-   */
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex flex-col items-center px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-      {visUttak && steg !== "alt" && (
-        <div
-          data-uttak=""
-          role="group"
-          aria-label="uttak"
-          className="uttak ark pointer-events-auto mb-2 min-w-0 max-w-md rounded-2xl border px-3 sm:max-w-xl"
-          style={{ ...HAIR, width: "calc(100vw - 24px)", paddingRight: TUMME_FRI, background: "var(--paper)", color: "var(--ink)" }}
-        >
-          <Uttaka p={p} onGjort={() => setVisUttak(false)} />
-        </div>
-      )}
       <section
         ref={el}
         aria-label="kontrollar"
         aria-busy={p.busy}
-        className="ark pointer-events-auto relative flex min-w-0 max-w-md flex-col overflow-x-hidden rounded-3xl border sm:max-w-xl"
+        className="ark pointer-events-auto relative flex min-w-0 max-w-md flex-col overflow-hidden rounded-3xl border sm:max-w-xl"
         style={{
           ...HAIR,
-          // aldri breiare enn skjermen: ei rad med for lang tekst skal ikkje skuve arket ut av kanten
           width: "calc(100vw - 24px)",
+          maxHeight: "40dvh",
           background: "var(--paper)",
           color: "var(--ink)",
-          // taket ligg på ARKET, og trygdesona tel med: summen er taket
-          maxHeight: steg === "alt" ? "calc(72dvh - env(safe-area-inset-bottom) - 12px)" : "calc(48dvh - env(safe-area-inset-bottom) - 12px)",
           transform: pull ? `translateY(${pull}px)` : undefined,
         }}
       >
         <div
           className="shrink-0"
           style={{ touchAction: "none" }}
-          onPointerDown={(e) => { if (e.pointerType !== "mouse") drag.current = { y0: e.clientY, id: e.pointerId } }}
-          onPointerMove={(e) => { const d = drag.current; if (d && e.pointerId === d.id) setPull(Math.max(-26, Math.min(26, (e.clientY - d.y0) * 0.3))) }}
+          onPointerDown={(e) => { if (e.pointerType !== "mouse") drag.current = { y: e.clientY, id: e.pointerId } }}
+          onPointerMove={(e) => {
+            const d = drag.current
+            if (d && d.id === e.pointerId) setPull(Math.max(-18, Math.min(18, (e.clientY - d.y) * 0.25)))
+          }}
           onPointerUp={dragOpp}
           onPointerCancel={dragOpp}
-          onClickCapture={(e) => { if (svelg.current) { svelg.current = false; e.preventDefault(); e.stopPropagation() } }}
         >
           <div aria-hidden="true" className="mx-auto mt-2 h-1 w-9 rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 22%, transparent)" }} />
-          {linja}
         </div>
+
+        <div className="flex h-9 shrink-0 items-center gap-1 px-2">
+          <button
+            type="button"
+            aria-label="plan, delar, ark og tid"
+            onClick={() => {
+              if (open) p.onSteg("line")
+              else {
+                setFane("grupper")
+                p.onSteg("midt")
+              }
+            }}
+            className="hit tab min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em]"
+          >
+            <Summary p={p} />
+          </button>
+          <button type="button" aria-label="eksport" title="uttak" onClick={() => setOpenFane("uttak")} className={ICON_BTN} aria-pressed={open && fane === "uttak"}>
+            {IcoUttak}
+          </button>
+        </div>
+
         {open && (
-          <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-1">
-            {midt}
-            {steg === "alt" && <Alt p={p} uttak={uttak} />}
-          </div>
+          <>
+            <Tabs fane={fane} onFane={setFane} />
+            <div className="min-h-0 shrink overflow-hidden">
+              {content}
+            </div>
+          </>
         )}
-        {open && <div className="shrink-0 px-3 pb-1">{fot}</div>}
       </section>
     </div>
   )
+}
+
+export function Arket(p: ArketProps) {
+  if (p.benk) return <LegacyArket {...p} />
+  return <MobileArket {...p} />
 }
