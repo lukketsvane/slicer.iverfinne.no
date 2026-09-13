@@ -373,7 +373,13 @@ export type Delplass = {
    * Begge delane i eit ledd har SAMA nøkkel og same strekket: dreg du den
    * eine botnen djupare, vert den andre grunnare, av seg sjølv.
    */
-  spor: { nokkel: string; munn: Pt; botn: Pt; lo: Pt; hi: Pt }[]
+  /**
+   * `boge` står der leddet ligg på ein BOGE og ikkje ei rett line — eit
+   * krumt skal møtt av eit golv. Då er dei fire punkta framleis dei fire
+   * punkta, men strekket mellom dei er ikkje ei korde, og handtaket skal
+   * teiknast der plata faktisk vert skoren.
+   */
+  spor: { nokkel: string; munn: Pt; botn: Pt; lo: Pt; hi: Pt; boge?: Pt[] }[]
 }
 
 /** Ei plate slik ho ligg, til skjermen: teikninga og dei to tala som høyrer

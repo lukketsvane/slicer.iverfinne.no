@@ -1706,14 +1706,30 @@ function Spora({ f, snitt, boks, onDeling }: {
   const gl = useThree((s) => s.gl)
   const controls = useThree((s) => s.controls) as Orbit | null
   const spor = useMemo(() => snitt.spor ?? [], [snitt])
-  const paa = (q: (typeof spor)[number], t: number): Pt => [q.lo[0] + (q.hi[0] - q.lo[0]) * t, q.lo[1] + (q.hi[1] - q.lo[1]) * t]
+  /** brøken `t` av strekket, som eit punkt i profilen si ramme. `boge` står
+   *  der leddet ligg på ein BOGE — eit krumt skal møtt av eit golv — og då
+   *  er strekket den lina fila vert skoren av og ikkje korda over henne. */
+  const paa = (q: (typeof spor)[number], t: number): Pt => {
+    const b = q.boge ?? [q.lo, q.hi]
+    const d = Math.min(Math.max(0, t), 1) * (b.length - 1)
+    const i = Math.min(b.length - 2, Math.floor(d))
+    const f = d - i
+    return [b[i][0] + (b[i + 1][0] - b[i][0]) * f, b[i][1] + (b[i + 1][1] - b[i][1]) * f]
+  }
   const naa = useRef({ f, snitt, spor, onDeling })
   naa.current = { f, snitt, spor, onDeling }
   const skrive = useRef<Record<string, string>>({})
   /** bandet botnen kan gå i, som ei tynn line i planet */
   const band = useMemo(() => {
     const lin: number[] = []
-    for (const q of spor) lin.push(...ut(snitt.r, paa(q, DELING_MIN)), ...ut(snitt.r, paa(q, DELING_MAX)))
+    for (const q of spor) {
+      const n = (q.boge?.length ?? 2) - 1
+      for (let i = 0; i < n; i++) {
+        const a = DELING_MIN + ((DELING_MAX - DELING_MIN) * i) / n
+        const b = DELING_MIN + ((DELING_MAX - DELING_MIN) * (i + 1)) / n
+        lin.push(...ut(snitt.r, paa(q, a)), ...ut(snitt.r, paa(q, b)))
+      }
+    }
     const g = new THREE.BufferGeometry()
     g.setAttribute("position", new THREE.Float32BufferAttribute(lin, 3))
     return g

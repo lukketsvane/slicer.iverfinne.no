@@ -908,20 +908,25 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
 }
 
 /**
- * EIT KRUMT SKAL MED TAK OG BOTN — og dei møta som fell bort.
+ * EIT KRUMT SKAL MED TAK OG BOTN.
  *
- * Eit flatt plan LANGS sylinderaksen møter den bøygde flata i ei rett line
- * og vert eit ledd. Eit plan som SKRÅR mot aksen møter henne i eit
- * kjeglesnitt, og den finnaren er ikkje skriven. Det siste hende i stille:
- * ribbene hadde spor frå dei rette møta, so den harde regelen gjekk grøn,
- * og talet i topplina sa ingenting om resten.
+ * Eit flatt plan LANGS sylinderaksen møter den bøygde flata i ei rett line.
+ * Eit plan VINKELRETT på aksen — eit golv — møter henne i ein SIRKEL med
+ * sylinderradien: rett i det utbretta mønsteret, av di `u` er buelengd, og
+ * ein boge i golvet si eiga ramme. Båe er ledd.
  *
- * Her er det rekna: fire bøygde plan, fire flate langs aksen, og to golv på
- * tvers. Dei to golva møter kvart av dei fire bøygde — åtte møte — og alle
- * åtte er kurver. Rett ut bøyen, og dei åtte kjem attende som ledd.
+ * Dei åtte møta desse to golva har mot dei fire bøygde plana fall før bort
+ * i stille: ribbene hadde spor frå dei rette møta, so den harde regelen
+ * gjekk grøn, og talet i topplina sa ingenting om resten. Her er det rekna,
+ * og prøva er den strengaste som finst: EIT BØYGT SETT SKAL TELJE DET SAME
+ * SOM DET SAME SETTET FLATT. Bøyen tek ikkje eit ledd, og han finn ikkje
+ * opp eitt.
+ *
+ * Og radien vert lesen av sporet sjølv: krumminga i golvet sitt spor er
+ * sylinderen sin, og krumminga i den bøygde delen sitt spor er null.
  */
 {
-  console.log("\n=== møte som er kurver ===")
+  console.log("\n=== krumt skal med golv ===")
   const bogna = (bog: number) =>
     skrivPlan([
       ...lesPlan(nett(4, 4)).map((q) => (q.n[0] === 1 ? { ...q, bog } : q)),
@@ -935,12 +940,23 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   const flate = makeBygg({ ...bag, plan: bogna(0) } as unknown as Params, DETAIL.mid).s
   console.log(`  bøygd     ${krum.joints} ledd, ${s.kurva.length} møte som er kurver`)
   console.log(`  rett      ${rett.joints} ledd, ${flate.kurva.length} møte som er kurver`)
-  if (s.kurva.length !== 8) bryt(`eit krumt skal med to golv skulle misse åtte møte, ikkje ${s.kurva.length}`)
-  else if (new Set(s.kurva).size !== 4) bryt(`dei åtte møta skulle høyre til fire bøygde plan, ikkje ${new Set(s.kurva).size}`)
-  else if (flate.kurva.length) bryt(`eit rett sett skal ikkje ha eit einaste kurva møte`)
-  else if (rett.joints - krum.joints !== s.kurva.length)
-    bryt(`å rette ut bøyen gav ${rett.joints - krum.joints} ledd, og ${s.kurva.length} møte fall bort`)
-  else console.log(`  og dei er dei same: ${krum.joints} + ${s.kurva.length} = ${rett.joints} ledd når bøyen er borte`)
+  // radien sporet i golvet fekk, mot sylinderen sin. Storleiken er 300 og
+  // bogen 0,3, so R er 1000 mm — og det er det talet spora skal ha.
+  const R = 300 / 0.3
+  const golv = s.ribber.find((r) => r.plan.id === 91)
+  const skal = s.ribber.find((r) => r.plan.id === 1)
+  const bogna2 = golv?.spor.filter((q) => q.k) ?? []
+  const verst = bogna2.reduce((m, q) => Math.max(m, Math.abs(Math.abs(1 / q.k) - R)), 0)
+  if (s.kurva.length || flate.kurva.length) bryt(`ingen av dei to sette skulle ha eit kurva møte: ${s.kurva.length} bøygd, ${flate.kurva.length} flatt`)
+  else if (krum.joints !== rett.joints) bryt(`bøyen endra talet på ledd: ${krum.joints} bøygd mot ${rett.joints} flatt`)
+  else if (bogna2.length !== 4) bryt(`golvet skulle ha fire bogna spor, eitt per bøygt plan, ikkje ${bogna2.length}`)
+  else if (verst > 0.5) bryt(`sporet i golvet har radius ${nn(Math.abs(1 / bogna2[0].k), 1)} mm og sylinderen ${nn(R, 1)} mm`)
+  else if ((skal?.spor ?? []).some((q) => q.k)) bryt(`sporet i den bøygde delen skulle vera rett i det utbretta mønsteret`)
+  else {
+    console.log(`  og dei er like: ${krum.joints} ledd båe vegar — bøyen tek ikkje eit ledd og finn ikkje opp eitt`)
+    console.log(`  golvet sine fire bogna spor: R ${nn(Math.abs(1 / bogna2[0].k), 1)} mm mot sylinderen ${nn(R, 1)} mm, verst ${verst.toExponential(1)} mm`)
+    console.log(`  og i det utbretta mønsteret er dei same ledda rette: ${skal?.spor.length ?? 0} spor, alle med krumming 0`)
+  }
 }
 
 /**

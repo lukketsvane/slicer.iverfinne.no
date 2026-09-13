@@ -365,9 +365,31 @@ fire brytarar i staden for «fane 2 av 4». `role="tablist"` / `role="tab"` /
 
 Det over er å rette. Dette er å byggje. Tre saker, etter kva dei opnar.
 
-## A. Eit bøygt plan ber ikkje ledd
+## A. ~~Eit bøygt plan ber ikkje ledd~~ — steg 1 og 2a står; att er det SKRÅ planet
 
-Dette er det største **funksjonelle** holet i reiskapen, og det står skrive som
+**Gjort den 13.** Steg 1 (`kryssBoygd`) og steg 2a (`kryssRing`) er skrivne.
+Eit bøygt plan ber ledd mot flate ribber LANGS aksen sin og mot golv
+VINKELRETT på han, og dei to er ytterpunkta av kvarandre. Prisen låg der
+analysen under sa han låg — «å la eit spor vera ein boge» — og det er `Spor.k`
+i `lib/snitt.ts`.
+
+Målt, med `pnpm probe`: eit krumt skal med fire bøygde plan, fire flate langs
+aksen og to golv teljer no **32 ledd, akkurat som det same settet flatt**, mot
+24 før. Radien i golvet sitt spor vert lesen attende av sporet sjølv: 1000,0 mm
+mot sylinderen sine 1000,0 mm, verst 1,4e−12 mm. Og i det utbretta mønsteret er
+dei same ledda rette, av di `u` er buelengd.
+
+`pnpm ledd` har tre nye saker med bogna spor; `pnpm raad` prøver både at golva
+er grøne og at dei SKRÅ plana framleis vert talde.
+
+**Att står 2b: kva vinkel som helst.** Ein ellipse mot ei sinuskurve, og
+monteringsspørsmålet der er ekte. Og steg 3, to bøygde plan. Analysen under
+står som han var — han er grunnen til at steg 2 delte seg i to, og til at det
+eine var mykje billegare enn det andre.
+
+---
+
+Dette var det største **funksjonelle** holet i reiskapen, og det stod skrive som
 ein hard regel (`lib/rules.ts:376`):
 
 > Eit bøygt plan vert skore rett, men det får ingen spor: kryssinga mellom to
@@ -435,15 +457,27 @@ So steg 2 er eigentleg:
     2b  kva vinkel som helst           ellipse mot sinuskurve, og
                                        monteringsspørsmålet vert ekte.
 
-`snitt.ts` seier sjølv kvifor ingen av dei er skrivne: «spor-maskineriet
+`snitt.ts` sa sjølv kvifor ingen av dei var skrivne: «spor-maskineriet
 byggjer heilt igjennom på at møtet er ei RETT LINE, med eitt punkt og éi
-retning». Prisen for 2a er ikkje geometrien — ho er rekna over — det er å la
+retning». Prisen for 2a var ikkje geometrien — ho er rekna over — det var å la
 eit spor vera ein boge. Det er `Spor`, feltet som skjer spora inn i profilen,
 nettet, uttaka og `pnpm ledd`.
 
-Men 2a er det som står mellom reiskapen og «krumt skal med golv», som er den
-vanlegaste bøygde forma som finst, og som i dag misser ein fjerdedel av ledda
-sine i stille (sjå G).
+Men 2a er det som stod mellom reiskapen og «krumt skal med golv», som er den
+vanlegaste bøygde forma som finst, og som misste ein fjerdedel av ledda sine i
+stille (sjå G).
+
+**OG DET VISTE SEG Å KOSTE 198 LINER I `snitt.ts`, DER OM LAG SEKSTI ER
+REKNING.** Sporet fekk ei krumming, og fire rekningar måtte fylgje henne:
+punktet på lina, punktet attende, stykka ei line går gjennom gods i, og lina
+som brotne line til teikning. Alt anna — feltet, uttaka, montasjen, plata,
+rommet — les dei fire og treng ingen ny grein.
+
+Éi ting til kom fram undervegs, og ho var ikkje i planen: **ein bøygd del vert
+ikkje SKUVA inn, han vert BØYGD inn.** Ein sylinder har berre to slag ledd, og
+rullinga tek båe — generatoren står still medan flata krummar seg, bogen grip
+som ein glidelås. Utan det ville kvar einaste bøygd ribbe med golv gått rett i
+«kan monterast» og stått raud for ein montasje som går heilt fint.
 
 ## B. ~~Pakkinga: eit ekte søk~~ — fem hundre rekkjefylgjer sparte ikkje éi plate
 
@@ -657,6 +691,16 @@ Kosta ingenting målbart: 24 bøygde og 24 skrå plan, 1468 ms med teljinga og
 **Og no er det eit tal på kva steg 2 i sak A er verdt.** Framlegget der stod
 utan pris; det står med ein no, og prisen er ein fjerdedel av ledda på den
 vanlegaste bøygde forma som finst.
+
+**Og det talet vart teke inn den 13.** Golva stod VINKELRETT på aksen, ikkje
+skrått, og då er kjeglesnittet ein SIRKEL med sylinderradien — steg 2a. Same
+settet no:
+
+    bøygd   32 ledd, 0 møte som er kurver
+    rett    32 ledd, 0 møte som er kurver
+
+Teljinga står, og ho tel framleis: eit plan som SKRÅR mot aksen er det som er
+att, og `pnpm raad` bryt regelen med to plan på 45°.
 
 ---
 

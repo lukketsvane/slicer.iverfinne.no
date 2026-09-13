@@ -213,7 +213,7 @@ function AssemblyRows({ p }: { p: ArketProps }) {
   const tal = Math.max(1, Math.ceil(rows.length / 2))
   useEffect(() => setSide((s) => Math.min(s, tal - 1)), [tal])
   const mine = rows.slice(side * 2, side * 2 + 2)
-  const veg: Record<string, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg" }
+  const veg: Record<string, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg", boygd: "bøygd inn" }
   return (
     <div className="px-3 pb-1 pt-1">
       {mine.length ? mine.map((d) => (

@@ -11,7 +11,7 @@ import type { BuildOut, DetailKey, ExportKind, ExportOut, Group, ArkSyn, Kutt, M
 import { erPrimitiv, label as srcLabel, raw as srcRaw } from "./sources"
 import { makeKropp, scenaAv } from "./kropp"
 import { erFilform, lesScene } from "./scene"
-import { buildSnitt, DETAIL, skisseSyn, type SkisseSyn, type Snitt } from "./snitt"
+import { buildSnitt, DETAIL, skisseSyn, sporBoge, sporPunkt, type SkisseSyn, type Snitt, type Spor } from "./snitt"
 import type { Plan } from "./plan"
 import { flatDelar, flateMesh, lagDelar, lagMesh, type DelMesh } from "./mesh"
 import { measure } from "./metrics"
@@ -99,8 +99,13 @@ const nodar = (delar: readonly DelMesh[]) => delar.map((d) => ({ namn: d.adr, po
  * haug med delar, og ho har plass til ei heil setning der spalta på
  * telefonen har plass til eit ord.
  */
-function retningOrd(m: Vec3 | null): string {
-  switch (vegen(m)) {
+function retningOrd(m: Vec3 | null, boygd = false): string {
+  switch (vegen(m, boygd)) {
+    // ein bøygd del kjem flat frå plata og vert rulla på plass. Retninga er
+    // ikkje eit skuv — ho er sjølve rullinga — og ho tek generatorane og
+    // bogane hans på ein gong. Sjå `Montering.boygde`.
+    case "boygd":
+      return "bøygd på plass — rull han ned i spora, dei grip etter kvart"
     case "ligg":
       return "ligg — ingen ledd mot delar som alt ligg"
     case "ned":
@@ -155,7 +160,7 @@ export function montering(p: Params, s: Snitt): string {
     const mot = [...new Set((r?.spor ?? []).map((q) => q.mot))].filter((m) => s.montering.orden.indexOf(m) < i)
     const stykke = r?.outlines.length ?? 0
     const namn = `${id}${stykke > 1 ? ` (${stykke} stykke)` : ""}`
-    const veg = retningOrd(s.montering.retning[id] ?? null)
+    const veg = retningOrd(s.montering.retning[id] ?? null, s.montering.boygde.includes(id))
     // eit merke på den som ikkje kjem inn, so lista og varselet over syner
     // det same utan at nokon må telje seg fram
     const fast = s.montering.brot.includes(id) ? "  << STÅR FAST" : ""
@@ -408,8 +413,9 @@ export const MOTOR: EngineDef = {
   },
 
   arkSyn(bag: ParamBag, i: number): ArkSyn {
-    /** eit punkt på sporlina, som avstand langs `d` frå `p` */
-    const langs = (v: { p: Pt; d: Pt }, t: number): Pt => [v.p[0] + v.d[0] * t, v.p[1] + v.d[1] * t]
+    /** eit punkt på sporlina, som buelengd frå `p` — `sporPunkt` er den
+     *  eine rekninga, og ho kjenner bogen */
+    const langs = (v: Spor, t: number): Pt => sporPunkt(v, t)
     const p = asP(bag)
     const { ns } = makeBygg(p, DETAIL.mid)
     const tal = ns.sheets.length
@@ -444,6 +450,7 @@ export const MOTOR: EngineDef = {
             botn: apply(q.slot.m, langs(v, v.botn)),
             lo: apply(q.slot.m, langs(v, v.lo)),
             hi: apply(q.slot.m, langs(v, v.hi)),
+            ...(v.k ? { boge: sporBoge(v, v.lo, v.hi).map((b) => apply(q.slot.m, b)) } : {}),
           })),
           ...(q.slot.kross ? { kross: true } : {}),
           ...(q.part.farge ? { farge: q.part.farge } : {}),

@@ -165,7 +165,7 @@ function Lina({ p }: { p: ArketProps }) {
  * skjerm som er for liten til henne, og du treng det som skjer no.
  */
 function Stega({ p }: { p: ArketProps }) {
-  const VEGORD: Record<Veg, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg" }
+  const VEGORD: Record<Veg, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg", boygd: "bøygd inn" }
   const mine = (p.mont?.delar ?? []).filter((d) => d.steg === p.montSteg - 1)
   if (!mine.length) {
     // EIN TOM MONTASJE SEIER DET. Ingen plan er ein gyldig tilstand — du har

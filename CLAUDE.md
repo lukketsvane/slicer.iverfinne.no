@@ -89,11 +89,17 @@ is not a new geometry: the curve is worked out from the point's neighbours and
 turned back into points (`omrissLine`) before anything geometric sees it, so
 everything below still gets the polygon it always got. A bent plane is a cylinder, not a plane: developable, so the part is
 still cut flat, and the radius is limited by what the material takes. A bent
-plane carries joints where a flat plane lies along its cylinder axis — there
-the meeting is a generator line, straight in space and straight unrolled
-(`kryssBoygd`). A plane slanted to the axis, and two bent surfaces, meet in a
-curve, and that finder is not written; the hard rule counts ribs WITHOUT
-SLOTS, not bent planes.
+plane carries joints in two cases, and they are each other's opposite: a flat
+plane ALONG its cylinder axis meets it in a generator line, straight in space
+and straight unrolled (`kryssBoygd`), and a flat plane PERPENDICULAR to the
+axis — a floor — meets it in a circle of exactly the cylinder radius
+(`kryssRing`), straight in the unrolled pattern and an arc in the floor. So a
+slot line carries a curvature, and mouth, bottom and exit are ARC LENGTH: it
+is the one place in the house where a slot is not straight. A plane SLANTED to
+the axis, and two bent surfaces, meet in a curve that is neither, and that
+finder is not written; the hard rule counts ribs WITHOUT SLOTS, not bent
+planes. And a bent part is not pushed into place, it is BENT into place — so
+joints along lines that cross are not a break for it.
 
 `lib/montasje.ts` is the way from the plate to the object: one mesh per part in
 its own flat frame plus two rigid matrices — where it lies on the plate, where
@@ -129,7 +135,7 @@ pnpm build    # webpack (never Turbopack), then guards that the worker bundled
 pnpm probe    # engine without a browser: parts, joints, cut length, files
 pnpm rekkje   # reads the cut files back: engrave, inner cuts, outline, in order
 pnpm vrient   # meshes that aren't meshes, sliders at both ends, a hostile URL
-pnpm ledd     # every joint the panel counted, found again in the cut profiles — grids and oblique planes
+pnpm ledd     # every joint the panel counted, found again in the cut profiles — grids, oblique planes, bent ribs with floors
 pnpm raad     # breaks each rule, presses the fix it offers, checks it worked
 pnpm glb      # writes GLB files with known geometry and reads them back
 npx tsx scripts/former.ts <namn>=<fil>   # a heavy model becomes a built-in form

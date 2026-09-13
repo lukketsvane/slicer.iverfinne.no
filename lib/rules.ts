@@ -67,7 +67,10 @@ function ordna(s: Snitt): number[] | null {
   const liner = new Map<number, Map<number, Vec3>>()
   for (const r of s.ribber) {
     const m = new Map<number, Vec3>()
-    for (const q of r.spor) {
+    // EIN BØYGD DEL VERT IKKJE SKUVA INN, HAN VERT BØYGD INN, og rullinga
+    // tek generatorane og bogane hans på ein gong (sjå `Montering.boygde`).
+    // Han melder difor inga retning, og står ikkje i strid med nokon.
+    for (const q of (r.r.k ? [] : r.spor)) {
       // sporet si line i rommet: retninga i ramma, lagd ut gjennom u og v
       const d: Vec3 = [
         q.d[0] * r.r.u[0] + q.d[1] * r.r.v[0],
@@ -647,16 +650,20 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
   /**
    * OG EI BØYGD RIBBE UTAN LEDD HENG IKKJE I NOKO (hard).
    *
-   * Heile spor-maskineriet byggjer på at to flater møtest i ei LINE. To
-   * plan gjer alltid det. Ein sylinder og eit plan gjer det i eitt tilfelle:
-   * ligg planet LANGS sylinderaksen, er møtet ein generator, og han er rett
-   * både i rommet og utbretta. Det tilfellet ber ledd no (`kryssBoygd`), og
-   * det er nett «krumt skal med flate ribber på tvers».
+   * Spor-maskineriet byggjer på at møtet har éi line og éi krumming. To
+   * plan møtest alltid i ei line. Ein sylinder og eit plan gjer det i to
+   * tilfelle, og dei er ytterpunkta av kvarandre: ligg planet LANGS
+   * sylinderaksen er møtet ein generator (`kryssBoygd`), og står det
+   * VINKELRETT på han er møtet ein sirkel med sylinderradien
+   * (`kryssRing`). Det fyrste er «krumt skal med flate ribber på tvers»,
+   * det andre er «krumt skal med golv», og saman er dei det eit skal
+   * faktisk vert halde av.
    *
-   * Resten står att: eit plan som skrår mot aksen møter sylinderen i eit
-   * kjeglesnitt, og to bøygde flater i ei romkurve. Ei bøygd ribbe som ikkje
-   * fann eit einaste ledd kjem ut som ei laus plate, og regelen seier det i
-   * staden for å late deg finne det i eska.
+   * Resten står att: eit plan som SKRÅR mot aksen møter sylinderen i eit
+   * kjeglesnitt som korkje rettar seg ut eller vert ein sirkel, og to
+   * bøygde flater i ei romkurve. Ei bøygd ribbe som ikkje fann eit einaste
+   * ledd kjem ut som ei laus plate, og regelen seier det i staden for å
+   * late deg finne det i eska.
    *
    * Difor tel han RIBBER UTAN SPOR og ikkje bøygde plan: det er skilnaden
    * på «bøygd» og «laus», og etter steg éin er dei to ikkje lenger det same.
@@ -672,7 +679,7 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
       : boygde.length
         ? `${nn(boygde.length)} bøygde, alle med ledd`
         : "ingen",
-    why: "Ei bøygd ribbe får spor der eit flatt plan ligg LANGS sylinderaksen hennar — då er møtet ei rett line både i rommet og utbretta. Desse ribbene fann ingen: eit plan som skrår mot aksen møter flata i ei kurve, og den finnaren er ikkje skriven. Dei kjem ut som lause plater du må feste sjølv. Rett ut bøyen, eller legg eit plan langs aksen.",
+    why: "Ei bøygd ribbe får spor på to måtar: eit flatt plan LANGS sylinderaksen hennar møter henne i ei rett line, og eit flatt plan VINKELRETT på aksen — eit golv — møter henne i ein sirkelboge med sylinderradien. Desse ribbene fann ingen av delane: eit plan som SKRÅR mot aksen møter flata i ei kurve som korkje er det eine eller det andre, og den finnaren er ikkje skriven. Dei kjem ut som lause plater du må feste sjølv. Rett ut bøyen, legg eit plan langs aksen, eller eit golv på tvers av han.",
     fiks: lauseBog.length
       ? {
           // berre DEI SOM HENG LAUST. Å rette ut alle ville teke bøyen av
@@ -694,7 +701,8 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
    * plan langs aksen sin ER festa, og gjekk difor grøn gjennom han — medan
    * kvart plan som SKRÅR mot aksen fall bort i stille. Eit krumt skal med
    * tak og botn melde fire og tjue ledd og sa ingenting om dei åtte som
-   * skulle halde golva.
+   * skulle halde golva. Dei åtte er ledd no (`kryssRing`); talet står att
+   * for det som framleis fell, og det er dei SKRÅ plana.
    *
    * Difor står dette talet ved sida av det harde: ikkje «ribba heng laust»,
    * men «so mange møte vart ikkje ledd, og delane kjem ut utan spor for
@@ -712,7 +720,7 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
       : boygde.length
         ? "ingen"
         : "ingen bøygde",
-    why: "Eit flatt plan som SKRÅR mot sylinderaksen til eit bøygt plan møter det i eit kjeglesnitt, og den finnaren er ikkje skriven. Møta er talde her og vart ikkje ledd: dei to delane kjem ut utan spor for kvarandre. Legg planet LANGS aksen — då er møtet ei rett line båe vegar — eller rett ut bøyen.",
+    why: "Eit flatt plan som SKRÅR mot sylinderaksen til eit bøygt plan møter det i eit kjeglesnitt, og den finnaren er ikkje skriven. Møta er talde her og vart ikkje ledd: dei to delane kjem ut utan spor for kvarandre. Legg planet LANGS aksen, eller VINKELRETT på han — då er møtet ei line eller ein sirkelboge, og båe ber spor — eller rett ut bøyen.",
     fiks: raad && kurvePlan.length ? bogKurveFiks(kurvePlan) : undefined,
   })
 

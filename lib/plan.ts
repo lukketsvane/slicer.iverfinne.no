@@ -317,7 +317,7 @@ export function ramme(pl: { o: Vec3; n: Vec3; bog?: number }, min: Vec3, max: Ve
  * uttrykket vert den flate ramma att. Rekkja under gjer det same der talet
  * elles hadde vore null delt på null.
  */
-const bogPar = (k: number, u: number): [number, number] => {
+export const bogPar = (k: number, u: number): [number, number] => {
   const a = k * u
   if (Math.abs(a) < 1e-6) return [u * (1 - (a * a) / 6), (u * a) / 2]
   return [Math.sin(a) / k, (1 - Math.cos(a)) / k]
@@ -395,11 +395,29 @@ export const broek = (p: Vec3, min: Vec3, max: Vec3): Vec3 => [
 export const KRYSS_MIN = Math.sin((5 * Math.PI) / 180)
 
 /**
+ * DET TO FLATER DELER: eit punkt, ei retning, og sinus til vinkelen mellom
+ * dei — det er han som seier kor breitt sporet må vera for at ei plate på
+ * tvers skal gå gjennom.
+ *
+ * `boge` er dei to punkta ein halv radius ut til kvar side når møtet er ein
+ * SIRKEL og ikkje ei line. Dei står her, som punkt i rommet, og ikkje eit
+ * sentrum og ein radius: kvar ramme les møtet inn i si eiga flate med si
+ * eiga avbilding, og tre punkt på kurva er alt ho treng for å svare kva
+ * lina og krumminga hennar er DER. Ein sylinder er utbrettbar, so båe
+ * avbildingane held lengder — bogen er den same bogen sett frå begge
+ * sidene, og for den bøygde flata rettar han seg ut til ei line.
+ *
+ * Punkta ligg symmetrisk om `p`, og det er ikkje pynt: korda mellom dei er
+ * PARALLELL med tangenten i midten, so retninga vert eksakt og ikkje nær.
+ */
+export type Mote = { p: Vec3; d: Vec3; sin: number; boge?: [Vec3, Vec3] }
+
+/**
  * Lina to plan deler: eit punkt på henne og retninga hennar, pluss sinus
  * til vinkelen mellom plana — det er han som seier kor breitt sporet må
  * vera for at ei plate på tvers skal gå gjennom.
  */
-export function kryss(a: Ramme, b: Ramme): { p: Vec3; d: Vec3; sin: number } | null {
+export function kryss(a: Ramme, b: Ramme): Mote | null {
   const d = cross(a.n, b.n)
   const L = len3(d)
   if (L < KRYSS_MIN) return null
@@ -440,7 +458,7 @@ const PARALLELT = 1e-3
 /** kor fint buen vert skanna etter teiknskifte før kvar rot vert klemt inn */
 const ROT_STEG = 64
 
-export function kryssBoygd(kr: Ramme, fl: Ramme, u0: number, u1: number): { p: Vec3; d: Vec3; sin: number }[] {
+export function kryssBoygd(kr: Ramme, fl: Ramme, u0: number, u1: number): Mote[] {
   if (!kr.k || fl.k) return []
   if (Math.abs(dot(fl.n, kr.v)) > PARALLELT) return []
   if (!(u1 > u0)) return []
@@ -482,6 +500,131 @@ export function kryssBoygd(kr: Ramme, fl: Ramme, u0: number, u1: number): { p: V
     const nu = norm3(sub3(mul3(kr.n, Math.cos(a)), mul3(kr.u, Math.sin(a))))
     return { p: ut(kr, [u, 0], 0), d: kr.v, sin: len3(cross(nu, fl.n)) }
   })
+}
+
+/**
+ * KRYSSINGA MELLOM EI BØYGD FLATE OG EIT FLATT PLAN — steg to, GOLVET.
+ *
+ * `kryssBoygd` tek det eine ytterpunktet: eit plan som ligg LANGS
+ * sylinderaksen skjer flata i generatorlinene hennar, rette både i rommet
+ * og utbretta. Dette er det MOTSETTE ytterpunktet, og det er like reint:
+ * eit plan VINKELRETT på aksen — eit golv, eit tak, eit dekk — skjer
+ * sylinderen i ein SIRKEL med nøyaktig sylinderradien, om aksen.
+ *
+ * Kvifor det er reint: `ut` set punktet på flata til
+ * `o + û·sin(ku)/k + v̂·w + n̂·(1−cos(ku))/k`, og står normalen til planet
+ * langs `v̂`, fell både `û`- og `n̂`-leddet ut av planlikninga. Att står
+ * `w = konstant`, og `w` er millimeter langs aksen. So i det UTBRETTA
+ * mønsteret er møtet ei rett line tvers over delen — eit heilt vanleg spor
+ * — medan det i golvet si eiga ramme er ein sirkelboge. Ein boge er det
+ * einaste nye, og det er den same bogen `ut` alt reknar, eitt nivå ned.
+ *
+ * Dette er «krumt skal med golv», og saman med `kryssBoygd` er det dei to
+ * retningane eit skal faktisk vert halde av. Att står berre det SKRÅ
+ * planet: der er kurva ein ekte ellipse mot ei sinuskurve, og den finnaren
+ * er framleis ikkje skriven.
+ *
+ * Kor vinkelrett er vinkelrett? Same kuttgrensa som `PARALLELT`, lesen frå
+ * hi sida: det som skal vera null er dei to komponentane normalen har i
+ * flata sine eigne retningar. Utanfor det er møtet ein ekte ellipse, og
+ * den høyrer til steg 2b — ikkje til ein boge som ville lege ved sida av
+ * seg sjølv.
+ *
+ * Eitt svar og ikkje ei liste: eit plan vinkelrett på aksen skjer
+ * sylinderen éin gong, i éin sirkel.
+ */
+export function kryssRing(kr: Ramme, fl: Ramme, u0: number, u1: number): Mote | null {
+  if (!kr.k || fl.k) return null
+  if (Math.hypot(dot(fl.n, kr.u), dot(fl.n, kr.n)) > PARALLELT) return null
+  if (!(u1 > u0)) return null
+  const cv = dot(fl.n, kr.v)
+  const R = 1 / kr.k
+  const dFl = dot(fl.n, fl.o)
+  // kor langt ute langs aksen planet ligg. `w` er den eine koordinaten
+  // flata har som møtet ikkje varierer i, og difor er sporet på DEN sida
+  // ei rett line.
+  const w = (dFl - dot(fl.n, kr.o)) / cv
+  // midt i det spennet profilen har, so buelengda vert talt frå midten av
+  // delen og ikkje frå enden: bogen har ei skøyt på ±πR, og ho skal liggje
+  // so langt unna godset som råd er
+  const u = (u0 + u1) / 2
+  const a = kr.k * u
+  // FLATENORMALEN OG FLATA SI EIGA U-RETNING DER BUEN ER, og ikkje der han
+  // byrja: dei vrir seg med flata, nett som tjukna gjer det i `ut`.
+  const nu = norm3(sub3(mul3(kr.n, Math.cos(a)), mul3(kr.u, Math.sin(a))))
+  const tang = norm3(add3(mul3(kr.u, Math.cos(a)), mul3(kr.n, Math.sin(a))))
+  // eit kvart tal ville gjeve den same lina; ein fjerdedel av radien er
+  // langt nok frå kvarandre til at rekninga er roleg, og for kort til at
+  // nokon av dei tre punkta kjem i nærleiken av skøyta
+  const h = Math.abs(R) / 4
+  return {
+    p: ut(kr, [u, w], 0),
+    d: tang,
+    sin: len3(cross(nu, fl.n)),
+    boge: [ut(kr, [u - h, w], 0), ut(kr, [u + h, w], 0)],
+  }
+}
+
+/**
+ * UNDER DETTE ER EIN BOGE EI LINE: krumming i 1/mm.
+ *
+ * Ein ekte boge her har sylinderradien sin, og materialet held ikkje
+ * strammare enn nokre hundre millimeter — so ei ekte krumming er kring
+ * 1e−3 og aldri i nærleiken av 1e−9. Talet er ikkje ei grense mot små
+ * bogar; det er golvet der tre punkt som LIGG på ei line svarar med
+ * flyttalsstøyen sin i staden for null.
+ */
+const KRUM_NULL = 1e-9
+
+/**
+ * MØTET LESE INN I EI RAMME: eit punkt, ei retning og ei krumming.
+ *
+ * Spor-maskineriet under bygde på at eit møte er ei rett line. Det er det
+ * framleis for tre av dei fire slaga — to flate plan, og ei bøygd flate mot
+ * eit plan som ligg langs aksen — og for golvet er det ei line på den
+ * BØYGDE sida òg. Det som er nytt er den fjerde lesinga: golvet si eiga
+ * ramme, der møtet er ein sirkelboge.
+ *
+ * Lesinga spør ikkje kva slag møtet er. Ho tek dei tre punkta kurva alt ber
+ * med seg, køyrer dei gjennom ramma si eiga avbilding, og les av kva line
+ * og kva krumming DEI tre ligg på. Båe avbildingane held lengder — ein
+ * sylinder er utbrettbar — so ein sirkel vert ein sirkel med den same
+ * radien, eller ei rett line når han rettar seg ut, og det same talet kjem
+ * ut utan ei einaste grein.
+ *
+ * Retninga er korda mellom dei to ytterpunkta: ho er PARALLELL med
+ * tangenten i midten av ein symmetrisk boge, og difor eksakt.
+ *
+ * Teiknet på krumminga fylgjer `bogPar`: positiv krumming bøyer mot
+ * venstre for `d`, so sentrum ligg på `p + n̂⊥/k` med `n̂⊥ = (−d_y, d_x)`.
+ */
+/**
+ * RETNINGA FRÅ `a` TIL `b`, NORMERT.
+ *
+ * Den einaste måten som held for ei BØYGD ramme: der er avbildinga ikkje
+ * lineær, so ein prikk mot aksane seier ingenting, medan skilnaden mellom
+ * to punkt som begge er lesne inn i flata alltid gjer det.
+ */
+export const ein2 = (b: Pt, a: Pt): Pt => {
+  const q: Pt = [b[0] - a[0], b[1] - a[1]]
+  const L = Math.hypot(q[0], q[1]) || 1
+  return [q[0] / L, q[1] / L]
+}
+
+export function moteInn(r: Ramme, x: Mote): { p: Pt; d: Pt; k: number } {
+  const P = inn(r, x.p)
+  if (!x.boge) return { p: P, d: ein2(inn(r, add3(x.p, x.d)), P), k: 0 }
+  const A = inn(r, x.boge[0])
+  const B = inn(r, x.boge[1])
+  const ax = P[0] - A[0]
+  const ay = P[1] - A[1]
+  const bx = B[0] - P[0]
+  const by = B[1] - P[1]
+  // sirkelen gjennom tre punkt: to gonger arealet av trekanten deira, delt
+  // på produktet av dei tre sidene, er den signerte krumminga hans
+  const nemn = Math.hypot(ax, ay) * Math.hypot(bx, by) * Math.hypot(B[0] - A[0], B[1] - A[1])
+  const k = nemn > 1e-12 ? (2 * (ax * by - ay * bx)) / nemn : 0
+  return { p: P, d: ein2(B, A), k: Math.abs(k) < KRUM_NULL ? 0 : k }
 }
 
 // =============================================================================

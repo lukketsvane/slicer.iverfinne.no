@@ -85,6 +85,22 @@ function Maalrute({ arkB, arkH, v, ppm }: { arkB: number; arkH: number; v: Syn; 
  * anten du ser heile plata eller står tett på eitt spor. Treffesona er
  * større enn prikken: fingeren er ikkje ein peikar.
  */
+/**
+ * BRØKEN `u` AV STREKKET, SOM EIT PUNKT PÅ PLATA.
+ *
+ * Strekket er frå `lo` til `hi`, og for eit ledd mot eit bøygt plan er det
+ * ein BOGE og ikkje ei korde: `boge` er den same lina fila vert skoren av,
+ * punkt for punkt (sjå `Delplass.spor`). Utan han er det dei to endane, og
+ * då er dette ordrett den lineære brøken det alltid var.
+ */
+function sporPaa(v: Delplass["spor"][number], u: number): [number, number] {
+  const band = v.boge ?? [v.lo, v.hi]
+  const d = Math.min(Math.max(0, u), 1) * (band.length - 1)
+  const i = Math.min(band.length - 2, Math.floor(d))
+  const f = d - i
+  return [band[i][0] + (band[i + 1][0] - band[i][0]) * f, band[i][1] + (band[i + 1][1] - band[i][1]) * f]
+}
+
 function Sporende({ v, ppm, t, ned }: {
   v: Delplass["spor"][number]
   ppm: number
@@ -92,15 +108,16 @@ function Sporende({ v, ppm, t, ned }: {
   t: number | null
   ned: (e: React.PointerEvent, v: Delplass["spor"][number]) => void
 }) {
-  const paa = (u: number): [number, number] => [v.lo[0] + (v.hi[0] - v.lo[0]) * u, v.lo[1] + (v.hi[1] - v.lo[1]) * u]
-  const [bx, by] = t === null ? v.botn : paa(t)
-  const [ax, ay] = paa(DELING_MIN)
-  const [cx, cy] = paa(DELING_MAX)
+  const band = v.boge ?? [v.lo, v.hi]
+  const [bx, by] = t === null ? v.botn : sporPaa(v, t)
   const r = 5 / ppm
   const djup = Math.hypot(bx - v.munn[0], by - v.munn[1])
+  const strek = Array.from({ length: band.length }, (_, i) => sporPaa(v, DELING_MIN + ((DELING_MAX - DELING_MIN) * i) / (band.length - 1)))
+    .map((q) => `${q[0]},${q[1]}`)
+    .join(" ")
   return (
     <g data-spor={v.nokkel} style={{ cursor: "grab" }} onPointerDown={(e) => ned(e, v)}>
-      <line x1={ax} y1={ay} x2={cx} y2={cy} strokeWidth={1} vectorEffect="non-scaling-stroke" style={{ stroke: "var(--ink)", opacity: 0.3 }} />
+      <polyline points={strek} fill="none" strokeWidth={1} vectorEffect="non-scaling-stroke" style={{ stroke: "var(--ink)", opacity: 0.3 }} />
       <circle cx={bx} cy={by} r={12 / ppm} style={{ fill: "transparent" }} />
       <circle cx={bx} cy={by} r={r} strokeWidth={2} vectorEffect="non-scaling-stroke" style={{ fill: "var(--paper)", stroke: "var(--ink)" }} />
       <title>{`ledd ${v.nokkel} · ${nn(djup, 0)} mm djupt`}</title>
@@ -470,8 +487,7 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     if (sporDra) {
       const v = vald?.spor.find((q) => q.nokkel === sporDra.nokkel)
       if (v) {
-        const bx = v.lo[0] + (v.hi[0] - v.lo[0]) * sporDra.t
-        const by = v.lo[1] + (v.hi[1] - v.lo[1]) * sporDra.t
+        const [bx, by] = sporPaa(v, sporDra.t)
         return { tekst: `ledd ${v.nokkel} · ${nn(Math.hypot(bx - v.munn[0], by - v.munn[1]), 0)} mm`, dim: false }
       }
     }

@@ -431,28 +431,58 @@ const boygd = (bog: number): Params =>
     const etter = reglane({ ...p, ...q.fiks.set } as Params).find((x) => x.id === q.id)
     ok(`rådet «${q.fiks.ord}» rettar ${q.id}`, !!etter?.ok, etter?.value)
   }
-  // --- OG DEI MØTA SOM ER KURVER ---------------------------------------
-  // Eit krumt skal med tak og botn: dei to golva møter kvart av dei fire
-  // bøygde plana, og alle åtte møta er kurver. Ribbene har spor frå dei
-  // rette møta, so den HARDE regelen går grøn — det var nett difor dei åtte
-  // fall bort i stille før.
+  /**
+   * --- GOLVET: MØTE SOM VAR KURVER OG NO ER LEDD ---------------------
+   *
+   * Eit krumt skal med tak og botn. Dei to golva står VINKELRETT på
+   * sylinderaksen, so kvart av dei åtte møta er ein sirkel med
+   * sylinderradien — rett i det utbretta mønsteret, ein boge i golvet. Dei
+   * fall før bort i stille; no er dei ledd, og då skal BÅE bøyereglane
+   * stå grøne og talet vera det same som om bøyen ikkje var der.
+   */
   {
-    const skal: Params = {
+    const golv = (bog: number): Params =>
+      ({
+        ...DEFAULT_PARAMS,
+        storleik: 300,
+        plan: skrivPlan([
+          ...lesPlan(nett(4, 4)).map((q) => (q.n[0] === 1 ? { ...q, bog } : q)),
+          { id: 91, o: [0.5, 0.5, 0.35], n: [0, 0, 1], bog: 0, strek: [] },
+          { id: 92, o: [0.5, 0.5, 0.65], n: [0, 0, 1], bog: 0, strek: [] },
+        ]),
+      }) as Params
+    const skal = golv(0.3)
+    ok("ribbene har spor, so den harde regelen går grøn", !!finn(skal, "bogledd")?.ok, finn(skal, "bogledd")?.value)
+    ok("og golva er ledd og ikkje kurver", !!finn(skal, "bogkurve")?.ok, finn(skal, "bogkurve")?.value)
+    ok("og bøyen tek ikkje eit ledd", measure(skal).joints === measure(golv(0)).joints, `${measure(skal).joints} bøygd, ${measure(golv(0)).joints} flatt`)
+  }
+
+  /**
+   * --- OG DEI MØTA SOM FRAMLEIS ER KURVER -----------------------------
+   *
+   * Eit plan som korkje ligg LANGS aksen eller står VINKELRETT på han
+   * møter sylinderen i eit kjeglesnitt som verken rettar seg ut eller vert
+   * ein sirkel, og den finnaren er ikkje skriven. Her skrår to plan 45°
+   * mot aksen. Ribbene har framleis spor frå dei rette møta, so den HARDE
+   * regelen går grøn — og det er nett difor desse må teljast.
+   */
+  {
+    const skra: Params = {
       ...DEFAULT_PARAMS,
       storleik: 300,
       plan: skrivPlan([
         ...lesPlan(nett(4, 4)).map((q) => (q.n[0] === 1 ? { ...q, bog: 0.3 } : q)),
-        { id: 91, o: [0.5, 0.5, 0.35], n: [0, 0, 1], bog: 0, strek: [] },
-        { id: 92, o: [0.5, 0.5, 0.65], n: [0, 0, 1], bog: 0, strek: [] },
+        { id: 91, o: [0.5, 0.5, 0.35], n: [0, 0.7071, 0.7071], bog: 0, strek: [] },
+        { id: 92, o: [0.5, 0.5, 0.65], n: [0, 0.7071, 0.7071], bog: 0, strek: [] },
       ]),
     } as Params
-    const hard = finn(skal, "bogledd")
+    const hard = finn(skra, "bogledd")
     ok("ribbene har spor, so den harde regelen går grøn", !!hard?.ok, hard?.value)
-    prov("men åtte møte er kurver", "bogkurve", skal)
-    const k = finn(skal, "bogkurve")
+    prov("men dei skrå møta er kurver", "bogkurve", skra)
+    const k = finn(skra, "bogkurve")
     ok("og rådet seier at det riv arbeid", !!k?.fiks?.riv, k?.fiks ? `«${k.fiks.ord}»` : "ingen knapp")
-    const etter = measure({ ...skal, ...k!.fiks!.set } as Params)
-    ok("og møta kjem attende som ledd", etter.joints === measure(skal).joints + 8, `${measure(skal).joints} → ${etter.joints}`)
+    const etter = measure({ ...skra, ...k!.fiks!.set } as Params)
+    ok("og møta kjem attende som ledd", etter.joints > measure(skra).joints, `${measure(skra).joints} → ${etter.joints}`)
   }
 
   // og ein bøy som GÅR skal ikkje seie frå om materialet
