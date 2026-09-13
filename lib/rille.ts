@@ -173,6 +173,15 @@ export type Rille = {
   k: number
   tjukn: number
   material: Material | string
+  /**
+   * MØNSTERET UTANFRÅ, når nokon veit betre enn tabellen.
+   *
+   * Éin kallar: BØYEPRØVA. Ho legg det same mønsteret fem gonger med fem
+   * ulike steg, og heile poenget hennar er at det er DEN SAME koden — ei
+   * prøve som er lagd av eit anna oppsett enn delen, prøver eit anna
+   * oppsett enn delen.
+   */
+  mal?: Rillemal
 }
 
 /**
@@ -194,9 +203,8 @@ export type Rille = {
  * skal i 3 mm finér: 44 meter som ringar, 22 som liner.
  */
 export function rilla(q: Rille): Pt[][] {
-  if (!q.k) return []
-  const R = Math.abs(1 / q.k)
-  const mal = rilleMal(R, q.tjukn, String(q.material))
+  const mal = q.mal ?? (q.k ? rilleMal(Math.abs(1 / q.k), q.tjukn, String(q.material)) : null)
+  if (!mal) return []
   const ringar = [q.omriss, ...q.hol]
   let u0 = Infinity
   let u1 = -Infinity

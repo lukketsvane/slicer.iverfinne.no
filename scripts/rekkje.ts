@@ -900,5 +900,70 @@ if (!(sumIFila > sumNominell + 1)) {
   )
 }
 
+// =============================================================================
+// OG BØYEPRØVA SKAL MÅLAST
+// =============================================================================
+/**
+ * FEM FELT, OG DET ER AVSTANDEN MELLOM RADENE SOM ER HEILE POENGET.
+ *
+ * Same saka som passprøva over, for det andre talet reiskapen ikkje kan
+ * rekne. Bøyeprøva er kalibreringa til kvar einaste rilla del: du skjer
+ * henne, krummar kvart felt, og les talet under det grovaste som held. Er
+ * feltet under «3,0» eigentleg rilla på 2,4, kalibrerer du mot ei løgn, og
+ * den løgna vert med i kvar bøygd ribbe du skjer etterpå.
+ *
+ * Sjekkane over ser på henne som ei kuttfil — rett orden, to fargar,
+ * gravering innanfor. Ingen av dei bryr seg om kor tett radene står. Fem
+ * like felt ville gått rett gjennom.
+ *
+ * Difor vert steget MÅLT, lese ut av banene i fila, og halde mot det som
+ * står gravert. Og linene er OPNE, so dei kan ikkje finnast på vindinga slik
+ * hòl kan: dei er dei banene som ikkje endar på Z.
+ */
+{
+  const namn = "bøyeprøve"
+  const bag = { ...GRUNN, tjukn: 3, material: "finer" } as unknown as ParamBag
+  const svg = MOTOR.exportFile(bag, "bogprove").text ?? ""
+  graveringaLiggInne(namn, svg)
+  sjekkSteg(namn, svgSteg(namn, svg))
+
+  // dei opne banene, som x-verdiar: kvar er ei loddrett line, so x er rada
+  const opne = [...svg.matchAll(/<path d="(M[^"]+)"([^>]*)>/g)]
+    .filter((m) => !GRAV_FARGE.test(m[2]) && !/Z\s*$/i.test(m[1].trim()))
+    .map((m) => pathPts(m[1]))
+  const xs = [...new Set(opne.map((q) => +q[0][0].toFixed(3)))].sort((a, b) => a - b)
+
+  /**
+   * FELTA VERT SKILDE PÅ LUFTA MELLOM DEI. Inne i eit felt er hoppet eit
+   * heilt tal steg — ei rad der alt fall bort gjev to — og mellom to felt er
+   * det minst ei luft. Grensa er difor sett på det GROVASTE steget: alt over
+   * er ei feltgrense, alt under er rader i det same feltet.
+   */
+  const VENTA = [1.5, 2.25, 3, 4.5, 6]
+  const felt: number[][] = [[xs[0]]]
+  for (let i = 1; i < xs.length; i++) {
+    if (xs[i] - xs[i - 1] > VENTA[VENTA.length - 1] * 1.5) felt.push([xs[i]])
+    else felt[felt.length - 1].push(xs[i])
+  }
+  if (felt.length !== VENTA.length) {
+    feil(namn, `${felt.length} felt i fila, venta ${VENTA.length}`)
+  } else {
+    let verst = 0
+    let kvar = ""
+    felt.forEach((f, i) => {
+      // det minste hoppet inne i feltet ER steget: eit større hopp er ei rad
+      // der kvart snitt fall bort, og det er eit heilt tal steg
+      const steg = f.slice(1).reduce((m, v, j) => Math.min(m, v - f[j]), Infinity)
+      const av = Math.abs(steg - VENTA[i])
+      if (av > verst) {
+        verst = av
+        kvar = `felt ${i + 1}: ${steg.toFixed(3)} mot ${VENTA[i]}`
+      }
+    })
+    if (verst > 0.01) feil(namn, `steget stemmer ikkje med det som står gravert — ${kvar}`)
+    else console.log(`  ok   ${(namn + " · steget").padEnd(24)} ${felt.map((f) => f.length).join("+")} rader over fem felt, verste avvik ${verst.toFixed(4)} mm`)
+  }
+}
+
 console.log(brot ? `\n${brot} brot` : "\ningen brot")
 process.exit(brot ? 1 : 0)

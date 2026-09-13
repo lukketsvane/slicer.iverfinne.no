@@ -13,6 +13,7 @@ import { makeKropp, scenaAv } from "./kropp"
 import { erFilform, lesScene } from "./scene"
 import { buildSnitt, DETAIL, skisseSyn, sporBoge, sporPunkt, type SkisseSyn, type Snitt, type Spor } from "./snitt"
 import type { Plan } from "./plan"
+import { lesPlan } from "./plan"
 import { flatDelar, flateMesh, lagDelar, lagMesh, type DelMesh } from "./mesh"
 import { measure } from "./metrics"
 import { checkRules, fiksAlt } from "./rules"
@@ -26,7 +27,7 @@ import { meshToGlb } from "./export-glb"
 import { delarTo3mf } from "./export-3mf"
 import { meshToUsdz } from "./export-usdz"
 import { sheetDxf } from "./export-dxf"
-import { bane, couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
+import { bane, bendCouponSvg, couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
 import { zip } from "./zip"
 import { DEFAULT_PARAMS, GROUPS, PARAM_KEYS, PARAM_RANGES, clampParams, type Params } from "./params"
 
@@ -296,6 +297,10 @@ export const MOTOR: EngineDef = {
       const bytes = meshToUsdz(lagMesh(makeBygg(p, DETAIL.fil).s, p.tjukn), linear(p.material))
       return { name: `${name}.usdz`, mime: "model/vnd.usdz+zip", data: bytes.buffer.slice(0) as ArrayBuffer }
     }
+    if (what === "bogprove") {
+      // Same som passprøva: korkje plan eller nesting, berre plata og materialet.
+      return { name: `bogprove-${num(p.tjukn)}mm-${p.material}.svg`, mime: "image/svg+xml", text: bendCouponSvg(p.tjukn, kerfOf(p), p.snitt, p.material) }
+    }
     if (what === "prove") {
       // Passprøva treng korkje plan eller nesting: ei lita plate med sju spor.
       return { name: `passprove-${num(p.tjukn)}mm-${p.material}.svg`, mime: "image/svg+xml", text: couponSvg(p.tjukn, kerfOf(p), p.snitt, p.material) }
@@ -344,6 +349,12 @@ export const MOTOR: EngineDef = {
           { name: `${name}-profilar.svg`, text: profileSvg(s, kerf) },
           ...arkFiler(),
           { name: `passprove-${num(p.tjukn)}mm-${p.material}.svg`, text: couponSvg(p.tjukn, kerf, p.snitt, p.material) },
+          // BØYEPRØVA BERRE NÅR NOKO ER BØYGT. Passprøva gjeld alltid — kvart
+          // einaste ledd brukar klaringa. Bøyeprøva kalibrerer rilla, og ligg
+          // det ikkje eit bøygt plan i jobben, er ho eit ark ingen skal skjere.
+          ...(lesPlan(p.plan).some((q) => q.bog)
+            ? [{ name: `bogprove-${num(p.tjukn)}mm-${p.material}.svg`, text: bendCouponSvg(p.tjukn, kerf, p.snitt, p.material) }]
+            : []),
           { name: "kuttliste.csv", text: kuttCsv(MOTOR.liste(bag)) },
           { name: "montering.txt", text: montering(p, s) },
           { name: "reglar.txt", text: reglarTxt(p) },

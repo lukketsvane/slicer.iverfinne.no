@@ -936,6 +936,7 @@ ranking is not a decision. The tool that sets them is.
 | **ARK** | one file per nested sheet, 1:1 — zipped when there is more than one |
 | **PNG** | the same sheets as pictures, for messages and the wall — not for the machine |
 | **PRØVE** | fit-test coupon: seven slots, each 0.05 mm wider than the last |
+| **BØYEPRØVE** | score-test coupon: five fields, each scored at a different row spacing, the spacing engraved under it |
 | **ALT** | the whole job in one download, plus the cut list as CSV and the assembly order as text |
 | **LAGRE** | a project file — settings and mesh together |
 
@@ -967,6 +968,18 @@ it to the next sheet.
 
 **Cut the fit-test coupon first.** `klaring` and `snitt` are two guesses that
 multiply in every joint.
+
+**And the score-test coupon before you bend anything tight.** Row spacing is the
+one number in the scoring the tool guesses rather than measures — everything
+else follows from the radius you set and the thickness you measured. Whether
+the ligaments survive the twist is torsion in a material that is not the same
+in two directions, and it is not read off the geometry. So the coupon is the
+answer, the same way it is for press fit: five fields at half, three-quarter,
+one, one-and-a-half and twice the table spacing, the number engraved under
+each. Bend each field to the radius you need. The coarsest one that survives is
+your spacing — fewest cuts, strongest part, shortest run. The pattern comes from
+the same function the real part is cut with; a coupon drawn separately would
+test something else.
 
 ## Parameters
 

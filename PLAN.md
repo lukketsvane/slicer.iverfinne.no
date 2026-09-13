@@ -765,6 +765,25 @@ vriding i eit materiale som ikkje er likt i to retningar, og det talet er ikkje
 lese av geometrien. Regelen går raud berre når mønsteret ikkje LET SEG LEGGJE —
 når verktyet er so grovt at snittet et rada. Alt anna er ein prøvestrimmel.
 
+**Og so bøyeprøva, same dagen.** Rilla la eit tal reiskapen GJETTAR på inn i
+kvar bøygd del: steget mellom to rader. Alt anna er målt — radien kjem av
+bøyen, brua er tjukna du har med skyvelæret, lengda fylgjer brua — men steget
+kjem av ein verkstadstabell som ikkje veit noko om DI plate. Og det er nett det
+talet som avgjer om delen ryk.
+
+Svaret er det same svaret passprøva alt var: skjer det ut og sjå etter. Fem
+felt med kvart sitt steg — ein halv, tre fjerdedels, eitt, halvanna og to
+gonger tabellen — talet gravert under kvart, og mønsteret lagt av `rilla`, den
+same funksjonen delen vert skoren av. Ei prøve teikna for seg ville prøvt noko
+anna enn det du får.
+
+`pnpm rekkje` les henne attende: 29+19+15+10+8 rader over fem felt, verste
+avvik frå det som står gravert 0,0000 mm. To ting kom fram: feltet måtte vera
+TRE PERIODAR høgt før murforbandet i det heile fanst — fyrste utgåva var 1,3 og
+prøvde noko anna enn delen — og strekfonten har korkje Ø, Æ eller Å, so «BØY»
+kom ut som «B Y». `strokesAt` slepp det han ikkje kjenner i stille; teksten er
+omskriven, og hòlet i alfabetet står att som noko nokon bør sjå på.
+
 **Att står dei fem andre konstruksjonsprinsippa**, og dei er eit anna slag
 arbeid enn dette: kryss-lask, kile, glidande spor, bøy-til-lås, og hud på
 waffle. Rilla var føresetnaden for dei fire fyrste av dei.
@@ -825,8 +844,12 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
                                                  DXF like · pnpm tak: 53 rader,
                                                  eit heilt steg frå kvarandre,
                                                  verst 0,0000 mm ✓ GJORT
+   19  Bøyeprøva (H)                        → pnpm rekkje les henne attende:
+                                                 29+19+15+10+8 rader over fem
+                                                 felt, verste avvik frå det
+                                                 graverte 0,0000 mm ✓ GJORT
 
-Femten av atten er gjorde. To er strøkne av målingar — pakkesøket og den
+Seksten av nitten er gjorde. To er strøkne av målingar — pakkesøket og den
 romlege delinga — og begge står att på sida med tala som tok dei, av di ein
 plan som stryk feila sine lærer ingen noko. Elleve står att, og han er
 strukturell: han har ingen frist, og han vert billegare kvar gong nokon

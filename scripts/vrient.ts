@@ -209,7 +209,7 @@ function sjekk(namn: string, p: Params, vis = false) {
   // ingen delar, er det greitt at arket er tomt for banar — men fila skal
   // finnast, ha namn, og vera eit dokument.
   const storleik: string[] = []
-  for (const kind of ["stl", "dxf", "svg", "ark", "prove"] as ExportKind[]) {
+  for (const kind of ["stl", "dxf", "svg", "ark", "prove", "bogprove"] as ExportKind[]) {
     try {
       const o = MOTOR.exportFile(bag, kind)
       const n = o.text?.length ?? o.data?.byteLength ?? 0

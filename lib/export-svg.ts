@@ -37,6 +37,7 @@ import { LAG_FARGAR, lagFarge } from "./core"
 import { fitSize, strokes, strokesAt } from "./stroke"
 import { bokstav, type Snitt } from "./snitt"
 import { placedRings, type Nesting } from "./nest"
+import { rilla, rilleMal } from "./rille"
 
 const f = (v: number) => (Math.abs(v) < 1e-4 ? "0" : v.toFixed(2))
 /** Ein lukka bane. Eksportert av di plateSYNET teiknar dei same banene som
@@ -260,6 +261,106 @@ export function couponSvg(
     `</svg>`,
   ].join("\n")
 }
+
+/**
+ * BØYEPRØVA.
+ *
+ * Rilla har eitt tal reiskapen GJETTAR på, og det er avstanden mellom to
+ * rader. Alt anna er målt: radien kjem av bøyen, brua er platetjukna du har
+ * med skyvelæret, lengda fylgjer brua. Steget kjem av ein verkstadstabell —
+ * ei tjukn i finér, litt tettare i mdf og akryl — og den tabellen veit
+ * ingenting om DI plate: kva veg fiberen ligg, kor mange lag ho har, kor
+ * tørr ho er.
+ *
+ * Og det er nett det talet som avgjer om delen ryk. `bog`-regelen seier det
+ * sjølv: om brua held er ikkje rekna, av di vriding i eit materiale som
+ * ikkje er likt i to retningar ikkje er noko som kan lesast av geometrien.
+ *
+ * So her er svaret, og det er det same svaret passprøva er: SKJER DET UT OG
+ * SJÅ ETTER. Fem felt ved sida av kvarandre, kvart rilla med sitt eige steg
+ * — ein halv, tre fjerdedels, eitt, halvanna og to gonger det tabellen seier
+ * — og talet gravert under kvart. Bøy kvart felt til den radien du treng.
+ * Det GROVASTE feltet som overlever er steget ditt: færrast snitt, sterkast
+ * del, kortast køyretur.
+ *
+ * Felta er like breie med vilje. Å bøye ei bogelengd L til radius R krev ei
+ * dreiing på L/R same kva, og ho vert delt på L/steg rader — so dreiinga per
+ * rad er steg/R og heng ikkje saman med lengda. Like breie felt kring den
+ * same forma er difor den same prøva fem gonger, med berre steget ulikt.
+ *
+ * MØNSTERET KJEM FRÅ `rilla`, den same funksjonen delen vert skoren av. Ei
+ * prøve som var teikna for seg ville prøvt noko anna enn det du får.
+ */
+const BOGSTEG = [0.5, 0.75, 1, 1.5, 2] as const
+
+export function bendCouponSvg(tjukn: number, kerf: number, snitt: number, material: string): string {
+  // steget tabellen ville gjeve på ein vid radius, der fasetten ikkje bit
+  const grunn = rilleMal(1e6, tjukn, material).steg
+  const mal = BOGSTEG.map((m) => ({ ...rilleMal(1e6, tjukn, material), steg: grunn * m }))
+  // ÅTTE RADER I DET GROVASTE FELTET, og dei finare får fleire på det same
+  // rommet — dei er mjukare frå før. Tolv rader gav 792 mm på 6 mm finér, og
+  // ei prøve som ikkje får plass på bordet er ikkje ei prøve.
+  const breidd = Math.max(30, 8 * grunn * BOGSTEG[BOGSTEG.length - 1])
+  // ei bru mellom felta, so strimmelen er eitt stykke og ikkje fem
+  const luft = Math.max(6, 2 * tjukn)
+  // TRE PERIODAR HØGT, og det er ikkje pynt: mønsteret sin eigenskap er at
+  // brua i ei rad står midt for snittet i naboraden, og eit felt som er
+  // kortare enn ein periode har ikkje det mønsteret i det heile. Fyrste
+  // utgåva var 16 tjukner — 1,3 periodar — og prøvde noko anna enn delen.
+  const hogd = 3 * (mal[0].lengd + mal[0].bru) + 2
+  const W = BOGSTEG.length * breidd + (BOGSTEG.length + 1) * luft
+  const H = hogd + 22
+  const w = pen(Math.max(W, H))
+
+  const o: Pt[] = [
+    [0, 0],
+    [W, 0],
+    [W, H],
+    [0, H],
+  ]
+
+  const body: string[] = []
+  const GRAV = grav(w)
+  const KUTT = kutt(w)
+  const merk = (t: string, cx: number, cy: number, size: number) => {
+    for (const line of strokesAt(t, cx, cy, size)) body.push(`<path d="${bane(line)}" ${GRAV}/>`)
+  }
+  for (let i = 0; i < BOGSTEG.length; i++) {
+    merk(nn(mal[i].steg, 1), luft + (i + 0.5) * breidd + i * luft, H - hogd - 7, 4)
+  }
+  // STREKFONTEN HAR A-Z, 0-9 og «- . , / × % · :» — ingen Ø, Æ eller Å, og
+  // `strokesAt` slepp det han ikkje kjenner i stille. «BØY» kom ut som «B Y».
+  merk("STEG MM · KRUM KVART FELT · TAK DET GROVASTE SOM HELD", W / 2, 10, 3)
+  merk(`T${nn(tjukn, 1)} ${material.toUpperCase()}  KERF ${nn(snitt, 2)}`, W / 2, 4.5, 3)
+
+  // rilla FØR omrisset, som kvart anna innvendig kutt — og utan kompensasjon
+  for (let i = 0; i < BOGSTEG.length; i++) {
+    const x0 = luft + i * (breidd + luft)
+    const felt: Pt[] = [
+      [x0, H - hogd],
+      [x0 + breidd, H - hogd],
+      [x0 + breidd, H - 1],
+      [x0, H - 1],
+    ]
+    for (const l of rilla({ omriss: felt, hol: [], sperr: [], k: 0, tjukn, material, mal: mal[i] })) {
+      body.push(`<path d="${bane(l)}" ${KUTT}/>`)
+    }
+  }
+  body.push(`<path d="${ring(offsetPoly(o, kerf / 2))}" ${KUTT}/>`)
+
+  // ramma veks med kompensasjonen, same grunnen som i passprøva over
+  const k = kerf / 2
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${f(W + 2 * k)}mm" ` +
+      `height="${f(H + 2 * k)}mm" ` +
+      `viewBox="${f(-k)} ${f(-k)} ${f(W + 2 * k)} ${f(H + 2 * k)}">`,
+    `<g transform="translate(0,${f(H)}) scale(1,-1)">`,
+    ...body,
+    `</g>`,
+    `</svg>`,
+  ].join("\n")
+}
+
 
 /**
  * Profilarket: alle ribbene ved sida av kvarandre i den rekkjefylgja dei
