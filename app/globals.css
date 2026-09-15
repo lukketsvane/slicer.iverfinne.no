@@ -141,6 +141,40 @@ input {
   user-select: text;
 }
 
+/* Den faktiske skyvaren: ein tydeleg bane og ein stor nok tommel for fingeren.
+   Nettlesaren eig sjølve peikinga, so trykk, drag og tastatur gjer det same. */
+.slider {
+  height: 24px;
+  min-width: 0;
+  cursor: ew-resize;
+  touch-action: pan-y;
+  accent-color: var(--ink);
+}
+.slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: color-mix(in srgb, var(--ink) 34%, transparent);
+}
+.slider::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  margin-top: -8px;
+  appearance: none;
+  border: 3px solid var(--paper);
+  border-radius: 50%;
+  background: var(--ink);
+}
+.slider::-moz-range-track {
+  height: 2px;
+  background: color-mix(in srgb, var(--ink) 34%, transparent);
+}
+.slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 3px solid var(--paper);
+  border-radius: 50%;
+  background: var(--ink);
+}
+
 /* lister som rullar, rullar inni seg sjølve */
 .rull {
   overflow-y: auto;
