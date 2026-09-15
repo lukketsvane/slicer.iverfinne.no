@@ -31,14 +31,14 @@ async function prov() {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [punkt(180, 390)] })
     await side.locator('[data-teikn="dreg"]').waitFor()
   }
-  const tal = () => {
-    const p = JSON.parse(decodeURIComponent(side.url().split("#p=")[1] ?? "%7B%7D"))
-    return lesPlan(p.plan ?? "").length
+  const tal = async () => {
+    const plan = await side.evaluate(() => JSON.parse(decodeURIComponent(location.hash.split("#p=")[1] ?? "%7B%7D")).plan ?? "")
+    return lesPlan(plan).length
   }
   const klar = async (namn: string) => {
     await side.locator('[data-teikn="klar"]').waitFor()
     await side.waitForTimeout(400)
-    assert.equal(tal(), 0, namn)
+    assert.equal(await tal(), 0, namn)
     assert.equal(await side.locator("[data-teikn] polygon").getAttribute("points"), "", "ingen hengande omriss")
     sjekkar.push(namn)
   }
@@ -81,14 +81,15 @@ async function prov() {
     const slepp = await side.evaluate((fra) => (window as unknown as ProvWindow).__avbrotHendingar.slice(fra).filter((e) => e.type === "pointerup"), foer)
     assert(slepp.length === 1 && !slepp[0].primary, "prøva må sleppe berre den andre fingeren")
     await side.locator('[data-teikn="dreg"]').waitFor()
-    assert.equal(tal(), 0, "den andre fingeren fullfører ikkje konturen")
+    assert.equal(await tal(), 0, "den andre fingeren fullfører ikkje konturen")
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [punkt(230, 480)] })
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
     await side.waitForFunction(() => {
       const p = JSON.parse(decodeURIComponent(location.hash.split("#p=")[1] ?? "%7B%7D"))
-      return p.plan?.split(";").length === 1
+      // Ei tom streng har òg split-lengd 1; vent på ein faktisk plan.
+      return !!p.plan && p.plan.split(";").length === 1
     })
-    assert.equal(tal(), 1, "nytt drag etter avbrot lagar nøyaktig éi plate")
+    assert.equal(await tal(), 1, "nytt drag etter avbrot lagar nøyaktig éi plate")
     sjekkar.push("berre startfingeren fullfører", "nytt drag verkar etter avbrot")
     assert.deepEqual(feil, [])
     await side.screenshot({ path: join(ut, "ferdig.png") })
