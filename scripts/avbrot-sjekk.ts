@@ -5,11 +5,22 @@ import { join } from "node:path"
 import { chromium } from "playwright"
 import { lesPlan } from "../lib/plan"
 
+type Finger = { type: string; id: number; primary: boolean }
+type ProvWindow = Window & { __avbrotHendingar: Finger[] }
+
 async function prov() {
   const ut = process.env.AVBROT_UT ?? "bilete/avbrot"
   mkdirSync(ut, { recursive: true })
   const nettlesar = await chromium.launch({ executablePath: process.env.PW_CHROMIUM })
   const side = await nettlesar.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  // Berre observasjon, registrert før appen kan stoppe hendinga.
+  await side.addInitScript(() => {
+    const logg: Finger[] = []
+    ;(window as unknown as ProvWindow).__avbrotHendingar = logg
+    for (const type of ["pointerdown", "pointerup", "pointercancel", "gotpointercapture", "lostpointercapture"] as const) {
+      window.addEventListener(type, (e) => logg.push({ type, id: e.pointerId, primary: e.isPrimary }), true)
+    }
+  })
   side.setDefaultTimeout(10000)
   const feil: string[] = [], sjekkar: string[] = []
   side.on("pageerror", (e) => feil.push(e.message))
@@ -62,8 +73,13 @@ async function prov() {
 
     await start()
     const a = punkt(180, 390), b = punkt(275, 510, 2)
+    const foer = await side.evaluate(() => (window as unknown as ProvWindow).__avbrotHendingar.length)
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [a, b] })
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [a] })
+    // Chromium sin CreateWebTouchEvents tek dei SLEPPTE punkta i touchEnd,
+    // ikkje dei som står att. [a] slepp feil finger og fullfører heilt rett.
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [b] })
+    const slepp = await side.evaluate((fra) => (window as unknown as ProvWindow).__avbrotHendingar.slice(fra).filter((e) => e.type === "pointerup"), foer)
+    assert(slepp.length === 1 && !slepp[0].primary, "prøva må sleppe berre den andre fingeren")
     await side.locator('[data-teikn="dreg"]').waitFor()
     assert.equal(tal(), 0, "den andre fingeren fullfører ikkje konturen")
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [punkt(230, 480)] })
@@ -81,7 +97,8 @@ async function prov() {
     await side.screenshot({ path: join(ut, "feil.png") }).catch(() => {})
     throw e
   } finally {
-    writeFileSync(join(ut, "rapport.json"), JSON.stringify({ sjekkar, feil }, null, 2) + "\n")
+    const hendingar = await side.evaluate(() => (window as unknown as ProvWindow).__avbrotHendingar).catch(() => [])
+    writeFileSync(join(ut, "rapport.json"), JSON.stringify({ sjekkar, feil, hendingar }, null, 2) + "\n")
     console.log(JSON.stringify({ sjekkar, feil }, null, 2))
     await nettlesar.close()
   }
