@@ -1,6 +1,7 @@
 import { Analytics } from "@vercel/analytics/next"
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
+import { Heimskjerm } from "@/components/heimskjerm"
 import "./globals.css"
 
 const inter = Inter({
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="nn" className={inter.variable}>
       <body className="overflow-hidden antialiased">
         {children}
+        <Heimskjerm />
         {process.env.NODE_ENV === "production" && <Analytics />}
       </body>
     </html>

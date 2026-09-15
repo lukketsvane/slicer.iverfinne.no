@@ -1893,51 +1893,27 @@ function Spora({ f, snitt, boks, onDeling }: {
  */
 const MIDT_MIN = 84
 /**
- * FLATA DU TEIKNAR.
+ * FLATA DU TEIKNAR er inndata, som skisseplanet, ikkje eit motorresultat.
+ * Eitt drag lagar firkanten; handtaka formar han etterpå.
  *
- * Alt anna i denne fila teiknar noko motoren har rekna. Denne teiknar noko
- * som ENNO IKKJE FINST: ein firkant på skisseplanet, som vert eit plan i
- * det du slepper. Difor ligg han her og ikkje i arbeidaren — han er
- * INNDATA, som skisseplanet sjølv, og ikkje eit resultat.
- *
- * EIT DRAG, OG IKKJE EI KJEDE AV TRYKK. Grunngjevinga for kjeda var at eit
- * drag på lerretet er orbiten sin. Prisen er difor at den eine fingeren
- * ikkje snur synet SÅ LENGE REISKAPEN STÅR PÅ — og det er ein pris ein
- * mode har lov til å ta: han varer eitt drag, og so slepper han seg sjølv.
- * To fingrar høyrer objektet til som før.
+ * Planet vert frose når reiskapen vert teken, og VENDER MOT DEG gjennom
+ * midten av kroppen. Det vanlege skisseplanet er sikta langs synsaksen og
+ * projiserer til ei line — der er det inga flate å teikne på. Følgde dette
+ * planet kameraet, ville forma vri seg under handa medan du arbeidde.
  */
-/**
- * SKISSEPLANET DUGER IKKJE TIL Å TEIKNE PÅ.
- *
- * Han er SIKTA LANGS SYNSAKSEN — det er heile ideen med han, og difor står
- * eit nylåst plan på kant — so han projiserer til ei LINE på skjermen. Du
- * kan ikkje setje eit hjørne på ei line: kvart trykk ville lese den same
- * staden, og strålen frå auget ligg nesten i planet, so svaret er anten
- * ingenting eller eit tal som spring.
- *
- * Teikneplanet er difor eit anna plan: det som VENDER MOT DEG, gjennom
- * midten av kroppen. Det er flata du faktisk ser, og skjermen er ei ærleg
- * avbilding av henne.
- *
- * Og han vert FROSEN når reiskapen vert teken. Elles fylgjer han kameraet,
- * og flata di vrir seg under handa kvar gong du snur synet for å sjå kvar
- * du er — du ser det fyrst når du er ferdig.
- */
-function Teikninga({ f, S, boks, svg, onDra, onLukk }: {
+function Teikninga({ f, S, fri, svg, arb, onLukk }: {
   f: Ramma
   S: number
-  /** dei to motståande hjørna slik handa har dei no, eller null før dragat */
-  boks: readonly [Pt, Pt] | null
-  /** teikneflata scena eig — som `.punkt`, so ingen overlegg tek trykka */
+  fri: ReturnType<typeof fritt>
   svg: SVGSVGElement | null
-  onDra: (a: Pt, b: Pt) => void
-  onLukk: (o: Vec3, n: Vec3) => void
+  arb: MutableRefObject<string | null>
+  onLukk: (o: Vec3, n: Vec3, boks: [Pt, Pt]) => void
 }): null {
   const camera = useThree((q) => q.camera)
   const gl = useThree((q) => q.gl)
   const size = useThree((q) => q.size)
   const controls = useThree((q) => q.controls) as Orbit | null
-  /** planet som vender mot deg, frose ved fyrste teikninga */
+  const invalidate = useThree((q) => q.invalidate)
   const frose = useRef<Ramme | null>(null)
   if (!frose.current) {
     const fwd = new THREE.Vector3()
@@ -1945,104 +1921,113 @@ function Teikninga({ f, S, boks, svg, onDra, onLukk }: {
     frose.current = planRamme({ o: broek(f.midt, f.min, f.max), n: nFraaVerd(fwd.multiplyScalar(-1)) }, f.min, f.max)
   }
   const r = frose.current
-  const naa = useRef({ f, r, S, boks, onDra, onLukk })
-  naa.current = { f, r, S, boks, onDra, onLukk }
-
-  /** eit punkt i skisseplanet si ramme, ut på skjermen i CSS-pikslar */
-  const paaSkjerm = useCallback((q: Pt) => {
-    const v = tilVerd(naa.current.f, ut(naa.current.r, [q[0] * naa.current.S, q[1] * naa.current.S])).project(camera)
-    return { x: ((v.x + 1) / 2) * size.width, y: ((1 - v.y) / 2) * size.height }
-  }, [camera, size.width, size.height])
-
-  // firkanten vert skriven kvar ramme: synet kan snu medan han ligg der
+  const naa = useRef({ f, r, S, onLukk })
+  naa.current = { f, r, S, onLukk }
+  // Berre slippet går til React og motoren. Eit drag teiknar på oppmoding,
+  // utan å sende heile studioet gjennom ei ny teikning for kvart punkt.
+  const drag = useRef<{ id: number; x: number; y: number; a: Pt; b: Pt } | null>(null)
+  const bane = useMemo(() => svg?.querySelector("polygon"), [svg])
+  const maal = useMemo(() => svg?.querySelector("text"), [svg])
   useFrame(() => {
-    if (!svg) return
-    const b = naa.current.boks
-    const bane = svg.querySelector("polygon")
-    if (!bane) return
-    if (!b) return bane.setAttribute("points", "")
+    if (!svg || !bane) return
+    const d = drag.current
+    svg.dataset.teikn = d ? "dreg" : "klar"
+    if (!d) {
+      bane.setAttribute("points", "")
+      if (maal) maal.textContent = ""
+      return
+    }
     camera.updateMatrixWorld()
-    const [a, c] = b
-    const px = ([[a[0], a[1]], [c[0], a[1]], [c[0], c[1]], [a[0], c[1]]] as Pt[]).map(paaSkjerm)
+    const [a, c] = [d.a, d.b]
+    const px = ([[a[0], a[1]], [c[0], a[1]], [c[0], c[1]], [a[0], c[1]]] as Pt[]).map((q) => {
+      const v = tilVerd(naa.current.f, ut(naa.current.r, [q[0] * naa.current.S, q[1] * naa.current.S])).project(camera)
+      return { x: ((v.x + 1) / 2) * size.width, y: ((1 - v.y) / 2) * size.height }
+    })
     bane.setAttribute("points", px.map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(" "))
+    if (maal) {
+      // Måla er inndata frå fingeren, i planet si eiga ramme — ikkje ei
+      // ny måling av kuttfila. Over forma, klårt av fingertuppen.
+      maal.setAttribute("x", String(Math.max(fri.L + 12, Math.min(fri.L + fri.w - 160, Math.min(...px.map((q) => q.x))))))
+      maal.setAttribute("y", String(Math.max(fri.T + 24, Math.min(fri.T + fri.h - 12, Math.min(...px.map((q) => q.y)) - 16))))
+      maal.textContent = [Math.abs(c[0] - a[0]), Math.abs(c[1] - a[1])].map((v) => (v * naa.current.S).toLocaleString("nn", { maximumFractionDigits: 1 })).join(" × ") + " mm"
+    }
   })
 
   useEffect(() => {
     const lerret = gl.domElement
-    /**
-     * KOR MYKJE EIN PIKSEL ER VERD HER, i skisseplanet si eining — same
-     * rekninga som omrisset gjer, og av same grunnen: ein radius i
-     * millimeter er fire pikslar på eit stort objekt og førti på eit lite.
-     */
     const paaFlata = (cx: number, cy: number): Pt | null => {
-      const g = naa.current.f
-      const rr = naa.current.r
+      const { f: g, r: rr, S: storleik } = naa.current
       const rute = lerret.getBoundingClientRect()
       const d = new THREE.Vector3(((cx - rute.left) / rute.width) * 2 - 1, 1 - ((cy - rute.top) / rute.height) * 2, 0.5)
-        .unproject(camera)
-        .sub(camera.position)
-        .normalize()
+        .unproject(camera).sub(camera.position).normalize()
       const n = nTilVerd(rr.n)
       const k = d.dot(n)
       if (Math.abs(k) < 0.02) return null
       const t = tilVerd(g, rr.o).sub(camera.position).dot(n) / k
       if (t <= 0) return null
-      // `inn` svarar i MILLIMETER; punkta står i brøk av storleiken, som dei
-      // gjer i eit omriss. Same delinga, og av same grunnen.
       const q = inn(rr, fraaVerd(g, camera.position.clone().addScaledVector(d, t)))
-      return [q[0] / naa.current.S, q[1] / naa.current.S]
+      return q.map((v) => +Math.max(-4, Math.min(4, v / storleik)).toFixed(4)) as Pt
     }
-    let ned: { id: number; x: number; y: number; a: Pt } | null = null
-    /**
-     * KVA SOM ER «PÅ LERRETET».
-     *
-     * Ikkje «målet ER lerretet»: eit overlegg eller eit av våre eigne merke
-     * ligg oppå og er målet i staden, og då fall trykket bort utan at
-     * nokon såg kvifor. Spørsmålet er kva som IKKJE er lerretet — ein
-     * kontroll, topplina, arket, spalta — og alt anna er teikneflata.
-     */
+    const slepp = () => {
+      const d = drag.current
+      drag.current = null
+      if (d && lerret.hasPointerCapture(d.id)) lerret.releasePointerCapture(d.id)
+      if (arb.current === "teikn") arb.current = null
+      if (controls && d) controls.enabled = true
+      invalidate()
+    }
     const paa = (e: PointerEvent) => {
       const t = e.target as Element | null
-      if (!e.isPrimary || !t || t.closest("button, a, input, [role=slider], [role=tab], [role=option], header, aside, section[aria-label='verkty']")) return
+      if (!e.isPrimary || drag.current || arb.current || (e.pointerType === "mouse" && e.button !== 0)) return
+      if (!t || t.closest("button, a, input, [role=slider], [role=tab], [role=option], header, aside, [aria-label='kontrollar'], section[aria-label='verkty']")) return
       const a = paaFlata(e.clientX, e.clientY)
       if (!a) return
-      ned = { id: e.pointerId, x: e.clientX, y: e.clientY, a }
-      // orbiten står av so lenge dragat varer: den eine fingeren teiknar no
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, a, b: a }
+      arb.current = "teikn"
       taKameraet(controls)
-      naa.current.onDra(a, a)
+      lerret.setPointerCapture(e.pointerId)
+      invalidate()
     }
     const rorsle = (e: PointerEvent) => {
-      if (!ned || e.pointerId !== ned.id) return
-      const b = paaFlata(e.clientX, e.clientY)
-      if (b) naa.current.onDra(ned.a, b)
-    }
-    /**
-     * EIN FIRKANT MÅ HA TO SIDER, og grensa er dei same tolv pikslane som
-     * skil eit drag frå eit trykk overalt elles i huset. Under det er det
-     * ein finger som ikkje rørte seg, og då skal reiskapen stå att og
-     * vente i staden for å lage ei flate du ikkje ser.
-     */
-    const av = (e: PointerEvent) => {
-      const d = ned
-      ned = null
-      if (controls) controls.enabled = true
+      const d = drag.current
       if (!d || e.pointerId !== d.id) return
-      if (Math.abs(e.clientX - d.x) < 12 || Math.abs(e.clientY - d.y) < 12) return naa.current.onDra(d.a, d.a)
-      naa.current.onLukk(naa.current.r.o, naa.current.r.n)
+      e.stopImmediatePropagation()
+      const b = paaFlata(e.clientX, e.clientY)
+      if (b) d.b = b
+      invalidate()
     }
-    window.addEventListener("pointerdown", paa)
-    window.addEventListener("pointermove", rorsle, { passive: true })
-    window.addEventListener("pointerup", av)
-    window.addEventListener("pointercancel", av)
+    const av = (e: PointerEvent) => {
+      const d = drag.current
+      // Ein annan finger eig ikkje dette slippet. iOS-avbrot er heller
+      // ikkje eit «ferdig»: dei slepper taket utan å lage ei flate.
+      if (!d || e.pointerId !== d.id) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      const b = e.type === "pointerup" ? paaFlata(e.clientX, e.clientY) : null
+      slepp()
+      if (!b || Math.abs(e.clientX - d.x) < 12 || Math.abs(e.clientY - d.y) < 12) return
+      // Les siste punkt frå slippet, òg når det ikkje kom noko move imellom.
+      naa.current.onLukk(naa.current.r.o, naa.current.r.n, [d.a, b])
+    }
+    const gøymd = () => { if (document.visibilityState === "hidden") slepp() }
+    window.addEventListener("pointerdown", paa, true)
+    window.addEventListener("pointermove", rorsle, true)
+    window.addEventListener("pointerup", av, true)
+    window.addEventListener("pointercancel", av, true)
+    window.addEventListener("blur", slepp)
+    document.addEventListener("visibilitychange", gøymd)
     return () => {
-      window.removeEventListener("pointerdown", paa)
-      window.removeEventListener("pointermove", rorsle)
-      window.removeEventListener("pointerup", av)
-      window.removeEventListener("pointercancel", av)
-      if (controls) controls.enabled = true
+      window.removeEventListener("pointerdown", paa, true)
+      window.removeEventListener("pointermove", rorsle, true)
+      window.removeEventListener("pointerup", av, true)
+      window.removeEventListener("pointercancel", av, true)
+      window.removeEventListener("blur", slepp)
+      document.removeEventListener("visibilitychange", gøymd)
+      slepp()
     }
-  }, [camera, gl, controls])
-
+  }, [camera, gl, controls, arb, invalidate])
   return null
 }
 
@@ -3476,7 +3461,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, onTeiknDra, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -3508,10 +3493,9 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   /** eit punkt i omrisset drege: plassen i lista, og punktet i planet si ramme */
   /** kva vinklar snappet kjenner, i grader. Null er av. */
   snappSteg: number
-  /** punkta i flata som vert teikna no; planet er scena sitt og vert frose der */
-  teikn: { boks: [Pt, Pt] | null } | null
-  onTeiknDra: (a: Pt, b: Pt) => void
-  onTeiknLukk: (o: Vec3, n: Vec3) => void
+  /** eitt drag i scena; berre den ferdige flata går til studioet */
+  teikn: boolean
+  onTeiknLukk: (o: Vec3, n: Vec3, boks: [Pt, Pt]) => void
   onPunkt: (id: number, i: number, q: Pt) => void
   onSlaaSaman: (id: number, i: number, mot: number) => void
   /** eit punkt til, sett inn rett etter `i` */
@@ -3701,9 +3685,9 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             <Teikninga
               f={f}
               S={storleik}
-              boks={teikn.boks}
+              fri={fri}
               svg={teiknSvg}
-              onDra={onTeiknDra}
+              arb={arb}
               onLukk={onTeiknLukk}
             />
           )}
@@ -3899,8 +3883,9 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           det er; `Teikninga` set KVAR dei er, kvar ramme — nøyaktig same
           arbeidsdelinga som `.punkt` har. */}
       {teikn && (
-        <svg ref={setTeiknSvg} data-teikn={teikn.boks ? "dreg" : "klar"} className="teiknflate" aria-hidden="true">
+        <svg ref={setTeiknSvg} data-teikn="klar" className="teiknflate" aria-hidden="true">
           <polygon points="" fill="none" stroke="var(--warn)" strokeWidth="2" strokeLinejoin="round" />
+          <text className="teiknmaal" />
         </svg>
       )}
       <div ref={setPunktBoks} className="punkt">

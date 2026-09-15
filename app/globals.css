@@ -703,3 +703,12 @@ main[data-sov] .synskube button {
   overflow: visible;
   pointer-events: none;
 }
+
+.teiknmaal {
+  font: 14px var(--font-inter), sans-serif;
+  font-variant-numeric: tabular-nums;
+  fill: var(--ink);
+  stroke: var(--paper);
+  stroke-width: 4px;
+  paint-order: stroke;
+}
