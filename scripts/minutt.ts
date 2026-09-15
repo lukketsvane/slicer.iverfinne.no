@@ -145,11 +145,10 @@ async function hovud() {
     await trykk(knapp("tom arbeidsflate"))
     if (fullskala) {
       await trykk(knapp("opne kontrollane"))
-      await trykk(side.getByRole("tab", { name: "form", exact: true }))
+      await trykk(side.getByRole("tab", { name: "plan", exact: true }))
       await noyaktigTal("storleik", 450)
       await trykk(side.getByRole("tab", { name: "materiale", exact: true }))
       await trykk(knapp("12"))
-      await trykk(knapp("neste materiale"))
       await noyaktigTal("breidd", 1000)
       await noyaktigTal("høgd", 1000)
       await trykk(knapp("lat att kontrollane"))
@@ -220,8 +219,6 @@ async function hovud() {
     await trykk(side.getByRole("tab", { name: "kontur", exact: true }))
     await ferdig()
     await trykk(knapp("eksport"))
-    // Mobilarket viser ei uttaksgruppe om gongen: rom → plate.
-    await trykk(knapp("neste uttak"))
     const nedlastingVent = side.waitForEvent("download", { timeout: 45000 })
     await trykk(knapp("ark"))
     const nedlasting = await nedlastingVent
