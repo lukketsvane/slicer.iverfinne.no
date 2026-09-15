@@ -41,6 +41,7 @@ import { bogMin, rilla } from "./rille"
 import { forenklaSpor, sporAksar, sporRute } from "./sporfelt"
 import { felles, iGods, sporInn, sporPunkt, stykkeLangs, utan, type Line } from "./stykke"
 import { tappa, tappIn, slisseGods, type Boks as TappBoks, type Tapp } from "./tapp"
+import { monteringsorden, veg, type Vegar } from "./orden"
 
 export { sporPunkt, stykkeLangs, tappIn, type Tapp }
 
@@ -1085,9 +1086,9 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
   const skulder = (w: number) => w / 2 + Math.min(6, Math.max(2, p.tjukn / 2))
   let ledd = 0
   let avvist = 0
-  const retning: Record<number, Vec3 | null> = {}
   const boygde: number[] = []
-  const brot: number[] = []
+  /** kva veg kvar del går inn mot kvar partnar — sjå `orden.ts` */
+  const vegar: Vegar = new Map()
   /** gods på begge sider av sporet, i den høgda sporet står i */
   const rom = (a: Raa, li: Line, t: number, sw: number) => {
     const S = 7
@@ -1224,12 +1225,6 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
 
   for (let j = 1; j < raa.length; j++) {
     const B = raa[j]
-    let felt3: Vec3 | null = null
-    /** kvar retning B må inn i, mot det som alt ligg */
-    const inn = (m: Vec3) => {
-      if (!felt3) felt3 = m
-      else if (dot(felt3, m) < Math.cos((3 * Math.PI) / 180) && !brot.includes(B.plan.id) && !B.boygd) brot.push(B.plan.id)
-    }
     for (let i = 0; i < j; i++) {
       const A = raa[i]
       let fann = false
@@ -1272,15 +1267,16 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
         for (const t of tappa(tappKtx, A, B, lA, lB, x.sin, cos, tappar)) {
           tappar += t.tal
           ledd += t.tal
-          // A ligg; B kjem ned på tappane hans, mot den vegen dei peikar
-          inn(mul3(t.inn, -1))
+          // A går inn langs tappane sine; B kjem ned på dei, mot den vegen dei peikar
+          veg(vegar, A.plan.id, B.plan.id, t.inn)
+          veg(vegar, B.plan.id, A.plan.id, mul3(t.inn, -1))
           tekne.push(...t.strekk)
         }
         for (const t of tappa(tappKtx, B, A, lB, lA, x.sin, cos, tappar)) {
           tappar += t.tal
           ledd += t.tal
-          // B kjem sjølv, med tappane fyrst
-          inn(t.inn)
+          veg(vegar, B.plan.id, A.plan.id, t.inn)
+          veg(vegar, A.plan.id, B.plan.id, mul3(t.inn, -1))
           tekne.push(...t.strekk)
         }
       }
@@ -1340,14 +1336,18 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
          * bogane peika kvar sin veg, og golvet vart meldt «står fast» for ein
          * montasje du gjer med hendene: byggj waffelen flat, bøy huda kring.
          */
-        if (!A.boygd) inn(m)
+        // B kjem langs m; kjem A etter B, går A den andre vegen — munnen
+        // hans står i den enden B kom frå, og det er den enden som går fyrst
+        if (!A.boygd && !B.boygd) {
+          veg(vegar, B.plan.id, A.plan.id, m)
+          veg(vegar, A.plan.id, B.plan.id, mul3(m, -1))
+        }
         if (B.boygd && !boygde.includes(B.plan.id)) boygde.push(B.plan.id)
       }
       }
     }
-    retning[B.plan.id] = felt3
   }
-  if (raa.length) retning[raa[0].plan.id] = null
+  const { orden, retning, brot } = monteringsorden(plan.map((q) => q.id), vegar, new Set(boygde))
   // Tappane stikk ut forbi omrisset, og ruta var rekna for omrisset. Ei
   // kjede som vert klipt av kanten på ruta, vert lukka på måfå.
   for (const a of raa) {
@@ -1564,7 +1564,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     kasta,
     slotW,
     minGap,
-    montering: { orden: plan.map((q) => q.id), retning, boygde, brot, klem },
+    montering: { orden, retning, boygde, brot, klem },
   }
 }
 
