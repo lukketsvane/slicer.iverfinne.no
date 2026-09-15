@@ -893,9 +893,7 @@ each box wall the way it already held slot walls.
 end and the mouth is put where it comes from. A tenon is an arrow. A rail
 with tenons into two sides facing each other has two directions, not one, so
 it goes in after the first side and before the second, and the seat comes
-down last. The list order is still the assembly order; `kan monterast` says
-when it is not one, and its button now looks one step ahead, so it finds
-side, rails, side, seat instead of stopping at side, side.
+down last — and the engine finds that order itself (see **Assembly**).
 
 `pnpm ledd` checks every tenon in the cut profiles: material in the tenon
 and right inside its tip, none past the tip or beside it, a wall on all four
@@ -907,16 +905,29 @@ object.
 
 ## Assembly
 
-The list order is the assembly order. A part slides in along its slots, and a
-plate can only go one way: when a part comes in, every part it crosses that is
-already placed must meet it along parallel lines. Its slots open in the
-direction of travel; theirs open toward it. Downward is preferred where the
-line has a vertical component. This is exactly what the rib grid always did —
-X family slots up, Y family lowered onto it — and it holds for every set where
-each part has one way in.
+The list order decides the slots. A part slides in along its slots, and a
+plate can only go one way: when a part comes in, every part it meets that is
+already placed must agree on the direction. For a slot pair the part later in
+the list comes downward where the line has a vertical component, its slots
+open in the direction of travel and the earlier part's open toward it —
+exactly what the rib grid always did, X family slots up, Y family lowered
+onto it.
 
-Where it does not hold, the hard rule **kan monterast** names the part, and if
-reordering the list would fix it, the button does that. Three planes that
+**The assembly order is read, not written.** Every joint says which way each
+of its two parts moves if it is the one that comes second: along the slot
+line, or along the tenon, or down onto it. The list is what you drew, in the
+order you drew it — two sides, then the seat, then the rails — and that is
+not the order anyone assembles a stool in: a rail has to go in between the
+sides before the second side goes on. So `lib/orden.ts` reads the list first;
+if it goes together, it is the answer. If it does not, it looks for another
+order in the same directions — greedy, one step ahead, the part that blocks
+fewest of the rest first — and takes it if fewer parts are stuck. The slots
+do not move: a part that comes in before its partner simply travels the other
+way along the same line. The montage and `montering.txt` read that order.
+
+Where no order works, the hard rule **kan monterast** names the part, and if
+reordering the list would fix it — the one case the reading cannot reach,
+because a list order also turns slots round — the button does that. Three planes that
 cross each other in material without sharing a common line cannot be assembled
 in any order; then it is the plane, not the list, that has to change.
 `montering.txt` in the ALT bundle writes the order out, part by part, with the
@@ -1263,6 +1274,7 @@ minutes, and HMR reloading underneath produces failures that look real.
 | `lib/kropp.ts` | the body: pieces joined, weld, unflip, simplify, smooth, place — and turned along any normal |
 | `lib/snitt.ts` | planes to ribs: the field, the joints, the slots, the parts, the assembly order |
 | `lib/tapp.ts` | tenon and mortise: where an edge stops at a face, and the boxes that cut it |
+| `lib/orden.ts` | the assembly order, read off the directions every joint allows |
 | `lib/stykke.ts` | lines through profiles: runs of material along a line or an arc |
 | `lib/montasje.ts` | the way from the plate to the object: one mesh and two matrices per part, and the order grouped into steps |
 | `lib/bygg.ts` | the whole build once: body, ribs, parts, nesting |

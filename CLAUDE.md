@@ -115,7 +115,10 @@ tenons.
 its own flat frame plus two rigid matrices — where it lies on the plate, where
 it stands in the body — and the engine's own assembly order grouped into steps.
 It computes no order of its own; that would be a second truth about assembly,
-and `montering.txt` is already in the box.
+and `montering.txt` is already in the box. The engine's order comes from
+`lib/orden.ts`: the list if it goes together, otherwise another order read
+off the same joint directions. The list decides which way slots open; the
+order only decides who comes second.
 
 Read `README.md` and `REBUILD.md` before changing behaviour. The decisions in
 them are decisions, not accidents — the phone is the tool, a sketched plane is

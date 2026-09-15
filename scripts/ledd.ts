@@ -579,12 +579,18 @@ sjekkTapp("krakk, staga for lange", { ...MOBEL, plan: krakk({ stagY: 156 }) }, {
 sjekkTapp("krakk, smalt sete", { ...MOBEL, plan: krakk({ sete: 110 }) }, { tappar: 8, brot: 0 })
 // i tre millimeter: modellen på bordet før møbelet
 sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5 }) }, { tappar: 10, brot: 0 })
-// i LISTEREKKJEFYLGJA ein teiknar: stag etter båe sidene står fast, og
-// regelen seier frå — geometrien er den same
-sjekkTapp("krakk, teikna rekkjefylgje", {
-  ...MOBEL,
-  plan: skrivPlan([1, 2, 3, 4, 5, 6].map((id) => lesPlan(krakk()).find((q) => q.id === id)!)),
-}, { tappar: 10, brot: 3 })
+// i LISTEREKKJEFYLGJA ein teiknar — sider, sete, stag — går lista ikkje
+// opp: staga står fast mellom to sider. Motoren les då ei anna rekkjefylgje
+// av dei same vegane, og ho er side, stag, side, sete.
+{
+  const p = { ...MOBEL, plan: skrivPlan([1, 2, 3, 4, 5, 6].map((id) => lesPlan(krakk()).find((q) => q.id === id)!)) }
+  sjekkTapp("krakk, teikna rekkjefylgje", p, { tappar: 10, brot: 0 })
+  const orden = makeBygg(p, DETAIL.mid).s.montering.orden.join(",")
+  if (orden !== "1,4,5,6,2,3") {
+    brot++
+    console.log(`FEIL  krakk, rekkjefylgja       ${orden}, venta 1,4,5,6,2,3`)
+  }
+}
 /**
  * SKRÅ BEIN: sidene lener ti grader innover, og tappen går skrått gjennom
  * setet. Slissa må vera breiare enn plata — ho ser tappen på to stader —
@@ -604,6 +610,9 @@ sjekkTapp("krakk, teikna rekkjefylgje", {
     plate(2, [0.5, (225 + 150) / S, 0.5], [0, Math.cos(v), Math.sin(v)], side(topp)),
   ].map((q) => ({ ...q, n: q.n.map((c) => +c.toFixed(4)) as [number, number, number] })))
   sjekkTapp("krakk, skrå sider", { ...MOBEL, plan: skraa }, { tappar: 4, brot: 0 })
+  // og i den rekkjefylgja ein teiknar dei: sidene fyrst
+  const snudd = skrivPlan([...lesPlan(skraa).slice(1), lesPlan(skraa)[0]])
+  sjekkTapp("krakk, skrå sider, sete sist", { ...MOBEL, plan: snudd }, { tappar: 4, brot: 0 })
 }
 /**
  * KRYSSBEIN: to sider som går gjennom kvarandre, halvt om halvt, og eit

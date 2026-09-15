@@ -25,6 +25,8 @@ import { parseMesh } from "../lib/io"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
 import { lesPlan, rutenett, skrivPlan } from "../lib/plan"
+import { makeBygg } from "../lib/bygg"
+import { DETAIL } from "../lib/snitt"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 /**
@@ -279,10 +281,22 @@ prov("nettet er teke for langt ned", "nett", {
 // --- vegen inn -------------------------------------------------------------
 // Plan 1 og 2 kryssar kvarandre utanfor kroppen og har ikkje ledd; plan 3
 // kryssar begge, langs to liner som ikkje er parallelle. Sist i lista har
-// det to vegar inn; fyrst i lista kjem dei to andre inn på det, kvar sin veg.
-prov("eit plan har to vegar inn", "orden", {
+// det to vegar inn; fyrst kjem dei to andre inn på det, kvar sin veg.
+//
+// DET RÅDET TRENG IKKJE LENGER TRYKKJAST: rekkjefylgja er motoren si
+// lesing av vegane, og lista er berre det du teikna. So regelen står grøn,
+// og ordenen er ikkje lista.
+{
+  const p = { ...DEFAULT_PARAMS, plan: "1@0.2,0.5,0.5/1,0,0;2@0.5,0.5,1/0.7071,0,0.7071;3@0.5,0.5,0.5/0,1,0" } as Params
+  const r = finn(p, "orden")
+  const orden = makeBygg(p, DETAIL.mid).s.montering.orden.join(",")
+  ok("eit plan med to vegar inn får rekkjefylgja si av motoren", !!r?.ok && orden !== "1,2,3", `${r?.value} · ${orden}`)
+}
+// Tre plan gjennom det same midtpunktet går ikkje i hop i nokon orden. Det
+// som står att er rådet som tek dei faste bort — og etter det er montasjen open.
+prov("tre plan gjennom same punkt", "orden", {
   ...DEFAULT_PARAMS,
-  plan: "1@0.2,0.5,0.5/1,0,0;2@0.5,0.5,1/0.7071,0,0.7071;3@0.5,0.5,0.5/0,1,0",
+  plan: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.5/0,1,0;3@0.5,0.5,0.5/0,0,1",
 })
 
 // --- klaringa --------------------------------------------------------------
