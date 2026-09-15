@@ -73,7 +73,15 @@ jobs:
           done
           cat bilete/mobil/tenar.log
           exit 1
+      - name: Gjentaking held mål og kuttgeometri
+        run: pnpm exec tsx scripts/gjenta-sjekk.ts
+        env:
+          GJENTA_UT: bilete/gjenta-geometri
+      - name: Seks ribber med og utan gjentaking
+        if: ${{ !cancelled() }}
+        run: pnpm exec tsx scripts/gjenta-mobil.ts
       - name: Tom flate til nesta kuttfil
+        if: ${{ !cancelled() }}
         run: pnpm minutt
         env:
           MINUTT_UT: bilete/minutt
