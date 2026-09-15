@@ -12,7 +12,7 @@
  * Kontur og 450 mm/12 mm finer er standarden. MINUTT_KONTUR=0 prøver
  * firkant, MINUTT_MODELL=1 held 150 mm/3 mm, og MINUTT_DEBUG=1 lagrar
  * mellomsteg (skjermbileta tel då med i tida). Synlege talfelt vert opna
- * med dobbelt-touch før talet vert skrive med Playwright si feltinnlegging.
+ * med eitt trykk på talet før Playwright skriv i det fokuserte feltet.
  * MINUTT_KRAKK=1 prøver breiare fotavstand og ein låg bindebit.
  */
 import { chromium, type CDPSession, type Locator, type Page } from "playwright"
@@ -119,10 +119,7 @@ async function hovud() {
   const knapp = (namn: string) => side.getByRole("button", { name: namn, exact: true })
   const heim = async () => { await trykk(knapp("ramm inn")); await pause(450) }
   const noyaktigTal = async (namn: string, maal: number) => {
-    const skyvar = side.getByRole("slider", { name: `${namn}, tal`, exact: true })
-    await skyvar.tap()
-    await pause(90)
-    await skyvar.tap()
+    await knapp(`${namn}, skriv tal`).tap()
     const felt = side.getByRole("textbox", { name: `${namn}, skriv`, exact: true })
     await felt.fill(String(maal))
     await felt.press("Enter")

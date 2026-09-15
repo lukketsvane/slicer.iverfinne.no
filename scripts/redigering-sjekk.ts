@@ -116,19 +116,16 @@ async function materiale(side: Page, cdp: CDPSession) {
   await trykk(knapp(side, "12"))
   await vent(side, (p) => p.tjukn === 12, "12 mm-valet verka ikkje")
   sjekk("12 og 18 mm er tilgjengelege med fingeren", param(side).tjukn === 12)
-  await trykk(knapp(side, "neste materiale"))
-  await trykk(knapp(side, "neste plate"))
   const foer = await side.evaluate(() => ({ skala: visualViewport?.scale ?? 1, breidd: innerWidth, x: scrollX, y: scrollY }))
   // Klaring startar på 0,1: gå fyrst til 0,2, so ei broten skriving ikkje
   // kan passere berre fordi målet tilfeldigvis er standardverdien.
   for (const [namn, verdi, felt] of [["klaring", "0,2", "klaring"], ["tjukn", "11,85", "tjukn"], ["klaring", "0,1", "klaring"]] as const) {
-    const tal = side.getByRole("slider", { name: `${namn}, tal`, exact: true })
-    await tal.tap()
-    await side.waitForTimeout(90)
-    await tal.tap()
+    const foerVerdi = param(side)[felt]
+    await knapp(side, `${namn}, skriv tal`).tap()
+    assert.equal(param(side)[felt], foerVerdi, "å opne talet endra verdien")
     const inn = side.getByRole("textbox", { name: `${namn}, skriv`, exact: true })
     await inn.waitFor()
-    sjekk(`${namn} opnar med dobbelt-touch utan lite iOS-felt`, await inn.evaluate((el) => parseFloat(getComputedStyle(el).fontSize) >= 16))
+    sjekk(`${namn} opnar med eitt trykk utan lite iOS-felt`, await inn.evaluate((el) => parseFloat(getComputedStyle(el).fontSize) >= 16))
     await inn.fill(verdi)
     await inn.press("Enter")
     await vent(side, (p) => Math.abs(p[felt] - Number(verdi.replace(",", "."))) < 1e-8, `${namn} vart ikkje sett nøyaktig`)
@@ -179,8 +176,7 @@ async function spegling(side: Page) {
 
 async function skuff(side: Page) {
   await trykk(knapp(side, "opne kontrollane"))
-  await trykk(side.getByRole("tab", { name: "uttak", exact: true }))
-  for (let i = 0; i < 3; i++) await trykk(knapp(side, "neste uttak"))
+  await trykk(side.getByRole("tab", { name: "sjekk", exact: true }))
   await trykk(knapp(side, "oppsett"))
   await side.locator('section[aria-label="verkty"]').waitFor()
   await tom(side)

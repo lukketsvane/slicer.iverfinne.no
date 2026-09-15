@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react"
 import {
   FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge,
   type Material, type Metric, type Rule,
@@ -329,11 +329,13 @@ function ChecksTab({ p }: { p: ArketProps }) {
   )
 }
 
+const MOBIL_UTTAK = [...UTTAK.filter((g) => g.bolk === "plate"), ...UTTAK.filter((g) => g.bolk !== "plate")]
+
 function ExportTab({ p }: { p: ArketProps }) {
   const harde = p.rules.filter((r) => r.hard && !r.ok)
   return (
     <div className="px-3 pb-1 pt-2">
-      {UTTAK.map((g) => (
+      {MOBIL_UTTAK.map((g) => (
         <section key={g.bolk} className="border-b pb-1 last:border-b-0" style={HAIR}>
           <div className="dim h-5 px-1 text-[9px] uppercase leading-none tracking-[0.18em]">{g.bolk}</div>
           <div className="flex min-h-9 flex-wrap items-center gap-1.5">
@@ -401,6 +403,16 @@ function MobileArket(p: ArketProps) {
   const el = useRef<HTMLElement | null>(null)
   const drag = useRef<{ y: number; id: number } | null>(null)
   const [pull, setPull] = useState(0)
+  const uttak = useRef<HTMLElement | null>(null)
+  const rull = useRef<HTMLDivElement | null>(null)
+  const [tilUttak, setTilUttak] = useState(false)
+
+  // Eksportikonet går til filene, ikkje toppen av den lange sjekklista.
+  useLayoutEffect(() => {
+    if (!open || fane !== "status" || !tilUttak || !rull.current || !uttak.current) return
+    rull.current.scrollTop += uttak.current.getBoundingClientRect().top - rull.current.getBoundingClientRect().top
+    setTilUttak(false)
+  }, [open, fane, tilUttak])
 
   useEffect(() => {
     const s = el.current
@@ -437,7 +449,7 @@ function MobileArket(p: ArketProps) {
       <section aria-label="sjekk" className="min-w-0">
         <ChecksTab p={p} />
       </section>
-      <section aria-label="uttak" className="min-w-0 border-t" style={HAIR}>
+      <section ref={uttak} aria-label="uttak" className="min-w-0 border-t" style={HAIR}>
         <ExportTab p={p} />
       </section>
     </div>
@@ -504,7 +516,7 @@ function MobileArket(p: ArketProps) {
             >
               <Summary p={p} />
             </button>
-            <button type="button" aria-label="eksport" title="uttak" onClick={() => setOpenFane("status")} className={ICON_BTN}>
+            <button type="button" aria-label="eksport" title="uttak" onClick={() => { setTilUttak(true); setOpenFane("status") }} className={ICON_BTN}>
               {IcoUttak}
             </button>
           </div>
@@ -516,7 +528,7 @@ function MobileArket(p: ArketProps) {
             {/* fanen fyller det som er att av den faste høgda, og rullar
                 om ho treng meir enn det. `overscroll-contain` av di sida
                 sjølv aldri rullar. */}
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div key={fane} ref={rull} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {content}
             </div>
           </>

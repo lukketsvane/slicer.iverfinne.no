@@ -44,10 +44,9 @@ async function prov() {
     assert.equal(await side.locator("button[data-punkt]").count(), 0, "omrisshandtak dekkjer hòlhandtak")
     await knapp("opne kontrollane").tap()
     await side.getByRole("tab", { name: "materiale", exact: true }).tap()
-    const rad = side.getByRole("slider", { name: "tjukn, tal", exact: true })
-    await rad.tap()
-    await side.waitForTimeout(90)
-    await rad.tap()
+    const foerTjukn = params().tjukn
+    await knapp("tjukn, skriv tal").tap()
+    assert.equal(params().tjukn, foerTjukn, "å opne talet endra tjukna")
     const felt = side.getByRole("textbox", { name: "tjukn, skriv", exact: true })
     assert.equal(await felt.evaluate((e) => getComputedStyle(e).fontSize), "16px")
     await felt.fill("11,85")

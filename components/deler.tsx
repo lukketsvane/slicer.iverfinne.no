@@ -354,10 +354,10 @@ const hjul: { el: Element | null; tid: number } = { el: null, tid: 0 }
  * og tastatur. Piler gjev eitt steg, skift gjev ti, og sidepilene gjev ti.
  * Verdien går live medan du dreg, og heile draget vert eitt steg i angre.
  *
- * DOBBELTTRYKK OPNAR TALET, òg på telefonen: materialet er målt med
- * skyvelær og 11,85 mm må kunne setjast direkte. Feltet er 16 px på
- * telefonen for å unngå iOS-zoom. Eit dobbelttrykk (eller enter) opnar
- * talet som eit felt, enter set det, escape let det stå. Feltet finst
+ * EITT TRYKK PÅ TALET OPNAR FELTET: materialet er målt med skyvelær
+ * og 11,85 mm må kunne setjast utan at eit trykk i sporet fyrst endrar
+ * tjukna. Feltet er 16 px på telefonen for å unngå iOS-zoom. Enter i
+ * skyvaren eller dobbeltklikk på benken verkar òg. Feltet finst
  * berre medan du skriv — elles er rada den same skrubbaren som på
  * telefonen, og eit felt som stod der heile tida ville teke fokus frå
  * tastane som styrer rommet.
@@ -448,10 +448,8 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
   return (
     <div
       ref={rad}
-      role="slider"
-      tabIndex={benk ? 0 : -1}
       className="flex min-h-[44px] items-center gap-3"
-      onDoubleClick={() => { if (kanSkrive && skriv === null) { sendt.current = false; opneFelt() } }}
+      onDoubleClick={() => { if (benk && kanSkrive && skriv === null) { sendt.current = false; opneFelt() } }}
     >
       <span className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]" style={{ color: "var(--ink)" }}>
         {r.label}
@@ -465,7 +463,7 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
         value={value}
         aria-label={`${r.label}, tal`}
         aria-valuetext={`${shown}${r.unit ? " " + r.unit : ""}`}
-        title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra i sporet${kanSkrive ? " · dobbelttrykk: skriv" : ""}`}
+        title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra i sporet${kanSkrive ? " · trykk på talet: skriv" : ""}`}
         className="slider min-w-0 flex-1"
         onChange={(e) => onChange(k, Number(e.currentTarget.value))}
         onPointerDown={() => onSkrubb?.(true)}
@@ -506,6 +504,16 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
               }
             }}
           />
+        ) : kanSkrive ? (
+          <button
+            type="button"
+            aria-label={`${r.label}, skriv tal`}
+            title={`skriv ${r.label}${r.unit ? " i " + r.unit : ""}`}
+            className="hit min-h-[44px] min-w-0 flex-1 truncate text-right"
+            onClick={() => { sendt.current = false; opneFelt() }}
+          >
+            {shown}
+          </button>
         ) : (
           <span className="truncate">{shown}</span>
         )}
