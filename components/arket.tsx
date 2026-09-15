@@ -24,7 +24,7 @@ export { kvaSlag }
 export type Steg = LegacySteg
 export type ArketProps = LegacyArketProps
 
-type Fane = "form" | "grupper" | "materiale" | "kutt" | "sjekk" | "uttak"
+type Fane = "grupper" | "materiale" | "kutt" | "status"
 
 const ikon = (d: string) => (
   <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
@@ -32,13 +32,11 @@ const ikon = (d: string) => (
   </svg>
 )
 
-const FANER: readonly { id: Fane; ord: string; icon: ReactNode }[] = [
-  { id: "form", ord: "form", icon: ikon("M4 17 12 3l8 14z|M7 17h10") },
-  { id: "grupper", ord: "grupper", icon: ikon("M4 6h16|M4 12h16|M4 18h16|M7 4v4|M13 10v4|M17 16v4") },
-  { id: "materiale", ord: "materiale", icon: ikon("M12 3 4 7v10l8 4 8-4V7z|M4 7l8 4 8-4|M12 11v10") },
-  { id: "kutt", ord: "kutt", icon: ikon("M4 5h16|M7 10h10|M5 15h14|M9 20h6") },
-  { id: "sjekk", ord: "sjekk", icon: ikon("M5 12l4 4L19 6|M4 20h16") },
-  { id: "uttak", ord: "uttak", icon: IcoUttak },
+const FANER: readonly { id: Fane; ord: string }[] = [
+  { id: "grupper", ord: "plan" },
+  { id: "materiale", ord: "materiale" },
+  { id: "kutt", ord: "kutt" },
+  { id: "status", ord: "sjekk" },
 ]
 
 const IcoVenstre = ikon("M15 5l-7 7 7 7")
@@ -99,7 +97,7 @@ function Summary({ p }: { p: ArketProps }) {
 
 function Tabs({ fane, onFane }: { fane: Fane; onFane: (f: Fane) => void }) {
   return (
-    <div role="tablist" aria-label="kontrollfaner" className="flex shrink-0 items-center gap-0.5 border-y px-1 py-1" style={HAIR}>
+    <div role="tablist" aria-label="kontrollfaner" className="grid shrink-0 grid-cols-4 gap-0.5 border-y px-1 py-1" style={HAIR}>
       {FANER.map((f) => {
         const paa = fane === f.id
         return (
@@ -111,10 +109,10 @@ function Tabs({ fane, onFane }: { fane: Fane; onFane: (f: Fane) => void }) {
             aria-label={f.ord}
             title={f.ord}
             onClick={() => onFane(f.id)}
-            className="hit flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg"
+            className="hit flex h-7 min-w-0 items-center justify-center rounded-lg px-1 text-[10px] uppercase tracking-[0.08em]"
             style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)", color: "var(--ink)" } : { opacity: 0.52 }}
           >
-            {f.icon}
+            {f.ord}
           </button>
         )
       })}
@@ -511,12 +509,17 @@ function MobileArket(p: ArketProps) {
   }
 
   const content =
-    fane === "form" ? <FormTab p={p} /> :
     fane === "grupper" ? <GroupsTab p={p} /> :
     fane === "materiale" ? <MaterialTab p={p} /> :
     fane === "kutt" ? <CuttingTab p={p} /> :
-    fane === "sjekk" ? <ChecksTab p={p} /> :
-    <ExportTab p={p} />
+    <div className="flex min-w-0 flex-col">
+      <section aria-label="sjekk" className="min-w-0">
+        <ChecksTab p={p} />
+      </section>
+      <section aria-label="uttak" className="min-w-0 border-t" style={HAIR}>
+        <ExportTab p={p} />
+      </section>
+    </div>
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex flex-col items-center px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
@@ -580,7 +583,7 @@ function MobileArket(p: ArketProps) {
             >
               <Summary p={p} />
             </button>
-            <button type="button" aria-label="eksport" title="uttak" onClick={() => setOpenFane("uttak")} className={ICON_BTN}>
+            <button type="button" aria-label="eksport" title="uttak" onClick={() => setOpenFane("status")} className={ICON_BTN}>
               {IcoUttak}
             </button>
           </div>
