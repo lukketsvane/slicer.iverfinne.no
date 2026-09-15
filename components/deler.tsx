@@ -348,15 +348,11 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
 const hjul: { el: Element | null; tid: number } = { el: null, tid: 0 }
 
 /**
- * ÉIN VERDI, SETT MED EIT DRAG PÅ SEG SJØLV.
+ * ÉIN VERDI, SETT MED EIN EIGENTLEG SKYVAR.
  *
- * Heile rada er skrubbaren —
- * peikar ned og vassrett drag, eitt steg per seks pikslar, ti steg per steg
- * forbi hundre og tjue, so du treffer fint nær og kjem langt ute. Eit trykk
- * utan drag gjer ingenting; på benken stegar
- * pilene, ti om gongen med skift. Verdien går live medan du dreg, og
- * sleppet er eitt steg i angre. Lina og prikken er lesing, ikkje handtak:
- * ho seier kvar i bandet du står.
+ * Sporet tek trykk og drag, og nettlesaren gjev same kontroll på mus, finger
+ * og tastatur. Piler gjev eitt steg, skift gjev ti, og sidepilene gjev ti.
+ * Verdien går live medan du dreg, og heile draget vert eitt steg i angre.
  *
  * DOBBELTTRYKK OPNAR TALET, òg på telefonen: materialet er målt med
  * skyvelær og 11,85 mm må kunne setjast direkte. Feltet er 16 px på
@@ -379,9 +375,6 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
   onSkrubb?: (aktiv: boolean) => void
 }) {
   const shown = r.names ? (r.names[Math.round(value)] ?? String(value)) : feltTal(value, r.step).replace(".", ",")
-  const tak = useRef<{ id: number; x0: number; y0: number; tid: number; drog: boolean; v0: number; sist: number } | null>(null)
-  const trykk = useRef<{ tid: number; x: number; y: number } | null>(null)
-  const del = Math.max(0, Math.min(1, (value - r.min) / (r.max - r.min || 1)))
   /** talet medan det vert skrive; null er ikkje-skriv */
   const [skriv, setSkriv] = useState<string | null>(null)
   const kanSkrive = !r.names
@@ -394,25 +387,6 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
     setSkriv(null)
     const v = lesTal(s)
     if (s.trim() !== "" && Number.isFinite(v)) onChange(k, snap(v, r))
-  }
-  const slepp = (e: React.PointerEvent) => {
-    const t = tak.current
-    if (!t || e.pointerId !== t.id) return
-    tak.current = null
-    onSkrubb?.(false)
-    // WebKit lagar ikkje dblclick frå to touch. Les dei to korte trykka
-    // sjølve, med same tidsvindauge som dei andre reiskapane.
-    if (e.pointerType === "mouse") return
-    const kort = e.type === "pointerup" && !t.drog && e.timeStamp - t.tid < DOBBELT_MS && Math.hypot(e.clientX - t.x0, e.clientY - t.y0) < 6
-    if (!kanSkrive || !kort) { trykk.current = null; return }
-    const foer = trykk.current
-    trykk.current = { tid: e.timeStamp, x: e.clientX, y: e.clientY }
-    if (foer && e.timeStamp - foer.tid < DOBBELT_MS && Math.hypot(e.clientX - foer.x, e.clientY - foer.y) < 24) {
-      trykk.current = null
-      e.preventDefault()
-      sendt.current = false
-      opneFelt()
-    }
   }
   /**
    * HJULET STEGAR VERDIEN, og spalta under står stille.
@@ -476,56 +450,40 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
       ref={rad}
       role="slider"
       tabIndex={benk ? 0 : -1}
-      aria-label={`${r.label}, tal`}
-      aria-valuenow={value}
-      aria-valuemin={r.min}
-      aria-valuemax={r.max}
-      aria-valuetext={`${shown}${r.unit ? " " + r.unit : ""}`}
-      title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra sidelengs${benk ? " · hjulet stegar, skift ti" : ""}${kanSkrive ? " · dobbelttrykk: skriv" : ""}`}
-      className="skrubb flex min-h-[44px] items-center gap-3"
+      className="flex min-h-[44px] items-center gap-3"
       onDoubleClick={() => { if (kanSkrive && skriv === null) { sendt.current = false; opneFelt() } }}
-      onPointerDown={(e) => {
-        if (skriv !== null) return
-        if (!e.isPrimary) return
-        if (e.pointerType === "mouse" && e.button !== 0) return
-        tak.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, tid: e.timeStamp, drog: false, v0: value, sist: value }
-        e.currentTarget.setPointerCapture(e.pointerId)
-        onSkrubb?.(true)
-      }}
-      onPointerMove={(e) => {
-        const t = tak.current
-        if (!t || e.pointerId !== t.id) return
-        const dx = e.clientX - t.x0
-        if (Math.hypot(dx, e.clientY - t.y0) >= 6) t.drog = true
-        const a = Math.abs(dx)
-        const steg = Math.sign(dx) * (Math.min(a, 120) / 6 + (Math.max(0, a - 120) / 6) * 10)
-        const v = snap(t.v0 + Math.round(steg) * r.step, r)
-        if (v === t.sist) return
-        t.sist = v
-        onChange(k, v)
-      }}
-      onPointerUp={slepp}
-      onPointerCancel={slepp}
-      onKeyDown={(e) => {
-        if (skriv !== null) return
-        if (kanSkrive && e.key === "Enter") {
-          e.preventDefault()
-          sendt.current = false
-          return opneFelt()
-        }
-        const steg = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : e.key === "PageUp" ? 10 : e.key === "PageDown" ? -10 : 0
-        if (!steg) return
-        e.preventDefault()
-        onChange(k, snap(value + steg * (e.shiftKey ? 10 : 1) * r.step, r))
-      }}
     >
       <span className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]" style={{ color: "var(--ink)" }}>
         {r.label}
         {bi && <span className="dim tab block pt-px text-[9px] normal-case tracking-[0.02em]">{bi}</span>}
       </span>
-      <span className="relative h-px flex-1" style={{ background: "color-mix(in srgb, var(--ink) 34%, transparent)" }} aria-hidden="true">
-        <span className="absolute top-1/2 block h-[13px] w-[13px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px]" style={{ left: `${del * 100}%`, background: "var(--ink)", borderColor: "var(--paper)" }} />
-      </span>
+      <input
+        type="range"
+        min={r.min}
+        max={r.max}
+        step={r.step}
+        value={value}
+        aria-label={`${r.label}, tal`}
+        aria-valuetext={`${shown}${r.unit ? " " + r.unit : ""}`}
+        title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra i sporet${kanSkrive ? " · dobbelttrykk: skriv" : ""}`}
+        className="slider min-w-0 flex-1"
+        onChange={(e) => onChange(k, Number(e.currentTarget.value))}
+        onPointerDown={() => onSkrubb?.(true)}
+        onPointerUp={() => onSkrubb?.(false)}
+        onPointerCancel={() => onSkrubb?.(false)}
+        onKeyDown={(e) => {
+          if (skriv !== null) return
+          if (kanSkrive && e.key === "Enter") {
+            e.preventDefault()
+            sendt.current = false
+            return opneFelt()
+          }
+          const steg = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : e.key === "PageUp" ? 10 : e.key === "PageDown" ? -10 : 0
+          if (!steg) return
+          e.preventDefault()
+          onChange(k, snap(value + steg * (e.shiftKey ? 10 : 1) * r.step, r))
+        }}
+      />
       <span className="tab flex w-[68px] shrink-0 items-baseline justify-end text-[11px]" style={{ color: "var(--ink)" }}>
         {skriv !== null ? (
           <input
