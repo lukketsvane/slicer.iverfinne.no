@@ -87,13 +87,13 @@ export const tappIn = (tapp: readonly Tapp[], outline: Pt[]): Tapp[] => tapp.fil
  * Det er fingeren sin toleranse, og det er òg det som skil ein tapp frå
  * eit halvt-om-halvt-ledd: ei plate som held fram forbi det, går gjennom.
  *
- * `tappMin` er det kortaste møtet som ber ein tapp. Under to og ei halv
- * tjukn står det ikkje skuldrer att på båe sider, og ein kant som kryssar
+ * `tappMin` er det kortaste møtet som ber ein tapp. Under tre tjukner
+ * står det ikkje ein tapp att mellom to skuldrer, og ein kant som kryssar
  * flata SKRÅTT gjev eit kort møte der han passerer — det er ikkje ein
  * kant som sluttar mot setet, det er ein kant som går forbi det.
  */
 const fangAv = (k: Ktx) => Math.max(1.5, 0.5 * k.tjukn)
-const tappMinAv = (k: Ktx) => Math.max(6, 2.5 * k.tjukn)
+const tappMinAv = (k: Ktx) => Math.max(6, 3 * k.tjukn)
 /** stykka langs lina, `off` millimeter til venstre for henne */
 const langsAv = (a: TappFlate, l: Line, off: number) => stykkeLangs(a.ringar, [l.p[0] - l.d[1] * off, l.p[1] + l.d[0] * off], l.d)
 /** ein rett boks langs lina: [t0, t1] langs, [s0, s1] til sides, som eit strek i feltet */
@@ -191,7 +191,9 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
       }
       /**
        * TAPPANE: éin per femten centimeter møte, med skuldrer i båe endar.
-       * Ei halv tjukn til sides er det minste som står att; femten prosent
+       * Ei heil tjukn til sides er det minste som står att — møtet sluttar
+       * ofte der den andre plata sluttar, og då er skuldra veggen kring
+       * slissa, og «gods i leddet» krev ei tjukn der; femten prosent
        * av cella er det som gjer at eit sete på tretti centimeter får to
        * tappar med gods imellom og ikkje éin lang. Talet følgjer lengda og
        * ikkje plata: ein krakk i tre millimeter er ein modell av den same
@@ -200,7 +202,7 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
       const L = c1 - c0
       const n = Math.max(1, Math.round(L / 150))
       const celle = L / n
-      const marg = Math.max(k.tjukn / 2, 0.15 * celle)
+      const marg = Math.max(k.tjukn + k.klaring, 0.15 * celle)
       for (let i = 0; i < n; i++) {
         const a0 = c0 + i * celle + marg
         const a1 = c0 + (i + 1) * celle - marg

@@ -35,7 +35,7 @@ import { bbox, inRing, MATERIALS, MIN_AREA, perimeter, shoelace, type Material, 
 import { contour, simplify } from "./contour"
 import type { Solid, Span } from "./mesh/solid"
 import { rull, vend, type BitBoks, type Kropp } from "./kropp"
-import { add3, akser, bogPar, cross, dot, ein2, inn, kryss as kryssAv, kryssBoygd, kryssRing, len3, lesPlan, moteInn, mul3, norm3, omrissLine, skrivPlan, ut, type Mote, type Plan, type Ramme, type Strek } from "./plan"
+import { add3, akser, cross, dot, ein2, inn, kryss as kryssAv, kryssBoygd, kryssRing, len3, lesPlan, moteInn, mul3, norm3, omrissLine, skrivPlan, ut, type Mote, type Plan, type Ramme, type Strek } from "./plan"
 import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 import { bogMin, rilla } from "./rille"
 import { forenklaSpor, sporAksar, sporRute } from "./sporfelt"
@@ -429,7 +429,7 @@ function ruteAv(kjelde: Solid | Kasse, d: number, step: number, former: readonly
 /** ytterkanten til eit strek, millimeter: det einaste ruta treng vite om han */
 type Kasse = { bx0: number; bx1: number; by0: number; by1: number }
 /** EIN STREK I MILLIMETER, i profilen si ramme: ein midt og ei halvside. */
-type Form = Kasse & { gods: boolean; rund: boolean; cx: number; cy: number; hw: number; hh: number; c: number; s: number }
+type Form = Kasse & { gods: boolean; rund: boolean; cx: number; cy: number; hw: number; hh: number; c: number; s: number; kant?: Kant[] }
 
 /**
  * EIN STREK MÅ KOME INN I FELTET SOM EI EKTE SIGNERT AVSTAND, og aldri som
@@ -444,6 +444,8 @@ type Form = Kasse & { gods: boolean; rund: boolean; cx: number; cy: number; hw: 
  * Begge er nøyaktige der det tel — på nullstaden ruta leitar etter.
  */
 function formDist(f: Form, x: number, y: number): number {
+  // ein teikna kontur: avstanden til mangekanten, negativ inne
+  if (f.kant) return -omrissDist(f.kant, x, y)
   const dx = x - f.cx
   const dy = y - f.cy
   const a = dx * f.c + dy * f.s
@@ -469,6 +471,15 @@ function formAv(st: Strek, ou: number, ov: number, S: number): Form {
   const cy = ov + st.y * S
   const hw = (st.w * S) / 2
   const hh = (st.h * S) / 2
+  if (st.form === "kontur" && st.punkt && st.punkt.length >= 3) {
+    const poly = st.punkt.map(([px, py]): Pt => {
+      const lx = px * 2 * hw
+      const ly = py * 2 * hh
+      return [cx + lx * c - ly * si, cy + lx * si + ly * c]
+    })
+    const b = bbox(poly)
+    return { gods, rund: false, cx, cy, hw, hh, c, s: si, bx0: b.x0, bx1: b.x1, by0: b.y0, by1: b.y1, kant: kantar(poly) }
+  }
   const rx = hw * Math.abs(c) + hh * Math.abs(si)
   const ry = hw * Math.abs(si) + hh * Math.abs(c)
   return { gods, rund: st.form === "rund", cx, cy, hw, hh, c, s: si, bx0: cx - rx, bx1: cx + rx, by0: cy - ry, by1: cy + ry }

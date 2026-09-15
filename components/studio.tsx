@@ -6,9 +6,11 @@ import { erPrimitiv, KUBE } from "@/lib/sources"
 import { alleNett, gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_ROM, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, omrissLine, ramme as planRamme, formPunkt, FORM_SLAG, rutenett, sameSnitt, skilRute, skuvKopi, slaaSaman, spegla, speglingar, skrivPlan, sub3, vriOm, type FormSlag, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_ROM, PLAN_TAK, broek, dot, iGruppa, lesPlan, nyGruppe, nyId, omrissLine, ramme as planRamme, formPunkt, FORM_SLAG, rutenett, sameSnitt, skilRute, skuvKopi, slaaSaman, spegla, speglingar, skrivPlan, sub3, type FormSlag, type Plan, type Strek } from "@/lib/plan"
+import { lukkTeikning } from "@/lib/teikning"
+import { medGruppa } from "@/lib/gruppe"
 import { simplify, type Pt2 } from "@/lib/contour"
-import { speglPlan } from "@/lib/spegl"
+import { speglPar, speglPlan } from "@/lib/spegl"
 import { byggKey, lesDeling, lesFest, skrivDeling, skrivFest, SNAPPSTEG, SNAPP_NAMN } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
@@ -192,37 +194,9 @@ function useVindu() {
 type Port = { inFlight: boolean; pending: Req | null; shown: number }
 
 const INGEN: readonly number[] = []
-/** brøkane må halde seg nær boksen: eit plan langt utanfor råkar ingenting */
-// same rommet `lesPlan` slepper gjennom: klemmer handa til eitt tal og
-// strengen til eit anna, forsvinn planet du nett drog dit ved neste lesing
-const klemO = (o: Vec3): Vec3 => o.map((c) => Math.min(1 + PLAN_ROM, Math.max(-PLAN_ROM, c))) as Vec3
-
-/**
- * GRUPPA FYLGJER LEIAREN. Plan `i` i lista har fått eit nytt punkt og ei ny
- * normal; er det i den valde gruppa, tek dei andre i gruppa det same
- * skuvet og den same dreiinga — heilt (saman) eller sin del av det
- * (fordelt, sjå `delAv`). Skuvet er det same for alle, so rada flyttar seg
- * stiv; dreiinga er den minste som tek den gamle normalen til den nye, lagd
- * på kvar si normal. Utan gruppe er det planet åleine som før.
- */
-function medGruppa(l: Plan[], i: number, o: Vec3, n: Vec3, g: number | null, fordel: boolean): Plan[] {
-  const q = l[i]
-  const ut = [...l]
-  ut[i] = { ...q, o: klemO(o), n }
-  if (g === null || q.gruppe !== g) return ut
-  const dO = sub3(o, q.o)
-  const { akse, ang } = dreiing(q.n, n)
-  const del = delAv(iGruppa(l, g), q.id, fordel)
-  for (let j = 0; j < l.length; j++) {
-    if (j === i) continue
-    const t = del.get(l[j].id)
-    if (t === undefined) continue
-    const nn = ang ? (norm3(vriOm(l[j].n, akse, ang * t)).map((c) => +c.toFixed(4)) as Vec3) : l[j].n
-    ut[j] = { ...l[j], o: klemO(add3(l[j].o, mul3(dO, t))), n: nn }
-  }
-  return ut
-}
-
+/** det ei tom arbeidsflate opnar i: ein krakk, ikkje ein modell av han */
+const MOBEL_STORLEIK = 450
+const MOBEL_TJUKN = 12
 export function Studio() {
   const [params, setParams] = useState<ParamBag>(() => ({ ...MOTOR.defaults }))
   const [view, setView] = useState<View>("lag")
@@ -1354,16 +1328,42 @@ export function Studio() {
   const [teiknSlag, setTeiknSlag] = useState<"firkant" | "kontur">("firkant")
   const vekslTeikn = useCallback(() => {
     if (!teikn) {
-      setVald(null)
+      // DEN VALDE PLATA STÅR: ein kontur teikna inni ho er eit hòl i ho
+      // (sjå `teiknLukk`). Ei gruppe står òg — eit spegla par får hòlet båe.
       setValdBit(null)
+      setValdStrek(null)
+      setValdPunkt(null)
       setModus("form")
       setMelding(teiknSlag === "kontur" ? "teikn konturen · slepp for å lukke" : "teikn: dra ein firkant")
     }
     setTeikn((t) => !t)
   }, [teikn, teiknSlag])
   useEffect(() => { if (modus !== "form") setTeikn(false) }, [modus])
+  /**
+   * TOM ARBEIDSFLATE ER EIT MØBEL SOM IKKJE FINST ENNO.
+   *
+   * Standarden er ein modell — hundre og femti millimeter i tre millimeter
+   * — av di reiskapen opnar på ein kube du skal skjere i. Ei tom flate er
+   * noko anna: du skal teikne ein krakk. So ho opnar i møbelmål, halvmeteren
+   * og tolv millimeter, med framsida mot deg og konturen klar: sida er det
+   * fyrste du teiknar. Mål du alt har sett, står.
+   */
   const tomArbeidsflate = useCallback(() => {
-    setParams((cur) => ({ ...cur, kjelde: "kube", scene: "", plan: "", fest: "", deling: "" }))
+    setParams((cur) => ({
+      ...cur,
+      kjelde: "kube",
+      scene: "",
+      plan: "",
+      fest: "",
+      deling: "",
+      ...(cur.storleik === MOTOR.defaults.storleik ? { storleik: MOBEL_STORLEIK } : {}),
+      ...(cur.tjukn === MOTOR.defaults.tjukn ? { tjukn: MOBEL_TJUKN } : {}),
+    }))
+    setTeiknSlag("kontur")
+    // synet vert sett når kroppen i dei nye måla er framme, ikkje før: ei
+    // ramme rekna av kuben på hundre og femti millimeter viser halvmeteren
+    // tre gonger for stor, og ei side teikna der vert ein tredel so høg
+    synEtterBygg.current = [0, 0, 1]
     setVald(null)
     setValdBit(null)
     setValdGruppe(null)
@@ -1390,9 +1390,19 @@ export function Studio() {
     if (!k) return
     const omriss = punkt.map(klemPunkt)
     if (omriss.length < 3 || omriss.length > OMRISS_TAK || Math.abs(shoelace(omriss)) < 1e-6) return
-    const o = broek(po, k.min, k.max)
-    if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) return setMelding("for langt ute")
     const naaPlan = lesPlan(naa.current.plan)
+    const S = typeof naa.current.storleik === "number" ? naa.current.storleik : 150
+    const t = typeof naa.current.tjukn === "number" ? naa.current.tjukn : 3
+    // eit hòl i den valde plata, eller ei ny plate — ovanfrå landar ho oppå
+    const svar = lukkTeikning(naaPlan, valdRef.current, po, pn, punkt, omriss, k.min, k.max, S, t)
+    if (svar.slag === "nei") return setMelding(svar.kvifor)
+    if (svar.slag === "hol") {
+      setParams((cur) => ({ ...cur, plan: skrivPlan(svar.plan) }))
+      setValdStrek(svar.strek)
+      return
+    }
+    const o = svar.o
+    if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) return setMelding("for langt ute")
     if (naaPlan.length >= PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
     const id = nyId(naaPlan)
     setParams((cur) => {
@@ -1449,13 +1459,36 @@ export function Studio() {
     setValdPunkt(null)
     setBlink(leiar)
   }, [])
-  /** Spegelkopi i rommet; ligg spegelen i same plan, snur han forma der. */
+  /**
+   * Spegelkopi i rommet; ligg spegelen i same plan, snur han forma der.
+   *
+   * MEN EI PLATE SOM STÅR PÅ SPEGELEN ER EI SIDE SOM SKAL VERA TO. Du
+   * teiknar sida rett framfor deg, og teikneplanet går gjennom midten — so
+   * spegelen er planet ho står i. Å snu henne der gjev ingenting nokon ville
+   * ha; å dele henne i eit par gjev krakken. Dei to går ein tredel av
+   * storleiken ut til kvar side, er ei gruppe, og gruppa er vald: dra i den
+   * eine, og den andre fylgjer spegla.
+   */
   const speglValt = useCallback((akse: number) => {
     const k = kroppRef.current
     const id = valdRef.current
     const l = lesPlan(naa.current.plan)
     const q = l.find((p) => p.id === id)
     if (!k || !q) return
+    const S = typeof naa.current.storleik === "number" ? naa.current.storleik : 150
+    const par = speglPar(q, akse, k.min, k.max, S, l, typeof naa.current.tjukn === "number" ? naa.current.tjukn : 3)
+    if (par) {
+      if (l.length >= PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+      const { flytt, kopi } = par
+      setParams((cur) => ({ ...cur, plan: skrivPlan([...lesPlan(cur.plan).map((p) => (p.id === q.id ? flytt : p)), kopi]) }))
+      const g = flytt.gruppe ?? null
+      setVald(q.id)
+      setValdGruppe(g)
+      setValdStrek(null)
+      setValdPunkt(null)
+      setBlink(kopi.id)
+      return
+    }
     const speglaPlan = speglPlan(q, akse, k.min, k.max)
     const a = planRamme(q, k.min, k.max), b = planRamme(speglaPlan, k.min, k.max)
     const samePlan = !q.bog && Math.abs(dot(a.n, b.n)) > 0.99999 && Math.abs(dot(sub3(b.o, a.o), a.n)) < 0.001
@@ -2340,6 +2373,18 @@ export function Studio() {
    * anna objekt, og det skal du sjå. Talet stig, og scena rammar inn.
    */
   const [rammInn, setRammInn] = useState(0)
+  const [synTil, setSynTil] = useState<{ n: number; dir: Vec3 } | null>(null)
+  const synEtterBygg = useRef<Vec3 | null>(null)
+  useEffect(() => {
+    const dir = synEtterBygg.current
+    // den same kroppen scena rammar inn etter
+    const b = kropp ?? lag
+    if (!dir || !b || typeof params.storleik !== "number") return
+    const lengst = Math.max(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2])
+    if (Math.abs(lengst - params.storleik) > 0.01 * params.storleik) return
+    synEtterBygg.current = null
+    setSynTil((s) => ({ n: (s?.n ?? 0) + 1, dir }))
+  }, [lag, kropp, params.storleik])
   /**
    * KVILE ER KVILE, og ikkje «ingen har rørt skjermen».
    *
@@ -2741,6 +2786,7 @@ export function Studio() {
             onBitVri={vriBit}
             onBitSide={sideBit}
             rammInn={rammInn}
+            synTil={synTil}
             onRute={dragRute}
             benk={benk}
           />
@@ -2948,7 +2994,7 @@ export function Studio() {
               {/* TEIKNE EI FLATE: dra ein firkant. Han står FØRST i
                   reiskapane, av di han er den eine som lagar noko frå
                   ingenting — resten endrar det som står. */}
-              {rom && valdGruppe === null && (
+              {rom && (
                 <button
                   type="button"
                   aria-pressed={!!teikn}

@@ -19,7 +19,9 @@ type Teikning = {
   onStart: () => void
   paaFlata: (x: number, y: number) => Pt | null
   paaSkjermen: (punkt: Pt[]) => Pt[]
-  onLukk: (omriss: Pt[]) => void
+  onLukk: (omriss: Pt[], slag: "firkant" | "kontur", tol: number) => void
+  /** hakar eit punkt fast — golvet, sidene på kant. `tol` er ein fingerbreidd i planet si eining */
+  snapp?: (q: Pt, tol: number) => Pt
 }
 
 /** Eitt drag eig éin peikar. Berre det ferdige omrisset går til React. */
@@ -72,13 +74,16 @@ export function useTeikning(q: Teikning) {
       const kameraPaa = controls?.enabled ?? true
       naa.current.taKameraet()
       naa.current.onStart()
-      const a = naa.current.paaFlata(e.clientX, e.clientY)
+      const raa = naa.current.paaFlata(e.clientX, e.clientY)
       const nabo = naa.current.paaFlata(e.clientX + 1.25, e.clientY)
-      if (!a || !nabo) { if (controls) controls.enabled = kameraPaa; return }
+      if (!raa || !nabo) { if (controls) controls.enabled = kameraPaa; return }
       e.preventDefault()
       e.stopImmediatePropagation()
       melding.current = ""
-      drag.current = { id: e.pointerId, slag: naa.current.slag, x: e.clientX, y: e.clientY, a, b: a, punkt: [a], tol: Math.max(1e-5, Math.hypot(nabo[0] - a[0], nabo[1] - a[1])) }
+      const tol = Math.max(1e-5, Math.hypot(nabo[0] - raa[0], nabo[1] - raa[1]))
+      // TI PIKSLAR: ein fingerbreidd, og tol er 1,25 piksel
+      const a = naa.current.snapp?.(raa, tol * 8) ?? raa
+      drag.current = { id: e.pointerId, slag: naa.current.slag, x: e.clientX, y: e.clientY, a, b: a, punkt: [a], tol }
       arb.current = "teikn"
       lerret.setPointerCapture(e.pointerId)
       invalidate()
@@ -90,8 +95,9 @@ export function useTeikning(q: Teikning) {
       e.stopImmediatePropagation()
       const sampla = e.getCoalescedEvents?.() ?? []
       for (const ev of [...sampla, e]) {
-        const b = naa.current.paaFlata(ev.clientX, ev.clientY)
-        if (!b) continue
+        const raa = naa.current.paaFlata(ev.clientX, ev.clientY)
+        if (!raa) continue
+        const b = naa.current.snapp?.(raa, d.tol * 8) ?? raa
         d.b = b
         const siste = d.punkt[d.punkt.length - 1]
         if (d.slag === "kontur" && Math.hypot(b[0] - siste[0], b[1] - siste[1]) >= d.tol) d.punkt.push(b)
@@ -103,13 +109,14 @@ export function useTeikning(q: Teikning) {
       if (!d || e.pointerId !== d.id) return
       e.preventDefault()
       e.stopImmediatePropagation()
-      const b = e.type === "pointerup" ? naa.current.paaFlata(e.clientX, e.clientY) : null
+      const raa = e.type === "pointerup" ? naa.current.paaFlata(e.clientX, e.clientY) : null
+      const b = raa && (naa.current.snapp?.(raa, d.tol * 8) ?? raa)
       slepp()
       if (!b) return
       if (d.slag === "firkant" && (Math.abs(e.clientX - d.x) < 12 || Math.abs(e.clientY - d.y) < 12)) return
       // Slippet sjølv er med, òg når nettlesaren ikkje sende siste move.
       const omriss = d.slag === "firkant" ? teiknaFirkant(d.a, b) : teiknaKontur([...d.punkt, b], d.tol)
-      if (omriss) naa.current.onLukk(omriss)
+      if (omriss) naa.current.onLukk(omriss, d.slag, d.tol)
       else melding.current = "teikn ein tydeleg kontur"
     }
     // Mist grepet: kast berre draget som eig peikaren, aldri lag ei plate.

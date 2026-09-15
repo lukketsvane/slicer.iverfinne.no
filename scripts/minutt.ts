@@ -1,5 +1,7 @@
 /**
- * Frå ny, tom nettlesarøkt til faktisk nedlasta nesta SVG.
+ * Frå ny, tom nettlesarøkt til faktisk nedlasta nesta SVG — med
+ * referansekrakken: to sider med vindauge, spegla, eit sete som landar
+ * oppå, og tre stag med tapp og slisse.
  *
  * Dette er automatisert Chromium på ein PC, med 390×844 mobilflate og
  * ekte nettlesar-touch via CDP. Det er ikkje ei måling på ein iPhone,
@@ -9,11 +11,10 @@
  *   pnpm minutt
  *
  * URL, PW_CHROMIUM og MINUTT_UT kan overstyrast i miljøet.
- * Kontur og 450 mm/12 mm finer er standarden. MINUTT_KONTUR=0 prøver
- * firkant, MINUTT_MODELL=1 held 150 mm/3 mm, og MINUTT_DEBUG=1 lagrar
- * mellomsteg (skjermbileta tel då med i tida). Synlege talfelt vert opna
- * med eitt trykk på talet før Playwright skriv i det fokuserte feltet.
- * MINUTT_KRAKK=1 prøver breiare fotavstand og ein låg bindebit.
+ * Kontur og 450 mm/12 mm er standarden. MINUTT_KONTUR=0 teiknar sida som
+ * ein firkant, MINUTT_MODELL=1 set 150 mm/3 mm, og MINUTT_DEBUG=1 lagrar
+ * mellomsteg (skjermbileta tel då med i tida). MINUTT_KRAKK=1 teiknar
+ * bogesider med ovalt vindauge i staden for A-sider.
  */
 import { chromium, type CDPSession, type Locator, type Page } from "playwright"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -21,11 +22,13 @@ import { join, resolve } from "node:path"
 import { performance } from "node:perf_hooks"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { measure } from "../lib/metrics"
+import { checkRules } from "../lib/rules"
 import { lesPlan } from "../lib/plan"
 import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
 import { MOTOR } from "../lib/motor"
 import type { ParamBag } from "../lib/core"
+import { unzip } from "../lib/zip"
 
 const URL = process.env.URL ?? "http://127.0.0.1:3210"
 const UT = resolve(process.env.MINUTT_UT ?? "bilete/minutt")
@@ -54,18 +57,6 @@ async function drag(cdp: CDPSession, punkt: Punkt[], tid = 500) {
 
 function linje(a: Punkt, b: Punkt, n = 18): Punkt[] {
   return Array.from({ length: n + 1 }, (_, i) => [a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n])
-}
-
-async function toFingrar(cdp: CDPSession, dx: number, dy: number) {
-  const punkt = (t: number) => [90, 235].map((x, id) => ({ x: x + dx * t, y: 575 + dy * t, id: id + 1, radiusX: 5, radiusY: 5, force: 1 }))
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [punkt(0)[0]] })
-  await pause(65)
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: punkt(0) })
-  for (let i = 1; i <= 18; i++) {
-    await pause(25)
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: punkt(i / 18) })
-  }
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
 }
 
 async function hovud() {
@@ -125,11 +116,6 @@ async function hovud() {
     await felt.press("Enter")
     await pause(120)
   }
-  const flytt = async (dx: number, dy: number) => {
-    const foer = params(side).plan
-    await toFingrar(cdp, dx, dy)
-    await endra((p) => p.plan !== foer, "Draget flytta ikkje det valde planet")
-  }
   try {
     await side.goto(URL, { waitUntil: "networkidle" })
     await ferdig()
@@ -138,81 +124,62 @@ async function hovud() {
     foerre = klarTid
     console.log(`Kald oppstart: ${((klarTid - byrjing) / 1000).toFixed(2)} s`)
     console.log(`Web Share tilgjengeleg: ${await side.evaluate(() => typeof navigator.share === "function")}`)
+    // TOM ARBEIDSFLATE: halvmeteren, tolv millimeter, framsida mot deg og konturen klar
     await trykk(side.locator("[data-kjelde]"))
     await trykk(knapp("tom arbeidsflate"))
-    if (fullskala) {
+    await endra((p) => p.storleik === 450 && p.tjukn === 12, "Tom arbeidsflate opna ikkje i møbelmål")
+    await pause(700)
+    if (!fullskala) {
       await trykk(knapp("opne kontrollane"))
       await trykk(side.getByRole("tab", { name: "plan", exact: true }))
-      await noyaktigTal("storleik", 450)
+      await noyaktigTal("storleik", 150)
       await trykk(side.getByRole("tab", { name: "materiale", exact: true }))
-      await trykk(knapp("12"))
-      await noyaktigTal("breidd", 1000)
-      await noyaktigTal("høgd", 1000)
+      await trykk(knapp("3"))
       await trykk(knapp("lat att kontrollane"))
-      await endra((p) => p.storleik === 450 && p.tjukn === 12 && p.arkB === 1000 && p.arkH === 1000, "Måla vart ikkje sette gjennom kontrollane")
-      await merk("450 mm og 12 mm finer")
-      await heim()
+      await endra((p) => p.storleik === 150 && p.tjukn === 3, "Modellmåla vart ikkje sette")
+      await merk("150 mm og 3 mm")
     }
-    // Kubens framside er eit synleg, teikna treffmål på denne mobilflata.
-    await side.touchscreen.tap(344, 87)
-    await pause(600)
-    // Tom arbeidsflate har alt teke fram reiskapen; kuben kan veljast
-    // medan han står på. Berre ei avskrudd teikning treng eit trykk.
-    if (await side.locator("[data-teiknknapp]").getAttribute("aria-pressed") !== "true") await trykk(side.locator("[data-teiknknapp]"))
-    if (kontur) await trykk(side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "kontur", exact: true }))
-    await drag(cdp, kontur ? [[100, 305], [230, 305], [258, 490], [217, 490], [202, 456], [130, 456], [115, 490], [75, 490], [100, 305]] : linje([80, 300], [250, 500]), kontur ? 1100 : 550)
+    // SIDA: éin kontur, føtene i golvet — nesten lik på båe sider, so ho vert lik
+    const sideKontur: Punkt[] = krakk
+      ? [[135, 310], [195, 310], [255, 310], [268, 330], [262, 400], [274, 470], [280, 506], [245, 506], [226, 472], [195, 458], [164, 472], [145, 506], [110, 506], [116, 470], [128, 400], [122, 330], [135, 310]]
+      : [[115, 310], [175, 311], [235, 312], [262, 503], [214, 503], [178, 440], [136, 503], [88, 503], [115, 310]]
+    await drag(cdp, kontur ? sideKontur : linje([80, 300], [310, 503]), kontur ? 1200 : 550)
     await planTal(1)
-    if (krakk) {
-      await heim()
-      await flytt(-35, 0)
-      await side.touchscreen.tap(344, 87)
-      await pause(600)
-    }
     await merk("side teikna")
-    await trykk(knapp("skjer hòl"))
-    await endra((p) => lesPlan(p.plan)[0]?.strek.length === 1, "Hòlet vart ikkje skrive til prosjektet")
-    // Hòlet får plass mellom setet og utsparinga til føtene.
-    const holFlytt = await side.locator('[data-handtak="strek-flytt"]').boundingBox()
-    if (!holFlytt) throw new Error("Hòlet manglar flyttehandtak")
-    const holMidt: Punkt = [holFlytt.x + holFlytt.width / 2, holFlytt.y + holFlytt.height / 2]
-    const holY = lesPlan(params(side).plan)[0].strek[0].y
-    await drag(cdp, linje(holMidt, [holMidt[0], holMidt[1] - 25]))
-    await endra((p) => lesPlan(p.plan)[0].strek[0].y > holY, "Hòlet flytta seg ikkje")
-    // Forma hòlet med same handtak som fingeren brukar; 12 mm er berre startpunktet.
-    const holgrep = await side.locator('[data-handtak="strek-storleik"]').boundingBox()
-    if (!holgrep) throw new Error("Hòlet manglar storleikshandtak")
-    const holStart: Punkt = [holgrep.x + holgrep.width / 2, holgrep.y + holgrep.height / 2]
-    const holFoer = lesPlan(params(side).plan)[0].strek[0].w
-    await drag(cdp, linje(holStart, [holStart[0] + 20, holStart[1] + 25]))
-    await endra((p) => lesPlan(p.plan)[0].strek[0].w > holFoer, "Hòlet vart ikkje større av draget")
-    await merk("hol forma")
-    await trykk(knapp("dubler planet"))
+    // VINDAUGET: ein kontur inni den valde sida er eit hòl i henne
+    await trykk(side.locator("[data-teiknknapp]"))
+    const vindauge: Punkt[] = krakk
+      ? [[195, 352], [216, 362], [224, 392], [214, 422], [195, 430], [176, 422], [166, 392], [174, 362], [195, 352]]
+      : [[150, 360], [205, 360], [190, 420], [140, 420], [150, 360]]
+    await drag(cdp, vindauge, 900)
+    await endra((p) => lesPlan(p.plan)[0]?.strek.some((q) => q.form === "kontur") ?? false, "Vindauget vart ikkje eit hòl i sida")
+    await merk("vindauge")
+    // PARET: sida står på spegelen, og spegelen deler henne i to
+    await trykk(knapp("spegl planet om y"))
     await planTal(2)
-    await heim()
-    await flytt(krakk ? 70 : 35, 0)
-    await merk("side dublert og flytta")
-    // Heimvinkelen gjer den øvste kubesida tilgjengeleg att.
+    await merk("sidene spegla")
+    // SETET: frå toppsynet, og det landar oppå sidene
     await heim()
     await side.touchscreen.tap(351, 61)
     await pause(650)
     await trykk(side.locator("[data-teiknknapp]"))
-    if (kontur) await trykk(side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "firkant", exact: true }))
-    await drag(cdp, linje([65, 295], [265, 515]), 550)
+    await trykk(side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "firkant", exact: true }))
+    await drag(cdp, linje([110, 320], [280, 490]), 550)
     await planTal(3)
+    await merk("sete teikna")
+    // STAGA: frå sida, endane hakar seg i sidene, og spegelen gjev det andre
     await heim()
-    await flytt(0, -80)
-    await merk("sete teikna og lyft")
-    if (krakk) {
-      await heim()
-      await side.touchscreen.tap(351, 61)
-      await pause(650)
-      await trykk(side.locator("[data-teiknknapp]"))
-      await drag(cdp, linje([210, 295], [235, 515]), 550)
-      await planTal(4)
-      await heim()
-      await flytt(0, 55)
-      await merk("laag bindebit teikna og senka")
-    }
+    await side.touchscreen.tap(372, 88)
+    await pause(650)
+    await trykk(side.locator("[data-teiknknapp]"))
+    await drag(cdp, linje([133, 440], [257, 468]), 550)
+    await planTal(4)
+    await trykk(knapp("spegl planet om x"))
+    await planTal(5)
+    await trykk(side.locator("[data-teiknknapp]"))
+    await drag(cdp, linje([133, 318], [257, 345]), 550)
+    await planTal(6)
+    await merk("stag teikna")
     await trykk(side.getByRole("tab", { name: "kontur", exact: true }))
     await ferdig()
     await trykk(knapp("eksport"))
@@ -226,8 +193,13 @@ async function hovud() {
     const brukt = (fullfoert - klarTid) / 1000
     await merk("nesta fil lagra")
     const p = params(side)
-    const fil = readFileSync(filsti, "utf8")
-    const svg = await side.evaluate((tekst) => {
+    // FLEIRE ARK ER EI ZIP: kvar SVG i ho vert lesen for seg
+    const raa = readFileSync(filsti)
+    const erZip = raa[0] === 0x50 && raa[1] === 0x4b
+    const ark = erZip
+      ? unzip(raa.buffer.slice(raa.byteOffset, raa.byteOffset + raa.byteLength) as ArrayBuffer).map((e) => new TextDecoder().decode(e.data))
+      : [raa.toString("utf8")]
+    const lesSvg = (tekst: string) => side.evaluate((tekst) => {
       const dokument = new DOMParser().parseFromString(tekst, "image/svg+xml")
       const rot = dokument.documentElement
       const kutt = [...dokument.querySelectorAll("path")].filter((q) => q.getAttribute("stroke") !== "#000000")
@@ -235,28 +207,46 @@ async function hovud() {
       const hogd = rot.getAttribute("height") ?? ""
       const koordinatar = kutt.flatMap((q) => [...(q.getAttribute("d") ?? "").matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]))
       return { lesefeil: !!dokument.querySelector("parsererror"), breidd, hogd, synsboks: rot.getAttribute("viewBox"), kuttbaner: kutt.length, alleLukka: kutt.every((q) => /z\s*$/i.test(q.getAttribute("d") ?? "")), endeleg: !/NaN|Infinity/.test(tekst), innanArket: koordinatar.every(([x, y]) => x >= -0.02 && x <= parseFloat(breidd) + 0.02 && y >= -0.02 && y <= parseFloat(hogd) + 0.02) }
-    }, fil)
+    }, tekst)
+    const svgar = await Promise.all(ark.map(lesSvg))
+    const svg = {
+      ark: svgar.length,
+      lesefeil: svgar.some((q) => q.lesefeil),
+      breidd: svgar[0]?.breidd ?? "",
+      hogd: svgar[0]?.hogd ?? "",
+      synsboks: svgar[0]?.synsboks ?? null,
+      likeArk: svgar.every((q) => q.breidd === svgar[0].breidd && q.hogd === svgar[0].hogd && q.synsboks === svgar[0].synsboks),
+      kuttbaner: svgar.reduce((n, q) => n + q.kuttbaner, 0),
+      alleLukka: svgar.every((q) => q.alleLukka),
+      endeleg: svgar.every((q) => q.endeleg),
+      innanArket: svgar.every((q) => q.innanArket),
+    }
     const bygg = makeBygg(p, DETAIL.mid)
     const maal = measure(p, bygg)
+    const reglar = checkRules(p, maal, bygg, false)
     const venta = MOTOR.exportFile(p as unknown as ParamBag, "ark")
+    const ventaBytar = venta.text !== undefined ? Buffer.from(venta.text, "utf8") : Buffer.from(venta.data ?? new ArrayBuffer(0))
     const teikna = lesPlan(p.plan)
-    const deltal = krakk ? 4 : 3
+    const [s1, s2, sete] = teikna
+    const S = p.storleik
+    // toppen av sida, i millimeter over golvet
+    const topp = S / 2 + Math.max(...(s1?.omriss ?? []).map((q) => q[1] * S))
     const sjekkar = {
-      redigerbarePlater: teikna.length === deltal && teikna.every((q) => (q.omriss?.length ?? 0) >= 4),
-      kopierteHol: teikna.slice(0, 2).every((q) => q.strek.some((s) => s.slag === "hol")),
-      sameKopierteOmriss: JSON.stringify(teikna[0]?.omriss) === JSON.stringify(teikna[1]?.omriss),
-      sameKopierteHol: JSON.stringify(teikna[0]?.strek) === JSON.stringify(teikna[1]?.strek),
-      skildeSider: Math.abs(teikna[0].o[1] - teikna[1].o[1]) > (krakk ? 0.55 : 0.2),
-      rettvinklaSete: Math.abs(teikna[0].n.reduce((sum, v, i) => sum + v * teikna[2].n[i], 0)) < 0.0001,
-      automatiskeLedd: bygg.s.ledd === (krakk ? 4 : 2),
+      seksPlater: teikna.length === 6 && teikna.every((q) => (q.omriss?.length ?? 0) >= 4),
+      sidaErLik: !!s1?.omriss && s1.omriss.every(([x, y]) => s1.omriss!.some(([a, b]) => Math.abs(a + x) < 2e-3 && Math.abs(b - y) < 2e-3)),
+      sideneErEitPar: !!s1 && !!s2 && Math.abs(s1.o[1] + s2.o[1] - 1) < 1e-3 && s1.gruppe === s2.gruppe && !!s1.gruppe,
+      vindaugeIBaae: [s1, s2].every((q) => q?.strek.some((st) => st.slag === "hol" && st.form === "kontur")),
+      seteOppaa: !!sete && Math.abs(sete.o[2] * S - (topp + p.tjukn / 2)) < 0.2,
+      tapparOgSlisser: bygg.s.tappar >= 10 && bygg.s.ledd === bygg.s.tappar,
+      ingenLause: bygg.dl.lause === 0 && bygg.s.kasta === 0,
       monterbarGeometri: bygg.s.montering.brot.length === 0 && bygg.s.montering.klem.length === 0,
-      godsVedSporbotn: maal.narrow >= Math.max(2, p.tjukn),
-      svgMillimeter: /mm$/.test(svg.breidd) && /mm$/.test(svg.hogd) && parseFloat(svg.breidd) === p.arkB && parseFloat(svg.hogd) === p.arkH && svg.synsboks?.split(/\s+/).map(Number).join(" ") === `0 0 ${p.arkB} ${p.arkH}`,
-      lukkaKutt: svg.alleLukka && svg.endeleg && !svg.lesefeil && svg.kuttbaner >= deltal,
+      ingenHardeBrot: reglar.every((r) => !r.hard || r.ok),
+      svgMillimeter: svg.likeArk && /mm$/.test(svg.breidd) && /mm$/.test(svg.hogd) && parseFloat(svg.breidd) === p.arkB && parseFloat(svg.hogd) === p.arkH && svg.synsboks?.split(/\s+/).map(Number).join(" ") === `0 0 ${p.arkB} ${p.arkH}`,
+      eittArkPerPlate: svg.ark === bygg.ns.sheets.length,
+      lukkaKutt: svg.alleLukka && svg.endeleg && !svg.lesefeil && svg.kuttbaner >= 6,
       kuttInnanArket: svg.innanArket,
       materialetFolgerLedda: Math.abs(maal.slotW - p.tjukn - p.klaring) < 0.001,
-      alleDelarNesta: bygg.dl.delar.length === deltal && bygg.ns.sheets.reduce((n, ark) => n + ark.placed.length, 0) === deltal && !bygg.ns.spilt && !bygg.ns.kross,
-      nedlastingLikMotor: fil === venta.text,
+      nedlastingLikMotor: raa.equals(ventaBytar),
       ingenSidefeil: feil.length === 0,
       ...(fullskala ? { storleikOgTjukn: p.storleik === 450 && p.tjukn === 12 } : {}),
     }
@@ -267,13 +257,13 @@ async function hovud() {
     await heim()
     await side.touchscreen.tap(45, 610)
     await pause(350)
-    await side.screenshot({ path: join(UT, "platestudie.png") })
+    await side.screenshot({ path: join(UT, "krakk.png") })
     const rapport = {
       dato: new Date().toISOString(),
       miljo: "Automatisert Chromium på PC, mobilflate 390×844; WebShare deaktivert for ekte nedlasting til disk. Ikkje fysisk iPhone, iOS-delingsark eller menneskeleg tidsprøve.",
-      avgrensing: "Platestudie med halv-i-halv-ledd; ikkje ei ferdig referansekrakk, tapp-/slisskonstruksjon eller fysisk lastprøvd stol.",
+      avgrensing: "Referansekrakk med tapp og slisse, målt i geometrien og kuttfila; ikkje fysisk samansett eller lastprøvd.",
       url: URL,
-      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm finer" : "150 mm modell"}: teikna ${kontur ? "konturside" : "firkanta side"} med hol, duplikat, sete${krakk ? " og laag bindebit" : ""}`,
+      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm" : "150 mm modell, 3 mm"}: ${krakk ? "bogesider med ovalt vindauge" : "A-sider med parallellogramvindauge"}, spegla par, sete oppå, tre stag`,
       feilsokbileteMedITida: feilsok,
       sekundTilLagraFil: brukt,
       sekundMedOppstart: (fullfoert - byrjing) / 1000,
@@ -281,14 +271,16 @@ async function hovud() {
       maalNaadd: brukt < 60 && Object.values(sjekkar).every(Boolean),
       steg, params: p, fil: filsti, svg,
       delar: bygg.dl.delar.length,
+      tappar: bygg.s.tappar,
       ark: bygg.ns.sheets.length,
       faktiskeMillimeter: [maal.envX, maal.envY, maal.envZ],
       sporbreidd: maal.slotW,
       montasje: bygg.s.montering,
+      reglar: reglar.filter((r) => !r.ok).map((r) => `${r.hard ? "HARD" : "mjuk"} ${r.id}: ${r.value}`),
       sjekkar, feil,
     }
     writeFileSync(join(UT, "rapport.json"), JSON.stringify(rapport, null, 2) + "\n")
-    console.log(JSON.stringify(rapport, null, 2))
+    console.log(JSON.stringify({ ...rapport, params: undefined, montasje: undefined, steg: undefined }, null, 2))
     if (!Object.values(sjekkar).every(Boolean)) process.exitCode = 1
   } catch (e) {
     await side.screenshot({ path: join(UT, "feil.png") }).catch(() => {})

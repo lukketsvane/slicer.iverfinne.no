@@ -66,7 +66,17 @@ export const OMRISS_TAK = 24
 export type Strek = {
   /** legg til gods, eller skjer bort */
   slag: "gods" | "hol"
-  form: "rekt" | "rund"
+  /**
+   * FIRKANT, ELLIPSE — ELLER EIN KONTUR HANDA TEIKNA.
+   *
+   * Vindauget i ei krakkside er eit parallellogram, ei dråpe, ei avrunda
+   * trekant; ein runding som vert dregen større dekkjer ingen av dei. Ein
+   * kontur er punkta slik fingeren la dei, i ein einingsboks, og boksen er
+   * den same streken som før: flytt han, strekk han, vri han.
+   */
+  form: "rekt" | "rund" | "kontur"
+  /** konturen, i einingsboksen [−½, ½]²: breidda og høgda strekkjer han */
+  punkt?: Pt[]
   /** midten, i planet si ramme, som brøkdel av storleiken */
   x: number
   y: number
@@ -648,7 +658,7 @@ const tal4 = (v: number) => String(+v.toFixed(4))
 const vec = (v: Vec3) => v.map(tal4).join(",")
 
 const skrivStrek = (s: Strek) =>
-  `${s.slag === "gods" ? "+" : "-"}${s.form === "rekt" ? "r" : "o"}:${[s.x, s.y, s.w, s.h, s.a].map(tal4).join(",")}`
+  `${s.slag === "gods" ? "+" : "-"}${s.form === "rekt" ? "r" : s.form === "kontur" ? "k" : "o"}:${[s.x, s.y, s.w, s.h, s.a, ...(s.form === "kontur" ? (s.punkt ?? []).flat() : [])].map(tal4).join(",")}`
 
 /** «p:x,y,x,y,…» — punkta på rad, av di eit punkt ikkje har fleire felt enn dei to */
 const skrivOmriss = (o: readonly Pt[]) => `p:${o.map((q) => `${tal4(q[0])},${tal4(q[1])}`).join(",")}`
@@ -670,17 +680,23 @@ const lesVec = (s: string): Vec3 | null => {
 }
 
 const lesStrek = (s: string): Strek | null => {
-  const m = /^([+-])([ro]):(.*)$/.exec(s)
+  const m = /^([+-])([rok]):(.*)$/.exec(s)
   if (!m) return null
   const slag = m[1] === "+" ? "gods" : "hol"
   const v = m[3].split(",").map(Number)
-  if (v.length !== 5 || !v.every(Number.isFinite)) return null
+  const kontur = m[2] === "k"
+  // ein kontur er fem tal og minst tre punkt, og aldri fleire enn eit omriss
+  if (kontur ? v.length < 11 || v.length % 2 === 0 || v.length > 5 + 2 * OMRISS_TAK : v.length !== 5) return null
+  if (!v.every(Number.isFinite)) return null
   const [x, y, w, h, a] = v
   // Ein strek utanfor kroppen eller utan breidd er ingen strek.
   if (Math.abs(x) > 2 || Math.abs(y) > 2 || w <= 0 || h <= 0 || w > 2 || h > 2) return null
+  const punkt: Pt[] = []
+  for (let i = 5; i + 1 < v.length; i += 2) punkt.push([Math.max(-0.5, Math.min(0.5, +v[i].toFixed(4))), Math.max(-0.5, Math.min(0.5, +v[i + 1].toFixed(4)))])
   return {
     slag,
-    form: m[2] === "r" ? "rekt" : "rund",
+    form: kontur ? "kontur" : m[2] === "r" ? "rekt" : "rund",
+    ...(kontur ? { punkt } : {}),
     x: +x.toFixed(4),
     y: +y.toFixed(4),
     w: +w.toFixed(4),

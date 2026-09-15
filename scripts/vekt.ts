@@ -128,7 +128,15 @@ const TAK: [string, number][] = [
   // +18 den 15.: tom arbeidsflate, firkant/kontur og spegling av heile
   // teikna plater. Gamle firkant-/speglingskommentarar er oppdaterte;
   // peikarløypa er samstundes trekt ut av scene.tsx (−102 liner der).
-  ["components/studio.tsx", 3291],
+  // +45 den 15.: ei tom arbeidsflate er eit møbel — halvmeteren, tolv
+  // millimeter, framsida mot deg og konturen klar, og synet vert sett fyrst
+  // når kroppen i dei nye måla er framme — eit sete teikna ovanfrå landar
+  // oppå sidene, ein kontur inni den valde plata er eit hòl, og ei side som
+  // står på spegelen vert eit par. Det som er rekning er flytt ut: gruppa som
+  // fylgjer leiaren til lib/gruppe.ts, paret til lib/spegl.ts og kva eit
+  // lukka drag vert til lib/teikning.ts (−80 liner her). Det som står att er
+  // kalla og grunngjevingane for dei
+  ["components/studio.tsx", 3336],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko
