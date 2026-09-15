@@ -23,14 +23,14 @@
  *
  *   npx tsx scripts/ledd.ts
  */
-import { inRing, shoelace, type Pt } from "../lib/core"
+import { inRing, shoelace, type Pt, type Vec3 } from "../lib/core"
 import { makeBygg } from "../lib/bygg"
 import { newSoup, ribSolid, soupToMesh } from "../lib/mesh"
-import { DETAIL, jointsIn, sporPunkt, stykkeLangs, type Snitt, type Ribbe as Rib, type Spor } from "../lib/snitt"
+import { DETAIL, jointsIn, sporPunkt, stykkeLangs, tappIn, type Snitt, type Ribbe as Rib, type Spor } from "../lib/snitt"
 import { DEFAULT_PARAMS, leddNokkel, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
-import { lesPlan, rutenett, skrivPlan, ut, type Strek } from "../lib/plan"
+import { ein2, lesPlan, rutenett, skrivPlan, ut, type Strek } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 /**
@@ -482,6 +482,149 @@ const SAKER: [string, Partial<Params>][] = [
 
 let avvistIAlt = 0
 for (const [namn, over] of SAKER) avvistIAlt += sjekk(namn, { ...GRUNN, ...over })
+
+// =============================================================================
+// TAPP OG SLISSE
+// =============================================================================
+/**
+ * DEI SAME SPØRSMÅLA TIL EIT MØTE DER EIN KANT SLUTTAR MOT EI FLATE.
+ *
+ * Tavla tel tappar når dei vert lagde ut; profilen er det laseren fylgjer.
+ * For kvar tapp: gods midt i tappen og like innanfor tuppen, luft like
+ * forbi tuppen og like ved sida av han — elles er kanten ikkje klipt ved
+ * skuldra, og plata står i setet. For kvar slisse: luft midt i, gods på
+ * alle fire sider. Og dei to skal vera same staden i rommet: tappen sin
+ * midt, lagd ut gjennom si ramme, er slissa sin midt lagd ut gjennom si.
+ */
+function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: number }): void {
+  const { s: g } = makeBygg(p, DETAIL.mid)
+  let feil = 0
+  const seg = (m: string) => {
+    feil++
+    if (feil <= 4) console.log(`      ${m}`)
+  }
+  const par = new Map<string, Vec3[]>()
+  let tappar = 0
+  for (const r of g.ribber) {
+    for (const q of r.tapp) {
+      if (!r.outlines.some((o) => tappIn([q], o).length)) continue
+      const [h0, h1, h2] = q.hjorne
+      const langs = ein2(h1, h0)
+      const tvers = ein2(h2, h1)
+      const L = Math.hypot(h1[0] - h0[0], h1[1] - h0[1])
+      const W = Math.hypot(h2[0] - h1[0], h2[1] - h1[1])
+      const pk = (a: number, b: number): Pt => [h0[0] + langs[0] * a + tvers[0] * b, h0[1] + langs[1] * a + tvers[1] * b]
+      if (q.slag === "tapp") {
+        tappar++
+        if (!gods(r, pk(L / 2, W / 2))) seg(`${q.nokkel}: tappen manglar i profilen til ${r.plan.id}`)
+        if (!gods(r, pk(L / 2, W - 0.3))) seg(`${q.nokkel}: tappen når ikkje fram til den fjerne flata`)
+        if (gods(r, pk(L / 2, W + 0.3))) seg(`${q.nokkel}: tappen stikk ut forbi den fjerne flata`)
+        for (const a of [-0.4, L + 0.4]) if (gods(r, pk(a, W / 2))) seg(`${q.nokkel}: kanten ved tappen er ikkje klipt ved skuldra`)
+        if (!gods(r, pk(L / 2, -0.3))) seg(`${q.nokkel}: tappen heng ikkje i plata`)
+      } else {
+        if (gods(r, pk(L / 2, W / 2))) seg(`${q.nokkel}: slissa manglar i ${r.plan.id}`)
+        for (const [a, b] of [[L / 2, -0.4], [L / 2, W + 0.4], [-0.4, W / 2], [L + 0.4, W / 2]]) {
+          if (!gods(r, pk(a, b))) seg(`${q.nokkel}: ingen vegg kring slissa i ${r.plan.id}`)
+        }
+      }
+      const l = par.get(q.nokkel) ?? []
+      l.push(ut(r.r, q.midt))
+      par.set(q.nokkel, l)
+    }
+  }
+  let verst = 0
+  for (const [nk, l] of par) {
+    if (l.length !== 2) seg(`${nk}: ${l.length} sider og ikkje to`)
+    else verst = Math.max(verst, Math.hypot(l[0][0] - l[1][0], l[0][1] - l[1][1], l[0][2] - l[1][2]))
+  }
+  if (verst > 0.02) seg(`tapp og slisse ${verst.toFixed(3)} mm frå kvarandre`)
+  if (tappar !== g.tappar || tappar !== venta.tappar) seg(`${tappar} tappar i profilane, ${g.tappar} talde, ${venta.tappar} venta`)
+  if (venta.brot !== undefined && g.montering.brot.length !== venta.brot) seg(`${g.montering.brot.length} står fast, ${venta.brot} venta`)
+  const vol = volumAvvik(g, p.tjukn)
+  if (vol.tal) seg(`volum: ${vol.tal} ribber, verst ${(vol.verst * 100).toFixed(0)} %`)
+  if (g.montering.klem.length) seg(`${g.montering.klem.length} par står i kvarandre`)
+  if (feil) brot++
+  console.log(`${feil ? "FEIL" : "  ok "}  ${namn.padEnd(26)} ${String(tappar).padStart(4)} tappar i profilane · ${par.size} par møtest, verst ${verst.toFixed(4)} mm`)
+}
+
+/**
+ * KRAKKEN FRÅ REFERANSEBILETET: to sider med ein fot i kvar ende, eit sete
+ * oppå, tre stag imellom. Alt er teikna omriss i brøk av 450 mm, med
+ * sidene i rekkjefylgja folk set dei saman — side, stag, side, sete.
+ */
+const S = 450
+const bf = (mm: number) => +(mm / S).toFixed(4)
+const plate = (id: number, o: [number, number, number], n: [number, number, number], pts: [number, number][]) =>
+  ({ id, o, n, bog: 0, strek: [], omriss: pts.map(([a, c]) => [bf(a), bf(c)] as Pt) })
+const side = (topp = 438, fot = 190, tak = 150): [number, number][] =>
+  [[-tak, topp - 225], [tak, topp - 225], [fot, -225], [60, -225], [0, -120], [-60, -225], [-fot, -225]]
+const stag = (z0: number, z1: number, y = 150): [number, number][] => [[-y, z0 - 225], [y, z0 - 225], [y, z1 - 225], [-y, z1 - 225]]
+const firkant = (h: number, b = h): [number, number][] => [[-b, -h], [b, -h], [b, h], [-b, h]]
+const krakk = (o: { setaZ?: number; stagY?: number; sideTopp?: number; sete?: number } = {}) =>
+  skrivPlan([
+    plate(1, [0.5, (225 - 150) / S, 0.5], [0, 1, 0], side(o.sideTopp)),
+    plate(4, [(225 + 120) / S, 0.5, 0.5], [1, 0, 0], stag(80, 130, o.stagY)),
+    plate(5, [(225 - 120) / S, 0.5, 0.5], [1, 0, 0], stag(80, 130, o.stagY)),
+    plate(6, [(225 + 120) / S, 0.5, 0.5], [1, 0, 0], stag(380, 430, o.stagY)),
+    plate(2, [0.5, (225 + 150) / S, 0.5], [0, 1, 0], side(o.sideTopp)),
+    plate(3, [0.5, 0.5, (o.setaZ ?? 444) / S], [0, 0, 1], firkant(175, o.sete ?? 175)),
+  ])
+const MOBEL = { ...DEFAULT_PARAMS, storleik: S, tjukn: 12, skal: false, arkB: 1000, arkH: 1000 }
+sjekkTapp("krakk, tappar og stag", { ...MOBEL, plan: krakk() }, { tappar: 10, brot: 0 })
+// setet tre millimeter for høgt: kanten vert løfta opp til flata
+sjekkTapp("krakk, setet over sidene", { ...MOBEL, plan: krakk({ setaZ: 447 }) }, { tappar: 10, brot: 0 })
+// staga teikna til ytterflata på sidene: kanten vert retta til skuldra
+sjekkTapp("krakk, staga for lange", { ...MOBEL, plan: krakk({ stagY: 156 }) }, { tappar: 10, brot: 0 })
+// setet smalare enn toppen på sidene: tappane står der setet er
+sjekkTapp("krakk, smalt sete", { ...MOBEL, plan: krakk({ sete: 110 }) }, { tappar: 8, brot: 0 })
+// i tre millimeter: modellen på bordet før møbelet
+sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5 }) }, { tappar: 10, brot: 0 })
+// i LISTEREKKJEFYLGJA ein teiknar: stag etter båe sidene står fast, og
+// regelen seier frå — geometrien er den same
+sjekkTapp("krakk, teikna rekkjefylgje", {
+  ...MOBEL,
+  plan: skrivPlan([1, 2, 3, 4, 5, 6].map((id) => lesPlan(krakk()).find((q) => q.id === id)!)),
+}, { tappar: 10, brot: 3 })
+/**
+ * SKRÅ BEIN: sidene lener ti grader innover, og tappen går skrått gjennom
+ * setet. Slissa må vera breiare enn plata — ho ser tappen på to stader —
+ * og vakta krev framleis at tapp og slisse er same staden.
+ */
+{
+  const v = (10 * Math.PI) / 180
+  // sidene lener INN: toppen står nærare midten enn foten, og den skrå
+  // høgda er lengre enn den loddrette
+  const topp = 225 + 213 / Math.cos(v)
+  // SETET FYRST: tappane på dei to sidene peikar tjue grader frå
+  // kvarandre, so setet kan ikkje trykkjast ned på båe. Snudd, går kvar
+  // side inn langs sin eigen tapp — og det er rekkjefylgja vakta krev.
+  const skraa = skrivPlan([
+    plate(3, [0.5, 0.5, 444 / S], [0, 0, 1], firkant(175, 200)),
+    plate(1, [0.5, (225 - 150) / S, 0.5], [0, Math.cos(v), -Math.sin(v)], side(topp)),
+    plate(2, [0.5, (225 + 150) / S, 0.5], [0, Math.cos(v), Math.sin(v)], side(topp)),
+  ].map((q) => ({ ...q, n: q.n.map((c) => +c.toFixed(4)) as [number, number, number] })))
+  sjekkTapp("krakk, skrå sider", { ...MOBEL, plan: skraa }, { tappar: 4, brot: 0 })
+}
+/**
+ * KRYSSBEIN: to sider som går gjennom kvarandre, halvt om halvt, og eit
+ * sete oppå båe. Dei to slaga møte i det same objektet, og ingen av dei
+ * skal ta det andre.
+ */
+{
+  const x = skrivPlan([
+    plate(1, [0.5, 0.5, 0.5], [0, 1, 0], [[-180, 213], [180, 213], [180, -225], [-180, -225]]),
+    plate(2, [0.5, 0.5, 0.5], [1, 0, 0], [[-180, 213], [180, 213], [180, -225], [-180, -225]]),
+    plate(3, [0.5, 0.5, 444 / S], [0, 0, 1], firkant(200)),
+  ])
+  const { s: g } = makeBygg({ ...MOBEL, plan: x }, DETAIL.mid)
+  const halvt = g.ledd - g.tappar
+  if (halvt !== 1) {
+    brot++
+    console.log(`FEIL  kryssbein                  ${halvt} halvt-om-halvt, 1 venta`)
+  }
+  sjekkTapp("kryssbein med sete", { ...MOBEL, plan: x }, { tappar: 4, brot: 0 })
+  sjekk("kryssbein, spora", { ...MOBEL, plan: x })
+}
 
 /**
  * OG TELJAREN SKAL VERA LEVANDE.
