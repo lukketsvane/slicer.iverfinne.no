@@ -38,6 +38,7 @@ import { rull, vend, type BitBoks, type Kropp } from "./kropp"
 import { add3, akser, bogPar, cross, dot, ein2, inn, kryss as kryssAv, kryssBoygd, kryssRing, len3, lesPlan, moteInn, mul3, norm3, omrissLine, skrivPlan, ut, type Mote, type Plan, type Ramme, type Strek } from "./plan"
 import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 import { bogMin, rilla } from "./rille"
+import { forenklaSpor, sporRute } from "./sporfelt"
 
 /**
  * Ruter langs den lengste sida av objektet, per detaljnivå.
@@ -663,13 +664,14 @@ function sloer(g: Float64Array, w: number, h: number, kx: number, kz: number) {
  * fila som må kome ut med skarpe kantar — det er det som grip.
  */
 function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, omriss?: readonly Pt[]) {
-  const { t0, dt, nt, z0, dz, nz, rows, cols } = ru
+  const { t0, dt, z0, dz, rows, cols } = ru
+  let { nt, nz } = ru
   const boksar = spor.map(boksAv)
   // OMRISSET STÅR I STADEN FOR KROPPEN, og ikkje ved sida av han: det er
   // det som gjer at handa kan ta forma MINDRE. Alt anna i feltet — klippet,
   // streka, mjukinga, spora — les det same feltet som før.
   const kant = omriss && omriss.length >= 3 ? kantar(omriss) : null
-  const g = new Float64Array((nt + 1) * (nz + 1))
+  let g = new Float64Array((nt + 1) * (nz + 1))
   for (let j = 0; j <= nz; j++) {
     const z = z0 + j * dz
     const row = rows[j]
@@ -706,14 +708,16 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
     }
   }
   if (mjuk > 0) sloer(g, nt + 1, nz + 1, Math.round(mjuk / dt), Math.round(mjuk / dz))
+  const tett = sporRute(g, t0, dt, nt, z0, dz, nz, spor)
+  if (tett) { g = tett.g; nt = tett.x.length - 1; nz = tett.y.length - 1 }
   if (boksar.length) {
     for (let j = 0; j <= nz; j++) {
-      const z = z0 + j * dz
+      const z = tett ? tett.y[j] : z0 + j * dz
       for (let i = 0; i <= nt; i++) {
         const k = j * (nt + 1) + i
         let v = g[k]
         if (v <= 0) continue
-        const t = t0 + i * dt
+        const t = tett ? tett.x[i] : t0 + i * dt
         for (const b of boksar) {
           /**
            * DEN RETTE LINA STÅR INLINE, og det er ikkje ein kopi som fekk
@@ -751,7 +755,7 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
       }
     }
   }
-  return contour(g, t0, dt, nt, z0, dz, nz)
+  return contour(g, t0, dt, nt, z0, dz, nz, tett ?? undefined)
 }
 
 // =============================================================================
@@ -1404,7 +1408,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     let outlines: Pt[][] = []
     let holes: Pt[][] = []
     for (const l of loops) {
-      const q = simplify(l.pts, tol) as Pt[]
+      const q = forenklaSpor(l.pts, tol, a.spor)
       if (q.length < 3) continue
       if (l.area > 0) outlines.push(q)
       // Eit hòl mindre enn taket kostar meir å skjere enn det er verdt, og

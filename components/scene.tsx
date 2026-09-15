@@ -13,6 +13,8 @@ import { DELING_MAX, DELING_MIN } from "@/lib/params"
 import type { BitBoks } from "@/lib/kropp"
 import type { BuildRes } from "@/lib/worker"
 import { DOBBELT_MS } from "./deler"
+import { useTeikning } from "./teikning"
+import { teikneNormal } from "@/lib/teikning"
 
 /**
  * SCENA. Kroppen som skugge, delane som står, og skisseplanet som svingar
@@ -787,7 +789,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
    * bit. Eit verkty om gongen: her er det kroppen som vert bygd.
    */
   const synleg = !!f && vald === null && !montasje && modus !== "bit" && modus !== "rute"
-  /** snittet i verda: handtaka står PÅ det — flytt i midten, vri på toppen */
+  /** snittet i verda: feste for handtaka; flytt kan stå ut frå midten med ei leiarline */
   const snittVerd = useMemo<SnittVerd | null>(() => {
     if (!f || !snitt?.ringar.length) return null
     const alle = snitt.ringar.flat()
@@ -810,6 +812,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
         flytt: boks.querySelector<HTMLElement>('[data-handtak="flytt"]'),
         vri: boks.querySelector<HTMLElement>('[data-handtak="vri"]'),
         arm: boks.querySelector<HTMLElement>("[data-arm]"),
+        flyttarm: boks.querySelector<HTMLElement>("[data-flyttarm]"),
         merke: boks.querySelector<HTMLElement>("[data-merke]"),
         ord: boks.querySelector<HTMLElement>("[data-ord]"),
         sFlytt: boks.querySelector<HTMLElement>('[data-handtak="strek-flytt"]'),
@@ -915,7 +918,8 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       h.style.left = `${x - 24}px`
       h.style.top = `${y - 24}px`
     }
-    const { flytt, vri, arm, merke, ord, sFlytt, sStor, sVri } = delar
+    const { flytt, vri, arm, flyttarm, merke, ord, sFlytt, sStor, sVri } = delar
+    if (flyttarm) flyttarm.hidden = true
     const sv = naa.current.snittVerd
     if (!sv) {
       // Ingen profil: kuttet råkar ikkje kroppen. Berre flyttehandtaket står
@@ -943,7 +947,26 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
     const inne = c.x > -40 && c.x < size.width + 40 && c.y > -40 && c.y < size.height + 40
     boks.style.visibility = inne ? "visible" : "hidden"
     boks.dataset.slag = synleg ? "skisse" : "plan"
-    if (flytt) sett(flytt, c.x, c.y)
+    // Flyttgrepet får ei fri treffesone; leddprikkane står på ledda sine.
+    // Gesten les framleis delta frå fingeren, so eit forskove grep hoppar ikkje.
+    let flyttPx = c
+    if (valt && naa.current.valdStrek === null && snitt) {
+      const opptekne = [
+        { x: c.x, y: vy },
+        ...(snitt.spor ?? []).map((q) => skjerm(tilVerd(f, ut(snitt.r, q.botn)))),
+        ...(valt.omriss && rValt ? valt.omriss.map((p) => skjerm(tilVerd(f, ut(rValt, [p[0] * storleik, p[1] * storleik])))) : []),
+      ]
+      const ledig = (p: { x: number; y: number }) => p.x >= fri.L + 24 && p.x <= fri.L + fri.w - 24 && p.y >= fri.T + 24 && p.y <= fri.T + fri.h - 24 && opptekne.every((q) => Math.abs(p.x - q.x) >= 48 || Math.abs(p.y - q.y) >= 48)
+      const steg = [[0, 0], [0, 64], [-64, 0], [64, 0], [-64, 64], [64, 64], [0, 128], [-128, 0], [128, 0]]
+      flyttPx = steg.map(([x, y]) => ({ x: c.x + x, y: c.y + y })).find(ledig) ?? c
+    }
+    if (flytt) sett(flytt, flyttPx.x, flyttPx.y)
+    if (flyttarm && flyttPx !== c) {
+      const x = flyttPx.x - c.x, y = flyttPx.y - c.y
+      flyttarm.hidden = false
+      flyttarm.style.width = `${Math.hypot(x, y)}px`
+      flyttarm.style.transform = `translate(${c.x}px, ${c.y}px) rotate(${Math.atan2(y, x)}rad)`
+    }
     if (vri) sett(vri, c.x, vy)
     if (arm) {
       arm.style.width = `${c.y - vy}px`
@@ -1894,20 +1917,22 @@ function Spora({ f, snitt, boks, onDeling }: {
 const MIDT_MIN = 84
 /**
  * FLATA DU TEIKNAR er inndata, som skisseplanet, ikkje eit motorresultat.
- * Eitt drag lagar firkanten; handtaka formar han etterpå.
+ * Eitt drag lagar firkanten eller konturen; handtaka formar han etterpå.
  *
- * Planet vert frose når reiskapen vert teken, og VENDER MOT DEG gjennom
+ * Planet vert frose når draget byrjar, og VENDER MOT DEG gjennom
  * midten av kroppen. Det vanlege skisseplanet er sikta langs synsaksen og
  * projiserer til ei line — der er det inga flate å teikne på. Følgde dette
- * planet kameraet, ville forma vri seg under handa medan du arbeidde.
+ * planet kameraet under draget, ville forma vri seg under handa. Før det
+ * byrjar kan synskuben framleis velje kva arbeidsplan du skal teikne på.
  */
-function Teikninga({ f, S, fri, svg, arb, onLukk }: {
+function Teikninga({ f, S, fri, slag, svg, arb, onLukk }: {
   f: Ramma
   S: number
   fri: ReturnType<typeof fritt>
+  slag: "firkant" | "kontur"
   svg: SVGSVGElement | null
   arb: MutableRefObject<string | null>
-  onLukk: (o: Vec3, n: Vec3, boks: [Pt, Pt]) => void
+  onLukk: (o: Vec3, n: Vec3, omriss: Pt[]) => void
 }): null {
   const camera = useThree((q) => q.camera)
   const gl = useThree((q) => q.gl)
@@ -1915,119 +1940,33 @@ function Teikninga({ f, S, fri, svg, arb, onLukk }: {
   const controls = useThree((q) => q.controls) as Orbit | null
   const invalidate = useThree((q) => q.invalidate)
   const frose = useRef<Ramme | null>(null)
-  if (!frose.current) {
-    const fwd = new THREE.Vector3()
-    camera.getWorldDirection(fwd)
-    frose.current = planRamme({ o: broek(f.midt, f.min, f.max), n: nFraaVerd(fwd.multiplyScalar(-1)) }, f.min, f.max)
-  }
-  const r = frose.current
-  const naa = useRef({ f, r, S, onLukk })
-  naa.current = { f, r, S, onLukk }
-  // Berre slippet går til React og motoren. Eit drag teiknar på oppmoding,
-  // utan å sende heile studioet gjennom ei ny teikning for kvart punkt.
-  const drag = useRef<{ id: number; x: number; y: number; a: Pt; b: Pt } | null>(null)
-  const bane = useMemo(() => svg?.querySelector("polygon"), [svg])
-  const maal = useMemo(() => svg?.querySelector("text"), [svg])
-  useFrame(() => {
-    if (!svg || !bane) return
-    const d = drag.current
-    svg.dataset.teikn = d ? "dreg" : "klar"
-    if (!d) {
-      bane.setAttribute("points", "")
-      if (maal) maal.textContent = ""
-      return
-    }
-    camera.updateMatrixWorld()
-    const [a, c] = [d.a, d.b]
-    const px = ([[a[0], a[1]], [c[0], a[1]], [c[0], c[1]], [a[0], c[1]]] as Pt[]).map((q) => {
-      const v = tilVerd(naa.current.f, ut(naa.current.r, [q[0] * naa.current.S, q[1] * naa.current.S])).project(camera)
-      return { x: ((v.x + 1) / 2) * size.width, y: ((1 - v.y) / 2) * size.height }
-    })
-    bane.setAttribute("points", px.map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(" "))
-    if (maal) {
-      // Måla er inndata frå fingeren, i planet si eiga ramme — ikkje ei
-      // ny måling av kuttfila. Over forma, klårt av fingertuppen.
-      maal.setAttribute("x", String(Math.max(fri.L + 12, Math.min(fri.L + fri.w - 160, Math.min(...px.map((q) => q.x))))))
-      maal.setAttribute("y", String(Math.max(fri.T + 24, Math.min(fri.T + fri.h - 12, Math.min(...px.map((q) => q.y)) - 16))))
-      maal.textContent = [Math.abs(c[0] - a[0]), Math.abs(c[1] - a[1])].map((v) => (v * naa.current.S).toLocaleString("nn", { maximumFractionDigits: 1 })).join(" × ") + " mm"
-    }
+  useTeikning({
+    slag, svg, arb, fri, S, controls, invalidate, lerret: gl.domElement,
+    taKameraet: () => taKameraet(controls),
+    onStart: () => {
+      const fwd = new THREE.Vector3()
+      camera.updateMatrixWorld()
+      camera.getWorldDirection(fwd)
+      frose.current = planRamme({ o: broek(f.midt, f.min, f.max), n: teikneNormal(nFraaVerd(fwd.multiplyScalar(-1))) }, f.min, f.max)
+    },
+    paaFlata: (x, y) => {
+      const r = frose.current
+      if (!r) return null
+      const rute = gl.domElement.getBoundingClientRect()
+      const q = paaPlanetAv(camera, rute, f, r, x - rute.left, y - rute.top)
+      return q ? q.map((v) => +Math.max(-4, Math.min(4, v / S)).toFixed(4)) as Pt : null
+    },
+    paaSkjermen: (punkt) => {
+      const r = frose.current
+      if (!r) return []
+      camera.updateMatrixWorld()
+      return punkt.map((q) => {
+        const v = tilVerd(f, ut(r, [q[0] * S, q[1] * S])).project(camera)
+        return [((v.x + 1) / 2) * size.width, ((1 - v.y) / 2) * size.height]
+      })
+    },
+    onLukk: (omriss) => { const r = frose.current; if (r) onLukk(r.o, r.n, omriss) },
   })
-
-  useEffect(() => {
-    const lerret = gl.domElement
-    const paaFlata = (cx: number, cy: number): Pt | null => {
-      const { f: g, r: rr, S: storleik } = naa.current
-      const rute = lerret.getBoundingClientRect()
-      const d = new THREE.Vector3(((cx - rute.left) / rute.width) * 2 - 1, 1 - ((cy - rute.top) / rute.height) * 2, 0.5)
-        .unproject(camera).sub(camera.position).normalize()
-      const n = nTilVerd(rr.n)
-      const k = d.dot(n)
-      if (Math.abs(k) < 0.02) return null
-      const t = tilVerd(g, rr.o).sub(camera.position).dot(n) / k
-      if (t <= 0) return null
-      const q = inn(rr, fraaVerd(g, camera.position.clone().addScaledVector(d, t)))
-      return q.map((v) => +Math.max(-4, Math.min(4, v / storleik)).toFixed(4)) as Pt
-    }
-    const slepp = () => {
-      const d = drag.current
-      drag.current = null
-      if (d && lerret.hasPointerCapture(d.id)) lerret.releasePointerCapture(d.id)
-      if (arb.current === "teikn") arb.current = null
-      if (controls && d) controls.enabled = true
-      invalidate()
-    }
-    const paa = (e: PointerEvent) => {
-      const t = e.target as Element | null
-      if (!e.isPrimary || drag.current || arb.current || (e.pointerType === "mouse" && e.button !== 0)) return
-      if (!t || t.closest("button, a, input, [role=slider], [role=tab], [role=option], header, aside, [aria-label='kontrollar'], section[aria-label='verkty']")) return
-      const a = paaFlata(e.clientX, e.clientY)
-      if (!a) return
-      e.preventDefault()
-      e.stopImmediatePropagation()
-      drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, a, b: a }
-      arb.current = "teikn"
-      taKameraet(controls)
-      lerret.setPointerCapture(e.pointerId)
-      invalidate()
-    }
-    const rorsle = (e: PointerEvent) => {
-      const d = drag.current
-      if (!d || e.pointerId !== d.id) return
-      e.stopImmediatePropagation()
-      const b = paaFlata(e.clientX, e.clientY)
-      if (b) d.b = b
-      invalidate()
-    }
-    const av = (e: PointerEvent) => {
-      const d = drag.current
-      // Ein annan finger eig ikkje dette slippet. iOS-avbrot er heller
-      // ikkje eit «ferdig»: dei slepper taket utan å lage ei flate.
-      if (!d || e.pointerId !== d.id) return
-      e.preventDefault()
-      e.stopImmediatePropagation()
-      const b = e.type === "pointerup" ? paaFlata(e.clientX, e.clientY) : null
-      slepp()
-      if (!b || Math.abs(e.clientX - d.x) < 12 || Math.abs(e.clientY - d.y) < 12) return
-      // Les siste punkt frå slippet, òg når det ikkje kom noko move imellom.
-      naa.current.onLukk(naa.current.r.o, naa.current.r.n, [d.a, b])
-    }
-    const gøymd = () => { if (document.visibilityState === "hidden") slepp() }
-    window.addEventListener("pointerdown", paa, true)
-    window.addEventListener("pointermove", rorsle, true)
-    window.addEventListener("pointerup", av, true)
-    window.addEventListener("pointercancel", av, true)
-    window.addEventListener("blur", slepp)
-    document.addEventListener("visibilitychange", gøymd)
-    return () => {
-      window.removeEventListener("pointerdown", paa, true)
-      window.removeEventListener("pointermove", rorsle, true)
-      window.removeEventListener("pointerup", av, true)
-      window.removeEventListener("pointercancel", av, true)
-      window.removeEventListener("blur", slepp)
-      document.removeEventListener("visibilitychange", gøymd)
-      slepp()
-    }
-  }, [camera, gl, controls, arb, invalidate])
   return null
 }
 
@@ -3461,7 +3400,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, teiknSlag, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -3495,7 +3434,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   snappSteg: number
   /** eitt drag i scena; berre den ferdige flata går til studioet */
   teikn: boolean
-  onTeiknLukk: (o: Vec3, n: Vec3, boks: [Pt, Pt]) => void
+  teiknSlag: "firkant" | "kontur"
+  onTeiknLukk: (o: Vec3, n: Vec3, omriss: Pt[]) => void
   onPunkt: (id: number, i: number, q: Pt) => void
   onSlaaSaman: (id: number, i: number, mot: number) => void
   /** eit punkt til, sett inn rett etter `i` */
@@ -3630,7 +3570,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   return (
     <>
       <Canvas
-        shadows
+        shadows="percentage"
         frameloop="demand"
         dpr={[1, 2]}
         gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.NeutralToneMapping }}
@@ -3664,7 +3604,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           {f && <Kroppen f={f} kropp={kropp} lag={lag} view={view} skal={skal} material={material} liste={liste} vald={vald} gruppe={gruppe} plan={plan} blink={blink} sein={sein} onVald={onVald} />}
           {f && modus === "bit" && bitar.length > 0 && <Bitboksar f={f} bitar={bitar} vald={valdBit} />}
         <Sidehandtak f={f} boks={sider} boks3={modus === "bit" && valdBit !== null ? (bitar[valdBit] ?? null) : null} dra={sideDra} onSide={onBitSide} onGest={onGest} />
-          {f && snitt && snitt.ringar.length > 0 && (
+          {!teikn && f && snitt && snitt.ringar.length > 0 && (
             <Sovnen sov={sov}>
               <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />
             </Sovnen>
@@ -3672,12 +3612,12 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           {/* LEDDA SOM HANDTAK: berre på eit LÅST plan, og berre når det er
               valt — ein prikk per ledd på kvar ribbe ville vore ei stjerne
               av prikkar over heile kroppen. */}
-          {f && vald !== null && !montasje && snitt?.spor?.length ? (
+          {!teikn && f && vald !== null && !montasje && snitt?.spor?.length ? (
             <Sovnen sov={sov}>
               <Spora f={f} snitt={snitt} boks={sporBoks} onDeling={onDeling} />
             </Sovnen>
           ) : null}
-          {f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
+          {!teikn && f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
           {/* FLATA DU TEIKNAR. Ho står over alt anna medan ho vert til, av
               di ho er det einaste på skjermen som ikkje finst enno. Han
               teiknar ingenting sjølv — han set berre hjørna i flata over. */}
@@ -3686,12 +3626,13 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
               f={f}
               S={storleik}
               fri={fri}
+              slag={teiknSlag}
               svg={teiknSvg}
               arb={arb}
               onLukk={onTeiknLukk}
             />
           )}
-          {f && valt?.omriss?.length && rValt ? (
+          {!teikn && valdStrek === null && f && valt?.omriss?.length && rValt ? (
             <Omrisset
               f={f}
               r={rValt}
@@ -3757,8 +3698,9 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             gong du trykte på ei side av kuben. */}
         <Skodda />
         <Demping onSein={setSein} />
-        <Streket f={f} r={rValt} valt={valt} valdStrek={valdStrek} S={storleik} boks={boks} arb={arb} snapp={snapp} setLive={setLive} onSynStrek={onSynStrek} onStrek={onStrek} />
-        <Handa f={f} fri={fri} sov={sov} modus={modus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} arb={arb} snapp={snapp} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
+        {/* Eiga teikning har inga knivskisse eller gamle handtak å ta i. */}
+        <Streket f={teikn ? null : f} r={rValt} valt={valt} valdStrek={valdStrek} S={storleik} boks={boks} arb={arb} snapp={snapp} setLive={setLive} onSynStrek={onSynStrek} onStrek={onStrek} />
+        <Handa f={teikn ? null : f} fri={fri} sov={sov} modus={modus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} arb={arb} snapp={snapp} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
         {/* Kroppen snur heile vegen rundt — undersida er der ledda sit, og
             eit syn du ikkje kjem til er ein kontroll som manglar. */}
         <OrbitControls
@@ -3845,8 +3787,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
       {/*
         HANDTAKA ER DOM, IKKJE NETT. Eit handtak på 48 pikslar skal kunne
         takast med tommelen og finnast av ein som ikkje ser; ein trekant i
-        WebGL kan ingen av delane. Dei står PÅ snittet — flytt i midten, vri
-        på toppen — og scena skriv plassen deira kvar teikning. Lappen ber
+        WebGL kan ingen av delane. Flytt får ledig rom med line til snittet,
+        vri står på toppen; scena skriv plassen kvar teikning. Lappen ber
         `data-skisse="snitt"` nett når det finst eit snitt å lese av. Med
         eit strek valt står tre handtak på streken i staden (`data-strek`).
       */}
@@ -3862,7 +3804,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           då, so knappane ville hopa seg opp usette i hjørnet av lerretet —
           synlege, trykkbare og utan nokon bak seg. */}
       <div ref={setSporBoks} className="spor">
-        {vald !== null && !montasje &&
+        {vald !== null && !montasje && !teikn &&
           (snitt?.spor ?? []).map((q) => (
             <button key={q.nokkel} type="button" data-spor={q.nokkel} aria-label={`ledd ${q.nokkel}`} title={`dra: kor djupt ledd ${q.nokkel} går`}>
               <span aria-hidden="true" />
@@ -3889,12 +3831,12 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         </svg>
       )}
       <div ref={setPunktBoks} className="punkt">
-        {(montasje ? [] : valt?.omriss ?? []).map((_, i) => (
+        {(montasje || teikn || valdStrek !== null ? [] : valt?.omriss ?? []).map((_, i) => (
           <button key={`m${i}`} type="button" data-midt={i} hidden aria-label={`legg til eit punkt mellom ${i + 1} og ${((i + 1) % (valt?.omriss?.length ?? 1)) + 1}`} title="dra: eit punkt til, midt på kanten">
             <span aria-hidden="true" />
           </button>
         ))}
-        {(montasje ? [] : valt?.omriss ?? []).map((_, i) => (
+        {(montasje || teikn || valdStrek !== null ? [] : valt?.omriss ?? []).map((_, i) => (
           <button key={`p${i}`} type="button" data-punkt={i} data-rund={valt?.runde?.includes(i) ? "" : undefined} data-vald={i === valdPunkt ? "" : undefined} aria-current={i === valdPunkt} aria-label={`punkt ${i + 1} i omrisset${valt?.runde?.includes(i) ? ", boge" : ""}`} title="dra: flytt punktet — skift låser aksen. dobbelttrykk: hjørne eller boge. pilene flyttar det ein millimeter, ti med skift; ⌫ eller eit langt trykk tek det bort">
             <span aria-hidden="true" />
           </button>
@@ -3915,6 +3857,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
       </div>
       <div ref={setBoks} className="handtak" data-slag="skisse" style={{ visibility: "hidden" }}>
         <span data-arm="" aria-hidden="true" />
+        <span data-flyttarm="" aria-hidden="true" hidden style={{ height: 1, background: "var(--snitt)", opacity: 0.45, transformOrigin: "0 0" }} />
         <button type="button" data-handtak="flytt" aria-label="flytt snittet" title="dra: flytt snittet over kroppen">{IkonFlytt}</button>
         <button type="button" data-handtak="vri" aria-label="vri snittet" title="dra: vri snittet">{IkonVri}</button>
         <button type="button" data-handtak="strek-flytt" aria-label="flytt streken" title="dra: flytt streken i planet">{IkonFlytt}</button>

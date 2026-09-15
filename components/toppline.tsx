@@ -14,7 +14,7 @@ import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./del
  * over sida, so lina tek den tryggje sona som luft over seg. Ein knapp er
  * eit ikon eller eit ord, aldri begge; filnamnet er innhald og står som det er.
  */
-export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, hopHint, onFile, bibliotek, onLeggLagra, onLegg, onTom, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, onHogd }: {
+export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, hopHint, onFile, bibliotek, onLeggLagra, onLegg, onTom, onTomArbeidsflate, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, onHogd }: {
   benk: boolean
   kjelde: string
   /** kor mange bitar kroppen er sett saman av: eitt er ei kjelde åleine */
@@ -47,6 +47,7 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
   onLegg: (id: string) => void
   /** attende til kjelda åleine */
   onTom: () => void
+  onTomArbeidsflate: () => void
   onAngre: () => void
   kanAngre: boolean
   onGjerOm: () => void
@@ -89,7 +90,7 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
     <header
       ref={el}
       className="fixed inset-x-0 top-0 z-30 border-b"
-      style={{ ...HAIR, background: "var(--paper)", color: "var(--ink)", paddingTop: "env(safe-area-inset-top)" }}
+      style={{ ...HAIR, background: "var(--paper)", color: "var(--ink)", paddingTop: "env(safe-area-inset-top)", zIndex: meny ? 50 : undefined }}
     >
       {/* FLEIRE PÅ EIN GONG. Den fyrste vert kroppen, som ei einsleg fil
           alltid har vorte; resten går rett i lista under. Du hentar inn det
@@ -137,6 +138,7 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
               style={{ ...HAIR, background: "var(--paper)", maxHeight: "calc(100dvh - 100% - 6px - env(safe-area-inset-top) - 8px)" }}
               data-meny=""
             >
+              <button type="button" onClick={() => { onTomArbeidsflate(); setMeny(false) }} className="hit border-b px-3 py-3 text-left text-[11px] leading-none" style={HAIR}>tom arbeidsflate</button>
               {FORMER.map((id) => (
                 <button
                   key={id}

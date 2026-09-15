@@ -21,7 +21,12 @@
     "enkel": "tsx scripts/enkel.ts",
     "raad": "tsx scripts/raad.ts",
     "ark": "tsx scripts/ark.ts",
-    "glb": "tsx scripts/glb-sjekk.ts"
+    "glb": "tsx scripts/glb-sjekk.ts",
+    "teikn": "tsx scripts/teikn-sjekk.ts",
+    "minutt": "tsx scripts/minutt.ts",
+    "redigering": "tsx scripts/redigering-sjekk.ts",
+    "webkit": "tsx scripts/webkit-sjekk.ts",
+    "presisjon": "tsx scripts/presisjon.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

@@ -55,12 +55,10 @@ export const MATERIALS: Record<
 /**
  * Platene som står som knappar i panelet.
  *
- * Ikkje alle platene som finst: dei ein laser skjer. Ni, tolv og atten
- * millimeter er plater ein fres tek og ein CO2-laser ikkje, og åtte
- * knappar braut rada i to på ein telefon for tre val ingen bruker her.
- * Skyvaren går framleis frå éin til fem og tjue.
+ * Rada rullar på telefonen og tek òg møbelplater. Den målte tjukna kan
+ * setjast nøyaktig under passform; namna her er berre raske startpunkt.
  */
-export const TJUKNER = [2, 2.5, 3, 4, 6] as const
+export const TJUKNER = [2, 2.5, 3, 4, 6, 9, 12, 15, 18, 24] as const
 
 /**
  * Minste stykke som er ein DEL, mm².
