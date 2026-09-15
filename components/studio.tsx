@@ -518,7 +518,7 @@ export function Studio() {
    * i staden for å la deg tru at kuben er det du laga.
    */
   useEffect(() => {
-    setMounted(true)
+    let her = true
     const hentInn = (obj: Record<string, unknown>) => {
       const kj = typeof obj.kjelde === "string" ? obj.kjelde : KUBE
       const idar = [...new Set([kj, ...lesScene(obj.scene).map((b) => b.id)])].filter((id) => !erPrimitiv(id) && !erFilform(id))
@@ -552,29 +552,32 @@ export function Studio() {
         })
       })
     }
-    try {
-      const h = window.location.hash.slice(1)
-      if (!h.startsWith("p=")) {
-        // inga lenkje: tak det du hadde, innstillingar og nett i lag
-        void hent().then((v) => {
-          if (!v) return
+    const les = async () => {
+      try {
+        const h = window.location.hash.slice(1)
+        if (!h.startsWith("p=")) {
+          const v = await hent()
+          if (!her || !v) return
           setParams((q) => MOTOR.clamp(v.params, q))
+          if (VIEWS.some((q) => q.id === v.view)) setView(v.view!)
+          if (typeof v.skal === "boolean") setSkal(v.skal)
           hentInn(v.params)
-        })
-        return
+          return
+        }
+        const obj = JSON.parse(decodeURIComponent(h.slice(2))) as Record<string, unknown>
+        setParams((p) => MOTOR.clamp(obj, p))
+        if (VIEWS.some((v) => v.id === obj.view)) setView(obj.view as View)
+        if (typeof obj.skal === "boolean") setSkal(obj.skal)
+        hentInn(obj)
+      } catch {
+        // øydelagd hash — lat standardobjektet stå
+      } finally {
+        // Ingen standardpose får skrivast over økta medan basen opnar.
+        if (her) setMounted(true)
       }
-      const obj = JSON.parse(decodeURIComponent(h.slice(2))) as Record<string, unknown>
-      // EI LENKJE BER IKKJE EIT NETT — men ho ber godt eit NAMN som tyder
-      // det same overalt. Ei innebygd form ligg på tenaren og kjem når nokon
-      // spør; ei importert fil ligg i din eigen base, under det same namnet,
-      // og `hentInn` spør etter henne der.
-      setParams((p) => MOTOR.clamp(obj, p))
-      if (VIEWS.some((v) => v.id === obj.view)) setView(obj.view as View)
-      if (typeof obj.skal === "boolean") setSkal(obj.skal)
-      hentInn(obj)
-    } catch {
-      // øydelagd hash — lat standardobjektet stå
     }
+    void les()
+    return () => { her = false }
   }, [send])
 
   useEffect(() => {
@@ -937,16 +940,9 @@ export function Studio() {
   // spørje, so det som står skal alt vera skrive — og skrivast ein gong til
   // i det appen går i bakgrunnen, for det som stod under ein halv sekund.
   const skrivOkta = useCallback(() => {
-    void lagre(naa.current as Record<string, number | string>)
-  }, [])
-  /**
-   * OG DET KROPPEN IKKJE PEIKAR PÅ LENGER, GÅR.
-   *
-   * Same regelen som `forget` i `sources.ts`, berre på disken: ein brukar
-   * som har prøvd seks filer treng ikkje dei fem fyrste, og eit skann er
-   * lett hundre megabyte. Han går ved sida av skrivinga av innstillingane,
-   * so det er alltid nøyaktig kroppen som står, som ligg der.
-   */
+    void lagre(naa.current as Record<string, number | string>, { view, skal })
+  }, [view, skal])
+  // Rydd store nett som ikkje er i bruk når biblioteket når plasstaket.
   useEffect(() => {
     if (!mounted) return
     const t = window.setTimeout(() => {
@@ -1369,22 +1365,17 @@ export function Studio() {
    * andre sida. Å spegle henne likevel ville laga ei flate du ikkje har
    * teikna og ikkje kan sjå at du ikkje har teikna.
    */
-  const [teikn, setTeikn] = useState<{ boks: [Pt, Pt] | null } | null>(null)
-  const teiknRef = useRef<typeof teikn>(null)
-  teiknRef.current = teikn
+  const [teikn, setTeikn] = useState(false)
   const vekslTeikn = useCallback(() => {
-    setTeikn((t) => {
-      if (t) return null
+    if (!teikn) {
       setVald(null)
+      setValdBit(null)
+      setModus("form")
       setMelding("teikn: dra ein firkant")
-      return { boks: null }
-    })
-  }, [])
-  // ein firkant utan sider er ingen firkant: det er fingeren som står der
-  // han landa, og då er det ingenting å teikne
-  const teiknDra = useCallback((a: Pt, b: Pt) => {
-    setTeikn((t) => (t ? { boks: a[0] === b[0] && a[1] === b[1] ? null : [klemPunkt(a), klemPunkt(b)] } : t))
-  }, [])
+    }
+    setTeikn((t) => !t)
+  }, [teikn])
+  useEffect(() => { if (modus !== "form") setTeikn(false) }, [modus])
   /**
    * PLANET KJEM FRÅ SCENA, av di det er ho som veit kvar kameraet står.
    * Teikneplanet er det som VENDER MOT DEG — skisseplanet står på kant og
@@ -1393,12 +1384,12 @@ export function Studio() {
    * Hjørna vert skrivne mot klokka i planet si eiga ramme, der `v` er so
    * nær «opp» som planet tillèt: firkanten står oppreist i kroppen.
    */
-  const teiknLukk = useCallback((po: Vec3, pn: Vec3) => {
-    const t = teiknRef.current
-    setTeikn(null)
+  const teiknLukk = useCallback((po: Vec3, pn: Vec3, boks: [Pt, Pt]) => {
+    setTeikn(false)
     const k = kroppRef.current
-    if (!t?.boks || !k) return
-    const [[ax, ay], [bx, by]] = t.boks
+    if (!k) return
+    const [[ax, ay], [bx, by]] = boks.map(klemPunkt)
+    if (ax === bx || ay === by) return
     const [x0, x1] = ax < bx ? [ax, bx] : [bx, ax]
     const [y0, y1] = ay < by ? [ay, by] : [by, ay]
     const omriss: Pt[] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
@@ -1412,6 +1403,8 @@ export function Studio() {
       if (l.length >= PLAN_TAK) return cur
       return { ...cur, plan: skrivPlan([...l, { id: nyId(l), o, n: pn, bog: 0, strek: [], omriss }]) }
     })
+    setVald(id)
+    setValdGruppe(null)
     setBlink(id)
   }, [])
 
@@ -1955,6 +1948,7 @@ export function Studio() {
    */
   useEffect(() => {
     if (rom) return
+    setTeikn(false)
     setModus("form")
     setValdBit(null)
     if (view !== "montasje") return
@@ -2340,7 +2334,7 @@ export function Studio() {
     mounted && !verkty && steg === "line" && view !== "kontur" && view !== "montasje" &&
     vald === null && valdStrek === null && valdBit === null &&
     modus !== "bit" && modus !== "rute" &&
-    !busy && !drag && !melding && !feil && !hentar
+    !teikn && !busy && !drag && !melding && !feil && !hentar
   /**
    * DET FYRSTE TRYKKET VEKKJER, OG GJER ELLES INGENTING.
    *
@@ -2618,7 +2612,7 @@ export function Studio() {
       } else if (k === "escape") {
         // det minste emnet fyrst, som ⌫: held du på å teikne, er det DET
         // escape slepper — og han slepper det UTAN å lage flata
-        if (teikn) setTeikn(null)
+        if (teikn) setTeikn(false)
         else if (verkty) setVerkty(null)
         else if (valdPunkt !== null) setValdPunkt(null)
         else if (valdStrek !== null) setValdStrek(null)
@@ -2700,7 +2694,6 @@ export function Studio() {
             onValdStrek={setValdStrek}
             snappSteg={SNAPPSTEG[Math.round(Number(params.snapp ?? 3)) as 0 | 1 | 2 | 3] ?? 90}
             teikn={teikn}
-            onTeiknDra={teiknDra}
             onTeiknLukk={teiknLukk}
             onPunkt={flyttPunkt}
             onSlaaSaman={slaaSamanPunkt}
@@ -2939,7 +2932,7 @@ export function Studio() {
                   title={teikn ? "teikn (T): dra ein firkant på skisseplanet; escape avbryt" : "teikn ei flate (T): dra ein firkant på skisseplanet. Hjørna er handtak etterpå"}
                   onClick={vekslTeikn}
                   className={TUMME_BTN}
-                  data-teiknknapp={teikn ? (teikn.boks ? "dreg" : "klar") : ""}
+                  data-teiknknapp={teikn ? "klar" : ""}
                 >
                   {IcoTeikn}
                 </button>

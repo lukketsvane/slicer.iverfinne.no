@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack && node scripts/sjekk-worker.mjs",
+    "build": "next build --webpack && node scripts/sjekk-worker.mjs && node scripts/bygg-offline.mjs",
     "start": "next start",
     "sjekk": "tsc --noEmit",
     "vekt": "tsx scripts/vekt.ts",

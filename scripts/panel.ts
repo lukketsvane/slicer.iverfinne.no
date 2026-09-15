@@ -4151,6 +4151,98 @@ async function montasjen(browser: Browser) {
   await page.close()
 }
 
+/** Den same teiknereiskapen med ei hand på 390-punktsflata. */
+async function teiknehand(browser: Browser) {
+  console.log("\n=== teiknehand 390×844")
+  const { page, konsoll } = await opne(URL, browser, 390, 844)
+  const knapp = page.locator("[data-teiknknapp]")
+  await knapp.click()
+  const cdp = await page.context().newCDPSession(page)
+  const a = { x: 90, y: 290, id: 1 }
+  const b = { x: 190, y: 410, id: 1 }
+  const c = { x: 230, y: 490, id: 1 }
+  const andre = { x: 265, y: 330, id: 2 }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [a] })
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [b] })
+  await page.waitForTimeout(100)
+  sjekk("måla fylgjer fingeren før flata finst", /[0-9].*×.*mm/.test(await page.locator(".teiknmaal").textContent() ?? "") && plana(page).length === 0)
+  if (process.env.PANEL_BILETE) await page.screenshot({ path: `${process.env.PANEL_BILETE}/teikne-drag.png` })
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] })
+  await roleg(page, 300)
+  sjekk("eit avbrot lagar ingen flate", plana(page).length === 0 && await knapp.getAttribute("aria-pressed") === "true")
+  sjekk("og slepper den uferdige streken", await page.locator(".teiknflate polygon").getAttribute("points") === "")
+
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [a] })
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [b] })
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [b, andre] })
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [andre] })
+  await page.waitForTimeout(100)
+  sjekk("den andre fingeren slepper utan å avslutte draget", await page.evaluate(() => document.querySelector("[data-teikn]")?.getAttribute("data-teikn")) === "dreg" && plana(page).length === 0)
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [c] })
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+  await vent(page, talPlan(1))
+  sjekk("berre fingeren som teikna lagar flata", plana(page).length === 1 && plana(page)[0].omriss?.length === 4)
+  sjekk("hjørna er klare til å formast med ein gong", await page.locator("button[data-punkt]").count() === 4)
+  if (process.env.PANEL_BILETE) await page.screenshot({ path: `${process.env.PANEL_BILETE}/teikna-flate.png` })
+  await page.getByRole("button", { name: "angre", exact: true }).click()
+  await vent(page, talPlan(0))
+  sjekk("heile draget er eitt steg i angre", plana(page).length === 0)
+  sjekk("ingen konsollfeil i teiknehanda", konsoll.length === 0, konsoll.slice(0, 2).join(" · "))
+  await cdp.detach()
+  await page.close()
+}
+
+/** Opning frå heimskjermen har inga prosjektlenkje og kan vera utan nett. */
+async function heimskjermen(browser: Browser) {
+  console.log("\n=== heimskjermen utan nett")
+  const plan = skrivPlan(rutenett(2, 2))
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ storleik: 187, plan })), browser, 390, 844)
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null, undefined, { timeout: 45000 })
+  const mellomlager = await page.evaluate(async () => {
+    const namn = (await caches.keys()).find((n) => n.startsWith("slicer-verkstad-"))
+    const filer = namn ? await (await caches.open(namn)).keys() : []
+    return filer.map((r) => new globalThis.URL(r.url).pathname)
+  })
+  sjekk("arbeidar, skrift og alle former er på telefonen", mellomlager.some((p) => p.endsWith(".js")) && mellomlager.some((p) => p.endsWith(".woff2")) && mellomlager.filter((p) => p.endsWith(".glb")).length === 19, `${mellomlager.length} filer`)
+  await page.getByRole("tab", { name: "kontur", exact: true }).click()
+  await roleg(page, 700)
+  const foer = hash(page)
+  await page.context().setOffline(true)
+  await page.goto(URL, { waitUntil: "networkidle" })
+  await roleg(page, 700)
+  sjekk("prosjektet kjem att utan nett og utan lenkje", hash(page).storleik === 187 && hash(page).plan === foer.plan)
+  sjekk("og same arbeidsflate er open", await page.getByRole("tab", { name: "kontur", exact: true }).getAttribute("aria-selected") === "true")
+
+  // Ei økt som iOS stogga før IndexedDB stadfesta skrivinga.
+  await page.addInitScript((params) => localStorage.setItem("slicer-okt-vakt", JSON.stringify({ params: { ...params, storleik: 213 }, view: "lag", skal: false })), foer)
+  // Basen opnar seinare enn den vanlege autosave-fristen på 150 ms.
+  await page.addInitScript(() => {
+    const opne = indexedDB.open.bind(indexedDB)
+    indexedDB.open = (...args: Parameters<IDBFactory["open"]>) => {
+      const r = opne(...args)
+      Object.defineProperty(r, "onsuccess", { set(fn: (e: Event) => void) {
+        r.addEventListener("success", (e) => setTimeout(() => fn.call(r, e), 350))
+      } })
+      return r
+    }
+  })
+  await page.goto(URL, { waitUntil: "networkidle" })
+  await roleg(page, 600)
+  sjekk("siste uferdige skriving vert berga", hash(page).storleik === 213 && hash(page).plan === foer.plan)
+  sjekk("og synet fylgjer den berga økta", await page.getByRole("tab", { name: "lag", exact: true }).getAttribute("aria-selected") === "true" && await page.getByRole("button", { name: "skalet", exact: true }).getAttribute("aria-pressed") === "false")
+  sjekk("kvitteringa slepper fyrst etter lagring", await page.evaluate(() => localStorage.getItem("slicer-okt-vakt")) === null)
+
+  // Henta fyrst NO, medan sambandet er borte: ikkje berre eit HTTP-minne.
+  const form = await page.evaluate(async () => {
+    const r = await fetch("/form/stolform-01.glb")
+    return r.ok && (await r.arrayBuffer()).byteLength > 100000
+  })
+  sjekk("ei ubrukt innebygd form kan hentast utan nett", form)
+  sjekk("ingen kodefeil ved nettlaus opning", konsoll.length === 0, konsoll.slice(0, 2).join(" · "))
+  await page.context().setOffline(false)
+  await page.close()
+}
+
 const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["telefon", telefon],
   ["kroppen", kroppen],
@@ -4169,6 +4261,8 @@ const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["uttaka", uttaka],
   ["benk", benk],
   ["teikninga", teikninga],
+  ["teiknehand", teiknehand],
+  ["heimskjermen", heimskjermen],
   ["kamera", kamera],
   ["skrivebordet", skrivebordet],
   ["grupper", grupper],
