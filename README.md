@@ -180,7 +180,10 @@ the switch went on and nothing happened. With either open the left button is
 theirs — sideways sets columns (or ribs), up and down sets rows (or how far
 out) — and the orbit stands aside until you let go. On the sheet, arrows nudge the
 selected part a millimetre, and shift-arrows ten. A phone gets none of this:
-one thumb has no arrows, and a text field there zooms the page.
+one thumb has no arrows. Numeric rows do accept a double-tap on the phone:
+the temporary field uses 16 px text and a decimal keyboard. Under **materiale**,
+the third page (**passform**) sets the measured thickness and clearance exactly;
+the thickness shortcuts now include 9, 12, 15, 18 and 24 mm.
 
 **With a part selected** (tap it in the object), the handles and the two-finger
 drag edit *that* plane instead of the sketch: move it along its normal, re-angle
@@ -691,16 +694,20 @@ are not two values.
 
 **Draw a face where there is nothing.** The first tool in the column (`T`)
 makes something out of nothing; everything else changes what already stands.
-**Drag one rectangle** on the sketch plane and let go: a plane exists, with
-that rectangle as its outline. It is not a section of the body — it cuts
-nothing — it *is* something, and it takes its profile from the four corners.
+Choose **tom arbeidsflate** in the body menu to start drawing with the source
+shell hidden. Choose **firkant** for a dragged rectangle or **kontur** to draw
+the whole outline with one finger. Release to close it and create an editable
+plate. The contour is simplified to at most 24 handles; tiny or crossing
+outlines are rejected. Freehand simplification is measured in screen pixels,
+and may relax to 1.25% of the outline diagonal at the point limit. It is input
+simplification, separate from the accuracy of the cut slots.
 
-The rectangle follows the finger without rerendering the studio on each move,
+The outline follows the finger without rerendering the studio on each move,
 and its width and height in millimetres appear while you draw. Releasing selects
 the new face immediately: its corners are ready to shape. Only the finger that
-started the rectangle may finish it; lifting another finger does nothing to the
+started the outline may finish it; lifting another finger does nothing to the
 drag. A cancelled touch or switching away from the app discards the unfinished
-rectangle. The final position is read from the release itself, not from an
+outline. The final position is read from the release itself, not from an
 earlier rendered frame.
 
 It used to be a tap per corner and one more on the first to close: five
@@ -717,14 +724,17 @@ object. A press that does not travel the same twelve pixels that make a drag
 anywhere else is a finger that did not move, so the tool stays armed and
 waits rather than making a face you cannot see.
 
-The sketch plane is **frozen** when you take the tool, and the face is drawn
+The sketch plane is **frozen** when the drawing finger lands, and the face is drawn
 on the plane that *faces you* — the sketch plane is sighted along the view
 axis and projects to a line, which is nothing to put a corner on. Frozen,
 because a plane that follows the camera moves the face under your hand every
 time you turn to see where you are, and you find out only when you are done.
-There is **no mirroring**: the mirror image of a *section* is a section, but
-the mirror image of a drawn face is not the same face — its frame comes from
-the normal, so the same points give a different shape on the other side.
+Before the stroke starts, the view cube can still choose the drawing side.
+Views within 3° of an axis create exactly axis-aligned plates, including the
+top view. **spegl x/y/z** on a selected plate mirrors its outline, holes and
+curves into the new local frame. It creates a copy across the construction
+centre, or reflects a flat plate in place when both lie in the same plane.
+**dubler** preserves the full profile and selects the copy for moving.
 
 **The profile is a proposal, and `form` takes it over.** The contour is the
 mesh read off, and sometimes that is not the rib you have in mind. Select a
@@ -1176,6 +1186,11 @@ pnpm tung    # a million triangles in, and how long that takes
 pnpm ark     # cut sheets as images
 pnpm look    # screenshots of the page, and any console errors
 pnpm panel   # the controls in a real browser: both surfaces, gestures, keys
+pnpm teikn   # freehand input, concave outlines, axis snapping and persistence
+pnpm presisjon # actual slot widths and kerf read back from nested SVG
+pnpm redigering # mobile drawing, material numbers, mirroring and undo
+pnpm webkit  # WebKit mobile layout and editing smoke test on PC, not physical iOS
+pnpm minutt  # fresh mobile session to an SVG saved to disk; uses port 3210
 ```
 
 `probe` through `tak` are headless and fast, and `.github/workflows/vakter.yml`
@@ -1263,6 +1278,14 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   would need a real search.
 - Kerf compensation offsets along the angle bisector; tighter corners than the
   kerf are approximate, erring safe.
+- Thin straight slots along profile axes receive extra field samples. The
+  precision regression covers 200–1000 mm constructions in 1, 3 and 12 mm
+  material; oblique and curved slots still use the existing field resolution.
+- The timed mobile flow is an automated Chromium run on a PC, with native
+  sharing disabled so it can verify a downloaded file. It is a three-plate
+  study with crossing half-lap joints, not a completed reference chair.
+  Edge tenons and closed mortises, physical assembly and real iPhone timing
+  remain separate work.
 
 ## Credit
 

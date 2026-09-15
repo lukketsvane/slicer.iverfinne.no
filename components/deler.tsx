@@ -350,17 +350,17 @@ const hjul: { el: Element | null; tid: number } = { el: null, tid: 0 }
 /**
  * ÉIN VERDI, SETT MED EIT DRAG PÅ SEG SJØLV.
  *
- * Ikkje eit tekstfelt og ikkje ein skyvar: eit felt tek fokus, iOS zoomar
- * sida inn og tastaturet står over objektet. Heile rada er skrubbaren —
+ * Heile rada er skrubbaren —
  * peikar ned og vassrett drag, eitt steg per seks pikslar, ti steg per steg
  * forbi hundre og tjue, so du treffer fint nær og kjem langt ute. Eit trykk
- * utan drag gjer ingenting, og tastaturet kjem aldri; på benken stegar
+ * utan drag gjer ingenting; på benken stegar
  * pilene, ti om gongen med skift. Verdien går live medan du dreg, og
  * sleppet er eitt steg i angre. Lina og prikken er lesing, ikkje handtak:
  * ho seier kvar i bandet du står.
  *
- * PÅ BENKEN KAN TALET SKRIVAST. Der finst det eit tastatur og inga
- * zooming: eit dobbeltklikk på rada (eller enter med rada i fokus) opnar
+ * DOBBELTTRYKK OPNAR TALET, òg på telefonen: materialet er målt med
+ * skyvelær og 11,85 mm må kunne setjast direkte. Feltet er 16 px på
+ * telefonen for å unngå iOS-zoom. Eit dobbelttrykk (eller enter) opnar
  * talet som eit felt, enter set det, escape let det stå. Feltet finst
  * berre medan du skriv — elles er rada den same skrubbaren som på
  * telefonen, og eit felt som stod der heile tida ville teke fokus frå
@@ -379,11 +379,12 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
   onSkrubb?: (aktiv: boolean) => void
 }) {
   const shown = r.names ? (r.names[Math.round(value)] ?? String(value)) : feltTal(value, r.step).replace(".", ",")
-  const tak = useRef<{ id: number; x0: number; v0: number; sist: number } | null>(null)
+  const tak = useRef<{ id: number; x0: number; y0: number; tid: number; drog: boolean; v0: number; sist: number } | null>(null)
+  const trykk = useRef<{ tid: number; x: number; y: number } | null>(null)
   const del = Math.max(0, Math.min(1, (value - r.min) / (r.max - r.min || 1)))
   /** talet medan det vert skrive; null er ikkje-skriv */
   const [skriv, setSkriv] = useState<string | null>(null)
-  const kanSkrive = !!benk && !r.names
+  const kanSkrive = !r.names
   const opneFelt = () => setSkriv(feltTal(value, r.step).replace(".", ","))
   /** eitt send per felt: enter tek feltet bort, og blur-en som fylgjer skal ikkje sende att */
   const sendt = useRef(false)
@@ -399,6 +400,19 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
     if (!t || e.pointerId !== t.id) return
     tak.current = null
     onSkrubb?.(false)
+    // WebKit lagar ikkje dblclick frå to touch. Les dei to korte trykka
+    // sjølve, med same tidsvindauge som dei andre reiskapane.
+    if (e.pointerType === "mouse") return
+    const kort = e.type === "pointerup" && !t.drog && e.timeStamp - t.tid < DOBBELT_MS && Math.hypot(e.clientX - t.x0, e.clientY - t.y0) < 6
+    if (!kanSkrive || !kort) { trykk.current = null; return }
+    const foer = trykk.current
+    trykk.current = { tid: e.timeStamp, x: e.clientX, y: e.clientY }
+    if (foer && e.timeStamp - foer.tid < DOBBELT_MS && Math.hypot(e.clientX - foer.x, e.clientY - foer.y) < 24) {
+      trykk.current = null
+      e.preventDefault()
+      sendt.current = false
+      opneFelt()
+    }
   }
   /**
    * HJULET STEGAR VERDIEN, og spalta under står stille.
@@ -467,13 +481,14 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
       aria-valuemin={r.min}
       aria-valuemax={r.max}
       aria-valuetext={`${shown}${r.unit ? " " + r.unit : ""}`}
-      title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra sidelengs${benk ? " · hjulet stegar, skift ti" : ""}${kanSkrive ? " · dobbeltklikk: skriv" : ""}`}
+      title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra sidelengs${benk ? " · hjulet stegar, skift ti" : ""}${kanSkrive ? " · dobbelttrykk: skriv" : ""}`}
       className="skrubb flex min-h-[44px] items-center gap-3"
       onDoubleClick={() => { if (kanSkrive && skriv === null) { sendt.current = false; opneFelt() } }}
       onPointerDown={(e) => {
         if (skriv !== null) return
+        if (!e.isPrimary) return
         if (e.pointerType === "mouse" && e.button !== 0) return
-        tak.current = { id: e.pointerId, x0: e.clientX, v0: value, sist: value }
+        tak.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, tid: e.timeStamp, drog: false, v0: value, sist: value }
         e.currentTarget.setPointerCapture(e.pointerId)
         onSkrubb?.(true)
       }}
@@ -481,6 +496,7 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
         const t = tak.current
         if (!t || e.pointerId !== t.id) return
         const dx = e.clientX - t.x0
+        if (Math.hypot(dx, e.clientY - t.y0) >= 6) t.drog = true
         const a = Math.abs(dx)
         const steg = Math.sign(dx) * (Math.min(a, 120) / 6 + (Math.max(0, a - 120) / 6) * 10)
         const v = snap(t.v0 + Math.round(steg) * r.step, r)
@@ -515,8 +531,9 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
           <input
             aria-label={`${r.label}, skriv`}
             className="tab w-full min-w-0 border-0 border-b bg-transparent p-0 text-right text-[11px] outline-none"
-            style={{ color: "var(--ink)", borderColor: "var(--ink)" }}
+            style={{ color: "var(--ink)", borderColor: "var(--ink)", fontSize: benk ? 11 : 16 }}
             inputMode="decimal"
+            enterKeyHint="done"
             autoFocus
             value={skriv}
             onFocus={(e) => e.currentTarget.select()}

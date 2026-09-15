@@ -125,7 +125,10 @@ const TAK: [string, number][] = [
   // og ikkje ei kjede, og dei fire hjørna vert rekna i `teiknLukk`. Kring
   // ti av linene er grunngjevinga: kvifor kjeda ikkje gav noko handtaka i
   // `Omrisset` ikkje alt gjev, og kvifor firkanten står oppreist
-  ["components/studio.tsx", 3273],
+  // +18 den 15.: tom arbeidsflate, firkant/kontur og spegling av heile
+  // teikna plater. Gamle firkant-/speglingskommentarar er oppdaterte;
+  // peikarløypa er samstundes trekt ut av scene.tsx (−102 liner der).
+  ["components/studio.tsx", 3291],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko
@@ -202,7 +205,9 @@ const TAK: [string, number][] = [
   // — og alle tre er meir grunngjeving enn kode. Neste gong denne fila
   // skal veksa, bør `lukene` flytte ut i si eiga: ho veit ingenting om
   // snitting, berre om flater som ligg nær kvarandre.
-  ["lib/snitt.ts", 1851],
+  // +4 den 15.: smale slissar får ekstra feltprøver og verna veggendar.
+  // Sjølve rekninga ligg i sporfelt.ts; snittet koplar henne inn.
+  ["lib/snitt.ts", 1855],
   ["lib/pack.ts", 955],
 ]
 

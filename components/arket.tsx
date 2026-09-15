@@ -345,12 +345,12 @@ function MaterialTab({ p }: { p: ArketProps }) {
         </>
       ) : (
         <>
-          {(["arkB", "arkH"] as const).map((k) => (
+          {(side === 1 ? ["arkB", "arkH"] as const : ["tjukn", "klaring"] as const).map((k) => (
             <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(p.params, k, PARAM_RANGES[k].min)} benk={false} onChange={(key, v) => p.onChange({ ...p.params, [key]: v })} onSkrubb={p.onSkrubb} />
           ))}
         </>
       )}
-      <Pager side={side} tal={2} onSide={setSide} ord={side === 0 ? "materiale" : "plate"} />
+      <Pager side={side} tal={3} onSide={setSide} ord={["materiale", "plate", "passform"][side]} />
     </div>
   )
 }

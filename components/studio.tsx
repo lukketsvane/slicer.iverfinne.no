@@ -6,8 +6,9 @@ import { erPrimitiv, KUBE } from "@/lib/sources"
 import { alleNett, gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
-import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_ROM, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, omrissLine, ramme as planRamme, formPunkt, FORM_SLAG, rutenett, sameSnitt, skilRute, slaaSaman, spegla, speglingar, skrivPlan, sub3, vriOm, type FormSlag, type Plan, type Strek } from "@/lib/plan"
+import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_ROM, PLAN_TAK, add3, broek, delAv, dot, dreiing, iGruppa, lesPlan, mul3, norm3, nyGruppe, nyId, omrissLine, ramme as planRamme, formPunkt, FORM_SLAG, rutenett, sameSnitt, skilRute, skuvKopi, slaaSaman, spegla, speglingar, skrivPlan, sub3, vriOm, type FormSlag, type Plan, type Strek } from "@/lib/plan"
 import { simplify, type Pt2 } from "@/lib/contour"
+import { speglPlan } from "@/lib/spegl"
 import { byggKey, lesDeling, lesFest, skrivDeling, skrivFest, SNAPPSTEG, SNAPP_NAMN } from "@/lib/params"
 import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
@@ -1344,55 +1345,51 @@ export function Studio() {
     setBlink(id)
   }, [speil])
   /**
-   * TEIKNE EI FLATE: eit plan som ikkje skjer noko, men som ER noko.
-   *
-   * EIN FIRKANT, DREGEN. Reiskapen bad før om eit trykk per hjørne og eit
-   * til på det fyrste for å lukke — fem handlingar for det som er starten
-   * på arbeidet. Og starten var alt han var: kvart hjørne er eit handtak i
-   * `Omrisset` so snart flata finst, og der kan du dra det, leggje til
-   * punkt på midtmerka og vri eit hjørne til ein boge. Kjeda gav difor
-   * ingenting handtaka ikkje alt gav, og tok fem trykk om det.
-   *
-   * Skisseplanet vert FROSE i det du tek reiskapen. Det må det: teiknar du
-   * mot eit plan som fylgjer kameraet, flyttar flata seg under handa di
-   * kvar gong du snur synet for å sjå kvar du er — og du ser det fyrst når
-   * du er ferdig.
-   *
-   * INGA SPEGLING. `laas` speglar snittet om midtplana når symmetrien står
-   * på, og det er rett for eit SNITT: spegelbiletet av eit snitt er eit
-   * snitt. Spegelbiletet av ei teikna flate er ikkje den same flata — ramma
-   * hennar kjem av normalen, so dei same punkta gjev ei anna form på den
-   * andre sida. Å spegle henne likevel ville laga ei flate du ikkje har
-   * teikna og ikkje kan sjå at du ikkje har teikna.
+   * Ei flate frå eitt drag: firkant eller fri kontur, der punkta vert
+   * handtak etterpå. Teikneplanet er frose medan fingeren går, elles ville
+   * forma flytta seg med kameraet. Spegling er ei eiga handling på den
+   * ferdige plata og tek heile den lokale teikninga med (sjå speglPlan).
    */
   const [teikn, setTeikn] = useState(false)
+  const [teiknSlag, setTeiknSlag] = useState<"firkant" | "kontur">("firkant")
   const vekslTeikn = useCallback(() => {
     if (!teikn) {
       setVald(null)
       setValdBit(null)
       setModus("form")
-      setMelding("teikn: dra ein firkant")
+      setMelding(teiknSlag === "kontur" ? "teikn konturen · slepp for å lukke" : "teikn: dra ein firkant")
     }
     setTeikn((t) => !t)
-  }, [teikn])
+  }, [teikn, teiknSlag])
   useEffect(() => { if (modus !== "form") setTeikn(false) }, [modus])
+  const tomArbeidsflate = useCallback(() => {
+    setParams((cur) => ({ ...cur, kjelde: "kube", scene: "", plan: "", fest: "", deling: "" }))
+    setVald(null)
+    setValdBit(null)
+    setValdGruppe(null)
+    setValdStrek(null)
+    setValdPunkt(null)
+    setVerkty(null)
+    setView("lag")
+    setSkal(false)
+    setModus("form")
+    setSteg("line")
+    setTeikn(true)
+  }, [])
   /**
    * PLANET KJEM FRÅ SCENA, av di det er ho som veit kvar kameraet står.
    * Teikneplanet er det som VENDER MOT DEG — skisseplanet står på kant og
-   * projiserer til ei line — og det er frose frå fyrste trykket.
+   * projiserer til ei line — og det er frose frå starten på fingerdraget.
    *
-   * Hjørna vert skrivne mot klokka i planet si eiga ramme, der `v` er so
+   * Punkta vert skrivne i planet si eiga ramme, der `v` er so
    * nær «opp» som planet tillèt: firkanten står oppreist i kroppen.
    */
-  const teiknLukk = useCallback((po: Vec3, pn: Vec3, boks: [Pt, Pt]) => {
+  const teiknLukk = useCallback((po: Vec3, pn: Vec3, punkt: Pt[]) => {
     setTeikn(false)
     const k = kroppRef.current
     if (!k) return
-    const [[ax, ay], [bx, by]] = boks.map(klemPunkt)
-    if (ax === bx || ay === by) return
-    const [x0, x1] = ax < bx ? [ax, bx] : [bx, ax]
-    const [y0, y1] = ay < by ? [ay, by] : [by, ay]
-    const omriss: Pt[] = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+    const omriss = punkt.map(klemPunkt)
+    if (omriss.length < 3 || omriss.length > OMRISS_TAK || Math.abs(shoelace(omriss)) < 1e-6) return
     const o = broek(po, k.min, k.max)
     if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) return setMelding("for langt ute")
     const naaPlan = lesPlan(naa.current.plan)
@@ -1430,11 +1427,12 @@ export function Studio() {
     const g = gruppeNo.current.g
     const kjelde = g !== null && q.gruppe === g ? iGruppa(l, g) : [q]
     if (l.length + kjelde.length > PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
-    const skuv = (p: Plan): Vec3 =>
-      p.o.map((c, a) => {
-        const vidd = Math.max(1e-6, k.max[a] - k.min[a])
-        return Math.min(1, Math.max(0, +(c + (p.n[a] * 2 * t) / vidd).toFixed(4)))
-      }) as Vec3
+    const kopiar: Plan[] = []
+    for (const p of kjelde) {
+      const o = skuvKopi(p, k.min, k.max, t)
+      if (!o) return setMelding("ikkje rom for kopi · flytt plata innover")
+      kopiar.push({ ...p, o })
+    }
     const nyG = kjelde.length > 1 ? nyGruppe(l) : 0
     let ny = nyId(l)
     const leiar = ny + kjelde.findIndex((p) => p.id === id)
@@ -1443,11 +1441,32 @@ export function Studio() {
       if (m.length + kjelde.length > PLAN_TAK) return cur
       let i = nyId(m)
       ny = i
-      return { ...cur, plan: skrivPlan([...m, ...kjelde.map((p) => ({ id: i++, o: skuv(p), n: p.n, bog: p.bog, strek: p.strek, ...(nyG ? { gruppe: nyG } : {}) }))]) }
+      return { ...cur, plan: skrivPlan([...m, ...kopiar.map((p) => ({ ...p, id: i++, gruppe: nyG || undefined }))]) }
     })
     setVald(leiar)
     setValdGruppe(nyG || null)
+    setValdStrek(null)
+    setValdPunkt(null)
     setBlink(leiar)
+  }, [])
+  /** Spegelkopi i rommet; ligg spegelen i same plan, snur han forma der. */
+  const speglValt = useCallback((akse: number) => {
+    const k = kroppRef.current
+    const id = valdRef.current
+    const l = lesPlan(naa.current.plan)
+    const q = l.find((p) => p.id === id)
+    if (!k || !q) return
+    const speglaPlan = speglPlan(q, akse, k.min, k.max)
+    const a = planRamme(q, k.min, k.max), b = planRamme(speglaPlan, k.min, k.max)
+    const samePlan = !q.bog && Math.abs(dot(a.n, b.n)) > 0.99999 && Math.abs(dot(sub3(b.o, a.o), a.n)) < 0.001
+    if (!samePlan && l.length >= PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+    const ny = { ...speglaPlan, id: samePlan ? q.id : nyId(l), gruppe: undefined }
+    setParams((cur) => ({ ...cur, plan: skrivPlan(samePlan ? l.map((p) => p.id === q.id ? ny : p) : [...l, ny]) }))
+    setVald(ny.id)
+    setValdGruppe(null)
+    setValdStrek(null)
+    setValdPunkt(null)
+    setBlink(ny.id)
   }, [])
   /**
    * BØYEN PÅ EIT PLAN, sett med ein finger.
@@ -2694,6 +2713,7 @@ export function Studio() {
             onValdStrek={setValdStrek}
             snappSteg={SNAPPSTEG[Math.round(Number(params.snapp ?? 3)) as 0 | 1 | 2 | 3] ?? 90}
             teikn={teikn}
+            teiknSlag={teiknSlag}
             onTeiknLukk={teiknLukk}
             onPunkt={flyttPunkt}
             onSlaaSaman={slaaSamanPunkt}
@@ -2749,7 +2769,21 @@ export function Studio() {
         </section>
       )}
 
-      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
+      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} onTomArbeidsflate={tomArbeidsflate} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
+      {mounted && teikn && rom && (
+        <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="teiknemåte">
+          {(["firkant", "kontur"] as const).map((slag) => (
+            <button key={slag} type="button" className={ORD + " min-w-16"} aria-pressed={teiknSlag === slag} onClick={() => setTeiknSlag(slag)}>{slag}</button>
+          ))}
+        </div>
+      )}
+      {mounted && !teikn && vald !== null && valdGruppe === null && rom && modus !== "bit" && (
+        <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="spegl planet">
+          {(["x", "y", "z"] as const).map((akse, i) => (
+            <button key={akse} type="button" className={ORD + " min-w-16"} aria-label={`spegl planet om ${akse}`} title={`spegelkopi om ${akse}; i same plan vert forma snudd`} onClick={() => speglValt(i)}>spegl {akse}</button>
+          ))}
+        </div>
+      )}
 
       {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til VENSTRE i
           det frie bandet — synskuben har det høgre hjørnet */}
@@ -2759,20 +2793,10 @@ export function Studio() {
         </div>
       )}
 
-      {/* SYMMETRIEN PÅ SNITTET: tre brytarar, ei line, ØVST I MIDTEN. Kvar
-          akse speglar snittet om midtplanet i kroppen, og dei tel saman: x og
-          y er fire ribber av ei. Ord og ikkje ikon: ein akse har eit namn, og
-          x er kortare enn kvart bilete av x. Og berre ordet: tre piller midt
-          over objektet var tre flater du såg i staden for det du lagar.
-
-          Dei stod i tommelspalta, rett over skjer. Spalta midtstiller borna
-          sine, so ei line på tre ord måtte stå utanfor flyten for ikkje å
-          skuve skjer innover — og ho tok ei høgd tommelen kunne brukt. Midt
-          i det frie bandet står ho for seg sjølv: gesttalet har venstre
-          hjørnet, synskuben det høgre. Bandet tek ingen fingrar; berre orda
-          gjer det — og orda ligg UNDER handtaka, so eit handtak som kjem
-          til å stå oppå eit av dei tek fingeren sin (sjå `.speil`). */}
-      {mounted && vald === null && rom && modus !== "bit" && (
+      {/* Symmetri for neste snitt. På ei vald plate er dei same aksane
+          handlingar som speglar teikninga. Bandet tek berre fingrar på
+          orda og ligg under handtaka, klårt av synskuben. */}
+      {mounted && !teikn && vald === null && rom && modus !== "bit" && (
         <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="symmetri">
           {(["x", "y", "z"] as const).map((ord, a) => (
             <button
@@ -2929,7 +2953,7 @@ export function Studio() {
                   type="button"
                   aria-pressed={!!teikn}
                   aria-label="teikn ei flate"
-                  title={teikn ? "teikn (T): dra ein firkant på skisseplanet; escape avbryt" : "teikn ei flate (T): dra ein firkant på skisseplanet. Hjørna er handtak etterpå"}
+                  title={teikn ? "teikn (T): vel firkant eller kontur; slepp for å lukke, escape avbryt" : "teikn ei flate (T): firkant eller fri kontur. Punkta er handtak etterpå"}
                   onClick={vekslTeikn}
                   className={TUMME_BTN}
                   data-teiknknapp={teikn ? "klar" : ""}

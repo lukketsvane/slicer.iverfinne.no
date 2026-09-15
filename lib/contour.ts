@@ -31,6 +31,7 @@ export function contour(
   y0: number,
   dy: number,
   ny: number,
+  aksar?: { x: readonly number[]; y: readonly number[] },
 ): Loop[] {
   const W = nx + 1
   const at = (i: number, j: number) => g[j * W + i]
@@ -51,8 +52,8 @@ export function contour(
       const a = at(i, j)
       const b = at(i + 1, j)
       const t = a / (a - b)
-      px[k] = x0 + i * dx + t * dx
-      py[k] = y0 + j * dy
+      px[k] = aksar ? aksar.x[i] + t * (aksar.x[i + 1] - aksar.x[i]) : x0 + i * dx + t * dx
+      py[k] = aksar ? aksar.y[j] : y0 + j * dy
       har[k] = 1
     }
     return k
@@ -63,8 +64,8 @@ export function contour(
       const a = at(i, j)
       const b = at(i, j + 1)
       const t = a / (a - b)
-      px[k] = x0 + i * dx
-      py[k] = y0 + j * dy + t * dy
+      px[k] = aksar ? aksar.x[i] : x0 + i * dx
+      py[k] = aksar ? aksar.y[j] + t * (aksar.y[j + 1] - aksar.y[j]) : y0 + j * dy + t * dy
       har[k] = 1
     }
     return k
@@ -169,7 +170,7 @@ function fråLina(p: Pt2, a: Pt2, c: Pt2): number {
  * teikna, og lina får ikkje strekkje seg lenger enn til det fyrste
  * punktet ho ikkje lenger held. Då tyder toleransen det han seier.
  */
-export function simplify(poly: Pt2[], tol: number): Pt2[] {
+export function simplify(poly: Pt2[], tol: number, lukka = true): Pt2[] {
   const n = poly.length
   if (n < 4) return poly
   const out: Pt2[] = [poly[0]]
@@ -271,5 +272,5 @@ export function simplify(poly: Pt2[], tol: number): Pt2[] {
   // Det siste punktet står alltid: lina attende til fyrste punktet er ein
   // ekte kant i ringen, og ikkje ei line nokon har funne på.
   if (start !== n - 1) out.push(poly[n - 1])
-  return out.length >= 3 ? out : poly
+  return out.length >= (lukka ? 3 : 2) ? out : poly
 }

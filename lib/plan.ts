@@ -1001,6 +1001,19 @@ export function spegla(o: Vec3, n: Vec3, akse: number): { o: Vec3; n: Vec3 } {
   return { o: o2, n: n2 }
 }
 
+/** Ein kopi står to platetjukner langs normalen. Ved romgrensa snur HEILE
+ * vektoren; koordinatvis vending kan leggje ein skrå kopi i same plan. */
+export function skuvKopi(p: Pick<Plan, "o" | "n">, min: Vec3, max: Vec3, tjukn: number): Vec3 | null {
+  const steg = p.n.map((n, a) => n * 2 * tjukn / Math.max(1e-6, max[a] - min[a]))
+  for (const forteikn of [1, -1]) {
+    const o = p.o.map((c, a) => c + forteikn * steg[a])
+    if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) continue
+    const rund = o.map((c) => +c.toFixed(4)) as Vec3
+    if (rund.some((c, a) => c !== p.o[a])) return rund
+  }
+  return null
+}
+
 /**
  * Undermengdene av dei valde aksane, identiteten fyrst. `sp` er tre
  * brytarar i eitt tal (1 er x, 2 er y, 4 er z), og kvar av dei doblar
@@ -1077,7 +1090,7 @@ function radStaar(rad: readonly Plan[], akse: 0 | 1): boolean {
 }
 
 export function skilRute(l: readonly Plan[]): { rute: Plan[]; andre: Plan[]; nx: number; ny: number } {
-  const rein = (q: Plan) => !q.bog && q.strek.length === 0 && !q.farge
+  const rein = (q: Plan) => !q.bog && q.strek.length === 0 && !q.farge && !q.omriss?.length && !q.firkant && !q.mjuk
   const kx = l.filter((q) => rein(q) && Math.abs(q.n[0]) > 0.999 && naerNok(q.o[1], 0.5) && naerNok(q.o[2], 0.5))
   const ky = l.filter((q) => rein(q) && Math.abs(q.n[1]) > 0.999 && naerNok(q.o[0], 0.5) && naerNok(q.o[2], 0.5))
   const okx = radStaar(kx, 0)

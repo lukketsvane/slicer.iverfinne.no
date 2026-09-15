@@ -48,6 +48,8 @@ jobs:
       - run: pnpm ledd
       - run: pnpm raad
       - run: pnpm hand
+      - run: pnpm teikn
+      - run: pnpm presisjon
       - run: pnpm enkel
       - run: pnpm pakk
       - run: pnpm tak
