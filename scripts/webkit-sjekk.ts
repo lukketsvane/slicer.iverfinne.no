@@ -42,6 +42,23 @@ async function prov() {
     await knapp("skjer hòl").tap()
     await vent(() => lesPlan(params().plan)[0]?.strek.length === 1, "hòlet manglar")
     assert.equal(await side.locator("button[data-punkt]").count(), 0, "omrisshandtak dekkjer hòlhandtak")
+    await knapp("dubler planet").tap()
+    await vent(() => lesPlan(params().plan).length === 2, "kopien manglar")
+    const par = lesPlan(params().plan)
+    await side.waitForTimeout(500) // bokfør kopien før neste diskrete handling
+    await knapp("gjenta flyttinga").tap()
+    await vent(() => lesPlan(params().plan).length === 3, "gjentakinga manglar")
+    const rekkje = lesPlan(params().plan)
+    assert.deepEqual(rekkje.slice(0, 2), par, "gjentakinga flytta kjelda")
+    assert.deepEqual(rekkje[2].strek, par[1].strek, "gjentakinga miste hòlet")
+    assert.deepEqual(rekkje[2].omriss, par[1].omriss, "gjentakinga miste den redigerbare konturen")
+    for (let i = 0; i < 3; i++) assert(Math.abs(rekkje[2].o[i] - 2 * par[1].o[i] + par[0].o[i]) < 0.00001, "gjentakinga endra avstanden")
+    const lagraRekkje = params().plan
+    await side.waitForTimeout(500)
+    await knapp("angre").tap()
+    await vent(() => lesPlan(params().plan).length === 2, "angre tok ikkje berre den nye plata")
+    await knapp("gjer om").tap()
+    await vent(() => params().plan === lagraRekkje, "gjer om gav ikkje same rekkje")
     await knapp("opne kontrollane").tap()
     await side.getByRole("tab", { name: "materiale", exact: true }).tap()
     const foerTjukn = params().tjukn
@@ -60,7 +77,7 @@ async function prov() {
     assert.deepEqual(feil, [], "WebKit kasta feil")
     mkdirSync("bilete/webkit", { recursive: true })
     await side.screenshot({ path: "bilete/webkit/nesta.png" })
-    console.log("WebKit: kontur, aksesyn, hòl, presis tjukn og nesting grøne på 390×844")
+    console.log("WebKit: kontur, hòl, gjentaking, angre/gjer om, presis tjukn og nesting grøne på 390×844")
   } catch (e) {
     mkdirSync("bilete/webkit", { recursive: true })
     await side.screenshot({ path: "bilete/webkit/feil.png" }).catch(() => {})
