@@ -897,7 +897,8 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
    10  Steg 1 av bøygde ledd                 → pnpm ledd: tre nye saker, 32/24/92
                                                  ledd, alle i profilane ✓ GJORT
    11  Ein kanal ut av `Handa`, når du       → panel telefon + handtaka
-       likevel er inne i han                     ← DET EINASTE SOM STÅR ATT
+       likevel er inne i han                     ✓ GJORT — Ctrl-hjul-zoom er
+                                                 no eigen kanal
    12  ~~Pakkesøket i arbeidaren~~           → strøken: 502 rekkjefylgjer sparte
                                                  null plater på 14 objekt (sjå B)
    13  ~~Romleg deling av leddpara~~         → strøken: å avvise eit par er
@@ -934,11 +935,11 @@ Kvart steg har noko som seier at det verka. Eit steg utan det er ikkje eit steg.
        og ikkje profilane (H)                    liner, 12,7 m mot huda sine
                                                  43,5 ✓ GJORT
 
-Nitten av tjueto er gjorde. To er strøkne av målingar — pakkesøket og den
+Tjue av tjueto er gjorde. To er strøkne av målingar — pakkesøket og den
 romlege delinga — og begge står att på sida med tala som tok dei, av di ein
-plan som stryk feila sine lærer ingen noko. Elleve står att, og han er
-strukturell: han har ingen frist, og han vert billegare kvar gong nokon
-likevel er inne i fila.
+plan som stryk feila sine lærer ingen noko. Den siste strukturelle saka er no
+gjord: Ctrl-hjul-zoom har sitt eige kameraeigarskap og si eiga avslutting av
+gesten, so neste kanal kan skiljast ut utan å ta med Handa.
 
 Og A steg 2 står att med ein pris no, og ikkje berre med ei skildring: ein
 fjerdedel av ledda på eit krumt skal med tak og botn (sjå G). Han har dessutan
