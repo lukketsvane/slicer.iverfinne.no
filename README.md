@@ -560,6 +560,19 @@ line *says* a mesh was missing, rather than letting you believe the cube is
 what somebody built. What the body no longer points at is dropped, so the
 database holds what is on screen and not the six files you tried before it.
 
+**The home-screen app opens without a connection.** After one complete online
+visit, the page, code, geometry worker, fonts and all built-in shapes are kept
+as one version on the phone. A new version waits until the open app is closed;
+it never reloads a drawing under your finger. Imported meshes stay in IndexedDB.
+The first visit still needs a connection, and clearing website data removes
+the offline copy and the saved session.
+
+The last view and shell setting are remembered too. A small synchronous receipt
+holds the latest settings until IndexedDB commits them, including when iOS
+suspends the app during a write. Startup finishes reading the session before
+autosave begins, so a slow database cannot replace your work with the default
+cube. Project ZIP files remain the portable backup.
+
 ## The body
 
 **The built-in shapes are furniture and animals.** A sphere, a cylinder, a
@@ -681,6 +694,14 @@ makes something out of nothing; everything else changes what already stands.
 **Drag one rectangle** on the sketch plane and let go: a plane exists, with
 that rectangle as its outline. It is not a section of the body — it cuts
 nothing — it *is* something, and it takes its profile from the four corners.
+
+The rectangle follows the finger without rerendering the studio on each move,
+and its width and height in millimetres appear while you draw. Releasing selects
+the new face immediately: its corners are ready to shape. Only the finger that
+started the rectangle may finish it; lifting another finger does nothing to the
+drag. A cancelled touch or switching away from the app discards the unfinished
+rectangle. The final position is read from the release itself, not from an
+earlier rendered frame.
 
 It used to be a tap per corner and one more on the first to close: five
 actions for the start of the work, and the start was all it ever was. Every
