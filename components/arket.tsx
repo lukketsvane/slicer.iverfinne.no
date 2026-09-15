@@ -19,6 +19,8 @@ import {
   type Steg as LegacySteg,
 } from "./arket-legacy"
 
+import { useGjenta } from "./gjenta"
+
 export const KOL = LEGACY_KOL
 export { kvaSlag }
 export type Steg = LegacySteg
@@ -398,6 +400,7 @@ function ExportTab({ p }: { p: ArketProps }) {
 const SKUFF_H = "26dvh"
 
 function MobileArket(p: ArketProps) {
+  const gjenta = useGjenta(p)
   const open = p.steg !== "line"
   const [fane, setFane] = useState<Fane>("grupper")
   const el = useRef<HTMLElement | null>(null)
@@ -516,6 +519,7 @@ function MobileArket(p: ArketProps) {
             >
               <Summary p={p} />
             </button>
+            {gjenta && <button type="button" aria-label="gjenta flyttinga" title={gjenta.grunn ?? "ny plate med same flytting som førre kopi"} disabled={!gjenta.gjer} onClick={gjenta.gjer} className="hit h-9 min-w-14 shrink-0 px-1 text-[10px] uppercase tracking-[0.08em]">gjenta</button>}
             <button type="button" aria-label="eksport" title="uttak" onClick={() => { setTilUttak(true); setOpenFane("status") }} className={ICON_BTN}>
               {IcoUttak}
             </button>
