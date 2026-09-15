@@ -852,6 +852,59 @@ remove it yourself.
 
 **Up to 64 planes.** Beyond that a link is trying something.
 
+## Tenons
+
+**A drawn plate that stops at another plate is fixed to it with tenons.**
+A slot needs both plates to pass through each other. A stool is not built
+that way: the legs stop under the seat, the rail stops at the side. Where an
+edge meets a face, a tenon goes through a mortise, and the engine finds
+those meetings the same way it finds slots — from the material, not from a
+tag. The plate with material just inside the near face of the other and
+none past its far face *stops there*; the plate with material on both sides
+*passes through*. The first gets the tenons, the second the mortises.
+
+**The edge is straightened.** A finger does not put an edge exactly on the
+underside of a seat, so anything from half a thickness short to half a
+thickness past the far face reads as "stops here". Every outline point in
+that band is moved onto the near face — the sides stay straight up to the
+shoulder — the material past the near face is clipped, and each tenon runs
+through to the far face, flush. The plane string keeps what you drew; the
+section is the truth, as always. A mesh-derived rib never gets a tenon: an
+edge the mesh gave is where the mesh ended, an edge a hand drew is a
+decision.
+
+**Tenons follow the length, not the plate:** one per 150 mm of meeting, with
+shoulders of at least half a thickness and fifteen percent of the cell, so
+a 300 mm seat edge gets two tenons with material between them. A mortise is
+the plate thickness plus the clearance wide — divided by the sine of the
+angle, plus the extra a slanted tenon sweeps through the other plate's
+thickness — and the tenon length plus the clearance long.
+
+**The corners are corners.** Tenons, mortises and the clip are placed in the
+field *after* it is refined, with grid lines on their edges and a
+thousandth of a millimetre inside the convex ones, and the outline is read
+exactly on that grid rather than interpolated onto it. Measured on the
+reference stool: every mortise and every tenon within 0.0000 mm of its
+nominal width, and the drawn corners of a leg within 0.02 mm — they used to
+come out with a two-millimetre chamfer, one grid cell. The simplifier holds
+each box wall the way it already held slot walls.
+
+**Direction carries a sign.** A slot is a line — a part can come from either
+end and the mouth is put where it comes from. A tenon is an arrow. A rail
+with tenons into two sides facing each other has two directions, not one, so
+it goes in after the first side and before the second, and the seat comes
+down last. The list order is still the assembly order; `kan monterast` says
+when it is not one, and its button now looks one step ahead, so it finds
+side, rails, side, seat instead of stopping at side, side.
+
+`pnpm ledd` checks every tenon in the cut profiles: material in the tenon
+and right inside its tip, none past the tip or beside it, a wall on all four
+sides of every mortise, and the tenon and its mortise at the same point in
+space — on a straight stool, a stool with a raised seat, over-long rails, a
+narrow seat, a 3 mm model, splayed legs (seat first, each leg along its own
+tenon) and crossed legs with a seat, where slots and tenons share one
+object.
+
 ## Assembly
 
 The list order is the assembly order. A part slides in along its slots, and a
@@ -1086,6 +1139,8 @@ GLB / glTF / STL / OBJ / PLY          per source, cached
   │               one ray per row and column, a signed field, marching squares
   ├── joints      where two planes share a line through material — slots cut
   │               in the field, oriented, widened by the angle between the planes
+  ├── tenons      where a drawn edge stops at another plate — clipped at the
+  │               near face, tenons through to the far face, mortises opposite
   ├── nest        parts packed by outline, holes counted as free space
   └── STL · GLB · FLAT · 3MF · USDZ · DXF · SVG · ARK
 ```
@@ -1207,6 +1262,8 @@ minutes, and HMR reloading underneath produces failures that look real.
 | `lib/scene.ts` | the body as pieces: primitives and files, placed |
 | `lib/kropp.ts` | the body: pieces joined, weld, unflip, simplify, smooth, place — and turned along any normal |
 | `lib/snitt.ts` | planes to ribs: the field, the joints, the slots, the parts, the assembly order |
+| `lib/tapp.ts` | tenon and mortise: where an edge stops at a face, and the boxes that cut it |
+| `lib/stykke.ts` | lines through profiles: runs of material along a line or an arc |
 | `lib/montasje.ts` | the way from the plate to the object: one mesh and two matrices per part, and the order grouped into steps |
 | `lib/bygg.ts` | the whole build once: body, ribs, parts, nesting |
 | `lib/soup.ts` | mesh in two forms, and the road between them |
@@ -1283,9 +1340,12 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   material; oblique and curved slots still use the existing field resolution.
 - The timed mobile flow is an automated Chromium run on a PC, with native
   sharing disabled so it can verify a downloaded file. It is a three-plate
-  study with crossing half-lap joints, not a completed reference chair.
-  Edge tenons and closed mortises, physical assembly and real iPhone timing
-  remain separate work.
+  study, not a completed reference chair. Physical assembly and real iPhone
+  timing remain separate work.
+- **Tenons are through-tenons, flush with the far face.** No blind mortises
+  (a laser does not pocket), no wedges and no corner finger joints yet: two
+  plates that *both* stop at each other get nothing, and the loose-part rule
+  says so.
 
 ## Credit
 

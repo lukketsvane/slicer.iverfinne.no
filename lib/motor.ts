@@ -158,7 +158,7 @@ function reglarTxt(p: Params): string {
 export function montering(p: Params, s: Snitt): string {
   const liner = s.montering.orden.map((id, i) => {
     const r = s.ribber.find((q) => q.plan.id === id)
-    const mot = [...new Set((r?.spor ?? []).map((q) => q.mot))].filter((m) => s.montering.orden.indexOf(m) < i)
+    const mot = [...new Set([...(r?.spor ?? []), ...(r?.tapp ?? [])].map((q) => q.mot))].filter((m) => s.montering.orden.indexOf(m) < i)
     const stykke = r?.outlines.length ?? 0
     const namn = `${id}${stykke > 1 ? ` (${stykke} stykke)` : ""}`
     const veg = retningOrd(s.montering.retning[id] ?? null, s.montering.boygde.includes(id))

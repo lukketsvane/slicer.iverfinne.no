@@ -40,7 +40,7 @@ export const RADER: readonly { id: string; label: string; unit: string }[] = [
 export function measure(p: Params, bygg?: Bygg): Metrics {
   const { k, s, dl, ns } = bygg ?? makeBygg(p, DETAIL.mid)
   const env = envelope(s, p.tjukn)
-  const narrow = s.ribber.reduce((m, r) => (r.spor.length ? Math.min(m, r.narrow) : m), Infinity)
+  const narrow = s.ribber.reduce((m, r) => (r.spor.length || r.tapp.some((q) => q.slag === "slisse") ? Math.min(m, r.narrow) : m), Infinity)
   const list: Metric[] = []
   const m: Metrics = {
     envX: env.x,
