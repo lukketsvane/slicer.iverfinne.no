@@ -86,6 +86,9 @@ jobs:
       - name: WebKit med mobilflate
         if: ${{ !cancelled() }}
         run: pnpm webkit
+      - name: Avbrote teiknedrag
+        if: ${{ !cancelled() }}
+        run: pnpm exec tsx scripts/avbrot-sjekk.ts
       - name: Vis dei målte tidene
         if: ${{ !cancelled() }}
         run: |

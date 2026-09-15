@@ -44,8 +44,6 @@ async function prov() {
     assert.equal(await side.locator("button[data-punkt]").count(), 0, "omrisshandtak dekkjer hòlhandtak")
     await knapp("opne kontrollane").tap()
     await side.getByRole("tab", { name: "materiale", exact: true }).tap()
-    await knapp("neste materiale").tap()
-    await knapp("neste plate").tap()
     const rad = side.getByRole("slider", { name: "tjukn, tal", exact: true })
     await rad.tap()
     await side.waitForTimeout(90)
