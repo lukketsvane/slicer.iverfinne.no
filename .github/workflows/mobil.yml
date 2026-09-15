@@ -86,9 +86,15 @@ jobs:
       - name: WebKit med mobilflate
         if: ${{ !cancelled() }}
         run: pnpm webkit
+      - name: Redigering med fingrane
+        if: ${{ !cancelled() }}
+        run: pnpm redigering
       - name: Avbrote teiknedrag
         if: ${{ !cancelled() }}
         run: pnpm exec tsx scripts/avbrot-sjekk.ts
+      - name: Direkte tilgang til kuttfiler
+        if: ${{ !cancelled() }}
+        run: pnpm exec tsx scripts/uttak-sjekk.ts
       - name: Vis dei målte tidene
         if: ${{ !cancelled() }}
         run: |

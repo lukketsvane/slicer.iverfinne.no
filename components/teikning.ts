@@ -112,11 +112,14 @@ export function useTeikning(q: Teikning) {
       if (omriss) naa.current.onLukk(omriss)
       else melding.current = "teikn ein tydeleg kontur"
     }
+    // Mist grepet: kast berre draget som eig peikaren, aldri lag ei plate.
+    const mist = (e: PointerEvent) => { if (e.pointerId === drag.current?.id) slepp() }
     const gøymd = () => { if (document.visibilityState === "hidden") slepp() }
     window.addEventListener("pointerdown", paa, true)
     window.addEventListener("pointermove", rorsle, true)
     window.addEventListener("pointerup", av, true)
     window.addEventListener("pointercancel", av, true)
+    window.addEventListener("lostpointercapture", mist, true)
     window.addEventListener("blur", slepp)
     document.addEventListener("visibilitychange", gøymd)
     return () => {
@@ -124,6 +127,7 @@ export function useTeikning(q: Teikning) {
       window.removeEventListener("pointermove", rorsle, true)
       window.removeEventListener("pointerup", av, true)
       window.removeEventListener("pointercancel", av, true)
+      window.removeEventListener("lostpointercapture", mist, true)
       window.removeEventListener("blur", slepp)
       document.removeEventListener("visibilitychange", gøymd)
       slepp()
