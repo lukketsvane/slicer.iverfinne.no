@@ -707,6 +707,59 @@ function Streket({ f, r, valt, valdStrek, S, boks, arb, snapp, setLive, onSynStr
   return null
 }
 
+/**
+ * ZOOMKANALEN. Ctrl-hjul er skrivebordet sitt klyp: han eig berre kameraet,
+ * so han treng ikkje liggje saman med fingrane som eig objektet.
+ */
+function Zoom({ onGest }: { onGest: (kva: GestKva) => void }): null {
+  const gl = useThree((s) => s.gl)
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
+  const controls = useThree((s) => s.controls) as (Orbit & { target: THREE.Vector3 }) | null
+  const invalidate = useThree((s) => s.invalidate)
+  const naa = useRef({ onGest })
+  naa.current = { onGest }
+
+  useEffect(() => {
+    if (!controls) return
+    let dist0 = camera.position.distanceTo(controls.target)
+    let total = 1
+    let gaar = false
+    let timer = 0
+    const dolly = (klyp: number) => {
+      const k = fovSkala(camera.fov)
+      const dist = Math.min(MAX_DIST * k, Math.max(MIN_DIST * k, dist0 / klyp))
+      const retn = camera.position.clone().sub(controls.target).setLength(dist)
+      camera.position.copy(controls.target).add(retn)
+      controls.update?.()
+      invalidate()
+    }
+    const hjul = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (!gaar) {
+        gaar = true
+        dist0 = camera.position.distanceTo(controls.target)
+        naa.current.onGest("zoom")
+      }
+      total *= Math.exp(-e.deltaY * 0.01)
+      dolly(total)
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        naa.current.onGest(null)
+        total = 1
+        gaar = false
+      }, 500)
+    }
+    gl.domElement.addEventListener("wheel", hjul, { passive: false, capture: true })
+    return () => {
+      gl.domElement.removeEventListener("wheel", hjul, { capture: true })
+      window.clearTimeout(timer)
+    }
+  }, [gl, camera, controls, invalidate])
+  return null
+}
+
 /** snittet i verda, til handtaka: midten av det største stykket, og punkta på ringane (tynna) */
 type SnittVerd = { midt: THREE.Vector3; punkt: THREE.Vector3[] }
 
@@ -1215,21 +1268,6 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       naa.current.onValdBit(best === null ? null : (best as { i: number }).i)
     }
     const vri = (t: Tak, ang: number) => bruk(t, 0, 0, ang)
-    /** avstanden til kameraet då hjulet byrja: totalen vert målt frå han */
-    let dist0 = 6
-    const dolly = (klyp: number) => {
-      if (!controls) return
-      // golvet og taket er tal i perspektivet — i flatsynet ligg heile
-      // avstanden lenger ute, og då fylgjer dei med (sjå `fovSkala`)
-      const k = fovSkala(camera.fov)
-      const dist = Math.min(MAX_DIST * k, Math.max(MIN_DIST * k, dist0 / klyp))
-      // retninga FØR kameraet vert flytt: `copy` går føre argumentet sitt, og
-      // eit nullpunkt vart til eit kamera rett over objektet i azimut null
-      const retn = camera.position.clone().sub(controls.target).setLength(dist)
-      camera.position.copy(controls.target).add(retn)
-      controls.update?.()
-      invalidate()
-    }
     const slepp = () => {
       mode = "none"
       tak = null
@@ -1569,35 +1607,6 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
     }
 
     /**
-     * KLYPET PÅ EI STYREFLATE kjem som eit hjul med ctrl nede, og det er
-     * det einaste klypet skrivebordet har. Hjulet har ingen start og ingen
-     * slutt, so gesten er «hakk som kjem tett»: totalen står til det har
-     * vore stille i eit halvt sekund, og gesten MELDER SEG ÉIN GONG —
-     * grunnstoda han vert målt frå skal ikkje flytte seg for kvart hakk.
-     */
-    let hjulTimer = 0
-    let hjulTotal = 1
-    let hjulGaar = false
-    const hjul = (e: WheelEvent) => {
-      if (!e.ctrlKey) return
-      e.preventDefault()
-      e.stopPropagation()
-      if (!hjulGaar) {
-        hjulGaar = true
-        dist0 = controls ? camera.position.distanceTo(controls.target) : 6
-        naa.current.onGest("zoom")
-      }
-      hjulTotal *= Math.exp(-e.deltaY * 0.01)
-      dolly(hjulTotal)
-      window.clearTimeout(hjulTimer)
-      hjulTimer = window.setTimeout(() => {
-        naa.current.onGest(null)
-        hjulTotal = 1
-        hjulGaar = false
-      }, 500)
-    }
-
-    /**
      * HANDTAKA: éin finger, same gesten som to. Delegert frå boksen, so
      * referansane aldri er i vegen. Handtaket EIG fingeren: peikaren vert
      * fanga på det, og orbiten er av so lenge draget varer — same finger
@@ -1640,7 +1649,6 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
     el.addEventListener("touchstart", taTouchen, { passive: false })
     el.addEventListener("touchmove", taTouchen, { passive: false })
     el.addEventListener("pointerdown", ned, { capture: true })
-    el.addEventListener("wheel", hjul, { passive: false, capture: true })
     boks?.addEventListener("pointerdown", nedHandtak)
     window.addEventListener("click", svelg, { capture: true })
     const vindu: [string, (e: PointerEvent) => void][] = [["pointermove", rorsle], ["pointerup", opp], ["pointercancel", opp]]
@@ -1649,11 +1657,9 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       el.removeEventListener("touchstart", taTouchen)
       el.removeEventListener("touchmove", taTouchen)
       el.removeEventListener("pointerdown", ned, { capture: true })
-      el.removeEventListener("wheel", hjul, { capture: true } as EventListenerOptions)
       boks?.removeEventListener("pointerdown", nedHandtak)
       window.removeEventListener("click", svelg, { capture: true })
       for (const [n, h] of vindu) window.removeEventListener(n, h as EventListener)
-      window.clearTimeout(hjulTimer)
       if (controls) controls.enabled = true
     }
   }, [gl, controls, camera, invalidate, boks, sideDra])
@@ -3700,6 +3706,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <Demping onSein={setSein} />
         {/* Eiga teikning har inga knivskisse eller gamle handtak å ta i. */}
         <Streket f={teikn ? null : f} r={rValt} valt={valt} valdStrek={valdStrek} S={storleik} boks={boks} arb={arb} snapp={snapp} setLive={setLive} onSynStrek={onSynStrek} onStrek={onStrek} />
+        <Zoom onGest={onGest} />
         <Handa f={teikn ? null : f} fri={fri} sov={sov} modus={modus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} arb={arb} snapp={snapp} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
         {/* Kroppen snur heile vegen rundt — undersida er der ledda sit, og
             eit syn du ikkje kjem til er ein kontroll som manglar. */}
