@@ -14,7 +14,7 @@ import type { BitBoks } from "@/lib/kropp"
 import type { BuildRes } from "@/lib/worker"
 import { DOBBELT_MS } from "./deler"
 import { useTeikning } from "./teikning"
-import { teikneNormal } from "@/lib/teikning"
+import { rettOpp, snapp, snappliner, teikneNormal, type Snappline } from "@/lib/teikning"
 
 /**
  * SCENA. Kroppen som skugge, delane som står, og skisseplanet som svingar
@@ -394,6 +394,7 @@ function strekRing(s: Strek, S: number): Pt[][] {
   const hh = (s.h * S) / 2
   const p = (lx: number, ly: number): Pt => [cx + lx * c - ly * si, cy + lx * si + ly * c]
   if (s.form === "rekt") return [[p(-hw, -hh), p(hw, -hh), p(hw, hh), p(-hw, hh)]]
+  if (s.form === "kontur" && s.punkt) return [s.punkt.map(([px, py]) => p(px * 2 * hw, py * 2 * hh))]
   const n = 48
   const ring: Pt[] = []
   for (let i = 0; i < n; i++) {
@@ -419,7 +420,8 @@ function iStrek(s: Strek, S: number, q: Pt, tol: number): boolean {
   const ly = -dx * Math.sin(a) + dy * Math.cos(a)
   const hw = (s.w * S) / 2 + tol
   const hh = (s.h * S) / 2 + tol
-  if (s.form === "rekt") return Math.abs(lx) <= hw && Math.abs(ly) <= hh
+  // ein kontur vert teken i boksen sin: ein finger treffer ikkje eit smalt parallellogram
+  if (s.form !== "rund") return Math.abs(lx) <= hw && Math.abs(ly) <= hh
   return (lx / hw) ** 2 + (ly / hh) ** 2 <= 1
 }
 
@@ -1931,13 +1933,14 @@ const MIDT_MIN = 84
  * planet kameraet under draget, ville forma vri seg under handa. Før det
  * byrjar kan synskuben framleis velje kva arbeidsplan du skal teikne på.
  */
-function Teikninga({ f, S, fri, slag, svg, arb, onLukk }: {
+function Teikninga({ f, S, fri, slag, svg, arb, plan, onLukk }: {
   f: Ramma
   S: number
   fri: ReturnType<typeof fritt>
   slag: "firkant" | "kontur"
   svg: SVGSVGElement | null
   arb: MutableRefObject<string | null>
+  plan: readonly Plan[]
   onLukk: (o: Vec3, n: Vec3, omriss: Pt[]) => void
 }): null {
   const camera = useThree((q) => q.camera)
@@ -1946,6 +1949,8 @@ function Teikninga({ f, S, fri, slag, svg, arb, onLukk }: {
   const controls = useThree((q) => q.controls) as Orbit | null
   const invalidate = useThree((q) => q.invalidate)
   const frose = useRef<Ramme | null>(null)
+  /** golvet og platene på kant, i det frosne planet — sjå `snappliner` */
+  const liner = useRef<Snappline[]>([])
   useTeikning({
     slag, svg, arb, fri, S, controls, invalidate, lerret: gl.domElement,
     taKameraet: () => taKameraet(controls),
@@ -1954,7 +1959,9 @@ function Teikninga({ f, S, fri, slag, svg, arb, onLukk }: {
       camera.updateMatrixWorld()
       camera.getWorldDirection(fwd)
       frose.current = planRamme({ o: broek(f.midt, f.min, f.max), n: teikneNormal(nFraaVerd(fwd.multiplyScalar(-1))) }, f.min, f.max)
+      liner.current = snappliner(plan, f.min, f.max, S, frose.current)
     },
+    snapp: (q, tol) => snapp(q, liner.current, tol),
     paaFlata: (x, y) => {
       const r = frose.current
       if (!r) return null
@@ -1971,7 +1978,10 @@ function Teikninga({ f, S, fri, slag, svg, arb, onLukk }: {
         return [((v.x + 1) / 2) * size.width, ((1 - v.y) / 2) * size.height]
       })
     },
-    onLukk: (omriss) => { const r = frose.current; if (r) onLukk(r.o, r.n, omriss) },
+    // Førti pikslar er «nesten midt på» (tol er 1,25). Den FYRSTE plata står
+    // alltid midt på: det finst ingenting anna å stå i høve til, og det er ho
+    // alt anna vert spegla om.
+    onLukk: (omriss, slag, tol) => { const r = frose.current; if (r) onLukk(r.o, r.n, rettOpp(omriss, slag, plan.length ? tol * 32 : Infinity, Math.abs(r.n[2]) > 0.999)) },
   })
   return null
 }
@@ -3406,7 +3416,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, teiknSlag, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, teiknSlag, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, synTil, benk, gruppe }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -3486,6 +3496,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   onRute: (dx: number, dy: number) => void
   /** eit tal som stig når ein NY kropp kjem: då, og berre då, ramar synet inn på nytt */
   rammInn: number
+  /** ber synet til ei side: talet tel kvar gong nokon ber, retninga er i three sitt rom */
+  synTil?: { n: number; dir: Vec3 } | null
   /** ei mus og eit tastatur: høgre museknapp panorerer synet. Ein finger gjer det aldri. */
   benk: boolean
   /** plana i den valde gruppa — tom når inga gruppe er vald */
@@ -3536,6 +3548,13 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   const [live, setLive] = useState<Live | null>(null)
   const fri = useMemo(() => fritt(rute), [rute])
   const heim = useCallback(() => setSikt((s) => ({ n: s.n + 1, dir: null })), [])
+  // ei side studioet bad om — ei tom arbeidsflate opnar med framsida mot deg
+  const synN0 = useRef(synTil?.n ?? 0)
+  useEffect(() => {
+    if (!synTil || synTil.n === synN0.current) return
+    synN0.current = synTil.n
+    setSikt((s) => ({ n: s.n + 1, dir: synTil.dir }))
+  }, [synTil])
   /** lupa: scena legg dollyen sin her, knappen under kuben dreg i han */
   const zoom = useRef<((f: number) => void) | null>(null)
   const lupe = useRef<number | null>(null)
@@ -3635,6 +3654,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
               slag={teiknSlag}
               svg={teiknSvg}
               arb={arb}
+              plan={plan}
               onLukk={onTeiknLukk}
             />
           )}

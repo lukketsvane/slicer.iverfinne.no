@@ -1,7 +1,9 @@
 import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
 import { lesPlan, OMRISS_TAK, skrivPlan } from "../lib/plan"
-import { teiknaFirkant, teiknaKontur, teikneNormal } from "../lib/teikning"
+import { landing, midtPaa, snapp, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal } from "../lib/teikning"
+import { ramme, type Plan } from "../lib/plan"
+import type { Vec3 } from "../lib/core"
 
 assert.deepEqual(teikneNormal([0, -0.02, Math.sqrt(1 - 0.02 ** 2)]), [0, 0, 1], "toppsynet lagar eit eksakt vassrett sete")
 assert.deepEqual(teikneNormal([-Math.cos(Math.PI / 90), 0, Math.sin(Math.PI / 90)]), [-1, 0, 0], "det nære aksesynet held forteiknet")
@@ -32,3 +34,59 @@ const plan = { id: 1, o: [0.5, 0.5, 0.5] as [number, number, number], n: [0, 1, 
 assert.deepEqual(lesPlan(skrivPlan([plan]))[0].omriss, omriss, "alle redigerbare punkt overlever lagring")
 assert.deepEqual(teiknaFirkant([2, 3], [-1, -2]), [[2, 3], [-1, 3], [-1, -2], [2, -2]], "firkanten held alle fire hjørne i begge dragretningar")
 console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt frå ${tett.length} prøver (${ms.toFixed(1)} ms); areal, innsøkk, avvising og lagring held`)
+
+// KVAR EI NY PLATE LANDAR: to sider med toppen på 438 mm, og eit sete teikna
+// ovanfrå — det skal liggje med underflata på toppen av sidene.
+{
+  const S = 450
+  const min: Vec3 = [-225, -225, 0]
+  const max: Vec3 = [225, 225, 450]
+  const side = (id: number, y: number): Plan => ({ id, o: [0.5, (y + 225) / S, 0.5], n: [0, 1, 0], bog: 0, strek: [], omriss: [[-150 / S, 213 / S], [150 / S, 213 / S], [190 / S, -225 / S], [-190 / S, -225 / S]] })
+  const sider = [side(1, -150), side(2, 150)]
+  const sete: Vec3[] = [[-175, -175, 225], [175, -175, 225], [175, 175, 225], [-175, 175, 225]]
+  const z = landing(sider, min, max, S, sete)
+  assert(z !== null && Math.abs(z - 438) < 0.01, `setet landar på toppen av sidene, ikkje ${z}`)
+  // eit sete som ikkje ligg over noko, står der det vart teikna
+  assert.equal(landing(sider, min, max, S, sete.map((p): Vec3 => [p[0] + 800, p[1], p[2]])), null, "eit sete utanfor sidene landar ikkje")
+  // smalare enn toppen: kanten kryssar fotavtrykket utan eit hjørne i det
+  const smalt: Vec3[] = [[-60, -175, 225], [60, -175, 225], [60, 175, 225], [-60, 175, 225]]
+  assert(Math.abs((landing(sider, min, max, S, smalt) ?? 0) - 438) < 0.01, "eit smalt sete finn kanten mellom hjørna")
+
+  // SNAPPET: eit stag teikna frå sida hakar enden fast i midtplanet til sida,
+  // og foten i golvet. Teikneplanet står gjennom midten med normalen langs x.
+  const flate = ramme({ o: [0.5, 0.5, 0.5], n: [1, 0, 0] }, min, max)
+  const liner = snappliner(sider, min, max, S, flate)
+  assert.equal(liner.length, 3, "golvet og dei to sidene")
+  const u = (y: number) => y / S
+  const naer = snapp([u(147), 0.1], liner, 8 / S)
+  assert(Math.abs(Math.abs(naer[0]) - u(150)) < 1e-9 && naer[1] === 0.1, `enden hakar seg i sida: ${naer}`)
+  const fri = snapp([u(120), 0.1], liner, 8 / S)
+  assert.deepEqual(fri, [u(120), 0.1], "langt frå sida står punktet")
+  const hjorne = snapp([u(146), -223 / S], liner, 8 / S)
+  assert(Math.abs(Math.abs(hjorne[0]) - u(150)) < 1e-9 && Math.abs(hjorne[1] + 225 / S) < 1e-9, `hjørnet ved sida og golvet: ${hjorne}`)
+  console.log("landing og snapp: setet på 438 mm, staget i midtplanet, foten i golvet")
+}
+
+
+// DET FINGEREN MEINTE: ei A-side teikna litt skeiv vert lik på båe sider,
+// og ei side teikna med vilje skeiv står.
+{
+  const a: Pt[] = [[-150, 213], [140, 215], [186, -225], [55, -225], [-3, -118], [-62, -225], [-192, -223]]
+  const s = symmetrisk(a)
+  assert(s, "ei nesten lik side vert spegla")
+  const c = (Math.min(...a.map((p) => p[0])) + Math.max(...a.map((p) => p[0]))) / 2
+  for (const p of s) assert(s.some((q) => Math.abs(q[0] - (2 * c - p[0])) < 1e-6 && Math.abs(q[1] - p[1]) < 1e-6), "kvart punkt har spegelpunktet sitt")
+  assert(s.some((p) => Math.abs(p[0] - c) < 1e-9 && Math.abs(p[1] + 118) < 3), "spissen i hakket står på aksen")
+  const skeiv: Pt[] = [[-150, 213], [60, 215], [186, -225], [-192, -223]]
+  assert.equal(symmetrisk(skeiv), null, "ei side som er meint skeiv står")
+  // eit hjarte har to hjørne på aksen, og båe står att
+  const hjarte = symmetrisk([[-100, 0], [-50, 100], [0, 20], [52, 100], [100, 0], [0, -50]])
+  assert(hjarte && hjarte.length === 6 && hjarte.filter((p) => Math.abs(p[0]) < 1.01).length === 2, "eit hjarte har to hjørne på aksen")
+  const midt = midtPaa([[-0.3, 0.2], [0.26, 0.2], [0.26, -0.5], [-0.3, -0.5]], 0.05, false)
+  assert(Math.abs(midt[0][0] + 0.28) < 1e-9 && midt[0][1] === 0.2, "ei side nær midten vert flytt til midten, og ikkje opp")
+  const langt = midtPaa([[0.1, 0.2], [0.4, 0.2], [0.4, -0.5]], 0.05, false)
+  assert.equal(langt[0][0], 0.1, "ei plate langt frå midten står")
+  const sete = midtPaa([[-0.4, -0.35], [0.36, -0.35], [0.36, 0.39], [-0.4, 0.39]], 0.05, true)
+  assert(Math.abs(sete[0][0] + 0.38) < 1e-9 && Math.abs(sete[0][1] + 0.37) < 1e-9, "eit sete vert midtstilt båe vegar")
+  console.log(`symmetri: ${a.length} punkt → ${s.length} spegla; skeiv står; hjartet held spissane; midtstilling held`)
+}
