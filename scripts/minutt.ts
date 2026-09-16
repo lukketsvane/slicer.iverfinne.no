@@ -15,7 +15,8 @@
  * ein firkant, MINUTT_MODELL=1 set 150 mm/3 mm, og MINUTT_DEBUG=1 lagrar
  * mellomsteg (skjermbileta tel då med i tida). MINUTT_KRAKK=1 teiknar
  * bogesider med ovalt vindauge i staden for A-sider, MINUTT_KRAKK=2 to
- * kryssande bein lagde med ×2 og eit sekskanta sete.
+ * kryssande bein lagde med ×2 og eit sekskanta sete, MINUTT_KRAKK=3
+ * bogesidene med setet mellom seg (MELLOM=x0,y0,x1,y1 flyttar draget).
  */
 import { chromium, type CDPSession, type Locator, type Page } from "playwright"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -43,8 +44,8 @@ const sekskant = process.env.MINUTT_KRAKK === "2"
 const mellomSete = process.env.MINUTT_KRAKK === "3"
 const krom = "C:/Program Files/Google/Chrome/Application/chrome.exe"
 type Punkt = [number, number]
-const MELLOM_A: Punkt = [JSON.parse(process.env.MELLOM ?? "[120,300,270,510]")[0], JSON.parse(process.env.MELLOM ?? "[120,300,270,510]")[1]]
-const MELLOM_B: Punkt = [JSON.parse(process.env.MELLOM ?? "[120,300,270,510]")[2], JSON.parse(process.env.MELLOM ?? "[120,300,270,510]")[3]]
+const MELLOM_A: Punkt = [JSON.parse(process.env.MELLOM ?? "[136,337,254,473]")[0], JSON.parse(process.env.MELLOM ?? "[136,337,254,473]")[1]]
+const MELLOM_B: Punkt = [JSON.parse(process.env.MELLOM ?? "[136,337,254,473]")[2], JSON.parse(process.env.MELLOM ?? "[136,337,254,473]")[3]]
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 function params(side: Page): Params {
@@ -307,7 +308,7 @@ async function hovud() {
       miljo: "Automatisert Chromium på PC, mobilflate 390×844; WebShare deaktivert for ekte nedlasting til disk. Ikkje fysisk iPhone, iOS-delingsark eller menneskeleg tidsprøve.",
       avgrensing: "Referansekrakk med tapp og slisse, målt i geometrien og kuttfila; ikkje fysisk samansett eller lastprøvd.",
       url: URL,
-      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm" : "150 mm modell, 3 mm"}: ${sekskant ? "to kryssande bein med boge (×2), sekskanta sete oppå" : `${krakk ? "bogesider med ovalt vindauge" : "A-sider med parallellogramvindauge"}, spegla par, sete oppå, tre stag`}`,
+      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm" : "150 mm modell, 3 mm"}: ${sekskant ? "to kryssande bein med boge (×2), sekskanta sete oppå" : `${krakk ? "bogesider med ovalt vindauge" : "A-sider med parallellogramvindauge"}, spegla par, sete ${mellomSete ? "mellom sidene" : "oppå"}, tre stag`}`,
       feilsokbileteMedITida: feilsok,
       sekundTilLagraFil: brukt,
       sekundMedOppstart: (fullfoert - byrjing) / 1000,
