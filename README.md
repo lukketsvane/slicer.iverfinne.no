@@ -881,6 +881,21 @@ drew, to the half millimetre. Further than that, the two plates cross and
 get a half lap. A seat drawn between two sides, flush with their outsides
 or fifteen millimetres past them, gets four tenons either way.
 
+**A bent plate takes tenons too,** where it meets a flat plate along a
+generator line — straight in both parts. A saddle seat between two sides
+ends at them like a flat seat would, and its tenons point along the tangent
+where the arc meets the side. Where one plate sticks out through the other,
+that stretch is protected: the other plate does not also read it as an end.
+
+**A corner is fingers.** Two plates that each end flush with the other's
+outside — the sides of a box — cannot hold a mortise. The corner is split
+into an odd number of fingers along the line, about six thicknesses long
+and never fewer than three, alternating between the two plates, each
+running out to the other's outside face. The end fingers belong to the
+later plate, so where three plates meet (a seat flush on a box) the seat
+owns all four corner cubes and no side claims one. Each plate goes in along
+its own normal.
+
 **Tenons follow the length, not the plate:** one per 150 mm of meeting, with
 shoulders of at least half a thickness and fifteen percent of the cell, so
 a 300 mm seat edge gets two tenons with material between them. A mortise is
@@ -909,7 +924,9 @@ sides of every mortise, and the tenon and its mortise at the same point in
 space — on a straight stool, a stool with a raised seat, over-long rails, a
 narrow seat, a 3 mm model, splayed legs (seat first, each leg along its own
 tenon), crossed legs with a seat, where slots and tenons share one
-object, and a seat between the sides, flush and with tenons showing.
+object, a seat between the sides, flush and with tenons showing, a bent
+saddle seat flush and showing, and a box of four sides with a flush seat,
+joined by fingers.
 
 ## Drawing furniture
 
