@@ -7,7 +7,7 @@ import { alleNett, gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett 
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_ROM, PLAN_TAK, broek, dot, iGruppa, lesPlan, nyGruppe, nyId, omrissLine, ramme as planRamme, formPunkt, FORM_SLAG, rutenett, sameSnitt, skilRute, skuvKopi, slaaSaman, spegla, speglingar, skrivPlan, sub3, type FormSlag, type Plan, type Strek } from "@/lib/plan"
-import { lukkTeikning } from "@/lib/teikning"
+import { lukkTeikning, mjukePunkt } from "@/lib/teikning"
 import { medGruppa, nesteSteg, rundt } from "@/lib/gruppe"
 import { simplify, type Pt2 } from "@/lib/contour"
 import { speglPar, speglPlan } from "@/lib/spegl"
@@ -1408,7 +1408,8 @@ export function Studio() {
     setParams((cur) => {
       const l = lesPlan(cur.plan)
       if (l.length >= PLAN_TAK) return cur
-      return { ...cur, plan: skrivPlan([...l, { id: nyId(l), o, n: pn, bog: 0, strek: [], omriss }]) }
+      const runde = mjukePunkt(omriss)
+      return { ...cur, plan: skrivPlan([...l, { id: nyId(l), o, n: pn, bog: 0, strek: [], omriss, ...(runde.length ? { runde } : {}) }]) }
     })
     setVald(id)
     setValdGruppe(null)

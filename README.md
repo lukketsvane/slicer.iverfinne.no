@@ -873,6 +873,14 @@ section is the truth, as always. A mesh-derived rib never gets a tenon: an
 edge the mesh gave is where the mesh ended, an edge a hand drew is a
 decision.
 
+**A tenon can show.** An edge drawn a little past the far face — up to two
+thicknesses, and never less than ten millimetres — is not a plate passing
+through but a tenon that sticks out: the material past the near face is
+clipped as before, and the tenons run out to the furthest edge the hand
+drew, to the half millimetre. Further than that, the two plates cross and
+get a half lap. A seat drawn between two sides, flush with their outsides
+or fifteen millimetres past them, gets four tenons either way.
+
 **Tenons follow the length, not the plate:** one per 150 mm of meeting, with
 shoulders of at least half a thickness and fifteen percent of the cell, so
 a 300 mm seat edge gets two tenons with material between them. A mortise is
@@ -900,8 +908,41 @@ and right inside its tip, none past the tip or beside it, a wall on all four
 sides of every mortise, and the tenon and its mortise at the same point in
 space — on a straight stool, a stool with a raised seat, over-long rails, a
 narrow seat, a 3 mm model, splayed legs (seat first, each leg along its own
-tenon) and crossed legs with a seat, where slots and tenons share one
-object.
+tenon), crossed legs with a seat, where slots and tenons share one
+object, and a seat between the sides, flush and with tenons showing.
+
+## Drawing furniture
+
+**An empty workspace is a piece of furniture.** Half a metre, twelve
+millimetres, the front view facing you and the contour tool ready; the view
+waits for the body to reach those dimensions before it frames it.
+
+- **A seat lands.** A plate drawn from above settles with its underside on
+  the tops of what it covers.
+- **Ends snap.** Drawing from the side, a point within a fingertip of the
+  floor or of a plate seen edge-on locks onto it.
+- **A contour inside the selected plate is a hole** in it (`kontur` stroke,
+  stored in a unit box, so it moves, stretches and turns like any stroke). A
+  mirrored pair gets the hole in both.
+- **What the finger meant.** A side drawn almost symmetric becomes symmetric,
+  and centred; one drawn crooked on purpose stays crooked. Where the finger
+  went round — short segments turning less than 50° — the points become
+  arc points and the outline runs smoothly through them; a corner stays a
+  corner. A hole has no arc flags, so its curve is filled in with points.
+- **A plate on the mirror is a pair.** Mirroring a plate that stands on the
+  mirror plane splits it into two, a group that moves mirrored, set in from
+  the edges of whatever it crosses by two and a half thicknesses.
+- **Duplicate repeats the step.** Duplicate, drag the copy to where the next
+  one belongs, duplicate again: the third lands as far from the second.
+- **×3 and ×4** put the selected plate round the vertical axis through the
+  middle — three legs at 120°, four at 90° — as a group. A plane through the
+  axis is the same plane half a turn later, so there the step is 180/N: three
+  crossing planes at 60° for a hexagonal stool.
+
+`pnpm minutt` draws the reference stool (A-sides with a window, a mirrored
+pair, a landed seat, three rails) from an empty workspace to a downloaded,
+nested cut file, and checks the geometry and the file: 16 s automated.
+`MINUTT_KRAKK=1` draws arched sides with an oval window instead.
 
 ## Assembly
 
