@@ -40,7 +40,7 @@ import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 import { bogMin, rilla } from "./rille"
 import { forenklaSpor, sporAksar, sporRute } from "./sporfelt"
 import { felles, iGods, sporInn, sporPunkt, stykkeLangs, utan, type Line } from "./stykke"
-import { moteLedd, skoyt, tappIn, slisseGods, type Boks as TappBoks, type Tapp } from "./tapp"
+import { kilar, moteLedd, skoyt, tappIn, slisseGods, type Boks as TappBoks, type Tapp } from "./tapp"
 import { monteringsorden, veg, type Vegar } from "./orden"
 
 export { sporPunkt, stykkeLangs, tappIn, type Tapp }
@@ -1703,6 +1703,13 @@ export function buildDelar(sn: Snitt, p: Params): DelListe {
         spor: mineSpor,
       })
     })
+    // kilane: eigne delar utan plan (montasjen let dei liggje), med tappen sitt namn og eitt ledd
+    for (const { adr, outline, key } of kilar(r.tapp, t)) {
+      let id = seen.get(key)
+      if (!id) seen.set(key, (id = `D${String(ids.length + 1).padStart(2, "0")}`)), ids.push(id)
+      const area = Math.abs(shoelace(outline))
+      delar.push({ id, adr, plan: 0, outline, holes: [], rille: [], t, area, mass: (area * t * rho) / 1e9, cutLen: perimeter(outline), joints: 1, spor: [] })
+    }
   }
   return {
     delar,

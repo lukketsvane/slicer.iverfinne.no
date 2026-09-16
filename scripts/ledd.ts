@@ -520,7 +520,14 @@ function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: numb
       const pk = (a: number, b: number): Pt => (bg ? sporPunkt(bg, bg.t0 + a, bg.s0 + Math.sign(bg.s1 - bg.s0) * b) : [h0[0] + langs[0] * a + tvers[0] * b, h0[1] + langs[1] * a + tvers[1] * b])
       if (q.slag === "tapp") {
         tappar++
-        if (!gods(r, pk(L / 2, W / 2))) seg(`${q.nokkel}: tappen manglar i profilen til ${r.plan.id}`)
+        if (!gods(r, pk(L / 2, q.kile ? MOBEL.tjukn - 1 : W / 2))) seg(`${q.nokkel}: tappen manglar i profilen til ${r.plan.id}`)
+        // kilen: hòlet står like innanfor den fjerne flata, og det står gods utanfor det
+        if (q.kile) {
+          const tb2 = MOBEL.tjukn / 2
+          if (gods(r, pk(L / 2, 2 * tb2 - 0.5 + q.kile.w / 2))) seg(`${q.nokkel}: kilehòlet manglar`)
+          if (gods(r, pk(L / 2 - MOBEL.tjukn, 2 * tb2 - 0.5 + q.kile.w / 2)) === false) seg(`${q.nokkel}: kilehòlet er for langt langs tappen`)
+          if (!gods(r, pk(L / 2, 2 * tb2 - 0.5 + q.kile.w + MOBEL.tjukn * 0.9))) seg(`${q.nokkel}: for lite gods utanfor kilehòlet`)
+        }
         if (!gods(r, pk(L / 2, W - 0.3))) seg(`${q.nokkel}: tappen når ikkje fram til den fjerne flata`)
         // eit stag som går gjennom held fram forbi flata — det er heile poenget
         if (!/^[gs]/.test(q.nokkel) && gods(r, pk(L / 2, W + 0.3))) seg(`${q.nokkel}: tappen stikk ut forbi den fjerne flata`)
@@ -763,6 +770,24 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
       console.log(`FEIL  ${namn.padEnd(26)} ${feil} feil, ${tal} fingrar, ${g.montering.klem.length} klem`)
     } else console.log(`  ok   ${namn.padEnd(26)} ${String(tal).padStart(4)} fingrar, kvar i si plate og hòl i den andre`)
   }
+}
+/**
+ * KILANE: eit sete som stikk nesten to tjukner gjennom sidene får kilehòl
+ * i tappane og ein kile per tapp i kuttlista, gravert med tappen sitt namn.
+ */
+{
+  const plan = skrivPlan([
+    plate(1, [0.5, (225 - 150) / S, 0.5], [0, 1, 0], side()),
+    plate(2, [0.5, (225 + 150) / S, 0.5], [0, 1, 0], side()),
+    plate(3, [0.5, 0.5, 300 / S], [0, 0, 1], firkant(178, 140)),
+  ])
+  sjekkTapp("sete med kilar", { ...MOBEL, plan }, { tappar: 4, brot: 0 })
+  const { s: g, dl } = makeBygg({ ...MOBEL, plan }, DETAIL.mid)
+  const kilar = dl.delar.filter((d) => d.plan === 0)
+  const med = g.ribber.find((r) => r.plan.id === 3)!.tapp.filter((q) => q.kile)
+  const feil = kilar.length !== 4 || med.length !== 4 || dl.lause !== 0 || !kilar.every((d) => /^k3-[12]-\d+$/.test(d.adr) && Math.abs(Math.abs(shoelace(d.outline)) - 48 * med[0].kile!.w) < 1)
+  if (feil) brot++
+  console.log(`${feil ? "FEIL" : "  ok "}  ${"kilar".padEnd(26)} ${String(kilar.length).padStart(4)} kilar i lista, ${med.length} tappar med hòl, ${dl.lause} lause`)
 }
 /**
  * SETET MELLOM SIDENE: i flukt med utsida, og femten millimeter forbi —

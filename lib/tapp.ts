@@ -57,7 +57,43 @@ export type Tapp = {
    * mellom dei, og det er det vakta må vite.
    */
   boge?: Line & { t0: number; t1: number; s0: number; s1: number }
+  /**
+   * KILEN, når tappen stikk langt nok ut til å bera ein: breidda på hòlet
+   * i tappen der kilen sit. Kilen er ein eigen del (sjå `kile`), og
+   * han står berre på tapp-sida.
+   */
+  kile?: { w: number }
 }
+
+/**
+ * KILEN — ein tapp som stikk ut halvanna tjukn eller meir får eit hòl, og
+ * ein kile gjennom hòlet dreg leddet saman.
+ *
+ * Hòlet står i tappen, på tvers av han, ei halv millimeter INNANFOR den
+ * fjerne flata: då ber kilen på flata og ikkje på hòlveggen, og eit slag
+ * på kilen strammar. Hòlet er ei tjukn breitt langs lina (kilen er skoren
+ * av same plata) og `w` langs tappen — ei tjukn når tappen rekk, og aldri
+ * mindre enn ei halv. Utanfor hòlet står minst ei tjukn gods.
+ *
+ * Kilen sjølv er fire tjukner lang og køyrer inn på tvers av tappen: rett
+ * på den sida som ber mot flata, seks grader skrå på den andre, og `w`
+ * brei der han sit midt i. `kile` gjev profilen hans, y opp, kanten som
+ * ber på y = 0.
+ */
+const KILE_EPS = 0.5
+// og under seks millimeter er ein kile ei flis: modellar i tre millimeter får ingen
+const kileBreidd = (k: Ktx, u: number) => {
+  const w = u >= 1.5 * k.tjukn ? Math.max(0.5 * k.tjukn, Math.min(k.tjukn, u - k.tjukn + KILE_EPS)) : 0
+  return w >= 6 ? w : 0
+}
+export function kile(w: number, t: number): Pt[] {
+  const L = 4 * t
+  const d = (L / 2) * Math.tan((6 * Math.PI) / 180)
+  return [[-L / 2, 0], [L / 2, 0], [L / 2, w + d], [-L / 2, w - d]]
+}
+/** kilane til ei ribbe, som delar: namnet er tappen sitt med k framfor, og like breie kilar er same delen */
+export const kilar = (tapp: readonly Tapp[], t: number) =>
+  tapp.filter((q) => q.kile).map((q) => ({ adr: `k${q.nokkel.slice(1)}`, outline: kile(q.kile!.w, t), key: `kile|${q.kile!.w.toFixed(2)}` }))
 
 const bogeAv = (l: Line, t0: number, t1: number, s0: number, s1: number) => (l.k ? { boge: { p: l.p, d: l.d, k: l.k, t0, t1, s0, s1 } } : {})
 
@@ -287,7 +323,13 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
         T.tform.push(...boksar(lT, a0, a1, s * (tb2 + 0.5), -s * (tb2 + u), true))
         M.tform.push(...boksar(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2, false))
         const nokkel = `t${T.plan.id}-${M.plan.id}-${nr + tal}`
-        T.tapp.push({ mot: M.plan.id, slag: "tapp", midt: sporPunkt(lT, (a0 + a1) / 2, 0), hjorne: hjorne(lT, a0, a1, s * tb2, -s * (tb2 + u)), inn, nokkel, ...bogeAv(lT, a0, a1, s * tb2, -s * (tb2 + u)) })
+        // kilehòlet: på tvers av tappen, like innanfor den fjerne flata
+        const kw = kileBreidd(k, u)
+        if (kw) {
+          const m = (a0 + a1) / 2, hb = (k.tjukn + k.klaring) / 2
+          T.tform.push(...boksar(lT, m - hb, m + hb, -s * (tb2 - KILE_EPS), -s * (tb2 - KILE_EPS + kw), false))
+        }
+        T.tapp.push({ mot: M.plan.id, slag: "tapp", midt: sporPunkt(lT, (a0 + a1) / 2, 0), hjorne: hjorne(lT, a0, a1, s * tb2, -s * (tb2 + u)), inn, nokkel, ...bogeAv(lT, a0, a1, s * tb2, -s * (tb2 + u)), ...(kw ? { kile: { w: kw } } : {}) })
         M.tapp.push({ mot: T.plan.id, slag: "slisse", midt: sporPunkt(lM, (a0 + a1) / 2, 0), hjorne: hjorne(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2), inn, nokkel, ...bogeAv(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2) })
         tal++
       }
