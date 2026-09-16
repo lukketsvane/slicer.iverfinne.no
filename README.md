@@ -934,7 +934,7 @@ waits for the body to reach those dimensions before it frames it.
   the edges of whatever it crosses by two and a half thicknesses.
 - **Duplicate repeats the step.** Duplicate, drag the copy to where the next
   one belongs, duplicate again: the third lands as far from the second.
-- **×3 and ×4** put the selected plate round the vertical axis through the
+- **×2, ×3 and ×4** put the selected plate round the vertical axis through the
   middle — three legs at 120°, four at 90° — as a group. A plane through the
   axis is the same plane half a turn later, so there the step is 180/N: three
   crossing planes at 60° for a hexagonal stool.
