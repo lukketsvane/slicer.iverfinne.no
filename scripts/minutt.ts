@@ -14,7 +14,8 @@
  * Kontur og 450 mm/12 mm er standarden. MINUTT_KONTUR=0 teiknar sida som
  * ein firkant, MINUTT_MODELL=1 set 150 mm/3 mm, og MINUTT_DEBUG=1 lagrar
  * mellomsteg (skjermbileta tel då med i tida). MINUTT_KRAKK=1 teiknar
- * bogesider med ovalt vindauge i staden for A-sider.
+ * bogesider med ovalt vindauge i staden for A-sider, MINUTT_KRAKK=2 to
+ * kryssande bein lagde med ×2 og eit sekskanta sete.
  */
 import { chromium, type CDPSession, type Locator, type Page } from "playwright"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -36,6 +37,8 @@ const kontur = process.env.MINUTT_KONTUR !== "0"
 const fullskala = process.env.MINUTT_MODELL !== "1"
 const feilsok = process.env.MINUTT_DEBUG === "1"
 const krakk = process.env.MINUTT_KRAKK === "1"
+// MINUTT_KRAKK=2: to kryssande bein (×2) og eit sekskanta sete — rundt-grepet på tid
+const sekskant = process.env.MINUTT_KRAKK === "2"
 const krom = "C:/Program Files/Google/Chrome/Application/chrome.exe"
 type Punkt = [number, number]
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -139,47 +142,66 @@ async function hovud() {
       await endra((p) => p.storleik === 150 && p.tjukn === 3, "Modellmåla vart ikkje sette")
       await merk("150 mm og 3 mm")
     }
-    // SIDA: éin kontur, føtene i golvet — nesten lik på båe sider, so ho vert lik
-    const sideKontur: Punkt[] = krakk
-      ? [[135, 310], [195, 310], [255, 310], [268, 330], [262, 400], [274, 470], [280, 506], [245, 506], [226, 472], [195, 458], [164, 472], [145, 506], [110, 506], [116, 470], [128, 400], [122, 330], [135, 310]]
-      : [[115, 310], [175, 311], [235, 312], [262, 503], [214, 503], [178, 440], [136, 503], [88, 503], [115, 310]]
-    await drag(cdp, kontur ? sideKontur : linje([80, 300], [310, 503]), kontur ? 1200 : 550)
-    await planTal(1)
-    await merk("side teikna")
-    // VINDAUGET: ein kontur inni den valde sida er eit hòl i henne
-    await trykk(side.locator("[data-teiknknapp]"))
-    const vindauge: Punkt[] = krakk
-      ? [[195, 352], [216, 362], [224, 392], [214, 422], [195, 430], [176, 422], [166, 392], [174, 362], [195, 352]]
-      : [[150, 360], [205, 360], [190, 420], [140, 420], [150, 360]]
-    await drag(cdp, vindauge, 900)
-    await endra((p) => lesPlan(p.plan)[0]?.strek.some((q) => q.form === "kontur") ?? false, "Vindauget vart ikkje eit hòl i sida")
-    await merk("vindauge")
-    // PARET: sida står på spegelen, og spegelen deler henne i to
-    await trykk(knapp("spegl planet om y"))
-    await planTal(2)
-    await merk("sidene spegla")
-    // SETET: frå toppsynet, og det landar oppå sidene
-    await heim()
-    await side.touchscreen.tap(351, 61)
-    await pause(650)
-    await trykk(side.locator("[data-teiknknapp]"))
-    await trykk(side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "firkant", exact: true }))
-    await drag(cdp, linje([110, 320], [280, 490]), 550)
-    await planTal(3)
-    await merk("sete teikna")
-    // STAGA: frå sida, endane hakar seg i sidene, og spegelen gjev det andre
-    await heim()
-    await side.touchscreen.tap(372, 88)
-    await pause(650)
-    await trykk(side.locator("[data-teiknknapp]"))
-    await drag(cdp, linje([133, 440], [257, 468]), 550)
-    await planTal(4)
-    await trykk(knapp("spegl planet om x"))
-    await planTal(5)
-    await trykk(side.locator("[data-teiknknapp]"))
-    await drag(cdp, linje([133, 318], [257, 345]), 550)
-    await planTal(6)
-    await merk("stag teikna")
+    if (sekskant) {
+      // BEINET: éin kontur med boge mellom føtene, midt i kroppen
+      const bue = Array.from({ length: 9 }, (_, i): Punkt => [195 + 34 * Math.cos(Math.PI * i / 8), 506 - 60 * Math.sin(Math.PI * i / 8)])
+      await drag(cdp, [[135, 312], [195, 312], [255, 312], [262, 506], [229, 506], ...bue.slice(1, -1), [161, 506], [128, 506], [135, 312]], 1200)
+      await planTal(1)
+      await merk("bein teikna")
+      await trykk(knapp("2 rundt"))
+      await planTal(2)
+      await merk("bein kryssa")
+      await heim()
+      await side.touchscreen.tap(351, 61)
+      await pause(650)
+      await trykk(side.locator("[data-teiknknapp]"))
+      const hex = Array.from({ length: 7 }, (_, i): Punkt => [195 + 88 * Math.cos(Math.PI * i / 3), 405 + 88 * Math.sin(Math.PI * i / 3)])
+      await drag(cdp, hex.flatMap((q, i) => (i ? linje(hex[i - 1], q, 4).slice(1) : [q])), 700)
+      await planTal(3)
+      await merk("sete teikna")
+    } else {
+      // SIDA: éin kontur, føtene i golvet — nesten lik på båe sider, so ho vert lik
+      const sideKontur: Punkt[] = krakk
+        ? [[135, 310], [195, 310], [255, 310], [268, 330], [262, 400], [274, 470], [280, 506], [245, 506], [226, 472], [195, 458], [164, 472], [145, 506], [110, 506], [116, 470], [128, 400], [122, 330], [135, 310]]
+        : [[115, 310], [175, 311], [235, 312], [262, 503], [214, 503], [178, 440], [136, 503], [88, 503], [115, 310]]
+      await drag(cdp, kontur ? sideKontur : linje([80, 300], [310, 503]), kontur ? 1200 : 550)
+      await planTal(1)
+      await merk("side teikna")
+      // VINDAUGET: ein kontur inni den valde sida er eit hòl i henne
+      await trykk(side.locator("[data-teiknknapp]"))
+      const vindauge: Punkt[] = krakk
+        ? Array.from({ length: 25 }, (_, i): Punkt => [195 + 29 * Math.sin(Math.PI * i / 12), 391 - 39 * Math.cos(Math.PI * i / 12)])
+        : [[150, 360], [205, 360], [190, 420], [140, 420], [150, 360]]
+      await drag(cdp, vindauge, 900)
+      await endra((p) => lesPlan(p.plan)[0]?.strek.some((q) => q.form === "kontur") ?? false, "Vindauget vart ikkje eit hòl i sida")
+      await merk("vindauge")
+      // PARET: sida står på spegelen, og spegelen deler henne i to
+      await trykk(knapp("spegl planet om y"))
+      await planTal(2)
+      await merk("sidene spegla")
+      // SETET: frå toppsynet, og det landar oppå sidene
+      await heim()
+      await side.touchscreen.tap(351, 61)
+      await pause(650)
+      await trykk(side.locator("[data-teiknknapp]"))
+      await trykk(side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "firkant", exact: true }))
+      await drag(cdp, linje([110, 320], [280, 490]), 550)
+      await planTal(3)
+      await merk("sete teikna")
+      // STAGA: frå sida, endane hakar seg i sidene, og spegelen gjev det andre
+      await heim()
+      await side.touchscreen.tap(372, 88)
+      await pause(650)
+      await trykk(side.locator("[data-teiknknapp]"))
+      await drag(cdp, linje([133, 440], [257, 468]), 550)
+      await planTal(4)
+      await trykk(knapp("spegl planet om x"))
+      await planTal(5)
+      await trykk(side.locator("[data-teiknknapp]"))
+      await drag(cdp, linje([133, 318], [257, 345]), 550)
+      await planTal(6)
+      await merk("stag teikna")
+    }
     await trykk(side.getByRole("tab", { name: "kontur", exact: true }))
     await ferdig()
     await trykk(knapp("eksport"))
@@ -231,7 +253,20 @@ async function hovud() {
     const S = p.storleik
     // toppen av sida, i millimeter over golvet
     const topp = S / 2 + Math.max(...(s1?.omriss ?? []).map((q) => q[1] * S))
-    const sjekkar = {
+    const sjekkar = sekskant ? {
+      trePlater: teikna.length === 3 && teikna.every((q) => (q.omriss?.length ?? 0) >= 4),
+      beinaKryssar: !!s1 && !!s2 && Math.abs(Math.abs(s1.n[0] * s2.n[0] + s1.n[1] * s2.n[1])) < 1e-3 && s1.gruppe === s2.gruppe && !!s1.gruppe,
+      seteOppaa: !!sete && Math.abs(sete.o[2] * S - (topp + p.tjukn / 2)) < 0.2,
+      eitKryssOgTappar: bygg.s.tappar >= 4 && bygg.s.ledd === bygg.s.tappar + 1,
+      ingenLause: bygg.dl.lause === 0 && bygg.s.kasta === 0,
+      monterbarGeometri: bygg.s.montering.brot.length === 0 && bygg.s.montering.klem.length === 0,
+      ingenHardeBrot: reglar.every((r) => !r.hard || r.ok),
+      eittArkPerPlate: svg.ark === bygg.ns.sheets.length,
+      lukkaKutt: svg.alleLukka && svg.endeleg && !svg.lesefeil && svg.kuttbaner >= 3,
+      kuttInnanArket: svg.innanArket,
+      nedlastingLikMotor: raa.equals(ventaBytar),
+      ingenSidefeil: feil.length === 0,
+    } : {
       seksPlater: teikna.length === 6 && teikna.every((q) => (q.omriss?.length ?? 0) >= 4),
       sidaErLik: !!s1?.omriss && s1.omriss.every(([x, y]) => s1.omriss!.some(([a, b]) => Math.abs(a + x) < 2e-3 && Math.abs(b - y) < 2e-3)),
       sideneErEitPar: !!s1 && !!s2 && Math.abs(s1.o[1] + s2.o[1] - 1) < 1e-3 && s1.gruppe === s2.gruppe && !!s1.gruppe,
@@ -263,7 +298,7 @@ async function hovud() {
       miljo: "Automatisert Chromium på PC, mobilflate 390×844; WebShare deaktivert for ekte nedlasting til disk. Ikkje fysisk iPhone, iOS-delingsark eller menneskeleg tidsprøve.",
       avgrensing: "Referansekrakk med tapp og slisse, målt i geometrien og kuttfila; ikkje fysisk samansett eller lastprøvd.",
       url: URL,
-      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm" : "150 mm modell, 3 mm"}: ${krakk ? "bogesider med ovalt vindauge" : "A-sider med parallellogramvindauge"}, spegla par, sete oppå, tre stag`,
+      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm" : "150 mm modell, 3 mm"}: ${sekskant ? "to kryssande bein med boge (×2), sekskanta sete oppå" : `${krakk ? "bogesider med ovalt vindauge" : "A-sider med parallellogramvindauge"}, spegla par, sete oppå, tre stag`}`,
       feilsokbileteMedITida: feilsok,
       sekundTilLagraFil: brukt,
       sekundMedOppstart: (fullfoert - byrjing) / 1000,

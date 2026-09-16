@@ -2842,7 +2842,7 @@ export function Studio() {
           {(["x", "y", "z"] as const).map((akse, i) => (
             <button key={akse} type="button" className={ORD + " min-w-16"} aria-label={`spegl planet om ${akse}`} title={`spegelkopi om ${akse}; i same plan vert forma snudd`} onClick={() => speglValt(i)}>spegl {akse}</button>
           ))}
-          {[3, 4].map((N) => <button key={N} type="button" className={ORD + " min-w-12"} aria-label={`${N} rundt`} title={`${N} plan kring midtaksen, som ei gruppe`} onClick={() => rundtValt(N)}>×{N}</button>)}
+          {[2, 3, 4].map((N) => <button key={N} type="button" className={ORD + " min-w-12"} aria-label={`${N} rundt`} title={`${N} plan kring midtaksen, som ei gruppe`} onClick={() => rundtValt(N)}>×{N}</button>)}
         </div>
       )}
 
