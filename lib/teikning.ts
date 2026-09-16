@@ -265,6 +265,67 @@ export function snapp(q: Pt, liner: readonly Snappline[], tol: number): Pt {
 }
 
 /**
+ * KVA I EIN KONTUR SOM FÅR HAKE SEG FAST: endane, hjørna, og flate strekk
+ * langs lina — ikkje ein boge som berre strykjer henne.
+ *
+ * Snappet les kvart punkt for seg medan fingeren dreg, og det er rett for
+ * ein fot langs golvet: kvart punkt der er meint å liggje på golvet. Ein
+ * gyngestol er noko anna: botnen hans er ein boge som ROM golvet i eitt
+ * punkt, og punkt for punkt ville snappet ha lagt heile botnen flat — ei
+ * meie på to hundre millimeter av ein boge som skulle gynge. Difor vert det
+ * avgjort etterpå, med både det rå og det snappa: eit punkt held det
+ * snappa når det er ein ende, eit hjørne (kanten snur over 45° kring det,
+ * lese over seks toleransar til kvar side), eller står i eit strekk av
+ * snappa punkt mellom to slike der det rå strekket går JAMT LANGS lina —
+ * avstanden til henne skil seg ikkje meir enn to toleransar over strekket.
+ * Ein boge i snappbandet gjer det ikkje, og får stå som han vart teikna;
+ * det gjer heller ikkje beinet på veg ned i bandet mot hjørnet, so beinet
+ * står rett heilt til hjørnet, og hjørnet står på golvet.
+ */
+export function snappaKontur(raa: readonly Pt[], snappa: readonly Pt[], tol: number): Pt[] {
+  const n = Math.min(raa.length, snappa.length)
+  if (n < 3) return snappa.slice(0, n)
+  const flytta = raa.map((p, i) => i < n && avstand(p, snappa[i]) > 1e-9)
+  // hjørna: retninga inn mot punktet mot retninga ut frå det, lese over ei fingerbreidd
+  const vindauge = 6 * tol
+  const retn = (i: number, fram: boolean): Pt | null => {
+    let k = i
+    for (;;) {
+      const neste = fram ? k + 1 : k - 1
+      if (neste < 0 || neste >= n) break
+      k = neste
+      if (avstand(raa[k], raa[i]) >= vindauge) break
+    }
+    const L = avstand(raa[k], raa[i])
+    return L > 1e-9 ? [(raa[k][0] - raa[i][0]) / L, (raa[k][1] - raa[i][1]) / L] : null
+  }
+  const anker = raa.map((_, i) => {
+    if (i === 0 || i === n - 1) return true
+    const inn = retn(i, false), ut = retn(i, true)
+    if (!inn || !ut) return false
+    // inn peikar attende: snuen er vinkelen mellom −inn og ut
+    const c = -(inn[0] * ut[0] + inn[1] * ut[1])
+    return Math.acos(Math.max(-1, Math.min(1, c))) > (45 * Math.PI) / 180
+  })
+  const ut = raa.slice(0, n)
+  for (let i = 0; i < n; i++) if (anker[i] && flytta[i]) ut[i] = snappa[i]
+  // i bandet: flytt, eller eit punkt som råka lina midt mellom to flytte
+  const iBand = flytta.map((f, i) => f || (i > 0 && i < n - 1 && flytta[i - 1] && flytta[i + 1]))
+  // strekka: samanhengande punkt i bandet, delte av ankera
+  let i = 0
+  while (i < n) {
+    if (!iBand[i] || anker[i]) { i++; continue }
+    let j = i
+    while (j + 1 < n && iBand[j + 1] && !anker[j + 1]) j++
+    let naer = Infinity, fjern = 0
+    for (let k = i; k <= j; k++) { const d = avstand(raa[k], snappa[k]); naer = Math.min(naer, d); fjern = Math.max(fjern, d) }
+    if (fjern - naer <= 2 * tol) for (let k = i; k <= j; k++) ut[k] = snappa[k]
+    i = j + 1
+  }
+  return ut
+}
+
+/**
  * EIN KONTUR TEIKNA INNI DEN VALDE PLATA ER EIT HÒL I HO.
  *
  * Punkta kjem frå det frosne teikneplanet, i brøk kring midten av kroppen;

@@ -4,7 +4,7 @@ import { useFrame } from "@react-three/fiber"
 import { useEffect, useMemo, useRef, type MutableRefObject } from "react"
 import type { Pt } from "@/lib/core"
 import type { fritt } from "@/lib/ramme"
-import { teiknaFirkant, teiknaKontur } from "@/lib/teikning"
+import { snappaKontur, teiknaFirkant, teiknaKontur } from "@/lib/teikning"
 
 type Teikning = {
   slag: "firkant" | "kontur"
@@ -28,7 +28,8 @@ type Teikning = {
 export function useTeikning(q: Teikning) {
   const naa = useRef(q)
   naa.current = q
-  const drag = useRef<{ id: number; slag: Teikning["slag"]; x: number; y: number; a: Pt; b: Pt; punkt: Pt[]; tol: number } | null>(null)
+  /** `punkt` er snappa, til å sjå medan du dreg; `raa` er der fingeren var — sjå `snappaKontur` */
+  const drag = useRef<{ id: number; slag: Teikning["slag"]; x: number; y: number; a: Pt; b: Pt; punkt: Pt[]; raa: Pt[]; tol: number } | null>(null)
   const bane = useMemo(() => q.svg?.querySelector("polygon"), [q.svg])
   const maal = useMemo(() => q.svg?.querySelector("text"), [q.svg])
   const melding = useRef("")
@@ -83,7 +84,7 @@ export function useTeikning(q: Teikning) {
       const tol = Math.max(1e-5, Math.hypot(nabo[0] - raa[0], nabo[1] - raa[1]))
       // TI PIKSLAR: ein fingerbreidd, og tol er 1,25 piksel
       const a = naa.current.snapp?.(raa, tol * 8) ?? raa
-      drag.current = { id: e.pointerId, slag: naa.current.slag, x: e.clientX, y: e.clientY, a, b: a, punkt: [a], tol }
+      drag.current = { id: e.pointerId, slag: naa.current.slag, x: e.clientX, y: e.clientY, a, b: a, punkt: [a], raa: [raa], tol }
       arb.current = "teikn"
       lerret.setPointerCapture(e.pointerId)
       invalidate()
@@ -100,7 +101,7 @@ export function useTeikning(q: Teikning) {
         const b = naa.current.snapp?.(raa, d.tol * 8) ?? raa
         d.b = b
         const siste = d.punkt[d.punkt.length - 1]
-        if (d.slag === "kontur" && Math.hypot(b[0] - siste[0], b[1] - siste[1]) >= d.tol) d.punkt.push(b)
+        if (d.slag === "kontur" && Math.hypot(b[0] - siste[0], b[1] - siste[1]) >= d.tol) { d.punkt.push(b); d.raa.push(raa) }
       }
       invalidate()
     }
@@ -115,7 +116,7 @@ export function useTeikning(q: Teikning) {
       if (!b) return
       if (d.slag === "firkant" && (Math.abs(e.clientX - d.x) < 12 || Math.abs(e.clientY - d.y) < 12)) return
       // Slippet sjølv er med, òg når nettlesaren ikkje sende siste move.
-      const omriss = d.slag === "firkant" ? teiknaFirkant(d.a, b) : teiknaKontur([...d.punkt, b], d.tol)
+      const omriss = d.slag === "firkant" ? teiknaFirkant(d.a, b) : teiknaKontur(snappaKontur([...d.raa, raa], [...d.punkt, b], d.tol), d.tol)
       if (omriss) naa.current.onLukk(omriss, d.slag, d.tol)
       else melding.current = "teikn ein tydeleg kontur"
     }
