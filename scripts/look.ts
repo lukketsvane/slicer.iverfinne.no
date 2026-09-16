@@ -171,7 +171,7 @@ async function flate(namn: string, w: number, h: number) {
   else console.log(`  skjer: ${før} → ${etter} plan`)
 
   // --- arket opnar seg, og lista er der -------------------------------------
-  if (!benk) await paaFane(page, "grupper")
+  if (!benk) await paaFane(page, "plan")
   const rader = await page.locator("[role=listbox][aria-label='plan'] [role=option]").count()
   if (rader !== etter) brot(`${namn}: lista har ${rader} plan, lina seier ${etter}`)
   await page.screenshot({ path: `${UT}/${namn}-2-liste.png` })
@@ -233,7 +233,7 @@ async function flate(namn: string, w: number, h: number) {
    */
   const tilChip = async (chip: string) => {
     if (benk) return
-    await paaFane(page, "uttak")
+    await paaFane(page, "sjekk")
     for (let i = 0; i < 8; i++) {
       if (await page.getByRole("button", { name: chip, exact: true }).count()) return
       const neste = page.getByRole("button", { name: "neste uttak" })
