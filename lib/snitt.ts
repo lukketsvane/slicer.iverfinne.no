@@ -40,7 +40,7 @@ import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 import { bogMin, rilla } from "./rille"
 import { forenklaSpor, sporAksar, sporRute } from "./sporfelt"
 import { felles, iGods, sporInn, sporPunkt, stykkeLangs, utan, type Line } from "./stykke"
-import { fingrar, stikkUt, tappa, tappIn, slisseGods, type Boks as TappBoks, type Tapp } from "./tapp"
+import { moteLedd, tappIn, slisseGods, type Boks as TappBoks, type Tapp } from "./tapp"
 import { monteringsorden, veg, type Vegar } from "./orden"
 
 export { sporPunkt, stykkeLangs, tappIn, type Tapp }
@@ -1283,31 +1283,11 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       const tekne: Span[] = []
       // tappar òg mot ei bøygd plate — der møtet er ei generatorline, rett i båe
       if (!x.boge) {
-        const cos = Math.sqrt(Math.max(0, 1 - x.sin * x.sin))
-        for (const t of tappa(tappKtx, A, B, lA, lB, x.sin, cos, tappar, stikkUt(tappKtx, B, A, lB, lA, x.sin, cos))) {
-          tappar += t.tal
-          ledd += t.tal
-          // A går inn langs tappane sine; B kjem ned på dei, mot den vegen dei peikar
-          veg(vegar, A.plan.id, B.plan.id, t.inn)
-          veg(vegar, B.plan.id, A.plan.id, mul3(t.inn, -1))
-          tekne.push(...t.strekk)
-        }
-        for (const t of tappa(tappKtx, B, A, lB, lA, x.sin, cos, tappar, tekne)) {
-          tappar += t.tal
-          ledd += t.tal
-          veg(vegar, B.plan.id, A.plan.id, t.inn)
-          veg(vegar, A.plan.id, B.plan.id, mul3(t.inn, -1))
-          tekne.push(...t.strekk)
-        }
-        // hjørnet: båe sluttar mot kvarandre, og det vert fingrar
-        const fi = fingrar(tappKtx, A, B, lA, lB, x.sin, tappar, tekne)
-        if (fi) {
-          tappar += fi.tal
-          ledd += fi.tal
-          veg(vegar, A.plan.id, B.plan.id, fi.innA)
-          veg(vegar, B.plan.id, A.plan.id, fi.innB)
-          tekne.push(...fi.strekk)
-        }
+        const m = moteLedd(tappKtx, A, B, lA, lB, x.sin, tappar)
+        tappar += m.tal
+        ledd += m.tal
+        for (const [del, mot, d] of m.vegar) veg(vegar, del, mot, d)
+        tekne.push(...m.tekne)
       }
       const runs = utan(felles(stykkeLangs(A.ringar, lA.p, lA.d, lA.k), stykkeLangs(B.ringar, lB.p, lB.d, lB.k)), tekne)
       const w = slotW / x.sin
