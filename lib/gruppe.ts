@@ -78,9 +78,9 @@ export function medGruppa(l: Plan[], i: number, o: Vec3, n: Vec3, g: number | nu
  * omrisset står. Eit liggjande plan har ei fast ramme (v er nord), so der
  * vert punkta og streka dreidde i planet i staden.
  */
-export function rundt(q: Plan, N: number, min: Vec3, max: Vec3, fraaId: number, gruppe: number): Plan[] {
+export function rundt(q: Plan, N: number, min: Vec3, max: Vec3, fraaId: number, gruppe: number, t = 0): Plan[] {
   const cx = (min[0] + max[0]) / 2, cy = (min[1] + max[1]) / 2
-  const o: Vec3 = [min[0] + q.o[0] * (max[0] - min[0]), min[1] + q.o[1] * (max[1] - min[1]), q.o[2]]
+  let o: Vec3 = [min[0] + q.o[0] * (max[0] - min[0]), min[1] + q.o[1] * (max[1] - min[1]), q.o[2]]
   const ligg = Math.abs(q.n[2]) > 0.9999
   // eit plan gjennom aksen er det same planet ein halv runde seinare — men berre
   // når plata går OVER aksen er steget 180/N; eit bein som står ut frå midten
@@ -88,7 +88,18 @@ export function rundt(q: Plan, N: number, min: Vec3, max: Vec3, fraaId: number, 
   const paaAksen = !ligg && Math.abs((o[0] - cx) * q.n[0] + (o[1] - cy) * q.n[1]) < 1e-3 && Math.abs(q.n[2]) < 1e-6
   const u0 = -((o[0] - cx) * q.n[1] - (o[1] - cy) * q.n[0])
   const us = (q.omriss ?? []).map((p) => p[0] * (max[0] - min[0]) + u0)
-  const gjennom = paaAksen && (!us.length || (Math.min(...us) < -1e-3 && Math.max(...us) > 1e-3))
+  let gjennom = paaAksen && (!us.length || (Math.min(...us) < -1e-3 && Math.max(...us) > 1e-3))
+  /**
+   * FIRE RUNDT EIN VEGG MIDT I ER EI KASSE. Veggen går ut til halve breidda
+   * si minus ei halv tjukn, og dei fire hjørna møtest i flukt — der vert dei
+   * fingrar (`fingrar` i tapp.ts).
+   */
+  if (gjennom && N === 4 && us.length) {
+    const ut0 = Math.max(-Math.min(...us), Math.max(...us)) - t / 2
+    const L = Math.hypot(q.n[0], q.n[1])
+    o = [o[0] - (q.n[0] / L) * ut0, o[1] - (q.n[1] / L) * ut0, o[2]]
+    gjennom = false
+  }
   const ut: Plan[] = []
   for (let k = 0; k < N; k++) {
     const a = ((gjennom ? 1 : 2) * Math.PI * k) / N

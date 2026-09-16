@@ -954,12 +954,18 @@ waits for the body to reach those dimensions before it frames it.
 - **×2, ×3 and ×4** put the selected plate round the vertical axis through the
   middle — three legs at 120°, four at 90° — as a group. A plane through the
   axis is the same plane half a turn later, so there the step is 180/N: three
-  crossing planes at 60° for a hexagonal stool.
+  crossing planes at 60° for a hexagonal stool — unless the plate only sits
+  on one side of the axis, as a leg standing out from the middle does. And
+  **×4 on a wall through the middle is a box**: each wall moves out by half
+  its width less half a thickness, and the corners meet flush as fingers.
 
 `pnpm minutt` draws the reference stool (A-sides with a window, a mirrored
 pair, a landed seat, three rails) from an empty workspace to a downloaded,
 nested cut file, and checks the geometry and the file: 16 s automated.
-`MINUTT_KRAKK=1` draws arched sides with an oval window instead.
+`MINUTT_KRAKK=1` draws arched sides with an oval window instead, `=2` two
+crossed legs (×2) under a hexagonal seat, `=3` the arched sides with the seat
+between them, and `=4` the cube stool: one wall with an arched opening, ×4 to
+a finger-jointed box, a seat on top — 11 s.
 
 ## Assembly
 
