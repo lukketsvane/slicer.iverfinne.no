@@ -94,6 +94,12 @@ export const tappIn = (tapp: readonly Tapp[], outline: Pt[]): Tapp[] => tapp.fil
  */
 const fangAv = (k: Ktx) => Math.max(1.5, 0.5 * k.tjukn)
 const tappMinAv = (k: Ktx) => Math.max(6, 3 * k.tjukn)
+/**
+ * SYNLEGE TAPPAR: ein kant teikna litt FORBI den fjerne flata er ikkje ei
+ * plate som går gjennom, men ein tapp som stikk ut. Opp til tre tjukner
+ * (og ti millimeter) forbi er det eit utstikk; lenger er det halvt om halvt.
+ */
+const utMaxAv = (k: Ktx) => Math.max(10, 3 * k.tjukn)
 /** stykka langs lina, `off` millimeter til venstre for henne */
 const langsAv = (a: TappFlate, l: Line, off: number) => stykkeLangs(a.ringar, [l.p[0] - l.d[1] * off, l.p[1] + l.d[0] * off], l.d)
 /** ein rett boks langs lina: [t0, t1] langs, [s0, s1] til sides, som eit strek i feltet */
@@ -121,14 +127,27 @@ const sluttar = (k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, tb2: nu
   if (!T.omriss || T.boygd || M.boygd) return []
   const mKryss = felles(felles(langsAv(M, lM, 0), langsAv(M, lM, -(wM / 2 + 0.5))), langsAv(M, lM, wM / 2 + 0.5))
   if (!mKryss.length) return []
-  const ut: { s: number; strekk: Span[] }[] = []
+  const utMax = utMaxAv(k)
+  const ut: { s: number; strekk: Span[]; u: number }[] = []
   for (const s of [-1, 1]) {
     const naer = langsAv(T, lT, s * (tb2 + fang))
     const fjern = langsAv(T, lT, -s * (tb2 + fang))
     const strekk = felles(utan(naer, fjern), mKryss)
       .filter(([lo, hi]) => hi - lo >= tappMin)
       .sort((a, b) => a[0] - b[0])
-    if (strekk.length) ut.push({ s, strekk })
+    if (strekk.length) ut.push({ s, strekk, u: 0 })
+    // utstikket: gods forbi den fjerne flata, men ikkje lenger enn utMax
+    const gjennom = felles(felles(naer, fjern), mKryss).filter(([lo, hi]) => hi - lo >= tappMin)
+    if (!gjennom.length) continue
+    const stikk = utan(gjennom, langsAv(T, lT, -s * (tb2 + utMax))).filter(([lo, hi]) => hi - lo >= tappMin)
+    if (!stikk.length) continue
+    // kor langt: det ytste godset over heile møtet, på halve millimeteren
+    let u = fang
+    for (let off = fang + 0.5; off < utMax; off += 0.5) {
+      if (felles(langsAv(T, lT, -s * (tb2 + off)), stikk).some(([lo, hi]) => hi - lo >= tappMin)) u = off
+      else break
+    }
+    ut.push({ s, strekk: stikk.sort((a, b) => a[0] - b[0]), u: Math.round(u * 2) / 2 })
   }
   return ut
 }
@@ -150,7 +169,8 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
   // heile tjukna på M, og kvar flate hans ser han ein annan stad
   const wM = (k.slotW + k.tjukn * cos) / sin
   const ut: { inn: Vec3; strekk: Span[]; tal: number }[] = []
-  for (const { s, strekk } of sluttar(k, T, M, lT, lM, tb2, wM)) {
+  const utMax = utMaxAv(k)
+  for (const { s, strekk, u } of sluttar(k, T, M, lT, lM, tb2, wM)) {
     let tal = 0
     const inn2: Pt = [s * lT.d[1], -s * lT.d[0]]
     const inn: Vec3 = add3(mul3(T.r.u, inn2[0]), mul3(T.r.v, inn2[1]))
@@ -180,7 +200,7 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
     const retta = T.omriss ? [T.omriss] : T.ringar
     for (const [c0, c1] of strekk) {
       // KLIPPET: det som står forbi den nære flata, er i vegen for M
-      T.tform.push(boks(lT, c0, c1, s * tb2, -s * (tb2 + fang + 1), false))
+      T.tform.push(boks(lT, c0, c1, s * tb2, -s * (tb2 + (u ? utMax : fang) + 1), false))
       // FYLLET: der kanten framleis står under flata — der hjørna låg
       // utanfor møtet og ikkje vart flytte — vert han løfta opp til henne.
       // Eit hol kortare enn fangbandet er ikkje ein kant som står lågt, men
@@ -206,10 +226,10 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
       for (let i = 0; i < n; i++) {
         const a0 = c0 + i * celle + marg
         const a1 = c0 + (i + 1) * celle - marg
-        T.tform.push(boks(lT, a0, a1, s * (tb2 + 0.5), -s * tb2, true))
+        T.tform.push(boks(lT, a0, a1, s * (tb2 + 0.5), -s * (tb2 + u), true))
         M.tform.push(boks(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2, false))
         const nokkel = `t${T.plan.id}-${M.plan.id}-${nr + tal}`
-        T.tapp.push({ mot: M.plan.id, slag: "tapp", midt: sporPunkt(lT, (a0 + a1) / 2, 0), hjorne: hjorne(lT, a0, a1, s * tb2, -s * tb2), inn, nokkel })
+        T.tapp.push({ mot: M.plan.id, slag: "tapp", midt: sporPunkt(lT, (a0 + a1) / 2, 0), hjorne: hjorne(lT, a0, a1, s * tb2, -s * (tb2 + u)), inn, nokkel })
         M.tapp.push({ mot: T.plan.id, slag: "slisse", midt: sporPunkt(lM, (a0 + a1) / 2, 0), hjorne: hjorne(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2), inn, nokkel })
         tal++
       }
