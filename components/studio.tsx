@@ -8,7 +8,7 @@ import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_ROM, PLAN_TAK, broek, dot, iGruppa, lesPlan, nyGruppe, nyId, omrissLine, ramme as planRamme, formPunkt, FORM_SLAG, rutenett, sameSnitt, skilRute, skuvKopi, slaaSaman, spegla, speglingar, skrivPlan, sub3, type FormSlag, type Plan, type Strek } from "@/lib/plan"
 import { lukkTeikning } from "@/lib/teikning"
-import { medGruppa } from "@/lib/gruppe"
+import { medGruppa, nesteSteg, rundt } from "@/lib/gruppe"
 import { simplify, type Pt2 } from "@/lib/contour"
 import { speglPar, speglPlan } from "@/lib/spegl"
 import { byggKey, lesDeling, lesFest, skrivDeling, skrivFest, SNAPPSTEG, SNAPP_NAMN } from "@/lib/params"
@@ -1424,6 +1424,7 @@ export function Studio() {
    * når du skalerte kroppen. Det nye planet vert valt: du dupliserer for å
    * flytte kopien, ikkje for å sjå på henne.
    */
+  const sisteKopi = useRef<{ kjelde: number; kopi: number } | null>(null)
   const dupliserPlan = useCallback((id: number) => {
     const k = kroppRef.current
     if (!k) return
@@ -1438,8 +1439,9 @@ export function Studio() {
     const kjelde = g !== null && q.gruppe === g ? iGruppa(l, g) : [q]
     if (l.length + kjelde.length > PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
     const kopiar: Plan[] = []
+    const steg = kjelde.length === 1 && sisteKopi.current?.kopi === id ? nesteSteg(l, id, sisteKopi.current.kjelde) : null
     for (const p of kjelde) {
-      const o = skuvKopi(p, k.min, k.max, t)
+      const o = steg ?? skuvKopi(p, k.min, k.max, t)
       if (!o) return setMelding("ikkje rom for kopi · flytt plata innover")
       kopiar.push({ ...p, o })
     }
@@ -1453,11 +1455,22 @@ export function Studio() {
       ny = i
       return { ...cur, plan: skrivPlan([...m, ...kopiar.map((p) => ({ ...p, id: i++, gruppe: nyG || undefined }))]) }
     })
+    sisteKopi.current = kjelde.length === 1 ? { kjelde: id, kopi: leiar } : null
     setVald(leiar)
     setValdGruppe(nyG || null)
     setValdStrek(null)
     setValdPunkt(null)
     setBlink(leiar)
+  }, [])
+  /** RUNDT: det valde planet og N − 1 kopiar kring midtaksen, som ei gruppe */
+  const rundtValt = useCallback((N: number) => {
+    const k = kroppRef.current, l = lesPlan(naa.current.plan), q = l.find((p) => p.id === valdRef.current)
+    if (!k || !q) return
+    if (l.length + N - 1 > PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+    const g = nyGruppe(l), rad = rundt(q, N, k.min, k.max, nyId(l), g)
+    setParams((cur) => ({ ...cur, plan: skrivPlan([...lesPlan(cur.plan).map((p) => (p.id === q.id ? rad[0] : p)), ...rad.slice(1)]) }))
+    setValdGruppe(g)
+    setBlink(rad[N - 1].id)
   }, [])
   /**
    * Spegelkopi i rommet; ligg spegelen i same plan, snur han forma der.
@@ -2828,6 +2841,7 @@ export function Studio() {
           {(["x", "y", "z"] as const).map((akse, i) => (
             <button key={akse} type="button" className={ORD + " min-w-16"} aria-label={`spegl planet om ${akse}`} title={`spegelkopi om ${akse}; i same plan vert forma snudd`} onClick={() => speglValt(i)}>spegl {akse}</button>
           ))}
+          {[3, 4].map((N) => <button key={N} type="button" className={ORD + " min-w-12"} aria-label={`${N} rundt`} title={`${N} plan kring midtaksen, som ei gruppe`} onClick={() => rundtValt(N)}>×{N}</button>)}
         </div>
       )}
 

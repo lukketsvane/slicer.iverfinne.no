@@ -5,7 +5,7 @@
  * handa flyttar eit plan, og vaktene kan kalle det utan ein nettlesar.
  */
 import { PLAN_ROM, add3, delAv, dreiing, iGruppa, mul3, norm3, sub3, vriOm, type Plan } from "./plan"
-import type { Vec3 } from "./core"
+import type { Pt, Vec3 } from "./core"
 
 /** brøkane må halde seg nær boksen: eit plan langt utanfor råkar ingenting */
 // same rommet `lesPlan` slepper gjennom: klemmer handa til eitt tal og
@@ -67,4 +67,62 @@ export function medGruppa(l: Plan[], i: number, o: Vec3, n: Vec3, g: number | nu
     ut[j] = { ...l[j], o: klemO(add3(l[j].o, mul3(dO, t))), n: nn }
   }
   return ut
+}
+
+/**
+ * RUNDT: N PLAN KRING DEN LODDRETTE MIDTAKSEN.
+ *
+ * Tre bein på 120°, seks ribber i ein sekskant: det valde planet og N − 1
+ * kopiar, kvar dreidd 360/N grader kring z gjennom midten av boksen. Eit
+ * ståande plan dreier ramma med seg (v er opp, u fylgjer normalen), so
+ * omrisset står. Eit liggjande plan har ei fast ramme (v er nord), so der
+ * vert punkta og streka dreidde i planet i staden.
+ */
+export function rundt(q: Plan, N: number, min: Vec3, max: Vec3, fraaId: number, gruppe: number): Plan[] {
+  const cx = (min[0] + max[0]) / 2, cy = (min[1] + max[1]) / 2
+  const o: Vec3 = [min[0] + q.o[0] * (max[0] - min[0]), min[1] + q.o[1] * (max[1] - min[1]), q.o[2]]
+  const ligg = Math.abs(q.n[2]) > 0.9999
+  // eit plan gjennom aksen er det same planet ein halv runde seinare: då er steget 180/N
+  const gjennom = !ligg && Math.abs((o[0] - cx) * q.n[0] + (o[1] - cy) * q.n[1]) < 1e-3 && Math.abs(q.n[2]) < 1e-6
+  const ut: Plan[] = []
+  for (let k = 0; k < N; k++) {
+    const a = ((gjennom ? 1 : 2) * Math.PI * k) / N
+    const c = Math.cos(a), s = Math.sin(a)
+    const x = cx + (o[0] - cx) * c - (o[1] - cy) * s
+    const y = cy + (o[0] - cx) * s + (o[1] - cy) * c
+    const r4 = (v: number) => +v.toFixed(4) || 0
+    const n: Vec3 = [r4(q.n[0] * c - q.n[1] * s), r4(q.n[0] * s + q.n[1] * c), q.n[2]]
+    const dreidd = (p: Pt): Pt => (ligg ? [r4(p[0] * c - p[1] * s), r4(p[0] * s + p[1] * c)] : p)
+    ut.push({
+      ...q,
+      id: k ? fraaId + k - 1 : q.id,
+      gruppe,
+      o: klemO([r4((x - min[0]) / (max[0] - min[0])), r4((y - min[1]) / (max[1] - min[1])), q.o[2]]),
+      n,
+      ...(q.omriss ? { omriss: q.omriss.map(dreidd) } : {}),
+      strek: q.strek.map((st) => {
+        if (!ligg) return st
+        const [sx, sy] = dreidd([st.x, st.y])
+        return { ...st, x: sx, y: sy, a: +(((st.a + (a * 180) / Math.PI) % 360 + 360) % 360).toFixed(2) }
+      }),
+    })
+  }
+  return ut
+}
+
+/**
+ * GJENTA: KOPIEN GÅR SAME STEGET SOM DEN FØRRE.
+ *
+ * Dupliser, dra kopien dit den neste skal stå, dupliser att — og den
+ * tredje kjem like langt frå den andre. Steget er skilnaden mellom
+ * kopien og kjelda slik dei står NO, so eit drag på kopien er steget.
+ * Null når det ikkje er noko steg å gå (ingen kjelde, eller ei anna normal).
+ */
+export function nesteSteg(l: readonly Plan[], kopi: number, kjelde: number): Vec3 | null {
+  const a = l.find((p) => p.id === kjelde), b = l.find((p) => p.id === kopi)
+  if (!a || !b || a.bog !== b.bog) return null
+  if (Math.abs(a.n[0] - b.n[0]) + Math.abs(a.n[1] - b.n[1]) + Math.abs(a.n[2] - b.n[2]) > 1e-3) return null
+  const d = sub3(b.o, a.o)
+  if (Math.hypot(...d) < 1e-4) return null
+  return klemO(add3(b.o, d)).map((c) => +c.toFixed(4)) as Vec3
 }

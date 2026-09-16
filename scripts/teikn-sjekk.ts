@@ -3,6 +3,7 @@ import { inRing, shoelace, type Pt } from "../lib/core"
 import { lesPlan, OMRISS_TAK, skrivPlan } from "../lib/plan"
 import { landing, midtPaa, snapp, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal } from "../lib/teikning"
 import { ramme, type Plan } from "../lib/plan"
+import { nesteSteg, rundt } from "../lib/gruppe"
 import type { Vec3 } from "../lib/core"
 
 assert.deepEqual(teikneNormal([0, -0.02, Math.sqrt(1 - 0.02 ** 2)]), [0, 0, 1], "toppsynet lagar eit eksakt vassrett sete")
@@ -89,4 +90,28 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   const sete = midtPaa([[-0.4, -0.35], [0.36, -0.35], [0.36, 0.39], [-0.4, 0.39]], 0.05, true)
   assert(Math.abs(sete[0][0] + 0.38) < 1e-9 && Math.abs(sete[0][1] + 0.37) < 1e-9, "eit sete vert midtstilt båe vegar")
   console.log(`symmetri: ${a.length} punkt → ${s.length} spegla; skeiv står; hjartet held spissane; midtstilling held`)
+}
+
+// RUNDT OG GJENTA: tre bein på 120°, og ein kopi som går same steget
+{
+
+  const min: Vec3 = [-225, -225, 0], max: Vec3 = [225, 225, 450]
+  const bein: Plan = { id: 1, o: [0.5, (120 + 225) / 450, 0.5], n: [0, 1, 0], bog: 0, strek: [], omriss: [[-0.2, 0.4], [0.2, 0.4], [0.2, -0.5], [-0.2, -0.5]] }
+  const tre = rundt(bein, 3, min, max, 2, 1)
+  assert.deepEqual(tre.map((p) => p.id), [1, 2, 3], "namna held fram frå det neste ubrukte")
+  for (const p of tre) {
+    const x = min[0] + p.o[0] * 450, y = min[1] + p.o[1] * 450
+    assert(Math.abs(Math.hypot(x, y) - 120) < 0.1, "kvart bein står 120 mm frå aksen")
+    assert(Math.abs(x * p.n[0] + y * p.n[1] - 120) < 0.1, "normalen peikar ut frå aksen")
+    assert.deepEqual(p.omriss, bein.omriss, "eit ståande plan tek omrisset med seg")
+  }
+  const kryss = rundt({ ...bein, o: [0.5, 0.5, 0.5] }, 3, min, max, 2, 1)
+  assert(Math.abs(kryss[1].n[1] - 0.5) < 1e-3 && Math.abs(Math.abs(kryss[1].n[0]) - 0.866) < 1e-3, "plan gjennom aksen: 60° mellom, ikkje 120° oppå seg sjølv")
+  const sete: Plan = { id: 1, o: [0.5, 0.5, 0.99], n: [0, 0, 1], bog: 0, strek: [], omriss: [[0.2, 0], [0.3, 0], [0.3, 0.1]] }
+  const s4 = rundt(sete, 4, min, max, 2, 1)
+  assert.deepEqual(s4[1].omriss![0], [0, 0.2], "eit liggjande plan dreier punkta i planet")
+  const l: Plan[] = [{ ...bein, id: 1, o: [0.2, 0.5, 0.5] }, { ...bein, id: 2, o: [0.35, 0.5, 0.5] }]
+  assert.deepEqual(nesteSteg(l, 2, 1), [0.5, 0.5, 0.5], "den tredje kjem like langt frå den andre")
+  assert.equal(nesteSteg([l[0], { ...l[1], n: [1, 0, 0] }], 2, 1), null, "ei anna normal er ikkje eit steg")
+  console.log("rundt og gjenta: tre bein på 120°, kryss på 60°, sete dreidd, steget går vidare")
 }
