@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type JSX } from "react"
 import type { View } from "@/lib/core"
 import { FORMAT } from "@/lib/io"
+/** eit bilete vert ei plate (sjå `bilete.tsx`), ikkje eit nett */
+export const BILETE = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"] as const
 import { FORMER } from "@/lib/scene"
 import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./deler"
 
@@ -95,7 +97,7 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
       {/* FLEIRE PÅ EIN GONG. Den fyrste vert kroppen, som ei einsleg fil
           alltid har vorte; resten går rett i lista under. Du hentar inn det
           du har, og plukkar etterpå. */}
-      <input ref={pick} type="file" multiple accept={FORMAT.join(",")} className="hidden" onChange={(e) => { const f = [...(e.target.files ?? [])]; if (f.length) onFile(f); e.target.value = "" }} />
+      <input ref={pick} type="file" multiple accept={[...FORMAT, ...BILETE].join(",")} className="hidden" onChange={(e) => { const f = [...(e.target.files ?? [])]; if (f.length) onFile(f); e.target.value = "" }} />
       <div className="flex h-11 items-center gap-1 px-2">
         <button type="button" onClick={onAngre} disabled={!kanAngre} aria-label="angre" title="angre siste endring (Z)" className={ICON_BTN}>{IcoAngre}</button>
         <button type="button" onClick={onGjerOm} disabled={!kanGjerOm} aria-label="gjer om" title="gjer om det du angra (⇧Z)" className={ICON_BTN}>{IcoGjerOm}</button>
@@ -169,7 +171,7 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
               <button
                 type="button"
                 onClick={() => { pick.current?.click(); setMeny(false) }}
-                title={byt ? `hent eit nett i den valde biten: ${FORMAT.join(" ")}` : `hent eit nett: ${FORMAT.join(" ")}`}
+                title={byt ? `hent eit nett i den valde biten: ${FORMAT.join(" ")}` : `hent eit nett eller eit bilete: ${[...FORMAT, ...BILETE].join(" ")}`}
                 className="hit px-3 py-2.5 text-left text-[11px] leading-none"
               >
                 fil

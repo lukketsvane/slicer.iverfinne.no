@@ -928,6 +928,20 @@ object, a seat between the sides, flush and with tenons showing, a bent
 saddle seat flush and showing, and a box of four sides with a flush seat,
 joined by fingers.
 
+## A picture becomes a plate
+
+Pick an image where you pick a mesh. The dark is material, the light is air:
+the picture is read as brightness (transparent counts as white), smoothed,
+and cut at a threshold, and the zero line is the outline — the largest outer
+edge — with the holes inside it as drawn contours, largest first. A drag
+across the picture works like the grid: sideways is the threshold, up and
+down the smoothing, and the traced shape stands there the whole time with its
+point and hole count. **snu** makes the light the material. **legg inn** puts
+the plate in the plane you would draw on — through the middle, facing you —
+at four fifths of the workspace. Where the outline runs round, its points are
+arc points; dust smaller than a thousandth of the picture falls away.
+`pnpm teikn` traces a ring with a square hole and a speck of dust.
+
 ## Bound by the mesh, or not
 
 A plane without an outline takes its profile from the body. A plane with one

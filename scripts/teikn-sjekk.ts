@@ -4,6 +4,7 @@ import { lesPlan, OMRISS_TAK, skrivPlan } from "../lib/plan"
 import { landing, mellom, midtPaa, mjukePunkt, snapp, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt } from "../lib/teikning"
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
+import { bileteForm, skalerForm } from "../lib/bilete"
 import type { Vec3 } from "../lib/core"
 
 assert.deepEqual(teikneNormal([0, -0.02, Math.sqrt(1 - 0.02 ** 2)]), [0, 0, 1], "toppsynet lagar eit eksakt vassrett sete")
@@ -188,4 +189,32 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   const midt: Pt[] = [[-0.3, 0.4], [0.35, 0.4], [0.35, -0.5], [-0.3, -0.5]]
   assert.equal(midtPaa(midt, Infinity, false)[0][0], -0.325, "ei side over midten vert midtstilt")
   console.log("midtstilling: eit bein ut frå aksen står")
+}
+
+// BILETET: ein svart ring med eit kvadratisk hòl, og eit støvkorn
+{
+  const w = 120, h = 100
+  const lys = new Float32Array(w * h).fill(1)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const inne = Math.hypot(x - 60, y - 50) < 40
+    const hol = Math.abs(x - 60) < 12 && Math.abs(y - 50) < 12
+    if (inne && !hol) lys[y * w + x] = 0.1
+  }
+  lys[5 * w + 5] = 0
+  const f = bileteForm({ lys, w, h }, { terskel: 0.5, mjuk: 0, snu: false })
+  assert(f, "ringen gjev ei form")
+  const s = 1 / 120
+  const areal = Math.abs(shoelace(f!.omriss)) / (s * s)
+  assert(Math.abs(areal - Math.PI * 1600) < 0.05 * Math.PI * 1600, `omrisset er sirkelen: ${areal.toFixed(0)}`)
+  assert.equal(f!.hol.length, 1, "eitt hòl, og støvet fell bort")
+  assert(Math.abs(f!.hol[0].w / s - 24) < 2 && Math.abs(f!.hol[0].h / s - 24) < 2, `hòlet er 24 px: ${(f!.hol[0].w / s).toFixed(1)}`)
+  assert(f!.runde.length > 6, "sirkelen er runde punkt")
+  assert(Math.abs(f!.hol[0].y) < 0.02 && f!.omriss.every(([, y]) => Math.abs(y) < 0.45), "midten av biletet er midten av forma")
+  const snudd = bileteForm({ lys, w, h }, { terskel: 0.5, mjuk: 0, snu: true })
+  assert(snudd && Math.abs(shoelace(snudd.omriss)) / (s * s) > w * h * 0.9, "snudd er det ljose gods: heile biletet")
+  const tomt = bileteForm({ lys: new Float32Array(w * h).fill(1), w, h }, { terskel: 0.5, mjuk: 2, snu: false })
+  assert.equal(tomt, null, "eit kvitt bilete er inga form")
+  const sk = skalerForm(f!, 0.8)
+  assert(Math.abs(sk.hol[0].w - f!.hol[0].w * 0.8) < 1e-3, "skaleringa tek hòla med")
+  console.log(`bilete: ring med ${f!.omriss.length} punkt og eitt hòl, støvet borte, snudd og tomt held`)
 }

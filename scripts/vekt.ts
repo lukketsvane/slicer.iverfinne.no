@@ -141,7 +141,9 @@ const TAK: [string, number][] = [
   // +1: ei teikna plate tek med seg dei runde punkta (lib/teikning.ts)
   // +8 den 16.: «nett»-brytaren i spalta — omrisset bunde av kroppen eller
   // ikkje. Rekninga er eitt merke i strengen og ei linje i feltet
-  ["components/studio.tsx", 3359],
+  // +22: eit bilete inn som plate — lesinga og skjermen er i bilete.tsx,
+  // rekninga i lib/bilete.ts; her står tilstanden og kallet som legg plata
+  ["components/studio.tsx", 3381],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko

@@ -66,7 +66,7 @@ export function useTeikning(q: Teikning) {
     const paa = (e: PointerEvent) => {
       const t = e.target as Element | null
       if (!e.isPrimary || drag.current || arb.current || (e.pointerType === "mouse" && e.button !== 0)) return
-      if (!t || t.closest("button, a, input, [role=slider], [role=tab], [role=option], header, aside, [aria-label='kontrollar'], section[aria-label='verkty']")) return
+      if (!t || t.closest("button, a, input, [role=slider], [role=tab], [role=option], header, aside, [aria-label='kontrollar'], section[aria-label='verkty'], section[aria-label='bilete']")) return
       // Synskuben er WebGL på same lerret. Han må få både ned- og opptrykket.
       const rute = lerret.getBoundingClientRect(), fri = naa.current.fri
       const x = e.clientX - rute.left, y = e.clientY - rute.top
