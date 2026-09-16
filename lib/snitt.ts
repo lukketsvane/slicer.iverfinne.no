@@ -35,12 +35,12 @@ import { bbox, inRing, MATERIALS, MIN_AREA, perimeter, shoelace, type Material, 
 import { contour, simplify } from "./contour"
 import type { Solid, Span } from "./mesh/solid"
 import { rull, vend, type BitBoks, type Kropp } from "./kropp"
-import { add3, akser, cross, dot, ein2, inn, kryss as kryssAv, kryssBoygd, kryssRing, len3, lesPlan, moteInn, mul3, norm3, omrissLine, skrivPlan, ut, type Mote, type Plan, type Ramme, type Strek } from "./plan"
+import { add3, akser, cross, dot, ein2, inn, kryss as kryssAv, kryssBoygd, kryssRing, len3, lesPlan, moteInn, mul3, norm3, omrissLine, skrivPlan, sub3, ut, type Mote, type Plan, type Ramme, type Strek } from "./plan"
 import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 import { bogMin, rilla } from "./rille"
 import { forenklaSpor, sporAksar, sporRute } from "./sporfelt"
 import { felles, iGods, sporInn, sporPunkt, stykkeLangs, utan, type Line } from "./stykke"
-import { moteLedd, tappIn, slisseGods, type Boks as TappBoks, type Tapp } from "./tapp"
+import { moteLedd, skoyt, tappIn, slisseGods, type Boks as TappBoks, type Tapp } from "./tapp"
 import { monteringsorden, veg, type Vegar } from "./orden"
 
 export { sporPunkt, stykkeLangs, tappIn, type Tapp }
@@ -1248,6 +1248,18 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       const A = raa[i]
       let fann = false
       let treff = 0
+      // SAME PLANET: kant i kant vert ein skøyt (tapp.ts), og ingen line å kryssast på
+      const c = dot(A.r.n, B.r.n)
+      if (!A.boygd && !B.boygd && Math.abs(c) > 0.99999 && Math.abs(dot(sub3(A.r.o, B.r.o), A.r.n)) < 0.01) {
+        const sk = skoyt(tappKtx, A, B, c < 0, tappar)
+        if (sk) {
+          tappar += sk.tal
+          ledd += sk.tal
+          veg(vegar, B.plan.id, A.plan.id, kanonisk(A.r.n))
+          veg(vegar, A.plan.id, B.plan.id, mul3(kanonisk(A.r.n), -1))
+        }
+        continue
+      }
       for (const x0 of møta(A, B)) {
       /**
        * DEN SAME RETNINGA SETT FRÅ BÅE SIDENE. Nullpunktet og retninga må

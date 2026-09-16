@@ -5,7 +5,7 @@ import { landing, mellom, midtPaa, mjukePunkt, snapp, snappliner, symmetrisk, te
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import { bileteForm, skalerForm } from "../lib/bilete"
-import { flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "../lib/vektor"
+import { delIto, flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "../lib/vektor"
 import type { Vec3 } from "../lib/core"
 
 assert.deepEqual(teikneNormal([0, -0.02, Math.sqrt(1 - 0.02 ** 2)]), [0, 0, 1], "toppsynet lagar eit eksakt vassrett sete")
@@ -242,4 +242,19 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert.equal(flyttStrek(h, 0, 0.05, 0.1).strek[0].x, 0.05, "hòlet flytt")
   assert.equal(takStrek(h, 0).strek.length, 0, "hòlet bort")
   console.log("vektor: dra, legg til, ta bort og rund — spegla; hòl flytt og bort")
+}
+
+// DEL I TO: eit sete 350 × 300 vert to på 175 × 300, kant i kant, med same areal
+{
+  const sete: Plan = { id: 3, o: [0.5, 0.5, 0.9], n: [0, 0, 1], bog: 0, strek: [], omriss: [[-0.39, -0.33], [0.39, -0.33], [0.39, 0.33], [-0.39, 0.33]] }
+  const d = delIto(sete, 9)
+  assert(d, "setet vert delt")
+  const [a, b] = d!
+  assert.equal(b.id, 9, "den nye halvdelen får det nye namnet")
+  assert(Math.abs(Math.abs(shoelace(a.omriss!)) + Math.abs(shoelace(b.omriss!)) - Math.abs(shoelace(sete.omriss!))) < 1e-6, "arealet held")
+  assert(a.omriss!.every((p) => p[0] <= 1e-9) && b.omriss!.every((p) => p[0] >= -1e-9), "delt langs den lengste leia, i midten")
+  const rund: Plan = { ...sete, omriss: Array.from({ length: 12 }, (_, i): Pt => [0.3 * Math.cos(i * Math.PI / 6), 0.2 * Math.sin(i * Math.PI / 6)]), runde: [...Array(12).keys()] }
+  const r = delIto(rund, 10)
+  assert(r && r[0].runde && r[0].runde.length > 2, "ein ellipse vert to halve med bogane att")
+  console.log("del i to: setet i to halvdelar, arealet held, bogane finst att")
 }

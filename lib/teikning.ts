@@ -221,6 +221,19 @@ export function snappliner(plan: readonly Plan[], min: Vec3, max: Vec3, S: numbe
     const x = kryss(flate, r)
     if (x) ut2.push({ p: til(x.p), d: retn(x.d) })
   }
+  // OG KANTANE PÅ PLATER SOM LIGG PARALLELT: den andre halvdelen av eit sete
+  // skal ende nett der den fyrste endar, so skøyten finn kanten
+  for (const q of plan) {
+    if (q.bog || !q.omriss) continue
+    const r = ramme(q, min, max)
+    if (Math.abs(Math.abs(dot(r.n, flate.n)) - 1) > 1e-6) continue
+    const pk = omrissLine(q.omriss, q.runde).map((p) => til(ut(r, [p[0] * S, p[1] * S])))
+    for (let i = 0; i < pk.length; i++) {
+      const a = pk[i], b = pk[(i + 1) % pk.length]
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1])
+      if (L > 0.02) ut2.push({ p: a, d: [(b[0] - a[0]) / L, (b[1] - a[1]) / L] })
+    }
+  }
   return ut2
 }
 

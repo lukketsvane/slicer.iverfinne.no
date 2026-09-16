@@ -523,7 +523,7 @@ function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: numb
         if (!gods(r, pk(L / 2, W / 2))) seg(`${q.nokkel}: tappen manglar i profilen til ${r.plan.id}`)
         if (!gods(r, pk(L / 2, W - 0.3))) seg(`${q.nokkel}: tappen når ikkje fram til den fjerne flata`)
         // eit stag som går gjennom held fram forbi flata — det er heile poenget
-        if (!q.nokkel.startsWith("g") && gods(r, pk(L / 2, W + 0.3))) seg(`${q.nokkel}: tappen stikk ut forbi den fjerne flata`)
+        if (!/^[gs]/.test(q.nokkel) && gods(r, pk(L / 2, W + 0.3))) seg(`${q.nokkel}: tappen stikk ut forbi den fjerne flata`)
         for (const a of [-0.4, L + 0.4]) if (gods(r, pk(a, W / 2))) seg(`${q.nokkel}: kanten ved tappen er ikkje klipt ved skuldra`)
         if (!q.nokkel.startsWith("g") && !gods(r, pk(L / 2, -0.3))) seg(`${q.nokkel}: tappen heng ikkje i plata`)
       } else {
@@ -540,7 +540,7 @@ function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: numb
   let verst = 0
   for (const [nk, l] of par) {
     // ein finger i eit hjørne har ingen makker: han fyller hakket i den andre
-    if (nk.startsWith("f")) {
+    if (nk.startsWith("f") || nk.startsWith("s")) {
       if (l.length !== 1) seg(`${nk}: ${l.length} fingrar med same namn`)
       continue
     }
@@ -723,6 +723,45 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
       { ...plate(3, [0.5, 0.5, 300 / S], [0, 0, 1], firkant(y, 150)), bog: +(S / 400).toFixed(4) },
     ])
     sjekkTapp(namn, { ...MOBEL, plan }, { tappar: 4 })
+  }
+}
+/**
+ * DET DELTE SETET: to halvdelar i same plan, kant i kant. Fingrane går
+ * annakvar veg; kvar finger er gods i si plate og hòl i den andre, og ingen
+ * punkt er gods i båe — òg når den eine halvdelen har snudd normal.
+ */
+{
+  const sider: [number, number][] = [[-150, -225], [150, -225], [150, 213], [-150, 213]]
+  for (const snu of [false, true]) {
+    const halv = (y0: number, y1: number, sp = 1): [number, number][] => [[-175 * sp, y0], [175 * sp, y0], [175 * sp, y1], [-175 * sp, y1]]
+    const plan = skrivPlan([
+      plate(1, [0.5, (225 - 150) / S, 0.5], [0, -1, 0], sider),
+      plate(2, [0.5, (225 + 150) / S, 0.5], [0, 1, 0], sider),
+      plate(3, [0.5, 0.5, 444 / S], [0, 0, 1], halv(-175, 0)),
+      snu ? plate(4, [0.5, 0.5, 444 / S], [0, 0, -1], halv(0, 175, -1)) : plate(4, [0.5, 0.5, 444 / S], [0, 0, 1], halv(0, 175)),
+    ])
+    const namn = snu ? "delt sete, snudd halvdel" : "delt sete med fingrar"
+    const { s: g } = makeBygg({ ...MOBEL, plan }, DETAIL.mid)
+    const A = g.ribber.find((r) => r.plan.id === 3)!, B = g.ribber.find((r) => r.plan.id === 4)!
+    const i4 = (p: Pt): Pt => (snu ? [-p[0], p[1]] : p)
+    let feil = 0, tal = 0
+    for (const [R, Q, inn] of [[A, B, i4], [B, A, i4]] as const) {
+      for (const q of R.tapp.filter((t) => t.nokkel.startsWith("s"))) {
+        tal++
+        const m = q.midt
+        if (!gods(R, m)) feil++
+        if (gods(Q, inn(m))) feil++
+      }
+    }
+    // ingen punkt langs lina er gods i båe, og alle er gods i éin
+    for (let x = -170; x <= 170; x += 1.7) for (const y of [-10, -3, 3, 10]) {
+      const a = gods(A, [x, y]), b = gods(B, i4([x, y]))
+      if (a === b) feil++
+    }
+    if (feil || tal < 5 || g.montering.klem.length) {
+      brot++
+      console.log(`FEIL  ${namn.padEnd(26)} ${feil} feil, ${tal} fingrar, ${g.montering.klem.length} klem`)
+    } else console.log(`  ok   ${namn.padEnd(26)} ${String(tal).padStart(4)} fingrar, kvar i si plate og hòl i den andre`)
   }
 }
 /**

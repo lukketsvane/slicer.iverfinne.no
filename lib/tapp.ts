@@ -480,3 +480,65 @@ export function moteLedd(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line,
   }
   return { tal, vegar, tekne }
 }
+
+/**
+ * SKØYTEN — to plater i SAME PLAN som møtest kant i kant.
+ *
+ * Eit delt sete, ei plate for stor for arket, ei rygglene i to: kanten på
+ * den eine ligg på kanten av den andre, og ingen av dei går gjennom noko.
+ * Kanten vert lina, båe vert klipte der, og langs henne går fingrar
+ * annakvar veg — eit oddetal, kring tre tjukner lange og halvannan djupe,
+ * med klaringa i hòla. Dei vert lagde ned i kvarandre langs normalen.
+ *
+ * `snudd` er når B har den motsette normalen: då er u spegla, og lina må
+ * lesast spegla i B si ramme.
+ */
+export function skoyt(k: Ktx, A: TappFlate, B: TappFlate, snudd: boolean, nr: number) {
+  if (!A.omriss || !B.omriss || A.boygd || B.boygd) return null
+  const band = fangAv(k) + 0.5
+  const iB = (l: Line): Line => (snudd ? { p: [-l.p[0], l.p[1]], d: [-l.d[0], l.d[1]], k: 0 } : l)
+  // sida til venstre for lina i A er motsett side i B når ramma er spegla
+  const sB = snudd ? -1 : 1
+  const djup = 1.5 * k.tjukn
+  const ut: { strekk: Span[]; tal: number } = { strekk: [], tal: 0 }
+  const o = A.omriss
+  for (let i = 0; i < o.length; i++) {
+    const a = o[i], b = o[(i + 1) % o.length]
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1])
+    if (L < 3 * k.tjukn) continue
+    const l: Line = { p: a, d: [(b[0] - a[0]) / L, (b[1] - a[1]) / L], k: 0 }
+    const lb = iB(l)
+    const kant: Span[] = [[0, L]]
+    // A på den eine sida, B på den andre, og ingen av dei på båe
+    for (const s of [1, -1]) {
+      const aInn = langsAv(A, l, s * band), aUt = langsAv(A, l, -s * band)
+      const bInn = langsAv(B, lb, -s * sB * band), bUt = langsAv(B, lb, s * sB * band)
+      const felt = felles(felles(utan(aInn, aUt), utan(bInn, bUt)), kant).filter(([x, y]) => y - x >= 3 * k.tjukn)
+      for (const [c0, c1] of felt) {
+        A.tform.push(boks(l, c0, c1, -s * 0, -s * (band + 1), false))
+        B.tform.push(boks(lb, c0, c1, 0, s * sB * (band + 1), false))
+        const n = Math.max(3, 2 * Math.round(((c1 - c0) / (3 * k.tjukn) - 1) / 2) + 1)
+        const f = (c1 - c0) / n
+        for (let j = 0; j < n; j++) {
+          const f0 = c0 + j * f, f1 = c0 + (j + 1) * f
+          const nokkel = `s${A.plan.id}-${B.plan.id}-${nr + ut.tal}`
+          if (j % 2 === 0) {
+            // A sin finger inn i B
+            A.tform.push(boks(l, f0, f1, s * 0.5, -s * djup, true))
+            B.tform.push(boks(lb, f0 - k.klaring / 2, f1 + k.klaring / 2, 0, -s * sB * (djup + k.klaring / 2), false))
+            A.tapp.push({ mot: B.plan.id, slag: "tapp", midt: sporPunkt(l, (f0 + f1) / 2, -s * djup / 2), hjorne: hjorne(l, f0, f1, 0, -s * djup), inn: [0, 0, 0], nokkel })
+          } else {
+            B.tform.push(boks(lb, f0, f1, -s * sB * 0.5, s * sB * djup, true))
+            A.tform.push(boks(l, f0 - k.klaring / 2, f1 + k.klaring / 2, 0, s * (djup + k.klaring / 2), false))
+            B.tapp.push({ mot: A.plan.id, slag: "tapp", midt: sporPunkt(lb, (f0 + f1) / 2, s * sB * djup / 2), hjorne: hjorne(lb, f0, f1, 0, s * sB * djup), inn: [0, 0, 0], nokkel })
+          }
+          ut.tal++
+        }
+        ut.strekk.push([c0, c1])
+      }
+    }
+  }
+  if (!ut.tal) return null
+  A.utvida = B.utvida = true
+  return ut
+}
