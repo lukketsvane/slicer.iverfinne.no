@@ -36,11 +36,15 @@ const UT = resolve(process.env.MINUTT_UT ?? "bilete/minutt")
 const kontur = process.env.MINUTT_KONTUR !== "0"
 const fullskala = process.env.MINUTT_MODELL !== "1"
 const feilsok = process.env.MINUTT_DEBUG === "1"
-const krakk = process.env.MINUTT_KRAKK === "1"
+const krakk = process.env.MINUTT_KRAKK === "1" || process.env.MINUTT_KRAKK === "3"
 // MINUTT_KRAKK=2: to kryssande bein (×2) og eit sekskanta sete — rundt-grepet på tid
 const sekskant = process.env.MINUTT_KRAKK === "2"
+// MINUTT_KRAKK=3: bogesidene med setet MELLOM seg, tappane gjennom og i flukt
+const mellomSete = process.env.MINUTT_KRAKK === "3"
 const krom = "C:/Program Files/Google/Chrome/Application/chrome.exe"
 type Punkt = [number, number]
+const MELLOM_A: Punkt = [JSON.parse(process.env.MELLOM ?? "[120,300,270,510]")[0], JSON.parse(process.env.MELLOM ?? "[120,300,270,510]")[1]]
+const MELLOM_B: Punkt = [JSON.parse(process.env.MELLOM ?? "[120,300,270,510]")[2], JSON.parse(process.env.MELLOM ?? "[120,300,270,510]")[3]]
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 function params(side: Page): Params {
@@ -185,9 +189,14 @@ async function hovud() {
       await pause(650)
       await trykk(side.locator("[data-teiknknapp]"))
       await trykk(side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "firkant", exact: true }))
-      await drag(cdp, linje([110, 320], [280, 490]), 550)
+      await drag(cdp, mellomSete ? linje(MELLOM_A, MELLOM_B) : linje([110, 320], [280, 490]), 550)
       await planTal(3)
       await merk("sete teikna")
+      if (mellomSete) {
+        await pause(300)
+        await merk("sete mellom")
+        await side.screenshot({ path: join(UT, "mellom.png") })
+      }
       // STAGA: frå sida, endane hakar seg i sidene, og spegelen gjev det andre
       await heim()
       await side.touchscreen.tap(372, 88)
@@ -271,7 +280,7 @@ async function hovud() {
       sidaErLik: !!s1?.omriss && s1.omriss.every(([x, y]) => s1.omriss!.some(([a, b]) => Math.abs(a + x) < 2e-3 && Math.abs(b - y) < 2e-3)),
       sideneErEitPar: !!s1 && !!s2 && Math.abs(s1.o[1] + s2.o[1] - 1) < 1e-3 && s1.gruppe === s2.gruppe && !!s1.gruppe,
       vindaugeIBaae: [s1, s2].every((q) => q?.strek.some((st) => st.slag === "hol" && st.form === "kontur")),
-      seteOppaa: !!sete && Math.abs(sete.o[2] * S - (topp + p.tjukn / 2)) < 0.2,
+      seteOppaa: !!sete && Math.abs(sete.o[2] * S - (mellomSete ? topp - 2.5 * p.tjukn : topp + p.tjukn / 2)) < 0.2,
       tapparOgSlisser: bygg.s.tappar >= 10 && bygg.s.ledd === bygg.s.tappar,
       ingenLause: bygg.dl.lause === 0 && bygg.s.kasta === 0,
       monterbarGeometri: bygg.s.montering.brot.length === 0 && bygg.s.montering.klem.length === 0,

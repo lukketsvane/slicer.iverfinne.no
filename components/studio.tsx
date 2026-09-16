@@ -1401,15 +1401,15 @@ export function Studio() {
       setValdStrek(svar.strek)
       return
     }
-    const o = svar.o
+    const { o, omriss: form = omriss } = svar
     if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) return setMelding("for langt ute")
     if (naaPlan.length >= PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
     const id = nyId(naaPlan)
     setParams((cur) => {
       const l = lesPlan(cur.plan)
       if (l.length >= PLAN_TAK) return cur
-      const runde = mjukePunkt(omriss)
-      return { ...cur, plan: skrivPlan([...l, { id: nyId(l), o, n: pn, bog: 0, strek: [], omriss, ...(runde.length ? { runde } : {}) }]) }
+      const runde = mjukePunkt(form)
+      return { ...cur, plan: skrivPlan([...l, { id: nyId(l), o, n: pn, bog: 0, strek: [], omriss: form, ...(runde.length ? { runde } : {}) }]) }
     })
     setVald(id)
     setValdGruppe(null)
