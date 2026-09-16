@@ -101,11 +101,24 @@ finder is not written; the hard rule counts ribs WITHOUT SLOTS, not bent
 planes. And a bent part is not pushed into place, it is BENT into place — so
 joints along lines that cross are not a break for it.
 
+`lib/tapp.ts` is the other meeting: a DRAWN edge that stops at another
+plate. The plate with material just inside the other's near face and none
+past its far face gets tenons; the plate with material on both sides gets
+mortises. Outline points in that band are moved onto the near face before
+anything is cut, the rest is clipped there, and tenons, mortises and the clip
+go into the field after it is refined, on grid lines of their own, so their
+corners are exact. A tenon is an arrow and a slot is a line: the assembly
+order reads the sign of one and not the other. Mesh-derived ribs never get
+tenons.
+
 `lib/montasje.ts` is the way from the plate to the object: one mesh per part in
 its own flat frame plus two rigid matrices — where it lies on the plate, where
 it stands in the body — and the engine's own assembly order grouped into steps.
 It computes no order of its own; that would be a second truth about assembly,
-and `montering.txt` is already in the box.
+and `montering.txt` is already in the box. The engine's order comes from
+`lib/orden.ts`: the list if it goes together, otherwise another order read
+off the same joint directions. The list decides which way slots open; the
+order only decides who comes second.
 
 Read `README.md` and `REBUILD.md` before changing behaviour. The decisions in
 them are decisions, not accidents — the phone is the tool, a sketched plane is
@@ -137,7 +150,7 @@ pnpm build    # webpack (never Turbopack), then guards that the worker bundled
 pnpm probe    # engine without a browser: parts, joints, cut length, files
 pnpm rekkje   # reads the cut files back: engrave, inner cuts, outline, in order
 pnpm vrient   # meshes that aren't meshes, sliders at both ends, a hostile URL
-pnpm ledd     # every joint the panel counted, found again in the cut profiles — grids, oblique planes, bent ribs with floors
+pnpm ledd     # every joint the panel counted, found again in the cut profiles — grids, oblique planes, bent ribs with floors, tenons
 pnpm raad     # breaks each rule, presses the fix it offers, checks it worked
 pnpm glb      # writes GLB files with known geometry and reads them back
 npx tsx scripts/former.ts <namn>=<fil>   # a heavy model becomes a built-in form

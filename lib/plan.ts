@@ -41,8 +41,13 @@ export const STREK_TAK = 24
  * ikkje ligg oppå kvarandre. Fire og tjue er difor der forminga sluttar og
  * avteikninga byrjar: fleire punkt er punkt du ikkje kan skilje frå
  * kvarandre med ein finger.
+ *
+ * FIRE OG TJUE VART FOR LITE då ei form kunne kome frå eit bilete eller ein
+ * finger som teikna ein hest: ein profil med hovud, øyre og hovar treng
+ * fleire punkt enn han har handtak, og ei form som vart avvist er verre enn
+ * handtak som ligg tett. Åtte og førti, og handtaka syner seg når du zoomar.
  */
-export const OMRISS_TAK = 24
+export const OMRISS_TAK = 48
 
 /**
  * EIN HANDTEIKNA STREK I PROFILEN.
@@ -66,7 +71,17 @@ export const OMRISS_TAK = 24
 export type Strek = {
   /** legg til gods, eller skjer bort */
   slag: "gods" | "hol"
-  form: "rekt" | "rund"
+  /**
+   * FIRKANT, ELLIPSE — ELLER EIN KONTUR HANDA TEIKNA.
+   *
+   * Vindauget i ei krakkside er eit parallellogram, ei dråpe, ei avrunda
+   * trekant; ein runding som vert dregen større dekkjer ingen av dei. Ein
+   * kontur er punkta slik fingeren la dei, i ein einingsboks, og boksen er
+   * den same streken som før: flytt han, strekk han, vri han.
+   */
+  form: "rekt" | "rund" | "kontur"
+  /** konturen, i einingsboksen [−½, ½]²: breidda og høgda strekkjer han */
+  punkt?: Pt[]
   /** midten, i planet si ramme, som brøkdel av storleiken */
   x: number
   y: number
@@ -160,6 +175,13 @@ export type Plan = {
    * same mangekanten ho alltid var.
    */
   runde?: number[]
+  /**
+   * BUNDE AV NETTET. Eit omriss står i staden for kroppen — med merket står
+   * det SAMAN med han: profilen er det som er både i omrisset og i nettet.
+   * Ei teikna form over eit dyr vert då skoren til dyret der ho går utanfor.
+   * Utan omriss er profilen alt nettet, og merket tyder ingenting.
+   */
+  nett?: true
   /**
    * MJUKINGA: kor mykje av kanten som vert runda bort, som brøkdel av den
    * lengste sida i kroppen.
@@ -648,7 +670,7 @@ const tal4 = (v: number) => String(+v.toFixed(4))
 const vec = (v: Vec3) => v.map(tal4).join(",")
 
 const skrivStrek = (s: Strek) =>
-  `${s.slag === "gods" ? "+" : "-"}${s.form === "rekt" ? "r" : "o"}:${[s.x, s.y, s.w, s.h, s.a].map(tal4).join(",")}`
+  `${s.slag === "gods" ? "+" : "-"}${s.form === "rekt" ? "r" : s.form === "kontur" ? "k" : "o"}:${[s.x, s.y, s.w, s.h, s.a, ...(s.form === "kontur" ? (s.punkt ?? []).flat() : [])].map(tal4).join(",")}`
 
 /** «p:x,y,x,y,…» — punkta på rad, av di eit punkt ikkje har fleire felt enn dei to */
 const skrivOmriss = (o: readonly Pt[]) => `p:${o.map((q) => `${tal4(q[0])},${tal4(q[1])}`).join(",")}`
@@ -658,7 +680,7 @@ const skrivRunde = (r: readonly number[]) => `r:${r.join(",")}`
 export function skrivPlan(l: readonly Plan[]): string {
   return l
     .map((p) =>
-      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.firkant ? ["f:1"] : []), ...(p.mjuk ? [`m:${+p.mjuk.toFixed(4)}`] : []), ...(p.omriss?.length ? [skrivOmriss(p.omriss)] : []), ...(p.omriss?.length && p.runde?.length ? [skrivRunde(p.runde)] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...(p.farge ? [`c:${p.farge}`] : []), ...p.strek.map(skrivStrek)].join("/"),
+      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.firkant ? ["f:1"] : []), ...(p.nett && p.omriss?.length ? ["n:1"] : []), ...(p.mjuk ? [`m:${+p.mjuk.toFixed(4)}`] : []), ...(p.omriss?.length ? [skrivOmriss(p.omriss)] : []), ...(p.omriss?.length && p.runde?.length ? [skrivRunde(p.runde)] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...(p.farge ? [`c:${p.farge}`] : []), ...p.strek.map(skrivStrek)].join("/"),
     )
     .join(";")
 }
@@ -670,17 +692,23 @@ const lesVec = (s: string): Vec3 | null => {
 }
 
 const lesStrek = (s: string): Strek | null => {
-  const m = /^([+-])([ro]):(.*)$/.exec(s)
+  const m = /^([+-])([rok]):(.*)$/.exec(s)
   if (!m) return null
   const slag = m[1] === "+" ? "gods" : "hol"
   const v = m[3].split(",").map(Number)
-  if (v.length !== 5 || !v.every(Number.isFinite)) return null
+  const kontur = m[2] === "k"
+  // ein kontur er fem tal og minst tre punkt, og aldri fleire enn eit omriss
+  if (kontur ? v.length < 11 || v.length % 2 === 0 || v.length > 5 + 2 * OMRISS_TAK : v.length !== 5) return null
+  if (!v.every(Number.isFinite)) return null
   const [x, y, w, h, a] = v
   // Ein strek utanfor kroppen eller utan breidd er ingen strek.
   if (Math.abs(x) > 2 || Math.abs(y) > 2 || w <= 0 || h <= 0 || w > 2 || h > 2) return null
+  const punkt: Pt[] = []
+  for (let i = 5; i + 1 < v.length; i += 2) punkt.push([Math.max(-0.5, Math.min(0.5, +v[i].toFixed(4))), Math.max(-0.5, Math.min(0.5, +v[i + 1].toFixed(4)))])
   return {
     slag,
-    form: m[2] === "r" ? "rekt" : "rund",
+    form: kontur ? "kontur" : m[2] === "r" ? "rekt" : "rund",
+    ...(kontur ? { punkt } : {}),
     x: +x.toFixed(4),
     y: +y.toFixed(4),
     w: +w.toFixed(4),
@@ -755,6 +783,8 @@ function bogeFlat(ut: Pt[], f: (t: number) => Pt, t0: number, t1: number, p0: Pt
   bogeFlat(ut, f, t0, tm, p0, m, djup + 1)
   bogeFlat(ut, f, tm, t1, m, p1, djup + 1)
 }
+/** punktet `t` langs stykket etter `i`, på kurva */
+export const bogeVed = (o: readonly Pt[], rund: ReadonlySet<number>, i: number, t: number): Pt => bogePkt(...bogeFire(o, rund, i), t)
 export function omrissLine(omriss: readonly Pt[], runde?: readonly number[]): Pt[] {
   const n = omriss.length
   if (n < 3 || !runde?.length) return omriss.slice()
@@ -868,6 +898,7 @@ export function lesPlan(s: unknown): Plan[] {
     let gruppe = 0
     let farge = 0
     let firkant = false
+    let nett = false
     let mjuk = 0
     let omriss: Pt[] | null = null
     let runde = ""
@@ -895,6 +926,10 @@ export function lesPlan(s: unknown): Plan[] {
       // firkanten er eit merke og ikkje eit tal: han står eller han står ikkje
       if (r === "f:1") {
         firkant = true
+        continue
+      }
+      if (r === "n:1") {
+        nett = true
         continue
       }
       // mjukinga: ein brøk over null, klemt til taket
@@ -925,7 +960,7 @@ export function lesPlan(s: unknown): Plan[] {
     }
     sett.add(id)
     const rd = omriss && runde ? lesRunde(runde, omriss.length) : []
-    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, ...(firkant ? { firkant: true as const } : {}), ...(mjuk ? { mjuk } : {}), ...(omriss ? { omriss } : {}), ...(rd.length ? { runde: rd } : {}), strek, ...(gruppe ? { gruppe } : {}), ...(farge ? { farge } : {}) })
+    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, ...(firkant ? { firkant: true as const } : {}), ...(mjuk ? { mjuk } : {}), ...(omriss ? { omriss } : {}), ...(omriss && nett ? { nett: true as const } : {}), ...(rd.length ? { runde: rd } : {}), strek, ...(gruppe ? { gruppe } : {}), ...(farge ? { farge } : {}) })
   }
   return ut
 }
@@ -999,6 +1034,19 @@ export function spegla(o: Vec3, n: Vec3, akse: number): { o: Vec3; n: Vec3 } {
   o2[akse] = +(1 - o[akse]).toFixed(4)
   n2[akse] = -n[akse] === 0 ? 0 : -n[akse]
   return { o: o2, n: n2 }
+}
+
+/** Ein kopi står to platetjukner langs normalen. Ved romgrensa snur HEILE
+ * vektoren; koordinatvis vending kan leggje ein skrå kopi i same plan. */
+export function skuvKopi(p: Pick<Plan, "o" | "n">, min: Vec3, max: Vec3, tjukn: number): Vec3 | null {
+  const steg = p.n.map((n, a) => n * 2 * tjukn / Math.max(1e-6, max[a] - min[a]))
+  for (const forteikn of [1, -1]) {
+    const o = p.o.map((c, a) => c + forteikn * steg[a])
+    if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) continue
+    const rund = o.map((c) => +c.toFixed(4)) as Vec3
+    if (rund.some((c, a) => c !== p.o[a])) return rund
+  }
+  return null
 }
 
 /**
@@ -1077,7 +1125,7 @@ function radStaar(rad: readonly Plan[], akse: 0 | 1): boolean {
 }
 
 export function skilRute(l: readonly Plan[]): { rute: Plan[]; andre: Plan[]; nx: number; ny: number } {
-  const rein = (q: Plan) => !q.bog && q.strek.length === 0 && !q.farge
+  const rein = (q: Plan) => !q.bog && q.strek.length === 0 && !q.farge && !q.omriss?.length && !q.firkant && !q.mjuk
   const kx = l.filter((q) => rein(q) && Math.abs(q.n[0]) > 0.999 && naerNok(q.o[1], 0.5) && naerNok(q.o[2], 0.5))
   const ky = l.filter((q) => rein(q) && Math.abs(q.n[1]) > 0.999 && naerNok(q.o[0], 0.5) && naerNok(q.o[2], 0.5))
   const okx = radStaar(kx, 0)

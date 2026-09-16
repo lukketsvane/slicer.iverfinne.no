@@ -13,12 +13,12 @@ import { meshToStl } from "../lib/export-stl"
 import { makeSoup } from "../lib/soup"
 import { unzip } from "../lib/zip"
 import { glb } from "./glbfil"
-import { feltTal, klokke, lesTal, snap, type ParamBag, type Vec3 } from "../lib/core"
+import { feltTal, klokke, lesTal, snap, type ParamBag, type Pt, type Vec3 } from "../lib/core"
 import { PARAM_RANGES } from "../lib/params"
 import { lesPlan, rutenett, skrivPlan, ut, type Plan } from "../lib/plan"
 import { makeKropp } from "../lib/kropp"
 import { makeBygg } from "../lib/bygg"
-import { DETAIL } from "../lib/snitt"
+import { DETAIL, stykkeLangs } from "../lib/snitt"
 import { flatDelar, lagDelar, lagMesh, merkeFor } from "../lib/mesh"
 import { STABEL_LUFT } from "../lib/montasje"
 import { placedRings } from "../lib/nest"
@@ -446,33 +446,41 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
    * skyvarhakk vert rekna på kvart drag. Dei to har ikkje same budsjettet,
    * og difor ikkje same oppløysinga: `DETAIL.fil` mot `DETAIL.mid`.
    *
-   * Prøva les det av TREKANTTALET og ikkje av ein konstant. Eit tal i ei
-   * fil kan stå medan koden sluttar å bruke det — og då er «høgare
-   * oppløysing» ein påstand og ikkje ein eigenskap.
-   *
-   * OG HO MÅ PRØVAST PÅ NOKO KRUMT. Ein kube har rette omriss, og eit rett
-   * omriss vinn ingenting på fleire celler — målt: 3072 mot 2688 trekantar,
-   * som er avrunding og ikkje oppløysing. Det er ikkje ein feil i tiltaket,
-   * det er heile poenget med det: oppløysing er noko KURVER treng.
-   *
-   * Og grensa er sett lågt med vilje. Det oppløysinga fyrst og fremst kjøper
-   * er NØYAKTIGHEIT og ikkje trekantar: `tol` fylgjer rutesteget, so fila
-   * går frå eit omriss som får vike 0,11 mm frå forma til eitt som får vike
-   * 0,021 mm. Forenklaren held berre dei punkta han treng for å halde seg
-   * innanfor, so trekanttalet stig mykje mindre enn nøyaktigheita gjer. Det
-   * er rett veg: eit punkt som ikkje seier noko nytt er ein kant maskina
-   * bremsar for.
+   * TREKANTTALET målte òg slisshjørne: då dei vart meir presise på mid-
+   * nivået, fall forholdet under 1,25 sjølv om kurveavviket framleis vart
+   * seks gonger mindre. Difor les vi no den EKSPORTERTE kanten attende.
+   * Midtsnittet gjennom kula med 48 breiddegradsteg er ein regulær 96-kant.
+   * Radiusen hennar er kjend ved kvar vinkel, utan å spørje snittmotoren.
+   * Fila skal halde 0,03 mm og vere minst tre gonger nærare enn kuttnivået.
    */
-  const krum = { ...GRUNN, kjelde: "kule", storleik: 200 } as unknown as Params
+  const krum = { ...GRUNN, kjelde: "kule", storleik: 200, plan: nett(1, 0) } as unknown as Params
   const finStl = MOTOR.exportFile(krum as unknown as ParamBag, "stl")
   const fin = parseMesh("fin.stl", finStl.data as ArrayBuffer)
   const grovStl = meshToStl(lagMesh(makeBygg(krum, DETAIL.mid).s, krum.tjukn), "grov")
   const grov = parseMesh("grov.stl", grovStl.buffer.slice(0) as ArrayBuffer)
-  if (!(fin.tris > grov.tris * 1.25)) {
-    bryt(`objektfila har ${fin.tris} trekantar mot ${grov.tris} på kuttnivået — ho er ikkje finare lesen`)
-  } else {
-    console.log(`  oppløysing  ei kule: objektfila ${fin.tris} trekantar mot ${grov.tris} på kuttnivået (${(fin.tris / grov.tris).toFixed(1)}×)`)
+  const sentrum = makeBygg(krum, DETAIL.mid).k.solid
+  const cy = (sentrum.min[1] + sentrum.max[1]) / 2
+  const cz = (sentrum.min[2] + sentrum.max[2]) / 2
+  const kurveAvvik = (nett: ReturnType<typeof parseMesh>) => {
+    const punkt = new Map<string, Pt>()
+    for (let i = 0; i < nett.pos.length; i += 3) {
+      const p: Pt = [nett.pos[i + 1], nett.pos[i + 2]]
+      punkt.set(p.map(v => v.toFixed(7)).join(","), p)
+    }
+    const ring = [...punkt.values()].sort((a, b) => Math.atan2(a[1] - cz, a[0] - cy) - Math.atan2(b[1] - cz, b[0] - cy))
+    let verst = 0
+    for (let i = 0; i < 720; i++) {
+      const a = ((i + 0.5) / 720) * 2 * Math.PI
+      const steg = Math.PI / 48
+      const radius = 100 * Math.cos(steg / 2) / Math.cos(a % steg - steg / 2)
+      const maal = stykkeLangs([ring], [cy, cz], [Math.cos(a), Math.sin(a)]).find(([lo, hi]) => lo <= 0 && hi >= 0)?.[1] ?? Infinity
+      verst = Math.max(verst, Math.abs(maal - radius))
+    }
+    return verst
   }
+  const finFeil = kurveAvvik(fin), grovFeil = kurveAvvik(grov)
+  if (!(finFeil < 0.03 && finFeil < grovFeil / 3)) bryt(`kurveavvik i STL: fin ${finFeil.toFixed(4)} mm, kutt ${grovFeil.toFixed(4)} mm — krev under 0,03 mm og minst 3× betre`)
+  else console.log(`  oppløysing  eksportert kule: avvik ${grovFeil.toFixed(4)} → ${finFeil.toFixed(4)} mm (${fin.tris} mot ${grov.tris} trekantar)`)
   console.log(`  glb       ${glbUt.name}, ${(glbUt.data as ArrayBuffer).byteLength} B, ${les.tris} trekantar`)
   if (les.tris !== fasit.tris) bryt(`GLB har ${les.tris} trekantar der STL-en har ${fasit.tris}`)
   const avvik = Math.max(

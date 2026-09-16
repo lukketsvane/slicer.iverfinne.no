@@ -348,20 +348,16 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
 const hjul: { el: Element | null; tid: number } = { el: null, tid: 0 }
 
 /**
- * ÉIN VERDI, SETT MED EIT DRAG PÅ SEG SJØLV.
+ * ÉIN VERDI, SETT MED EIN EIGENTLEG SKYVAR.
  *
- * Ikkje eit tekstfelt og ikkje ein skyvar: eit felt tek fokus, iOS zoomar
- * sida inn og tastaturet står over objektet. Heile rada er skrubbaren —
- * peikar ned og vassrett drag, eitt steg per seks pikslar, ti steg per steg
- * forbi hundre og tjue, so du treffer fint nær og kjem langt ute. Eit trykk
- * utan drag gjer ingenting, og tastaturet kjem aldri; på benken stegar
- * pilene, ti om gongen med skift. Verdien går live medan du dreg, og
- * sleppet er eitt steg i angre. Lina og prikken er lesing, ikkje handtak:
- * ho seier kvar i bandet du står.
+ * Sporet tek trykk og drag, og nettlesaren gjev same kontroll på mus, finger
+ * og tastatur. Piler gjev eitt steg, skift gjev ti, og sidepilene gjev ti.
+ * Verdien går live medan du dreg, og heile draget vert eitt steg i angre.
  *
- * PÅ BENKEN KAN TALET SKRIVAST. Der finst det eit tastatur og inga
- * zooming: eit dobbeltklikk på rada (eller enter med rada i fokus) opnar
- * talet som eit felt, enter set det, escape let det stå. Feltet finst
+ * EITT TRYKK PÅ TALET OPNAR FELTET: materialet er målt med skyvelær
+ * og 11,85 mm må kunne setjast utan at eit trykk i sporet fyrst endrar
+ * tjukna. Feltet er 16 px på telefonen for å unngå iOS-zoom. Enter i
+ * skyvaren eller dobbeltklikk på benken verkar òg. Feltet finst
  * berre medan du skriv — elles er rada den same skrubbaren som på
  * telefonen, og eit felt som stod der heile tida ville teke fokus frå
  * tastane som styrer rommet.
@@ -379,11 +375,9 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
   onSkrubb?: (aktiv: boolean) => void
 }) {
   const shown = r.names ? (r.names[Math.round(value)] ?? String(value)) : feltTal(value, r.step).replace(".", ",")
-  const tak = useRef<{ id: number; x0: number; v0: number; sist: number } | null>(null)
-  const del = Math.max(0, Math.min(1, (value - r.min) / (r.max - r.min || 1)))
   /** talet medan det vert skrive; null er ikkje-skriv */
   const [skriv, setSkriv] = useState<string | null>(null)
-  const kanSkrive = !!benk && !r.names
+  const kanSkrive = !r.names
   const opneFelt = () => setSkriv(feltTal(value, r.step).replace(".", ","))
   /** eitt send per felt: enter tek feltet bort, og blur-en som fylgjer skal ikkje sende att */
   const sendt = useRef(false)
@@ -393,12 +387,6 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
     setSkriv(null)
     const v = lesTal(s)
     if (s.trim() !== "" && Number.isFinite(v)) onChange(k, snap(v, r))
-  }
-  const slepp = (e: React.PointerEvent) => {
-    const t = tak.current
-    if (!t || e.pointerId !== t.id) return
-    tak.current = null
-    onSkrubb?.(false)
   }
   /**
    * HJULET STEGAR VERDIEN, og spalta under står stille.
@@ -460,63 +448,48 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
   return (
     <div
       ref={rad}
-      role="slider"
-      tabIndex={benk ? 0 : -1}
-      aria-label={`${r.label}, tal`}
-      aria-valuenow={value}
-      aria-valuemin={r.min}
-      aria-valuemax={r.max}
-      aria-valuetext={`${shown}${r.unit ? " " + r.unit : ""}`}
-      title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra sidelengs${benk ? " · hjulet stegar, skift ti" : ""}${kanSkrive ? " · dobbeltklikk: skriv" : ""}`}
-      className="skrubb flex min-h-[44px] items-center gap-3"
-      onDoubleClick={() => { if (kanSkrive && skriv === null) { sendt.current = false; opneFelt() } }}
-      onPointerDown={(e) => {
-        if (skriv !== null) return
-        if (e.pointerType === "mouse" && e.button !== 0) return
-        tak.current = { id: e.pointerId, x0: e.clientX, v0: value, sist: value }
-        e.currentTarget.setPointerCapture(e.pointerId)
-        onSkrubb?.(true)
-      }}
-      onPointerMove={(e) => {
-        const t = tak.current
-        if (!t || e.pointerId !== t.id) return
-        const dx = e.clientX - t.x0
-        const a = Math.abs(dx)
-        const steg = Math.sign(dx) * (Math.min(a, 120) / 6 + (Math.max(0, a - 120) / 6) * 10)
-        const v = snap(t.v0 + Math.round(steg) * r.step, r)
-        if (v === t.sist) return
-        t.sist = v
-        onChange(k, v)
-      }}
-      onPointerUp={slepp}
-      onPointerCancel={slepp}
-      onKeyDown={(e) => {
-        if (skriv !== null) return
-        if (kanSkrive && e.key === "Enter") {
-          e.preventDefault()
-          sendt.current = false
-          return opneFelt()
-        }
-        const steg = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : e.key === "PageUp" ? 10 : e.key === "PageDown" ? -10 : 0
-        if (!steg) return
-        e.preventDefault()
-        onChange(k, snap(value + steg * (e.shiftKey ? 10 : 1) * r.step, r))
-      }}
+      className="flex min-h-[44px] items-center gap-3"
+      onDoubleClick={() => { if (benk && kanSkrive && skriv === null) { sendt.current = false; opneFelt() } }}
     >
       <span className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]" style={{ color: "var(--ink)" }}>
         {r.label}
         {bi && <span className="dim tab block pt-px text-[9px] normal-case tracking-[0.02em]">{bi}</span>}
       </span>
-      <span className="relative h-px flex-1" style={{ background: "color-mix(in srgb, var(--ink) 34%, transparent)" }} aria-hidden="true">
-        <span className="absolute top-1/2 block h-[13px] w-[13px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px]" style={{ left: `${del * 100}%`, background: "var(--ink)", borderColor: "var(--paper)" }} />
-      </span>
+      <input
+        type="range"
+        min={r.min}
+        max={r.max}
+        step={r.step}
+        value={value}
+        aria-label={`${r.label}, tal`}
+        aria-valuetext={`${shown}${r.unit ? " " + r.unit : ""}`}
+        title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra i sporet${kanSkrive ? " · trykk på talet: skriv" : ""}`}
+        className="slider min-w-0 flex-1"
+        onChange={(e) => onChange(k, Number(e.currentTarget.value))}
+        onPointerDown={() => onSkrubb?.(true)}
+        onPointerUp={() => onSkrubb?.(false)}
+        onPointerCancel={() => onSkrubb?.(false)}
+        onKeyDown={(e) => {
+          if (skriv !== null) return
+          if (kanSkrive && e.key === "Enter") {
+            e.preventDefault()
+            sendt.current = false
+            return opneFelt()
+          }
+          const steg = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : e.key === "PageUp" ? 10 : e.key === "PageDown" ? -10 : 0
+          if (!steg) return
+          e.preventDefault()
+          onChange(k, snap(value + steg * (e.shiftKey ? 10 : 1) * r.step, r))
+        }}
+      />
       <span className="tab flex w-[68px] shrink-0 items-baseline justify-end text-[11px]" style={{ color: "var(--ink)" }}>
         {skriv !== null ? (
           <input
             aria-label={`${r.label}, skriv`}
             className="tab w-full min-w-0 border-0 border-b bg-transparent p-0 text-right text-[11px] outline-none"
-            style={{ color: "var(--ink)", borderColor: "var(--ink)" }}
+            style={{ color: "var(--ink)", borderColor: "var(--ink)", fontSize: benk ? 11 : 16 }}
             inputMode="decimal"
+            enterKeyHint="done"
             autoFocus
             value={skriv}
             onFocus={(e) => e.currentTarget.select()}
@@ -531,6 +504,16 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
               }
             }}
           />
+        ) : kanSkrive ? (
+          <button
+            type="button"
+            aria-label={`${r.label}, skriv tal`}
+            title={`skriv ${r.label}${r.unit ? " i " + r.unit : ""}`}
+            className="hit min-h-[44px] min-w-0 flex-1 truncate text-right"
+            onClick={() => { sendt.current = false; opneFelt() }}
+          >
+            {shown}
+          </button>
         ) : (
           <span className="truncate">{shown}</span>
         )}

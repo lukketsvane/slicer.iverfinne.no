@@ -1,0 +1,130 @@
+# Nettlesarvaktene køyrer mot produksjonsbygget, aldri HMR.
+# Tida er frå ein delt Linux-tenar, ikkje ein fysisk iPhone eller ein brukar.
+name: mobil
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+      - 'public/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'next.config.*'
+      - 'tsconfig.json'
+      - '.github/workflows/mobil.yml'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      devpakke:
+        description: 'Ta med kode og installerte pakkar for lokal utvikling'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobil-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobil:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      URL: http://127.0.0.1:3210
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Pakk utviklingskopi
+        if: ${{ inputs.devpakke || contains(github.event.head_commit.message, '[devpakke]') }}
+        run: |
+          tar --exclude='./.git' --exclude='./.next/cache' --exclude='./bilete' --exclude='./.env*' -czf /tmp/slicer-dev.tgz .
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.devpakke || contains(github.event.head_commit.message, '[devpakke]') }}
+        with:
+          name: slicer-dev
+          path: /tmp/slicer-dev.tgz
+          retention-days: 1
+          compression-level: 0
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Start produksjonsbygg
+        run: |
+          mkdir -p bilete/mobil
+          pnpm start -p 3210 > bilete/mobil/tenar.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl --silent --fail "$URL" > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat bilete/mobil/tenar.log
+          exit 1
+      - name: Gjentaking held mål og kuttgeometri
+        run: pnpm exec tsx scripts/gjenta-sjekk.ts
+        env:
+          GJENTA_UT: bilete/gjenta-geometri
+      - name: Seks ribber med og utan gjentaking
+        if: ${{ !cancelled() }}
+        run: pnpm exec tsx scripts/gjenta-mobil.ts
+      - name: Tom flate til nesta kuttfil
+        if: ${{ !cancelled() }}
+        run: pnpm minutt
+        env:
+          MINUTT_UT: bilete/minutt
+      - name: Krakk med bindebit til nesta kuttfil
+        if: ${{ !cancelled() }}
+        run: pnpm minutt
+        env:
+          MINUTT_KRAKK: '1'
+          MINUTT_UT: bilete/minutt-krakk
+      - name: WebKit med mobilflate
+        if: ${{ !cancelled() }}
+        run: pnpm webkit
+      - name: Redigering med fingrane
+        if: ${{ !cancelled() }}
+        run: pnpm redigering
+      - name: Avbrote teiknedrag
+        if: ${{ !cancelled() }}
+        run: pnpm exec tsx scripts/avbrot-sjekk.ts
+      - name: Direkte tilgang til kuttfiler
+        if: ${{ !cancelled() }}
+        run: pnpm exec tsx scripts/uttak-sjekk.ts
+      - name: Vis dei målte tidene
+        if: ${{ !cancelled() }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { existsSync, readFileSync, appendFileSync } from 'node:fs'
+          let tekst = '# Mobilflyt\n\nAutomatisert Linux-nettlesar på delt tenar. Ikkje fysisk iPhone, iOS-delingsark eller menneskeleg tidsprøve.\n\n'
+          for (const mappe of ['minutt', 'minutt-krakk']) {
+            const fil = `bilete/${mappe}/rapport.json`
+            if (!existsSync(fil)) { tekst += `## ${mappe}\nIngen fullført måling; sjå feillogg og skjermbilete.\n\n`; continue }
+            const r = JSON.parse(readFileSync(fil, 'utf8'))
+            tekst += `## ${mappe}\n${r.scenario}\n\nTom arbeidsflate → lagra fil: **${r.sekundTilLagraFil.toFixed(2)} s**. Med oppstart: **${r.sekundMedOppstart.toFixed(2)} s**.\n\n`
+            tekst += `Under 60 s med alle geometrisjekkar grøne: **${r.maalNaadd ? 'ja' : 'nei'}**.\n\n`
+            tekst += r.steg.map(s => `- ${s.namn}: ${s.sekund.toFixed(2)} s`).join('\n') + '\n\n'
+            const feil = Object.entries(r.sjekkar).filter(([, v]) => !v).map(([k]) => k)
+            tekst += `Geometrisjekkar: ${feil.length ? feil.join(', ') : 'alle grøne'}.\n\n${r.avgrensing}\n\n`
+          }
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, tekst)
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: mobil-resultat
+          path: bilete/
+          retention-days: 7
+          if-no-files-found: warn

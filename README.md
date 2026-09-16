@@ -180,7 +180,10 @@ the switch went on and nothing happened. With either open the left button is
 theirs — sideways sets columns (or ribs), up and down sets rows (or how far
 out) — and the orbit stands aside until you let go. On the sheet, arrows nudge the
 selected part a millimetre, and shift-arrows ten. A phone gets none of this:
-one thumb has no arrows, and a text field there zooms the page.
+one thumb has no arrows. Numeric rows do accept a double-tap on the phone:
+the temporary field uses 16 px text and a decimal keyboard. Under **materiale**,
+the third page (**passform**) sets the measured thickness and clearance exactly;
+the thickness shortcuts now include 9, 12, 15, 18 and 24 mm.
 
 **With a part selected** (tap it in the object), the handles and the two-finger
 drag edit *that* plane instead of the sketch: move it along its normal, re-angle
@@ -320,12 +323,12 @@ plane at 0.5 has to sit in the middle of the body as it is now, not as it was.
 Only the view holds still.
 
 **And it can be locked.** The padlock above the reframe button takes that
-decision all the way: with it closed, nothing turns the object — not one
-finger on the canvas, not a face of the view cube, not the reframe button,
-which then fits the object back into the screen from where you are already
-standing instead of swinging home. The cube keeps turning with the camera,
-because saying which way you are looking is half of what it is for; it just
-stops being a control. Zoom is still yours: going closer is not a new angle,
+decision all the way: with it closed, nothing *angles* the object — not one
+finger on the canvas, not an edge or corner of the view cube, not the reframe
+button, which then fits the object back into the screen from where you are
+already standing instead of swinging home. The six faces of the cube still
+work: looking straight down an axis is a working plane, not an angle, and it
+is how you get to the next side to draw on. Zoom is still yours: going closer is not a new angle,
 it is the same view from nearer. Aim the object once and the rest of the
 session is aiming at *it*, not at it and the camera both.
 
@@ -560,6 +563,19 @@ line *says* a mesh was missing, rather than letting you believe the cube is
 what somebody built. What the body no longer points at is dropped, so the
 database holds what is on screen and not the six files you tried before it.
 
+**The home-screen app opens without a connection.** After one complete online
+visit, the page, code, geometry worker, fonts and all built-in shapes are kept
+as one version on the phone. A new version waits until the open app is closed;
+it never reloads a drawing under your finger. Imported meshes stay in IndexedDB.
+The first visit still needs a connection, and clearing website data removes
+the offline copy and the saved session.
+
+The last view and shell setting are remembered too. A small synchronous receipt
+holds the latest settings until IndexedDB commits them, including when iOS
+suspends the app during a write. Startup finishes reading the session before
+autosave begins, so a slow database cannot replace your work with the default
+cube. Project ZIP files remain the portable backup.
+
 ## The body
 
 **The built-in shapes are furniture and animals.** A sphere, a cylinder, a
@@ -678,9 +694,21 @@ are not two values.
 
 **Draw a face where there is nothing.** The first tool in the column (`T`)
 makes something out of nothing; everything else changes what already stands.
-**Drag one rectangle** on the sketch plane and let go: a plane exists, with
-that rectangle as its outline. It is not a section of the body — it cuts
-nothing — it *is* something, and it takes its profile from the four corners.
+Choose **tom arbeidsflate** in the body menu to start drawing with the source
+shell hidden. Choose **firkant** for a dragged rectangle or **kontur** to draw
+the whole outline with one finger. Release to close it and create an editable
+plate. The contour is simplified to at most 24 handles; tiny or crossing
+outlines are rejected. Freehand simplification is measured in screen pixels,
+and may relax to 1.25% of the outline diagonal at the point limit. It is input
+simplification, separate from the accuracy of the cut slots.
+
+The outline follows the finger without rerendering the studio on each move,
+and its width and height in millimetres appear while you draw. Releasing selects
+the new face immediately: its corners are ready to shape. Only the finger that
+started the outline may finish it; lifting another finger does nothing to the
+drag. A cancelled touch or switching away from the app discards the unfinished
+outline. The final position is read from the release itself, not from an
+earlier rendered frame.
 
 It used to be a tap per corner and one more on the first to close: five
 actions for the start of the work, and the start was all it ever was. Every
@@ -696,14 +724,17 @@ object. A press that does not travel the same twelve pixels that make a drag
 anywhere else is a finger that did not move, so the tool stays armed and
 waits rather than making a face you cannot see.
 
-The sketch plane is **frozen** when you take the tool, and the face is drawn
+The sketch plane is **frozen** when the drawing finger lands, and the face is drawn
 on the plane that *faces you* — the sketch plane is sighted along the view
 axis and projects to a line, which is nothing to put a corner on. Frozen,
 because a plane that follows the camera moves the face under your hand every
 time you turn to see where you are, and you find out only when you are done.
-There is **no mirroring**: the mirror image of a *section* is a section, but
-the mirror image of a drawn face is not the same face — its frame comes from
-the normal, so the same points give a different shape on the other side.
+Before the stroke starts, the view cube can still choose the drawing side.
+Views within 3° of an axis create exactly axis-aligned plates, including the
+top view. **spegl x/y/z** on a selected plate mirrors its outline, holes and
+curves into the new local frame. It creates a copy across the construction
+centre, or reflects a flat plate in place when both lie in the same plane.
+**dubler** preserves the full profile and selects the copy for moving.
 
 **The profile is a proposal, and `form` takes it over.** The contour is the
 mesh read off, and sometimes that is not the rib you have in mind. Select a
@@ -821,18 +852,172 @@ remove it yourself.
 
 **Up to 64 planes.** Beyond that a link is trying something.
 
+## Tenons
+
+**A drawn plate that stops at another plate is fixed to it with tenons.**
+A slot needs both plates to pass through each other. A stool is not built
+that way: the legs stop under the seat, the rail stops at the side. Where an
+edge meets a face, a tenon goes through a mortise, and the engine finds
+those meetings the same way it finds slots — from the material, not from a
+tag. The plate with material just inside the near face of the other and
+none past its far face *stops there*; the plate with material on both sides
+*passes through*. The first gets the tenons, the second the mortises.
+
+**The edge is straightened.** A finger does not put an edge exactly on the
+underside of a seat, so anything from half a thickness short to half a
+thickness past the far face reads as "stops here". Every outline point in
+that band is moved onto the near face — the sides stay straight up to the
+shoulder — the material past the near face is clipped, and each tenon runs
+through to the far face, flush. The plane string keeps what you drew; the
+section is the truth, as always. A mesh-derived rib never gets a tenon: an
+edge the mesh gave is where the mesh ended, an edge a hand drew is a
+decision.
+
+**A tenon can show.** An edge drawn a little past the far face — up to two
+thicknesses, and never less than ten millimetres — is not a plate passing
+through but a tenon that sticks out: the material past the near face is
+clipped as before, and the tenons run out to the furthest edge the hand
+drew, to the half millimetre. Further than that, the two plates cross and
+get a half lap. A seat drawn between two sides, flush with their outsides
+or fifteen millimetres past them, gets four tenons either way.
+
+**A bent plate takes tenons too,** where it meets a flat plate along a
+generator line — straight in both parts. A saddle seat between two sides
+ends at them like a flat seat would, and its tenons point along the tangent
+where the arc meets the side. Where one plate sticks out through the other,
+that stretch is protected: the other plate does not also read it as an end.
+
+**A corner is fingers.** Two plates that each end flush with the other's
+outside — the sides of a box — cannot hold a mortise. The corner is split
+into an odd number of fingers along the line, about six thicknesses long
+and never fewer than three, alternating between the two plates, each
+running out to the other's outside face. The end fingers belong to the
+later plate, so where three plates meet (a seat flush on a box) the seat
+owns all four corner cubes and no side claims one. Each plate goes in along
+its own normal.
+
+**Tenons follow the length, not the plate:** one per 150 mm of meeting, with
+shoulders of at least half a thickness and fifteen percent of the cell, so
+a 300 mm seat edge gets two tenons with material between them. A mortise is
+the plate thickness plus the clearance wide — divided by the sine of the
+angle, plus the extra a slanted tenon sweeps through the other plate's
+thickness — and the tenon length plus the clearance long.
+
+**The corners are corners.** Tenons, mortises and the clip are placed in the
+field *after* it is refined, with grid lines on their edges and a
+thousandth of a millimetre inside the convex ones, and the outline is read
+exactly on that grid rather than interpolated onto it. Measured on the
+reference stool: every mortise and every tenon within 0.0000 mm of its
+nominal width, and the drawn corners of a leg within 0.02 mm — they used to
+come out with a two-millimetre chamfer, one grid cell. The simplifier holds
+each box wall the way it already held slot walls.
+
+**Direction carries a sign.** A slot is a line — a part can come from either
+end and the mouth is put where it comes from. A tenon is an arrow. A rail
+with tenons into two sides facing each other has two directions, not one, so
+it goes in after the first side and before the second, and the seat comes
+down last — and the engine finds that order itself (see **Assembly**).
+
+`pnpm ledd` checks every tenon in the cut profiles: material in the tenon
+and right inside its tip, none past the tip or beside it, a wall on all four
+sides of every mortise, and the tenon and its mortise at the same point in
+space — on a straight stool, a stool with a raised seat, over-long rails, a
+narrow seat, a 3 mm model, splayed legs (seat first, each leg along its own
+tenon), crossed legs with a seat, where slots and tenons share one
+object, a seat between the sides, flush and with tenons showing, a bent
+saddle seat flush and showing, and a box of four sides with a flush seat,
+joined by fingers.
+
+## A picture becomes a plate
+
+Pick an image where you pick a mesh. The dark is material, the light is air:
+the picture is read as brightness (transparent counts as white), smoothed,
+and cut at a threshold, and the zero line is the outline — the largest outer
+edge — with the holes inside it as drawn contours, largest first. A drag
+across the picture works like the grid: sideways is the threshold, up and
+down the smoothing, and the traced shape stands there the whole time with its
+point and hole count. **snu** makes the light the material. **legg inn** puts
+the plate in the plane you would draw on — through the middle, facing you —
+at four fifths of the workspace. Where the outline runs round, its points are
+arc points; dust smaller than a thousandth of the picture falls away.
+`pnpm teikn` traces a ring with a square hole and a speck of dust.
+
+## Bound by the mesh, or not
+
+A plane without an outline takes its profile from the body. A plane with one
+takes it from the outline alone — so a drawn shape can reach past the body.
+The **nett** word in the thumb column switches between the two: on a plane
+with an outline it binds the outline to the body, and the profile is what is
+inside both (a drawn silhouette cut to the animal where it runs past it); on
+a plane without one it freezes the section into an outline, which is then
+free. The flag is `n:1` in the plane string and means nothing without an
+outline. `pnpm ledd` checks that an outline twice the size of the cube gives
+the cube's section when bound, and the whole outline when not.
+
+## Drawing furniture
+
+**An empty workspace is a piece of furniture.** Half a metre, twelve
+millimetres, the front view facing you and the contour tool ready; the view
+waits for the body to reach those dimensions before it frames it.
+
+- **A seat lands.** A plate drawn from above settles with its underside on
+  the tops of what it covers.
+- **Ends snap.** Drawing from the side, a point within a fingertip of the
+  floor or of a plate seen edge-on locks onto it.
+- **A contour inside the selected plate is a hole** in it (`kontur` stroke,
+  stored in a unit box, so it moves, stretches and turns like any stroke). A
+  mirrored pair gets the hole in both.
+- **What the finger meant.** A side drawn almost symmetric becomes symmetric,
+  and centred; one drawn crooked on purpose stays crooked. Where the finger
+  went round — short segments turning less than 50° — the points become
+  arc points and the outline runs smoothly through them; a corner stays a
+  corner. A hole has no arc flags, so its curve is filled in with points.
+- **A plate on the mirror is a pair.** Mirroring a plate that stands on the
+  mirror plane splits it into two, a group that moves mirrored, set in from
+  the edges of whatever it crosses by two and a half thicknesses.
+- **Duplicate repeats the step.** Duplicate, drag the copy to where the next
+  one belongs, duplicate again: the third lands as far from the second.
+- **×2, ×3 and ×4** put the selected plate round the vertical axis through the
+  middle — three legs at 120°, four at 90° — as a group. A plane through the
+  axis is the same plane half a turn later, so there the step is 180/N: three
+  crossing planes at 60° for a hexagonal stool — unless the plate only sits
+  on one side of the axis, as a leg standing out from the middle does. And
+  **×4 on a wall through the middle is a box**: each wall moves out by half
+  its width less half a thickness, and the corners meet flush as fingers.
+
+`pnpm minutt` draws the reference stool (A-sides with a window, a mirrored
+pair, a landed seat, three rails) from an empty workspace to a downloaded,
+nested cut file, and checks the geometry and the file: 16 s automated.
+`MINUTT_KRAKK=1` draws arched sides with an oval window instead, `=2` two
+crossed legs (×2) under a hexagonal seat, `=3` the arched sides with the seat
+between them, and `=4` the cube stool: one wall with an arched opening, ×4 to
+a finger-jointed box, a seat on top — 11 s.
+
 ## Assembly
 
-The list order is the assembly order. A part slides in along its slots, and a
-plate can only go one way: when a part comes in, every part it crosses that is
-already placed must meet it along parallel lines. Its slots open in the
-direction of travel; theirs open toward it. Downward is preferred where the
-line has a vertical component. This is exactly what the rib grid always did —
-X family slots up, Y family lowered onto it — and it holds for every set where
-each part has one way in.
+The list order decides the slots. A part slides in along its slots, and a
+plate can only go one way: when a part comes in, every part it meets that is
+already placed must agree on the direction. For a slot pair the part later in
+the list comes downward where the line has a vertical component, its slots
+open in the direction of travel and the earlier part's open toward it —
+exactly what the rib grid always did, X family slots up, Y family lowered
+onto it.
 
-Where it does not hold, the hard rule **kan monterast** names the part, and if
-reordering the list would fix it, the button does that. Three planes that
+**The assembly order is read, not written.** Every joint says which way each
+of its two parts moves if it is the one that comes second: along the slot
+line, or along the tenon, or down onto it. The list is what you drew, in the
+order you drew it — two sides, then the seat, then the rails — and that is
+not the order anyone assembles a stool in: a rail has to go in between the
+sides before the second side goes on. So `lib/orden.ts` reads the list first;
+if it goes together, it is the answer. If it does not, it looks for another
+order in the same directions — greedy, one step ahead, the part that blocks
+fewest of the rest first — and takes it if fewer parts are stuck. The slots
+do not move: a part that comes in before its partner simply travels the other
+way along the same line. The montage and `montering.txt` read that order.
+
+Where no order works, the hard rule **kan monterast** names the part, and if
+reordering the list would fix it — the one case the reading cannot reach,
+because a list order also turns slots round — the button does that. Three planes that
 cross each other in material without sharing a common line cannot be assembled
 in any order; then it is the plane, not the list, that has to change.
 `montering.txt` in the ALT bundle writes the order out, part by part, with the
@@ -1055,6 +1240,8 @@ GLB / glTF / STL / OBJ / PLY          per source, cached
   │               one ray per row and column, a signed field, marching squares
   ├── joints      where two planes share a line through material — slots cut
   │               in the field, oriented, widened by the angle between the planes
+  ├── tenons      where a drawn edge stops at another plate — clipped at the
+  │               near face, tenons through to the far face, mortises opposite
   ├── nest        parts packed by outline, holes counted as free space
   └── STL · GLB · FLAT · 3MF · USDZ · DXF · SVG · ARK
 ```
@@ -1155,6 +1342,11 @@ pnpm tung    # a million triangles in, and how long that takes
 pnpm ark     # cut sheets as images
 pnpm look    # screenshots of the page, and any console errors
 pnpm panel   # the controls in a real browser: both surfaces, gestures, keys
+pnpm teikn   # freehand input, concave outlines, axis snapping and persistence
+pnpm presisjon # actual slot widths and kerf read back from nested SVG
+pnpm redigering # mobile drawing, material numbers, mirroring and undo
+pnpm webkit  # WebKit mobile layout and editing smoke test on PC, not physical iOS
+pnpm minutt  # fresh mobile session to an SVG saved to disk; uses port 3210
 ```
 
 `probe` through `tak` are headless and fast, and `.github/workflows/vakter.yml`
@@ -1171,6 +1363,9 @@ minutes, and HMR reloading underneath produces failures that look real.
 | `lib/scene.ts` | the body as pieces: primitives and files, placed |
 | `lib/kropp.ts` | the body: pieces joined, weld, unflip, simplify, smooth, place — and turned along any normal |
 | `lib/snitt.ts` | planes to ribs: the field, the joints, the slots, the parts, the assembly order |
+| `lib/tapp.ts` | tenon and mortise: where an edge stops at a face, and the boxes that cut it |
+| `lib/orden.ts` | the assembly order, read off the directions every joint allows |
+| `lib/stykke.ts` | lines through profiles: runs of material along a line or an arc |
 | `lib/montasje.ts` | the way from the plate to the object: one mesh and two matrices per part, and the order grouped into steps |
 | `lib/bygg.ts` | the whole build once: body, ribs, parts, nesting |
 | `lib/soup.ts` | mesh in two forms, and the road between them |
@@ -1242,6 +1437,17 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   would need a real search.
 - Kerf compensation offsets along the angle bisector; tighter corners than the
   kerf are approximate, erring safe.
+- Thin straight slots along profile axes receive extra field samples. The
+  precision regression covers 200–1000 mm constructions in 1, 3 and 12 mm
+  material; oblique and curved slots still use the existing field resolution.
+- The timed mobile flow is an automated Chromium run on a PC, with native
+  sharing disabled so it can verify a downloaded file. It is a three-plate
+  study, not a completed reference chair. Physical assembly and real iPhone
+  timing remain separate work.
+- **Tenons are through-tenons, flush with the far face.** No blind mortises
+  (a laser does not pocket), no wedges and no corner finger joints yet: two
+  plates that *both* stop at each other get nothing, and the loose-part rule
+  says so.
 
 ## Credit
 

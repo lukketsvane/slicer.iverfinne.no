@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack && node scripts/sjekk-worker.mjs",
+    "build": "next build --webpack && node scripts/sjekk-worker.mjs && node scripts/bygg-offline.mjs",
     "start": "next start",
     "sjekk": "tsc --noEmit",
     "vekt": "tsx scripts/vekt.ts",
@@ -21,7 +21,12 @@
     "enkel": "tsx scripts/enkel.ts",
     "raad": "tsx scripts/raad.ts",
     "ark": "tsx scripts/ark.ts",
-    "glb": "tsx scripts/glb-sjekk.ts"
+    "glb": "tsx scripts/glb-sjekk.ts",
+    "teikn": "tsx scripts/teikn-sjekk.ts",
+    "minutt": "tsx scripts/minutt.ts",
+    "redigering": "tsx scripts/redigering-sjekk.ts",
+    "webkit": "tsx scripts/webkit-sjekk.ts",
+    "presisjon": "tsx scripts/presisjon.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

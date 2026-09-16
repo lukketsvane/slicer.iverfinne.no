@@ -52,7 +52,7 @@ const snapp = (v: number, steg: number) => Math.round(v / steg) * steg
  */
 const NETT_MINST = 500
 
-const narrowOf = (s: Snitt) => s.ribber.reduce((m, r) => (r.spor.length ? Math.min(m, r.narrow) : m), Infinity)
+const narrowOf = (s: Snitt) => s.ribber.reduce((m, r) => (r.spor.length || r.tapp.some((q) => q.slag === "slisse") ? Math.min(m, r.narrow) : m), Infinity)
 
 /**
  * EI REKKJEFYLGJE SOM GÅR OPP, OM HO FINST.
@@ -64,10 +64,25 @@ const narrowOf = (s: Snitt) => s.ribber.reduce((m, r) => (r.spor.length ? Math.m
  * som kryssar kvarandre i gods utan å dele ei line går ikkje i hop i
  * nokon rekkjefylgje, og det er planet og ikkje lista som må endrast.
  */
+/**
+ * EI RETNING INN, og om ho har eit forteikn.
+ *
+ * Eit halvt-om-halvt-spor er ei LINE: delen kan kome frå kva ende som helst,
+ * og munnen vert lagd der han kjem frå. Ein tapp er ei PIL — han går inn i
+ * slissa frå den eine sida og ingen annan — so eit stag med tappar i to
+ * sider som står andlet mot andlet har to retningar og ikkje éi.
+ */
+type Inn = { d: Vec3; pil: boolean }
+const saman = (a: Inn, b: Inn, par: number) => (a.pil && b.pil ? dot(a.d, b.d) >= par : Math.abs(dot(a.d, b.d)) >= par)
+
 function ordna(s: Snitt): number[] | null {
-  const liner = new Map<number, Map<number, Vec3>>()
+  const liner = new Map<number, Map<number, Inn>>()
   for (const r of s.ribber) {
-    const m = new Map<number, Vec3>()
+    const m = new Map<number, Inn>()
+    // TAPPANE: delen går langs tappen sin, eller ned på tappen til den andre
+    for (const q of r.tapp) {
+      if (!m.has(q.mot)) m.set(q.mot, { d: q.slag === "tapp" ? q.inn : [-q.inn[0], -q.inn[1], -q.inn[2]], pil: true })
+    }
     // EIN BØYGD DEL VERT IKKJE SKUVA INN, HAN VERT BØYGD INN, og rullinga
     // tek generatorane og bogane hans på ein gong (sjå `Montering.boygde`).
     // Han melder difor inga retning, og står ikkje i strid med nokon.
@@ -78,7 +93,7 @@ function ordna(s: Snitt): number[] | null {
         q.d[0] * r.r.u[1] + q.d[1] * r.r.v[1],
         q.d[0] * r.r.u[2] + q.d[1] * r.r.v[2],
       ]
-      if (!m.has(q.mot)) m.set(q.mot, d)
+      if (!m.has(q.mot)) m.set(q.mot, { d, pil: false })
     }
     liner.set(r.plan.id, m)
   }
@@ -88,9 +103,9 @@ function ordna(s: Snitt): number[] | null {
   /** kor mange retningar delen har ledd i. Ein del med to eller fleire må
    *  inn FØR alle utanom éi av retningane sine, so han går fyrst. */
   const klassar = (id: number) => {
-    const ds: Vec3[] = []
-    for (const d of (liner.get(id) ?? new Map<number, Vec3>()).values()) {
-      if (!ds.some((e) => Math.abs(dot(e, d)) >= par)) ds.push(d)
+    const ds: Inn[] = []
+    for (const d of (liner.get(id) ?? new Map<number, Inn>()).values()) {
+      if (!ds.some((e) => saman(e, d, par))) ds.push(d)
     }
     return ds.length
   }
@@ -109,7 +124,7 @@ function ordna(s: Snitt): number[] | null {
    * framleis ingenting ho ikkje har rekna.
    */
   const strid = (id: number) => {
-    const ds: Vec3[] = []
+    const ds: Inn[] = []
     for (const [mot, d] of liner.get(id) ?? []) {
       if (!lagt.includes(mot)) continue
       ds.push(d)
@@ -117,16 +132,36 @@ function ordna(s: Snitt): number[] | null {
     let verst = 0
     for (let a = 0; a < ds.length; a++) {
       for (let b = a + 1; b < ds.length; b++) {
-        if (Math.abs(dot(ds[a], ds[b])) < par) verst++
+        if (!saman(ds[a], ds[b], par)) verst++
       }
     }
     return verst
   }
+  /**
+   * KOR MANGE AV DEI ATTVERANDE SOM STÅR FAST om `id` vert lagd no.
+   *
+   * Grådig åleine tek ein del som kan inn, og det er ikkje nok: to sider
+   * og eit stag imellom kan alle leggjast fyrst, men legg du båe sidene
+   * før staget, har staget tappar mot to flater som ser kvarandre, og det
+   * kjem aldri inn. Eitt steg fram er det som skil dei.
+   */
+  const stengjer = (id: number) => {
+    lagt.push(id)
+    let n = 0
+    for (const x of att) if (x !== id && strid(x) > 0) n++
+    lagt.pop()
+    return n
+  }
   while (att.length) {
     let best = -1
+    let bestSteng = Infinity
     for (let i = 0; i < att.length; i++) {
       if (!kan(att[i])) continue
-      if (best < 0 || klassar(att[i]) > klassar(att[best])) best = i
+      const st = stengjer(att[i])
+      if (best < 0 || st < bestSteng || (st === bestSteng && klassar(att[i]) > klassar(att[best]))) {
+        best = i
+        bestSteng = st
+      }
     }
     if (best < 0) {
       // ingen kjem reint inn: ta den som står i strid med færrast, og gå vidare
@@ -698,10 +733,11 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
    * ledd kjem ut som ei laus plate, og regelen seier det i staden for å
    * late deg finne det i eska.
    *
-   * Difor tel han RIBBER UTAN SPOR og ikkje bøygde plan: det er skilnaden
+   * Difor tel han RIBBER UTAN LEDD — spor eller tappar — og ikkje bøygde plan: det er skilnaden
    * på «bøygd» og «laus», og etter steg éin er dei to ikkje lenger det same.
    */
-  const lauseBog = s.ribber.filter((r) => !!r.r.k && !r.spor.length)
+  // spor eller tappar: eit sadelsete med tappar i sidene er festa
+  const lauseBog = s.ribber.filter((r) => !!r.r.k && !r.spor.length && !r.tapp.length)
   add({
     id: "bogledd",
     label: "ledd på bøygde plan",
