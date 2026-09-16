@@ -891,6 +891,17 @@ ends at them like a flat seat would, and its tenons point along the tangent
 where the arc meets the side. Where one plate sticks out through the other,
 that stretch is protected: the other plate does not also read it as an end.
 
+**A tenon that shows far enough takes a wedge.** From one and a half
+thicknesses of protrusion, the tenon gets a hole across it, half a
+millimetre inside the far face so the wedge bears on the face and a tap
+tightens the joint: one thickness wide along the line (the wedge is cut from
+the same sheet) and up to a thickness along the tenon, with at least a
+thickness of material left beyond it. The wedge is its own part in the cut
+list — four thicknesses long, straight on the bearing side, six degrees on
+the other, engraved with the tenon's name (`k3-1-0`) — with no plane of its
+own, so the montage leaves it aside. Under six millimetres a wedge is a
+splinter, so 3 mm models get none.
+
 **And along an arc.** A bent seat whose cylinder axis runs from side to side
 meets each side in a circle — straight in the seat's unrolled pattern, an arc
 in the side. The seat gets its tenons as always; the side's mortises follow
@@ -946,8 +957,8 @@ narrow seat, a 3 mm model, splayed legs (seat first, each leg along its own
 tenon), crossed legs with a seat, where slots and tenons share one
 object, a seat between the sides, flush and with tenons showing, a bent
 saddle seat flush and showing, a box of four sides with a flush seat,
-joined by fingers, seven slats with a rail through them, and a seat bent
-between the sides with curved mortises.
+joined by fingers, seven slats with a rail through them, a seat bent
+between the sides with curved mortises, and a seat with wedged tenons.
 
 ## The plane, flat
 
