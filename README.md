@@ -323,12 +323,12 @@ plane at 0.5 has to sit in the middle of the body as it is now, not as it was.
 Only the view holds still.
 
 **And it can be locked.** The padlock above the reframe button takes that
-decision all the way: with it closed, nothing turns the object — not one
-finger on the canvas, not a face of the view cube, not the reframe button,
-which then fits the object back into the screen from where you are already
-standing instead of swinging home. The cube keeps turning with the camera,
-because saying which way you are looking is half of what it is for; it just
-stops being a control. Zoom is still yours: going closer is not a new angle,
+decision all the way: with it closed, nothing *angles* the object — not one
+finger on the canvas, not an edge or corner of the view cube, not the reframe
+button, which then fits the object back into the screen from where you are
+already standing instead of swinging home. The six faces of the cube still
+work: looking straight down an axis is a working plane, not an angle, and it
+is how you get to the next side to draw on. Zoom is still yours: going closer is not a new angle,
 it is the same view from nearer. Aim the object once and the rest of the
 session is aiming at *it*, not at it and the camera both.
 

@@ -1,8 +1,8 @@
 "use client"
 
-import { Canvas, useFrame, useThree } from "@react-three/fiber"
-import { GizmoHelper, GizmoViewcube, Html, OrbitControls } from "@react-three/drei"
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactElement, type ReactNode } from "react"
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
+import { GizmoHelper, GizmoViewcube, Html, OrbitControls, useGizmoContext } from "@react-three/drei"
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type MutableRefObject, type ReactElement, type ReactNode } from "react"
 import * as THREE from "three"
 import { LAG_FARGAR, MATERIALS, inRing, lagFarge, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
 import { akser, broek, dot, inn, OMRISS_TAK, omrissLine, omrissMidt, ramme as planRamme, snappPunkt, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
@@ -428,6 +428,23 @@ function iStrek(s: Strek, S: number, q: Pt, tol: number): boolean {
 /** kvar synet skal stå: eit tal som tel kvar gong nokon ber om det, og
  *  retninga dei bad om — heimvinkelen når ingen har peika på ei side */
 export type Sikt = { n: number; dir: Vec3 | null }
+
+/**
+ * MED SYNET LÅST GJELD BERRE DEI SEKS SIDENE. Eit trykk på ei flate ser rett
+ * ned ei akse — det er eit arbeidsplan, ikkje ei vinkling, og det er det du
+ * treng for å teikne på neste side. Kantar og hjørne vinklar, og dei svelgjer
+ * låsen. `onClick` byter ut drei si eiga tweening, so ho vert kalla her.
+ */
+function Kuben({ laast, ...rest }: { laast: boolean } & ComponentProps<typeof GizmoViewcube>) {
+  const { tweenCamera } = useGizmoContext()
+  const trykk = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation()
+    if (e.object.position.lengthSq() > 1e-6 || !e.face) return null
+    tweenCamera(e.face.normal)
+    return null
+  }
+  return <GizmoViewcube {...rest} onClick={laast ? trykk : undefined} />
+}
 
 function FitCamera({ fit, rute, sikt, laast }: { fit: Fit | null; rute: Rute; sikt: Sikt; laast: boolean }) {
   const camera = useThree((s) => s.camera)
@@ -3693,12 +3710,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <GizmoHelper alignment="top-right" margin={[rute.hogre + 38, rute.topp + 38]}>
           <Sovnen sov={sov}>
             <group scale={KUBE_SKALA}>
-              <GizmoViewcube
-                // MED SYNET LÅST ER KUBEN BERRE EI AVLESING. Han seier
-                // framleis kva veg du ser — det er halve nytten hans — men
-                // eit trykk på ei side snur ingenting. `onClick` byter ut
-                // drei si eiga tweening heilt, so det held å svelgje han.
-                onClick={laast ? ((e) => { e.stopPropagation(); return null }) : undefined}
+              <Kuben
+                laast={laast}
                 faces={SIDEORD}
                 color={tema.paper}
                 textColor={tema.ink}
@@ -3766,11 +3779,12 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           LÅSEN, ØVST: synsvinkelen står der du sette han.
 
           Synet er ei avgjerd (sjå README), og dette er den avgjerda teken
-          heilt ut: med låsen på snur korkje éin finger, synskuben eller
-          heimknappen objektet. Du kan framleis gå nærare og lenger unna —
+          heilt ut: med låsen på snur korkje éin finger eller heimknappen
+          objektet, og synskuben berre til dei seks sidene — eit aksesyn er
+          eit arbeidsplan og ikkje ei vinkling. Du kan framleis gå nærare og lenger unna —
           det er ikkje ei ny vinkling, det er det same synet på nært hald.
         */}
-        <button type="button" data-laas="" aria-pressed={laast} aria-label="lås synet" title={laast ? "synsvinkelen er låst: ingenting snur objektet. trykk for å sleppe han" : "lås synsvinkelen: éin finger, synskuben og heimknappen snur han ikkje meir"} onClick={() => setLaast((v) => !v)}>
+        <button type="button" data-laas="" aria-pressed={laast} aria-label="lås synet" title={laast ? "synsvinkelen er låst: berre dei seks sidene på synskuben snur. trykk for å sleppe han" : "lås synsvinkelen: éin finger og heimknappen snur han ikkje meir, synskuben berre til dei seks sidene"} onClick={() => setLaast((v) => !v)}>
           {IkonLaas(!laast)}
         </button>
         <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt (F)" onClick={heim}>
