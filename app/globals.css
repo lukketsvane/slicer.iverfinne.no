@@ -450,9 +450,21 @@ input {
  * der, dei tok trykk, og ingen kunne sjå dei.
  *
  * No spenner bandet frå under topplina til over arket, og reiskapane ligg
- * nedst i det — under tommelen, der dei høyrer heime. Får dei ikkje plass,
- * går `margin-top: auto` på den fyrste i null og stabelen stoggar ved
- * topplina i staden for å gå gjennom henne.
+ * nedst i det — under tommelen, der dei høyrer heime.
+ *
+ * OG FÅR DEI IKKJE PLASS, LEGG DEI SEG I EI SPALTE TIL, TIL VENSTRE.
+ *
+ * Målt på telefonen med eit plan valt: ni reiskapar er 464 px, og bandet
+ * er 325 når skuffa står ope. Dei hundre og trettini som vart til overs
+ * låg FØR over skuffa (15 mot 10) — oppå slettekrossen på plan-rada og
+ * oppå bladpila, so eit trykk på pila tok kroppsreiskapen i staden. Ein
+ * reiskap som stel trykket frå ein annan knapp er verre enn ein reiskap
+ * som står ein annan stad.
+ *
+ * `wrap-reverse` bryt nedover-ut til venstre, og båe spaltene står nedst
+ * (`justify-content` og `align-content` mot slutten). Ni reiskapar vert
+ * seks og tre, alle 48 px, alle over skuffa og ingen oppå henne. Er det
+ * plass til alle i éi spalte — skuffa att — står dei i éi spalte att.
  *
  * Bandet tek ingen fingrar; berre reiskapane gjer det. Det ligg over heile
  * den høgre halvdelen av lerretet, og eit band som tok trykk der ville
@@ -463,7 +475,9 @@ input {
   z-index: 15;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  flex-wrap: wrap-reverse;
+  justify-content: flex-end;
+  align-content: flex-end;
   align-items: center;
   /* Fire og ikkje ti. Knappane er 48 px og treffeflata deira er heile
      knappen, so lufta mellom dei er berre luft — og med ni reiskapar i
@@ -478,13 +492,9 @@ input {
   /* OG DEI KRYMPAR IKKJE. Bandet er kortare enn stabelen når arket står
      heilt ope, og flex svara på det med å klemme knappane ned — målt til
      16 px høge, med treffesoner som låg oppå kvarandre. Ein knapp har ein
-     storleik av di ein tommel har det. Får dei ikkje plass, legg dei seg
-     nedover i staden: dei ligg over arket (15 mot 10), og då er dei
-     stygge, men dei er der og dei er 48 px. */
+     storleik av di ein tommel har det. Får dei ikkje plass, bryt spalta
+     seg i to i staden — sjå over. */
   flex: none;
-}
-.tumme > :first-child {
-  margin-top: auto;
 }
 .tumme .skjer {
   position: relative;

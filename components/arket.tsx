@@ -118,7 +118,7 @@ function FormTab({ p }: { p: ArketProps }) {
 
 function LayerRow({ no, ord, onFarge }: { no: number; ord: string; onFarge: (n: number) => void }) {
   return (
-    <div role="group" aria-label={`lag ${ord}`} className="flex h-9 items-center gap-1">
+    <div role="group" aria-label={`lag ${ord}`} data-lag={ord} className="flex h-9 items-center gap-1">
       <span className="dim w-8 shrink-0 text-[9px] uppercase tracking-[0.12em]">{ord}</span>
       <span className="rull-x flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overscroll-contain">
         <button type="button" aria-label="ikkje noko lag" aria-pressed={no === 0} onClick={() => onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
@@ -172,13 +172,18 @@ function AssemblyRows({ p }: { p: ArketProps }) {
   const veg: Record<string, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg", boygd: "bøygd inn" }
   return (
     <div className="px-3 pb-1 pt-1">
+      {/* «steget» og adressa på kvar rad — dei same handtaka benken har.
+          Ei rad utan namn er ei rad ingen kan peike på: korkje ein
+          skjermlesar, ei vakt, eller den som spør kva D3 var. */}
+      <div aria-label="steget">
       {rows.length ? rows.map((d) => (
-        <div key={d.adr} className="flex h-9 items-center gap-2 rounded-lg px-1.5 text-[11px]">
+        <div key={d.adr} data-steg-del={d.adr} className="flex h-9 items-center gap-2 rounded-lg px-1.5 text-[11px]">
           <span className="tab w-8 shrink-0">{d.adr}</span>
           <span className="min-w-0 flex-1 truncate">{veg[d.veg] ?? d.veg}</span>
           <span className="tab dim shrink-0">ark {d.ark}</span>
         </div>
       )) : <p className="dim h-9 px-1.5 py-2 text-[11px]">ingen delar</p>}
+      </div>
     </div>
   )
 }
@@ -226,6 +231,15 @@ function GroupsTab({ p }: { p: ArketProps }) {
 
   return (
     <div className="px-3 pb-1 pt-1">
+      {/**
+        * RADENE ER `option`, OG EIN `option` MÅ HA EIN `listbox` OVER SEG.
+        *
+        * Dei stod i ein naken `div`: for ein skjermlesar er ei liste val utan
+        * ei liste kring seg ikkje ei liste, og rolla fell på golvet. Han
+        * heiter «plan», av di det er dét lista er — rekkja plan og gruppene
+        * dei står i.
+        */}
+      <div role="listbox" aria-label="plan">
       {rader.length ? rader.map((rad) => {
         if (rad.kind === "gruppe") {
           const paa = p.valdGruppe === rad.id
@@ -255,6 +269,7 @@ function GroupsTab({ p }: { p: ArketProps }) {
           </div>
         )
       }) : <p className="dim h-9 px-1.5 py-2 text-[11px]">ingen plan</p>}
+      </div>
 
       {detaljar.length > 0 && (
         <div className="border-t pt-0.5" style={HAIR}>
@@ -337,8 +352,18 @@ function ExportTab({ p }: { p: ArketProps }) {
   const harde = p.rules.filter((r) => r.hard && !r.ok)
   return (
     <div className="px-3 pb-1 pt-2">
+      {/**
+        * BOLKEN, GRUPPA OG VARSELET HEITER NOKO.
+        *
+        * Uttaket er der du gjer noko du ikkje kan gjere om — ei plate finér
+        * er skoren éin gong — so det er den siste staden i huset der ein
+        * knapp skal vera namnlaus. Brikkene er ÉI gruppe (bolkane er
+        * overskrifter i henne, ikkje tre lister), og det raude varselet er
+        * det ei vakt skal kunne finne att.
+        */}
+      <div role="group" aria-label="uttak">
       {MOBIL_UTTAK.map((g) => (
-        <section key={g.bolk} className="border-b pb-1 last:border-b-0" style={HAIR}>
+        <section key={g.bolk} data-bolk={g.bolk} className="border-b pb-1 last:border-b-0" style={HAIR}>
           <div className="dim h-5 px-1 text-[9px] uppercase leading-none tracking-[0.18em]">{g.bolk}</div>
           <div className="flex min-h-9 flex-wrap items-center gap-1.5">
             {g.filer.map((x) => {
@@ -361,7 +386,8 @@ function ExportTab({ p }: { p: ArketProps }) {
           </div>
         </section>
       ))}
-      {harde.length > 0 && <p className="pt-1 text-[9px]" style={{ color: "var(--warn)" }}>{harde.map((r) => r.label).join(", ")} — går ikkje i hop</p>}
+      </div>
+      {harde.length > 0 && <p data-uttakvarsel="" className="pt-1 text-[9px]" style={{ color: "var(--warn)" }}>{harde.map((r) => r.label).join(", ")} — går ikkje i hop</p>}
       <div className="flex min-h-14 items-center gap-1.5">
         {([
           ["kuttliste", "kuttliste", "kvar del, med adresse, mål og plate"],
