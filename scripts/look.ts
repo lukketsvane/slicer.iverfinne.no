@@ -37,7 +37,39 @@ const ferdig = (page: Page) =>
     undefined,
     { timeout: 45000 },
   )
-const lina = async (page: Page) => (await page.locator(HOVUDLINA).innerText()).replace(/\s+/g, " ").trim()
+/**
+ * LINA ER DET LUKKA ARKET, so ho står ikkje i det opne. Kikken les henne
+ * fleire stader midt i ei rekkje der skuffa kan vera open, so lesinga lèt
+ * att fyrst — det er det same eit menneske gjer for å sjå henne.
+ */
+const lina = async (page: Page) => {
+  const g = page.getByRole("button", { name: "lat att kontrollane" })
+  if (await g.count()) {
+    await g.click()
+    await page.waitForTimeout(400)
+  }
+  return (await page.locator(HOVUDLINA).innerText()).replace(/\s+/g, " ").trim()
+}
+/**
+ * SKUFFA HAR FANER, OG LINA ER BERRE DEN LUKKA.
+ *
+ * Kikken trykte på lina for å opne OG for å lukke, og las planlista som om
+ * ho alltid stod framme. No står lista i éi av seks faner, og lina er borte
+ * medan skuffa er ope: eit trykk på henne venta i tretti sekund på eit
+ * element som ikkje fanst.
+ */
+const arkOpe = async (page: Page) => (await page.locator("[role=tablist][aria-label='kontrollfaner']").count()) > 0
+const paaFane = async (page: Page, id: string) => {
+  if (!(await arkOpe(page))) {
+    await page.locator(HOVUDLINA).click()
+    await page.waitForTimeout(500)
+  }
+  const f = page.locator(`[role=tablist][aria-label='kontrollfaner'] [role=tab][aria-label="${id}"]`)
+  if ((await f.count()) && (await f.getAttribute("aria-selected")) !== "true") {
+    await f.click()
+    await page.waitForTimeout(400)
+  }
+}
 const planTal = (s: string) => Number(/(\d+) plan/.exec(s)?.[1] ?? NaN)
 /**
  * LINA SEIER EIT ORD FØR HO SEIER TALA.
@@ -139,10 +171,7 @@ async function flate(namn: string, w: number, h: number) {
   else console.log(`  skjer: ${før} → ${etter} plan`)
 
   // --- arket opnar seg, og lista er der -------------------------------------
-  if (!benk) {
-    await page.locator(HOVUDLINA).click()
-    await page.waitForTimeout(500)
-  }
+  if (!benk) await paaFane(page, "grupper")
   const rader = await page.locator("[role=listbox][aria-label='plan'] [role=option]").count()
   if (rader !== etter) brot(`${namn}: lista har ${rader} plan, lina seier ${etter}`)
   await page.screenshot({ path: `${UT}/${namn}-2-liste.png` })
@@ -166,8 +195,7 @@ async function flate(namn: string, w: number, h: number) {
 
   // --- alt: skyvarane, tavla, uttaka ----------------------------------------
   if (!benk) {
-    await page.getByRole("button", { name: "alle kontrollane" }).click()
-    await page.waitForTimeout(500)
+    await paaFane(page, "sjekk")
   }
   await page.screenshot({ path: `${UT}/${namn}-4-alt.png` })
 
@@ -198,6 +226,30 @@ async function flate(namn: string, w: number, h: number) {
   else console.log(`  skjer på egget: ${l2}`)
 
   // --- uttaka gjev filer med innhald ----------------------------------------
+  /**
+   * UTTAKA ER BLADA I SI EIGA FANE, ei gruppe per side. Kikken leita etter
+   * ein knapp som stod på ei anna side og venta tretti sekund på ei fil som
+   * aldri kom. Bladaren leiter opp den sida knappen faktisk står på.
+   */
+  const tilChip = async (chip: string) => {
+    if (benk) return
+    await paaFane(page, "uttak")
+    for (let i = 0; i < 8; i++) {
+      if (await page.getByRole("button", { name: chip, exact: true }).count()) return
+      const neste = page.getByRole("button", { name: "neste uttak" })
+      if (!(await neste.count()) || (await neste.isDisabled())) {
+        // rundt att til fyrste sida og prøv vidare
+        const forr = page.getByRole("button", { name: "førre uttak" })
+        for (let k = 0; k < 8 && (await forr.count()) && !(await forr.isDisabled()); k++) {
+          await forr.click()
+          await page.waitForTimeout(200)
+        }
+        return
+      }
+      await neste.click()
+      await page.waitForTimeout(250)
+    }
+  }
   for (const [chip, vent] of [
     ["passprøve", /^passprove-.*\.svg$/],
     ["ark", /\.svg$|\.zip$/],
@@ -209,6 +261,7 @@ async function flate(namn: string, w: number, h: number) {
     ["usdz", /\.usdz$/],
     ["svg", /profilar\.svg$/],
   ] as [string, RegExp][]) {
+    await tilChip(chip)
     const [dl] = await Promise.all([
       page.waitForEvent("download", { timeout: 30000 }),
       page.getByRole("button", { name: chip, exact: true }).click(),
@@ -307,13 +360,8 @@ async function flate(namn: string, w: number, h: number) {
     await page.getByRole("button", { name: "skjer", exact: true }).click()
     await ferdig(page)
     await page.waitForTimeout(800)
-    // uttaka står i «alt» på telefonen; på benken står dei i kolonna
-    if (!benk) {
-      await page.locator(HOVUDLINA).click()
-      await page.waitForTimeout(400)
-      await page.getByRole("button", { name: "alle kontrollane" }).click()
-      await page.waitForTimeout(500)
-    }
+    // uttaka står bladde i si eiga fane på telefonen; på benken i kolonna
+    await tilChip("lagre")
     const [dl] = await Promise.all([
       page.waitForEvent("download", { timeout: 30000 }),
       page.getByRole("button", { name: "lagre", exact: true }).click(),
@@ -349,14 +397,20 @@ async function flate(namn: string, w: number, h: number) {
   await page.reload({ waitUntil: "networkidle" })
   await ferdig(page)
   await page.waitForTimeout(800)
-  if (!benk) {
-    // reglane og råda står i «alt», ikkje i midten
-    await page.locator(HOVUDLINA).click()
-    await page.waitForTimeout(500)
-    await page.getByRole("button", { name: "alle kontrollane" }).click()
-    await page.waitForTimeout(500)
-  }
+  /**
+   * Reglane står i sjekk-fana, BLADDE: to måltal per side. Rådet til den
+   * brotne regelen står på den sida regelen står på, og ikkje på den fyrste.
+   */
   const raad = page.locator("button[aria-label^='fiks ']")
+  if (!benk) {
+    await paaFane(page, "sjekk")
+    for (let i = 0; i < 8 && (await raad.count()) === 0; i++) {
+      const neste = page.getByRole("button", { name: "neste sjekk" })
+      if (!(await neste.count()) || (await neste.isDisabled())) break
+      await neste.click()
+      await page.waitForTimeout(250)
+    }
+  }
   const n = await raad.count()
   await page.screenshot({ path: `${UT}/${namn}-6-blindgate.png` })
   if (!n) brot(`${namn}: ei broten regel utan råd`)
