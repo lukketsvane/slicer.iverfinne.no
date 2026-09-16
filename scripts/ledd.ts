@@ -130,7 +130,9 @@ function volumAvvik(g: Snitt, tjukn: number): { tal: number; verst: number } {
   let tal = 0
   let verst = 0
   for (const r of g.ribber) {
-    if (!r.outlines.length) continue
+    // ei bøygd ribbe er ei fasettert skål i nettet: volumet hennar er
+    // biletet sitt og ikkje kuttet sitt — kuttet er flatt og vert målt over
+    if (!r.outlines.length || r.r.k) continue
     const s = newSoup()
     ribSolid(s, r, tjukn)
     const pos = soupToMesh(s).positions
@@ -534,6 +536,11 @@ function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: numb
   }
   let verst = 0
   for (const [nk, l] of par) {
+    // ein finger i eit hjørne har ingen makker: han fyller hakket i den andre
+    if (nk.startsWith("f")) {
+      if (l.length !== 1) seg(`${nk}: ${l.length} fingrar med same namn`)
+      continue
+    }
     if (l.length !== 2) seg(`${nk}: ${l.length} sider og ikkje to`)
     else verst = Math.max(verst, Math.hypot(l[0][0] - l[1][0], l[0][1] - l[1][1], l[0][2] - l[1][2]))
   }
@@ -634,6 +641,37 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
   sjekkTapp("kryssbein med sete", { ...MOBEL, plan: x }, { tappar: 4, brot: 0 })
 
   sjekk("kryssbein, spora", { ...MOBEL, plan: x })
+}
+/**
+ * KASSA: fire sider som endar i flukt med utsida av kvarandre, og eit sete
+ * i flukt oppå. Kvart hjørne er fingrar, og ingen hjørnekube har to eigarar.
+ */
+{
+  const W = 170
+  const s4 = (id: number, o: [number, number, number], n: [number, number, number]) => plate(id, o, n, firkant(0, W + 6).map(([a], i): [number, number] => [a, i < 2 ? 175 : -225]))
+  const kasse = skrivPlan([
+    s4(1, [0.5, (225 - W) / S, 0.5], [0, -1, 0]),
+    s4(2, [(225 + W) / S, 0.5, 0.5], [1, 0, 0]),
+    s4(3, [0.5, (225 + W) / S, 0.5], [0, 1, 0]),
+    s4(4, [(225 - W) / S, 0.5, 0.5], [-1, 0, 0]),
+    plate(5, [0.5, 0.5, 406 / S], [0, 0, 1], firkant(W + 6)),
+  ])
+  sjekkTapp("kasse med fingrar", { ...MOBEL, plan: kasse }, { tappar: 40, brot: 0 })
+}
+/**
+ * SADELSETET: ei bøygd plate som endar i to flate sider. Møtet er ei
+ * generatorline — rett i båe — og tappane går langs tangenten der ho er.
+ */
+{
+  const R = 400
+  const sider: [number, number][] = [[-170, 245], [170, 245], [190, -225], [-190, -225]]
+  const sadel = (L: number) => skrivPlan([
+    { ...plate(1, [(225 - 150) / S, 0.5, 0.5], [-1, 0, 0], sider) },
+    { ...plate(2, [(225 + 150) / S, 0.5, 0.5], [1, 0, 0], sider) },
+    { ...plate(3, [0.5, 0.5, 400 / S], [0, 0, 1], firkant(120, L)), bog: +(S / R).toFixed(4) },
+  ])
+  sjekkTapp("sadelsete i flukt", { ...MOBEL, plan: sadel(160) }, { tappar: 4 })
+  sjekkTapp("sadelsete, tappar ut", { ...MOBEL, plan: sadel(172) }, { tappar: 4 })
 }
 /**
  * SETET MELLOM SIDENE: i flukt med utsida, og femten millimeter forbi —

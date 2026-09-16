@@ -147,3 +147,12 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert.equal(mellom(sider, min, max, S, t, fot.map((p): Vec3 => [p[0], p[1] * 0.8, p[2]])), null, "eit sete som ikkje når sidene står der det vart teikna")
   console.log("mellom: setet på 408 mm mellom sidene, kantane på ±156")
 }
+
+// RUNDT MED BEIN SOM STÅR UT FRÅ MIDTEN: radialt plan, men omrisset berre på den eine sida
+{
+  const min: Vec3 = [-225, -225, 0], max: Vec3 = [225, 225, 450]
+  const ut = rundt({ id: 1, o: [0.5, 0.5, 0.5], n: [0, 1, 0], bog: 0, strek: [], omriss: [[-0.4, 0.4], [-0.1, 0.4], [-0.1, -0.5], [-0.4, -0.5]] }, 3, min, max, 2, 1)
+  const vinklar = ut.map((p) => Math.round((Math.atan2(p.n[1], p.n[0]) * 180) / Math.PI))
+  assert.deepEqual(vinklar, [90, -150, -30], `tre radiale bein på 120°: ${vinklar}`)
+  console.log("rundt: radiale bein ut frå midten får 120°")
+}

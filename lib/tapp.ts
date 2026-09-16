@@ -124,7 +124,7 @@ const boks = (l: Line, t0: number, t1: number, s0: number, s1: number, gods: boo
 const sluttar = (k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, tb2: number, wM: number) => {
   const fang = fangAv(k)
   const tappMin = tappMinAv(k)
-  if (!T.omriss || T.boygd || M.boygd) return []
+  if (!T.omriss) return []
   const mKryss = felles(felles(langsAv(M, lM, 0), langsAv(M, lM, -(wM / 2 + 0.5))), langsAv(M, lM, wM / 2 + 0.5))
   if (!mKryss.length) return []
   const utMax = utMaxAv(k)
@@ -162,7 +162,43 @@ const hjorne = (l: Line, t0: number, t1: number, s0: number, s1: number): Pt[] =
  * peikar i rommet — frå T inn i M — og stykka dei tok, so halvt om halvt
  * ikkje les den same kanten ein gong til.
  */
-export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, sin: number, cos: number, nr: number) {
+/** punkta i fangbandet ut på den nære flata, i omrisset og hjørna — sjå under */
+function rettKant(T: TappFlate, lT: Line, s: number, tb2: number, rom: number, strekk: readonly Span[]) {
+  /**
+   * KANTEN VERT RETTA I OMRISSET, og ikkje berre i feltet: kvart punkt i
+   * fangbandet vert flytt ut på den nære flata. Då står sidene rette opp
+   * til skuldra, der eit fyll ville ha stukke ut som eit øyre der sida
+   * skrår — og ein kant som vart teikna tre hundredelar under setet får
+   * ikkje ei trapp ved rota av kvar tapp.
+   */
+  if (T.omriss) {
+    const nx = -lT.d[1]
+    const ny = lT.d[0]
+    const rett = (q: Pt): Pt => {
+      const rx = q[0] - lT.p[0]
+      const ry = q[1] - lT.p[1]
+      const off = rx * nx + ry * ny
+      if (Math.abs(off) >= rom) return q
+      const lam = rx * lT.d[0] + ry * lT.d[1]
+      if (!strekk.some(([a, b]) => lam >= a - rom && lam <= b + rom)) return q
+      return [lT.p[0] + lT.d[0] * lam + nx * s * tb2, lT.p[1] + lT.d[1] * lam + ny * s * tb2]
+    }
+    T.omriss = T.omriss.map(rett)
+    T.hjorne = T.hjorne.map(rett)
+  }
+}
+
+/**
+ * DER T STIKK GJENNOM M. Ei plate som stikk ut gjennom ei anna gjev den
+ * andre gods på båe sider av seg — og då ser det ut som om den andre
+ * sluttar mot henne. Det gjer ho ikkje: stykka her er fredte for tappar
+ * den andre vegen.
+ */
+export function stikkUt(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, sin: number, cos: number): Span[] {
+  return sluttar(k, T, M, lT, lM, k.tjukn / (2 * sin), (k.slotW + k.tjukn * cos) / sin).filter((q) => q.u > 0).flatMap((q) => q.strekk)
+}
+
+export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, sin: number, cos: number, nr: number, fredt: readonly Span[] = []) {
   const fang = fangAv(k)
   const tb2 = k.tjukn / (2 * sin)
   // SLISSA ER BREIARE ENN PLATA NÅR PLATA STÅR PÅ SKRÅ: tappen går gjennom
@@ -170,33 +206,19 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
   const wM = (k.slotW + k.tjukn * cos) / sin
   const ut: { inn: Vec3; strekk: Span[]; tal: number }[] = []
   const utMax = utMaxAv(k)
-  for (const { s, strekk, u } of sluttar(k, T, M, lT, lM, tb2, wM)) {
+  const tappMin = tappMinAv(k)
+  for (const svar of sluttar(k, T, M, lT, lM, tb2, wM)) {
+    const { s, u } = svar
+    const strekk = fredt.length ? utan(svar.strekk, fredt as Span[]).filter(([lo, hi]) => hi - lo >= tappMin) : svar.strekk
+    if (!strekk.length) continue
     let tal = 0
     const inn2: Pt = [s * lT.d[1], -s * lT.d[0]]
-    const inn: Vec3 = add3(mul3(T.r.u, inn2[0]), mul3(T.r.v, inn2[1]))
-    /**
-     * KANTEN VERT RETTA I OMRISSET, og ikkje berre i feltet: kvart punkt i
-     * fangbandet vert flytt ut på den nære flata. Då står sidene rette opp
-     * til skuldra, der eit fyll ville ha stukke ut som eit øyre der sida
-     * skrår — og ein kant som vart teikna tre hundredelar under setet får
-     * ikkje ei trapp ved rota av kvar tapp.
-     */
+    // ei bøygd plate peikar langs tangenten der lina ligg: u vrir seg med buen
+    const a = T.boygd ? T.r.k * lT.p[0] : 0
+    const uHer = a ? add3(mul3(T.r.u, Math.cos(a)), mul3(T.r.n, Math.sin(a))) : T.r.u
+    const inn: Vec3 = add3(mul3(uHer, inn2[0]), mul3(T.r.v, inn2[1]))
     const rom = tb2 + fang
-    if (T.omriss) {
-      const nx = -lT.d[1]
-      const ny = lT.d[0]
-      const rett = (q: Pt): Pt => {
-        const rx = q[0] - lT.p[0]
-        const ry = q[1] - lT.p[1]
-        const off = rx * nx + ry * ny
-        if (Math.abs(off) >= rom) return q
-        const lam = rx * lT.d[0] + ry * lT.d[1]
-        if (!strekk.some(([a, b]) => lam >= a - rom && lam <= b + rom)) return q
-        return [lT.p[0] + lT.d[0] * lam + nx * s * tb2, lT.p[1] + lT.d[1] * lam + ny * s * tb2]
-      }
-      T.omriss = T.omriss.map(rett)
-      T.hjorne = T.hjorne.map(rett)
-    }
+    rettKant(T, lT, s, tb2, rom, strekk)
     const retta = T.omriss ? [T.omriss] : T.ringar
     for (const [c0, c1] of strekk) {
       // KLIPPET: det som står forbi den nære flata, er i vegen for M
@@ -263,4 +285,61 @@ export function slisseGods(tapp: readonly Tapp[], skorne: readonly Pt[][]): numb
     }
   }
   return minst
+}
+
+/**
+ * FINGERLEDD I HJØRNET — der to plater sluttar mot KVARANDRE.
+ *
+ * Ein kasse: framsida endar i flukt med utsida av sida, og sida endar i
+ * flukt med utsida av framsida. Ingen av dei går gjennom den andre, so
+ * ingen av dei kan ha ei slisse. Hjørnet vert delt i eit oddetal fingrar
+ * langs lina — kring seks tjukner lange, minst tre — og annakvar går til
+ * kvar plate, ut til den andre si utside. Ytste fingrar høyrer til den
+ * SISTE: der tre plater møtest, eig setet alle fire hjørnekubane oppå
+ * sidene, og ingen av sidene tek den same. Klaringa står mellom fingrane,
+ * ikkje i endane.
+ *
+ * Vegen inn er langs normalen til den som kjem: framsida går inn mellom
+ * sidene, rett mot dei.
+ */
+export function fingrar(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, sin: number, nr: number, fredt: readonly Span[] = []) {
+  if (!A.omriss || !B.omriss) return null
+  const fang = fangAv(k)
+  const tb2 = k.tjukn / (2 * sin)
+  const ende = (T: TappFlate, l: Line) => {
+    for (const s of [-1, 1]) {
+      const sp = utan(langsAv(T, l, s * (tb2 + fang)), langsAv(T, l, -s * (tb2 + fang)))
+      if (sp.length) return { s, sp }
+    }
+    return null
+  }
+  const a = ende(A, lA), b = ende(B, lB)
+  if (!a || !b) return null
+  const strekk = utan(felles(a.sp, b.sp), fredt as Span[]).filter(([lo, hi]) => hi - lo >= tappMinAv(k))
+  if (!strekk.length) return null
+  const rom = tb2 + fang
+  rettKant(A, lA, a.s, tb2, rom, strekk)
+  rettKant(B, lB, b.s, tb2, rom, strekk)
+  const retn = (T: TappFlate, l: Line, s: number): Vec3 => add3(mul3(T.r.u, s * l.d[1]), mul3(T.r.v, -s * l.d[0]))
+  const innA = retn(A, lA, a.s), innB = retn(B, lB, b.s)
+  let tal = 0
+  for (const [c0, c1] of strekk) {
+    A.tform.push(boks(lA, c0, c1, a.s * tb2, -a.s * (tb2 + fang + 1), false))
+    B.tform.push(boks(lB, c0, c1, b.s * tb2, -b.s * (tb2 + fang + 1), false))
+    const L = c1 - c0
+    const n = Math.max(3, 2 * Math.round((L / (6 * k.tjukn) - 1) / 2) + 1)
+    const f = L / n
+    for (let i = 0; i < n; i++) {
+      const [T, l, s, inn] = i % 2 ? [A, lA, a.s, innA] as const : [B, lB, b.s, innB] as const
+      const f0 = c0 + i * f + (i ? k.klaring / 2 : 0)
+      const f1 = c0 + (i + 1) * f - (i < n - 1 ? k.klaring / 2 : 0)
+      T.tform.push(boks(l, f0, f1, s * (tb2 + 0.5), -s * tb2, true))
+      const mot = T === A ? B : A
+      T.tapp.push({ mot: mot.plan.id, slag: "tapp", midt: sporPunkt(l, (f0 + f1) / 2, 0), hjorne: hjorne(l, f0, f1, s * tb2, -s * tb2), inn, nokkel: `f${A.plan.id}-${B.plan.id}-${nr + tal}` })
+      tal++
+    }
+  }
+  A.utvida = B.utvida = true
+  // den som kjem, går langs sin eigen normal inn mot den som ligg
+  return { strekk, tal, innA: mul3(innB, -1), innB: mul3(innA, -1) }
 }

@@ -733,10 +733,11 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
    * ledd kjem ut som ei laus plate, og regelen seier det i staden for å
    * late deg finne det i eska.
    *
-   * Difor tel han RIBBER UTAN SPOR og ikkje bøygde plan: det er skilnaden
+   * Difor tel han RIBBER UTAN LEDD — spor eller tappar — og ikkje bøygde plan: det er skilnaden
    * på «bøygd» og «laus», og etter steg éin er dei to ikkje lenger det same.
    */
-  const lauseBog = s.ribber.filter((r) => !!r.r.k && !r.spor.length)
+  // spor eller tappar: eit sadelsete med tappar i sidene er festa
+  const lauseBog = s.ribber.filter((r) => !!r.r.k && !r.spor.length && !r.tapp.length)
   add({
     id: "bogledd",
     label: "ledd på bøygde plan",
