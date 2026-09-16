@@ -85,7 +85,7 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0/p:0,0,9,0,0,9", "1@0.5,0.5,0.5/1,0,0"],    // langt utanfor kroppen
   ["1@0.5,0.5,0.5/1,0,0/p:0,0,x,0,0,1", "1@0.5,0.5,0.5/1,0,0"],
   // og fleire punkt enn taket vert kutta der taket går
-  [`1@0.5,0.5,0.5/1,0,0/p:${sirkel(40)}`, `1@0.5,0.5,0.5/1,0,0/p:${sirkel(OMRISS_TAK)}`],
+  [`1@0.5,0.5,0.5/1,0,0/p:${sirkel(OMRISS_TAK + 16, 0.3)}`, `1@0.5,0.5,0.5/1,0,0/p:${sirkel(OMRISS_TAK)}`],
   // BOGANE: plassar i omrisset, og ingenting anna. Ein plass som ikkje
   // finst, eit tal som ikkje er eit heiltal, eller bogar utan eit omriss å
   // høyre til — alt fell på golvet, og forma står att som hjørne.

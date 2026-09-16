@@ -17,7 +17,8 @@
  * bogesider med ovalt vindauge i staden for A-sider, MINUTT_KRAKK=2 to
  * kryssande bein lagde med ×2 og eit sekskanta sete, MINUTT_KRAKK=3
  * bogesidene med setet mellom seg (MELLOM=x0,y0,x1,y1 flyttar draget),
- * MINUTT_KRAKK=4 kubekrakken: éin vegg, ×4 til ei kasse med fingrar, sete oppå.
+ * MINUTT_KRAKK=4 kubekrakken: éin vegg, ×4 til ei kasse med fingrar, sete oppå,
+ * MINUTT_KRAKK=5 trekantkrakken: eitt bein ut frå midten, ×3, trekantsete.
  */
 import { chromium, type CDPSession, type Locator, type Page } from "playwright"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -45,6 +46,8 @@ const sekskant = process.env.MINUTT_KRAKK === "2"
 const mellomSete = process.env.MINUTT_KRAKK === "3"
 // MINUTT_KRAKK=4: kubekrakken — éin vegg med bogeopning, ×4 til ei kasse med fingrar, sete oppå
 const kube = process.env.MINUTT_KRAKK === "4"
+// MINUTT_KRAKK=5: trekantkrakken — eitt bein ut frå midten, ×3, eit runda trekantsete oppå
+const trekant = process.env.MINUTT_KRAKK === "5"
 const krom = "C:/Program Files/Google/Chrome/Application/chrome.exe"
 type Punkt = [number, number]
 const MELLOM_A: Punkt = [JSON.parse(process.env.MELLOM ?? "[136,337,254,473]")[0], JSON.parse(process.env.MELLOM ?? "[136,337,254,473]")[1]]
@@ -150,7 +153,31 @@ async function hovud() {
       await endra((p) => p.storleik === 150 && p.tjukn === 3, "Modellmåla vart ikkje sette")
       await merk("150 mm og 3 mm")
     }
-    if (kube) {
+    if (trekant) {
+      const mm = (x: number, z: number): Punkt => [195 + x / 2.28, 506 - z / 2.28]
+      const bein = [mm(25, 438), mm(150, 438), mm(230, 0), mm(180, 0), mm(100, 170), mm(40, 0), mm(25, 0), mm(25, 438)]
+      await drag(cdp, bein.flatMap((q, i) => (i ? linje(bein[i - 1], q, 5).slice(1) : [q])), 1000)
+      await planTal(1)
+      await merk("bein teikna")
+      await trykk(knapp("3 rundt"))
+      await planTal(3)
+      await merk("tre bein")
+      await heim()
+      await side.touchscreen.tap(351, 61)
+      await pause(650)
+      await trykk(side.locator("[data-teiknknapp]"))
+      await trykk(side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "kontur", exact: true }))
+      const topp = (r: number, v: number): Punkt => [195 + (r / 2.21) * Math.cos(v), 405 - (r / 2.21) * Math.sin(v)]
+      const sete: Punkt[] = []
+      for (let k = 0; k < 3; k++) {
+        const v = (k * 2 * Math.PI) / 3
+        for (const d of [-0.18, -0.09, 0, 0.09, 0.18]) sete.push(topp(215 - 60 * Math.abs(d), v + d))
+      }
+      sete.push(sete[0])
+      await drag(cdp, sete.flatMap((q, i) => (i ? linje(sete[i - 1], q, 3).slice(1) : [q])), 900)
+      await planTal(4)
+      await merk("sete teikna")
+    } else if (kube) {
       await trykk(side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "firkant", exact: true }))
       await drag(cdp, linje([118, 331], [272, 506]), 550)
       await planTal(1)
@@ -288,7 +315,21 @@ async function hovud() {
     const S = p.storleik
     // toppen av sida, i millimeter over golvet
     const topp = S / 2 + Math.max(...(s1?.omriss ?? []).map((q) => q[1] * S))
-    const sjekkar = kube ? {
+    const sjekkar = trekant ? {
+      firePlater: teikna.length === 4,
+      treBein: teikna.slice(0, 3).every((q) => q.gruppe === teikna[0].gruppe && !!q.gruppe && Math.abs(q.n[2]) < 1e-6),
+      beinPaa120: teikna.slice(0, 3).every((q, i, l) => Math.abs(Math.abs(q.n[0] * l[(i + 1) % 3].n[0] + q.n[1] * l[(i + 1) % 3].n[1]) - 0.5) < 1e-3),
+      seteOppaa: !!teikna[3] && teikna[3].n[2] > 0.999 && teikna[3].o[2] * S > S / 2 + Math.max(...(teikna[0].omriss ?? []).map((q) => q[1] * S)),
+      tapparISetet: bygg.s.tappar >= 3 && bygg.s.ledd === bygg.s.tappar,
+      ingenLause: bygg.dl.lause === 0 && bygg.s.kasta === 0,
+      monterbarGeometri: bygg.s.montering.brot.length === 0 && bygg.s.montering.klem.length === 0,
+      ingenHardeBrot: reglar.every((r) => !r.hard || r.ok),
+      eittArkPerPlate: svg.ark === bygg.ns.sheets.length,
+      lukkaKutt: svg.alleLukka && svg.endeleg && !svg.lesefeil && svg.kuttbaner >= 4,
+      kuttInnanArket: svg.innanArket,
+      nedlastingLikMotor: raa.equals(ventaBytar),
+      ingenSidefeil: feil.length === 0,
+    } : kube ? {
       femPlater: teikna.length === 5,
       kasse: teikna.slice(0, 4).every((q) => q.gruppe === teikna[0].gruppe && !!q.gruppe),
       opningIAlle: teikna.slice(0, 4).every((q) => q.strek.some((st) => st.slag === "hol")),
@@ -348,7 +389,7 @@ async function hovud() {
       miljo: "Automatisert Chromium på PC, mobilflate 390×844; WebShare deaktivert for ekte nedlasting til disk. Ikkje fysisk iPhone, iOS-delingsark eller menneskeleg tidsprøve.",
       avgrensing: "Referansekrakk med tapp og slisse, målt i geometrien og kuttfila; ikkje fysisk samansett eller lastprøvd.",
       url: URL,
-      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm" : "150 mm modell, 3 mm"}: ${kube ? "kubekrakk: vegg med bogeopning, ×4 til kasse med fingrar, sete oppå" : sekskant ? "to kryssande bein med boge (×2), sekskanta sete oppå" : `${krakk ? "bogesider med ovalt vindauge" : "A-sider med parallellogramvindauge"}, spegla par, sete ${mellomSete ? "mellom sidene" : "oppå"}, tre stag`}`,
+      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm" : "150 mm modell, 3 mm"}: ${trekant ? "trekantkrakk: eitt bein ut frå midten, ×3, runda trekantsete oppå" : kube ? "kubekrakk: vegg med bogeopning, ×4 til kasse med fingrar, sete oppå" : sekskant ? "to kryssande bein med boge (×2), sekskanta sete oppå" : `${krakk ? "bogesider med ovalt vindauge" : "A-sider med parallellogramvindauge"}, spegla par, sete ${mellomSete ? "mellom sidene" : "oppå"}, tre stag`}`,
       feilsokbileteMedITida: feilsok,
       sekundTilLagraFil: brukt,
       sekundMedOppstart: (fullfoert - byrjing) / 1000,

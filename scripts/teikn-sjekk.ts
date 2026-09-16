@@ -16,8 +16,18 @@ assert(mjuk && mjuk.length >= 12 && mjuk.length <= OMRISS_TAK, "eit rundt finger
 assert(Math.abs(shoelace(mjuk) / shoelace(sirkel) - 1) < 0.03, "sirkelarealet held innanfor tre prosent")
 assert.deepEqual(teiknaKontur([[0, 0], [2, 1], [3, 3], [0, 0]], 1.25), null, "eit mikromerke er ikkje ei plate")
 assert.deepEqual(teiknaKontur([[0, 0], [50, 1], [100, 0]], 1.25), null, "ei line er ikkje ei plate")
-assert.deepEqual(teiknaKontur([[0, 0], [100, 100], [0, 80], [100, 0]], 1.25), null, "kryssande konturar vert avviste")
-assert.deepEqual(teiknaKontur([[0, 0], [100, 0], [100, 100], [50, 0], [0, 100]], 1.25), null, "ei kant som rører ei anna vert avvist")
+// EI KRYSSANDE RØRSLE ER EI FORM: den største løkka vinn
+const aatte = teiknaKontur([[0, 0], [100, 100], [0, 80], [100, 0]], 1.25)
+assert(aatte && aatte.length >= 3 && Math.abs(shoelace(aatte)) > 1000, "ein kryssande kontur vert den største løkka")
+for (let i = 0; i < aatte!.length; i++) for (let j = i + 2; j < aatte!.length; j++) if (!(i === 0 && j === aatte!.length - 1)) {
+  const [a, b, c, d] = [aatte![i], aatte![i + 1], aatte![j], aatte![(j + 1) % aatte!.length]]
+  const sd = (p: Pt, q: Pt, r: Pt) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+  assert(!(sd(a, b, c) * sd(a, b, d) < 0 && sd(c, d, a) * sd(c, d, b) < 0), "løkka kryssar ikkje seg sjølv")
+}
+const krull = teiknaKontur([...Array.from({ length: 200 }, (_, i): Pt => [120 * Math.cos(i * Math.PI / 100), 120 * Math.sin(i * Math.PI / 100)]), [130, 10], [110, -10], [125, 0]], 1.25)
+assert(krull && Math.abs(shoelace(krull)) > 0.9 * Math.PI * 120 * 120, "ein krøll i enden av ein sirkel fell bort, sirkelen står")
+const takt = teiknaKontur(Array.from({ length: 2000 }, (_, i): Pt => { const v = i * Math.PI / 1000; return [(100 + 30 * Math.sin(12 * v)) * Math.cos(v), (100 + 30 * Math.sin(12 * v)) * Math.sin(v)] }), 1.25)
+assert(takt && takt.length === OMRISS_TAK, "ei form med fleire detaljar enn taket vert teken med så mange punkt taket gjev")
 
 // Ei C-side som Sigd: innsøkket må overleve, og opninga må halde seg open.
 const sigd: Pt[] = [[0, 0], [240, 0], [240, 35], [180, 40], [115, 55], [75, 95], [65, 150], [75, 210], [115, 255], [220, 285], [220, 320], [160, 315], [70, 280], [20, 220], [0, 145], [0, 0]]
@@ -169,4 +179,13 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   const vinklar = k.map((p) => Math.round((Math.atan2(p.n[1], p.n[0]) * 180) / Math.PI))
   assert.deepEqual(vinklar, [-90, 0, 90, 180], `fire veggar på 90°: ${vinklar}`)
   console.log("×4 på ein vegg midt i: ei kasse, veggane 170 mm ut")
+}
+
+// eit bein heilt på den eine sida vert ikkje flytt til midten, sjølv som fyrste plate
+{
+  const bein: Pt[] = [[0.05, 0.4], [0.3, 0.4], [0.5, -0.5], [0.06, -0.5]]
+  assert.deepEqual(midtPaa(bein, Infinity, false), bein, "beinet står der det vart teikna")
+  const midt: Pt[] = [[-0.3, 0.4], [0.35, 0.4], [0.35, -0.5], [-0.3, -0.5]]
+  assert.equal(midtPaa(midt, Infinity, false)[0][0], -0.325, "ei side over midten vert midtstilt")
+  console.log("midtstilling: eit bein ut frå aksen står")
 }
