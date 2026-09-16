@@ -19,8 +19,9 @@
  * bogesidene med setet mellom seg (MELLOM=x0,y0,x1,y1 flyttar draget),
  * MINUTT_KRAKK=4 kubekrakken: éin vegg, ×4 til ei kasse med fingrar, sete oppå,
  * MINUTT_KRAKK=5 trekantkrakken: eitt bein ut frå midten, ×3, trekantsete,
- * MINUTT_KRAKK=6 spilekrakken: bogesider, setet mellom dei delt i fem spiler
- * i 2d-flata, kilar på, tre stag — kvar tapp stikk ut og har kilen sin.
+ * MINUTT_KRAKK=6 spilekrakken: bogesider utan vindauge, setet mellom dei delt
+ * i fem spiler i 2d-flata, kilar på, tre stag — kvar tapp stikk ut og har kilen sin.
+ * MINUTT_KILAR=1 slår kilar på i kva scenario som helst, før teikninga.
  */
 import { chromium, type CDPSession, type Locator, type Page } from "playwright"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -48,6 +49,8 @@ const sekskant = process.env.MINUTT_KRAKK === "2"
 const mellomSete = process.env.MINUTT_KRAKK === "3" || process.env.MINUTT_KRAKK === "6"
 // MINUTT_KRAKK=6: setet mellom sidene delt i fem spiler i 2d-flata, og kilar på
 const spiler = process.env.MINUTT_KRAKK === "6"
+// kilar på: eitt ord i materialfana, og kvar tapp gjennom stikk ut med kilen sin
+const kilarPaa = spiler || process.env.MINUTT_KILAR === "1"
 // MINUTT_KRAKK=4: kubekrakken — éin vegg med bogeopning, ×4 til ei kasse med fingrar, sete oppå
 const kube = process.env.MINUTT_KRAKK === "4"
 // MINUTT_KRAKK=5: trekantkrakken — eitt bein ut frå midten, ×3, eit runda trekantsete oppå
@@ -157,6 +160,15 @@ async function hovud() {
       await endra((p) => p.storleik === 150 && p.tjukn === 3, "Modellmåla vart ikkje sette")
       await merk("150 mm og 3 mm")
     }
+    // KILANE FYRST: materialet vert valt før teikninga, og tappane som stikk ut er med i ramma
+    if (kilarPaa) {
+      await trykk(knapp("opne kontrollane"))
+      await trykk(side.getByRole("tab", { name: "materiale", exact: true }))
+      await trykk(knapp("kilar på"))
+      await trykk(knapp("lat att kontrollane"))
+      await endra((p) => p.kilar === 1, "Kilane vart ikkje slegne på")
+      await merk("kilar på")
+    }
     if (trekant) {
       const mm = (x: number, z: number): Punkt => [195 + x / 2.28, 506 - z / 2.28]
       const bein = [mm(25, 438), mm(150, 438), mm(230, 0), mm(180, 0), mm(100, 170), mm(40, 0), mm(25, 0), mm(25, 438)]
@@ -228,14 +240,16 @@ async function hovud() {
       await drag(cdp, kontur ? sideKontur : linje([80, 300], [310, 503]), kontur ? 1200 : 550)
       await planTal(1)
       await merk("side teikna")
-      // VINDAUGET: ein kontur inni den valde sida er eit hòl i henne
-      await trykk(side.locator("[data-teiknknapp]"))
-      const vindauge: Punkt[] = krakk
-        ? Array.from({ length: 25 }, (_, i): Punkt => [195 + 29 * Math.sin(Math.PI * i / 12), 391 - 39 * Math.cos(Math.PI * i / 12)])
-        : [[150, 360], [205, 360], [190, 420], [140, 420], [150, 360]]
-      await drag(cdp, vindauge, 900)
-      await endra((p) => lesPlan(p.plan)[0]?.strek.some((q) => q.form === "kontur") ?? false, "Vindauget vart ikkje eit hòl i sida")
-      await merk("vindauge")
+      // VINDAUGET: ein kontur inni den valde sida er eit hòl i henne — spilekrakken har ikkje eit, staget går der
+      if (!spiler) {
+        await trykk(side.locator("[data-teiknknapp]"))
+        const vindauge: Punkt[] = krakk
+          ? Array.from({ length: 25 }, (_, i): Punkt => [195 + 29 * Math.sin(Math.PI * i / 12), 391 - 39 * Math.cos(Math.PI * i / 12)])
+          : [[150, 360], [205, 360], [190, 420], [140, 420], [150, 360]]
+        await drag(cdp, vindauge, 900)
+        await endra((p) => lesPlan(p.plan)[0]?.strek.some((q) => q.form === "kontur") ?? false, "Vindauget vart ikkje eit hòl i sida")
+        await merk("vindauge")
+      }
       // PARET: sida står på spegelen, og spegelen deler henne i to
       await trykk(knapp("spegl planet om y"))
       await planTal(2)
@@ -260,14 +274,10 @@ async function hovud() {
         await trykk(knapp("5 spiler"))
         await planTal(7)
         await trykk(knapp("ferdig"))
+        // og kroppen får stå ferdig snitta før ramma vert sett: tappane er med i henne
+        await pause(500)
+        await ferdig()
         await merk("fem spiler")
-        // KILANE: eitt ord i materialfana, og kvar tapp gjennom stikk ut med kilen sin
-        await trykk(knapp("opne kontrollane"))
-        await trykk(side.getByRole("tab", { name: "materiale", exact: true }))
-        await trykk(knapp("kilar på"))
-        await trykk(knapp("lat att kontrollane"))
-        await endra((p) => p.kilar === 1, "Kilane vart ikkje slegne på")
-        await merk("kilar på")
       }
       // STAGA: frå sida, endane hakar seg i sidene, og spegelen gjev det andre
       await heim()
@@ -280,7 +290,7 @@ async function hovud() {
       await planTal(spiler ? 9 : 5)
       await trykk(side.locator("[data-teiknknapp]"))
       // det øvste staget: under spilene med luft, ikkje inn i dei
-      await drag(cdp, spiler ? linje([133, 334], [257, 361]) : linje([133, 318], [257, 345]), 550)
+      await drag(cdp, spiler ? linje([133, 344], [257, 371]) : linje([133, 318], [257, 345]), 550)
       await planTal(spiler ? 10 : 6)
       await merk("stag teikna")
     }
@@ -338,7 +348,7 @@ async function hovud() {
     const spilene = teikna.slice(2, 7)
     // spilene går frå side til side (y), og er delte langs x
     const spileBreidd = (q: Plan) => q.omriss ? (Math.max(...q.omriss.map((r) => r[0])) - Math.min(...q.omriss.map((r) => r[0]))) * S : 0
-    const sjekkar = spiler ? {
+    const sjekkar: Record<string, boolean> = spiler ? {
       tiPlater: teikna.length === 10,
       sideneErEitPar: !!s1 && !!s2 && Math.abs(s1.o[1] + s2.o[1] - 1) < 1e-3 && s1.gruppe === s2.gruppe && !!s1.gruppe,
       femSpiler: spilene.length === 5 && spilene.every((q) => q.n[2] > 0.999 && Math.abs(q.o[2] - spilene[0].o[2]) < 1e-6),
@@ -346,10 +356,7 @@ async function hovud() {
       eiTjuknLuft: (() => { const xs = spilene.map((q) => [Math.min(...q.omriss!.map((r) => r[0])), Math.max(...q.omriss!.map((r) => r[0]))] as const).sort((a, b) => a[0] - b[0]); return xs.slice(1).every((x, i) => Math.abs((x[0] - xs[i][1]) * S - p.tjukn) < 0.05) })(),
       fraaSideTilSide: spilene.every((q) => q.omriss!.some((r) => Math.abs(r[1] * S + 156) < 0.5) && q.omriss!.some((r) => Math.abs(r[1] * S - 156) < 0.5)),
       spileneMellom: spilene.every((q) => Math.abs(q.o[2] * S - (topp - 2.5 * p.tjukn)) < 0.2),
-      kilarPaa: p.kilar === 1,
       berreTappar: bygg.s.tappar === 16 && bygg.s.ledd === bygg.s.tappar,
-      kvarTappHarKile: bygg.s.ribber.every((r) => r.tapp.every((q) => q.slag !== "tapp" || !!q.kile)),
-      kilaneErDelar: bygg.dl.delar.filter((d) => d.adr.startsWith("k")).length === bygg.s.tappar,
       ingenLause: bygg.dl.lause === 0 && bygg.s.kasta === 0,
       monterbarGeometri: bygg.s.montering.brot.length === 0 && bygg.s.montering.klem.length === 0,
       ingenHardeBrot: reglar.every((r) => !r.hard || r.ok),
@@ -419,6 +426,12 @@ async function hovud() {
       ingenSidefeil: feil.length === 0,
       ...(fullskala ? { storleikOgTjukn: p.storleik === 450 && p.tjukn === 12 } : {}),
     }
+    // KILANE, i kva krakk som helst: kvar tapp har hòlet sitt, og kvar kile står i lista
+    if (kilarPaa) Object.assign(sjekkar, {
+      kilarPaa: p.kilar === 1,
+      kvarTappHarKile: bygg.s.ribber.every((r) => r.tapp.every((q) => q.slag !== "tapp" || q.nokkel.startsWith("f") || q.nokkel.startsWith("s") || q.nokkel.startsWith("g") || !!q.kile)),
+      kilaneErDelar: bygg.dl.delar.filter((d) => d.adr.startsWith("k")).length === bygg.s.ribber.reduce((n, r) => n + r.tapp.filter((q) => q.kile).length, 0) && bygg.dl.delar.some((d) => d.adr.startsWith("k")),
+    })
     await side.screenshot({ path: join(UT, "nesta.png") })
     // Bileta av resultatet kjem etter den stoppa klokka.
     await trykk(knapp("lat att kontrollane"))
@@ -432,7 +445,7 @@ async function hovud() {
       miljo: "Automatisert Chromium på PC, mobilflate 390×844; WebShare deaktivert for ekte nedlasting til disk. Ikkje fysisk iPhone, iOS-delingsark eller menneskeleg tidsprøve.",
       avgrensing: "Referansekrakk med tapp og slisse, målt i geometrien og kuttfila; ikkje fysisk samansett eller lastprøvd.",
       url: URL,
-      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm" : "150 mm modell, 3 mm"}: ${spiler ? "spilekrakk: bogesider, sete mellom delt i fem spiler, kilar på, tre stag" : trekant ? "trekantkrakk: eitt bein ut frå midten, ×3, runda trekantsete oppå" : kube ? "kubekrakk: vegg med bogeopning, ×4 til kasse med fingrar, sete oppå" : sekskant ? "to kryssande bein med boge (×2), sekskanta sete oppå" : `${krakk ? "bogesider med ovalt vindauge" : "A-sider med parallellogramvindauge"}, spegla par, sete ${mellomSete ? "mellom sidene" : "oppå"}, tre stag`}`,
+      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm" : "150 mm modell, 3 mm"}: ${spiler ? "spilekrakk: bogesider, sete mellom delt i fem spiler, tre stag" : trekant ? "trekantkrakk: eitt bein ut frå midten, ×3, runda trekantsete oppå" : kube ? "kubekrakk: vegg med bogeopning, ×4 til kasse med fingrar, sete oppå" : sekskant ? "to kryssande bein med boge (×2), sekskanta sete oppå" : `${krakk ? "bogesider med ovalt vindauge" : "A-sider med parallellogramvindauge"}, spegla par, sete ${mellomSete ? "mellom sidene" : "oppå"}, tre stag`}${kilarPaa ? ", kilar på" : ""}`,
       feilsokbileteMedITida: feilsok,
       sekundTilLagraFil: brukt,
       sekundMedOppstart: (fullfoert - byrjing) / 1000,
