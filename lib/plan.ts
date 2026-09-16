@@ -41,8 +41,13 @@ export const STREK_TAK = 24
  * ikkje ligg oppå kvarandre. Fire og tjue er difor der forminga sluttar og
  * avteikninga byrjar: fleire punkt er punkt du ikkje kan skilje frå
  * kvarandre med ein finger.
+ *
+ * FIRE OG TJUE VART FOR LITE då ei form kunne kome frå eit bilete eller ein
+ * finger som teikna ein hest: ein profil med hovud, øyre og hovar treng
+ * fleire punkt enn han har handtak, og ei form som vart avvist er verre enn
+ * handtak som ligg tett. Åtte og førti, og handtaka syner seg når du zoomar.
  */
-export const OMRISS_TAK = 24
+export const OMRISS_TAK = 48
 
 /**
  * EIN HANDTEIKNA STREK I PROFILEN.

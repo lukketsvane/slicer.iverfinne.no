@@ -27,17 +27,19 @@ const fraaKant = (p: Pt, a: Pt, b: Pt) => {
  */
 export function teiknaKontur(punkt: readonly Pt[], tol: number): Pt[] | null {
   if (!Number.isFinite(tol) || tol <= 0 || punkt.some((p) => !p.every(Number.isFinite))) return null
-  const ring = punkt.filter((p, i) => !i || avstand(p, punkt[i - 1]) > 1e-7)
-  if (ring.length > 1 && avstand(ring[0], ring[ring.length - 1]) <= tol * 2) ring.pop()
+  const raa = punkt.filter((p, i) => !i || avstand(p, punkt[i - 1]) > 1e-7)
+  if (raa.length > 1 && avstand(raa[0], raa[raa.length - 1]) <= tol * 2) raa.pop()
+  // EI KRYSSANDE RØRSLE ER FRAMLEIS EI FORM: den største lukka løkka i henne
+  const ring = storsteLokke(raa)
   if (ring.length < 3) return null
   const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1])
   const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys)
-  if (Math.min(w, h) < tol * 8 || Math.abs(shoelace(ring)) < tol * tol * 64) return null
+  // berre eit trykk eller eit merke er ikkje ei plate
+  if (Math.max(w, h) < tol * 16 || Math.min(w, h) < tol * 3 || Math.abs(shoelace(ring)) < tol * tol * 32) return null
 
   let fjern = 1
   for (let i = 2; i < ring.length; i++) if (avstand(ring[0], ring[i]) > avstand(ring[0], ring[fjern])) fjern = i
   const hald = [0, fjern]
-  const grense = Math.max(tol * 2, Math.hypot(w, h) * 0.0125)
   for (;;) {
     let feil = -1, neste = -1
     for (let k = 0; k < hald.length; k++) {
@@ -47,22 +49,47 @@ export function teiknaKontur(punkt: readonly Pt[], tol: number): Pt[] | null {
         if (d > feil) { feil = d; neste = i }
       }
     }
-    if (neste < 0 || (feil <= tol && hald.length >= 3)) break
-    if (hald.length >= OMRISS_TAK) { if (feil > grense) return null; break }
+    // taket er eit tak, ikkje ei avvising: forma vert so god som punkta rekk
+    if (neste < 0 || (feil <= tol && hald.length >= 3) || hald.length >= OMRISS_TAK) break
     hald.push(neste)
     hald.sort((a, b) => a - b)
   }
-  const omriss = hald.map((i) => ring[i])
-  if (omriss.length < 3 || Math.abs(shoelace(omriss)) < tol * tol * 64) return null
-  // Ei kryssande handrørsle er ikkje éi lukka plate. Lat reiskapen stå klar.
-  const side = (a: Pt, b: Pt, p: Pt) => (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])
-  for (let i = 0; i < omriss.length; i++) for (let j = i + 2; j < omriss.length; j++) {
-    if (i === 0 && j === omriss.length - 1) continue
-    const a = omriss[i], b = omriss[(i + 1) % omriss.length], c = omriss[j], d = omriss[(j + 1) % omriss.length]
-    const overlappar = [0, 1].every((k) => Math.max(Math.min(a[k], b[k]), Math.min(c[k], d[k])) <= Math.min(Math.max(a[k], b[k]), Math.max(c[k], d[k])))
-    if (overlappar && side(a, b, c) * side(a, b, d) <= 0 && side(c, d, a) * side(c, d, b) <= 0) return null
-  }
+  const omriss = storsteLokke(hald.map((i) => ring[i]))
+  if (omriss.length < 3 || Math.abs(shoelace(omriss)) < tol * tol * 32) return null
   return omriss
+}
+
+/** krysset mellom stykka ab og cd, eller null */
+function kryssPkt(a: Pt, b: Pt, c: Pt, d: Pt): Pt | null {
+  const r: Pt = [b[0] - a[0], b[1] - a[1]], q: Pt = [d[0] - c[0], d[1] - c[1]]
+  const nemn = r[0] * q[1] - r[1] * q[0]
+  if (Math.abs(nemn) < 1e-15) return null
+  const t = ((c[0] - a[0]) * q[1] - (c[1] - a[1]) * q[0]) / nemn
+  const u = ((c[0] - a[0]) * r[1] - (c[1] - a[1]) * r[0]) / nemn
+  return t > 1e-9 && t < 1 - 1e-9 && u > 1e-9 && u < 1 - 1e-9 ? [a[0] + t * r[0], a[1] + t * r[1]] : null
+}
+
+/**
+ * DEN STØRSTE ENKLE LØKKA. Kryssar ringen seg sjølv, vert han delt i
+ * krysset i to ringar, og den med størst flate vinn — ein åtte vert den
+ * største bogen, ein krøll i enden fell bort. Ein enkel ring kjem ut som han
+ * gjekk inn.
+ */
+export function storsteLokke(ring: readonly Pt[], djup = 0): Pt[] {
+  const n = ring.length
+  if (n < 4 || djup > 64) return ring.slice()
+  for (let i = 0; i < n; i++) {
+    const a = ring[i], b = ring[(i + 1) % n]
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue
+      const x = kryssPkt(a, b, ring[j], ring[(j + 1) % n])
+      if (!x) continue
+      const inni = storsteLokke([x, ...ring.slice(i + 1, j + 1)], djup + 1)
+      const utanfor = storsteLokke([...ring.slice(0, i + 1), x, ...ring.slice(j + 1)], djup + 1)
+      return Math.abs(shoelace(inni)) >= Math.abs(shoelace(utanfor)) ? inni : utanfor
+    }
+  }
+  return ring.slice()
 }
 
 // =============================================================================
@@ -396,7 +423,10 @@ export function midtPaa(punkt: readonly Pt[], tol: number, vassrett: boolean): P
   const ys = punkt.map((p) => p[1])
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2
   const cy = (Math.min(...ys) + Math.max(...ys)) / 2
-  const dx = Math.abs(cx) <= tol ? -cx : 0
+  // ei teikning som ligg heilt på den eine sida av midten — eit bein som
+  // står ut frå aksen — er meint der ho ligg
+  const eiSide = Math.min(...xs) > 0 || Math.max(...xs) < 0
+  const dx = Math.abs(cx) <= tol && !(eiSide && tol === Infinity) ? -cx : 0
   const dy = vassrett && Math.abs(cy) <= tol ? -cy : 0
   return dx || dy ? punkt.map((p): Pt => [+(p[0] + dx).toFixed(6), +(p[1] + dy).toFixed(6)]) : [...punkt]
 }
