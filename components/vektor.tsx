@@ -34,7 +34,7 @@ const bane = (p: readonly Pt[]) => (p.length ? `M${p.map(([x, y]) => `${x.toFixe
 /** hakket, millimeter */
 const RUTE_MM = 1
 
-export function Vektor({ plan, S, t, nyId, alle, boks, onEndre, onDel, onLukk }: { plan: Plan; S: number; t: number; nyId: number; /** dei andre plana og kroppen: spilene går den vegen plata når dei — sjå `spileAkse` */ alle: readonly Plan[]; boks: { min: Vec3; max: Vec3 } | null; onEndre: (q: Plan) => void; onDel: (fleire: Plan[]) => void; onLukk: () => void }) {
+export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onLukk }: { plan: Plan; S: number; t: number; nyId: number; /** høgda på topplina: verktya står under henne, ikkje bak henne */ topp: number; /** dei andre plana og kroppen: spilene går den vegen plata når dei — sjå `spileAkse` */ alle: readonly Plan[]; boks: { min: Vec3; max: Vec3 } | null; onEndre: (q: Plan) => void; onDel: (fleire: Plan[]) => void; onLukk: () => void }) {
   const [utkast, setUtkast] = useState<Plan | null>(null)
   const q = utkast ?? plan
   const [verkty, setVerkty] = useState<Verkty>("punkt")
@@ -188,7 +188,7 @@ export function Vektor({ plan, S, t, nyId, alle, boks, onEndre, onDel, onLukk }:
   const rund = new Set(q.runde ?? [])
   return (
     <section aria-label="2d-flata" className="absolute inset-0 z-30 flex flex-col" style={{ background: "var(--paper)", touchAction: "none" }}>
-      <div className="flex items-center justify-between gap-1 px-3 pt-14" role="group" aria-label="vektorverkty">
+      <div className="flex items-center justify-between gap-1 px-3" style={{ paddingTop: topp + 6 }} role="group" aria-label="vektorverkty">
         {(["punkt", "hol", "firkant", "sirkel"] as const).map((k) => (
           <button key={k} type="button" className={ORD} aria-pressed={verkty === k} onClick={() => setVerkty(k)}>{k === "hol" ? "hòl" : k}</button>
         ))}
