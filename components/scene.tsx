@@ -1940,6 +1940,21 @@ function Spora({ f, snitt, boks, onDeling }: {
  * ER PLASS TIL EITT, og ingen annan stad.
  */
 const MIDT_MIN = 84
+/** teikneplanet slik det ville vore frose no: gjennom midten, vendt mot deg */
+function Teikneplanet({ f, ut }: { f: Ramma; ut: MutableRefObject<(() => { o: Vec3; n: Vec3 }) | null> }): null {
+  const camera = useThree((q) => q.camera)
+  useEffect(() => {
+    ut.current = () => {
+      const fwd = new THREE.Vector3()
+      camera.updateMatrixWorld()
+      camera.getWorldDirection(fwd)
+      return { o: broek(f.midt, f.min, f.max), n: teikneNormal(nFraaVerd(fwd.multiplyScalar(-1))) }
+    }
+    return () => { ut.current = null }
+  }, [camera, f, ut])
+  return null
+}
+
 /**
  * FLATA DU TEIKNAR er inndata, som skisseplanet, ikkje eit motorresultat.
  * Eitt drag lagar firkanten eller konturen; handtaka formar han etterpå.
@@ -3433,7 +3448,7 @@ const IkonStor = (
  * og scena skal berre teiknast på nytt når noko som ER scena har endra seg.
  * Lyset bur her: det er ikkje ein parameter, det er korleis du ser på det.
  */
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, teiknSlag, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, synTil, benk, gruppe }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, teiknSlag, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, synTil, benk, gruppe, teikneplan }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -3515,6 +3530,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   rammInn: number
   /** ber synet til ei side: talet tel kvar gong nokon ber, retninga er i three sitt rom */
   synTil?: { n: number; dir: Vec3 } | null
+  /** planet du ville teikna på no — for det som vert lagt inn utan eit drag (eit bilete) */
+  teikneplan?: MutableRefObject<(() => { o: Vec3; n: Vec3 }) | null>
   /** ei mus og eit tastatur: høgre museknapp panorerer synet. Ein finger gjer det aldri. */
   benk: boolean
   /** plana i den valde gruppa — tom når inga gruppe er vald */
@@ -3663,6 +3680,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           {/* FLATA DU TEIKNAR. Ho står over alt anna medan ho vert til, av
               di ho er det einaste på skjermen som ikkje finst enno. Han
               teiknar ingenting sjølv — han set berre hjørna i flata over. */}
+          {f && teikneplan && <Teikneplanet f={f} ut={teikneplan} />}
           {f && teikn && (
             <Teikninga
               f={f}

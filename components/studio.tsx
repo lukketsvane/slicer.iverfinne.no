@@ -22,6 +22,8 @@ import { Arket, KOL, type Steg } from "./arket"
 import { Meny, type MenyStad } from "./meny"
 import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett, IcoTeikn } from "./deler"
 import { Plater } from "./plater"
+import { BileteInn, lesBilete } from "./bilete"
+import { skalerForm, type BileteForm, type Maske } from "@/lib/bilete"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
 
@@ -2260,7 +2262,25 @@ export function Studio() {
    */
   /** kva nett som skal leggjast i scena så snart importen er framme */
   const leggEtter = useRef<string | null>(null)
-  const takeFile = useCallback(async (filer: File[]) => {
+  // EIT BILETE ER EI PLATE og ikkje eit nett: det vert lese her og lagt i teikneplanet
+  const [bilete, setBilete] = useState<{ maske: Maske; url: string } | null>(null)
+  const teikneplan = useRef<(() => { o: Vec3; n: Vec3 }) | null>(null)
+  const leggBilete = useCallback((f: BileteForm) => {
+    const pl = teikneplan.current?.()
+    const l = lesPlan(naa.current.plan)
+    if (!pl || l.length >= PLAN_TAK) return setMelding(pl ? `taket er ${PLAN_TAK} plan` : "ingen flate")
+    const { omriss, runde, hol } = skalerForm(f, 0.8)
+    const id = nyId(l)
+    setParams((cur) => ({ ...cur, plan: skrivPlan([...lesPlan(cur.plan), { id, o: pl.o, n: pl.n, bog: 0, strek: hol, omriss, ...(runde.length ? { runde } : {}) }]) }))
+    setBilete(null)
+    setVald(id)
+    setBlink(id)
+  }, [])
+  const takeFile = useCallback(async (alle: File[]) => {
+    const bilda = alle.filter((f) => f.type.startsWith("image/"))
+    if (bilda.length) void lesBilete(bilda[0]).then(setBilete, () => setFeil("ulesbart bilete"))
+    const filer = alle.filter((f) => !f.type.startsWith("image/"))
+    if (!filer.length) return
     const gode = filer.filter((f) => f.size <= MAX_FIL)
     if (!gode.length) return setFeil("for stor")
     setFeil(gode.length < filer.length ? `${filer.length - gode.length} for stor` : null)
@@ -2751,6 +2771,7 @@ export function Studio() {
       <div className="absolute inset-0" style={{ visibility: view === "kontur" ? "hidden" : undefined }}>
         {mounted && (
           <Scene
+            teikneplan={teikneplan}
             kropp={kropp}
             lag={lag}
             view={romsyn.current}
@@ -2832,6 +2853,7 @@ export function Studio() {
         </section>
       )}
 
+      {bilete && <BileteInn maske={bilete.maske} url={bilete.url} onLegg={leggBilete} onAvbryt={() => setBilete(null)} />}
       <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} onTomArbeidsflate={tomArbeidsflate} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
       {mounted && teikn && rom && (
         <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="teiknemåte">
