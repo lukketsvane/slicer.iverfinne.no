@@ -2857,7 +2857,7 @@ export function Studio() {
         </section>
       )}
 
-      {flattPlan && <Vektor plan={flattPlan} S={typeof params.storleik === "number" ? params.storleik : 150} onEndre={(q) => setParams((cur) => ({ ...cur, plan: skrivPlan(lesPlan(cur.plan).map((p) => (p.id === q.id ? q : p))) }))} onLukk={() => setFlatt(false)} />}
+      {flattPlan && <Vektor plan={flattPlan} S={typeof params.storleik === "number" ? params.storleik : 150} nyId={nyId(plan)} onEndre={(q) => setParams((cur) => ({ ...cur, plan: skrivPlan(lesPlan(cur.plan).map((p) => (p.id === q.id ? q : p))) }))} onDel={([a, b]) => setParams((cur) => ({ ...cur, plan: skrivPlan([...lesPlan(cur.plan).map((p) => (p.id === a.id ? a : p)), b]) }))} onLukk={() => setFlatt(false)} />}
       {bilete && <BileteInn maske={bilete.maske} url={bilete.url} onLegg={leggBilete} onAvbryt={() => setBilete(null)} />}
       <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} onTomArbeidsflate={tomArbeidsflate} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
       {mounted && teikn && rom && (
@@ -2868,9 +2868,9 @@ export function Studio() {
         </div>
       )}
       {mounted && !teikn && vald !== null && valdGruppe === null && rom && modus !== "bit" && (
-        <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="spegl planet">
+        <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 84 }} role="group" aria-label="spegl planet">
           {(["x", "y", "z"] as const).map((akse, i) => (
-            <button key={akse} type="button" className={ORD + " min-w-16"} aria-label={`spegl planet om ${akse}`} title={`spegelkopi om ${akse}; i same plan vert forma snudd`} onClick={() => speglValt(i)}>spegl {akse}</button>
+            <button key={akse} type="button" className={ORD + " min-w-12"} aria-label={`spegl planet om ${akse}`} title={`spegelkopi om ${akse}; i same plan vert forma snudd`} onClick={() => speglValt(i)}>spegl {akse}</button>
           ))}
           {[2, 3, 4].map((N) => <button key={N} type="button" className={ORD + " min-w-12"} aria-label={`${N} rundt`} title={`${N} plan kring midtaksen, som ei gruppe`} onClick={() => rundtValt(N)}>×{N}</button>)}
         </div>

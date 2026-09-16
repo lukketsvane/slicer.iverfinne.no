@@ -6,7 +6,8 @@
  * brøk av storleiken, som i strengen; punkta står i planet si eiga ramme.
  */
 import { shoelace, type Pt } from "./core"
-import { OMRISS_TAK, STREK_TAK, omrissMidt, type Plan, type Strek } from "./plan"
+import { OMRISS_TAK, STREK_TAK, omrissLine, omrissMidt, type Plan, type Strek } from "./plan"
+import { mjukePunkt, teiknaKontur } from "./teikning"
 
 const klem = (v: number) => Math.max(-2, Math.min(2, +v.toFixed(4)))
 const kp = (p: Pt): Pt => [klem(p[0]), klem(p[1])]
@@ -119,4 +120,43 @@ export function strekRing(s: Strek, n = 32): Pt[] {
         ? Array.from({ length: n }, (_, i) => [(s.w / 2) * Math.cos((2 * Math.PI * i) / n), (s.h / 2) * Math.sin((2 * Math.PI * i) / n)])
         : [[-s.w / 2, -s.h / 2], [s.w / 2, -s.h / 2], [s.w / 2, s.h / 2], [-s.w / 2, s.h / 2]]
   return lok.map(([x, y]) => [s.x + x * c - y * si, s.y + x * si + y * c])
+}
+
+/** halvplanet `x·a ≤ c` (eller ≥ når `snu`) av ein ring — Sutherland–Hodgman */
+function klippRing(ring: readonly Pt[], a: 0 | 1, c: number, snu: boolean): Pt[] {
+  const inne = (p: Pt) => (snu ? p[a] >= c : p[a] <= c)
+  const ut: Pt[] = []
+  for (let i = 0; i < ring.length; i++) {
+    const p = ring[i], q = ring[(i + 1) % ring.length]
+    if (inne(p)) ut.push(p)
+    if (inne(p) !== inne(q)) {
+      const t = (c - p[a]) / (q[a] - p[a])
+      ut.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t])
+    }
+  }
+  return ut
+}
+
+/**
+ * DEL I TO: plata vert to, delte på tvers av den lengste leia midt i.
+ * Dei ligg i same plan, kant i kant, og snittinga gjev dei fingrar
+ * (`skoyt` i tapp.ts). For eit delt sete, og for ei plate som er større
+ * enn arket. Bogane vert rekna ut til punkt og funne att.
+ */
+export function delIto(q: Plan, nyId: number, tol = 5e-4): [Plan, Plan] | null {
+  if (!q.omriss || q.bog) return null
+  const tett = omrissLine(q.omriss, q.runde)
+  const xs = tett.map((p) => p[0]), ys = tett.map((p) => p[1])
+  const a: 0 | 1 = Math.max(...xs) - Math.min(...xs) >= Math.max(...ys) - Math.min(...ys) ? 0 : 1
+  const v = a ? ys : xs
+  const c = (Math.max(...v) + Math.min(...v)) / 2
+  const halv = (snu: boolean): Plan | null => {
+    const k = teiknaKontur(klippRing(tett, a, c, snu), tol)
+    if (!k) return null
+    const o = k.map(kp)
+    const runde = mjukePunkt(o)
+    return { ...q, omriss: o, runde: runde.length ? runde : undefined }
+  }
+  const A = halv(false), B = halv(true)
+  return A && B ? [A, { ...B, id: nyId }] : null
 }

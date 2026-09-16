@@ -16,7 +16,7 @@ import { inRing, nn, shoelace, type Pt } from "@/lib/core"
 import { omrissLine, omrissMidt, type Plan } from "@/lib/plan"
 import { teiknaKontur, tettMjukt } from "@/lib/teikning"
 import { konturStrek } from "@/lib/bilete"
-import { flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "@/lib/vektor"
+import { delIto, flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "@/lib/vektor"
 import { ORD } from "./deler"
 
 type Verkty = "punkt" | "hol" | "firkant" | "sirkel"
@@ -34,7 +34,7 @@ const bane = (p: readonly Pt[]) => (p.length ? `M${p.map(([x, y]) => `${x.toFixe
 /** hakket, millimeter */
 const RUTE_MM = 1
 
-export function Vektor({ plan, S, onEndre, onLukk }: { plan: Plan; S: number; onEndre: (q: Plan) => void; onLukk: () => void }) {
+export function Vektor({ plan, S, nyId, onEndre, onDel, onLukk }: { plan: Plan; S: number; nyId: number; onEndre: (q: Plan) => void; onDel: (par: [Plan, Plan]) => void; onLukk: () => void }) {
   const [utkast, setUtkast] = useState<Plan | null>(null)
   const q = utkast ?? plan
   const [verkty, setVerkty] = useState<Verkty>("punkt")
@@ -233,6 +233,9 @@ export function Vektor({ plan, S, onEndre, onLukk }: { plan: Plan; S: number; on
         )}
         {val?.slag === "strek" && (
           <button type="button" className={ORD} onClick={() => { onEndre(takStrek(q, val.k)); setVal(null) }}>slett hòl</button>
+        )}
+        {!val && (
+          <button type="button" className={ORD} title="del plata i to, kant i kant — dei får fingrar" onClick={() => { const d = delIto(q, nyId); if (d) { onDel(d); setSyn(null) } }}>del i to</button>
         )}
         {!val && <span className="text-[11px] opacity-50">{Math.abs(shoelace(linje)) > 0 ? `${nn((Math.abs(shoelace(linje)) * S * S) / 100, 0)} cm²` : ""}</span>}
       </div>
