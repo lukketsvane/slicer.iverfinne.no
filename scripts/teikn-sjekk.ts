@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
 import { lesPlan, OMRISS_TAK, skrivPlan } from "../lib/plan"
-import { landing, midtPaa, snapp, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal } from "../lib/teikning"
+import { landing, midtPaa, mjukePunkt, snapp, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt } from "../lib/teikning"
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import type { Vec3 } from "../lib/core"
@@ -114,4 +114,20 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert.deepEqual(nesteSteg(l, 2, 1), [0.5, 0.5, 0.5], "den tredje kjem like langt frå den andre")
   assert.equal(nesteSteg([l[0], { ...l[1], n: [1, 0, 0] }], 2, 1), null, "ei anna normal er ikkje eit steg")
   console.log("rundt og gjenta: tre bein på 120°, kryss på 60°, sete dreidd, steget går vidare")
+}
+
+// MJUKT OG SKARPT: bogen i ei side vert rund, hjørna står
+{
+  const bue: Pt[] = Array.from({ length: 9 }, (_, i): Pt => [60 * Math.cos(Math.PI * (1 - i / 8)), 80 * Math.sin(Math.PI * (1 - i / 8))])
+  const side: Pt[] = [[-150, 300], [150, 300], [180, 0], [60, 0], ...bue.slice(1, -1).reverse(), [-60, 0], [-180, 0]]
+  const m = mjukePunkt(side)
+  assert(m.length >= 5, `bogen vert rund: ${m}`)
+  for (const i of [0, 1, 2, side.length - 1]) assert(!m.includes(i), `hjørne ${i} står skarpt`)
+  assert.deepEqual(mjukePunkt([[0, 0], [100, 0], [100, 100], [0, 100]]), [], "ein firkant har ingen boge")
+  const oval: Pt[] = Array.from({ length: 9 }, (_, i): Pt => [0.05 * Math.cos((i * 2 * Math.PI) / 9), 0.08 * Math.sin((i * 2 * Math.PI) / 9)])
+  const tett = tettMjukt(oval)
+  assert(tett.length > 9 && tett.length <= OMRISS_TAK, `eit ovalt hòl vert tetta: ${tett.length}`)
+  const para: Pt[] = [[0, 0], [0.1, 0], [0.12, 0.1], [0.02, 0.1]]
+  assert.deepEqual(tettMjukt(para), para, "parallellogrammet står")
+  console.log(`mjukt og skarpt: ${m.length} runde punkt i bogen, ovalen ${tett.length} punkt`)
 }

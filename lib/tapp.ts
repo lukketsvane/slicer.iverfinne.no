@@ -96,10 +96,10 @@ const fangAv = (k: Ktx) => Math.max(1.5, 0.5 * k.tjukn)
 const tappMinAv = (k: Ktx) => Math.max(6, 3 * k.tjukn)
 /**
  * SYNLEGE TAPPAR: ein kant teikna litt FORBI den fjerne flata er ikkje ei
- * plate som går gjennom, men ein tapp som stikk ut. Opp til tre tjukner
+ * plate som går gjennom, men ein tapp som stikk ut. Opp til to tjukner
  * (og ti millimeter) forbi er det eit utstikk; lenger er det halvt om halvt.
  */
-const utMaxAv = (k: Ktx) => Math.max(10, 3 * k.tjukn)
+const utMaxAv = (k: Ktx) => Math.max(10, 2 * k.tjukn)
 /** stykka langs lina, `off` millimeter til venstre for henne */
 const langsAv = (a: TappFlate, l: Line, off: number) => stykkeLangs(a.ringar, [l.p[0] - l.d[1] * off, l.p[1] + l.d[0] * off], l.d)
 /** ein rett boks langs lina: [t0, t1] langs, [s0, s1] til sides, som eit strek i feltet */

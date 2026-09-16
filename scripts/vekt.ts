@@ -137,8 +137,9 @@ const TAK: [string, number][] = [
   // lukka drag vert til lib/teikning.ts (−80 liner her). Det som står att er
   // kalla og grunngjevingane for dei
   // +14 den 16.: to nye grep — dupliser går same steget som førre kopi, og
-  // ×3/×4 legg planet rundt midtaksen. Rekninga ligg i lib/gruppe.ts
-  ["components/studio.tsx", 3350],
+  // ×3/×4 legg planet rundt midtaksen. Rekninga ligg i lib/gruppe.ts.
+  // +1: ei teikna plate tek med seg dei runde punkta (lib/teikning.ts)
+  ["components/studio.tsx", 3351],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko

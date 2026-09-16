@@ -771,6 +771,8 @@ function bogeFlat(ut: Pt[], f: (t: number) => Pt, t0: number, t1: number, p0: Pt
   bogeFlat(ut, f, t0, tm, p0, m, djup + 1)
   bogeFlat(ut, f, tm, t1, m, p1, djup + 1)
 }
+/** punktet `t` langs stykket etter `i`, på kurva */
+export const bogeVed = (o: readonly Pt[], rund: ReadonlySet<number>, i: number, t: number): Pt => bogePkt(...bogeFire(o, rund, i), t)
 export function omrissLine(omriss: readonly Pt[], runde?: readonly number[]): Pt[] {
   const n = omriss.length
   if (n < 3 || !runde?.length) return omriss.slice()

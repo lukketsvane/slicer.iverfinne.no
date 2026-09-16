@@ -1,5 +1,5 @@
 import { inRing, shoelace, type Pt, type Vec3 } from "./core"
-import { broek, dot, kryss, omrissLine, OMRISS_TAK, ramme, STREK_TAK, sub3, ut, type Plan, type Ramme, type Strek } from "./plan"
+import { bogeVed, broek, dot, kryss, omrissLine, OMRISS_TAK, ramme, STREK_TAK, sub3, ut, type Plan, type Ramme, type Strek } from "./plan"
 import { speglPlan } from "./spegl"
 import { spegelakse } from "./gruppe"
 
@@ -191,7 +191,7 @@ export function holAv(punkt: readonly Pt[], flate: Ramme, q: Plan, min: Vec3, ma
   if (!q.omriss || q.bog || punkt.length < 3) return null
   const r = ramme(q, min, max)
   if (Math.abs(Math.abs(dot(r.n, flate.n)) - 1) > 1e-6) return null
-  const lok = punkt.map((p): Pt => {
+  const lok = tettMjukt(punkt).map((p): Pt => {
     const d = sub3(ut(flate, [p[0] * S, p[1] * S]), r.o)
     return [dot(d, r.u) / S, dot(d, r.v) / S]
   })
@@ -216,6 +216,47 @@ export function holAv(punkt: readonly Pt[], flate: Ramme, q: Plan, min: Vec3, ma
     h: +h.toFixed(4),
     a: 0,
   }
+}
+
+/**
+ * MJUKT DER FINGEREN GJEKK MJUKT, SKARPT DER HAN SNUDDE.
+ *
+ * Ein boge teikna med ein finger vert tjue punkt med knekk imellom. Eit
+ * punkt der kanten snur under 50° og begge nabostykka er korte (under
+ * 30 % av diagonalen), låg på ei kurve: det vert rundt, og omrisset går
+ * mjukt gjennom det. Eit hjørne står skarpt.
+ */
+export function mjukePunkt(o: readonly Pt[]): number[] {
+  const n = o.length
+  if (n < 5) return []
+  const xs = o.map((p) => p[0]), ys = o.map((p) => p[1])
+  const kort = 0.3 * Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
+  const ut: number[] = []
+  for (let i = 0; i < n; i++) {
+    const a = o[(i - 1 + n) % n], b = o[i], c = o[(i + 1) % n]
+    const u: Pt = [b[0] - a[0], b[1] - a[1]], v: Pt = [c[0] - b[0], c[1] - b[1]]
+    const lu = Math.hypot(...u), lv = Math.hypot(...v)
+    if (!lu || !lv || lu > kort || lv > kort) continue
+    const snu = Math.acos(Math.max(-1, Math.min(1, (u[0] * v[0] + u[1] * v[1]) / (lu * lv))))
+    if (snu < (50 * Math.PI) / 180) ut.push(i)
+  }
+  return ut
+}
+
+/** eit hòl har ingen runde punkt i strengen: kurva vert tetta til punkt, hjørna står */
+export function tettMjukt(o: readonly Pt[], tak = OMRISS_TAK): Pt[] {
+  const rund = new Set(mjukePunkt(o))
+  const n = o.length
+  const boge = [...Array(n).keys()].filter((i) => rund.has(i) || rund.has((i + 1) % n))
+  if (!boge.length || n >= tak) return o.slice()
+  const ekstra = Math.floor((tak - n) / boge.length)
+  if (!ekstra) return o.slice()
+  const ut: Pt[] = []
+  for (let i = 0; i < n; i++) {
+    ut.push(o[i])
+    if (boge.includes(i)) for (let k = 1; k <= ekstra; k++) ut.push(bogeVed(o, rund, i, k / (ekstra + 1)))
+  }
+  return ut
 }
 
 // =============================================================================
