@@ -928,6 +928,18 @@ object, a seat between the sides, flush and with tenons showing, a bent
 saddle seat flush and showing, and a box of four sides with a flush seat,
 joined by fingers.
 
+## Bound by the mesh, or not
+
+A plane without an outline takes its profile from the body. A plane with one
+takes it from the outline alone — so a drawn shape can reach past the body.
+The **nett** word in the thumb column switches between the two: on a plane
+with an outline it binds the outline to the body, and the profile is what is
+inside both (a drawn silhouette cut to the animal where it runs past it); on
+a plane without one it freezes the section into an outline, which is then
+free. The flag is `n:1` in the plane string and means nothing without an
+outline. `pnpm ledd` checks that an outline twice the size of the cube gives
+the cube's section when bound, and the whole outline when not.
+
 ## Drawing furniture
 
 **An empty workspace is a piece of furniture.** Half a metre, twelve

@@ -393,18 +393,20 @@ type Rute = {
  * over forma.
  */
 const TOMME: Span[] = []
-function ruteAv(kjelde: Solid | Kasse, d: number, step: number, former: readonly Form[] = []): Rute {
+function ruteAv(kjelde: Solid | Kasse, d: number, step: number, former: readonly Form[] = [], straale?: Solid): Rute {
   // Ruta må dekkje HEILE profilen med litt mon: ein kontur som vert klipt
   // av kanten på ruta er ei open kjede og ikkje eit polygon. Og profilen
   // er ikkje berre kroppen: eit strek som tjuknar eit bein rekk gjerne ut
   // forbi boksen kring nettet, og vart klipt der — plata kom ut delt i to
   // av eit skrått band der kjeda vart lukka på måfå.
   const PAD = Math.max(4, step * 2)
-  const s = "runs" in kjelde ? kjelde : null
-  let t0 = s ? s.min[0] : (kjelde as Kasse).bx0
-  let t1 = s ? s.max[0] : (kjelde as Kasse).bx1
-  let z0 = s ? s.min[1] : (kjelde as Kasse).by0
-  let z1 = s ? s.max[1] : (kjelde as Kasse).by1
+  const boks = "runs" in kjelde ? null : kjelde
+  // eit omriss bunde av nettet: ruta kring omrisset, strålane gjennom nettet
+  const s = boks ? straale ?? null : (kjelde as Solid)
+  let t0 = boks ? boks.bx0 : s!.min[0]
+  let t1 = boks ? boks.bx1 : s!.max[0]
+  let z0 = boks ? boks.by0 : s!.min[1]
+  let z1 = boks ? boks.by1 : s!.max[1]
   for (const f of former) {
     t0 = Math.min(t0, f.bx0)
     t1 = Math.max(t1, f.bx1)
@@ -672,7 +674,7 @@ function formLiner(former: readonly Form[], hjorne: readonly Pt[] = []): { x: nu
  * hjørne skal ikkje gjere leddet rundt òg. Sporet er det einaste i denne
  * fila som må kome ut med skarpe kantar — det er det som grip.
  */
-function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, omriss?: readonly Pt[], etter: readonly Form[] = [], hjorne: readonly Pt[] = []) {
+function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, omriss?: readonly Pt[], etter: readonly Form[] = [], hjorne: readonly Pt[] = [], nett = false) {
   const { t0, dt, z0, dz, rows, cols } = ru
   let { nt, nz } = ru
   const boksar = spor.map(boksAv)
@@ -690,7 +692,9 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
    * ikkje lineær, og ei ekstra line like ved hjørnet gav eit hakk på ein
    * halv millimeter der ingen hadde teikna noko.
    */
-  const aksar = kant && !(mjuk > 0) ? sporAksar(t0, dt, nt, z0, dz, nz, spor, formLiner(etter, hjorne)) : null
+  // bunde av nettet er feltet det grove nettet sitt, og vert interpolert som det
+  const direkte = kant && !(mjuk > 0) && !nett
+  const aksar = direkte ? sporAksar(t0, dt, nt, z0, dz, nz, spor, formLiner(etter, hjorne)) : null
   if (aksar) {
     nt = aksar.x.length - 1
     nz = aksar.y.length - 1
@@ -702,7 +706,7 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
     for (let i = 0; i <= nt; i++) {
       const t = aksar ? aksar.x[i] : t0 + i * dt
       let v: number
-      if (kant) v = omrissDist(kant, t, z)
+      if (kant && !nett) v = omrissDist(kant, t, z)
       else {
         const dh = axisDist(row, t)
         const dv = axisDist(cols[i], z)
@@ -711,6 +715,7 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
         // til den næraste av dei to kantane, og aldri den fjernaste.
         const mag = Math.min(Math.abs(dh), Math.abs(dv))
         v = dh > 0 && dv > 0 ? mag : -mag
+        if (kant) v = Math.min(v, omrissDist(kant, t, z))
       }
       // KLIPPET FYRST, og som eit hòl: det biten ikkje eig, er luft. Det
       // står før streka av di eit strek er noko du teikna PÅ delen, og ein
@@ -733,7 +738,7 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
   }
   if (mjuk > 0) sloer(g, nt + 1, nz + 1, Math.round(mjuk / dt), Math.round(mjuk / dz))
   let tett: { x: number[]; y: number[] } | null = aksar
-  if (!(kant && !(mjuk > 0))) {
+  if (!direkte) {
     const fin = sporRute(g, t0, dt, nt, z0, dz, nz, spor, formLiner(etter))
     if (fin) { g = fin.g; tett = fin; nt = fin.x.length - 1; nz = fin.y.length - 1 }
   }
@@ -965,6 +970,8 @@ type Raa = {
   omriss?: Pt[]
   /** boksane planet er lenkt til gjennom laget sitt, om nokon */
   klipp?: Klipp
+  /** omrisset er bunde av nettet: profilen er det som er i båe */
+  nett?: boolean
   tapp: Tapp[]
   /** klipp, fyll, tappar og slisser: boksar som vert lagde inn etter at ruta er delt opp */
   tform: TappBoks[]
@@ -1046,8 +1053,9 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     const omriss = pl.omriss && pl.omriss.length >= 3 ? (omrissLine(pl.omriss, pl.runde).map((q) => [ou + q[0] * S, ov + q[1] * S]) as Pt[]) : undefined
     // det utrulla rommet har flata på null; det vendte har henne på `d`
     const ob = omriss ? bbox(omriss) : null
-    const ru = ruteAv(ob ? { bx0: ob.x0, bx1: ob.x1, by0: ob.y0, by1: ob.y1 } : sol, boygd ? 0 : d, step, former)
-    let ringar = felt(ru, former, [], klipp, mjuk, omriss).map((l) => l.pts as Pt[])
+    const nett = !!(omriss && pl.nett)
+    const ru = ruteAv(ob ? { bx0: ob.x0, bx1: ob.x1, by0: ob.y0, by1: ob.y1 } : sol, boygd ? 0 : d, step, former, nett ? sol : undefined)
+    let ringar = felt(ru, former, [], klipp, mjuk, omriss, [], [], nett).map((l) => l.pts as Pt[])
     /**
      * FIRKANTEN: BOKSEN KRING PROFILEN, LAGD TIL SOM GODS.
      *
@@ -1078,11 +1086,11 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
         y1 = Math.max(y1, b.y1)
       }
       former.push({ gods: true, rund: false, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, hw: (x1 - x0) / 2, hh: (y1 - y0) / 2, c: 1, s: 0, bx0: x0, bx1: x1, by0: y0, by1: y1 })
-      ringar = felt(ru, former, [], klipp, mjuk, omriss).map((l) => l.pts as Pt[])
+      ringar = felt(ru, former, [], klipp, mjuk, omriss, [], [], nett).map((l) => l.pts as Pt[])
     }
     const rund = new Set(pl.runde ?? [])
     const hjorne = omriss ? (pl.omriss ?? []).filter((_, i) => !rund.has(i)).map((q): Pt => [ou + q[0] * S, ov + q[1] * S]) : []
-    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], tapp: [], tform: [], hjorne, utvida: false, nullpkt: [ou, ov] as Pt, boygd, klipp, mjuk, omriss }
+    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], tapp: [], tform: [], hjorne, utvida: false, nullpkt: [ou, ov] as Pt, boygd, klipp, mjuk, omriss, nett }
   })
 
   // --- ledda -------------------------------------------------------------
@@ -1391,7 +1399,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
 
   const ribber: Ribbe[] = raa.map((a) => {
     a.spor.sort((u, v) => u.munn - v.munn)
-    const loops = felt(a.ru, a.former, a.spor, a.klipp, a.mjuk, a.omriss, a.tform, a.hjorne)
+    const loops = felt(a.ru, a.former, a.spor, a.klipp, a.mjuk, a.omriss, a.tform, a.hjorne, a.nett)
     let outlines: Pt[][] = []
     let holes: Pt[][] = []
     for (const l of loops) {

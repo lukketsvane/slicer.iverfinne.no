@@ -176,6 +176,13 @@ export type Plan = {
    */
   runde?: number[]
   /**
+   * BUNDE AV NETTET. Eit omriss står i staden for kroppen — med merket står
+   * det SAMAN med han: profilen er det som er både i omrisset og i nettet.
+   * Ei teikna form over eit dyr vert då skoren til dyret der ho går utanfor.
+   * Utan omriss er profilen alt nettet, og merket tyder ingenting.
+   */
+  nett?: true
+  /**
    * MJUKINGA: kor mykje av kanten som vert runda bort, som brøkdel av den
    * lengste sida i kroppen.
    *
@@ -673,7 +680,7 @@ const skrivRunde = (r: readonly number[]) => `r:${r.join(",")}`
 export function skrivPlan(l: readonly Plan[]): string {
   return l
     .map((p) =>
-      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.firkant ? ["f:1"] : []), ...(p.mjuk ? [`m:${+p.mjuk.toFixed(4)}`] : []), ...(p.omriss?.length ? [skrivOmriss(p.omriss)] : []), ...(p.omriss?.length && p.runde?.length ? [skrivRunde(p.runde)] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...(p.farge ? [`c:${p.farge}`] : []), ...p.strek.map(skrivStrek)].join("/"),
+      [`${p.id}@${vec(p.o)}/${vec(p.n)}`, ...(p.bog ? [`b:${+p.bog.toFixed(4)}`] : []), ...(p.firkant ? ["f:1"] : []), ...(p.nett && p.omriss?.length ? ["n:1"] : []), ...(p.mjuk ? [`m:${+p.mjuk.toFixed(4)}`] : []), ...(p.omriss?.length ? [skrivOmriss(p.omriss)] : []), ...(p.omriss?.length && p.runde?.length ? [skrivRunde(p.runde)] : []), ...(p.gruppe ? [`g:${p.gruppe}`] : []), ...(p.farge ? [`c:${p.farge}`] : []), ...p.strek.map(skrivStrek)].join("/"),
     )
     .join(";")
 }
@@ -891,6 +898,7 @@ export function lesPlan(s: unknown): Plan[] {
     let gruppe = 0
     let farge = 0
     let firkant = false
+    let nett = false
     let mjuk = 0
     let omriss: Pt[] | null = null
     let runde = ""
@@ -918,6 +926,10 @@ export function lesPlan(s: unknown): Plan[] {
       // firkanten er eit merke og ikkje eit tal: han står eller han står ikkje
       if (r === "f:1") {
         firkant = true
+        continue
+      }
+      if (r === "n:1") {
+        nett = true
         continue
       }
       // mjukinga: ein brøk over null, klemt til taket
@@ -948,7 +960,7 @@ export function lesPlan(s: unknown): Plan[] {
     }
     sett.add(id)
     const rd = omriss && runde ? lesRunde(runde, omriss.length) : []
-    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, ...(firkant ? { firkant: true as const } : {}), ...(mjuk ? { mjuk } : {}), ...(omriss ? { omriss } : {}), ...(rd.length ? { runde: rd } : {}), strek, ...(gruppe ? { gruppe } : {}), ...(farge ? { farge } : {}) })
+    ut.push({ id, o: o.map((c) => +c.toFixed(4)) as Vec3, n, bog, ...(firkant ? { firkant: true as const } : {}), ...(mjuk ? { mjuk } : {}), ...(omriss ? { omriss } : {}), ...(omriss && nett ? { nett: true as const } : {}), ...(rd.length ? { runde: rd } : {}), strek, ...(gruppe ? { gruppe } : {}), ...(farge ? { farge } : {}) })
   }
   return ut
 }
