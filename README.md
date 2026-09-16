@@ -902,6 +902,14 @@ the other, engraved with the tenon's name (`k3-1-0`) — with no plane of its
 own, so the montage leaves it aside. Under six millimetres a wedge is a
 splinter, so 3 mm models get none.
 
+**Or every tenon takes one.** **kilar** in the material tab (`kilar`, 0 or 1)
+makes every tenon that goes through show, half a millimetre under two
+thicknesses, whatever the hand drew — a seat flush between its sides, a rail
+ending in a side, a leg ending under a seat — and each gets its wedge: the
+hole is then a thickness square and a thickness of material stands beyond
+it. A tenon drawn to show further keeps its own length. Off, the drawing
+decides as before.
+
 **And along an arc.** A bent seat whose cylinder axis runs from side to side
 meets each side in a circle — straight in the seat's unrolled pattern, an arc
 in the side. The seat gets its tenons as always; the side's mortises follow
@@ -974,8 +982,17 @@ contour inside the outline, **firkant** and **sirkel** drag a box; a hole is
 dragged to move it and **slett hòl** removes it. Two fingers pan and zoom,
 and the view holds still while a finger is down. A drag is one change: the
 draft lives on the flat surface and goes to the parameters when the finger
-lifts. The edits are plain functions in `lib/vektor.ts`, checked by
-`pnpm teikn`.
+lifts.
+
+With nothing selected the bar offers **del i to** — the plate split down the
+middle into two plates edge to edge, which the engine joins with fingers
+(see **Tenons**) — and **spiler 3 4 5 6**: the plate cut into that many
+equal slats with a thickness of air between them. The slats run the way the
+plate reaches other plates: a seat between two sides reaches them along one
+axis, and each slat runs from side to side with its own tenons at both ends;
+a plate that reaches nothing is cut across its long axis. The first slat
+keeps the plate's name, the others take the next free ones. The edits are
+plain functions in `lib/vektor.ts`, checked by `pnpm teikn`.
 
 ## A picture becomes a plate
 
@@ -1023,7 +1040,9 @@ waits for the body to reach those dimensions before it frames it.
   corner. A hole has no arc flags, so its curve is filled in with points.
 - **A plate on the mirror is a pair.** Mirroring a plate that stands on the
   mirror plane splits it into two, a group that moves mirrored, set in from
-  the edges of whatever it crosses by two and a half thicknesses.
+  the edges of whatever it crosses by two and a half thicknesses — and it
+  crosses only what it reaches: a rail under the seat is set in by the sides,
+  not by the seat, and not by five slats.
 - **Duplicate repeats the step.** Duplicate, drag the copy to where the next
   one belongs, duplicate again: the third lands as far from the second.
 - **×2, ×3 and ×4** put the selected plate round the vertical axis through the
@@ -1040,8 +1059,11 @@ nested cut file, and checks the geometry and the file: 16 s automated.
 `MINUTT_KRAKK=1` draws arched sides with an oval window instead, `=2` two
 crossed legs (×2) under a hexagonal seat, `=3` the arched sides with the seat
 between them, and `=4` the cube stool: one wall with an arched opening, ×4 to
-a finger-jointed box, a seat on top — 11 s — and `=5` the triangle stool:
-one leg standing out from the middle, ×3, a rounded triangular seat — 11 s.
+a finger-jointed box, a seat on top — 11 s — `=5` the triangle stool:
+one leg standing out from the middle, ×3, a rounded triangular seat — 11 s —
+and `=6` the slat stool: arched sides, the seat between them cut into five
+slats in the flat editor, **kilar** on, three rails — ten plates, sixteen
+wedged tenons and their sixteen wedges, 24 s.
 
 ## Assembly
 
@@ -1246,6 +1268,7 @@ test something else.
 | `tjukn` | thickness | 1–25 mm |
 | `klaring` | press fit | 0–0.6 mm, slot wider than the plate |
 | `ledd` | joint split | 0.2–0.8 |
+| `kilar` | wedges | off: tenons as drawn; on: every tenon through shows and takes a wedge |
 | `snitt` `snittveg` | kerf | 0–6 mm, taken in the file or in the machine |
 | `fart` | cut speed | for the time estimate only |
 | `arkB/H` | sheet | up to 3000 × 2000 mm |

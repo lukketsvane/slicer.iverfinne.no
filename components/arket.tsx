@@ -5,7 +5,7 @@ import {
   FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge,
   type Material, type Metric, type Rule,
 } from "@/lib/core"
-import { GROUPS, PARAM_RANGES } from "@/lib/params"
+import { GROUPS, KILAR, PARAM_RANGES } from "@/lib/params"
 import { MJUK_TAK, type Plan } from "@/lib/plan"
 import {
   CHIP, HAIR, ICON_BTN, IcoReset, IcoUttak, UTTAK,
@@ -267,6 +267,7 @@ function GroupsTab({ p }: { p: ArketProps }) {
 
 function MaterialTab({ p }: { p: ArketProps }) {
   const naaTjukn = num(p.params, "tjukn", TJUKNER[0])
+  const naaKilar = Math.round(num(p.params, "kilar", 0))
   return (
     <div className="px-3 pb-1 pt-1">
       <div className="rull-x flex h-9 items-center gap-1 overflow-x-auto overscroll-contain">
@@ -281,6 +282,15 @@ function MaterialTab({ p }: { p: ArketProps }) {
         {TJUKNER.map((t) => (
           <button key={t} type="button" aria-pressed={naaTjukn === t} title={`${tjukn(t)} mm plate`} onClick={() => p.onChange({ ...p.params, tjukn: t })} className={CHIP + " tab min-w-[42px] shrink-0 px-2"} style={chipStyle(naaTjukn === t)}>
             {tjukn(t)}
+          </button>
+        ))}
+      </div>
+      {/* KILANE: eitt ord, og kvar tapp gjennom stikk ut og får kilen sin — sjå `KILAR` */}
+      <div className="flex h-9 items-center gap-1">
+        <span className="dim mr-1 shrink-0 text-[9px] uppercase tracking-[0.12em]">kilar</span>
+        {KILAR.map((namn, i) => (
+          <button key={namn} type="button" aria-pressed={naaKilar === i} aria-label={`kilar ${namn}`} onClick={() => p.onChange({ ...p.params, kilar: i })} className={CHIP + " tab min-w-[42px] shrink-0 px-2"} style={chipStyle(naaKilar === i)}>
+            {namn}
           </button>
         ))}
       </div>

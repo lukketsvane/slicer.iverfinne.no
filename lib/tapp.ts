@@ -115,7 +115,7 @@ export type TappFlate = {
   utvida: boolean
 }
 
-type Ktx = { tjukn: number; klaring: number; slotW: number }
+type Ktx = { tjukn: number; klaring: number; slotW: number; kilar?: boolean }
 
 /** tappane og slissene som fell innanfor eitt stykke: midten ligg i ringen
  *  hans — ei slisse er eit hòl, men midten hennar er framleis innanfor
@@ -144,6 +144,13 @@ const tappMinAv = (k: Ktx) => Math.max(6, 3 * k.tjukn)
  * (og ti millimeter) forbi er det eit utstikk; lenger er det halvt om halvt.
  */
 const utMaxAv = (k: Ktx) => Math.max(10, 2 * k.tjukn)
+/**
+ * KILAR PÅ: kvar tapp som går gjennom stikk ut ei halv millimeter under to
+ * tjukner — det lengste utstikket som framleis er ein tapp — same om handa
+ * teikna han i flukt. Kilehòlet vert då ei tjukn breitt, og godset utanfor
+ * det ei tjukn så nær som millimeteren. Eit utstikk teikna lenger står.
+ */
+const kileU = (k: Ktx, u: number) => (k.kilar ? Math.max(u, 2 * k.tjukn - 0.5) : u)
 /** stykka langs lina, `off` millimeter til venstre for henne */
 // EIN BOGE: den parallelle bogen `off` til sides har same sentrum og radius R − off, og
 // buelengda hans vert skalert attende til lina sin, so `t` er det same talet på båe
@@ -280,7 +287,8 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
   const utMax = utMaxAv(k)
   const tappMin = tappMinAv(k)
   for (const svar of sluttar(k, T, M, lT, lM, tb2, wM)) {
-    const { s, u } = svar
+    const { s } = svar
+    const u = kileU(k, svar.u)
     const strekk = fredt.length ? utan(svar.strekk, fredt as Span[]).filter(([lo, hi]) => hi - lo >= tappMin) : svar.strekk
     if (!strekk.length) continue
     let tal = 0

@@ -18,7 +18,9 @@
  * kryssande bein lagde med ×2 og eit sekskanta sete, MINUTT_KRAKK=3
  * bogesidene med setet mellom seg (MELLOM=x0,y0,x1,y1 flyttar draget),
  * MINUTT_KRAKK=4 kubekrakken: éin vegg, ×4 til ei kasse med fingrar, sete oppå,
- * MINUTT_KRAKK=5 trekantkrakken: eitt bein ut frå midten, ×3, trekantsete.
+ * MINUTT_KRAKK=5 trekantkrakken: eitt bein ut frå midten, ×3, trekantsete,
+ * MINUTT_KRAKK=6 spilekrakken: bogesider, setet mellom dei delt i fem spiler
+ * i 2d-flata, kilar på, tre stag — kvar tapp stikk ut og har kilen sin.
  */
 import { chromium, type CDPSession, type Locator, type Page } from "playwright"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -27,7 +29,7 @@ import { performance } from "node:perf_hooks"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { measure } from "../lib/metrics"
 import { checkRules } from "../lib/rules"
-import { lesPlan } from "../lib/plan"
+import { lesPlan, type Plan } from "../lib/plan"
 import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
 import { MOTOR } from "../lib/motor"
@@ -39,11 +41,13 @@ const UT = resolve(process.env.MINUTT_UT ?? "bilete/minutt")
 const kontur = process.env.MINUTT_KONTUR !== "0"
 const fullskala = process.env.MINUTT_MODELL !== "1"
 const feilsok = process.env.MINUTT_DEBUG === "1"
-const krakk = process.env.MINUTT_KRAKK === "1" || process.env.MINUTT_KRAKK === "3"
+const krakk = process.env.MINUTT_KRAKK === "1" || process.env.MINUTT_KRAKK === "3" || process.env.MINUTT_KRAKK === "6"
 // MINUTT_KRAKK=2: to kryssande bein (×2) og eit sekskanta sete — rundt-grepet på tid
 const sekskant = process.env.MINUTT_KRAKK === "2"
 // MINUTT_KRAKK=3: bogesidene med setet MELLOM seg, tappane gjennom og i flukt
-const mellomSete = process.env.MINUTT_KRAKK === "3"
+const mellomSete = process.env.MINUTT_KRAKK === "3" || process.env.MINUTT_KRAKK === "6"
+// MINUTT_KRAKK=6: setet mellom sidene delt i fem spiler i 2d-flata, og kilar på
+const spiler = process.env.MINUTT_KRAKK === "6"
 // MINUTT_KRAKK=4: kubekrakken — éin vegg med bogeopning, ×4 til ei kasse med fingrar, sete oppå
 const kube = process.env.MINUTT_KRAKK === "4"
 // MINUTT_KRAKK=5: trekantkrakken — eitt bein ut frå midten, ×3, eit runda trekantsete oppå
@@ -250,18 +254,34 @@ async function hovud() {
         await merk("sete mellom")
         await side.screenshot({ path: join(UT, "mellom.png") })
       }
+      if (spiler) {
+        // SPILENE: setet flatt i 2d-flata, eitt trykk deler det i fem like spiler
+        await trykk(side.locator("[data-flatt]"))
+        await trykk(knapp("5 spiler"))
+        await planTal(7)
+        await trykk(knapp("ferdig"))
+        await merk("fem spiler")
+        // KILANE: eitt ord i materialfana, og kvar tapp gjennom stikk ut med kilen sin
+        await trykk(knapp("opne kontrollane"))
+        await trykk(side.getByRole("tab", { name: "materiale", exact: true }))
+        await trykk(knapp("kilar på"))
+        await trykk(knapp("lat att kontrollane"))
+        await endra((p) => p.kilar === 1, "Kilane vart ikkje slegne på")
+        await merk("kilar på")
+      }
       // STAGA: frå sida, endane hakar seg i sidene, og spegelen gjev det andre
       await heim()
       await side.touchscreen.tap(372, 88)
       await pause(650)
       await trykk(side.locator("[data-teiknknapp]"))
       await drag(cdp, linje([133, 440], [257, 468]), 550)
-      await planTal(4)
+      await planTal(spiler ? 8 : 4)
       await trykk(knapp("spegl planet om x"))
-      await planTal(5)
+      await planTal(spiler ? 9 : 5)
       await trykk(side.locator("[data-teiknknapp]"))
-      await drag(cdp, linje([133, 318], [257, 345]), 550)
-      await planTal(6)
+      // det øvste staget: under spilene med luft, ikkje inn i dei
+      await drag(cdp, spiler ? linje([133, 334], [257, 361]) : linje([133, 318], [257, 345]), 550)
+      await planTal(spiler ? 10 : 6)
       await merk("stag teikna")
     }
     await trykk(side.getByRole("tab", { name: "kontur", exact: true }))
@@ -315,7 +335,30 @@ async function hovud() {
     const S = p.storleik
     // toppen av sida, i millimeter over golvet
     const topp = S / 2 + Math.max(...(s1?.omriss ?? []).map((q) => q[1] * S))
-    const sjekkar = trekant ? {
+    const spilene = teikna.slice(2, 7)
+    // spilene går frå side til side (y), og er delte langs x
+    const spileBreidd = (q: Plan) => q.omriss ? (Math.max(...q.omriss.map((r) => r[0])) - Math.min(...q.omriss.map((r) => r[0]))) * S : 0
+    const sjekkar = spiler ? {
+      tiPlater: teikna.length === 10,
+      sideneErEitPar: !!s1 && !!s2 && Math.abs(s1.o[1] + s2.o[1] - 1) < 1e-3 && s1.gruppe === s2.gruppe && !!s1.gruppe,
+      femSpiler: spilene.length === 5 && spilene.every((q) => q.n[2] > 0.999 && Math.abs(q.o[2] - spilene[0].o[2]) < 1e-6),
+      likeSpiler: spilene.every((q) => Math.abs(spileBreidd(q) - spileBreidd(spilene[0])) < 0.05),
+      eiTjuknLuft: (() => { const xs = spilene.map((q) => [Math.min(...q.omriss!.map((r) => r[0])), Math.max(...q.omriss!.map((r) => r[0]))] as const).sort((a, b) => a[0] - b[0]); return xs.slice(1).every((x, i) => Math.abs((x[0] - xs[i][1]) * S - p.tjukn) < 0.05) })(),
+      fraaSideTilSide: spilene.every((q) => q.omriss!.some((r) => Math.abs(r[1] * S + 156) < 0.5) && q.omriss!.some((r) => Math.abs(r[1] * S - 156) < 0.5)),
+      spileneMellom: spilene.every((q) => Math.abs(q.o[2] * S - (topp - 2.5 * p.tjukn)) < 0.2),
+      kilarPaa: p.kilar === 1,
+      berreTappar: bygg.s.tappar === 16 && bygg.s.ledd === bygg.s.tappar,
+      kvarTappHarKile: bygg.s.ribber.every((r) => r.tapp.every((q) => q.slag !== "tapp" || !!q.kile)),
+      kilaneErDelar: bygg.dl.delar.filter((d) => d.adr.startsWith("k")).length === bygg.s.tappar,
+      ingenLause: bygg.dl.lause === 0 && bygg.s.kasta === 0,
+      monterbarGeometri: bygg.s.montering.brot.length === 0 && bygg.s.montering.klem.length === 0,
+      ingenHardeBrot: reglar.every((r) => !r.hard || r.ok),
+      eittArkPerPlate: svg.ark === bygg.ns.sheets.length,
+      lukkaKutt: svg.alleLukka && svg.endeleg && !svg.lesefeil && svg.kuttbaner >= 10,
+      kuttInnanArket: svg.innanArket,
+      nedlastingLikMotor: raa.equals(ventaBytar),
+      ingenSidefeil: feil.length === 0,
+    } : trekant ? {
       firePlater: teikna.length === 4,
       treBein: teikna.slice(0, 3).every((q) => q.gruppe === teikna[0].gruppe && !!q.gruppe && Math.abs(q.n[2]) < 1e-6),
       beinPaa120: teikna.slice(0, 3).every((q, i, l) => Math.abs(Math.abs(q.n[0] * l[(i + 1) % 3].n[0] + q.n[1] * l[(i + 1) % 3].n[1]) - 0.5) < 1e-3),
@@ -389,7 +432,7 @@ async function hovud() {
       miljo: "Automatisert Chromium på PC, mobilflate 390×844; WebShare deaktivert for ekte nedlasting til disk. Ikkje fysisk iPhone, iOS-delingsark eller menneskeleg tidsprøve.",
       avgrensing: "Referansekrakk med tapp og slisse, målt i geometrien og kuttfila; ikkje fysisk samansett eller lastprøvd.",
       url: URL,
-      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm" : "150 mm modell, 3 mm"}: ${trekant ? "trekantkrakk: eitt bein ut frå midten, ×3, runda trekantsete oppå" : kube ? "kubekrakk: vegg med bogeopning, ×4 til kasse med fingrar, sete oppå" : sekskant ? "to kryssande bein med boge (×2), sekskanta sete oppå" : `${krakk ? "bogesider med ovalt vindauge" : "A-sider med parallellogramvindauge"}, spegla par, sete ${mellomSete ? "mellom sidene" : "oppå"}, tre stag`}`,
+      scenario: `${fullskala ? "450 mm arbeidsrom, 12 mm" : "150 mm modell, 3 mm"}: ${spiler ? "spilekrakk: bogesider, sete mellom delt i fem spiler, kilar på, tre stag" : trekant ? "trekantkrakk: eitt bein ut frå midten, ×3, runda trekantsete oppå" : kube ? "kubekrakk: vegg med bogeopning, ×4 til kasse med fingrar, sete oppå" : sekskant ? "to kryssande bein med boge (×2), sekskanta sete oppå" : `${krakk ? "bogesider med ovalt vindauge" : "A-sider med parallellogramvindauge"}, spegla par, sete ${mellomSete ? "mellom sidene" : "oppå"}, tre stag`}`,
       feilsokbileteMedITida: feilsok,
       sekundTilLagraFil: brukt,
       sekundMedOppstart: (fullfoert - byrjing) / 1000,

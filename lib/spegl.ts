@@ -39,7 +39,7 @@ export function speglPlan(p: Plan, akse: number, min: Vec3, max: Vec3): Plan {
  */
 export function speglPar(q: Plan, akse: number, min: Vec3, max: Vec3, S: number, l: readonly Plan[], t = 0): { flytt: Plan; kopi: Plan } | null {
   if (q.bog || Math.abs(Math.abs(q.n[akse]) - 1) > 1e-6 || Math.abs(q.o[akse] - 0.5) > 1e-4) return null
-  const ut = Math.min(S / 3, innafor(q, akse, min, max, S, l) - 2.5 * t) / Math.max(1e-6, max[akse] - min[akse])
+  const ut = Math.min(S / 3, innafor(q, akse, min, max, S, l, t) - 2.5 * t) / Math.max(1e-6, max[akse] - min[akse])
   if (!(ut > 0)) return null
   const gruppe = nyGruppe(l)
   const flytt: Plan = { ...q, gruppe, o: q.o.map((c, a) => (a === akse ? +(0.5 - ut).toFixed(4) : c)) as Vec3 }
@@ -55,8 +55,13 @@ export function speglPar(q: Plan, akse: number, min: Vec3, max: Vec3, S: number,
  * breidda hennar lesen i høgdene paret står i, og den smalaste tel. Paret
  * går inn til to og ei halv tjukn frå den kanten, og aldri lenger ut enn
  * ein tredel av storleiken.
+ *
+ * KRYSSAR er ordet: eit stag under setet kryssar sidene, ikkje setet — og
+ * fem spiler i setet er fem smale plater som ville klemt paret inn til
+ * ingenting. Ei plate tel berre når paret når fram til planet hennar,
+ * innanfor ei tjukn.
  */
-function innafor(q: Plan, akse: number, min: Vec3, max: Vec3, S: number, l: readonly Plan[]): number {
+function innafor(q: Plan, akse: number, min: Vec3, max: Vec3, S: number, l: readonly Plan[], t: number): number {
   const aks = (n: Vec3) => n.findIndex((c) => Math.abs(Math.abs(c) - 1) < 1e-6)
   const rq = ramme(q, min, max)
   const qp = omrissLine(q.omriss ?? [], q.runde).map((p) => ut(rq, [p[0] * S, p[1] * S]))
@@ -64,6 +69,8 @@ function innafor(q: Plan, akse: number, min: Vec3, max: Vec3, S: number, l: read
   for (const Q of l) {
     const b = aks(Q.n)
     if (Q.id === q.id || Q.bog || !Q.omriss || b < 0 || b === akse || !qp.length) continue
+    const ob = ramme(Q, min, max).o[b]
+    if (ob < Math.min(...qp.map((p) => p[b])) - t || ob > Math.max(...qp.map((p) => p[b])) + t) continue
     // høgdeaksen: den som korkje er spegelaksen eller normalen til plata
     const h = 3 - akse - b
     const h0 = Math.min(...qp.map((p) => p[h]))

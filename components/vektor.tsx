@@ -12,11 +12,11 @@
  * står her medan fingeren er nede, og går til parametrane når han slepper.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
-import { inRing, nn, shoelace, type Pt } from "@/lib/core"
+import { inRing, nn, shoelace, type Pt, type Vec3 } from "@/lib/core"
 import { omrissLine, omrissMidt, type Plan } from "@/lib/plan"
 import { teiknaKontur, tettMjukt } from "@/lib/teikning"
 import { konturStrek } from "@/lib/bilete"
-import { delIto, flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "@/lib/vektor"
+import { delIto, spileAkse, spiler, flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "@/lib/vektor"
 import { ORD } from "./deler"
 
 type Verkty = "punkt" | "hol" | "firkant" | "sirkel"
@@ -34,7 +34,7 @@ const bane = (p: readonly Pt[]) => (p.length ? `M${p.map(([x, y]) => `${x.toFixe
 /** hakket, millimeter */
 const RUTE_MM = 1
 
-export function Vektor({ plan, S, nyId, onEndre, onDel, onLukk }: { plan: Plan; S: number; nyId: number; onEndre: (q: Plan) => void; onDel: (par: [Plan, Plan]) => void; onLukk: () => void }) {
+export function Vektor({ plan, S, t, nyId, alle, boks, onEndre, onDel, onLukk }: { plan: Plan; S: number; t: number; nyId: number; /** dei andre plana og kroppen: spilene går den vegen plata når dei — sjå `spileAkse` */ alle: readonly Plan[]; boks: { min: Vec3; max: Vec3 } | null; onEndre: (q: Plan) => void; onDel: (fleire: Plan[]) => void; onLukk: () => void }) {
   const [utkast, setUtkast] = useState<Plan | null>(null)
   const q = utkast ?? plan
   const [verkty, setVerkty] = useState<Verkty>("punkt")
@@ -235,7 +235,13 @@ export function Vektor({ plan, S, nyId, onEndre, onDel, onLukk }: { plan: Plan; 
           <button type="button" className={ORD} onClick={() => { onEndre(takStrek(q, val.k)); setVal(null) }}>slett hòl</button>
         )}
         {!val && (
-          <button type="button" className={ORD} title="del plata i to, kant i kant — dei får fingrar" onClick={() => { const d = delIto(q, nyId); if (d) { onDel(d); setSyn(null) } }}>del i to</button>
+          <>
+            <button type="button" className={ORD} title="del plata i to, kant i kant — dei får fingrar" onClick={() => { const d = delIto(q, nyId); if (d) { onDel(d); setSyn(null) } }}>del i to</button>
+            <span className="text-[11px] opacity-50">spiler</span>
+            {[3, 4, 5, 6].map((n) => (
+              <button key={n} type="button" className={ORD + " w-8"} aria-label={`${n} spiler`} title={`${n} like breie spiler med ei tjukn luft imellom`} onClick={() => { const d = spiler(q, n, t / S, nyId, boks ? spileAkse(q, alle, boks.min, boks.max, S, t) : null); if (d) { onDel(d); setSyn(null) } }}>{n}</button>
+            ))}
+          </>
         )}
         {!val && <span className="text-[11px] opacity-50">{Math.abs(shoelace(linje)) > 0 ? `${nn((Math.abs(shoelace(linje)) * S * S) / 100, 0)} cm²` : ""}</span>}
       </div>
