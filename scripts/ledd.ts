@@ -632,7 +632,33 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
     console.log(`FEIL  kryssbein                  ${halvt} halvt-om-halvt, 1 venta`)
   }
   sjekkTapp("kryssbein med sete", { ...MOBEL, plan: x }, { tappar: 4, brot: 0 })
+
   sjekk("kryssbein, spora", { ...MOBEL, plan: x })
+}
+/**
+ * SETET MELLOM SIDENE: i flukt med utsida, og femten millimeter forbi —
+ * då er det synlege tappar og ikkje halvt om halvt.
+ */
+{
+  for (const [namn, y] of [["sete mellom, i flukt", 156], ["sete mellom, tappar ut", 171]] as const) {
+    const l = skrivPlan([
+      plate(1, [0.5, (225 - 150) / S, 0.5], [0, 1, 0], side()),
+      plate(2, [0.5, (225 + 150) / S, 0.5], [0, 1, 0], side()),
+      plate(3, [0.5, 0.5, 300 / S], [0, 0, 1], firkant(y, 140)),
+    ])
+    const { s: g } = makeBygg({ ...MOBEL, plan: l }, DETAIL.mid)
+    if (g.ledd !== g.tappar) {
+      brot++
+      console.log(`FEIL  ${namn.padEnd(26)} ${g.ledd - g.tappar} halvt-om-halvt, 0 venta`)
+    }
+    sjekkTapp(namn, { ...MOBEL, plan: l }, { tappar: 4, brot: 0 })
+    const r = g.ribber.find((q) => q.plan.id === 3)!
+    const ytst = Math.max(...r.outlines[0].map((q) => Math.abs(q[1])))
+    if (Math.abs(ytst - y) > 0.05) {
+      brot++
+      console.log(`FEIL  ${namn.padEnd(26)} tappen endar på ${ytst.toFixed(2)} mm, ${y} venta`)
+    }
+  }
 }
 
 /**
