@@ -212,3 +212,28 @@ that breaks one of these is wrong even if it looks fine on a laptop.
   from the cut file. The one thing the main thread computes is the sketch
   plane itself — a point and a normal from the camera — because that is the
   input, not a result.
+
+## Tokenbudsjettet (lest av agenten, ikkje av folk)
+
+Kvar økt er eit budsjett. Reglane som held det:
+
+- **Skriv kode, ikkje resonnement.** Avgjerder tek du i hovudet; det som står i
+  loggen er diffen, éin kommando, éi line om utfallet. Ingen «eg skal no …».
+- **Éin kommando, mange steg.** Bygg, omstart, prøve og lesing av rapporten er
+  éi bash-line med `&&`; aldri fire kall der eitt held. Skriv output gjennom
+  `tail`/`grep`/`node -e` so berre svaret kjem attende — aldri heile JSON-en,
+  aldri heile loggen.
+- **Les smalt.** `Grep -n` fyrst, `Read` med `offset`/`limit` på treffet; aldri
+  heile fila for å finne ei line. Store filer (`studio.tsx`, `scene.tsx`,
+  `snitt.tsx`) vert ALDRI lesne heilt.
+- **Rediger med `python3 - <<EOF` og `assert old in s`** når fleire stader skal
+  bytast i eitt kall; `Edit` for éi. Ikkje `Read` etter eiga skriving.
+- **Prøv smalt fyrst.** `pnpm sjekk` + den eine harnessen som dekkjer endringa;
+  heile suiten éin gong før push, i bakgrunnen medan du skriv neste ting.
+- **Bilete berre når geometrien er spørsmålet.** Eit skjermbilete kostar meir
+  enn ein rapport; les tal frå `rapport.json` og sjå på biletet éin gong per
+  scenario, ikkje per køyring.
+- **Push utan å spørje.** Bundle → `device_commit_files` → PowerShell-lina, i
+  tre kall, utan tekst imellom. Sei éi line når det er oppe.
+- **Svar i éi setning.** Kva som er gjort, kva som står att. Ingen oppsummering
+  av stega — brukaren såg dei.
