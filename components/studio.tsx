@@ -23,6 +23,7 @@ import { Meny, type MenyStad } from "./meny"
 import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett, IcoTeikn } from "./deler"
 import { Plater } from "./plater"
 import { BileteInn, lesBilete } from "./bilete"
+import { Vektor } from "./vektor"
 import { skalerForm, type BileteForm, type Maske } from "@/lib/bilete"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
@@ -2742,6 +2743,9 @@ export function Studio() {
   const harOmriss = vald !== null && !!plan.find((q) => q.id === vald)?.omriss?.length
   // BUNDE AV NETTET: utan omriss er planet alltid det; eit trykk frys det laust
   const bunde = vald !== null && (!harOmriss || !!plan.find((q) => q.id === vald)?.nett)
+  // 2D-FLATA: det valde planet flatt, med vektorgrepa (sjå vektor.tsx)
+  const [flatt, setFlatt] = useState(false)
+  const flattPlan = flatt && harOmriss ? plan.find((q) => q.id === vald) : undefined
   const vekslNett = () => (harOmriss ? setParams((cur) => ({ ...cur, plan: skrivPlan(lesPlan(cur.plan).map((q) => (q.id === vald ? { ...q, nett: q.nett ? undefined : true } : q))) })) : formTrykk())
   /** kva lesinga seier i montasjen: ribba handa held, eller kvar animasjonen står */
   const montLes =
@@ -2853,6 +2857,7 @@ export function Studio() {
         </section>
       )}
 
+      {flattPlan && <Vektor plan={flattPlan} S={typeof params.storleik === "number" ? params.storleik : 150} onEndre={(q) => setParams((cur) => ({ ...cur, plan: skrivPlan(lesPlan(cur.plan).map((p) => (p.id === q.id ? q : p))) }))} onLukk={() => setFlatt(false)} />}
       {bilete && <BileteInn maske={bilete.maske} url={bilete.url} onLegg={leggBilete} onAvbryt={() => setBilete(null)} />}
       <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} onTomArbeidsflate={tomArbeidsflate} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
       {mounted && teikn && rom && (
@@ -3152,6 +3157,9 @@ export function Studio() {
                 >
                   {IcoForm}
                 </button>
+              )}
+              {rom && valdGruppe === null && harOmriss && (
+                <button type="button" aria-label="2d-flata" title="planet flatt: dra punkt, legg til, rund, teikn hòl" onClick={() => setFlatt(true)} className={ORD} data-flatt="">2d</button>
               )}
               {rom && valdGruppe === null && (
                 <button type="button" aria-pressed={bunde} aria-label="bunde av nettet" title={bunde ? "profilen er bunden av nettet. trykk for å sleppe han" : "profilen er fri av nettet. trykk for å binde omrisset til kroppen"} onClick={vekslNett} disabled={!harOmriss && !snitt} className={ORD} data-nett="">

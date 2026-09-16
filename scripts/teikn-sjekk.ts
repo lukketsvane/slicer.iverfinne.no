@@ -5,6 +5,7 @@ import { landing, mellom, midtPaa, mjukePunkt, snapp, snappliner, symmetrisk, te
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import { bileteForm, skalerForm } from "../lib/bilete"
+import { flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "../lib/vektor"
 import type { Vec3 } from "../lib/core"
 
 assert.deepEqual(teikneNormal([0, -0.02, Math.sqrt(1 - 0.02 ** 2)]), [0, 0, 1], "toppsynet lagar eit eksakt vassrett sete")
@@ -217,4 +218,28 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   const sk = skalerForm(f!, 0.8)
   assert(Math.abs(sk.hol[0].w - f!.hol[0].w * 0.8) < 1e-3, "skaleringa tek hòla med")
   console.log(`bilete: ring med ${f!.omriss.length} punkt og eitt hòl, støvet borte, snudd og tomt held`)
+}
+
+// VEKTORGREPA: ei A-side, redigert med spegelen på
+{
+  const side: Plan = { id: 1, o: [0.5, 0.5, 0.5], n: [0, 1, 0], bog: 0, strek: [], omriss: [[-0.3, 0.4], [0.3, 0.4], [0.4, -0.5], [0.1, -0.5], [0, -0.2], [-0.1, -0.5], [-0.4, -0.5]], runde: [4] }
+  const erSym = (q: Plan) => q.omriss!.every(([x, y]) => q.omriss!.some(([a, b]) => Math.abs(a + x) < 1e-6 && Math.abs(b - y) < 1e-6))
+  const f = flyttPunkt(side, 2, [0.45, -0.5], true)
+  assert(erSym(f) && f.omriss![6][0] === -0.45, "eit punkt dregi, makkeren fylgjer spegla")
+  assert.deepEqual(flyttPunkt(side, 4, [0.03, -0.25], true).omriss![4], [0, -0.25], "punktet på midtlina held seg på lina")
+  const l = leggPunkt(side, 1, true)
+  assert.equal(l.omriss!.length, 9, "eitt punkt og makkeren")
+  assert(erSym(l), `framleis lik på båe sider: ${JSON.stringify(l.omriss)}`)
+  assert.deepEqual(l.runde, [5], "bogen flytta seg med plassen")
+  const t = takPunkt(l, 2, true)
+  assert(t.omriss!.length === 7 && erSym(t), "eit punkt bort, og makkeren")
+  const r = rundPunkt(side, 1, true)
+  assert.deepEqual(r.runde, [0, 1, 4], "boge på punktet og makkeren")
+  assert.deepEqual(rundPunkt(r, 0, true).runde, [4], "og av att")
+  assert.equal(takPunkt({ ...side, omriss: side.omriss!.slice(0, 3) }, 0).omriss!.length, 3, "tre er golvet")
+  const h = leggStrek(side, { slag: "hol", form: "rund", x: 0, y: 0, w: 0.1, h: 0.2, a: 0 })
+  assert(Math.abs(strekRing(h.strek[0], 4)[1][1] - 0.1) < 1e-9, "ringen til ein ellipse står der han skal")
+  assert.equal(flyttStrek(h, 0, 0.05, 0.1).strek[0].x, 0.05, "hòlet flytt")
+  assert.equal(takStrek(h, 0).strek.length, 0, "hòlet bort")
+  console.log("vektor: dra, legg til, ta bort og rund — spegla; hòl flytt og bort")
 }
