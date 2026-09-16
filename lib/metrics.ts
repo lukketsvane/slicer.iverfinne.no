@@ -40,7 +40,9 @@ export const RADER: readonly { id: string; label: string; unit: string }[] = [
 export function measure(p: Params, bygg?: Bygg): Metrics {
   const { k, s, dl, ns } = bygg ?? makeBygg(p, DETAIL.mid)
   const env = envelope(s, p.tjukn)
-  const narrow = s.ribber.reduce((m, r) => (r.spor.length ? Math.min(m, r.narrow) : m), Infinity)
+  // og fingrane i eit hjørne: den kortaste fingeren er det som ber
+  const finger = s.ribber.flatMap((r) => r.tapp.filter((q) => q.nokkel.startsWith("f")).map((q) => Math.hypot(q.hjorne[1][0] - q.hjorne[0][0], q.hjorne[1][1] - q.hjorne[0][1])))
+  const narrow = s.ribber.reduce((m, r) => (r.spor.length || r.tapp.some((q) => q.slag === "slisse") ? Math.min(m, r.narrow) : m), Math.min(Infinity, ...finger))
   const list: Metric[] = []
   const m: Metrics = {
     envX: env.x,

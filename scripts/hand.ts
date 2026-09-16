@@ -10,8 +10,9 @@
  * lenkje, og ei lenkje er skriven av kven som helst.
  */
 import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
-import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, spegla, speglingar, skrivPlan, slaaSaman, snappPunkt, vriOm, MJUK_TAK, PLAN_ROM, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
+import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, skuvKopi, spegla, speglingar, skrivPlan, slaaSaman, snappPunkt, ut, vriOm, MJUK_TAK, PLAN_ROM, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
+import { speglPlan } from "../lib/spegl"
 import { apply, pack, type Fest } from "../lib/pack"
 import { MOTOR } from "../lib/motor"
 import { makeBygg } from "../lib/bygg"
@@ -77,6 +78,10 @@ for (const [inn, vent] of [
   // av planet sitt punkt. Alt anna er ikkje ei flate handa har sett.
   ["1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2"],
   ["1@0.5,0.5,0.5/1,0,0/m:0.01/p:-0.2,-0.2,0.2,-0.2,0,0.2/g:2", "1@0.5,0.5,0.5/1,0,0/m:0.01/p:-0.2,-0.2,0.2,-0.2,0,0.2/g:2"],
+  // BUNDE AV NETTET: eit merke som berre tyder noko med eit omriss
+  ["1@0.5,0.5,0.5/1,0,0/n:1/p:-0.2,-0.2,0.2,-0.2,0,0.2", "1@0.5,0.5,0.5/1,0,0/n:1/p:-0.2,-0.2,0.2,-0.2,0,0.2"],
+  ["1@0.5,0.5,0.5/1,0,0/n:1", "1@0.5,0.5,0.5/1,0,0"],
+  ["1@0.5,0.5,0.5/1,0,0/n:2/p:-0.2,-0.2,0.2,-0.2,0,0.2", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0,0.2"],
   ["1@0.5,0.5,0.5/1,0,0/p:0,0,1,0", "1@0.5,0.5,0.5/1,0,0"],        // to punkt er inga flate
   ["1@0.5,0.5,0.5/1,0,0/p:0,0,1,0,1", "1@0.5,0.5,0.5/1,0,0"],      // oddetal er ikkje punkt
   ["1@0.5,0.5,0.5/1,0,0/p:0,0,0,0,0,0", "1@0.5,0.5,0.5/1,0,0"],    // tre punkt oppå kvarandre har inga flate
@@ -84,7 +89,7 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0/p:0,0,9,0,0,9", "1@0.5,0.5,0.5/1,0,0"],    // langt utanfor kroppen
   ["1@0.5,0.5,0.5/1,0,0/p:0,0,x,0,0,1", "1@0.5,0.5,0.5/1,0,0"],
   // og fleire punkt enn taket vert kutta der taket går
-  [`1@0.5,0.5,0.5/1,0,0/p:${sirkel(40)}`, `1@0.5,0.5,0.5/1,0,0/p:${sirkel(OMRISS_TAK)}`],
+  [`1@0.5,0.5,0.5/1,0,0/p:${sirkel(OMRISS_TAK + 16, 0.3)}`, `1@0.5,0.5,0.5/1,0,0/p:${sirkel(OMRISS_TAK)}`],
   // BOGANE: plassar i omrisset, og ingenting anna. Ein plass som ikkje
   // finst, eit tal som ikkje er eit heiltal, eller bogar utan eit omriss å
   // høyre til — alt fell på golvet, og forma står att som hjørne.
@@ -553,6 +558,67 @@ console.log("\nsymmetrien på snittet:")
   sjekk("og alle tre aksane på eit heilt skeivt snitt gjev åtte", alle([0.25, 0.3, 0.35], [0.5774, 0.5774, 0.5774], 7).length === 8)
 }
 
+// Eit spegl av møbelplata tek omriss, bogar og skrå hòl med seg.
+{
+  const min: Vec3 = [-180, -140, -230]
+  const max: Vec3 = [220, 160, 270]
+  const S = 500
+  const avstand = (a: Vec3, b: Vec3) => Math.hypot(...a.map((v, i) => v - b[i]))
+  for (const n of [[1, 0, 0], [0, 0, 1], [0.5774, 0.5774, 0.5774]] as Vec3[]) {
+    for (const bog of [0, 0.4]) for (let akse = 0; akse < 3; akse++) {
+      const p: Plan = { id: 9, o: [0.23, 0.37, 0.62], n, bog, farge: 6, gruppe: 2, mjuk: 0.01,
+        omriss: [[-0.3, -0.4], [0.2, -0.35], [0.3, 0.22], [-0.14, 0.4]], runde: [1, 3],
+        strek: [{ slag: "hol", form: "rund", x: 0.05, y: -0.08, w: 0.17, h: 0.09, a: 32 }] }
+      const q = speglPlan(p, akse, min, max)
+      const r0 = ramme(p, min, max)
+      const r1 = ramme(q, min, max)
+      const spegel = (v: Vec3): Vec3 => v.map((c, i) => i === akse ? min[i] + max[i] - c : c) as Vec3
+      const linje0 = omrissLine(p.omriss!, p.runde)
+      const linje1 = omrissLine(q.omriss!, q.runde)
+      const feilOm = Math.max(...linje0.map((v, i) => avstand(spegel(ut(r0, [v[0] * S, v[1] * S])), ut(r1, [linje1[i][0] * S, linje1[i][1] * S]))))
+      const hòl = (s: Plan["strek"][number], t: number): Pt => {
+        const a = s.a * Math.PI / 180
+        const x = s.w / 2 * Math.cos(t)
+        const y = s.h / 2 * Math.sin(t)
+        return [(s.x + x * Math.cos(a) - y * Math.sin(a)) * S, (s.y + x * Math.sin(a) + y * Math.cos(a)) * S]
+      }
+      // Ei spegling snur omløpsretninga. Vinkel null er same enden av
+      // lengdeaksen, og den andre aksen får motsett teikn.
+      const feilHol = Math.max(...[0, 0.6, 1.7, 3.1].map(t => avstand(spegel(ut(r0, hòl(p.strek[0], t))), ut(r1, hòl(q.strek[0], -t)))))
+      sjekk(`spegl ${akse}, normal ${n.join(",")}, bøy ${bog}: heile profilen står rett`, feilOm < 0.0001 && feilHol < 0.0001, `${feilOm.toFixed(6)} / ${feilHol.toFixed(6)} mm`)
+      sjekk("speglinga bevarer eigenskapar og to gonger gjev originalen", q.farge === p.farge && q.gruppe === p.gruppe && q.mjuk === p.mjuk && skrivPlan([speglPlan(q, akse, min, max)]) === skrivPlan([p]))
+    }
+  }
+}
+
+// Ein skrå kopi ved romgrensa må skiljast frå originalen langs normalen.
+// Før snudde berre éin komponent, og like komponentar gav null avstand.
+{
+  const min: Vec3 = [-200, -100, -50], max: Vec3 = [200, 100, 50]
+  const h = Math.SQRT1_2
+  const tilfelle: [string, Vec3, Vec3, number][] = [
+    ["midt i rommet", [0.5, 0.5, 0.5], [h, h, 0], 1],
+    ["øvre x-grense", [1 + PLAN_ROM, 0.5, 0.5], [h, h, 0], -1],
+    ["nedre x-grense", [-PLAN_ROM, 0.5, 0.5], [-h, h, 0], -1],
+    ["nedre y-grense", [0.5, -PLAN_ROM, 0.5], [h, h, 0], 1],
+  ]
+  for (const [namn, o, n, forteikn] of tilfelle) {
+    const p: Plan = { id: 1, o, n, bog: 0, strek: [] }
+    const nyO = skuvKopi(p, min, max, 12)
+    sjekk(`kopi ved ${namn} får plass`, nyO !== null)
+    if (!nyO) continue
+    const q = lesPlan(skrivPlan([{ ...p, id: 2, o: nyO }]))[0]
+    sjekk(`kopi ved ${namn} overlever lagring`, !!q)
+    if (!q) continue
+    const feil = Math.hypot(...q.o.map((c, a) => (c - o[a]) * (max[a] - min[a]) - forteikn * 24 * n[a]))
+    // Avrundinga i lenkja er 0,0001 av boksen: høgst 0,023 mm her.
+    sjekk(`kopi ved ${namn} går 24 mm langs heile normalen`, feil < 0.024, `${feil.toFixed(5)} mm avvik`)
+  }
+  const fast = { o: [1 + PLAN_ROM, -PLAN_ROM, 0.5] as Vec3, n: [h, h, 0] as Vec3 }
+  sjekk("motsette romgrenser lagar ingen tangentiell kopi", skuvKopi(fast, min, max, 12) === null)
+  sjekk("ei for smal boks lagar ingen klemt kopi", skuvKopi({ o: [0.5, 0.5, 0.5], n: [1, 0, 0] }, [0, 0, 0], [1, 2, 3], 25) === null)
+}
+
 /**
  * KVA VERKTYET FOR RUTENETTET EIG.
  *
@@ -574,6 +640,19 @@ console.log("\nrutenettet og det som er ditt:")
 
   const tomt = skilRute([])
   sjekk("ei tom liste er null og null", tomt.nx === 0 && tomt.ny === 0 && tomt.rute.length === 0)
+
+  // Ei handteikna plate kan stå nøyaktig der eit einsleg rutenettplan
+  // ville stått. Det gjev ikkje rutenettet rett til å byte henne ut.
+  for (const [ord, meir] of [
+    ["omriss", { omriss: [[-0.3, -0.4], [0.3, -0.4], [0.2, 0.4], [-0.2, 0.4]] as Pt[] }],
+    ["boksprofil", { firkant: true as const }],
+    ["mjuka profil", { mjuk: 0.02 }],
+  ] as const) {
+    const eiga = hand(1, [0.5, 0.5, 0.5], [1, 0, 0], meir)
+    const skild = skilRute(lesPlan(skrivPlan([eiga])))
+    const ny = [...skild.andre, ...rutenett(2, 2, nyId(skild.andre), nyGruppe(skild.andre))]
+    sjekk(`${ord} på rutenettplassen er handa sin`, skild.nx === 0 && skild.rute.length === 0 && skrivPlan(ny.slice(0, 1)) === skrivPlan([eiga]))
+  }
 
   /** eitt plan av kvart slag som verktyet IKKJE skal ta */
   const mine: [string, ReturnType<typeof lesPlan>[number]][] = [

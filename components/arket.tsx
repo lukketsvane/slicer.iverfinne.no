@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react"
 import {
   FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge,
   type Material, type Metric, type Rule,
@@ -19,12 +19,14 @@ import {
   type Steg as LegacySteg,
 } from "./arket-legacy"
 
+import { useGjenta } from "./gjenta"
+
 export const KOL = LEGACY_KOL
 export { kvaSlag }
 export type Steg = LegacySteg
 export type ArketProps = LegacyArketProps
 
-type Fane = "form" | "grupper" | "materiale" | "kutt" | "sjekk" | "uttak"
+type Fane = "grupper" | "materiale" | "kutt" | "status"
 
 const ikon = (d: string) => (
   <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
@@ -32,45 +34,12 @@ const ikon = (d: string) => (
   </svg>
 )
 
-const FANER: readonly { id: Fane; ord: string; icon: ReactNode }[] = [
-  { id: "form", ord: "form", icon: ikon("M4 17 12 3l8 14z|M7 17h10") },
-  { id: "grupper", ord: "grupper", icon: ikon("M4 6h16|M4 12h16|M4 18h16|M7 4v4|M13 10v4|M17 16v4") },
-  { id: "materiale", ord: "materiale", icon: ikon("M12 3 4 7v10l8 4 8-4V7z|M4 7l8 4 8-4|M12 11v10") },
-  { id: "kutt", ord: "kutt", icon: ikon("M4 5h16|M7 10h10|M5 15h14|M9 20h6") },
-  { id: "sjekk", ord: "sjekk", icon: ikon("M5 12l4 4L19 6|M4 20h16") },
-  { id: "uttak", ord: "uttak", icon: IcoUttak },
+const FANER: readonly { id: Fane; ord: string }[] = [
+  { id: "grupper", ord: "plan" },
+  { id: "materiale", ord: "materiale" },
+  { id: "kutt", ord: "kutt" },
+  { id: "status", ord: "sjekk" },
 ]
-
-const IcoVenstre = ikon("M15 5l-7 7 7 7")
-const IcoHogre = ikon("M9 5l7 7-7 7")
-
-function Pager({ side, tal, onSide, ord, ekstra }: {
-  side: number
-  tal: number
-  onSide: (n: number) => void
-  ord: string
-  ekstra?: ReactNode
-}) {
-  if (tal <= 1 && !ekstra) return null
-  return (
-    <div className="flex h-8 items-center gap-1 border-t pt-1" style={HAIR}>
-      {tal > 1 ? (
-        <>
-          <button type="button" aria-label={`førre ${ord}`} disabled={side <= 0} onClick={() => onSide(side - 1)} className={CHIP + " flex h-7 w-9 items-center justify-center px-0"} style={{ ...chipStyle(false), opacity: side <= 0 ? 0.25 : 1 }}>
-            {IcoVenstre}
-          </button>
-          <span className="dim tab min-w-0 flex-1 text-center text-[10px] uppercase tracking-[0.12em]">
-            {ord} · {side + 1}/{tal}
-          </span>
-          <button type="button" aria-label={`neste ${ord}`} disabled={side >= tal - 1} onClick={() => onSide(side + 1)} className={CHIP + " flex h-7 w-9 items-center justify-center px-0"} style={{ ...chipStyle(false), opacity: side >= tal - 1 ? 0.25 : 1 }}>
-            {IcoHogre}
-          </button>
-        </>
-      ) : <span className="min-w-0 flex-1" />}
-      {ekstra}
-    </div>
-  )
-}
 
 function Summary({ p }: { p: ArketProps }) {
   const m = p.metrics
@@ -99,7 +68,7 @@ function Summary({ p }: { p: ArketProps }) {
 
 function Tabs({ fane, onFane }: { fane: Fane; onFane: (f: Fane) => void }) {
   return (
-    <div role="tablist" aria-label="kontrollfaner" className="flex shrink-0 items-center gap-0.5 border-y px-1 py-1" style={HAIR}>
+    <div role="tablist" aria-label="kontrollfaner" className="grid shrink-0 grid-cols-4 gap-0.5 border-y px-1 py-1" style={HAIR}>
       {FANER.map((f) => {
         const paa = fane === f.id
         return (
@@ -111,10 +80,10 @@ function Tabs({ fane, onFane }: { fane: Fane; onFane: (f: Fane) => void }) {
             aria-label={f.ord}
             title={f.ord}
             onClick={() => onFane(f.id)}
-            className="hit flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg"
+            className="hit flex h-7 min-w-0 items-center justify-center rounded-lg px-1 text-[10px] uppercase tracking-[0.08em]"
             style={paa ? { background: "color-mix(in srgb, var(--ink) 8%, transparent)", color: "var(--ink)" } : { opacity: 0.52 }}
           >
-            {f.icon}
+            {f.ord}
           </button>
         )
       })}
@@ -124,12 +93,9 @@ function Tabs({ fane, onFane }: { fane: Fane; onFane: (f: Fane) => void }) {
 
 function FormTab({ p }: { p: ArketProps }) {
   const keys = ["storleik", "rotX", "rotY", "rotZ"] as const
-  const [side, setSide] = useState(0)
-  const sider = 2
-  const mine = keys.slice(side * 2, side * 2 + 2)
   return (
     <div className="px-3 pb-1 pt-1">
-      {mine.map((k) => (
+      {keys.map((k) => (
         <SliderRow
           key={k}
           k={k}
@@ -141,17 +107,11 @@ function FormTab({ p }: { p: ArketProps }) {
           bi={k === "storleik" && p.metrics ? `${n0(p.metrics.envX)}×${n0(p.metrics.envY)}×${n0(p.metrics.envZ)}` : undefined}
         />
       ))}
-      <Pager
-        side={side}
-        tal={sider}
-        onSide={setSide}
-        ord="form"
-        ekstra={(
-          <button type="button" onClick={p.onReset} aria-label="attende til standarden" title="attende til standarden. nettet ditt står" className={CHIP + " flex h-7 w-9 items-center justify-center px-0"} style={chipStyle(false)}>
-            {IcoReset}
-          </button>
-        )}
-      />
+      <div className="flex h-8 items-center justify-end border-t pt-1" style={HAIR}>
+        <button type="button" onClick={p.onReset} aria-label="attende til standarden" title="attende til standarden. nettet ditt står" className={CHIP + " flex h-7 w-9 items-center justify-center px-0"} style={chipStyle(false)}>
+          {IcoReset}
+        </button>
+      </div>
     </div>
   )
 }
@@ -209,10 +169,6 @@ type GruppeRad =
 
 function AssemblyRows({ p }: { p: ArketProps }) {
   const rows = (p.mont?.delar ?? []).filter((d) => d.steg === p.montSteg - 1)
-  const [side, setSide] = useState(0)
-  const tal = Math.max(1, Math.ceil(rows.length / 2))
-  useEffect(() => setSide((s) => Math.min(s, tal - 1)), [tal])
-  const mine = rows.slice(side * 2, side * 2 + 2)
   const veg: Record<string, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg", boygd: "bøygd inn" }
   return (
     <div className="px-3 pb-1 pt-1">
@@ -220,7 +176,7 @@ function AssemblyRows({ p }: { p: ArketProps }) {
           Ei rad utan namn er ei rad ingen kan peike på: korkje ein
           skjermlesar, ei vakt, eller den som spør kva D3 var. */}
       <div aria-label="steget">
-      {mine.length ? mine.map((d) => (
+      {rows.length ? rows.map((d) => (
         <div key={d.adr} data-steg-del={d.adr} className="flex h-9 items-center gap-2 rounded-lg px-1.5 text-[11px]">
           <span className="tab w-8 shrink-0">{d.adr}</span>
           <span className="min-w-0 flex-1 truncate">{veg[d.veg] ?? d.veg}</span>
@@ -228,15 +184,12 @@ function AssemblyRows({ p }: { p: ArketProps }) {
         </div>
       )) : <p className="dim h-9 px-1.5 py-2 text-[11px]">ingen delar</p>}
       </div>
-      <Pager side={side} tal={tal} onSide={setSide} ord={`steg ${p.montSteg}`} />
     </div>
   )
 }
 
 function GroupsTab({ p }: { p: ArketProps }) {
   const [utbretta, setUtbretta] = useState<ReadonlySet<number>>(() => new Set())
-  const [side, setSide] = useState(0)
-  const [detalj, setDetalj] = useState(0)
 
   const rader = useMemo(() => {
     const out: GruppeRad[] = []
@@ -262,30 +215,8 @@ function GroupsTab({ p }: { p: ArketProps }) {
     detaljar.push({ ord: "bit", node: <LayerRow no={p.bitFarge} ord="bit" onFarge={p.onBitFarge} /> })
   }
 
-  const perSide = detaljar.length ? 1 : 2
-  const sider = Math.max(1, Math.ceil(rader.length / perSide))
-  useEffect(() => setSide((s) => Math.min(s, sider - 1)), [sider])
-  useEffect(() => setDetalj((s) => Math.min(s, Math.max(0, detaljar.length - 1))), [detaljar.length])
-  /**
-   * SIDA FYLGJER DET VALDE.
-   *
-   * `perSide` fell frå to til éin i det noko vert valt — detaljradene tek
-   * plassen — so kva rad som ligg på kva side endrar seg UNDER fingeren.
-   * Målt: tre plan, to rader på fyrste sida, eit trykk på den andre av dei,
-   * og lista sat att med ÉI rad som var den fyrste. Du valde eit plan og såg
-   * det forsvinne.
-   *
-   * Sida vert difor den rada det valde står på. Bladar du sjølv etterpå,
-   * står det du bladde til: ingenting her har endra seg då.
-   */
-  const valdRad = rader.findIndex((r) => (r.kind === "plan" ? r.plan.id === p.vald : r.id === p.valdGruppe))
-  useEffect(() => {
-    if (valdRad >= 0) setSide(Math.floor(valdRad / perSide))
-  }, [valdRad, perSide])
-
   if (p.view === "montasje") return <AssemblyRows p={p} />
 
-  const mine = rader.slice(side * perSide, side * perSide + perSide)
   const brett = (g: number) => {
     const paa = p.valdGruppe === g
     setUtbretta((s) => {
@@ -309,7 +240,7 @@ function GroupsTab({ p }: { p: ArketProps }) {
         * dei står i.
         */}
       <div role="listbox" aria-label="plan">
-      {mine.length ? mine.map((rad) => {
+      {rader.length ? rader.map((rad) => {
         if (rad.kind === "gruppe") {
           const paa = p.valdGruppe === rad.id
           return (
@@ -342,66 +273,56 @@ function GroupsTab({ p }: { p: ArketProps }) {
 
       {detaljar.length > 0 && (
         <div className="border-t pt-0.5" style={HAIR}>
-          {detaljar[detalj]?.node}
-          <Pager side={detalj} tal={detaljar.length} onSide={setDetalj} ord={detaljar[detalj]?.ord ?? "val"} />
+          {detaljar.map((d) => <div key={d.ord}>{d.node}</div>)}
         </div>
       )}
-      <Pager side={side} tal={sider} onSide={setSide} ord="grupper" />
     </div>
   )
 }
 
 function MaterialTab({ p }: { p: ArketProps }) {
-  const [side, setSide] = useState(0)
   const naaTjukn = num(p.params, "tjukn", TJUKNER[0])
   return (
     <div className="px-3 pb-1 pt-1">
-      {side === 0 ? (
-        <>
-          <div className="rull-x flex h-9 items-center gap-1 overflow-x-auto overscroll-contain">
-            {(Object.keys(MATERIALS) as Material[]).map((mk) => (
-              <button key={mk} type="button" aria-pressed={p.params.material === mk} aria-label={`materiale: ${MATERIALS[mk].label}`} title={MATERIALS[mk].label} onClick={() => p.onChange({ ...p.params, material: mk })} className="hit flex h-8 w-8 shrink-0 items-center justify-center">
-                <span aria-hidden="true" className="block h-5 w-5 rounded-full border-2" style={{ backgroundColor: MATERIALS[mk].hex, borderColor: p.params.material === mk ? "var(--ink)" : "var(--rule)" }} />
-              </button>
-            ))}
-          </div>
-          <div className="rull-x flex h-9 items-center gap-1 overflow-x-auto overscroll-contain">
-            <span className="dim mr-1 shrink-0 text-[9px] uppercase tracking-[0.12em]">tjukn</span>
-            {TJUKNER.map((t) => (
-              <button key={t} type="button" aria-pressed={naaTjukn === t} title={`${tjukn(t)} mm plate`} onClick={() => p.onChange({ ...p.params, tjukn: t })} className={CHIP + " tab min-w-[42px] shrink-0 px-2"} style={chipStyle(naaTjukn === t)}>
-                {tjukn(t)}
-              </button>
-            ))}
-          </div>
-        </>
-      ) : (
-        <>
-          {(["arkB", "arkH"] as const).map((k) => (
-            <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(p.params, k, PARAM_RANGES[k].min)} benk={false} onChange={(key, v) => p.onChange({ ...p.params, [key]: v })} onSkrubb={p.onSkrubb} />
-          ))}
-        </>
-      )}
-      <Pager side={side} tal={2} onSide={setSide} ord={side === 0 ? "materiale" : "plate"} />
+      <div className="rull-x flex h-9 items-center gap-1 overflow-x-auto overscroll-contain">
+        {(Object.keys(MATERIALS) as Material[]).map((mk) => (
+          <button key={mk} type="button" aria-pressed={p.params.material === mk} aria-label={`materiale: ${MATERIALS[mk].label}`} title={MATERIALS[mk].label} onClick={() => p.onChange({ ...p.params, material: mk })} className="hit flex h-8 w-8 shrink-0 items-center justify-center">
+            <span aria-hidden="true" className="block h-5 w-5 rounded-full border-2" style={{ backgroundColor: MATERIALS[mk].hex, borderColor: p.params.material === mk ? "var(--ink)" : "var(--rule)" }} />
+          </button>
+        ))}
+      </div>
+      <div className="rull-x flex h-9 items-center gap-1 overflow-x-auto overscroll-contain">
+        <span className="dim mr-1 shrink-0 text-[9px] uppercase tracking-[0.12em]">tjukn</span>
+        {TJUKNER.map((t) => (
+          <button key={t} type="button" aria-pressed={naaTjukn === t} title={`${tjukn(t)} mm plate`} onClick={() => p.onChange({ ...p.params, tjukn: t })} className={CHIP + " tab min-w-[42px] shrink-0 px-2"} style={chipStyle(naaTjukn === t)}>
+            {tjukn(t)}
+          </button>
+        ))}
+      </div>
+      {(["tjukn", "klaring", "arkB", "arkH"] as const).map((k) => (
+        <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(p.params, k, PARAM_RANGES[k].min)} benk={false} onChange={(key, v) => p.onChange({ ...p.params, [key]: v })} onSkrubb={p.onSkrubb} />
+      ))}
     </div>
   )
 }
 
-const KUTT_GRUPPER = GROUPS
-  .filter((g) => g.id !== "form" && g.id !== "plate")
+const KUTT_PRIORITET = ["delar", "ledd", "kutt", "plate", "snapp", "nett", "forenkling"] as const
+const KUTT_GRUPPER = KUTT_PRIORITET.map((id) => GROUPS.find((g) => g.id === id))
+  .filter((g): g is (typeof GROUPS)[number] => !!g)
   .map((g) => ({ ...g, keys: g.keys.filter((k) => k !== "tjukn") }))
   .filter((g) => g.keys.length)
 
 function CuttingTab({ p }: { p: ArketProps }) {
-  const [side, setSide] = useState(0)
-  const g = KUTT_GRUPPER[side] ?? KUTT_GRUPPER[0]
-  useEffect(() => setSide((s) => Math.min(s, KUTT_GRUPPER.length - 1)), [])
   return (
     <div className="px-3 pb-1 pt-1">
-      <div className="dim h-5 px-1.5 pt-1 text-[9px] uppercase leading-none tracking-[0.18em]">{g?.label}</div>
-      {g?.keys.map((k) => (
-        <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(p.params, k, PARAM_RANGES[k].min)} benk={false} onChange={(key, v) => p.onChange({ ...p.params, [key]: v })} onSkrubb={p.onSkrubb} />
+      {KUTT_GRUPPER.map((g) => (
+        <section key={g.id} className="border-b pb-1 last:border-b-0" style={HAIR}>
+          <div className="dim h-5 px-1.5 pt-1 text-[9px] uppercase leading-none tracking-[0.18em]">{g.label}</div>
+          {g.keys.map((k) => (
+            <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(p.params, k, PARAM_RANGES[k].min)} benk={false} onChange={(key, v) => p.onChange({ ...p.params, [key]: v })} onSkrubb={p.onSkrubb} />
+          ))}
+        </section>
       ))}
-      <Pager side={side} tal={KUTT_GRUPPER.length} onSide={setSide} ord="kutt" />
     </div>
   )
 }
@@ -409,53 +330,42 @@ function CuttingTab({ p }: { p: ArketProps }) {
 type CheckPage = { metrics: Metric[]; rules: Rule[] }
 
 function ChecksTab({ p }: { p: ArketProps }) {
-  const pages = useMemo<CheckPage[]>(() => {
-    if (!p.metrics) return []
-    const out: CheckPage[] = []
+  const page = useMemo<CheckPage>(() => {
+    if (!p.metrics) return { metrics: [], rules: [] }
     const m = p.metrics.list
-    for (let i = 0; i < m.length; i += 2) {
-      const mine = m.slice(i, i + 2)
-      const ids = new Set(mine.map((x) => x.id))
-      out.push({ metrics: mine, rules: p.rules.filter((r) => !!r.rad && ids.has(r.rad)) })
-    }
-    const frie = p.rules.filter((r) => !r.rad && !r.ok)
-    for (let i = 0; i < frie.length; i += 2) out.push({ metrics: [], rules: frie.slice(i, i + 2) })
-    return out.length ? out : [{ metrics: [], rules: [] }]
+    const ids = new Set(m.map((x) => x.id))
+    return { metrics: m, rules: p.rules.filter((r) => !r.rad || ids.has(r.rad)) }
   }, [p.metrics, p.rules])
-  const [side, setSide] = useState(0)
-  useEffect(() => setSide((s) => Math.min(s, Math.max(0, pages.length - 1))), [pages.length])
 
   if (!p.metrics) return <div className="dim px-4 py-4 text-[11px]">måler …</div>
-  const page = pages[side] ?? pages[0]
   const metrics = { ...p.metrics, list: page.metrics }
   return (
     <div className="px-3 pb-1 pt-2">
       <Tavla metrics={metrics} rules={page.rules} busy={p.busy} params={p.params} onChange={p.onChange} onFiksAlle={p.onFiksAlle} />
-      <Pager side={side} tal={pages.length} onSide={setSide} ord="sjekk" />
     </div>
   )
 }
 
+const MOBIL_UTTAK = [...UTTAK.filter((g) => g.bolk === "plate"), ...UTTAK.filter((g) => g.bolk !== "plate")]
+
 function ExportTab({ p }: { p: ArketProps }) {
-  const sider = UTTAK.length + 1
-  const [side, setSide] = useState(0)
   const harde = p.rules.filter((r) => r.hard && !r.ok)
-  const g = side < UTTAK.length ? UTTAK[side] : null
   return (
     <div className="px-3 pb-1 pt-2">
-      {g ? (
-        <>
-          {/**
-            * BOLKEN, GRUPPA OG VARSELET HEITER NOKO.
-            *
-            * Uttaket er der du gjer noko du ikkje kan gjere om — ei plate
-            * finér er skoren éin gong — so det er den siste staden i huset
-            * der ein knapp skal vera namnlaus. Brikkene er ei gruppe (dei
-            * høyrer saman og bolken er namnet på det), og det raude
-            * varselet er det ei vakt skal kunne finne att.
-            */}
-          <div data-bolk={g.bolk} className="dim h-5 px-1 text-[9px] uppercase leading-none tracking-[0.18em]">{g.bolk}</div>
-          <div role="group" aria-label="uttak" className="flex min-h-9 flex-wrap items-center gap-1.5">
+      {/**
+        * BOLKEN, GRUPPA OG VARSELET HEITER NOKO.
+        *
+        * Uttaket er der du gjer noko du ikkje kan gjere om — ei plate finér
+        * er skoren éin gong — so det er den siste staden i huset der ein
+        * knapp skal vera namnlaus. Brikkene er ÉI gruppe (bolkane er
+        * overskrifter i henne, ikkje tre lister), og det raude varselet er
+        * det ei vakt skal kunne finne att.
+        */}
+      <div role="group" aria-label="uttak">
+      {MOBIL_UTTAK.map((g) => (
+        <section key={g.bolk} data-bolk={g.bolk} className="border-b pb-1 last:border-b-0" style={HAIR}>
+          <div className="dim h-5 px-1 text-[9px] uppercase leading-none tracking-[0.18em]">{g.bolk}</div>
+          <div className="flex min-h-9 flex-wrap items-center gap-1.5">
             {g.filer.map((x) => {
               const stopp = stengd(x.id, p.metrics)
               return (
@@ -474,21 +384,20 @@ function ExportTab({ p }: { p: ArketProps }) {
               )
             })}
           </div>
-          {harde.length > 0 && <p data-uttakvarsel="" className="pt-1 text-[9px]" style={{ color: "var(--warn)" }}>{harde.map((r) => r.label).join(", ")} — går ikkje i hop</p>}
-        </>
-      ) : (
-        <div className="flex min-h-14 items-center gap-1.5">
-          {([
-            ["kuttliste", "kuttliste", "kvar del, med adresse, mål og plate"],
-            ["oppsett", "oppsett", "alle innstillingane som tekst"],
-          ] as const).map(([id, ord, hint]) => (
-            <button key={id} type="button" title={hint} aria-pressed={p.verkty === id} onClick={() => p.onVerkty(id)} className={CHIP + " uppercase tracking-[0.1em]"} style={chipStyle(p.verkty === id)}>
-              {ord}
-            </button>
-          ))}
-        </div>
-      )}
-      <Pager side={side} tal={sider} onSide={setSide} ord="uttak" />
+        </section>
+      ))}
+      </div>
+      {harde.length > 0 && <p data-uttakvarsel="" className="pt-1 text-[9px]" style={{ color: "var(--warn)" }}>{harde.map((r) => r.label).join(", ")} — går ikkje i hop</p>}
+      <div className="flex min-h-14 items-center gap-1.5">
+        {([
+          ["kuttliste", "kuttliste", "kvar del, med adresse, mål og plate"],
+          ["oppsett", "oppsett", "alle innstillingane som tekst"],
+        ] as const).map(([id, ord, hint]) => (
+          <button key={id} type="button" title={hint} aria-pressed={p.verkty === id} onClick={() => p.onVerkty(id)} className={CHIP + " uppercase tracking-[0.1em]"} style={chipStyle(p.verkty === id)}>
+            {ord}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -517,11 +426,22 @@ function ExportTab({ p }: { p: ArketProps }) {
 const SKUFF_H = "26dvh"
 
 function MobileArket(p: ArketProps) {
+  const gjenta = useGjenta(p)
   const open = p.steg !== "line"
   const [fane, setFane] = useState<Fane>("grupper")
   const el = useRef<HTMLElement | null>(null)
   const drag = useRef<{ y: number; id: number } | null>(null)
   const [pull, setPull] = useState(0)
+  const uttak = useRef<HTMLElement | null>(null)
+  const rull = useRef<HTMLDivElement | null>(null)
+  const [tilUttak, setTilUttak] = useState(false)
+
+  // Eksportikonet går til filene, ikkje toppen av den lange sjekklista.
+  useLayoutEffect(() => {
+    if (!open || fane !== "status" || !tilUttak || !rull.current || !uttak.current) return
+    rull.current.scrollTop += uttak.current.getBoundingClientRect().top - rull.current.getBoundingClientRect().top
+    setTilUttak(false)
+  }, [open, fane, tilUttak])
 
   useEffect(() => {
     const s = el.current
@@ -551,12 +471,17 @@ function MobileArket(p: ArketProps) {
   }
 
   const content =
-    fane === "form" ? <FormTab p={p} /> :
-    fane === "grupper" ? <GroupsTab p={p} /> :
+    fane === "grupper" ? <><FormTab p={p} /><GroupsTab p={p} /></> :
     fane === "materiale" ? <MaterialTab p={p} /> :
     fane === "kutt" ? <CuttingTab p={p} /> :
-    fane === "sjekk" ? <ChecksTab p={p} /> :
-    <ExportTab p={p} />
+    <div className="flex min-w-0 flex-col">
+      <section aria-label="sjekk" className="min-w-0">
+        <ChecksTab p={p} />
+      </section>
+      <section ref={uttak} aria-label="uttak" className="min-w-0 border-t" style={HAIR}>
+        <ExportTab p={p} />
+      </section>
+    </div>
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex flex-col items-center px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
@@ -620,7 +545,8 @@ function MobileArket(p: ArketProps) {
             >
               <Summary p={p} />
             </button>
-            <button type="button" aria-label="eksport" title="uttak" onClick={() => setOpenFane("uttak")} className={ICON_BTN}>
+            {gjenta && <button type="button" aria-label="gjenta flyttinga" title={gjenta.grunn ?? "ny plate med same flytting som førre kopi"} disabled={!gjenta.gjer} onClick={gjenta.gjer} className="hit h-9 min-w-14 shrink-0 px-1 text-[10px] uppercase tracking-[0.08em]">gjenta</button>}
+            <button type="button" aria-label="eksport" title="uttak" onClick={() => { setTilUttak(true); setOpenFane("status") }} className={ICON_BTN}>
               {IcoUttak}
             </button>
           </div>
@@ -632,7 +558,7 @@ function MobileArket(p: ArketProps) {
             {/* fanen fyller det som er att av den faste høgda, og rullar
                 om ho treng meir enn det. `overscroll-contain` av di sida
                 sjølv aldri rullar. */}
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div key={fane} ref={rull} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {content}
             </div>
           </>

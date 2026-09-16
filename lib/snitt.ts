@@ -35,9 +35,15 @@ import { bbox, inRing, MATERIALS, MIN_AREA, perimeter, shoelace, type Material, 
 import { contour, simplify } from "./contour"
 import type { Solid, Span } from "./mesh/solid"
 import { rull, vend, type BitBoks, type Kropp } from "./kropp"
-import { add3, akser, bogPar, cross, dot, ein2, inn, kryss as kryssAv, kryssBoygd, kryssRing, len3, lesPlan, moteInn, mul3, norm3, omrissLine, skrivPlan, ut, type Mote, type Plan, type Ramme, type Strek } from "./plan"
+import { add3, akser, cross, dot, ein2, inn, kryss as kryssAv, kryssBoygd, kryssRing, len3, lesPlan, moteInn, mul3, norm3, omrissLine, skrivPlan, ut, type Mote, type Plan, type Ramme, type Strek } from "./plan"
 import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 import { bogMin, rilla } from "./rille"
+import { forenklaSpor, sporAksar, sporRute } from "./sporfelt"
+import { felles, iGods, sporInn, sporPunkt, stykkeLangs, utan, type Line } from "./stykke"
+import { fingrar, stikkUt, tappa, tappIn, slisseGods, type Boks as TappBoks, type Tapp } from "./tapp"
+import { monteringsorden, veg, type Vegar } from "./orden"
+
+export { sporPunkt, stykkeLangs, tappIn, type Tapp }
 
 /**
  * Ruter langs den lengste sida av objektet, per detaljnivå.
@@ -126,33 +132,6 @@ export type Spor = {
   hi: number
 }
 
-/**
- * PUNKTET `t` MILLIMETER LANGS SPORLINA, `s` MILLIMETER TIL SIDES.
- *
- * Éin stad, av di sju stader spurde om det same: feltet som skjer sporet,
- * stykket ein ende høyrer til, handtaka på plata, handtaka i rommet,
- * skissa og leddvakta. Ei rett line og ein boge er det same uttrykket her —
- * `bogPar` går mot `[t, 0]` når krumminga går mot null — men greina står
- * likevel, av di eit flatt spor er det vanlege og ein `sin` og ein `cos`
- * per celle i ei rute på 220 × 220 er ikkje gratis.
- *
- * Sida er mot VENSTRE for `d`, som overalt elles i huset: `n̂⊥ = (−d_y, d_x)`.
- */
-export function sporPunkt(q: { p: Pt; d: Pt; k: number }, t: number, s = 0): Pt {
-  const nx = -q.d[1]
-  const ny = q.d[0]
-  if (!q.k) return [q.p[0] + q.d[0] * t + nx * s, q.p[1] + q.d[1] * t + ny * s]
-  const a = q.k * t
-  const [su, sn] = bogPar(q.k, t)
-  // `s` fylgjer flata og ikkje der bogen byrja — same rekninga som tjukna
-  // på ei bøygd ribbe i `ut`, so sporet er like breitt heile vegen
-  const du = su - s * Math.sin(a)
-  const dn = sn + s * Math.cos(a)
-  return [q.p[0] + q.d[0] * du + nx * dn, q.p[1] + q.d[1] * du + ny * dn]
-}
-
-/** ei sporline for seg: det dei to rekningane over treng, og ikkje eit heilt ledd */
-type Line = { p: Pt; d: Pt; k: number }
 
 /**
  * KOR LANGT EI KORDE FÅR STÅ FRÅ BOGEN når han skal TEIKNAST, mm.
@@ -183,23 +162,6 @@ export function sporBoge(q: Line, a: number, b: number): Pt[] {
   return ut
 }
 
-/**
- * OG ATTENDE: buelengda langs lina, og kor langt frå henne punktet ligg.
- *
- * Tal og ikkje eit punkt inn, av di den eine staden dette vert spurt tett
- * er feltet, og der ligg tala alt i kvar sin variabel. Rekninga er
- * `inn`/`avFlata` i `plan.ts`, med ei dimensjon mindre.
- */
-function sporInn(px: number, py: number, dx: number, dy: number, k: number, x: number, y: number): [number, number] {
-  const rx = x - px
-  const ry = y - py
-  const a = rx * dx + ry * dy
-  const b = -rx * dy + ry * dx
-  if (!k) return [a, b]
-  const R = 1 / k
-  const sg = Math.sign(R)
-  return [Math.atan2(sg * a, sg * (R - b)) * R, R - Math.hypot(a, R - b) * sg]
-}
 
 export type Ribbe = {
   plan: Plan
@@ -232,6 +194,8 @@ export type Ribbe = {
    */
   rille: Pt[][]
   spor: Spor[]
+  /** tappar denne plata ber, og slisser ho tek imot — sjå `Tapp` */
+  tapp: Tapp[]
   /** netto areal etter spor og hòl, mm² */
   area: number
   /** smalaste godset som er att gjennom eit spor, mm */
@@ -294,7 +258,10 @@ const KLEM_MIN = 1
 export type Snitt = {
   k: Kropp
   ribber: Ribbe[]
+  /** alle ledd: halvt om halvt og tappar saman */
   ledd: number
+  /** av dei, kor mange som er tappar gjennom slisser */
+  tappar: number
   /**
    * MØTE SOM VART NEKTA AV SKULDRA.
    *
@@ -426,18 +393,20 @@ type Rute = {
  * over forma.
  */
 const TOMME: Span[] = []
-function ruteAv(kjelde: Solid | Kasse, d: number, step: number, former: readonly Form[] = []): Rute {
+function ruteAv(kjelde: Solid | Kasse, d: number, step: number, former: readonly Form[] = [], straale?: Solid): Rute {
   // Ruta må dekkje HEILE profilen med litt mon: ein kontur som vert klipt
   // av kanten på ruta er ei open kjede og ikkje eit polygon. Og profilen
   // er ikkje berre kroppen: eit strek som tjuknar eit bein rekk gjerne ut
   // forbi boksen kring nettet, og vart klipt der — plata kom ut delt i to
   // av eit skrått band der kjeda vart lukka på måfå.
   const PAD = Math.max(4, step * 2)
-  const s = "runs" in kjelde ? kjelde : null
-  let t0 = s ? s.min[0] : (kjelde as Kasse).bx0
-  let t1 = s ? s.max[0] : (kjelde as Kasse).bx1
-  let z0 = s ? s.min[1] : (kjelde as Kasse).by0
-  let z1 = s ? s.max[1] : (kjelde as Kasse).by1
+  const boks = "runs" in kjelde ? null : kjelde
+  // eit omriss bunde av nettet: ruta kring omrisset, strålane gjennom nettet
+  const s = boks ? straale ?? null : (kjelde as Solid)
+  let t0 = boks ? boks.bx0 : s!.min[0]
+  let t1 = boks ? boks.bx1 : s!.max[0]
+  let z0 = boks ? boks.by0 : s!.min[1]
+  let z1 = boks ? boks.by1 : s!.max[1]
   for (const f of former) {
     t0 = Math.min(t0, f.bx0)
     t1 = Math.max(t1, f.bx1)
@@ -462,7 +431,7 @@ function ruteAv(kjelde: Solid | Kasse, d: number, step: number, former: readonly
 /** ytterkanten til eit strek, millimeter: det einaste ruta treng vite om han */
 type Kasse = { bx0: number; bx1: number; by0: number; by1: number }
 /** EIN STREK I MILLIMETER, i profilen si ramme: ein midt og ei halvside. */
-type Form = Kasse & { gods: boolean; rund: boolean; cx: number; cy: number; hw: number; hh: number; c: number; s: number }
+type Form = Kasse & { gods: boolean; rund: boolean; cx: number; cy: number; hw: number; hh: number; c: number; s: number; kant?: Kant[] }
 
 /**
  * EIN STREK MÅ KOME INN I FELTET SOM EI EKTE SIGNERT AVSTAND, og aldri som
@@ -477,6 +446,8 @@ type Form = Kasse & { gods: boolean; rund: boolean; cx: number; cy: number; hw: 
  * Begge er nøyaktige der det tel — på nullstaden ruta leitar etter.
  */
 function formDist(f: Form, x: number, y: number): number {
+  // ein teikna kontur: avstanden til mangekanten, negativ inne
+  if (f.kant) return -omrissDist(f.kant, x, y)
   const dx = x - f.cx
   const dy = y - f.cy
   const a = dx * f.c + dy * f.s
@@ -502,6 +473,15 @@ function formAv(st: Strek, ou: number, ov: number, S: number): Form {
   const cy = ov + st.y * S
   const hw = (st.w * S) / 2
   const hh = (st.h * S) / 2
+  if (st.form === "kontur" && st.punkt && st.punkt.length >= 3) {
+    const poly = st.punkt.map(([px, py]): Pt => {
+      const lx = px * 2 * hw
+      const ly = py * 2 * hh
+      return [cx + lx * c - ly * si, cy + lx * si + ly * c]
+    })
+    const b = bbox(poly)
+    return { gods, rund: false, cx, cy, hw, hh, c, s: si, bx0: b.x0, bx1: b.x1, by0: b.y0, by1: b.y1, kant: kantar(poly) }
+  }
   const rx = hw * Math.abs(c) + hh * Math.abs(si)
   const ry = hw * Math.abs(si) + hh * Math.abs(c)
   return { gods, rund: st.form === "rund", cx, cy, hw, hh, c, s: si, bx0: cx - rx, bx1: cx + rx, by0: cy - ry, by1: cy + ry }
@@ -658,25 +638,75 @@ function sloer(g: Float64Array, w: number, h: number, kx: number, kz: number) {
 }
 
 /**
+ * kantane på dei boksane som ligg langs aksane — sjå `sporRute` — og
+ * linene tett inntil kvart hjørne i omrisset.
+ *
+ * HJØRNET I EIT TEIKNA OMRISS ER EIT HJØRNE. Utan liner ved det fell det
+ * midt i ei celle, og marsjen skjer skrått over cella: ein fot på ein
+ * krakk på ein halvmeter kom ut med ei fase på to millimeter, og ingen
+ * hadde teikna henne. To liner ein tusendels millimeter på kvar side gjer
+ * cella so lita at skråkuttet ikkje finst for nokon maskin.
+ */
+function formLiner(former: readonly Form[], hjorne: readonly Pt[] = []): { x: number[]; y: number[] } | undefined {
+  if (!former.length && !hjorne.length) return undefined
+  const x: number[] = []
+  const y: number[] = []
+  for (const q of hjorne) x.push(q[0] - 1e-3, q[0] + 1e-3), y.push(q[1] - 1e-3, q[1] + 1e-3)
+  for (const f of former) {
+    if (f.rund) continue
+    // Eit YTRE hjørne av gods fell mellom to rutepunkt som båe ligg på
+    // kanten og difor tel som luft, og marsjen skjer skrått over cella.
+    // Ei line ein tusendels millimeter innanfor gjer den cella so lita at
+    // skråkuttet er under det nokon maskin skil frå eit hjørne.
+    const inn = f.gods ? [0, -1e-3, 1e-3] : [0]
+    const [hx, hy] = Math.abs(f.s) < 1e-9 ? [f.hw, f.hh] : Math.abs(f.c) < 1e-9 ? [f.hh, f.hw] : [NaN, NaN]
+    if (Number.isNaN(hx)) continue
+    for (const e of inn) {
+      x.push(f.cx - hx - e, f.cx + hx + e)
+      y.push(f.cy - hy - e, f.cy + hy + e)
+    }
+  }
+  return { x, y }
+}
+
+/**
  * `mjuk` er millimeter, og sløret kjem MELLOM feltet og spora: eit rundt
  * hjørne skal ikkje gjere leddet rundt òg. Sporet er det einaste i denne
  * fila som må kome ut med skarpe kantar — det er det som grip.
  */
-function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, omriss?: readonly Pt[]) {
-  const { t0, dt, nt, z0, dz, nz, rows, cols } = ru
+function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, omriss?: readonly Pt[], etter: readonly Form[] = [], hjorne: readonly Pt[] = [], nett = false) {
+  const { t0, dt, z0, dz, rows, cols } = ru
+  let { nt, nz } = ru
   const boksar = spor.map(boksAv)
   // OMRISSET STÅR I STADEN FOR KROPPEN, og ikkje ved sida av han: det er
   // det som gjer at handa kan ta forma MINDRE. Alt anna i feltet — klippet,
   // streka, mjukinga, spora — les det same feltet som før.
   const kant = omriss && omriss.length >= 3 ? kantar(omriss) : null
-  const g = new Float64Array((nt + 1) * (nz + 1))
+  /**
+   * EIT OMRISS UTAN SLØR VERT LESE DER RUTA ER, og ikkje interpolert dit.
+   *
+   * Avstanden til ei mangekant kan reknast i kva punkt som helst. Nettet
+   * kan ikkje det — strålane er kasta langs den grove ruta — og difor vert
+   * dei ekstra linene ved eit spor interpolerte i det grove feltet. For eit
+   * omriss er interpolasjonen berre feil: ved eit ytre hjørne er avstanden
+   * ikkje lineær, og ei ekstra line like ved hjørnet gav eit hakk på ein
+   * halv millimeter der ingen hadde teikna noko.
+   */
+  // bunde av nettet er feltet det grove nettet sitt, og vert interpolert som det
+  const direkte = kant && !(mjuk > 0) && !nett
+  const aksar = direkte ? sporAksar(t0, dt, nt, z0, dz, nz, spor, formLiner(etter, hjorne)) : null
+  if (aksar) {
+    nt = aksar.x.length - 1
+    nz = aksar.y.length - 1
+  }
+  let g = new Float64Array((nt + 1) * (nz + 1))
   for (let j = 0; j <= nz; j++) {
-    const z = z0 + j * dz
+    const z = aksar ? aksar.y[j] : z0 + j * dz
     const row = rows[j]
     for (let i = 0; i <= nt; i++) {
-      const t = t0 + i * dt
+      const t = aksar ? aksar.x[i] : t0 + i * dt
       let v: number
-      if (kant) v = omrissDist(kant, t, z)
+      if (kant && !nett) v = omrissDist(kant, t, z)
       else {
         const dh = axisDist(row, t)
         const dv = axisDist(cols[i], z)
@@ -685,6 +715,7 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
         // til den næraste av dei to kantane, og aldri den fjernaste.
         const mag = Math.min(Math.abs(dh), Math.abs(dv))
         v = dh > 0 && dv > 0 ? mag : -mag
+        if (kant) v = Math.min(v, omrissDist(kant, t, z))
       }
       // KLIPPET FYRST, og som eit hòl: det biten ikkje eig, er luft. Det
       // står før streka av di eit strek er noko du teikna PÅ delen, og ein
@@ -706,14 +737,40 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
     }
   }
   if (mjuk > 0) sloer(g, nt + 1, nz + 1, Math.round(mjuk / dt), Math.round(mjuk / dz))
+  let tett: { x: number[]; y: number[] } | null = aksar
+  if (!direkte) {
+    const fin = sporRute(g, t0, dt, nt, z0, dz, nz, spor, formLiner(etter))
+    if (fin) { g = fin.g; tett = fin; nt = fin.x.length - 1; nz = fin.y.length - 1 }
+  }
+  /**
+   * TAPPANE OG SLISSENE ETTER OPPDELINGA, og ikkje før: dei er rette boksar
+   * med skarpe hjørne, og avstanden til dei er eksakt i kvart punkt. Lagde
+   * inn i den grove ruta og so interpolerte, kom hjørna ut fasa — og ei
+   * fase i ei slisse er gods tappen ikkje kjem forbi.
+   */
+  if (etter.length) {
+    for (let j = 0; j <= nz; j++) {
+      const z = tett ? tett.y[j] : z0 + j * dz
+      for (let i = 0; i <= nt; i++) {
+        const t = tett ? tett.x[i] : t0 + i * dt
+        const k = j * (nt + 1) + i
+        let v = g[k]
+        for (const f of etter) {
+          const d = formDist(f, t, z)
+          v = f.gods ? Math.max(v, -d) : Math.min(v, d)
+        }
+        g[k] = v
+      }
+    }
+  }
   if (boksar.length) {
     for (let j = 0; j <= nz; j++) {
-      const z = z0 + j * dz
+      const z = tett ? tett.y[j] : z0 + j * dz
       for (let i = 0; i <= nt; i++) {
         const k = j * (nt + 1) + i
         let v = g[k]
         if (v <= 0) continue
-        const t = t0 + i * dt
+        const t = tett ? tett.x[i] : t0 + i * dt
         for (const b of boksar) {
           /**
            * DEN RETTE LINA STÅR INLINE, og det er ikkje ein kopi som fekk
@@ -751,124 +808,9 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
       }
     }
   }
-  return contour(g, t0, dt, nt, z0, dz, nz)
+  return contour(g, t0, dt, nt, z0, dz, nz, tett ?? undefined)
 }
 
-// =============================================================================
-// LINER GJENNOM RINGAR
-// =============================================================================
-/**
- * Kvar ei line går gjennom gods: stykka [t0, t1] langs `d` frå `p`, lesne
- * av alle ringane med partal/oddetal. Eit hòl er ein ring, og ei line som
- * går inn i eit hòl går ut av godset — det er det same talet. Halvopen
- * regel på hjørna, so ei line gjennom eit hjørne tel éin gong.
- */
-export function stykkeLangs(ringar: readonly Pt[][], p: Pt, d: Pt, k = 0): Span[] {
-  if (k) return stykkeBoge(ringar, p, d, k)
-  const nx = -d[1]
-  const ny = d[0]
-  const ts: number[] = []
-  for (const ring of ringar) {
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const a = ring[j]
-      const b = ring[i]
-      const sa = (a[0] - p[0]) * nx + (a[1] - p[1]) * ny
-      const sb = (b[0] - p[0]) * nx + (b[1] - p[1]) * ny
-      if (sa > 0 === sb > 0) continue
-      const ta = (a[0] - p[0]) * d[0] + (a[1] - p[1]) * d[1]
-      const tb = (b[0] - p[0]) * d[0] + (b[1] - p[1]) * d[1]
-      ts.push(ta + ((tb - ta) * sa) / (sa - sb))
-    }
-  }
-  ts.sort((u, v) => u - v)
-  const ut: Span[] = []
-  for (let i = 0; i + 1 < ts.length; i += 2) if (ts[i + 1] - ts[i] > 1e-6) ut.push([ts[i], ts[i + 1]])
-  return ut
-}
-
-/**
- * DET SAME, MEN LANGS EIN BOGE.
- *
- * Ei rett line er open i båe endar, so ho byrjar i lufta og pari kan
- * lesast av rekkjefylgja åleine: fyrste kryssinga går INN i gods. Ein
- * sirkel er LUKKA — han har ingen ende å byrje utanfor — so pariteten må
- * lesast éin stad og gjelde derifrå.
- *
- * Skøyta ligg på ±πR, og `kryssRing` legg nullpunktet midt i delen nett
- * for at ho skal liggje langt frå godset. Går bogen heilt rundt utan å
- * krysse noko, er han anten heilt inne eller heilt ute, og eitt punkt
- * svarar på kva.
- */
-function stykkeBoge(ringar: readonly Pt[][], p: Pt, d: Pt, k: number): Span[] {
-  const q = { p, d, k }
-  const R = 1 / k
-  const omkrins = 2 * Math.PI * Math.abs(R)
-  // sentrum ligg på `p + n̂⊥·R` — same teiknvedtaket som `bogPar`
-  const cx = p[0] - d[1] * R
-  const cy = p[1] + d[0] * R
-  const rad = Math.abs(R)
-  const ts: number[] = []
-  for (const ring of ringar) {
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const a = ring[j]
-      const b = ring[i]
-      // |a + t(b−a) − c|² = R², t i [0, 1)
-      const ex = b[0] - a[0]
-      const ey = b[1] - a[1]
-      const fx = a[0] - cx
-      const fy = a[1] - cy
-      const A = ex * ex + ey * ey
-      if (A < 1e-18) continue
-      const B = 2 * (fx * ex + fy * ey)
-      const C = fx * fx + fy * fy - rad * rad
-      const disk = B * B - 4 * A * C
-      if (disk <= 0) continue
-      const rot = Math.sqrt(disk)
-      for (const t of [(-B - rot) / (2 * A), (-B + rot) / (2 * A)]) {
-        if (t < 0 || t >= 1) continue
-        ts.push(sporInn(p[0], p[1], d[0], d[1], k, a[0] + ex * t, a[1] + ey * t)[0])
-      }
-    }
-  }
-  ts.sort((u, v) => u - v)
-  if (!ts.length) {
-    let n = 0
-    for (const ring of ringar) if (inRing(ring, p)) n++
-    return n % 2 === 1 ? [[-omkrins / 2, omkrins / 2]] : []
-  }
-  // spenna mellom to nabokryssingar, med den siste attende til den fyrste
-  const ut: Span[] = []
-  for (let i = 0; i < ts.length; i++) {
-    const lo = ts[i]
-    const hi = i + 1 < ts.length ? ts[i + 1] : ts[0] + omkrins
-    if (hi - lo <= 1e-6) continue
-    const m = sporPunkt(q, (lo + hi) / 2)
-    let n = 0
-    for (const ring of ringar) if (inRing(ring, m)) n++
-    if (n % 2 === 1) ut.push([lo, hi])
-  }
-  return ut
-}
-
-/** snittet av to stykkelister */
-function felles(a: Span[], b: Span[]): Span[] {
-  const ut: Span[] = []
-  for (const [a0, a1] of a) {
-    for (const [b0, b1] of b) {
-      const lo = Math.max(a0, b0)
-      const hi = Math.min(a1, b1)
-      if (hi > lo) ut.push([lo, hi])
-    }
-  }
-  return ut
-}
-
-/** ligg punktet i gods: i eit oddetal ringar */
-function iGods(ringar: readonly Pt[][], q: Pt): boolean {
-  let n = 0
-  for (const r of ringar) if (inRing(r, q)) n++
-  return n % 2 === 1
-}
 
 // =============================================================================
 // SNITTET
@@ -1028,6 +970,15 @@ type Raa = {
   omriss?: Pt[]
   /** boksane planet er lenkt til gjennom laget sitt, om nokon */
   klipp?: Klipp
+  /** omrisset er bunde av nettet: profilen er det som er i båe */
+  nett?: boolean
+  tapp: Tapp[]
+  /** klipp, fyll, tappar og slisser: boksar som vert lagde inn etter at ruta er delt opp */
+  tform: TappBoks[]
+  /** dei punkta i omrisset som er hjørne og ikkje bogar, mm */
+  hjorne: Pt[]
+  /** tappane rekk ut forbi omrisset, so ruta må reknast om */
+  utvida: boolean
 }
 
 /** fyrste komponenten som ikkje er null skal vera positiv, so den same
@@ -1102,8 +1053,9 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     const omriss = pl.omriss && pl.omriss.length >= 3 ? (omrissLine(pl.omriss, pl.runde).map((q) => [ou + q[0] * S, ov + q[1] * S]) as Pt[]) : undefined
     // det utrulla rommet har flata på null; det vendte har henne på `d`
     const ob = omriss ? bbox(omriss) : null
-    const ru = ruteAv(ob ? { bx0: ob.x0, bx1: ob.x1, by0: ob.y0, by1: ob.y1 } : sol, boygd ? 0 : d, step, former)
-    let ringar = felt(ru, former, [], klipp, mjuk, omriss).map((l) => l.pts as Pt[])
+    const nett = !!(omriss && pl.nett)
+    const ru = ruteAv(ob ? { bx0: ob.x0, bx1: ob.x1, by0: ob.y0, by1: ob.y1 } : sol, boygd ? 0 : d, step, former, nett ? sol : undefined)
+    let ringar = felt(ru, former, [], klipp, mjuk, omriss, [], [], nett).map((l) => l.pts as Pt[])
     /**
      * FIRKANTEN: BOKSEN KRING PROFILEN, LAGD TIL SOM GODS.
      *
@@ -1134,9 +1086,11 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
         y1 = Math.max(y1, b.y1)
       }
       former.push({ gods: true, rund: false, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, hw: (x1 - x0) / 2, hh: (y1 - y0) / 2, c: 1, s: 0, bx0: x0, bx1: x1, by0: y0, by1: y1 })
-      ringar = felt(ru, former, [], klipp, mjuk, omriss).map((l) => l.pts as Pt[])
+      ringar = felt(ru, former, [], klipp, mjuk, omriss, [], [], nett).map((l) => l.pts as Pt[])
     }
-    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], nullpkt: [ou, ov] as Pt, boygd, klipp, mjuk, omriss }
+    const rund = new Set(pl.runde ?? [])
+    const hjorne = omriss ? (pl.omriss ?? []).filter((_, i) => !rund.has(i)).map((q): Pt => [ou + q[0] * S, ov + q[1] * S]) : []
+    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], tapp: [], tform: [], hjorne, utvida: false, nullpkt: [ou, ov] as Pt, boygd, klipp, mjuk, omriss, nett }
   })
 
   // --- ledda -------------------------------------------------------------
@@ -1151,9 +1105,9 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
   const skulder = (w: number) => w / 2 + Math.min(6, Math.max(2, p.tjukn / 2))
   let ledd = 0
   let avvist = 0
-  const retning: Record<number, Vec3 | null> = {}
   const boygde: number[] = []
-  const brot: number[] = []
+  /** kva veg kvar del går inn mot kvar partnar — sjå `orden.ts` */
+  const vegar: Vegar = new Map()
   /** gods på begge sider av sporet, i den høgda sporet står i */
   const rom = (a: Raa, li: Line, t: number, sw: number) => {
     const S = 7
@@ -1285,9 +1239,11 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     return x ? [x] : []
   }
 
+  let tappar = 0
+  const tappKtx = { tjukn: p.tjukn, klaring: p.klaring, slotW }
+
   for (let j = 1; j < raa.length; j++) {
     const B = raa[j]
-    let felt3: Vec3 | null = null
     for (let i = 0; i < j; i++) {
       const A = raa[i]
       let fann = false
@@ -1318,7 +1274,42 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
        */
       const lA = moteInn(A.r, x)
       const lB = moteInn(B.r, x)
-      const runs = felles(stykkeLangs(A.ringar, lA.p, lA.d, lA.k), stykkeLangs(B.ringar, lB.p, lB.d, lB.k))
+      /**
+       * TAPPANE FYRST, og i båe retningar: A kan slutte mot B, og B mot A.
+       * Det dei tok, er ikkje eit halvt-om-halvt-ledd — ein kant som vart
+       * teikna litt forbi midten av setet har gods på lina, men han går
+       * ikkje gjennom setet.
+       */
+      const tekne: Span[] = []
+      // tappar òg mot ei bøygd plate — der møtet er ei generatorline, rett i båe
+      if (!x.boge) {
+        const cos = Math.sqrt(Math.max(0, 1 - x.sin * x.sin))
+        for (const t of tappa(tappKtx, A, B, lA, lB, x.sin, cos, tappar, stikkUt(tappKtx, B, A, lB, lA, x.sin, cos))) {
+          tappar += t.tal
+          ledd += t.tal
+          // A går inn langs tappane sine; B kjem ned på dei, mot den vegen dei peikar
+          veg(vegar, A.plan.id, B.plan.id, t.inn)
+          veg(vegar, B.plan.id, A.plan.id, mul3(t.inn, -1))
+          tekne.push(...t.strekk)
+        }
+        for (const t of tappa(tappKtx, B, A, lB, lA, x.sin, cos, tappar, tekne)) {
+          tappar += t.tal
+          ledd += t.tal
+          veg(vegar, B.plan.id, A.plan.id, t.inn)
+          veg(vegar, A.plan.id, B.plan.id, mul3(t.inn, -1))
+          tekne.push(...t.strekk)
+        }
+        // hjørnet: båe sluttar mot kvarandre, og det vert fingrar
+        const fi = fingrar(tappKtx, A, B, lA, lB, x.sin, tappar, tekne)
+        if (fi) {
+          tappar += fi.tal
+          ledd += fi.tal
+          veg(vegar, A.plan.id, B.plan.id, fi.innA)
+          veg(vegar, B.plan.id, A.plan.id, fi.innB)
+          tekne.push(...fi.strekk)
+        }
+      }
+      const runs = utan(felles(stykkeLangs(A.ringar, lA.p, lA.d, lA.k), stykkeLangs(B.ringar, lB.p, lB.d, lB.k)), tekne)
       const w = slotW / x.sin
       for (const [lo, hi] of runs) {
         if (hi - lo < minLap) continue
@@ -1374,17 +1365,25 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
          * bogane peika kvar sin veg, og golvet vart meldt «står fast» for ein
          * montasje du gjer med hendene: byggj waffelen flat, bøy huda kring.
          */
-        if (!A.boygd) {
-          if (!felt3) felt3 = m
-          else if (dot(felt3, m) < Math.cos((3 * Math.PI) / 180) && !brot.includes(B.plan.id) && !B.boygd) brot.push(B.plan.id)
+        // B kjem langs m; kjem A etter B, går A den andre vegen — munnen
+        // hans står i den enden B kom frå, og det er den enden som går fyrst
+        if (!A.boygd && !B.boygd) {
+          veg(vegar, B.plan.id, A.plan.id, m)
+          veg(vegar, A.plan.id, B.plan.id, mul3(m, -1))
         }
         if (B.boygd && !boygde.includes(B.plan.id)) boygde.push(B.plan.id)
       }
       }
     }
-    retning[B.plan.id] = felt3
   }
-  if (raa.length) retning[raa[0].plan.id] = null
+  const { orden, retning, brot } = monteringsorden(plan.map((q) => q.id), vegar, new Set(boygde))
+  // Tappane stikk ut forbi omrisset, og ruta var rekna for omrisset. Ei
+  // kjede som vert klipt av kanten på ruta, vert lukka på måfå.
+  for (const a of raa) {
+    if (!a.utvida || !a.omriss) continue
+    const ob = bbox(a.omriss)
+    a.ru = ruteAv({ bx0: ob.x0, bx1: ob.x1, by0: ob.y0, by1: ob.y1 }, a.boygd ? 0 : a.d, step, [...a.former, ...a.tform])
+  }
 
   // --- profilane, no med spor ----------------------------------------------
   /**
@@ -1400,11 +1399,11 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
 
   const ribber: Ribbe[] = raa.map((a) => {
     a.spor.sort((u, v) => u.munn - v.munn)
-    const loops = felt(a.ru, a.former, a.spor, a.klipp, a.mjuk, a.omriss)
+    const loops = felt(a.ru, a.former, a.spor, a.klipp, a.mjuk, a.omriss, a.tform, a.hjorne, a.nett)
     let outlines: Pt[][] = []
     let holes: Pt[][] = []
     for (const l of loops) {
-      const q = simplify(l.pts, tol) as Pt[]
+      const q = forenklaSpor(l.pts, tol, a.spor, a.tform)
       if (q.length < 3) continue
       if (l.area > 0) outlines.push(q)
       // Eit hòl mindre enn taket kostar meir å skjere enn det er verdt, og
@@ -1424,7 +1423,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     // det heng i ingenting seier regelen, ikkje tomrommet.
     const heil = outlines.filter((o) => {
       if (netto(o) < MIN_AREA) return false
-      if (p.lause && a.spor.length && jointsIn(a.spor, o) === 0) {
+      if (p.lause && (a.spor.length || a.tapp.length) && jointsIn(a.spor, o) + tappIn(a.tapp, o).length === 0) {
         kasta++
         return false
       }
@@ -1496,6 +1495,8 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
         break
       }
     }
+    // og godset kring slissene — sjå `slisseGods`
+    narrow = Math.min(narrow, slisseGods(a.tapp, [...outlines, ...holes]))
     return {
       plan: a.plan,
       r: a.r,
@@ -1505,6 +1506,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       raa: a.ringar,
       rille,
       spor: a.spor,
+      tapp: a.tapp,
       area,
       narrow: Number.isFinite(narrow) ? narrow : 0,
       cutLen: cut,
@@ -1585,12 +1587,13 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     k,
     ribber,
     ledd,
+    tappar,
     avvist,
     kurva,
     kasta,
     slotW,
     minGap,
-    montering: { orden: plan.map((q) => q.id), retning, boygde, brot, klem },
+    montering: { orden, retning, boygde, brot, klem },
   }
 }
 
@@ -1611,6 +1614,7 @@ export function sporIn(spor: readonly Spor[], outline: Pt[]): Spor[] {
 
 /** og kor mange dei er — det tavla og reglane spør om */
 export const jointsIn = (spor: readonly Spor[], outline: Pt[]): number => sporIn(spor, outline).length
+
 
 // =============================================================================
 // DELANE
@@ -1702,7 +1706,7 @@ export function buildDelar(sn: Snitt, p: Params): DelListe {
         area,
         mass: (area * t * rho) / 1e9,
         cutLen: cut,
-        joints: mineSpor.length,
+        joints: mineSpor.length + tappIn(r.tapp, o).length,
         spor: mineSpor,
       })
     })

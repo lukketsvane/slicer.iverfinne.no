@@ -21,6 +21,8 @@
  * ein kopi som kostar meir enn han er verd, og då vert berre innstillingane
  * hugsa — prosjektfila er staden for eit slikt nett, og lina seier frå.
  */
+import type { View } from "./core"
+
 const MAX_NETT = 48 * 1024 * 1024
 /** og alle saman: seksten bitar à åtte og førti megabyte er ikkje ei økt */
 const MAX_ALLE = 128 * 1024 * 1024
@@ -28,9 +30,13 @@ const BASE = "slicer"
 const BUTIKK = "okt"
 const NETT = "nett"
 const NØKKEL = "siste"
+const VAKT = "slicer-okt-vakt"
+let skrivekø: Promise<void> = Promise.resolve()
 
 export type Lagra = {
   params: Record<string, number | string>
+  view?: View
+  skal?: boolean
   /**
    * DET GAMLE EINE NETTET, frå den tida ein kropp var éi fil.
    *
@@ -83,7 +89,8 @@ function køyr<T>(
     try {
       const t = db.transaction(butikk, modus)
       const r = gjer(t.objectStore(butikk))
-      r.onsuccess = () => ok(r.result as T)
+      // Ei vellukka førespurnad er ikkje ei ferdig transaksjon.
+      t.oncomplete = () => ok(r.result as T)
       r.onerror = () => ok(null)
       t.onabort = () => ok(null)
     } catch {
@@ -92,29 +99,63 @@ function køyr<T>(
   })
 }
 
-/** Skriv ned innstillingane. Dei er nokre hundre byte og vert skrivne ofte. */
-export async function lagre(params: Record<string, number | string>): Promise<void> {
-  const db = await opne()
-  if (!db) return
-  const gamal = (await køyr<Lagra>(db, BUTIKK, "readonly", (s) => s.get(NØKKEL))) ?? { params: {} }
-  await køyr(db, BUTIKK, "readwrite", (s) => s.put({ ...gamal, params }, NØKKEL))
-  db.close()
+/** Les og skriv i SAME transaksjon: ei sein skriving tek ikkje attende ei ny. */
+function endreOkta(db: IDBDatabase, endre: (v: Lagra) => Lagra): Promise<boolean> {
+  return new Promise((ok) => {
+    try {
+      const t = db.transaction(BUTIKK, "readwrite")
+      const s = t.objectStore(BUTIKK)
+      const r = s.get(NØKKEL)
+      r.onsuccess = () => s.put(endre(r.result ?? { params: {} }), NØKKEL)
+      t.oncomplete = () => ok(true)
+      t.onabort = () => ok(false)
+      t.onerror = () => ok(false)
+    } catch { ok(false) }
+  })
+}
+
+/** Innstillingane er små. Ein synkron kvittering overlever at iOS stoggar
+ * appen FØR IndexedDB er ferdig; netta går framleis berre til IndexedDB. */
+export function lagre(params: Record<string, number | string>, syn: Pick<Lagra, "view" | "skal"> = {}): Promise<void> {
+  const ny: Lagra = { params, ...syn }
+  const tekst = JSON.stringify(ny)
+  try { localStorage.setItem(VAKT, tekst) } catch {
+    // Ei eldre kvittering må ikkje slå ei ny vellukka IndexedDB-skriving.
+    try { localStorage.removeItem(VAKT) } catch { /* inga synkron lagring */ }
+  }
+  const skriv = async () => {
+    const db = await opne()
+    if (!db) return
+    const ok = await endreOkta(db, (gamal) => ({ ...gamal, ...ny }))
+    db.close()
+    if (ok) {
+      try {
+        if (localStorage.getItem(VAKT) === tekst) localStorage.removeItem(VAKT)
+      } catch { /* kvitteringa kan trygt stå att */ }
+    }
+  }
+  skrivekø = skrivekø.then(skriv, skriv)
+  return skrivekø
 }
 
 export async function hent(): Promise<Lagra | null> {
+  let vakt: Lagra | null = null
+  try {
+    const v = JSON.parse(localStorage.getItem(VAKT) ?? "null")
+    if (v?.params && typeof v.params === "object" && !Array.isArray(v.params)) vakt = v
+  } catch { /* ei øydelagd kvittering skal ikkje gøyme økta */ }
   const db = await opne()
-  if (!db) return null
+  if (!db) return vakt
   const v = await køyr<Lagra>(db, BUTIKK, "readonly", (s) => s.get(NØKKEL))
   db.close()
-  return v ?? null
+  return vakt ? { ...v, ...vakt } : v ?? null
 }
 
 /** det gamle eine nettet er teke inn att og treng ikkje liggje to stader */
 export async function gløymGamaltNett(): Promise<void> {
   const db = await opne()
   if (!db) return
-  const gamal = await køyr<Lagra>(db, BUTIKK, "readonly", (s) => s.get(NØKKEL))
-  if (gamal?.nett) await køyr(db, BUTIKK, "readwrite", (s) => s.put({ params: gamal.params }, NØKKEL))
+  await endreOkta(db, ({ params, view, skal }) => ({ params, view, skal }))
   db.close()
 }
 
@@ -199,6 +240,8 @@ export async function alleNett(): Promise<{ id: string; label: string; byte: num
 }
 
 export async function gløym(): Promise<void> {
+  await skrivekø
+  try { localStorage.removeItem(VAKT) } catch { /* inga synkron lagring */ }
   const db = await opne()
   if (!db) return
   await køyr(db, BUTIKK, "readwrite", (s) => s.delete(NØKKEL))
