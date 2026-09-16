@@ -343,3 +343,91 @@ export function fingrar(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, 
   // den som kjem, går langs sin eigen normal inn mot den som ligg
   return { strekk, tal, innA: mul3(innB, -1), innB: mul3(innA, -1) }
 }
+
+/**
+ * GJENNOMGANG — eit stag som går GJENNOM ei ribbe, ikkje i ein slisse frå kanten.
+ *
+ * Eit stag gjennom sju lameller: langs møtelina er staget smalt (det er
+ * tverrsnittet hans), og ribba har gods langt forbi på båe sider. Halvt om
+ * halvt ville skore ribba frå kanten og inn til staget — ein kanal gjennom
+ * halve ribba. Rett er eit lukka hòl i ribba på storleik med tverrsnittet,
+ * og staget urørt: det vert skuva gjennom langs normalen til ribba.
+ *
+ * `P` er plata som vert gjennomboga, `G` den som går gjennom. Null når
+ * møtet ikkje er slik.
+ */
+export function gjennomgang(k: Ktx, P: TappFlate, G: TappFlate, lP: Line, lG: Line, sin: number, cos: number, nr: number, fredt: readonly Span[] = []) {
+  if (!G.omriss && !P.omriss) return null
+  const m = Math.max(2 * k.tjukn, 6)
+  const rP = langsAv(P, lP, 0)
+  const rG = langsAv(G, lG, 0)
+  const ut: Span[] = []
+  for (const [g0, g1] of rG) {
+    // staget: heile breidda hans langs lina ligg inne i éin run av ribba, med gods forbi
+    if (g1 - g0 < tappMinAv(k) / 2) continue
+    if (!rP.some(([p0, p1]) => p0 <= g0 - m && p1 >= g1 + m)) continue
+    if (utan([[g0, g1]], fredt as Span[]).length === 0) continue
+    // og ribba har gods på båe sider av lina der staget går — elles er det ein kant
+    const tb2 = k.tjukn / (2 * sin)
+    const tvers = felles(felles(langsAv(P, lP, -(tb2 + m)), langsAv(P, lP, tb2 + m)), [[g0, g1]])
+    if (!tvers.some(([a, b]) => b - a >= g1 - g0 - 1e-6)) continue
+    ut.push([g0, g1])
+  }
+  if (!ut.length) return null
+  const wP = (k.slotW + k.tjukn * cos) / sin
+  const n = P.r.n
+  const st = Math.abs(n[0]) >= Math.abs(n[1]) && Math.abs(n[0]) >= Math.abs(n[2]) ? Math.sign(n[0]) : Math.abs(n[1]) >= Math.abs(n[2]) ? Math.sign(n[1]) : Math.sign(n[2])
+  const inn = mul3(n, st || 1)
+  let tal = 0
+  for (const [g0, g1] of ut) {
+    const a0 = g0 - k.klaring / 2, a1 = g1 + k.klaring / 2
+    P.tform.push(boks(lP, a0, a1, -wP / 2, wP / 2, false))
+    const nokkel = `g${G.plan.id}-${P.plan.id}-${nr + tal}`
+    P.tapp.push({ mot: G.plan.id, slag: "slisse", midt: sporPunkt(lP, (a0 + a1) / 2, 0), hjorne: hjorne(lP, a0, a1, -wP / 2, wP / 2), inn, nokkel })
+    G.tapp.push({ mot: P.plan.id, slag: "tapp", midt: sporPunkt(lG, (g0 + g1) / 2, 0), hjorne: hjorne(lG, g0, g1, -k.tjukn / (2 * sin), k.tjukn / (2 * sin)), inn, nokkel })
+    tal++
+  }
+  P.utvida = true
+  return { strekk: ut, tal, inn }
+}
+
+/**
+ * ALLE MØTA SOM IKKJE ER HALVT OM HALVT, for eitt par: tappar begge vegar,
+ * stag gjennom begge vegar, fingrar i hjørnet — i den rekkjefylgja, og kvar
+ * tek sine stykke so den neste ikkje les dei om att. Snittinga får tilbake
+ * talet, vegane og stykka; halvt om halvt tek resten.
+ */
+export function moteLedd(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, sin: number, nr: number) {
+  const cos = Math.sqrt(Math.max(0, 1 - sin * sin))
+  const tekne: Span[] = []
+  const vegar: [number, number, Vec3][] = []
+  let tal = 0
+  // A går inn langs tappane sine; B kjem ned på dei, mot den vegen dei peikar
+  const pil = (del: TappFlate, mot: TappFlate, d: Vec3) => vegar.push([del.plan.id, mot.plan.id, d], [mot.plan.id, del.plan.id, mul3(d, -1)])
+  for (const t of tappa(k, A, B, lA, lB, sin, cos, nr + tal, stikkUt(k, B, A, lB, lA, sin, cos))) {
+    tal += t.tal
+    pil(A, B, t.inn)
+    tekne.push(...t.strekk)
+  }
+  for (const t of tappa(k, B, A, lB, lA, sin, cos, nr + tal, tekne)) {
+    tal += t.tal
+    pil(B, A, t.inn)
+    tekne.push(...t.strekk)
+  }
+  // eit stag gjennom ei ribbe: lukka hòl, staget urørt — begge vegar
+  for (const [P, G, lP, lG] of [[A, B, lA, lB], [B, A, lB, lA]] as const) {
+    const gj = gjennomgang(k, P, G, lP, lG, sin, cos, nr + tal, tekne)
+    if (!gj) continue
+    tal += gj.tal
+    pil(G, P, gj.inn)
+    tekne.push(...gj.strekk)
+  }
+  // hjørnet: båe sluttar mot kvarandre, og det vert fingrar
+  const fi = fingrar(k, A, B, lA, lB, sin, nr + tal, tekne)
+  if (fi) {
+    tal += fi.tal
+    vegar.push([A.plan.id, B.plan.id, fi.innA], [B.plan.id, A.plan.id, fi.innB])
+    tekne.push(...fi.strekk)
+  }
+  return { tal, vegar, tekne }
+}

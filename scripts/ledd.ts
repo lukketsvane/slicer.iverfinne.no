@@ -520,9 +520,10 @@ function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: numb
         tappar++
         if (!gods(r, pk(L / 2, W / 2))) seg(`${q.nokkel}: tappen manglar i profilen til ${r.plan.id}`)
         if (!gods(r, pk(L / 2, W - 0.3))) seg(`${q.nokkel}: tappen når ikkje fram til den fjerne flata`)
-        if (gods(r, pk(L / 2, W + 0.3))) seg(`${q.nokkel}: tappen stikk ut forbi den fjerne flata`)
+        // eit stag som går gjennom held fram forbi flata — det er heile poenget
+        if (!q.nokkel.startsWith("g") && gods(r, pk(L / 2, W + 0.3))) seg(`${q.nokkel}: tappen stikk ut forbi den fjerne flata`)
         for (const a of [-0.4, L + 0.4]) if (gods(r, pk(a, W / 2))) seg(`${q.nokkel}: kanten ved tappen er ikkje klipt ved skuldra`)
-        if (!gods(r, pk(L / 2, -0.3))) seg(`${q.nokkel}: tappen heng ikkje i plata`)
+        if (!q.nokkel.startsWith("g") && !gods(r, pk(L / 2, -0.3))) seg(`${q.nokkel}: tappen heng ikkje i plata`)
       } else {
         if (gods(r, pk(L / 2, W / 2))) seg(`${q.nokkel}: slissa manglar i ${r.plan.id}`)
         for (const [a, b] of [[L / 2, -0.4], [L / 2, W + 0.4], [-0.4, W / 2], [L + 0.4, W / 2]]) {
@@ -655,6 +656,26 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
     brot++
     console.log(`FEIL  bunde av nettet              fritt ${fri.toFixed(0)} mm², bunde ${bunde.toFixed(0)} mm², venta ${venta}`)
   } else console.log(`  ok   bunde av nettet            fritt ${(fri / 1e6).toFixed(3)} m², bunde ${(bunde / 1e6).toFixed(3)} m² (kuben ${(venta / 1e6).toFixed(3)})`)
+}
+/**
+ * LAMELLANE: sju ribber og eit stag gjennom alle. Ribbene får eit lukka hòl
+ * kvar, staget ingen spor — og ingen ribbe vert skoren frå kanten.
+ */
+{
+  const rib: [number, number][] = [[-200, -225], [200, -225], [200, 0], [-100, 50], [-150, 200], [-200, 200]]
+  const l = [
+    ...Array.from({ length: 7 }, (_, i) => plate(i + 1, [(225 - 150 + i * 50) / S, 0.5, 0.5], [1, 0, 0], rib)),
+    plate(8, [0.5, 0.5, 100 / S], [0, 0, 1], firkant(15, 190)),
+  ]
+  const plan = skrivPlan(l)
+  sjekkTapp("lameller med stag gjennom", { ...MOBEL, plan }, { tappar: 7, brot: 0 })
+  const { s: g } = makeBygg({ ...MOBEL, plan }, DETAIL.mid)
+  const kanalar = g.ribber.reduce((n, r) => n + r.spor.length, 0)
+  const hol = g.ribber.filter((r) => r.plan.id <= 7).every((r) => r.holes.length === 1)
+  if (kanalar || !hol) {
+    brot++
+    console.log(`FEIL  lameller                    ${kanalar} spor frå kanten, hòl i alle: ${hol}`)
+  }
 }
 /**
  * KASSA: fire sider som endar i flukt med utsida av kvarandre, og eit sete

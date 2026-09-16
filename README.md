@@ -896,6 +896,14 @@ later plate, so where three plates meet (a seat flush on a box) the seat
 owns all four corner cubes and no side claims one. Each plate goes in along
 its own normal.
 
+**A rail goes through.** Where one plate is narrow along the meeting line —
+a rail's cross-section — and the other has material well past it on both
+ends and on both sides, a half lap would cut the rib from its edge all the
+way in to the rail. Instead the rib gets a closed mortise the size of the
+rail's cross-section plus clearance, the rail is left whole, and it slides
+through along the rib's normal. Seven slats with a rail through them are
+seven holes and no slots.
+
 **Tenons follow the length, not the plate:** one per 150 mm of meeting, with
 shoulders of at least half a thickness and fifteen percent of the cell, so
 a 300 mm seat edge gets two tenons with material between them. A mortise is
@@ -925,8 +933,8 @@ space — on a straight stool, a stool with a raised seat, over-long rails, a
 narrow seat, a 3 mm model, splayed legs (seat first, each leg along its own
 tenon), crossed legs with a seat, where slots and tenons share one
 object, a seat between the sides, flush and with tenons showing, a bent
-saddle seat flush and showing, and a box of four sides with a flush seat,
-joined by fingers.
+saddle seat flush and showing, a box of four sides with a flush seat,
+joined by fingers, and seven slats with a rail through them.
 
 ## The plane, flat
 
@@ -1008,7 +1016,8 @@ nested cut file, and checks the geometry and the file: 16 s automated.
 `MINUTT_KRAKK=1` draws arched sides with an oval window instead, `=2` two
 crossed legs (×2) under a hexagonal seat, `=3` the arched sides with the seat
 between them, and `=4` the cube stool: one wall with an arched opening, ×4 to
-a finger-jointed box, a seat on top — 11 s.
+a finger-jointed box, a seat on top — 11 s — and `=5` the triangle stool:
+one leg standing out from the middle, ×3, a rounded triangular seat — 11 s.
 
 ## Assembly
 
