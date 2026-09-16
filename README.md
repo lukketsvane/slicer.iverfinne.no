@@ -565,8 +565,12 @@ database holds what is on screen and not the six files you tried before it.
 
 **The home-screen app opens without a connection.** After one complete online
 visit, the page, code, geometry worker, fonts and all built-in shapes are kept
-as one version on the phone. A new version waits until the open app is closed;
-it never reloads a drawing under your finger. Imported meshes stay in IndexedDB.
+as one version on the phone. A new version takes over at the two moments
+nothing can be lost: when the app opens, before the first touch, and when it
+comes back from the background — the session was written as it left. It
+never reloads a drawing under your finger. (It used to wait until the app was
+closed, and a home-screen app on iOS is almost never closed, only suspended,
+so new versions never arrived.) Imported meshes stay in IndexedDB.
 The first visit still needs a connection, and clearing website data removes
 the offline copy and the saved session.
 

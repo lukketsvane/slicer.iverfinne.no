@@ -36,6 +36,11 @@ self.addEventListener("install", (e) => {
   })())
 })
 
+// Sida seier frå når ho står stille — ved opning eller når appen kjem attende frå bakgrunnen
+self.addEventListener("message", (e) => {
+  if (e.data === "byt") self.skipWaiting()
+})
+
 self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
     for (const namn of await caches.keys()) {
