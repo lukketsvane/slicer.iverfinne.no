@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
 import { lesPlan, OMRISS_TAK, skrivPlan } from "../lib/plan"
-import { landing, mellom, midtPaa, mjukePunkt, snapp, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt } from "../lib/teikning"
+import { landing, mellom, midtPaa, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import { bileteForm, skalerForm } from "../lib/bilete"
@@ -142,6 +142,31 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   const para: Pt[] = [[0, 0], [0.1, 0], [0.12, 0.1], [0.02, 0.1]]
   assert.deepEqual(tettMjukt(para), para, "parallellogrammet står")
   console.log(`mjukt og skarpt: ${m.length} runde punkt i bogen, ovalen ${tett.length} punkt`)
+}
+
+// SNAPPET I KONTUREN: foten langs golvet ligg på golvet, gyngemeia rører det i eitt punkt
+{
+  const tol = 1.25 / 390
+  const golv = 0.4
+  const liner: Snappline[] = [{ p: [0, golv], d: [1, 0] }]
+  const sn = (p: Pt) => snapp(p, liner, tol * 8)
+  // A-FOTEN: ned langs beinet, bortover golvet tre pikslar over det, og opp att
+  const fot: Pt[] = []
+  for (let i = 0; i <= 40; i++) fot.push([0.1 + 0.02 * i / 40, 0.1 + 0.3 * i / 40])
+  for (let i = 1; i <= 40; i++) fot.push([0.12 + 0.1 * i / 40, golv - 3 * tol + (i % 2 ? tol : 0)])
+  for (let i = 1; i <= 40; i++) fot.push([0.22 + 0.02 * i / 40, golv - 0.3 * i / 40])
+  const fotUt = snappaKontur(fot, fot.map(sn), tol)
+  assert(fotUt.slice(41, 81).every((p) => Math.abs(p[1] - golv) < 1e-12), "foten langs golvet ligg på golvet")
+  assert(fotUt.slice(0, 30).every((p, i) => p === fot[i]), "beinet står som det vart teikna")
+  // GYNGEMEIA: ein boge med radius 118 pikslar som rører golvet nedst
+  const R = 118 * tol / 1.25
+  const meie: Pt[] = []
+  for (let i = 0; i <= 80; i++) { const v = Math.PI / 2 + (i / 80 - 0.5) * 1.6; meie.push([0.5 + R * Math.cos(v), golv - R + R * Math.sin(v)]) }
+  const meieSn = meie.map(sn)
+  assert(meieSn.filter((p, i) => Math.abs(p[1] - golv) < 1e-12 && Math.abs(meie[i][1] - golv) > 1e-9).length > 10, "punkt for punkt ville snappet lagt botnen flat")
+  const meieUt = snappaKontur(meie, meieSn, tol)
+  assert(meieUt.every((p, i) => i === 0 || i === meie.length - 1 || p === meie[i]), "meia står som ein boge: berre endane er snappa")
+  console.log("snappet i konturen: foten flat på golvet, meia ein boge")
 }
 
 // SETET MELLOM SIDENE: kantane i midtplana → mellom, to tjukner under toppen, ut til utsida
