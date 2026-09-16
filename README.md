@@ -1061,9 +1061,12 @@ crossed legs (×2) under a hexagonal seat, `=3` the arched sides with the seat
 between them, and `=4` the cube stool: one wall with an arched opening, ×4 to
 a finger-jointed box, a seat on top — 11 s — `=5` the triangle stool:
 one leg standing out from the middle, ×3, a rounded triangular seat — 11 s —
-and `=6` the slat stool: arched sides, the seat between them cut into five
-slats in the flat editor, **kilar** on, three rails — ten plates, sixteen
-wedged tenons and their sixteen wedges, 24 s.
+and `=6` the slat stool: arched sides without the window, wedges on, the
+seat between them cut into five slats in the flat editor, three rails — ten
+plates, sixteen wedged tenons and their sixteen wedges, 20 s.
+`MINUTT_KILAR=1` turns wedges on in any of them before drawing: the plain
+stool then has its sides wedged through the seat and its rails wedged
+through the sides, 19 s.
 
 ## Assembly
 
