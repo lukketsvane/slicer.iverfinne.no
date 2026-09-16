@@ -18,6 +18,7 @@ import { chromium, type Browser, type Page } from "playwright"
 import { lesPlan, OMRISS_TAK, rutenett, skrivPlan, type Strek } from "../lib/plan"
 import type { Vec3 } from "../lib/core"
 import { FORMER } from "../lib/scene"
+import { UTTAK } from "../components/deler"
 import type { Params } from "../lib/params"
 
 /**
@@ -84,13 +85,108 @@ const utbrett = async (page: Page) => {
     await page.waitForTimeout(200)
   }
 }
+/**
+ * EI PLANRAD Å TA I, KVA SIDE HO ENN STÅR PÅ.
+ *
+ * Lista syner to rader om gongen — éi, når noko er valt og detaljradene
+ * tek plassen. Ein gruppe-rad brettar seg ut til plana sine, og dei kan då
+ * liggje på ei anna side enn den du står på — so ein prøve som berre les
+ * den fyrste sida finn ingen plan i eit rutenett. `id` er for den som vil
+ * ha eit NAMNGJEVE plan: då bladar ho til den rada og ikkje til den fyrste.
+ */
+const planRad = async (page: Page, id?: string) => {
+  const rad = page.locator(`[role=listbox][aria-label='plan'] [role=option][data-plan${id ? `='${id}'` : ""}]`)
+  await utbrett(page)
+  if (await rad.count()) return rad
+  for (let i = 0; i < 10 && !(await rad.count()); i++) {
+    const neste = page.getByRole("button", { name: "neste grupper" })
+    if (!(await neste.count()) || (await neste.isDisabled())) break
+    await neste.click()
+    await page.waitForTimeout(250)
+    await utbrett(page)
+  }
+  return rad
+}
 
 /** arket i midten, med planlista synleg */
-const midt = async (page: Page) => {
-  if ((await page.locator("[role=listbox][aria-label='plan']").count()) === 0) {
+/**
+ * ER SKUFFA OPE? Fanebandet seier det, og planlista gjer det ikkje: lista
+ * står berre i éi av dei seks fanene, so ho svarar «lukka» på fem opne
+ * skuffer. Det var den lesinga som fall då skuffa vart faner.
+ */
+const arkOpe = async (page: Page) => (await page.locator("[role=tablist][aria-label='kontrollfaner']").count()) > 0
+const opneArk = async (page: Page) => {
+  if (!(await arkOpe(page))) {
     await page.locator(HOVUDLINA).click()
     await page.waitForTimeout(400)
   }
+}
+/**
+ * SKUFFA OPE PÅ EI NAMNGJEVEN FANE.
+ *
+ * Ho opnar alltid på «grupper» — det er plana, og det er dei ein tek i
+ * oftast. Alt anna bur i ei av dei fem andre, so ein prøve som vil ta i ein
+ * skyvar må seie kva fane han står i.
+ */
+const paaFane = async (page: Page, id: string) => {
+  await opneArk(page)
+  const f = page.locator(`[role=tablist][aria-label='kontrollfaner'] [role=tab][aria-label="${id}"]`)
+  if ((await f.getAttribute("aria-selected")) !== "true") {
+    await f.click()
+    await page.waitForTimeout(400)
+  }
+}
+/** «midten» er skuffa ope der plana står — det er det kvar einaste kallar bad om */
+const midt = async (page: Page) => paaFane(page, "grupper")
+/**
+ * FANENE ER BLADDE, OG DET DU LEITAR ETTER STÅR IKKJE ALLTID PÅ FYRSTE SIDA.
+ *
+ * Kvar fane syner to rader om gongen og bladar med pilene sine — sju sider
+ * med måltal i «sjekk», ei gruppe filer per side i «uttak». Ein prøve som
+ * berre les den fyrste sida les ein sjettedel av fana og trur resten ikkje
+ * finst. `ord` er det pilene heiter etter: «neste sjekk», «neste uttak».
+ */
+const bladTil = async (page: Page, ord: string, naar: () => Promise<boolean>) => {
+  for (let i = 0; i < 10; i++) {
+    if (await naar()) return true
+    const neste = page.getByRole("button", { name: `neste ${ord}` })
+    if (!(await neste.count()) || (await neste.isDisabled())) return false
+    await neste.click()
+    await page.waitForTimeout(250)
+  }
+  return false
+}
+/**
+ * EI UTTAKSBRIKKE Å TRYKKJE PÅ, KVA BOLK HO ENN LIGG I.
+ *
+ * Uttaka var ein boks med alle filene i tre bolkar under kvarandre. No er
+ * dei ei fane med éin bolk per side, so «ark» og «dxf» ligg ikkje lenger
+ * der «stl» ligg. Bladaren opnar fana og går til den sida brikka står på.
+ */
+const tilBrikke = async (page: Page, ord: string) => {
+  await paaFane(page, "uttak")
+  const b = page.getByRole("button", { name: ord, exact: true })
+  for (let i = 0; i < 8; i++) {
+    if (await b.count()) return b
+    const neste = page.getByRole("button", { name: "neste uttak" })
+    if (!(await neste.count()) || (await neste.isDisabled())) break
+    await neste.click()
+    await page.waitForTimeout(250)
+  }
+  return b
+}
+/**
+ * OPNE ELLER LATE ATT — DEN SAME HANDLINGA, TO INNGANGAR.
+ *
+ * Lina opna OG lukka arket før, so heile harnesset trykte på henne for
+ * begge deler. No ER lina det lukka arket: ho står ikkje i den opne, og
+ * grepet over fanene er vegen ut. Vippen gjer det same som eit trykk på
+ * lina alltid gjorde, og vel sjølv kva knapp det er i dag.
+ */
+const vippArk = async (page: Page) => {
+  if (await arkOpe(page)) await page.getByRole("button", { name: "lat att kontrollane" }).click()
+  else await page.locator(HOVUDLINA).click()
+  await page.waitForTimeout(400)
 }
 
 /**
@@ -192,11 +288,21 @@ async function toFingrar(
   const pkt = (t: number) => steg(t).map(([x, y], id) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 }))
   const l = Math.max(0, Math.round(lag))
   if (l) {
-    // TOMMELEN FYRST, og glaset kjenner han åleine medan handa legg seg ned.
+    /**
+     * TOMMELEN FYRST, og glaset kjenner han åleine medan handa legg seg ned.
+     *
+     * OG HAN VANDRAR FRAM TIL DER GESTEN BYRJAR, ikkje frå han. Vandringa
+     * gjekk andre vegen ein gong, og då SPRATT fingeren dei seksti
+     * pikslane attende i det den andre landa — `pkt(0)` set han attende
+     * der han stod. Ei hand gjer ikkje det, og eit syn som fylgjer ein
+     * finger som sprett attende sprett attende med han: prøva las 4,65 →
+     * 0,94 og skulda på koden for ei rørsle ho sjølv hadde sendt.
+     */
     const a = pkt(0)[0]
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [a] })
+    const fraa = { ...a, x: a.x - vandre }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [fraa] })
     for (let i = 1; i <= l; i++) {
-      const x = a.x + (vandre * i) / l
+      const x = fraa.x + (vandre * i) / l
       await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...a, x, y: a.y + (i % 2 ? SKJELV : -SKJELV) }] })
       await page.waitForTimeout(16)
       if (mellom) await mellom()
@@ -286,35 +392,61 @@ async function telefon(browser: Browser) {
   const snitt = page.locator("[data-skisse='snitt']")
   await snitt.first().waitFor({ timeout: 15000 }).catch(() => undefined)
   sjekk("skissa syner snittet gjennom kroppen før du skjer", (await snitt.count()) >= 1)
-  await page.locator(HOVUDLINA).click()
+  await vippArk(page)
   await page.waitForTimeout(500)
   sjekk("eit trykk på lina opnar midten, med planlista", (await liste.count()) === 1)
-  await page.getByRole("button", { name: "alle kontrollane" }).click()
-  await page.waitForTimeout(500)
+  /**
+   * OG SKUFFA HAR FANER, IKKJE TRE HØGDER.
+   *
+   * «Alle kontrollane» var eit tredje steg som drog heile arket opp over
+   * halve skjermen. No er det seks faner i ei rad, og du arbeider i éi om
+   * gongen — same avgjerda som bolkane var, teken eitt hakk lenger: det du
+   * ikkje held på med er ikkje bretta saman, det er ei anna fane.
+   *
+   * Vakta prøver det som er verdt å prøve: at kvar fane finst, at ho tek
+   * trykket, og at ho faktisk byter innhaldet.
+   */
+  // scope til skuffa si eiga rad: topplina har òg faner (flate, lag, kontur,
+  // montasje), og ei naken `[role=tab]` tel dei med
+  const FANEBAND = "[role=tablist][aria-label='kontrollfaner']"
+  const fane = (id: string) => page.locator(`${FANEBAND} [role=tab][aria-label="${id}"]`)
+  const FANER = ["form", "grupper", "materiale", "kutt", "sjekk", "uttak"]
+  const faneTal = await page.locator(`${FANEBAND} [role=tab]`).count()
+  sjekk("skuffa har seks faner", faneTal === 6, `${faneTal} faner`)
+  sjekk("og ho opnar på grupper, der plana står", (await fane("grupper").getAttribute("aria-selected")) === "true")
   // Tala er DRAGSKIVER og ikkje tekstfelt: eit felt tek fokus, og iOS
   // zoomar sida. Difor `[aria-label$=", tal"]` og ikkje `input[…]`.
-  const felt = await page.locator("[aria-label$=', tal'][role=slider]").count()
-  sjekk("«alle kontrollane» syner skyvarane", felt >= 12, `${felt} dragskiver`)
+  const skyvarar = () => page.locator("[aria-label$=', tal'][role=slider]").count()
+  await fane("kutt").click()
+  await page.waitForTimeout(400)
+  const felt = await skyvarar()
+  sjekk("kutt-fana syner skyvarar", felt >= 2 && (await liste.count()) === 0, `${felt} dragskiver`)
+  await fane("grupper").click()
+  await page.waitForTimeout(400)
+  sjekk("og grupper tek deg attende til plana", (await liste.count()) === 1 && (await skyvarar()) < felt)
+  /** kvar fane skal ta trykket sitt — ei fane som ikkje vert vald er ei fane som ikkje finst */
+  const tokIkkje: string[] = []
+  for (const f of FANER) {
+    await fane(f).click()
+    await page.waitForTimeout(250)
+    if ((await fane(f).getAttribute("aria-selected")) !== "true") tokIkkje.push(f)
+  }
+  sjekk("og kvar av dei seks tek trykket sitt", tokIkkje.length === 0, tokIkkje.length ? tokIkkje.join(", ") : FANER.join(" · "))
   /**
-   * OG BOLKANE BRETTAR SEG. Sju overskrifter og tjue skyvarar er meir enn
-   * eit ark på ein telefon syner, og du arbeider i éin bolk om gongen:
-   * overskrifta er knappen, og skyvarane under henne fell bort til du
-   * trykkjer att.
+   * OG LINA ER BORTE MEDAN SKUFFA ER OPE — ho ER det lukka arket. Grepet
+   * over fanene lèt att, og er den einaste vegen ut utanom esc.
    */
-  const bolk = page.locator("[data-bolk='kutt']")
-  await bolk.click()
-  await page.waitForTimeout(300)
-  const felt2 = await page.locator("[aria-label$=', tal'][role=slider]").count()
-  sjekk("eit trykk på overskrifta brettar bolken saman", felt2 < felt && (await bolk.getAttribute("aria-expanded")) === "false", `${felt} → ${felt2} dragskiver`)
-  await bolk.click()
-  await page.waitForTimeout(300)
-  sjekk("og eit trykk til brettar han ut att", (await page.locator("[aria-label$=', tal'][role=slider]").count()) === felt)
+  sjekk("lina står ikkje i den opne skuffa", (await page.locator(HOVUDLINA).count()) === 0)
+  await page.getByRole("button", { name: "lat att kontrollane" }).click()
+  await page.waitForTimeout(400)
+  sjekk("og grepet lèt att til lina", (await liste.count()) === 0 && (await page.locator(HOVUDLINA).count()) === 1)
+  await vippArk(page)
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
   sjekk("esc stengjer arket til lina", (await liste.count()) === 0)
 
   // --- TALA: tap-drag set verdien, ingen tekstfelt å zoome inn i ----------------
-  await midt(page)
+  await paaFane(page, "form")
   const talet = page.locator("[aria-label='storleik, tal']")
   const tb = await talet.boundingBox()
   const sFør = hash(page).storleik
@@ -601,7 +733,7 @@ async function telefon(browser: Browser) {
   await liste.locator("[role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(300)
   // lina lukkar arket utan å sleppe valet — esc ville sleppt det
-  await page.locator(HOVUDLINA).click()
+  await vippArk(page)
   await page.waitForTimeout(400)
   const før = plana(page)
   await toFingrar(page, (t) => [[150 + 90 * t, 330], [150 + 90 * t, 430]])
@@ -982,16 +1114,16 @@ async function telefon(browser: Browser) {
    * på arket delane vert skorne ut av, med fingrane på dei. Skuffa har ikkje
    * platene lenger — det står i vakta under, med talet på verkty.
    */
-  /** arket ope med «alt»: storleiken står alt i midten, verktya står i alt */
+  /**
+   * Verktya bur BAKARST i uttaks-fana: fyrst gruppene med filer, og
+   * kuttlista og oppsettet på den siste sida. Vakta bladar dit.
+   */
   const alt = async () => {
-    await midt(page)
-    if ((await page.getByRole("button", { name: "kuttliste", exact: true }).count()) === 0) {
-      await page.getByRole("button", { name: "alle kontrollane" }).click()
-      await page.waitForTimeout(400)
-    }
+    await paaFane(page, "uttak")
+    await bladTil(page, "uttak", async () => (await page.getByRole("button", { name: "kuttliste", exact: true }).count()) === 1)
   }
   await alt()
-  sjekk("arket er ope med alt", (await page.getByRole("button", { name: "kuttliste", exact: true }).count()) === 1)
+  sjekk("kuttlista står i uttaks-fana", (await page.getByRole("button", { name: "kuttliste", exact: true }).count()) === 1)
   sjekk("og platene er ikkje eit verkty i skuffa lenger", (await page.getByRole("button", { name: "plater", exact: true }).count()) === 0)
   await page.getByRole("tab", { name: "kontur", exact: true }).click()
   const flata = page.locator("section[aria-label='plateflata']")
@@ -1772,7 +1904,7 @@ async function kroppen(browser: Browser) {
     await page.locator("[data-lag='bit'] [aria-label='ikkje noko lag']").click()
     await vent(page, (p) => !/\/c:3/.test(String(p.scene ?? "")))
     sjekk("ringen tek merket av att", !/c:/.test(bitScene()), bitScene().slice(0, 60))
-    await page.locator(HOVUDLINA).click()
+    await vippArk(page)
     await page.waitForTimeout(400)
   }
 
@@ -1909,7 +2041,7 @@ async function kamera(browser: Browser) {
   await roleg(page, 1500)
 
   // vel eit plan gjennom lista i skuffa, som handa gjer det
-  await page.locator(HOVUDLINA).click()
+  await vippArk(page)
   await roleg(page, 500)
   await page.locator("[role=tab][aria-label='grupper']").click()
   await roleg(page, 500)
@@ -2534,11 +2666,11 @@ async function flyt(browser: Browser) {
     w: document.documentElement.scrollWidth - window.innerWidth,
   }))
   const r0 = await rull()
-  await page.locator(HOVUDLINA).click()
+  await vippArk(page)
   await page.waitForTimeout(400)
   const r1 = await rull()
-  await page.getByRole("button", { name: "alle kontrollane" }).click()
-  await page.waitForTimeout(400)
+  // og på den tyngste fana: sjekk har sju sider måltal og reglar
+  await paaFane(page, "sjekk")
   const r2 = await rull()
   sjekk("dokumentet rullar aldri", [r0, r1, r2].every((r) => r.h <= 0 && r.w <= 0), JSON.stringify([r0, r1, r2]))
   // Arket ligg INNANFOR skjermen i alle tre høgdene, og alt i det òg. På ein
@@ -2557,7 +2689,7 @@ async function flyt(browser: Browser) {
   sjekk("arket og alt i det ligg innanfor skjermen", utanfor.length === 0, utanfor.join(" · "))
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
-  await page.locator(HOVUDLINA).click()
+  await vippArk(page)
   await page.waitForTimeout(400)
   sjekk("midten er storleik og planlista, ingen reglar", (await page.locator("[aria-label='kontrollar'] button[aria-label^='fiks ']").count()) === 0 && (await page.locator("[role=listbox][aria-label='plan']").count()) === 1)
 
@@ -2616,7 +2748,8 @@ async function flyt(browser: Browser) {
   if (await eksport.count()) {
     await eksport.click()
     await page.waitForTimeout(300)
-    sjekk("og opnar uttaka med eitt trykk", (await page.getByRole("button", { name: "ark", exact: true }).count()) >= 1)
+    // knappen opnar skuffa på uttaks-fana; «ark» ligg i plate-bolken, ei side inn
+    sjekk("og opnar uttaka med eitt trykk", (await (await tilBrikke(page, "ark")).count()) >= 1)
     await page.keyboard.press("Escape")
   }
   // og fila du la inn står i toppen, eitt trykk frå å byte
@@ -2702,14 +2835,14 @@ async function reglar(browser: Browser) {
   console.log("\n=== reglane utan ei rad")
   const bag = { plan: "1@0.2,0.5,0.5/1,0,0;2@0.5,0.5,1/0.7071,0,0.7071;3@0.5,0.5,0.5/0,1,0", klaring: 0 }
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
-  await page.locator(HOVUDLINA).click()
-  await page.waitForTimeout(400)
-  await page.getByRole("button", { name: "alle kontrollane" }).click()
+  await paaFane(page, "sjekk")
   await roleg(page, 600)
   const tavla = page.locator("[aria-label='kontrollar'] dl").first()
-  const tekst = (await tavla.innerText()).replace(/\s+/g, " ")
-  sjekk("den harde regelen utan ei rad står i tavla", /kan monterast/.test(tekst), tekst.slice(-90))
-  sjekk("og den mjuke òg", /klaring/.test(tekst))
+  const tavlaNo = async () => ((await tavla.count()) ? (await tavla.innerText()).replace(/\s+/g, " ") : "")
+  const hard = await bladTil(page, "sjekk", async () => /kan monterast/.test(await tavlaNo()))
+  sjekk("den harde regelen utan ei rad står i tavla", hard, (await tavlaNo()).slice(-90))
+  const mjuk = await bladTil(page, "sjekk", async () => /klaring/.test(await tavlaNo()))
+  sjekk("og den mjuke òg", mjuk, (await tavlaNo()).slice(-90))
 
   /**
    * OG MONTASJEFANA ER SLEGEN AV MEDAN OBJEKTET IKKJE GÅR I HOP.
@@ -2732,6 +2865,9 @@ async function reglar(browser: Browser) {
   await roleg(page, 300)
   sjekk("og M heller ikkje", (await mfane.getAttribute("aria-selected")) === "false")
   const bytt = page.locator("button[aria-label^='fiks kan monterast']")
+  // rådet står på den sida regelen sin står på
+  await paaFane(page, "sjekk")
+  await bladTil(page, "sjekk", async () => (await bytt.count()) === 1)
   sjekk("og han ber rådet sitt", (await bytt.count()) === 1)
   const planFør = hash(page).plan
   if (await bytt.count()) {
@@ -2756,19 +2892,23 @@ async function reglar(browser: Browser) {
     await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify(to)), { waitUntil: "networkidle" })
     await page.reload({ waitUntil: "networkidle" })
     await roleg(page, 900)
-    await page.locator(HOVUDLINA).click()
-    await page.waitForTimeout(400)
-    await page.getByRole("button", { name: "alle kontrollane" }).click()
+    await paaFane(page, "sjekk")
     await roleg(page, 700)
     const knapp = page.locator("[data-fiksalle]")
-    await vent2(page, async () => (await knapp.count()) > 0, 8000)
-    sjekk("fleire brot gjev éin «fiks alt»-knapp", (await knapp.count()) === 1, ((await knapp.first().textContent()) ?? "").trim())
+    await bladTil(page, "sjekk", async () => (await knapp.count()) > 0)
+    sjekk("fleire brot gjev éin «fiks alt»-knapp", (await knapp.count()) === 1, (await knapp.count()) ? ((await knapp.first().textContent()) ?? "").trim() : "ingen knapp")
     const foer = hash(page)
     await knapp.first().click()
     await vent(page, (q) => q.storleik !== foer.storleik || q.snitt !== foer.snitt)
     await roleg(page, 900)
-    const tav = (await page.locator("[aria-label='kontrollar'] dl").first().innerText()).replace(/\s+/g, " ")
-    sjekk("og eitt trykk tek dei", !/delane får plass|snittet et/i.test(tav), `storleik ${foer.storleik} → ${hash(page).storleik}, snitt ${foer.snitt} → ${hash(page).snitt}`)
+    // tavla er bladd: eit brot som står att kan stå på ei anna side, so
+    // vakta leitar gjennom alle sidene før ho seier at det er borte
+    await paaFane(page, "sjekk")
+    const attBrot = await bladTil(page, "sjekk", async () => {
+      const t = (await page.locator("[aria-label='kontrollar'] dl").first().innerText()).replace(/\s+/g, " ")
+      return /delane får plass|snittet et/i.test(t)
+    })
+    sjekk("og eitt trykk tek dei", !attBrot, `storleik ${foer.storleik} → ${hash(page).storleik}, snitt ${foer.snitt} → ${hash(page).snitt}`)
     await page.keyboard.press("z")
     await vent(page, (q) => q.storleik === foer.storleik)
     sjekk("og eitt steg i angre tek heile kjeda", hash(page).storleik === foer.storleik && hash(page).snitt === foer.snitt, `${hash(page).storleik} / ${hash(page).snitt}`)
@@ -2830,41 +2970,60 @@ async function uttaka(browser: Browser) {
   await vent(page, talPlan(6))
   const knapp = page.getByRole("button", { name: "eksport", exact: true })
   await knapp.click()
-  await page.waitForTimeout(250)
+  await page.waitForTimeout(400)
   const boks = page.locator('[role="group"][aria-label="uttak"]')
-  sjekk("trykk på uttak opnar boksen", (await boks.count()) === 1 && (await knapp.getAttribute("aria-expanded")) === "true")
-  const bolkar = await page.locator("[data-bolk]").evaluateAll((e) => e.map((q) => q.getAttribute("data-bolk")))
-  sjekk("og han står i tre bolkar", bolkar.join(" ") === "rom plate alt", bolkar.join(" "))
-  // kvar fil har ei brikke, og «flat» er ei av dei
-  const namn = await boks.locator("button").evaluateAll((e) => e.map((q) => q.textContent?.trim() ?? ""))
-  sjekk("tolv brikker, med flat og 3mf mellom dei", namn.length === 12 && namn.includes("flat") && namn.includes("3mf"), namn.join(" "))
+  sjekk("trykk på uttak opnar fana", (await boks.count()) === 1 && (await page.locator("[role=tab][aria-label='uttak']").getAttribute("aria-selected")) === "true")
   /**
-   * DET SOM TEL: ligg brikka øvst i sitt eige midtpunkt?
+   * EIN BOLK PER SIDE, OG PRØVA LES DEI ALLE.
    *
-   * KVAR brikke, ikkje den fyrste. Den fyrste står lengst til venstre og
-   * er den siste som vert dekt av noko; det er den siste i ei full rad som
-   * går under tommelspalta, og ei prøve på berre den fyrste ville sagt ja
-   * til nett den rada som ikkje går an å trykkje på.
+   * Boksen hadde dei tre bolkane under kvarandre; fana har éin om gongen
+   * og bladar. So prøva bladar òg — og ho tel mot `UTTAK` sjølv i staden
+   * for mot eit tal ho ber på. Eit tal i ein benk er eit tal som vert
+   * gale den dagen ei fil kjem til, og bøyeprøva kom til.
    */
-  const daarlege = await page.evaluate(() => {
-    const ut: string[] = []
-    for (const b of document.querySelectorAll('[role="group"][aria-label="uttak"] button')) {
-      const r = b.getBoundingClientRect()
-      const ord = b.textContent?.trim() ?? "?"
-      if (!r.width || !r.height) {
-        ut.push(`${ord}: inga rute`)
-        continue
+  const bolkar: string[] = []
+  const namn: string[] = []
+  const daarlege: string[] = []
+  for (let i = 0; i < UTTAK.length; i++) {
+    const b = await page.locator("[data-bolk]").first().getAttribute("data-bolk")
+    if (b) bolkar.push(b)
+    for (const x of await boks.locator("button").evaluateAll((e) => e.map((q) => q.textContent?.trim() ?? ""))) namn.push(x)
+    /**
+     * DET SOM TEL: ligg brikka øvst i sitt eige midtpunkt? KVAR brikke, og
+     * på KVAR side — den siste i ei full rad er den som går under
+     * tommelspalta, og ei prøve på berre den fyrste sida ville sagt ja til
+     * nett den rada som ikkje går an å trykkje på.
+     */
+    for (const d of await page.evaluate(() => {
+      const ut: string[] = []
+      for (const b of document.querySelectorAll('[role="group"][aria-label="uttak"] button')) {
+        const r = b.getBoundingClientRect()
+        const ord = b.textContent?.trim() ?? "?"
+        if (!r.width || !r.height) {
+          ut.push(`${ord}: inga rute`)
+          continue
+        }
+        const paa = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+        if (!paa || !(b === paa || b.contains(paa))) ut.push(`${ord}: ${paa?.tagName.toLowerCase() ?? "ingen"} ligg over`)
       }
-      const paa = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
-      if (!paa || !(b === paa || b.contains(paa))) ut.push(`${ord}: ${paa?.tagName.toLowerCase() ?? "ingen"} ligg over`)
-    }
-    return ut
-  })
+      return ut
+    })) daarlege.push(d)
+    const neste = page.getByRole("button", { name: "neste uttak" })
+    if (!(await neste.count()) || (await neste.isDisabled())) break
+    await neste.click()
+    await page.waitForTimeout(300)
+  }
+  const venta = UTTAK.flatMap((g) => g.filer.map((f) => f.label))
+  sjekk("og bolkane er dei UTTAK seier", bolkar.join(" ") === UTTAK.map((g) => g.bolk).join(" "), bolkar.join(" "))
+  sjekk(
+    `${venta.length} brikker, med flat og 3mf mellom dei`,
+    namn.length === venta.length && venta.every((x) => namn.includes(x)),
+    namn.join(" "),
+  )
   sjekk("og KVAR brikke ligg øvst der ho står — ingen er klipt eller dekt", daarlege.length === 0, daarlege.join(" · "))
-  // eit trykk utanfor lukkar han att
-  await page.mouse.click(195, 260)
-  await page.waitForTimeout(250)
-  sjekk("eit trykk utanfor lukkar boksen", (await boks.count()) === 0)
+  // grepet over fanene lèt att — lina er borte medan skuffa står ope
+  await vippArk(page)
+  sjekk("grepet lukkar fana", (await boks.count()) === 0)
   /**
    * OG EIT HARDT BROT FYLGJER MED HIT.
    *
@@ -2881,11 +3040,27 @@ async function uttaka(browser: Browser) {
   await page.reload({ waitUntil: "networkidle" })
   await roleg(page, 900)
   await page.getByRole("button", { name: "eksport", exact: true }).click()
-  await page.waitForTimeout(300)
+  await page.waitForTimeout(400)
   await vent2(page, async () => (await page.locator("[data-uttakvarsel]").count()) > 0, 8000)
   const varseltekst = ((await page.locator("[data-uttakvarsel]").first().textContent()) ?? "").trim()
   sjekk("ein umogeleg montasje varslar på uttaket", /går ikkje i hop/.test(varseltekst), varseltekst)
-  const merkte = await page.locator("[role=group][aria-label=uttak] button[data-varsel]").count()
+  /**
+   * OG MERKET STÅR PÅ DEI BRIKKENE SOM FRAMLEIS GJEV EI FIL.
+   *
+   * Ein umogeleg montasje har ingen delar, so dei fleste brikkene er
+   * STENGDE — ei tom fil lyg — og ei stengd brikke treng ikkje eit varsel
+   * om noko ho ikkje gjer. Dei tre som alltid går (passprøve, bøyeprøve,
+   * lagre) ligg i plate- og alt-bolken, ei side og to sider inn, so prøva
+   * bladar gjennom heile fana og tel.
+   */
+  let merkte = 0
+  for (let i = 0; i < UTTAK.length; i++) {
+    merkte += await page.locator("[role=group][aria-label=uttak] button[data-varsel]").count()
+    const neste = page.getByRole("button", { name: "neste uttak" })
+    if (!(await neste.count()) || (await neste.isDisabled())) break
+    await neste.click()
+    await page.waitForTimeout(300)
+  }
   sjekk("og brikkene ber merket", merkte > 0, `${merkte} brikker`)
 
   sjekk("ingen konsollfeil i uttaka", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
@@ -2959,7 +3134,9 @@ async function handtaka(browser: Browser) {
     // tvers av henne projiserer seg til ingenting. Streken bak prikken er
     // den lina: er han høgare enn han er brei, går draget opp og ned.
     const spor = handtak.first()
-    const bane = await spor.locator("line").boundingBox()
+    // bandet er ei BROTNE line og ikkje ei rett: eit ledd mot eit bøygt plan
+    // ligg på ein boge, og bandet fylgjer den lina fila vert skoren av
+    const bane = await spor.locator("polyline").boundingBox()
     const prikk = await spor.locator("circle").last().boundingBox()
     if (bane && prikk) {
       const cx = prikk.x + prikk.width / 2
@@ -2996,8 +3173,7 @@ async function handtaka(browser: Browser) {
   const prikk = page.locator("[data-spor]")
   sjekk("ingen prikkar i rommet utan eit plan valt", (await prikk.count()) === 0)
   await midt(page)
-  await utbrett(page)
-  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
+  await (await planRad(page)).first().locator("button").first().click()
   await roleg(page, 900)
   const nr = await prikk.count()
   sjekk("det valde planet har ein prikk per ledd i rommet", nr > 0, `${nr} prikkar`)
@@ -3158,13 +3334,12 @@ async function skaletOgSovnen(browser: Browser) {
    * framme er det du arbeider i, og det skal ikkje forsvinne under handa.
    */
   await page.mouse.move(190, 700)
-  await page.locator(HOVUDLINA).click()
+  await vippArk(page)
   await page.waitForTimeout(500)
-  await utbrett(page)
-  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
+  await (await planRad(page)).first().locator("button").first().click()
   await page.waitForTimeout(400)
   // arket att: eit ope ark held det vake av seg sjølv, og då prøver vi ingenting
-  await page.locator(HOVUDLINA).click()
+  await vippArk(page)
   await roleg(page, 600)
   await page.waitForTimeout(3200)
   const valt = await gjennomsikt()
@@ -3254,10 +3429,19 @@ async function andreFingeren(browser: Browser) {
 async function boyen(browser: Browser) {
   console.log("\n=== bøyen")
   const plan = skrivPlan(rutenett(3, 0))
-  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 300, tjukn: 6, material: "finer" })), browser, 390, 844)
+  /**
+   * OG SNITTET ER GROVT MED VILJE.
+   *
+   * Bøyeradiusregelen har to utgangar: ei plate som er bøygd strammare enn
+   * materialet toler vert RILLA, og då er han i orden. Med eit laserfint
+   * snitt er han alltid i orden — og ein regel i orden utan eit måltal å
+   * stå på står ikkje i tavla, som er heile poenget med ei skuff som er
+   * 219 px høg. Eit snitt på 2,5 mm et opp ei rille på 6 mm, og då er det
+   * ikkje lenger noko å rille med: regelen fyrer, og prøva får sjå han.
+   */
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 300, tjukn: 6, material: "finer", snitt: 2.5 })), browser, 390, 844)
   await midt(page)
-  await utbrett(page)
-  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
+  await (await planRad(page)).first().locator("button").first().click()
   await roleg(page, 600)
   const knapp = page.locator("[data-boy]")
   sjekk("eit valt plan har ein bøyeknapp", (await knapp.count()) === 1)
@@ -3284,10 +3468,92 @@ async function boyen(browser: Browser) {
     await vent(page, (p) => (lesPlan(p.plan)[0]?.bog ?? 0) < 0)
     sjekk("og eit drag ned bøyer han andre vegen", bogAv() < 0, `bog ${bogAv()}`)
     // regelen om materialet: 300 mm kropp, 6 mm finér toler 600 mm radius
-    await midt(page)
-    await page.getByRole("button", { name: "alle kontrollane" }).click()
+    await paaFane(page, "sjekk")
     await roleg(page, 900)
-    const tekst = (await page.locator("[aria-label='kontrollar']").innerText()).replace(/\s+/g, " ")
+
+    /**
+     * OG HEILE TOMMELSPALTA STÅR PÅ SKJERMEN — OG UNDER SYNSKUBEN.
+     *
+     * Med eit plan valt og arket ope er ho på sitt lengste og bandet på sitt
+     * kortaste — rutenett, dubler, hòl, form, bøy, slett, kropp — so
+     * det er her ho ryk om ho skal ryke. (Montasjen stod her ein gong; han er
+     * ei fane no, og spalta hans ber berre steget. Virvelen stod her òg og er
+     * teken heilt bort; den åttande er snappknappen, som seier talet sitt.)
+     *
+     * TALET ER EI NEDRE GRENSE, ikkje ei teljing. `ute.length === 0` er sann
+     * av seg sjølv om spørjinga ikkje finn ein einaste knapp, so golvet er
+     * det som gjer prøva verd å køyre. Det står på dei sju reiskapane som er
+     * lista over — snappknappen er den åttande og er ikkje ein reiskap.
+     *
+     * TO TING VERT KREVDE. Ein reiskap utanfor ruta er ein reiskap som ikkje
+     * finst, og det HAR hendt: stabelen gjekk 156 pikslar over topplina før
+     * spalta vart eit band. Og dei to spaltene står i den SAME kanten —
+     * synskuben med låsen, innramminga og lupa øvst, reiskapane nedst — so ein
+     * stabel som rekk opp i han legg seg over innrammingsknappen. Det HAR
+     * hendt òg: elleve knappar, og eit trykk på innramminga gjekk til
+     * rutenettet. Difor spør prøva DOM-en kva som faktisk ligg øvst midt på
+     * innrammingsknappen, og ikkje berre kva tala seier.
+     */
+    const spalta = await page.evaluate(`(function () {
+      function bb(e) { return e.getBoundingClientRect() }
+      var h = document.querySelector("header") ? bb(document.querySelector("header")).bottom : 0
+      var kube = document.querySelector(".synskube")
+      var k = kube ? bb(kube) : null
+      var skuff = document.querySelector("[aria-label='kontrollar']")
+      var sk = skuff ? bb(skuff) : null
+      var alle = document.querySelectorAll(".tumme button")
+      var ute = []
+      var over = []
+      var smaa = []
+      var paaArk = []
+      for (var i = 0; i < alle.length; i++) {
+        var r = bb(alle[i])
+        var namn = alle[i].getAttribute("aria-label")
+        if (r.width === 0 || r.height === 0) continue
+        if (r.top < h - 1 || r.bottom > innerHeight + 1 || r.left < 0 || r.right > innerWidth + 1) ute.push(namn + " " + Math.round(r.top) + ".." + Math.round(r.bottom))
+        if (k && r.top < k.bottom && r.bottom > k.top && r.left < k.right && r.right > k.left) over.push(namn)
+        if (sk && r.top < sk.bottom && r.bottom > sk.top && r.left < sk.right && r.right > sk.left) paaArk.push(namn + " " + Math.round(r.top) + ".." + Math.round(r.bottom))
+        if (Math.min(r.width, r.height) < 44) smaa.push(namn + " " + Math.round(r.height))
+      }
+      var heim = document.querySelector("[data-heim]")
+      var tek = "-"
+      if (heim) {
+        var q = bb(heim)
+        var e = document.elementFromPoint((q.left + q.right) / 2, (q.top + q.bottom) / 2)
+        tek = e ? (e.closest("[data-heim]") ? "innramminga" : (e.getAttribute("aria-label") || e.tagName)) : "-"
+      }
+      var pil = document.querySelector("[aria-label^='neste ']")
+      var tekPil = "-"
+      if (pil) {
+        var s = bb(pil)
+        var f = document.elementFromPoint((s.left + s.right) / 2, (s.top + s.bottom) / 2)
+        tekPil = f ? (f.closest("[aria-label^='neste ']") ? "bladpila" : (f.getAttribute("aria-label") || f.tagName)) : "-"
+      }
+      return { ute: ute, over: over, smaa: smaa, paaArk: paaArk, n: alle.length, topp: Math.round(h), H: innerHeight, tek: tek, tekPil: tekPil }
+    })()`) as { ute: string[]; over: string[]; smaa: string[]; paaArk: string[]; n: number; topp: number; H: number; tek: string; tekPil: string }
+    sjekk(
+      "og heile tommelspalta står på skjermen, under topplina",
+      spalta.ute.length === 0 && spalta.n >= 7,
+      `${spalta.n} knappar mellom ${spalta.topp} og ${spalta.H} px${spalta.ute.length ? " · " + spalta.ute.slice(0, 3).join(" · ") : ""}`,
+    )
+    sjekk("og ingen av dei legg seg over synskuben", spalta.over.length === 0, spalta.over.slice(0, 3).join(" · "))
+    sjekk("so innrammingsknappen tek sitt eige trykk", spalta.tek === "innramminga", spalta.tek)
+    sjekk("og ingen reiskap er klemt under 44 px", spalta.smaa.length === 0, spalta.smaa.slice(0, 3).join(" · "))
+    /**
+     * OG DEN TREDJE: SKUFFA.
+     *
+     * Den same feilen som med synskuben, den andre vegen. Ni reiskapar er
+     * 464 px og bandet er 325 når skuffa står ope, so dei tre nedste låg
+     * oppå henne — oppå slettekrossen på plan-rada og oppå bladpila, og eit
+     * trykk på pila tok kroppsreiskapen. Prøva spør DOM-en om det same som
+     * ho spør om innramminga: kven tek trykket midt på pila?
+     */
+    sjekk("og ingen av dei legg seg over skuffa", spalta.paaArk.length === 0, spalta.paaArk.slice(0, 3).join(" · "))
+    sjekk("so bladpila tek sitt eige trykk", spalta.tekPil === "bladpila", spalta.tekPil)
+    // tavla er bladd: bøyeradien står på den sida måltalet sitt står på
+    const tavlaNo = async () => (await page.locator("[aria-label='kontrollar']").innerText()).replace(/\s+/g, " ")
+    await bladTil(page, "sjekk", async () => /bøyeradius/.test(await tavlaNo()))
+    const tekst = await tavlaNo()
     sjekk("bøyeradien står i tavla", /bøyeradius/.test(tekst), (tekst.match(/bøyeradius[^·]{0,44}/) ?? [""])[0])
     /**
      * OG EIT DOBBELTTRYKK RETTAR HAN UT ATT. Knappen er ein skrubbar, so
@@ -3312,64 +3578,6 @@ async function boyen(browser: Browser) {
   }
 
   /**
-   * OG HEILE TOMMELSPALTA STÅR PÅ SKJERMEN — OG UNDER SYNSKUBEN.
-   *
-   * Med eit plan valt og arket ope er ho på sitt lengste og bandet på sitt
-   * kortaste — rutenett, dubler, hòl, form, bøy, slett, kropp — so
-   * det er her ho ryk om ho skal ryke. (Montasjen stod her ein gong; han er
-   * ei fane no, og spalta hans ber berre steget. Virvelen stod her òg og er
-   * teken heilt bort; den åttande er snappknappen, som seier talet sitt.)
-   *
-   * TALET ER EI NEDRE GRENSE, ikkje ei teljing. `ute.length === 0` er sann
-   * av seg sjølv om spørjinga ikkje finn ein einaste knapp, so golvet er
-   * det som gjer prøva verd å køyre. Det står på dei sju reiskapane som er
-   * lista over — snappknappen er den åttande og er ikkje ein reiskap.
-   *
-   * TO TING VERT KREVDE. Ein reiskap utanfor ruta er ein reiskap som ikkje
-   * finst, og det HAR hendt: stabelen gjekk 156 pikslar over topplina før
-   * spalta vart eit band. Og dei to spaltene står i den SAME kanten —
-   * synskuben med låsen, innramminga og lupa øvst, reiskapane nedst — so ein
-   * stabel som rekk opp i han legg seg over innrammingsknappen. Det HAR
-   * hendt òg: elleve knappar, og eit trykk på innramminga gjekk til
-   * rutenettet. Difor spør prøva DOM-en kva som faktisk ligg øvst midt på
-   * innrammingsknappen, og ikkje berre kva tala seier.
-   */
-  const spalta = await page.evaluate(`(function () {
-    function bb(e) { return e.getBoundingClientRect() }
-    var h = document.querySelector("header") ? bb(document.querySelector("header")).bottom : 0
-    var kube = document.querySelector(".synskube")
-    var k = kube ? bb(kube) : null
-    var alle = document.querySelectorAll(".tumme button")
-    var ute = []
-    var over = []
-    var smaa = []
-    for (var i = 0; i < alle.length; i++) {
-      var r = bb(alle[i])
-      var namn = alle[i].getAttribute("aria-label")
-      if (r.width === 0 || r.height === 0) continue
-      if (r.top < h - 1 || r.bottom > innerHeight + 1 || r.left < 0 || r.right > innerWidth + 1) ute.push(namn + " " + Math.round(r.top) + ".." + Math.round(r.bottom))
-      if (k && r.top < k.bottom && r.bottom > k.top && r.left < k.right && r.right > k.left) over.push(namn)
-      if (Math.min(r.width, r.height) < 44) smaa.push(namn + " " + Math.round(r.height))
-    }
-    var heim = document.querySelector("[data-heim]")
-    var tek = "-"
-    if (heim) {
-      var q = bb(heim)
-      var e = document.elementFromPoint((q.left + q.right) / 2, (q.top + q.bottom) / 2)
-      tek = e ? (e.closest("[data-heim]") ? "innramminga" : (e.getAttribute("aria-label") || e.tagName)) : "-"
-    }
-    return { ute: ute, over: over, smaa: smaa, n: alle.length, topp: Math.round(h), H: innerHeight, tek: tek }
-  })()`) as { ute: string[]; over: string[]; smaa: string[]; n: number; topp: number; H: number; tek: string }
-  sjekk(
-    "og heile tommelspalta står på skjermen, under topplina",
-    spalta.ute.length === 0 && spalta.n >= 7,
-    `${spalta.n} knappar mellom ${spalta.topp} og ${spalta.H} px${spalta.ute.length ? " · " + spalta.ute.slice(0, 3).join(" · ") : ""}`,
-  )
-  sjekk("og ingen av dei legg seg over synskuben", spalta.over.length === 0, spalta.over.slice(0, 3).join(" · "))
-  sjekk("so innrammingsknappen tek sitt eige trykk", spalta.tek === "innramminga", spalta.tek)
-  sjekk("og ingen reiskap er klemt under 44 px", spalta.smaa.length === 0, spalta.smaa.slice(0, 3).join(" · "))
-
-  /**
    * MJUKINGA. Ho står under den same tommelen som bøyen — i arket — og går
    * den same vegen inn: plan-strengen. So prøva er den same: dra, og les
    * lenkja. Forma har si eiga bolk; ho treng eit anna syn (sjå `forma`).
@@ -3377,8 +3585,7 @@ async function boyen(browser: Browser) {
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
   await midt(page)
-  await utbrett(page)
-  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
+  await (await planRad(page)).first().locator("button").first().click()
   await roleg(page, 500)
   const mjuk = page.locator("[aria-label='mjuk, tal']")
   sjekk("eit valt plan har mjukinga i arket og forma i spalta", (await mjuk.count()) === 1 && (await page.locator("[data-form]").count()) === 1)
@@ -3446,9 +3653,9 @@ async function snappet(browser: Browser) {
   await roleg(page, 1400)
   await midt(page)
   await utbrett(page)
-  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan='3'] button").first().click()
+  await (await planRad(page, "3")).locator("button").first().click()
   await roleg(page, 600)
-  await page.locator(HOVUDLINA).click()
+  await vippArk(page)
   await roleg(page, 400)
   /**
    * BOKSEN: fire hjørne, langt frå kvarandre. Det MÅ vera eitt dobbelttrykk
@@ -3589,12 +3796,12 @@ async function forma(browser: Browser) {
 
   await midt(page)
   await utbrett(page)
-  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan='3'] button").first().click()
+  await (await planRad(page, "3")).locator("button").first().click()
   await roleg(page, 600)
   // og arket att: forma vert arbeidd med medan du ser på KROPPEN, og eit
   // handtak som fell bak arket står ikkje framme (sjå `Omrisset`). Lina
   // lukkar utan å sleppe valet — escape ville sleppt det.
-  await page.locator(HOVUDLINA).click()
+  await vippArk(page)
   await roleg(page, 400)
   const form = page.locator("[data-form]")
   /** kor mange av dei som faktisk står framme: scena gøymer dei som ikkje har plass */
@@ -4065,8 +4272,8 @@ async function montasjen(browser: Browser) {
    * skrive og som berre låg inni ALT-pakka — kva delane HEITER, og kva veg
    * dei kjem inn.
    */
-  // arket ligg lukka på ein telefon; lina opnar det
-  await page.locator(HOVUDLINA).click()
+  // arket ligg lukka på ein telefon; stega står der plana elles står
+  await midt(page)
   await roleg(page, 600)
   const rader = page.locator("[aria-label='steget'] [data-steg-del]")
   const planrader = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]")
@@ -4074,7 +4281,7 @@ async function montasjen(browser: Browser) {
   sjekk("arket ber stega og ikkje plana", (await rader.count()) > 0 && (await planrader.count()) === 0, `${await rader.count()} stegrader · ${await planrader.count()} planrader`)
   const fyrste = ((await rader.first().innerText()) ?? "").replace(/\s+/g, " ").trim()
   sjekk("og kvar rad ber adressa, vegen inn og plata", /^\S+ (ned|opp|frå sida|ligg) ark \d+$/.test(fyrste), fyrste)
-  await page.locator(HOVUDLINA).click()
+  await vippArk(page)
   await roleg(page, 500)
 
   /**
