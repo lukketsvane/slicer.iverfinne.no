@@ -1468,7 +1468,7 @@ export function Studio() {
     const k = kroppRef.current, l = lesPlan(naa.current.plan), q = l.find((p) => p.id === valdRef.current)
     if (!k || !q) return
     if (l.length + N - 1 > PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
-    const g = nyGruppe(l), rad = rundt(q, N, k.min, k.max, nyId(l), g)
+    const g = nyGruppe(l), rad = rundt(q, N, k.min, k.max, nyId(l), g, typeof naa.current.tjukn === "number" ? naa.current.tjukn : 3)
     setParams((cur) => ({ ...cur, plan: skrivPlan([...lesPlan(cur.plan).map((p) => (p.id === q.id ? rad[0] : p)), ...rad.slice(1)]) }))
     setValdGruppe(g)
     setBlink(rad[N - 1].id)

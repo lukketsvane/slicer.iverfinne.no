@@ -156,3 +156,17 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert.deepEqual(vinklar, [90, -150, -30], `tre radiale bein på 120°: ${vinklar}`)
   console.log("rundt: radiale bein ut frå midten får 120°")
 }
+
+// ×4 PÅ EIN VEGG MIDT I: ei kasse med hjørna i flukt
+{
+  const min: Vec3 = [-225, -225, 0], max: Vec3 = [225, 225, 450]
+  const vegg: Plan = { id: 1, o: [0.5, 0.5, 0.5], n: [0, -1, 0], bog: 0, strek: [], omriss: [[-176 / 450, 0.4], [176 / 450, 0.4], [176 / 450, -0.5], [-176 / 450, -0.5]] }
+  const k = rundt(vegg, 4, min, max, 2, 1, 12)
+  for (const p of k) {
+    const x = min[0] + p.o[0] * 450, y = min[1] + p.o[1] * 450
+    assert(Math.abs(Math.hypot(x, y) - 170) < 0.1, `kvar vegg 170 mm ut: ${x}, ${y}`)
+  }
+  const vinklar = k.map((p) => Math.round((Math.atan2(p.n[1], p.n[0]) * 180) / Math.PI))
+  assert.deepEqual(vinklar, [-90, 0, 90, 180], `fire veggar på 90°: ${vinklar}`)
+  console.log("×4 på ein vegg midt i: ei kasse, veggane 170 mm ut")
+}
