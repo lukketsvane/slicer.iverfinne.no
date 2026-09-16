@@ -887,6 +887,14 @@ ends at them like a flat seat would, and its tenons point along the tangent
 where the arc meets the side. Where one plate sticks out through the other,
 that stretch is protected: the other plate does not also read it as an end.
 
+**And along an arc.** A bent seat whose cylinder axis runs from side to side
+meets each side in a circle — straight in the seat's unrolled pattern, an arc
+in the side. The seat gets its tenons as always; the side's mortises follow
+the arc, built from short boxes whose sagitta stays under a hundredth of a
+millimetre, and the wall check and `pnpm ledd` read them along the arc, not
+along the chord. A saddle curving front to back between two sides is a seat
+like any other.
+
 **A corner is fingers.** Two plates that each end flush with the other's
 outside — the sides of a box — cannot hold a mortise. The corner is split
 into an odd number of fingers along the line, about six thicknesses long
@@ -934,7 +942,8 @@ narrow seat, a 3 mm model, splayed legs (seat first, each leg along its own
 tenon), crossed legs with a seat, where slots and tenons share one
 object, a seat between the sides, flush and with tenons showing, a bent
 saddle seat flush and showing, a box of four sides with a flush seat,
-joined by fingers, and seven slats with a rail through them.
+joined by fingers, seven slats with a rail through them, and a seat bent
+between the sides with curved mortises.
 
 ## The plane, flat
 

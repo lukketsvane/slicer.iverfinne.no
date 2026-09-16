@@ -1281,8 +1281,9 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
        * ikkje gjennom setet.
        */
       const tekne: Span[] = []
-      // tappar òg mot ei bøygd plate — der møtet er ei generatorline, rett i båe
-      if (!x.boge) {
+      // tappar òg mot ei bøygd plate — langs ei generatorline, og langs ein boge
+      // der eit golv møter ho: rett i den bøygde, ein boge i den flate
+      {
         const m = moteLedd(tappKtx, A, B, lA, lB, x.sin, tappar)
         tappar += m.tal
         ledd += m.tal
