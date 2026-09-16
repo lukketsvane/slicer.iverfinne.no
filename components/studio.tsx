@@ -2720,6 +2720,9 @@ export function Studio() {
   const mjukNo = iValt.reduce((m, q) => Math.max(m, q.mjuk ?? 0), 0)
   /** ber det valde planet ei form handa har sett? */
   const harOmriss = vald !== null && !!plan.find((q) => q.id === vald)?.omriss?.length
+  // BUNDE AV NETTET: utan omriss er planet alltid det; eit trykk frys det laust
+  const bunde = vald !== null && (!harOmriss || !!plan.find((q) => q.id === vald)?.nett)
+  const vekslNett = () => (harOmriss ? setParams((cur) => ({ ...cur, plan: skrivPlan(lesPlan(cur.plan).map((q) => (q.id === vald ? { ...q, nett: q.nett ? undefined : true } : q))) })) : formTrykk())
   /** kva lesinga seier i montasjen: ribba handa held, eller kvar animasjonen står */
   const montLes =
     !mont?.delar.length ? "ingen delar"
@@ -3126,6 +3129,11 @@ export function Studio() {
                   data-form=""
                 >
                   {IcoForm}
+                </button>
+              )}
+              {rom && valdGruppe === null && (
+                <button type="button" aria-pressed={bunde} aria-label="bunde av nettet" title={bunde ? "profilen er bunden av nettet. trykk for å sleppe han" : "profilen er fri av nettet. trykk for å binde omrisset til kroppen"} onClick={vekslNett} disabled={!harOmriss && !snitt} className={ORD} data-nett="">
+                  nett
                 </button>
               )}
               {/* FORDEL: kva rada gjer med det leiaren får. Saman, eller

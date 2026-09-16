@@ -139,7 +139,9 @@ const TAK: [string, number][] = [
   // +14 den 16.: to nye grep — dupliser går same steget som førre kopi, og
   // ×3/×4 legg planet rundt midtaksen. Rekninga ligg i lib/gruppe.ts.
   // +1: ei teikna plate tek med seg dei runde punkta (lib/teikning.ts)
-  ["components/studio.tsx", 3351],
+  // +8 den 16.: «nett»-brytaren i spalta — omrisset bunde av kroppen eller
+  // ikkje. Rekninga er eitt merke i strengen og ei linje i feltet
+  ["components/studio.tsx", 3359],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko

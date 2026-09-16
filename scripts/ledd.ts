@@ -643,6 +643,20 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
   sjekk("kryssbein, spora", { ...MOBEL, plan: x })
 }
 /**
+ * BUNDE AV NETTET: eit omriss dobbelt so stort som kuben gjev kuben sitt
+ * snitt med merket, og omrisset utan.
+ */
+{
+  const stort = (nett: boolean) => skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5], n: [1, 0, 0], bog: 0, strek: [], omriss: [[-0.8, -0.8], [0.8, -0.8], [0.8, 0.8], [-0.8, 0.8]], ...(nett ? { nett: true as const } : {}) }])
+  const areal = (nett: boolean) => { const { s: g } = makeBygg({ ...MOBEL, plan: stort(nett) }, DETAIL.mid); return g.ribber[0].outlines.reduce((a, o) => a + Math.abs(shoelace(o)), 0) }
+  const fri = areal(false), bunde = areal(true)
+  const venta = S * S
+  if (Math.abs(fri - (1.6 * S) ** 2) > 0.01 * fri || Math.abs(bunde - venta) > 0.02 * venta) {
+    brot++
+    console.log(`FEIL  bunde av nettet              fritt ${fri.toFixed(0)} mm², bunde ${bunde.toFixed(0)} mm², venta ${venta}`)
+  } else console.log(`  ok   bunde av nettet            fritt ${(fri / 1e6).toFixed(3)} m², bunde ${(bunde / 1e6).toFixed(3)} m² (kuben ${(venta / 1e6).toFixed(3)})`)
+}
+/**
  * KASSA: fire sider som endar i flukt med utsida av kvarandre, og eit sete
  * i flukt oppå. Kvart hjørne er fingrar, og ingen hjørnekube har to eigarar.
  */
