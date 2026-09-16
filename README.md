@@ -928,6 +928,23 @@ object, a seat between the sides, flush and with tenons showing, a bent
 saddle seat flush and showing, and a box of four sides with a flush seat,
 joined by fingers.
 
+## The plane, flat
+
+**2d** in the thumb column opens the selected plane lying flat in its own
+frame, with millimetres on it — a vector editor for the outline and its
+holes. Drag a point (it snaps to whole millimetres, and to its neighbours'
+x or y within six pixels); tap the small dot in the middle of a segment for a
+new point on the curve; **rund** turns the selected point between corner and
+arc, **slett punkt** takes it away (three is the floor). With **spegl** on —
+it starts on for an outline that is already symmetric — every edit happens to
+the point's mirror partner across the centre line too. **hòl** draws a
+contour inside the outline, **firkant** and **sirkel** drag a box; a hole is
+dragged to move it and **slett hòl** removes it. Two fingers pan and zoom,
+and the view holds still while a finger is down. A drag is one change: the
+draft lives on the flat surface and goes to the parameters when the finger
+lifts. The edits are plain functions in `lib/vektor.ts`, checked by
+`pnpm teikn`.
+
 ## A picture becomes a plate
 
 Pick an image where you pick a mesh. The dark is material, the light is air:

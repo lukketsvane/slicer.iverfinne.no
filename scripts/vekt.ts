@@ -143,7 +143,9 @@ const TAK: [string, number][] = [
   // ikkje. Rekninga er eitt merke i strengen og ei linje i feltet
   // +22: eit bilete inn som plate — lesinga og skjermen er i bilete.tsx,
   // rekninga i lib/bilete.ts; her står tilstanden og kallet som legg plata
-  ["components/studio.tsx", 3381],
+  // +8: «2d» opnar det valde planet flatt med vektorgrepa (vektor.tsx,
+  // rekninga i lib/vektor.ts); her står brytaren og kallet
+  ["components/studio.tsx", 3389],
   // +48 den 12.: bøygde ledd, steg éin. Møtet mellom to flater er ei LISTE
   // no og ikkje eitt svar — ein sylinder kan skjerast på to generatorar — og
   // det er den generaliseringa som let ei bøygd ribbe gripe i noko
