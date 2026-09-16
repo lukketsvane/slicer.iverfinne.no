@@ -513,9 +513,11 @@ function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: numb
       const [h0, h1, h2] = q.hjorne
       const langs = ein2(h1, h0)
       const tvers = ein2(h2, h1)
-      const L = Math.hypot(h1[0] - h0[0], h1[1] - h0[1])
-      const W = Math.hypot(h2[0] - h1[0], h2[1] - h1[1])
-      const pk = (a: number, b: number): Pt => [h0[0] + langs[0] * a + tvers[0] * b, h0[1] + langs[1] * a + tvers[1] * b]
+      const L = q.boge ? q.boge.t1 - q.boge.t0 : Math.hypot(h1[0] - h0[0], h1[1] - h0[1])
+      const W = q.boge ? Math.abs(q.boge.s1 - q.boge.s0) : Math.hypot(h2[0] - h1[0], h2[1] - h1[1])
+      // langs ein boge: `a` er buelengd frå starten, `b` er avstand frå den fyrste sida
+      const bg = q.boge
+      const pk = (a: number, b: number): Pt => (bg ? sporPunkt(bg, bg.t0 + a, bg.s0 + Math.sign(bg.s1 - bg.s0) * b) : [h0[0] + langs[0] * a + tvers[0] * b, h0[1] + langs[1] * a + tvers[1] * b])
       if (q.slag === "tapp") {
         tappar++
         if (!gods(r, pk(L / 2, W / 2))) seg(`${q.nokkel}: tappen manglar i profilen til ${r.plan.id}`)
@@ -707,6 +709,21 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
   ])
   sjekkTapp("sadelsete i flukt", { ...MOBEL, plan: sadel(160) }, { tappar: 4 })
   sjekkTapp("sadelsete, tappar ut", { ...MOBEL, plan: sadel(172) }, { tappar: 4 })
+}
+/**
+ * SETET SOM BØYER SEG MELLOM SIDENE: aksen står vinkelrett på sidene, so
+ * møtet er ein boge i sida og ei rett line i setet. Slissene fylgjer bogen.
+ */
+{
+  const sider: [number, number][] = [[-200, -225], [200, -225], [200, 175], [-200, 175]]
+  for (const [namn, y] of [["bogesete i flukt", 156], ["bogesete, tappar ut", 170]] as const) {
+    const plan = skrivPlan([
+      plate(1, [0.5, (225 - 150) / S, 0.5], [0, -1, 0], sider),
+      plate(2, [0.5, (225 + 150) / S, 0.5], [0, 1, 0], sider),
+      { ...plate(3, [0.5, 0.5, 300 / S], [0, 0, 1], firkant(y, 150)), bog: +(S / 400).toFixed(4) },
+    ])
+    sjekkTapp(namn, { ...MOBEL, plan }, { tappar: 4 })
+  }
 }
 /**
  * SETET MELLOM SIDENE: i flukt med utsida, og femten millimeter forbi —

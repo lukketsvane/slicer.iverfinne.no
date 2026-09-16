@@ -14,7 +14,7 @@
 import { inRing, type Pt, type Vec3 } from "./core"
 import type { Span } from "./mesh/solid"
 import { add3, ein2, mul3, type Plan, type Ramme } from "./plan"
-import { felles, sporPunkt, stykkeLangs, utan, type Line } from "./stykke"
+import { felles, sporInn, sporPunkt, stykkeLangs, utan, type Line } from "./stykke"
 
 /**
  * TAPP OG SLISSE — der ei teikna plate SLUTTAR mot ei anna.
@@ -51,7 +51,15 @@ export type Tapp = {
   inn: Vec3
   /** same nøkkel på båe sider: `t` + tapp-plata, slisse-plata og nummeret */
   nokkel: string
+  /**
+   * BOGEN, når tappen eller slissa ligg langs ein: lina og boksen på henne,
+   * `t` langs og `s` til sides. Hjørna åleine seier ikkje kvar kanten går
+   * mellom dei, og det er det vakta må vite.
+   */
+  boge?: Line & { t0: number; t1: number; s0: number; s1: number }
 }
+
+const bogeAv = (l: Line, t0: number, t1: number, s0: number, s1: number) => (l.k ? { boge: { p: l.p, d: l.d, k: l.k, t0, t1, s0, s1 } } : {})
 
 /** ein rett boks i feltet, same form som eit strek */
 export type Boks = { gods: boolean; rund: boolean; cx: number; cy: number; hw: number; hh: number; c: number; s: number; bx0: number; bx1: number; by0: number; by1: number }
@@ -101,7 +109,39 @@ const tappMinAv = (k: Ktx) => Math.max(6, 3 * k.tjukn)
  */
 const utMaxAv = (k: Ktx) => Math.max(10, 2 * k.tjukn)
 /** stykka langs lina, `off` millimeter til venstre for henne */
-const langsAv = (a: TappFlate, l: Line, off: number) => stykkeLangs(a.ringar, [l.p[0] - l.d[1] * off, l.p[1] + l.d[0] * off], l.d)
+// EIN BOGE: den parallelle bogen `off` til sides har same sentrum og radius R − off, og
+// buelengda hans vert skalert attende til lina sin, so `t` er det same talet på båe
+const langsAv = (a: TappFlate, l: Line, off: number): Span[] => {
+  if (!l.k) return stykkeLangs(a.ringar, [l.p[0] - l.d[1] * off, l.p[1] + l.d[0] * off], l.d)
+  const R = 1 / l.k
+  if (Math.abs(R - off) < 1e-6) return []
+  const f = R / (R - off)
+  return stykkeLangs(a.ringar, sporPunkt(l, 0, off), l.d, 1 / (R - off)).map(([x, y]): Span => (f > 0 ? [x * f, y * f] : [y * f, x * f]))
+}
+/**
+ * BOKSANE LANGS LINA: éin når ho er rett, og ein bogen full av korte når
+ * ho er ein boge — kvar so kort at pilhøgda er under ein hundredels
+ * millimeter, so slissa fylgjer bogen og ikkje korda.
+ */
+const boksar = (l: Line, t0: number, t1: number, s0: number, s1: number, gods: boolean): Boks[] => {
+  if (!l.k) return [boks(l, t0, t1, s0, s1, gods)]
+  const r = Math.abs(1 / l.k) + Math.max(Math.abs(s0), Math.abs(s1))
+  const steg = Math.max(0.5, Math.sqrt(8 * r * 0.01))
+  const n = Math.max(1, Math.ceil(Math.abs(t1 - t0) / steg))
+  const ut: Boks[] = []
+  for (let i = 0; i < n; i++) {
+    const a = t0 + ((t1 - t0) * i) / n, b = t0 + ((t1 - t0) * (i + 1)) / n
+    const tm = (a + b) / 2
+    // ei rett line som tangerer bogen i midten av stykket, litt lengre so stykka går i hop
+    const o = sporPunkt(l, tm, 0)
+    const vinkel = l.k * tm
+    const d: Pt = [l.d[0] * Math.cos(vinkel) - l.d[1] * Math.sin(vinkel), l.d[1] * Math.cos(vinkel) + l.d[0] * Math.sin(vinkel)]
+    const sm = (s0 + s1) / 2
+    const h = ((b - a) / 2) * Math.abs(1 - l.k * sm) + 0.02
+    ut.push(boks({ p: o, d, k: 0 }, -h, h, s0, s1, gods))
+  }
+  return ut
+}
 /** ein rett boks langs lina: [t0, t1] langs, [s0, s1] til sides, som eit strek i feltet */
 const boks = (l: Line, t0: number, t1: number, s0: number, s1: number, gods: boolean): Boks => {
   const tm = (t0 + t1) / 2
@@ -169,19 +209,15 @@ function rettKant(T: TappFlate, lT: Line, s: number, tb2: number, rom: number, s
    * fangbandet vert flytt ut på den nære flata. Då står sidene rette opp
    * til skuldra, der eit fyll ville ha stukke ut som eit øyre der sida
    * skrår — og ein kant som vart teikna tre hundredelar under setet får
-   * ikkje ei trapp ved rota av kvar tapp.
+   * ikkje ei trapp ved rota av kvar tapp. Langs ein boge er den nære
+   * flata den parallelle bogen.
    */
   if (T.omriss) {
-    const nx = -lT.d[1]
-    const ny = lT.d[0]
     const rett = (q: Pt): Pt => {
-      const rx = q[0] - lT.p[0]
-      const ry = q[1] - lT.p[1]
-      const off = rx * nx + ry * ny
+      const [lam, off] = sporInn(lT.p[0], lT.p[1], lT.d[0], lT.d[1], lT.k, q[0], q[1])
       if (Math.abs(off) >= rom) return q
-      const lam = rx * lT.d[0] + ry * lT.d[1]
       if (!strekk.some(([a, b]) => lam >= a - rom && lam <= b + rom)) return q
-      return [lT.p[0] + lT.d[0] * lam + nx * s * tb2, lT.p[1] + lT.d[1] * lam + ny * s * tb2]
+      return sporPunkt(lT, lam, s * tb2)
     }
     T.omriss = T.omriss.map(rett)
     T.hjorne = T.hjorne.map(rett)
@@ -222,14 +258,14 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
     const retta = T.omriss ? [T.omriss] : T.ringar
     for (const [c0, c1] of strekk) {
       // KLIPPET: det som står forbi den nære flata, er i vegen for M
-      T.tform.push(boks(lT, c0, c1, s * tb2, -s * (tb2 + (u ? utMax : fang) + 1), false))
+      T.tform.push(...boksar(lT, c0, c1, s * tb2, -s * (tb2 + (u ? utMax : fang) + 1), false))
       // FYLLET: der kanten framleis står under flata — der hjørna låg
       // utanfor møtet og ikkje vart flytte — vert han løfta opp til henne.
       // Eit hol kortare enn fangbandet er ikkje ein kant som står lågt, men
       // ei side som skrår inn mot toppen, og ho skal stå som ho er.
       const naer = s * (tb2 + 0.01)
       for (const [g0, g1] of utan([[c0, c1]], stykkeLangs(retta, [lT.p[0] - lT.d[1] * naer, lT.p[1] + lT.d[0] * naer], lT.d))) {
-        if (g1 - g0 > rom) T.tform.push(boks(lT, g0, g1, s * (tb2 + fang + 0.5), s * tb2, true))
+        if (g1 - g0 > rom) T.tform.push(...boksar(lT, g0, g1, s * (tb2 + fang + 0.5), s * tb2, true))
       }
       /**
        * TAPPANE: éin per femten centimeter møte, med skuldrer i båe endar.
@@ -248,11 +284,11 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
       for (let i = 0; i < n; i++) {
         const a0 = c0 + i * celle + marg
         const a1 = c0 + (i + 1) * celle - marg
-        T.tform.push(boks(lT, a0, a1, s * (tb2 + 0.5), -s * (tb2 + u), true))
-        M.tform.push(boks(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2, false))
+        T.tform.push(...boksar(lT, a0, a1, s * (tb2 + 0.5), -s * (tb2 + u), true))
+        M.tform.push(...boksar(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2, false))
         const nokkel = `t${T.plan.id}-${M.plan.id}-${nr + tal}`
-        T.tapp.push({ mot: M.plan.id, slag: "tapp", midt: sporPunkt(lT, (a0 + a1) / 2, 0), hjorne: hjorne(lT, a0, a1, s * tb2, -s * (tb2 + u)), inn, nokkel })
-        M.tapp.push({ mot: T.plan.id, slag: "slisse", midt: sporPunkt(lM, (a0 + a1) / 2, 0), hjorne: hjorne(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2), inn, nokkel })
+        T.tapp.push({ mot: M.plan.id, slag: "tapp", midt: sporPunkt(lT, (a0 + a1) / 2, 0), hjorne: hjorne(lT, a0, a1, s * tb2, -s * (tb2 + u)), inn, nokkel, ...bogeAv(lT, a0, a1, s * tb2, -s * (tb2 + u)) })
+        M.tapp.push({ mot: T.plan.id, slag: "slisse", midt: sporPunkt(lM, (a0 + a1) / 2, 0), hjorne: hjorne(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2), inn, nokkel, ...bogeAv(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2) })
         tal++
       }
     }
@@ -274,9 +310,22 @@ export function slisseGods(tapp: readonly Tapp[], skorne: readonly Pt[][]): numb
   for (const q of tapp) {
     if (q.slag !== "slisse") continue
     const [h0, h1, h2] = q.hjorne
-    for (const [fraa, til] of [[h0, h1], [h1, h2]] as const) {
-      const halv = Math.hypot(til[0] - fraa[0], til[1] - fraa[1]) / 2
-      const runs = stykkeLangs(skorne, q.midt, ein2(til, fraa))
+    // ei slisse langs ein boge vert lesen langs bogen og tvers på han, ikkje langs korda
+    const b = q.boge
+    const proever: { halv: number; runs: Span[] }[] = []
+    if (b) {
+      const tm = (b.t0 + b.t1) / 2, sm = (b.s0 + b.s1) / 2
+      const R = 1 / b.k
+      const f = R / (R - sm)
+      const langs = stykkeLangs(skorne, sporPunkt(b, 0, sm), b.d, 1 / (R - sm)).map(([x, y]): Span => (f > 0 ? [x * f - tm, y * f - tm] : [y * f - tm, x * f - tm]))
+      const a = b.k * tm
+      const o = sporPunkt(b, tm, sm)
+      const n: Pt = [-(b.d[1] * Math.cos(a) + b.d[0] * Math.sin(a)), b.d[0] * Math.cos(a) - b.d[1] * Math.sin(a)]
+      proever.push({ halv: (b.t1 - b.t0) / 2, runs: langs }, { halv: Math.abs(b.s1 - b.s0) / 2, runs: stykkeLangs(skorne, o, n) })
+    } else {
+      for (const [fraa, til] of [[h0, h1], [h1, h2]] as const) proever.push({ halv: Math.hypot(til[0] - fraa[0], til[1] - fraa[1]) / 2, runs: stykkeLangs(skorne, q.midt, ein2(til, fraa)) })
+    }
+    for (const { halv, runs } of proever) {
       for (const side of [1, -1]) {
         const kant = side * halv
         const run = runs.find(([lo, hi]) => Math.abs((side > 0 ? lo : hi) - kant) < 0.75)
@@ -303,7 +352,7 @@ export function slisseGods(tapp: readonly Tapp[], skorne: readonly Pt[][]): numb
  * sidene, rett mot dei.
  */
 export function fingrar(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, sin: number, nr: number, fredt: readonly Span[] = []) {
-  if (!A.omriss || !B.omriss) return null
+  if (!A.omriss || !B.omriss || lA.k || lB.k) return null
   const fang = fangAv(k)
   const tb2 = k.tjukn / (2 * sin)
   const ende = (T: TappFlate, l: Line) => {
@@ -357,7 +406,7 @@ export function fingrar(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, 
  * møtet ikkje er slik.
  */
 export function gjennomgang(k: Ktx, P: TappFlate, G: TappFlate, lP: Line, lG: Line, sin: number, cos: number, nr: number, fredt: readonly Span[] = []) {
-  if (!G.omriss && !P.omriss) return null
+  if ((!G.omriss && !P.omriss) || lP.k || lG.k) return null
   const m = Math.max(2 * k.tjukn, 6)
   const rP = langsAv(P, lP, 0)
   const rG = langsAv(G, lG, 0)
