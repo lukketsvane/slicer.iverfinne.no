@@ -788,6 +788,23 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
   const feil = kilar.length !== 4 || med.length !== 4 || dl.lause !== 0 || !kilar.every((d) => /^k3-[12]-\d+$/.test(d.adr) && Math.abs(Math.abs(shoelace(d.outline)) - 48 * med[0].kile!.w) < 1)
   if (feil) brot++
   console.log(`${feil ? "FEIL" : "  ok "}  ${"kilar".padEnd(26)} ${String(kilar.length).padStart(4)} kilar i lista, ${med.length} tappar med hòl, ${dl.lause} lause`)
+  /**
+   * KILAR PÅ: det same setet i flukt med utsida får òg kilar — kvar tapp
+   * gjennom stikk ut ei halv millimeter under to tjukner, og det står ei
+   * tjukn gods utanfor kilehòlet. Med kilar av er det same setet i flukt.
+   */
+  const flukt = skrivPlan([
+    plate(1, [0.5, (225 - 150) / S, 0.5], [0, 1, 0], side()),
+    plate(2, [0.5, (225 + 150) / S, 0.5], [0, 1, 0], side()),
+    plate(3, [0.5, 0.5, 300 / S], [0, 0, 1], firkant(156, 140)),
+  ])
+  sjekkTapp("kilar på, sete i flukt", { ...MOBEL, plan: flukt, kilar: 1 }, { tappar: 4, brot: 0 })
+  const paa = makeBygg({ ...MOBEL, plan: flukt, kilar: 1 }, DETAIL.mid)
+  const av = makeBygg({ ...MOBEL, plan: flukt, kilar: 0 }, DETAIL.mid)
+  const medPaa = paa.s.ribber.find((r) => r.plan.id === 3)!.tapp.filter((q) => q.kile)
+  const feilPaa = medPaa.length !== 4 || paa.dl.delar.filter((d) => d.plan === 0).length !== 4 || Math.abs(medPaa[0].kile!.w - MOBEL.tjukn) > 1e-9 || av.dl.delar.some((d) => d.plan === 0) || av.s.ribber.some((r) => r.tapp.some((q) => q.kile))
+  if (feilPaa) brot++
+  console.log(`${feilPaa ? "FEIL" : "  ok "}  ${"kilar på".padEnd(26)} ${String(medPaa.length).padStart(4)} tappar med hòl på ${medPaa[0]?.kile?.w} mm, ingen med kilar av`)
 }
 /**
  * SETET MELLOM SIDENE: i flukt med utsida, og femten millimeter forbi —

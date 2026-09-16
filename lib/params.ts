@@ -50,6 +50,7 @@ export type Params = {
   // --- LEDD ---------------------------------------------------------------
   klaring: number // sporet breiare enn den MÅLTE plata, mm
   ledd: number // kvar i overlappet delinga ligg, 0,5 er halvt om halvt
+  kilar: number // 0 tappar i flukt som teikna, 1 kvar tapp gjennom stikk ut og får kile
 
   // --- KUTT ---------------------------------------------------------------
   snitt: number // snittbreidd, mm
@@ -126,6 +127,13 @@ export const LAUSE = ["ta med", "kast"] as const
  * den som skjer dei har det alt.
  */
 export const MERK = ["utan", "nummer"] as const
+/**
+ * KILANE: ein tapp som går gjennom kan stikke ut på den andre sida og få ein
+ * kile tvers gjennom seg — det er det som held ein krakk saman utan lim.
+ * Med kilar på stikk KVAR tapp gjennom ut like under to tjukner, same kva
+ * handa teikna, og kilen kjem som ein eigen del. Sjå `lib/tapp.ts`.
+ */
+export const KILAR = ["av", "på"] as const
 
 /**
  * SNAPPET SITT STEG, I GRADER.
@@ -181,6 +189,7 @@ export const PARAM_RANGES: Record<string, Range> = {
 
   klaring: { min: 0, max: 0.6, step: 0.01, label: "klaring", unit: "mm" },
   ledd: { min: 0.2, max: 0.8, step: 0.01, label: "deling" },
+  kilar: { min: 0, max: 1, step: 1, label: "kilar", int: true, names: KILAR },
 
   snitt: { min: 0, max: 6, step: 0.05, label: "snitt", unit: "mm" },
   snittveg: { min: 0, max: 1, step: 1, label: "snittveg", int: true, names: SNITTVEGAR },
@@ -201,7 +210,7 @@ export const GROUPS: readonly Group[] = [
   { id: "delar", label: "delar", keys: ["tjukn", "lause", "merk"] },
   { id: "snapp", label: "snapp", keys: ["snapp"] },
   { id: "forenkling", label: "forenkling", keys: ["forenkl", "hol"] },
-  { id: "ledd", label: "ledd", keys: ["klaring", "ledd"] },
+  { id: "ledd", label: "ledd", keys: ["klaring", "ledd", "kilar"] },
   { id: "kutt", label: "kutt", keys: ["snitt", "snittveg", "fart"] },
   { id: "plate", label: "plate", keys: ["arkB", "arkH"] },
 ]
@@ -419,6 +428,7 @@ export const DEFAULT_PARAMS: Params = {
 
   klaring: 0.1,
   ledd: 0.5,
+  kilar: 0,
 
   snitt: 0.2,
   snittveg: 0,

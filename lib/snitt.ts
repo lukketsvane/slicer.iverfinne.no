@@ -1240,7 +1240,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
   }
 
   let tappar = 0
-  const tappKtx = { tjukn: p.tjukn, klaring: p.klaring, slotW }
+  const tappKtx = { tjukn: p.tjukn, klaring: p.klaring, slotW, kilar: p.kilar === 1 }
 
   for (let j = 1; j < raa.length; j++) {
     const B = raa[j]

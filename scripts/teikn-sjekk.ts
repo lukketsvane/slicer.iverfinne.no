@@ -5,7 +5,7 @@ import { landing, mellom, midtPaa, mjukePunkt, snapp, snappliner, symmetrisk, te
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import { bileteForm, skalerForm } from "../lib/bilete"
-import { delIto, flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "../lib/vektor"
+import { delIto, spileAkse, spiler, flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "../lib/vektor"
 import type { Vec3 } from "../lib/core"
 
 assert.deepEqual(teikneNormal([0, -0.02, Math.sqrt(1 - 0.02 ** 2)]), [0, 0, 1], "toppsynet lagar eit eksakt vassrett sete")
@@ -257,4 +257,32 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   const r = delIto(rund, 10)
   assert(r && r[0].runde && r[0].runde.length > 2, "ein ellipse vert to halve med bogane att")
   console.log("del i to: setet i to halvdelar, arealet held, bogane finst att")
+}
+
+// SPILER: eit sete 351 × 297 vert fem spiler på 60,6 med tolv millimeter luft
+{
+  const sete: Plan = { id: 3, o: [0.5, 0.5, 0.9], n: [0, 0, 1], bog: 0, strek: [], omriss: [[-0.39, -0.33], [0.39, -0.33], [0.39, 0.33], [-0.39, 0.33]] }
+  const sp = spiler(sete, 5, 12 / 450, 9)
+  assert(sp && sp.length === 5, "fem spiler")
+  assert.deepEqual(sp!.map((p) => p.id), [3, 9, 10, 11, 12], "den fyrste held namnet, resten frå det nye")
+  const breidd = (p: Plan) => Math.max(...p.omriss!.map((q) => q[0])) - Math.min(...p.omriss!.map((q) => q[0]))
+  assert(sp!.every((p) => Math.abs(breidd(p) * 450 - 60.6) < 0.1), `like breie: ${sp!.map((p) => (breidd(p) * 450).toFixed(1))}`)
+  for (let i = 1; i < 5; i++) {
+    const luft = Math.min(...sp![i].omriss!.map((q) => q[0])) - Math.max(...sp![i - 1].omriss!.map((q) => q[0]))
+    assert(Math.abs(luft * 450 - 12) < 0.1, `tolv millimeter luft: ${(luft * 450).toFixed(2)}`)
+  }
+  assert.equal(spiler(sete, 40, 12 / 450, 9), null, "for mange spiler er ingen spiler")
+  // SPILENE GÅR FRÅ SIDE TIL SIDE: setet mellom sidene (y = ±150, tjukn 12) endar i dei
+  // langs y, so spilene går langs y og vert delte langs x — sjølv om setet er lengst i y
+  const S = 450, t = 12
+  const min: Vec3 = [-225, -225, 0], max: Vec3 = [225, 225, 450]
+  const side = (id: number, y: number): Plan => ({ id, o: [0.5, (y + 225) / S, 0.5], n: [0, 1, 0], bog: 0, strek: [], omriss: [[-150 / S, 213 / S], [150 / S, 213 / S], [190 / S, -225 / S], [-190 / S, -225 / S]] })
+  const mellomSete: Plan = { id: 3, o: [0.5, 0.5, 408 / S], n: [0, 0, 1], bog: 0, strek: [], omriss: [[-130 / S, -156 / S], [130 / S, -156 / S], [130 / S, 156 / S], [-130 / S, 156 / S]] }
+  const alle = [side(1, -150), side(2, 150), mellomSete]
+  assert.equal(spileAkse(mellomSete, alle, min, max, S, t), 1, "setet mellom sidene endar i dei langs y")
+  assert.equal(spileAkse(sete, [sete], min, max, S, t), null, "eit sete åleine endar ingen stad")
+  const langs = spiler(mellomSete, 5, t / S, 9, 1)!
+  assert(langs.every((p) => Math.abs(Math.max(...p.omriss!.map((q) => q[1])) * S - 156) < 0.05 && Math.abs(Math.min(...p.omriss!.map((q) => q[1])) * S + 156) < 0.05), "kvar spile når frå side til side")
+  assert(langs.every((p) => Math.abs(breidd(p) * S - (260 - 4 * t) / 5) < 0.1), `fem spiler på 42,4 langs x: ${langs.map((p) => (breidd(p) * S).toFixed(1))}`)
+  console.log("spiler: fem like breie med tolv millimeter luft, namna i rekkje, og frå side til side når setet står mellom")
 }
