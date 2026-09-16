@@ -158,7 +158,7 @@ function FormTab({ p }: { p: ArketProps }) {
 
 function LayerRow({ no, ord, onFarge }: { no: number; ord: string; onFarge: (n: number) => void }) {
   return (
-    <div role="group" aria-label={`lag ${ord}`} className="flex h-9 items-center gap-1">
+    <div role="group" aria-label={`lag ${ord}`} data-lag={ord} className="flex h-9 items-center gap-1">
       <span className="dim w-8 shrink-0 text-[9px] uppercase tracking-[0.12em]">{ord}</span>
       <span className="rull-x flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overscroll-contain">
         <button type="button" aria-label="ikkje noko lag" aria-pressed={no === 0} onClick={() => onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
@@ -216,13 +216,18 @@ function AssemblyRows({ p }: { p: ArketProps }) {
   const veg: Record<string, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg", boygd: "bøygd inn" }
   return (
     <div className="px-3 pb-1 pt-1">
+      {/* «steget» og adressa på kvar rad — dei same handtaka benken har.
+          Ei rad utan namn er ei rad ingen kan peike på: korkje ein
+          skjermlesar, ei vakt, eller den som spør kva D3 var. */}
+      <div aria-label="steget">
       {mine.length ? mine.map((d) => (
-        <div key={d.adr} className="flex h-9 items-center gap-2 rounded-lg px-1.5 text-[11px]">
+        <div key={d.adr} data-steg-del={d.adr} className="flex h-9 items-center gap-2 rounded-lg px-1.5 text-[11px]">
           <span className="tab w-8 shrink-0">{d.adr}</span>
           <span className="min-w-0 flex-1 truncate">{veg[d.veg] ?? d.veg}</span>
           <span className="tab dim shrink-0">ark {d.ark}</span>
         </div>
       )) : <p className="dim h-9 px-1.5 py-2 text-[11px]">ingen delar</p>}
+      </div>
       <Pager side={side} tal={tal} onSide={setSide} ord={`steg ${p.montSteg}`} />
     </div>
   )
@@ -261,6 +266,22 @@ function GroupsTab({ p }: { p: ArketProps }) {
   const sider = Math.max(1, Math.ceil(rader.length / perSide))
   useEffect(() => setSide((s) => Math.min(s, sider - 1)), [sider])
   useEffect(() => setDetalj((s) => Math.min(s, Math.max(0, detaljar.length - 1))), [detaljar.length])
+  /**
+   * SIDA FYLGJER DET VALDE.
+   *
+   * `perSide` fell frå to til éin i det noko vert valt — detaljradene tek
+   * plassen — so kva rad som ligg på kva side endrar seg UNDER fingeren.
+   * Målt: tre plan, to rader på fyrste sida, eit trykk på den andre av dei,
+   * og lista sat att med ÉI rad som var den fyrste. Du valde eit plan og såg
+   * det forsvinne.
+   *
+   * Sida vert difor den rada det valde står på. Bladar du sjølv etterpå,
+   * står det du bladde til: ingenting her har endra seg då.
+   */
+  const valdRad = rader.findIndex((r) => (r.kind === "plan" ? r.plan.id === p.vald : r.id === p.valdGruppe))
+  useEffect(() => {
+    if (valdRad >= 0) setSide(Math.floor(valdRad / perSide))
+  }, [valdRad, perSide])
 
   if (p.view === "montasje") return <AssemblyRows p={p} />
 
@@ -279,6 +300,15 @@ function GroupsTab({ p }: { p: ArketProps }) {
 
   return (
     <div className="px-3 pb-1 pt-1">
+      {/**
+        * RADENE ER `option`, OG EIN `option` MÅ HA EIN `listbox` OVER SEG.
+        *
+        * Dei stod i ein naken `div`: for ein skjermlesar er ei liste val utan
+        * ei liste kring seg ikkje ei liste, og rolla fell på golvet. Han
+        * heiter «plan», av di det er dét lista er — rekkja plan og gruppene
+        * dei står i.
+        */}
+      <div role="listbox" aria-label="plan">
       {mine.length ? mine.map((rad) => {
         if (rad.kind === "gruppe") {
           const paa = p.valdGruppe === rad.id
@@ -308,6 +338,7 @@ function GroupsTab({ p }: { p: ArketProps }) {
           </div>
         )
       }) : <p className="dim h-9 px-1.5 py-2 text-[11px]">ingen plan</p>}
+      </div>
 
       {detaljar.length > 0 && (
         <div className="border-t pt-0.5" style={HAIR}>
@@ -414,8 +445,17 @@ function ExportTab({ p }: { p: ArketProps }) {
     <div className="px-3 pb-1 pt-2">
       {g ? (
         <>
-          <div className="dim h-5 px-1 text-[9px] uppercase leading-none tracking-[0.18em]">{g.bolk}</div>
-          <div className="flex min-h-9 flex-wrap items-center gap-1.5">
+          {/**
+            * BOLKEN, GRUPPA OG VARSELET HEITER NOKO.
+            *
+            * Uttaket er der du gjer noko du ikkje kan gjere om — ei plate
+            * finér er skoren éin gong — so det er den siste staden i huset
+            * der ein knapp skal vera namnlaus. Brikkene er ei gruppe (dei
+            * høyrer saman og bolken er namnet på det), og det raude
+            * varselet er det ei vakt skal kunne finne att.
+            */}
+          <div data-bolk={g.bolk} className="dim h-5 px-1 text-[9px] uppercase leading-none tracking-[0.18em]">{g.bolk}</div>
+          <div role="group" aria-label="uttak" className="flex min-h-9 flex-wrap items-center gap-1.5">
             {g.filer.map((x) => {
               const stopp = stengd(x.id, p.metrics)
               return (
@@ -434,7 +474,7 @@ function ExportTab({ p }: { p: ArketProps }) {
               )
             })}
           </div>
-          {harde.length > 0 && <p className="pt-1 text-[9px]" style={{ color: "var(--warn)" }}>{harde.map((r) => r.label).join(", ")} — går ikkje i hop</p>}
+          {harde.length > 0 && <p data-uttakvarsel="" className="pt-1 text-[9px]" style={{ color: "var(--warn)" }}>{harde.map((r) => r.label).join(", ")} — går ikkje i hop</p>}
         </>
       ) : (
         <div className="flex min-h-14 items-center gap-1.5">
