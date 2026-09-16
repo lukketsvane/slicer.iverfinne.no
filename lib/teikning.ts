@@ -122,6 +122,53 @@ export function landing(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, 
   return Number.isFinite(topp) ? topp : null
 }
 
+/**
+ * SETET MELLOM SIDENE.
+ *
+ * Eit sete teikna ovanfrå som ENDAR i sidene — kantane hakar i midtplana
+ * deira, og ingenting stikk forbi — skal ikkje liggje oppå, det skal stå
+ * mellom dei. Det vert lagt to tjukner under den lågaste toppen, og kantane
+ * går ut til utsida av sidene: tappane går gjennom og syner i flukt.
+ * Null når fotavtrykket ikkje endar i minst to ståande plater, eller går
+ * forbi ei av dei.
+ */
+export function mellom(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t: number, fot: readonly Vec3[]): { z: number; fot: Vec3[] } | null {
+  if (fot.length < 3) return null
+  const eps = Math.max(0.5, 0.002 * S)
+  const cx = fot.reduce((a, p) => a + p[0], 0) / fot.length, cy = fot.reduce((a, p) => a + p[1], 0) / fot.length
+  const k: Boks2 = { x0: Math.min(...fot.map((p) => p[0])) - eps, x1: Math.max(...fot.map((p) => p[0])) + eps, y0: Math.min(...fot.map((p) => p[1])) - eps, y1: Math.max(...fot.map((p) => p[1])) + eps }
+  const ny = fot.map((p): Vec3 => [...p])
+  let topp = Infinity, tal = 0
+  for (const q of plan) {
+    if (!q.omriss || q.bog || Math.abs(q.n[2]) > 1e-3) continue
+    const r = ramme(q, min, max)
+    const L = Math.hypot(r.n[0], r.n[1])
+    const nx = r.n[0] / L, ny2 = r.n[1] / L
+    const av = (p: Vec3) => (p[0] - r.o[0]) * nx + (p[1] - r.o[1]) * ny2
+    const side = Math.sign(av([cx, cy, 0]))
+    const d = fot.map(av)
+    // stikk fotavtrykket forbi midtplanet, er det ikkje mellom
+    if (!side || d.some((v) => v * side < -eps)) { if (d.some((v) => Math.abs(v) <= eps)) return null; continue }
+    const paa = d.map((v) => Math.abs(v) <= eps)
+    if (!paa.some((b, i) => b && paa[(i + 1) % paa.length])) continue
+    let hoeg = -Infinity
+    const pk = omrissLine(q.omriss, q.runde).map((p) => ut(r, [p[0] * S, p[1] * S]))
+    for (let i = 0; i < pk.length; i++) {
+      const sg = klippXY(pk[i], pk[(i + 1) % pk.length], k)
+      if (sg) hoeg = Math.max(hoeg, sg[0][2], sg[1][2])
+    }
+    if (!Number.isFinite(hoeg)) continue
+    topp = Math.min(topp, hoeg)
+    tal++
+    paa.forEach((b, i) => {
+      if (!b) return
+      const flytt = -side * t / 2 - d[i]
+      ny[i] = [ny[i][0] + nx * flytt, ny[i][1] + ny2 * flytt, ny[i][2]]
+    })
+  }
+  return tal >= 2 ? { z: topp - 2.5 * t, fot: ny } : null
+}
+
 /** ei line i teikneplanet, i brøk av storleiken: eit punkt og ei retning */
 export type Snappline = { p: Pt; d: Pt }
 
@@ -374,7 +421,7 @@ export function rettOpp(punkt: readonly Pt[], slag: "firkant" | "kontur", tol: n
  */
 export type Lukka =
   | { slag: "hol"; plan: Plan[]; strek: number }
-  | { slag: "plate"; o: Vec3 }
+  | { slag: "plate"; o: Vec3; omriss?: Pt[] }
   | { slag: "nei"; kvifor: string }
 
 export function lukkTeikning(l: readonly Plan[], vald: number | null, po: Vec3, pn: Vec3, punkt: readonly Pt[], omriss: readonly Pt[], min: Vec3, max: Vec3, S: number, t: number): Lukka {
@@ -394,7 +441,13 @@ export function lukkTeikning(l: readonly Plan[], vald: number | null, po: Vec3, 
   }
   let p = po
   if (pn[2] > 0.999) {
-    const z = landing(l, min, max, S, omriss.map((q) => ut(flate, [q[0] * S, q[1] * S])))
+    const fot = omriss.map((q) => ut(flate, [q[0] * S, q[1] * S]))
+    const m = mellom(l, min, max, S, t, fot)
+    if (m) {
+      const tilbake = m.fot.map((q): Pt => { const d = sub3(q, flate.o); return [+(dot(d, flate.u) / S).toFixed(4), +(dot(d, flate.v) / S).toFixed(4)] })
+      return { slag: "plate", o: broek([po[0], po[1], m.z], min, max), omriss: tilbake }
+    }
+    const z = landing(l, min, max, S, fot)
     if (z !== null) p = [po[0], po[1], z + t / 2]
   }
   return { slag: "plate", o: broek(p, min, max) }

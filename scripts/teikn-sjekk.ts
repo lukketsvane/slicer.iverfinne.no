@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
 import { lesPlan, OMRISS_TAK, skrivPlan } from "../lib/plan"
-import { landing, midtPaa, mjukePunkt, snapp, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt } from "../lib/teikning"
+import { landing, mellom, midtPaa, mjukePunkt, snapp, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt } from "../lib/teikning"
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import type { Vec3 } from "../lib/core"
@@ -130,4 +130,20 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   const para: Pt[] = [[0, 0], [0.1, 0], [0.12, 0.1], [0.02, 0.1]]
   assert.deepEqual(tettMjukt(para), para, "parallellogrammet står")
   console.log(`mjukt og skarpt: ${m.length} runde punkt i bogen, ovalen ${tett.length} punkt`)
+}
+
+// SETET MELLOM SIDENE: kantane i midtplana → mellom, to tjukner under toppen, ut til utsida
+{
+  const S = 450, t = 12
+  const min: Vec3 = [-225, -225, 0], max: Vec3 = [225, 225, 450]
+  const side = (id: number, y: number): Plan => ({ id, o: [0.5, (y + 225) / S, 0.5], n: [0, 1, 0], bog: 0, strek: [], omriss: [[-150 / S, 213 / S], [150 / S, 213 / S], [190 / S, -225 / S], [-190 / S, -225 / S]] })
+  const sider = [side(1, -150), side(2, 150)]
+  const fot: Vec3[] = [[-140, -150, 225], [140, -150, 225], [140, 150, 225], [-140, 150, 225]]
+  const m = mellom(sider, min, max, S, t, fot)
+  assert(m && Math.abs(m.z - (438 - 30)) < 0.01, `setet står to tjukner under toppen: ${m?.z}`)
+  assert(m!.fot.every((p) => Math.abs(Math.abs(p[1]) - 156) < 1e-9 && Math.abs(Math.abs(p[0]) - 140) < 1e-9), "kantane går ut til utsida")
+  assert.equal(mellom(sider, min, max, S, t, fot.map((p): Vec3 => [p[0], p[1] * 1.2, p[2]])), null, "eit sete som stikk forbi ligg oppå")
+  assert.equal(mellom([sider[0]], min, max, S, t, fot), null, "éi side er ikkje mellom")
+  assert.equal(mellom(sider, min, max, S, t, fot.map((p): Vec3 => [p[0], p[1] * 0.8, p[2]])), null, "eit sete som ikkje når sidene står der det vart teikna")
+  console.log("mellom: setet på 408 mm mellom sidene, kantane på ±156")
 }
