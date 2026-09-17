@@ -75,6 +75,13 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert(Math.abs((landing(stolsider, min, max, S, stolsete(165 + t - 1), t) ?? 0) - 235) < 0.01, "eit sete som so vidt når bakfoten landar på ramma")
   assert(Math.abs((landing(stolsider, min, max, S, stolsete(165 + t + 1), t) ?? 0) - 450) < 0.01, "eit sete som dekkjer bakfoten landar oppå han")
   assert(Math.abs((landing(stolsider, min, max, S, stolsete(160), t) ?? 0) - 235) < 0.01, "eit sete framfor bakfoten landar på ramma")
+  assert(Math.abs((landing(stolsider, min, max, S, stolsete(165), t) ?? 0) - 235) < 0.01, "eit sete som endar nett ved bakfoten landar på ramma")
+  // KASSA: fire veggar med ytterflata i flukt med setekanten — midtplanet ei
+  // halv tjukn inn — ber setet
+  const vegg = (id: number, o: Vec3, n: Vec3): Plan => ({ id, o, n, bog: 0, strek: [], omriss: [[-0.3769, 0.3598], [0.3769, 0.3598], [0.3769, -0.5], [-0.3769, -0.5]] })
+  const kasse = [vegg(1, [0.5, 0.8636, 0.5], [0, -1, 0]), vegg(2, [0.1364, 0.5, 0.5], [1, 0, 0]), vegg(3, [0.5, 0.1364, 0.5], [0, 1, 0]), vegg(4, [0.8636, 0.5, 0.5], [-1, 0, 0])]
+  const kasseSete: Vec3[] = [[-169.6, -169.6, 225], [169.6, -169.6, 225], [169.6, 169.6, 225], [-169.6, 169.6, 225]]
+  assert(Math.abs((landing(kasse, min, max, S, kasseSete, t) ?? 0) - (225 + 0.3598 * S)) < 0.01, `setet på kassa landar på veggane: ${landing(kasse, min, max, S, kasseSete, t)}`)
 
   // SNAPPET: eit stag teikna frå sida hakar enden fast i midtplanet til sida,
   // og foten i golvet. Teikneplanet står gjennom midten med normalen langs x.
