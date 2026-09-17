@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
 import { lesPlan, OMRISS_TAK, skrivPlan } from "../lib/plan"
-import { landing, mellom, midtPaa, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
+import { haldt, landing, mellom, midtPaa, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import { bileteForm, skalerForm } from "../lib/bilete"
@@ -64,12 +64,25 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   // smalare enn toppen: kanten kryssar fotavtrykket utan eit hjørne i det
   const smalt: Vec3[] = [[-60, -175, 225], [60, -175, 225], [60, 175, 225], [-60, 175, 225]]
   assert(Math.abs((landing(sider, min, max, S, smalt) ?? 0) - 438) < 0.01, "eit smalt sete finn kanten mellom hjørna")
+  // STOLEN: sider med ramme på 235 og bakfot opp til 450. Eit sete som stryk
+  // ei tjukn inn på bakfoten landar på ramma, ikkje på toppen av ryggen —
+  // og eit som dekkjer bakfoten med god margin, landar oppå han.
+  // (ramma til eit plan med normal +y har u = −x, so bakfoten på +x er −u)
+  const stol = (id: number, y: number): Plan => ({ id, o: [0.5, (y + 225) / S, 0.5], n: [0, 1, 0], bog: 0, strek: [], omriss: ([[-205, 0], [-165, 0], [-165, 200], [165, 200], [165, 0], [205, 0], [205, 450], [165, 450], [165, 235], [-205, 235]] as Pt[]).map(([x, z]): Pt => [-x / S, (z - 225) / S]) })
+  const stolsider = [stol(1, -150), stol(2, 150)]
+  const t = 12
+  const stolsete = (bak: number): Vec3[] => [[-190, -175, 225], [bak, -175, 225], [bak, 175, 225], [-190, 175, 225]]
+  assert(Math.abs((landing(stolsider, min, max, S, stolsete(165 + t - 1), t) ?? 0) - 235) < 0.01, "eit sete som so vidt når bakfoten landar på ramma")
+  assert(Math.abs((landing(stolsider, min, max, S, stolsete(165 + t + 1), t) ?? 0) - 450) < 0.01, "eit sete som dekkjer bakfoten landar oppå han")
+  assert(Math.abs((landing(stolsider, min, max, S, stolsete(160), t) ?? 0) - 235) < 0.01, "eit sete framfor bakfoten landar på ramma")
 
   // SNAPPET: eit stag teikna frå sida hakar enden fast i midtplanet til sida,
   // og foten i golvet. Teikneplanet står gjennom midten med normalen langs x.
   const flate = ramme({ o: [0.5, 0.5, 0.5], n: [1, 0, 0] }, min, max)
   const liner = snappliner(sider, min, max, S, flate)
-  assert.equal(liner.length, 3, "golvet og dei to sidene")
+  // golvet og dei to sidene — og toppen og botnen av sidene, som er kantar langs synsretninga
+  assert.equal(liner.filter((l) => Math.abs(l.d[1]) > 0.5).length, 2, "dei to sidene på kant")
+  assert.equal(liner.filter((l) => Math.abs(l.d[0]) > 0.5).length, 5, "golvet, og toppen og botnen av kvar side")
   const u = (y: number) => y / S
   const naer = snapp([u(147), 0.1], liner, 8 / S)
   assert(Math.abs(Math.abs(naer[0]) - u(150)) < 1e-9 && naer[1] === 0.1, `enden hakar seg i sida: ${naer}`)
@@ -77,7 +90,31 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert.deepEqual(fri, [u(120), 0.1], "langt frå sida står punktet")
   const hjorne = snapp([u(146), -223 / S], liner, 8 / S)
   assert(Math.abs(Math.abs(hjorne[0]) - u(150)) < 1e-9 && Math.abs(hjorne[1] + 225 / S) < 1e-9, `hjørnet ved sida og golvet: ${hjorne}`)
-  console.log("landing og snapp: setet på 438 mm, staget i midtplanet, foten i golvet")
+  // HJØRNA SETT PÅ KANT: ovanfrå er stolsida ei line, men framsida av
+  // bakfoten (x = 165) og dei andre loddrette kantane gjev liner på tvers
+  const topp = ramme({ o: [0.5, 0.5, 0.5], n: [0, 0, 1] }, min, max)
+  const ovanfraa = snappliner(stolsider, min, max, S, topp)
+  const tversX = ovanfraa.filter((l) => Math.abs(l.d[0]) < 1e-9).map((l) => +(l.p[0] * S).toFixed(3))
+  assert([-205, -165, 165, 205].every((x) => tversX.includes(x)), `fotsidene står som snappliner: ${[...new Set(tversX)].join(",")}`)
+  assert(!tversX.some((x) => Math.abs(x) < 100), "ramma sine vassrette kantar gjev ingen line")
+  const seteHjorne = snapp([160 / S, 0.3], ovanfraa, 8 / S)
+  assert(Math.abs(seteHjorne[0] * S - 165) < 1e-6, `setehjørnet hakar seg i framsida av bakfoten: ${seteHjorne[0] * S}`)
+  // og midtstillinga let ein snappa akse stå
+  const nesten: Pt[] = [[-0.42, -0.3], [0.367, -0.3], [0.367, 0.3], [-0.42, 0.3]]
+  assert.equal(midtPaa(nesten, 0.1, true, [true, false])[1][0], 0.367, "x snappa: står")
+  assert.notEqual(midtPaa(nesten, 0.1, true, [false, false])[1][0], 0.367, "ikkje snappa: midtstilt")
+  // SETET MELLOM SIDENE på stolen: endane på midtplana, og bakfoten so vidt nådd
+  const mellomStol = mellom(stolsider, min, max, S, t, [[-190, -150, 225], [165 + t - 1, -150, 225], [165 + t - 1, 150, 225], [-190, 150, 225]])
+  assert(mellomStol && Math.abs(mellomStol.z - (235 - 2.5 * t)) < 0.01, `setet mellom sidene ligg under ramma, ikkje under ryggen: ${mellomStol?.z}`)
+  // HALDT: ryggen teikna frå sida, midt i kroppen, mellom beina — vert skuva
+  // til bakfoten (390..430 → midten 410). Eit stag i ramma står der det står.
+  const rygg: Vec3[] = [[0, -150, 320], [0, 150, 320], [0, 150, 420], [0, -150, 420]]
+  const flytta = haldt(stolsider, min, max, S, t, [0, 0, 225], [1, 0, 0], rygg)
+  assert(flytta && Math.abs(flytta[0] - 185) <= t / 2 && flytta[1] === 0, `ryggen vert skuva til bakfoten: ${flytta}`)
+  const stag: Vec3[] = [[0, -150, 205], [0, 150, 205], [0, 150, 230], [0, -150, 230]]
+  assert.equal(haldt(stolsider, min, max, S, t, [0, 0, 225], [1, 0, 0], stag), null, "eit stag i ramma står der det vart teikna")
+  assert.equal(haldt(stolsider, min, max, S, t, [0, 0, 225], [1, 0, 0], rygg.map((p): Vec3 => [p[0], p[1] * 0.5, p[2]])), null, "ei plate som ikkje endar i sidene vert ikkje skuva")
+  console.log("landing og snapp: setet på 438 mm, staget i midtplanet, foten i golvet, setet ved bakfoten, ryggen i bakfoten")
 }
 
 

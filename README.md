@@ -1027,9 +1027,20 @@ millimetres, the front view facing you and the contour tool ready; the view
 waits for the body to reach those dimensions before it frames it.
 
 - **A seat lands.** A plate drawn from above settles with its underside on
-  the tops of what it covers.
+  the tops of what it covers — but not on an edge it barely reaches: a chair
+  seat drawn to the back leg overshoots it by a few millimetres, and less
+  than a thickness in is a finger, not a leg to rest on. It lands on the
+  rail, and the leg passes through it as a joint.
+- **A rail is held.** A plate drawn from the side with its ends in two
+  plates seen edge-on is placed where those plates have material along its
+  whole height: a rail under the seat stays where it was drawn, a chair back
+  slides to the back legs. The side view cannot say how deep, so the sides
+  answer.
 - **Ends snap.** Drawing from the side, a point within a fingertip of the
-  floor or of a plate seen edge-on locks onto it.
+  floor or of a plate seen edge-on locks onto it — and onto the corners of
+  that plate: from above a chair side is a line, but the front of its back
+  leg is a point on it, and a seat drawn to it ends there. An axis the snap
+  has set, the centring leaves alone.
 - **A contour inside the selected plate is a hole** in it (`kontur` stroke,
   stored in a unit box, so it moves, stretches and turns like any stroke). A
   mirrored pair gets the hole in both.

@@ -1,5 +1,5 @@
 import { inRing, shoelace, type Pt, type Vec3 } from "./core"
-import { bogeVed, broek, dot, kryss, omrissLine, OMRISS_TAK, ramme, STREK_TAK, sub3, ut, type Plan, type Ramme, type Strek } from "./plan"
+import { add3, bogeVed, broek, dot, kryss, mul3, omrissLine, OMRISS_TAK, ramme, STREK_TAK, sub3, ut, type Plan, type Ramme, type Strek } from "./plan"
 import { speglPlan } from "./spegl"
 import { spegelakse } from "./gruppe"
 
@@ -126,16 +126,24 @@ function klippXY(a: Vec3, b: Vec3, k: Boks2): [Vec3, Vec3] | null {
  * høgaste kanten av dei ståande platene innanfor fotavtrykket hennar — og
  * tappane gjer resten. Ingenting under: ho står der ho vart teikna.
  *
+ * Men ein kant fotavtrykket berre SÅ VIDT når, ber ikkje: eit stolsete
+ * teikna frå framfoten til bakfoten stryk gjerne ei tjukn inn på bakfoten,
+ * og lagt oppå han hadde det hange laust på toppen av ryggen. Mindre enn
+ * ei tjukn inn er ein finger som gjekk litt for langt, ikkje ein kant å
+ * kvile på — so bandet ei tjukn innanfor kanten av fotavtrykket tel ikkje.
+ * Setet landar på ramma, og bakfoten går gjennom det som eit ledd.
+ *
  * Svaret er høgda på den kanten, i millimeter, eller null.
  */
-export function landing(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, fot: readonly Vec3[]): number | null {
+export function landing(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, fot: readonly Vec3[], t = 0): number | null {
   if (fot.length < 3) return null
   const k: Boks2 = {
-    x0: Math.min(...fot.map((p) => p[0])),
-    x1: Math.max(...fot.map((p) => p[0])),
-    y0: Math.min(...fot.map((p) => p[1])),
-    y1: Math.max(...fot.map((p) => p[1])),
+    x0: Math.min(...fot.map((p) => p[0])) + t,
+    x1: Math.max(...fot.map((p) => p[0])) - t,
+    y0: Math.min(...fot.map((p) => p[1])) + t,
+    y1: Math.max(...fot.map((p) => p[1])) - t,
   }
+  if (k.x0 >= k.x1 || k.y0 >= k.y1) return null
   let topp = -Infinity
   for (const q of plan) {
     if (!q.omriss || q.bog || Math.abs(q.n[2]) > 0.5) continue
@@ -180,8 +188,11 @@ export function mellom(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t
     if (!paa.some((b, i) => b && paa[(i + 1) % paa.length])) continue
     let hoeg = -Infinity
     const pk = omrissLine(q.omriss, q.runde).map((p) => ut(r, [p[0] * S, p[1] * S]))
+    // toppen vert lesen ei tjukn innanfor endane LANGS sida — som i `landing`:
+    // ein bakfot setet so vidt når, er ikkje ein topp å leggje seg under
+    const kh: Boks2 = Math.abs(nx) > Math.abs(ny2) ? { ...k, y0: k.y0 + t, y1: k.y1 - t } : { ...k, x0: k.x0 + t, x1: k.x1 - t }
     for (let i = 0; i < pk.length; i++) {
-      const sg = klippXY(pk[i], pk[(i + 1) % pk.length], k)
+      const sg = klippXY(pk[i], pk[(i + 1) % pk.length], kh)
       if (sg) hoeg = Math.max(hoeg, sg[0][2], sg[1][2])
     }
     if (!Number.isFinite(hoeg)) continue
@@ -194,6 +205,66 @@ export function mellom(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t
     })
   }
   return tal >= 2 ? { z: topp - 2.5 * t, fot: ny } : null
+}
+
+/**
+ * EI PLATE TEIKNA FRÅ SIDA VERT LAGD DER SIDENE HELD HENNE.
+ *
+ * Teikneplanet går gjennom midten av kroppen, og eit stag teikna frå sida
+ * med endane i sidene står midt i dei. For eit stag under setet er det
+ * rett: sida har gods der. For ryggen på ein stol er det aldri det nokon
+ * meinte — midt i kroppen er det luft mellom beina, og tappane som
+ * endane fekk går i ingenting. Frå sidesynet kan fingeren ikkje seie kor
+ * djupt plata skal stå, so svaret vert lese av sidene sjølve: plata vert
+ * skuva langs normalen sin til den næraste staden der KVAR side ho endar
+ * i har gods over heile høgda hennar — bakfoten. Står ho alt i gods, står
+ * ho. Ingen slik stad: ho står der ho vart teikna.
+ *
+ * Svaret er det nye punktet i planet, i millimeter, eller null.
+ */
+export function haldt(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t: number, po: Vec3, pn: Vec3, fot: readonly Vec3[]): Vec3 | null {
+  if (fot.length < 3 || Math.abs(pn[2]) > 1e-3) return null
+  const eps = Math.max(0.5, 0.002 * S)
+  const z0 = Math.min(...fot.map((p) => p[2])), z1 = Math.max(...fot.map((p) => p[2]))
+  const cx = fot.reduce((a, p) => a + p[0], 0) / fot.length, cy = fot.reduce((a, p) => a + p[1], 0) / fot.length
+  const sider: { r: Ramme; ring: Pt[] }[] = []
+  for (const q of plan) {
+    if (!q.omriss || q.bog || Math.abs(q.n[2]) > 1e-3) continue
+    const r = ramme(q, min, max)
+    if (Math.abs(dot(r.n, pn)) > 0.999) continue
+    const L = Math.hypot(r.n[0], r.n[1])
+    const av = (p: Vec3) => ((p[0] - r.o[0]) * r.n[0] + (p[1] - r.o[1]) * r.n[1]) / L
+    const side = Math.sign(av([cx, cy, 0]))
+    const d = fot.map(av)
+    if (!side || d.some((v) => v * side < -eps)) continue
+    const paa = d.map((v) => Math.abs(v) <= eps)
+    if (!paa.some((b, i) => b && paa[(i + 1) % paa.length])) continue
+    sider.push({ r, ring: omrissLine(q.omriss, q.runde).map((p): Pt => [p[0] * S, p[1] * S]) })
+  }
+  if (!sider.length) return null
+  const held = (p: Vec3) => sider.every(({ r, ring }) => [z0 + t / 2, (z0 + z1) / 2, z1 - t / 2].every((z) => {
+    const q: Vec3 = [p[0], p[1], z]
+    return inRing(ring, [dot(sub3(q, r.o), r.u), dot(sub3(q, r.o), r.v)])
+  }))
+  if (held(po)) return null
+  // kandidatane langs normalen, eit halvt tjukn om gongen, innanfor kroppen
+  const steg = t / 2
+  const inne = (p: Vec3) => p[0] >= min[0] && p[0] <= max[0] && p[1] >= min[1] && p[1] <= max[1]
+  const gode: number[] = []
+  for (let k = -Math.ceil(S / steg); k <= Math.ceil(S / steg); k++) {
+    const p = add3(po, mul3(pn, k * steg))
+    if (inne(p) && held(p)) gode.push(k)
+  }
+  if (!gode.length) return null
+  // dei gode i strekk; det strekket som ligg nærast, og midten av det
+  const strekk: [number, number][] = []
+  for (const k of gode) {
+    const sist = strekk[strekk.length - 1]
+    if (sist && k === sist[1] + 1) sist[1] = k
+    else strekk.push([k, k])
+  }
+  const naer = strekk.reduce((a, b) => (Math.min(Math.abs(b[0]), Math.abs(b[1])) < Math.min(Math.abs(a[0]), Math.abs(a[1])) ? b : a))
+  return add3(po, mul3(pn, ((naer[0] + naer[1]) / 2) * steg))
 }
 
 /** ei line i teikneplanet, i brøk av storleiken: eit punkt og ei retning */
@@ -232,6 +303,28 @@ export function snappliner(plan: readonly Plan[], min: Vec3, max: Vec3, S: numbe
       const a = pk[i], b = pk[(i + 1) % pk.length]
       const L = Math.hypot(b[0] - a[0], b[1] - a[1])
       if (L > 0.02) ut2.push({ p: a, d: [(b[0] - a[0]) / L, (b[1] - a[1]) / L] })
+    }
+  }
+  // OG HJØRNA PÅ PLATER SETT PÅ KANT: ei stolside er ei line ovanfrå, men
+  // framsida av bakfoten er eit punkt på henne, og setet skal ende DER —
+  // ikkje ei tjukn inn på foten. Kvar kant i omrisset som står langs
+  // synsretninga (ei fotside, sett ovanfrå) gjev ei line på tvers av den
+  // lina plata er, gjennom hjørnet. Berre dei: kvart hjørne i ein boga side
+  // hadde gjort flata til eit nett ein ikkje kan teikne fritt i.
+  for (const q of plan) {
+    if (q.bog || !q.omriss) continue
+    const r = ramme(q, min, max)
+    const x = kryss(flate, r)
+    if (!x) continue
+    const tvers: Pt = [-retn(x.d)[1], retn(x.d)[0]]
+    const pk = omrissLine(q.omriss, q.runde).map((p) => ut(r, [p[0] * S, p[1] * S]))
+    for (let i = 0; i < pk.length; i++) {
+      const a = pk[i], b = pk[(i + 1) % pk.length]
+      const e = sub3(b, a)
+      const L = Math.hypot(e[0], e[1], e[2])
+      // langs normalen innanfor tre grader
+      if (L < 0.02 * S || Math.abs(dot(e, flate.n)) / L < 0.9986) continue
+      ut2.push({ p: til(a), d: tvers })
     }
   }
   return ut2
@@ -492,7 +585,7 @@ export function symmetrisk(punkt: readonly Pt[]): Pt[] | null {
  * treff henne berre då. `vassrett` sentrerer òg i den andre retninga —
  * eit sete — der eit loddrett plan har golvet sitt og står der det står.
  */
-export function midtPaa(punkt: readonly Pt[], tol: number, vassrett: boolean): Pt[] {
+export function midtPaa(punkt: readonly Pt[], tol: number, vassrett: boolean, snappa: readonly [boolean, boolean] = [false, false]): Pt[] {
   const xs = punkt.map((p) => p[0])
   const ys = punkt.map((p) => p[1])
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2
@@ -500,8 +593,10 @@ export function midtPaa(punkt: readonly Pt[], tol: number, vassrett: boolean): P
   // ei teikning som ligg heilt på den eine sida av midten — eit bein som
   // står ut frå aksen — er meint der ho ligg
   const eiSide = Math.min(...xs) > 0 || Math.max(...xs) < 0
-  const dx = Math.abs(cx) <= tol && !(eiSide && tol === Infinity) ? -cx : 0
-  const dy = vassrett && Math.abs(cy) <= tol ? -cy : 0
+  // og ein akse snappet alt har sett — enden i sida, setet ved bakfoten —
+  // står: eit hake som midtstillinga skuva ei tjukn vidare var ikkje eit hake
+  const dx = !snappa[0] && Math.abs(cx) <= tol && !(eiSide && tol === Infinity) ? -cx : 0
+  const dy = !snappa[1] && vassrett && Math.abs(cy) <= tol ? -cy : 0
   return dx || dy ? punkt.map((p): Pt => [+(p[0] + dx).toFixed(6), +(p[1] + dy).toFixed(6)]) : [...punkt]
 }
 
@@ -510,9 +605,9 @@ export function midtPaa(punkt: readonly Pt[], tol: number, vassrett: boolean): P
  * båe sider, og båe slag midt på når dei nesten står der. `tol` er ein
  * fingerbreidd i planet si eining.
  */
-export function rettOpp(punkt: readonly Pt[], slag: "firkant" | "kontur", tol: number, vassrett: boolean): Pt[] {
+export function rettOpp(punkt: readonly Pt[], slag: "firkant" | "kontur", tol: number, vassrett: boolean, snappa: readonly [boolean, boolean] = [false, false]): Pt[] {
   const s = slag === "kontur" ? symmetrisk(punkt) ?? punkt : punkt
-  return midtPaa(s, tol, vassrett)
+  return midtPaa(s, tol, vassrett, snappa)
 }
 
 /**
@@ -551,8 +646,12 @@ export function lukkTeikning(l: readonly Plan[], vald: number | null, po: Vec3, 
       const tilbake = m.fot.map((q): Pt => { const d = sub3(q, flate.o); return [+(dot(d, flate.u) / S).toFixed(4), +(dot(d, flate.v) / S).toFixed(4)] })
       return { slag: "plate", o: broek([po[0], po[1], m.z], min, max), omriss: tilbake }
     }
-    const z = landing(l, min, max, S, fot)
+    const z = landing(l, min, max, S, fot, t)
     if (z !== null) p = [po[0], po[1], z + t / 2]
+  } else if (Math.abs(pn[2]) < 1e-3) {
+    // frå sida: der sidene held henne
+    const fot = omriss.map((q) => ut(flate, [q[0] * S, q[1] * S]))
+    p = haldt(l, min, max, S, t, po, pn, fot) ?? po
   }
   return { slag: "plate", o: broek(p, min, max) }
 }

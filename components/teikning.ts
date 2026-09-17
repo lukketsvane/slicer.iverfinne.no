@@ -19,7 +19,8 @@ type Teikning = {
   onStart: () => void
   paaFlata: (x: number, y: number) => Pt | null
   paaSkjermen: (punkt: Pt[]) => Pt[]
-  onLukk: (omriss: Pt[], slag: "firkant" | "kontur", tol: number) => void
+  /** `snappa` seier kva aksar snappet flytta eit punkt i — dei skal midtstillinga la stå */
+  onLukk: (omriss: Pt[], slag: "firkant" | "kontur", tol: number, snappa: readonly [boolean, boolean]) => void
   /** hakar eit punkt fast — golvet, sidene på kant. `tol` er ein fingerbreidd i planet si eining */
   snapp?: (q: Pt, tol: number) => Pt
 }
@@ -116,8 +117,12 @@ export function useTeikning(q: Teikning) {
       if (!b) return
       if (d.slag === "firkant" && (Math.abs(e.clientX - d.x) < 12 || Math.abs(e.clientY - d.y) < 12)) return
       // Slippet sjølv er med, òg når nettlesaren ikkje sende siste move.
-      const omriss = d.slag === "firkant" ? teiknaFirkant(d.a, b) : teiknaKontur(snappaKontur([...d.raa, raa], [...d.punkt, b], d.tol), d.tol)
-      if (omriss) naa.current.onLukk(omriss, d.slag, d.tol)
+      const raaAlle = [...d.raa, raa]
+      const snappaAlle = d.slag === "firkant" ? [d.a, b] : snappaKontur(raaAlle, [...d.punkt, b], d.tol)
+      const raaHjorne = d.slag === "firkant" ? [d.raa[0], raa] : raaAlle
+      const flytta = (k: 0 | 1) => snappaAlle.some((q, i) => Math.abs(q[k] - raaHjorne[i][k]) > 1e-9)
+      const omriss = d.slag === "firkant" ? teiknaFirkant(d.a, b) : teiknaKontur(snappaAlle, d.tol)
+      if (omriss) naa.current.onLukk(omriss, d.slag, d.tol, [flytta(0), flytta(1)])
       else melding.current = "teikn ein tydeleg kontur"
     }
     // Mist grepet: kast berre draget som eig peikaren, aldri lag ei plate.
