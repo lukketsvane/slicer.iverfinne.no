@@ -211,6 +211,17 @@ prov("så vidt for stort", "plate", {
   arkH: 297,
 })
 
+// TEIKNA FOR HAND: ein krakk på 450 mm med sider på 445 × 410 på eit ark
+// på 600 × 400. Storleiken var avgjerda, so rådet er eit større ark og
+// ikkje eit mindre objekt — og storleiken står etterpå.
+{
+  const side = (id: number, y: number) => ({ id, o: [0.5, y, 0.5] as [number, number, number], n: [0, 1, 0] as [number, number, number], bog: 0, strek: [], omriss: [[-0.4546, -0.5], [0.4546, -0.5], [0.4546, 0.41], [-0.4546, 0.41]] as [number, number][] })
+  const p: Params = { ...DEFAULT_PARAMS, storleik: 450, tjukn: 12, plan: skrivPlan([side(1, 0.167), side(2, 0.833)]), arkB: 600, arkH: 400 }
+  prov("teikna sider for store til arket", "plate", p)
+  const r = finn(p, "plate")
+  ok("og rådet er eit større ark, ikkje eit mindre objekt", !!r?.fiks && "arkB" in r.fiks.set && !("storleik" in r.fiks.set), r?.fiks ? `«${r.fiks.ord}»` : "ingen knapp")
+}
+
 // --- to feste i kvarandre --------------------------------------------------
 // Handa sette to delar i kvarandre. Rådet slepper nett dei, og lèt det
 // tredje festet stå.

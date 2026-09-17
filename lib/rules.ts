@@ -19,7 +19,7 @@ import { makeKropp } from "./kropp"
 import { DETAIL, lukene, type Snitt } from "./snitt"
 import { dot, lesPlan, skrivPlan } from "./plan"
 import { bogMin as bogMinAv, rilleMal } from "./rille"
-import { SNITTVEGAR, lesFest, skrivFest, type Params } from "./params"
+import { PARAM_RANGES, SNITTVEGAR, lesFest, skrivFest, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
 /** klaringa bur mellom 0,05 og 0,35: éin desimal gjer heile bandet til tre tal */
@@ -268,14 +268,39 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     if (ns.spilt === 0) return undefined
     const { w: romB, h: romH } = fitRoom(p.arkB, p.arkH, nestGap(p))
     let verst = 1
+    let lang = 0
+    let kort = 0
     for (const q of dl.delar) {
       const b = bbox(q.outline)
       const w = b.x1 - b.x0
       const h = b.y1 - b.y0
       if (w <= 0 || h <= 0) continue
       verst = Math.min(verst, Math.max(Math.min(romB / w, romH / h), Math.min(romB / h, romH / w)))
+      lang = Math.max(lang, Math.max(w, h))
+      kort = Math.max(kort, Math.min(w, h))
     }
     if (verst >= 1) return undefined
+    /**
+     * TEIKNA MØBLAR ER SÅ STORE SOM DEI ER. Ein krakk på 450 mm teikna
+     * for hand vert ikkje betre av å verta 380: storleiken var avgjerda.
+     * Har eit plan eit omriss, er rådet difor eit STØRRE ARK — det minste
+     * i heile femtimillimeter som tek den verste delen, snudd om det
+     * hjelper — og ikkje eit mindre objekt. Ein modell frå eit nett har
+     * ingen slik avgjerd i seg, og der held det gamle rådet.
+     */
+    if (lesPlan(p.plan).some((q) => q.omriss)) {
+      const opp = (v: number) => Math.ceil(v / 50) * 50
+      let B = Math.max(p.arkB, opp(lang)), H = Math.max(p.arkH, opp(kort))
+      for (let i = 0; i < 20; i++) {
+        const rom = fitRoom(B, H, nestGap(p))
+        if (rom.w >= lang && rom.h >= kort) break
+        if (rom.w < lang) B += 50
+        if (rom.h < kort) H += 50
+      }
+      B = Math.min(B, PARAM_RANGES.arkB.max)
+      H = Math.min(H, PARAM_RANGES.arkH.max)
+      return B > p.arkB || H > p.arkH ? { ord: `prøv ${nn(B)} × ${nn(H)}`, set: { arkB: B, arkH: H } } : undefined
+    }
     const ny = Math.max(40, snapp(p.storleik * verst * 0.98, 5))
     return ny < p.storleik ? { ord: `prøv ${nn(ny)} mm`, set: { storleik: ny } } : undefined
   }
