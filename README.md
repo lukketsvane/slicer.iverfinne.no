@@ -1046,6 +1046,9 @@ stays.
   that plate: from above a chair side is a line, but the front of its back
   leg is a point on it, and a seat drawn to it ends there. An axis the snap
   has set, the centring leaves alone.
+- **A round hole is an ellipse.** Its size handle used to force width and
+  height equal; now they are free and snap together when they come within
+  five percent. A circle is one drag, an oval opening in a wall is one more.
 - **A contour inside the selected plate is a hole** in it (`kontur` stroke,
   stored in a unit box, so it moves, stretches and turns like any stroke). A
   mirrored pair gets the hole in both.
