@@ -127,21 +127,26 @@ function klippXY(a: Vec3, b: Vec3, k: Boks2): [Vec3, Vec3] | null {
  * tappane gjer resten. Ingenting under: ho står der ho vart teikna.
  *
  * Men ein kant fotavtrykket berre SÅ VIDT når, ber ikkje: eit stolsete
- * teikna frå framfoten til bakfoten stryk gjerne ei tjukn inn på bakfoten,
- * og lagt oppå han hadde det hange laust på toppen av ryggen. Mindre enn
- * ei tjukn inn er ein finger som gjekk litt for langt, ikkje ein kant å
- * kvile på — so bandet ei tjukn innanfor kanten av fotavtrykket tel ikkje.
- * Setet landar på ramma, og bakfoten går gjennom det som eit ledd.
+ * teikna frå framfoten til bakfoten stryk gjerne nokre millimeter inn på
+ * bakfoten, og lagt oppå han hadde det hange laust på toppen av ryggen.
+ * Ein kant tel difor berre når stykket av han som ligg INNI fotavtrykket
+ * er minst ei tjukn langt — kortare er ein finger som gjekk litt for langt,
+ * ikkje ein kant å kvile på — og ein kant som ligg PÅ grensa av
+ * fotavtrykket (framsida av bakfoten, når setet endar nett der) tel ikkje.
+ * Setet landar på ramma, og bakfoten går gjennom det som eit ledd. Ein
+ * vegg med ytterflata i flukt med setekanten står med midtplanet ei halv
+ * tjukn inn, og toppen hans er lang: han ber.
  *
  * Svaret er høgda på den kanten, i millimeter, eller null.
  */
 export function landing(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, fot: readonly Vec3[], t = 0): number | null {
   if (fot.length < 3) return null
+  const eps = Math.max(0.5, 0.002 * S)
   const k: Boks2 = {
-    x0: Math.min(...fot.map((p) => p[0])) + t,
-    x1: Math.max(...fot.map((p) => p[0])) - t,
-    y0: Math.min(...fot.map((p) => p[1])) + t,
-    y1: Math.max(...fot.map((p) => p[1])) - t,
+    x0: Math.min(...fot.map((p) => p[0])) + eps,
+    x1: Math.max(...fot.map((p) => p[0])) - eps,
+    y0: Math.min(...fot.map((p) => p[1])) + eps,
+    y1: Math.max(...fot.map((p) => p[1])) - eps,
   }
   if (k.x0 >= k.x1 || k.y0 >= k.y1) return null
   let topp = -Infinity
@@ -151,7 +156,7 @@ export function landing(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, 
     const pk = omrissLine(q.omriss, q.runde).map((p) => ut(r, [p[0] * S, p[1] * S]))
     for (let i = 0; i < pk.length; i++) {
       const s = klippXY(pk[i], pk[(i + 1) % pk.length], k)
-      if (s) topp = Math.max(topp, s[0][2], s[1][2])
+      if (s && Math.hypot(s[1][0] - s[0][0], s[1][1] - s[0][1]) + 2 * eps >= t) topp = Math.max(topp, s[0][2], s[1][2])
     }
   }
   return Number.isFinite(topp) ? topp : null
@@ -188,12 +193,13 @@ export function mellom(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t
     if (!paa.some((b, i) => b && paa[(i + 1) % paa.length])) continue
     let hoeg = -Infinity
     const pk = omrissLine(q.omriss, q.runde).map((p) => ut(r, [p[0] * S, p[1] * S]))
-    // toppen vert lesen ei tjukn innanfor endane LANGS sida — som i `landing`:
-    // ein bakfot setet so vidt når, er ikkje ein topp å leggje seg under
-    const kh: Boks2 = Math.abs(nx) > Math.abs(ny2) ? { ...k, y0: k.y0 + t, y1: k.y1 - t } : { ...k, x0: k.x0 + t, x1: k.x1 - t }
+    // ein kant tel berre når stykket inni fotavtrykket er minst ei tjukn
+    // langt — som i `landing`: ein bakfot setet so vidt når, er ikkje ein
+    // topp å leggje seg under. Boksen er utvida med eps, so ei kant nett på
+    // grensa vert eit stykke på 2·eps: for kort.
     for (let i = 0; i < pk.length; i++) {
-      const sg = klippXY(pk[i], pk[(i + 1) % pk.length], kh)
-      if (sg) hoeg = Math.max(hoeg, sg[0][2], sg[1][2])
+      const sg = klippXY(pk[i], pk[(i + 1) % pk.length], k)
+      if (sg && Math.hypot(sg[1][0] - sg[0][0], sg[1][1] - sg[0][1]) >= t) hoeg = Math.max(hoeg, sg[0][2], sg[1][2])
     }
     if (!Number.isFinite(hoeg)) continue
     topp = Math.min(topp, hoeg)

@@ -1027,10 +1027,12 @@ millimetres, the front view facing you and the contour tool ready; the view
 waits for the body to reach those dimensions before it frames it.
 
 - **A seat lands.** A plate drawn from above settles with its underside on
-  the tops of what it covers — but not on an edge it barely reaches: a chair
-  seat drawn to the back leg overshoots it by a few millimetres, and less
-  than a thickness in is a finger, not a leg to rest on. It lands on the
-  rail, and the leg passes through it as a joint.
+  the tops of what it covers — but not on an edge it barely reaches: an edge
+  counts only when at least a thickness of it lies inside the footprint. A
+  chair seat drawn to the back leg overshoots it by a few millimetres, and
+  that is a finger, not a leg to rest on: it lands on the rail, and the leg
+  passes through it as a joint. A box wall flush with the seat's edge has a
+  long top inside it, and bears.
 - **A rail is held.** A plate drawn from the side with its ends in two
   plates seen edge-on is placed where those plates have material along its
   whole height: a rail under the seat stays where it was drawn, a chair back
