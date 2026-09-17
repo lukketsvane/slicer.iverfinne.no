@@ -25,7 +25,8 @@
     "teikn": "tsx scripts/teikn-sjekk.ts",
     "redigering": "tsx scripts/redigering-sjekk.ts",
     "webkit": "tsx scripts/webkit-sjekk.ts",
-    "presisjon": "tsx scripts/presisjon.ts"
+    "presisjon": "tsx scripts/presisjon.ts",
+    "kvikk": "tsx scripts/kvikk.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
