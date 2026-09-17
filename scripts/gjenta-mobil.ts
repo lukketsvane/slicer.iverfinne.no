@@ -76,9 +76,22 @@ async function hovud() {
         // Hit-test midten: ein synleg knapp under eit anna element er ikkje tilgjengeleg.
         assert(await knapp("gjenta flyttinga").evaluate((el) => { const r = el.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest("button") === el }))
         const startRekkje = performance.now()
+        /**
+         * DUBLERINGA GJENTEK STEGET SJØLV — so her skal ingen dra meir.
+         *
+         * Prøva drog fyrst 15 px etter kvar dublering, og då kom draget
+         * OPPÅ den gjentekne flyttinga: målt 33, 66, 132 mm i staden for
+         * 33 kvar gong, og dei tre siste plana hamna utanfor kroppen. Det
+         * var prøva som var utdatert, ikkje reiskapen: «dupliser gjentek
+         * steget» står i README, og lesinga over stadfestar han (plan 3 og
+         * 4 landar nøyaktig eitt steg vidare utan at ein finger rører dei).
+         *
+         * Dei to måtane er difor like mange gestar. Knappen «gjenta
+         * flyttinga» er den eksplisitte vegen, «dubler planet» den som
+         * ber steget med seg; prøva krev at BÅE held avstanden nøyaktig.
+         */
         for (let n = 3; n <= 6; n++) {
-          if (maate === "gjenta") await trykk(knapp("gjenta flyttinga"))
-          else { await trykk(knapp("dubler planet")); await vent(() => plan(s).length === n); await heim(); await flyttValt(15) }
+          await trykk(knapp(maate === "gjenta" ? "gjenta flyttinga" : "dubler planet"))
           await vent(() => plan(s).length === n)
         }
         const rekkjeSekund = (performance.now() - startRekkje) / 1000
@@ -86,19 +99,31 @@ async function hovud() {
         assert.deepEqual(ribber.slice(0, 2), par, "dei to fyrste ribbene skal ikkje flytte seg")
         const d = par[1].o.map((v, i) => v - par[0].o[i])
         const avvik = Math.max(...ribber.flatMap((r, n) => r.o.map((v, i) => Math.abs(v - par[0].o[i] - n * d[i]) * 450)))
-        if (maate === "gjenta") assert(avvik < 0.001, "gjentakinga skal halde nøyaktig avstand")
+        assert(avvik < 0.001, `${maate} skal halde nøyaktig avstand, ikkje ${avvik.toFixed(4)} mm`)
         await heim(); await s.touchscreen.tap(351, 61); await pause(650)
         await trykk(s.locator("[data-teiknknapp]"))
         await trykk(s.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "firkant", exact: true }))
         await dra(c, line([65, 295], [265, 515]), 550); await vent(() => plan(s).length === 7)
-        await heim(); await flyttValt(0, -80)
+        /**
+         * SETET LANDAR, OG DET SKAL IKKJE LYFTAST ETTERPÅ.
+         *
+         * Prøva drog setet 80 px opp her. Eit vassrett plan flyttar seg
+         * langs normalen sin, og normalen peikar opp — so draget bar setet
+         * 179 mm OVER toppen av ribbene, der det ikkje kryssar noko og
+         * talet på ledd er null. Målt likt på main og på denne greina.
+         * Landinga legg det alt med underflata på ribbetoppane; det er den
+         * staden prøva skal måle.
+         */
+        await heim()
         await trykk(s.getByRole("tab", { name: "kontur", exact: true })); await klar(); await trykk(knapp("eksport"))
         const nedlasting = s.waitForEvent("download", { timeout: 45000 }); await trykk(knapp("ark")); const fil = await nedlasting
         const filsti = join(ut, fil.suggestedFilename()); await fil.saveAs(filsti); assert.equal(await fil.failure(), null)
         const slutt = performance.now()
         const p = params(s), bygg = makeBygg(p, DETAIL.mid), m = measure(p, bygg)
         assert.equal(readFileSync(filsti, "utf8"), MOTOR.exportFile(p as unknown as ParamBag, "ark").text, "nedlasta geometri skal vere motoren si")
-        assert.equal(bygg.dl.delar.length, 7); assert.equal(bygg.s.ledd, 6)
+        // tolv ledd: kvar av dei seks ribbene møter setet i båe endane.
+        // Prøva stod på seks, frå den tida ein ribbe berre bar éin tapp.
+        assert.equal(bygg.dl.delar.length, 7); assert.equal(bygg.s.ledd, 12)
         assert.equal(bygg.ns.spilt, 0); assert.equal(bygg.ns.kross, 0)
         assert.equal(bygg.ns.sheets.reduce((n, a) => n + a.placed.length, 0), 7)
         assert.equal(bygg.s.montering.brot.length, 0); assert.equal(bygg.s.montering.klem.length, 0)
@@ -107,7 +132,7 @@ async function hovud() {
         await s.screenshot({ path: join(ut, "nesta.png") })
         await trykk(knapp("lat att kontrollane")); await trykk(s.getByRole("tab", { name: "lag", exact: true })); await heim()
         await s.screenshot({ path: join(ut, "konstruksjon.png") })
-        const r = { maate, sekundTilLagraFil: (slutt - start) / 1000, sekundMedOppstart: (slutt - oppstart) / 1000, rekkjeSekund, rekkjeTrykk: maate === "gjenta" ? 4 : 8, rekkjeDrag: maate === "gjenta" ? 0 : 4, storsteAvstandsavvikMM: avvik, delar: 7, ledd: 6, ark: bygg.ns.sheets.length, faktiskeMM: [m.envX, m.envY, m.envZ], params: p }
+        const r = { maate, sekundTilLagraFil: (slutt - start) / 1000, sekundMedOppstart: (slutt - oppstart) / 1000, rekkjeSekund, rekkjeTrykk: 4, rekkjeDrag: 0, storsteAvstandsavvikMM: avvik, delar: 7, ledd: 12, ark: bygg.ns.sheets.length, faktiskeMM: [m.envX, m.envY, m.envZ], params: p }
         rapport.push(r); writeFileSync(join(ut, "rapport.json"), JSON.stringify(r, null, 2))
         console.log(`${maate}: ${r.sekundTilLagraFil.toFixed(2)} s til lagra fil; rekkje ${rekkjeSekund.toFixed(2)} s; avstand ${avvik.toFixed(4)} mm`)
         // Angre, gjer om og ny arbeidsflate blir prøvde etter at klokka stoggar.
