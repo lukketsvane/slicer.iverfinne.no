@@ -1407,7 +1407,6 @@ pnpm teikn   # freehand input, concave outlines, axis snapping and persistence
 pnpm presisjon # actual slot widths and kerf read back from nested SVG
 pnpm redigering # mobile drawing, material numbers, mirroring and undo
 pnpm webkit  # WebKit mobile layout and editing smoke test on PC, not physical iOS
-pnpm minutt  # fresh mobile session to an SVG saved to disk; uses port 3210
 ```
 
 `probe` through `tak` are headless and fast, and `.github/workflows/vakter.yml`
