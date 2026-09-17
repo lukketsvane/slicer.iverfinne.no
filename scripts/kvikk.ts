@@ -79,7 +79,12 @@ async function hovud() {
   const konsoll: string[] = []
   side.on("pageerror", (e) => konsoll.push(e.message))
   side.on("console", (m) => { if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) konsoll.push(m.text()) })
-  const ferdig = async () => { await side.locator('[aria-label="kontrollar"][aria-busy="false"]').waitFor() }
+  /** ferdig: kontrollane er ikkje opptekne, og adressa har stått stille i 400 ms — ei lesing midt i eit byte er ei lesing av ingenting */
+  const ferdig = async () => {
+    await side.locator('[aria-label="kontrollar"][aria-busy="false"]').waitFor()
+    let sist = side.url()
+    for (let i = 0, ro = 0; i < 50 && ro < 4; i++) { await pause(100); const no = side.url(); ro = no === sist ? ro + 1 : 0; sist = no }
+  }
   const trykk = async (e: Locator) => { await e.first().tap(); await pause(150) }
   const knapp = (namn: string) => side.getByRole("button", { name: namn.startsWith("/") ? new RegExp(namn.slice(1, -1)) : namn, exact: !namn.startsWith("/") })
   const verkty = async (slag: "firkant" | "kontur") => {
@@ -113,7 +118,7 @@ async function hovud() {
         case "to": await toFingrar(cdp, [p[0], p[1]], [p[2], p[3]]); await pause(300); await ferdig(); break
         case "tapp": await side.touchscreen.tap(p[0][0], p[0][1]); await pause(300); break
         case "tast": await side.keyboard.press(resten[0]); await pause(300); await ferdig(); break
-        case "syn": await side.touchscreen.tap(...kube[resten[0]]); await pause(700); break
+        case "syn": await trykk(knapp("ramm inn")); await pause(500); await side.touchscreen.tap(...kube[resten[0]]); await pause(800); break
         case "heim": await trykk(knapp("ramm inn")); await pause(500); break
         case "spegl": await trykk(knapp(`spegl planet om ${resten[0]}`)); await ferdig(); break
         case "vent": await pause(Number(resten[0])); break
