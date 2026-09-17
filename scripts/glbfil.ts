@@ -1,10 +1,3 @@
-/**
- * Ein liten GLB-skrivar, til prøvene.
- *
- * Å teste ein GLB-lesar utan å kunne SKRIVE ein GLB er å teste han mot seg
- * sjølv. Denne skriv filer med kjend geometri og kjend nodetre, so fasiten
- * er rekna for hand og ikkje henta frå lesaren.
- */
 export type Node = {
   mesh?: number
   children?: number[]
@@ -89,7 +82,6 @@ export function glb(
   return out
 }
 
-/** ein kasse, med kjende mål, indeksert */
 export function kasse(w: number, h: number, d: number) {
   const x = w / 2
   const z = d / 2

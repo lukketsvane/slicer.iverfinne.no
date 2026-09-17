@@ -1,20 +1,3 @@
-/**
- * Vakta over REKKJEFYLGDA i kuttfilene.
- *
- * Ei kuttfil er ikkje berre kva som skal skjerast, men i kva orden. Skjer
- * du omrisset fyrst, ligg delen laus i plata medan spora står att: han sig
- * ned i bordet, tippar, og det som skulle vore eit spor vert ei stripe ved
- * sida av eit spor. Difor står graveringa fyrst, dei innvendige kutta
- * etterpå, og omrisset heilt til slutt.
- *
- * Mange laserprogram sorterer om på dette sjølve. Ikkje alle gjer det, og
- * eit program som gjer det gjer det rett anten fila var sortert eller ei.
- *
- * Skriptet les uttaka slik ein maskin ville lese dei — teikn for teikn i
- * fila — og ikkje datastrukturane dei vart skrivne av.
- *
- *   npx tsx scripts/rekkje.ts
- */
 import { inRing, LAG_FARGAR, shoelace, type ParamBag, type Pt } from "../lib/core"
 import { kerfOf, MOTOR } from "../lib/motor"
 import { makeBygg } from "../lib/bygg"
@@ -27,20 +10,12 @@ import { put } from "../lib/sources"
 import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
 import { placedRings } from "../lib/nest"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
-/** eit merke lagt i eit namngjeve plan: gjennom lesinga, so strengen er den vakta ser */
-/** planet `id` merkt med laget `farge` */
 const medFarge = (plan: string, id: number, farge: number) =>
   skrivPlan(lesPlan(plan).map((p) => (p.id === id ? { ...p, farge } : p)))
 const medStrek = (plan: string, id: number, st: Strek) =>
   skrivPlan(lesPlan(plan).map((q) => (q.id === id ? { ...q, strek: [...q.strek, st] } : q)))
 
-/**
- * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
- * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
- * det same rutenettet standarden hadde før, og det same objektet.
- */
 const GRUNN = { ...DEFAULT_PARAMS, plan: nett(6, 6) }
-
 
 let brot = 0
 const feil = (namn: string, kva: string) => {
@@ -48,16 +23,9 @@ const feil = (namn: string, kva: string) => {
   console.log(`FEIL  ${namn.padEnd(24)} ${kva}`)
 }
 
-// =============================================================================
-// SVG
-// =============================================================================
-/** Graveringa er svart (C00) og kuttet blått (C01). Sjå export-svg.ts:
- *  fargen ber rekkjefylgda, av di LightBurn tek laga i palettorden. */
 const GRAV_FARGE = /stroke="#000000"/i
-/** graveringa, kuttet, og laga handa kan merkje med: LightBurn sin palett */
 const LOVLEG = new Set(LAG_FARGAR)
 
-/** hjørna i eit «d»-attributt — banene her er berre M, L og Z */
 function pathPts(d: string): Pt[] {
   return d
     .replace(/[MLZ]/g, " ")
@@ -67,16 +35,6 @@ function pathPts(d: string): Pt[] {
     .map((q) => q.split(",").map(Number) as Pt)
 }
 
-/**
- * `open` er DEN TREDJE SLAGS BANA, og ho kom med rilla.
- *
- * Ei kuttfil hadde to slag: ein lukka ring som er eit omriss, og ein lukka
- * ring som er eit hòl — og kven som er kven vert lese av VINDINGA. Eit
- * rillesnitt er korkje: det er ei OPA line, arealet er null, og vindinga
- * seier ingenting. Utan dette flagget les vakta arealet null som «ikkje eit
- * hòl» og dimed som eit omriss, og so stod kvar einaste rille som eit omriss
- * midt i bunken med innvendige kutt.
- */
 type Steg = { grav: boolean; open: boolean; areal: number; y: number; bb: [number, number, number, number] }
 
 const boks = (pts: Pt[]): [number, number, number, number] =>
@@ -98,33 +56,12 @@ function svgSteg(namn: string, svg: string): Steg[] {
     const pts = pathPts(m[1])
     out.push({ grav, open: !/Z\s*$/i.test(m[1].trim()), areal: grav ? 0 : shoelace(pts), y: 0, bb: boks(pts) })
   }
-  // To fargar, og ikkje ein til — utan at handa har bede om det. Ein
-  // tredje farge er eit tredje lag i LightBurn: eitt nokon må hugse å slå
-  // av, og eitt nokon ein dag gløymer. Den einaste vegen til eit lag til
-  // er eit MERKE på planet, og då er fargen ein av LightBurn sine eigne,
-  // ordrett. Fyllingar er same saka: ei fylling ber maskina brenne heile
-  // flata.
   const ulovleg = [...fargar].filter((f) => !LOVLEG.has(f))
   if (ulovleg.length) feil(namn, `framande fargar: ${ulovleg.join(", ")}`)
   if (/fill="(?!none)/i.test(svg)) feil(namn, "noko er fylt")
   return out
 }
 
-/**
- * GRAVERINGA SKAL LIGGJE I SIN EIGEN DEL.
- *
- * Adressa vert plassert av nestinga, i eit rom ho har målt seg fram til
- * inne i delen. Bommar den målinga, hamnar bokstavane utanfor omrisset —
- * og då brenner du dei ned i bordet, eller på nabodelen. På skjermen ser
- * arket likt ut anten adressa ligg to millimeter innanfor kanten eller to
- * millimeter utanfor.
- *
- * Difor vert kvart einaste punkt i kvar graverte bane prøvd mot dei
- * kuttbanene som er OMRISS. Ligg eit punkt i inkje, seier vakta frå.
- *
- * Gjeld ark og passprøve. Profilarket legg adressa UNDER kvar profil med
- * vilje: det er ei teikning til å lese, ikkje ei plate til å skjere.
- */
 function graveringaLiggInne(namn: string, svg: string) {
   const omriss: Pt[][] = []
   const grav: Pt[][] = []
@@ -134,17 +71,6 @@ function graveringaLiggInne(namn: string, svg: string) {
     else omriss.push(pts)
   }
   if (!grav.length || !omriss.length) return
-  /**
-   * PARTAL OG ODDETAL, over ALLE kuttbanene på plata.
-   *
-   * Prøva las før berre om punktet låg inni eit omriss, og eit merke handa
-   * skar tvers gjennom det graverte namnet gjekk rett igjennom henne —
-   * namnet er det du finn delen att med i ein haug. Vindinga kan ikkje
-   * avgjera dette åleine heller: pakkinga legg gjerne ein liten del inni
-   * hòlet på ein stor, og då ligg graveringa hans inni eit hòl som ikkje er
-   * hans. Partal/oddetal over alle ringane svarar på begge to på ein gong,
-   * og det er den same regelen laseren sjølv fyller etter.
-   */
   let ute = 0
   for (const g of grav) {
     for (const q of g) {
@@ -156,28 +82,11 @@ function graveringaLiggInne(namn: string, svg: string) {
   if (ute) feil(namn, `${ute} graverte punkt ligg ikkje på gods`)
 }
 
-/**
- * ALT SOM ER TEIKNA, SKAL LIGGJE INNANFOR RAMMA.
- *
- * `viewBox` er teikninga sitt eige mål på seg sjølv, og millimetermålet
- * ved sida er lovnaden om at ho kan skrivast ut 1:1. Ligg ein bane utanfor
- * ramma, er begge to feil: ein nettlesar klipper banen bort, og eit
- * laserprogram som les dokumentstorleiken får ei plate som er mindre enn
- * det som står i henne.
- *
- * Kompensasjonen er staden det skjer. Ho skuvar kvart omriss ein halv
- * snittbreidd utover, og ei ramme rekna på den nominelle forma veks ikkje
- * med. På kuttarket merkast det ikkje — delane ligg inne på plata med luft
- * rundt — men passprøva ER omrisset sitt, og på seks tidels snitt stod
- * ytterkanten hennar tre tidelar utanfor si eiga ramme.
- */
 function innanforRamma(namn: string, svg: string) {
   const vb = svg.match(/viewBox="([^"]+)"/)?.[1].split(/\s+/).map(Number)
   if (!vb || vb.length !== 4 || vb.some((v) => !Number.isFinite(v))) {
     return feil(namn, "inga brukande viewBox")
   }
-  // Millimetermålet skal vera det same talet som ramma. Er dei ikkje like,
-  // er ikkje teikninga 1:1, same kva ho seier.
   const mm = svg.match(/width="([\d.-]+)mm" height="([\d.-]+)mm"/)
   if (!mm) return feil(namn, "inkje millimetermål")
   if (Math.abs(+mm[1] - vb[2]) > 0.011 || Math.abs(+mm[2] - vb[3]) > 0.011) {
@@ -197,16 +106,6 @@ function innanforRamma(namn: string, svg: string) {
   if (ute) feil(namn, `${ute} punkt ligg opptil ${verst.toFixed(2)} mm utanfor ramma`)
 }
 
-/**
- * Kva veg vindinga går i akkurat denne fila.
- *
- * Kuttarket speglar Y i ei gruppe og let hjørna stå; profilarket bakar
- * speglinga inn i hjørna. Dei to filene har difor motsett forteikn på det
- * same polygonet, og eit hardkoda forteikn her ville berre målt kva for ei
- * fil ein såg på. Den STØRSTE bana i ei fil er alltid eit omriss — eit hòl
- * ligg inni eit omriss og er mindre enn det — so ho fortel kva veg omrissa
- * går, og hòla er dei som går andre vegen.
- */
 function vinding(steg: Steg[]): number {
   let best = 0
   for (const s of steg) {
@@ -217,8 +116,6 @@ function vinding(steg: Steg[]): number {
 
 function sjekkSteg(namn: string, steg: Steg[]) {
   const v = vinding(steg)
-  // ei OPA line er alltid eit innvendig kutt: ho er rilla, og ho skal
-  // skjerast medan delen framleis sit fast i plata
   const innvendig = (s: Steg) => !s.grav && (s.open || s.areal * v < 0)
   let settKutt = false
   let settOmriss = false
@@ -239,33 +136,11 @@ function sjekkSteg(namn: string, steg: Steg[]) {
   )
 }
 
-// =============================================================================
-// DXF
-// =============================================================================
-/**
- * TO LAG, OG INGENTING ANNA — OG BERRE STREKAR.
- *
- * SVG-sida nektar ein tredje farge og alt som er fylt: ein farge er ei
- * operasjon i laserprogrammet, so eit lag til er eitt nokon må hugse å slå
- * av og eitt nokon ein dag gløymer, og ei fylling ber maskina brenne heile
- * flata.
- *
- * DXF-sida hadde ingen slik regel. Ho las «GRAVER» som gravering og ALT
- * ANNA som kutt — so eit lag som dukka opp, eller eit lag som skreiv seg
- * feil, vart stille om til eit kutt gjennom plata. Og ho såg berre etter
- * POLYLINE: ein SOLID eller ein HATCH — det er DXF-en sitt ord for ei
- * fylling — var usynleg for henne heilt fram til maskina.
- *
- * Difor kvitlister: laga skal vera GRAVER og KUTT, og entitetane i
- * ENTITIES skal vera POLYLINE, VERTEX og SEQEND.
- */
 const DXF_LAG = new Set(["GRAVER", "KUTT"])
-/** og eit merkt lag: LightBurn sitt namn på det, C02 til C29 */
 const MERKT_LAG = /^C(0[2-9]|[12]\d)$/
 const lovlegLag = (l: string) => DXF_LAG.has(l) || MERKT_LAG.test(l)
 const DXF_ENT = new Set(["POLYLINE", "VERTEX", "SEQEND"])
 
-/** entitetane i ei R12-fil, i den orden dei står: lag og areal */
 function dxfSteg(namn: string, dxf: string): Steg[] {
   const t = dxf.split(/\r\n/)
   const out: Steg[] = []
@@ -276,9 +151,6 @@ function dxfSteg(namn: string, dxf: string): Steg[] {
   let iEnt = false
   const framandeLag = new Set<string>()
   const framandeEnt = new Set<string>()
-  // Ei DXF-fil er strengt par av gruppekode og verdi. Ein «0» på ein
-  // VERDI-plass er ikkje ein entitetsstart — det er eit tal som er null —
-  // so pariteten må haldast, elles les ein koordinatar som entitetsnamn.
   for (let i = 0; i < t.length - 1; i += 2) {
     if (t[i] !== "0") continue
     const kind = t[i + 1]
@@ -289,7 +161,6 @@ function dxfSteg(namn: string, dxf: string): Steg[] {
       if (pts) out.push(steg(lag, pts, open))
       lag = t[i + 3] === undefined ? "" : t[i + 3]
       if (!lovlegLag(lag)) framandeLag.add(lag)
-      // 70 er lukka-flagget, og det står rett etter «66 1» i den same bolken
       open = t[i + 6] === "70" && t[i + 7] === "0"
       pts = []
     } else if (kind === "VERTEX" && pts) {
@@ -316,9 +187,6 @@ const steg = (lag: string, pts: Pt[], open = false): Steg => ({
   bb: boks(pts),
 })
 
-// =============================================================================
-// SAKENE
-// =============================================================================
 function kule(r: number, seg: number) {
   const pos: number[] = []
   const at = (i: number, j: number): [number, number, number] => {
@@ -337,7 +205,6 @@ function kule(r: number, seg: number) {
   return makeSoup(new Float32Array(pos))
 }
 
-/** ein torus gjev ribber med ekte hòl i, og det er hòla dette handlar om */
 function torus(R: number, r: number, n: number, m: number) {
   const pos: number[] = []
   const at = (i: number, j: number): [number, number, number] => {
@@ -368,40 +235,12 @@ const saker: [string, Params][] = [
   ["kule", { ...GRUNN, kjelde: "kule" }],
   ["torus ståande", { ...GRUNN, kjelde: "torus", rotX: 90 }],
   ["torus, små ark", { ...GRUNN, kjelde: "torus", rotX: 90, arkB: 300, arkH: 200 }],
-  // ADRESSA MOT SPORVEGGEN.
-  //
-  // Ribbene her er kammar med lange, tette rader av spor, og dei er store
-  // nok til at adressa vert sett i full storleik. Det er den kombinasjonen
-  // som fekk teksten utanfor kuttlina: rasteret som leitar etter det
-  // feitaste punktet på delen hoppa over eit spor, fylte tvers over det,
-  // og la adressa midt på veggen mellom to spor. Ein millimeter utanfor,
-  // og heilt usynleg på skjermen.
   ["torus, tett og stort", { ...GRUNN, kjelde: "torus", plan: nett(13, 13), storleik: 560 }],
-  // EIT MERKE HANDA HAR TEIKNA, HEILT INNI PLATA: han vert ein ring, og
-  // ein ring skal skjerast FØR omrisset og med hòlvindinga. Kjem han ut
-  // med omrissvindinga, vert han lesen som eit omriss til — og då ligg
-  // delen laus på plata før hòlet i han er skore.
   ["kube, strek inni ei plate", {
     ...GRUNN,
     plan: medStrek(nett(4, 4), 2, { slag: "hol", form: "rekt", x: -0.05, y: -0.05, w: 0.3, h: 0.1, a: 20 }),
   }],
-  // TO PLAN MERKTE MED KVART SITT LAG. Rekkjefylgda i fila skal stå som
-  // før — gravering, hòl, omriss — sjølv om to av delane er i ein annan
-  // farge. Kva fargen gjeld, prøver `merkteLag` under.
   ["kube, to plan merkte", { ...GRUNN, plan: medFarge(medFarge(nett(4, 4), 2, 3), 5, 5) }],
-  /**
-   * RILLA I FILA: DEN TREDJE SLAGS BANA.
-   *
-   * Eit krumt skal i 3 mm finér med radius 250 mm. Finéren toler 300, so
-   * x-familien vert RILLA — seks hundre opne liner per del — medan
-   * y-familien står flat og urørt. Saka prøver tre ting ingen av dei andre
-   * kan prøve: at linene i det heile kjem med i fila, at dei står i den
-   * INNVENDIGE bunken (ei rille skorne etter omrisset er ei rille i ein del
-   * som alt har falle ned i maskina), og at SVG og DXF skriv det same talet.
-   *
-   * Utan denne saka var heile rilla usynleg for `pnpm rekkje`: dei andre
-   * sakene har ikkje eit einaste bøygd plan.
-   */
   ["kube, x-familien rilla", {
     ...GRUNN,
     storleik: 300,
@@ -411,7 +250,6 @@ const saker: [string, Params][] = [
   }],
 ]
 
-/** kuttfila er éi fil per plate, so kvar plate vert prøvd for seg */
 function arkSteg(namn: string, p: Params): Steg[][] {
   const { ns } = makeBygg(p, DETAIL.mid)
   const kerf = kerfOf(p)
@@ -423,30 +261,12 @@ function arkSteg(namn: string, p: Params): Steg[][] {
   })
 }
 
-/**
- * DXF-en er éi fil per plate, som kuttarket. Difor treng ingen å gjette
- * kva plate ein entitet høyrer til lenger — han vert lesen ut av fila si.
- *
- * Han vert prøvd for to ting kuttarket alt vert prøvd for: at ingenting
- * ligg utanfor plata, og at laga står i den orden fargen lovar.
- */
 function dxfSteg1(namn: string, dxf: string, arkB: number, arkH: number): Steg[] {
-  // GRAVER FØR KUTT I LAGTABELLEN. Eit program som tek laga i den orden
-  // dei kjem, skal ta graveringa medan delen framleis sit fast i plata.
   const lagOrden = [...dxf.matchAll(/\r\n2\r\n(GRAVER|KUTT)\r\n/g)].map((m) => m[1])
   if (lagOrden[0] !== "GRAVER" || lagOrden[1] !== "KUTT") {
     feil(namn, `lagtabellen står ${lagOrden.slice(0, 2).join(" før ") || "tom"}`)
   }
   const steg = dxfSteg(namn, dxf)
-  /**
-   * INGEN LUKKA BANE PÅ GRAVER.
-   *
-   * Plateomrisset låg her — ei lukka bane kring heile plata, på det laget
-   * LightBurn tek fyrst — og grunngjevinga var at ein DXF ikkje ber målet
-   * sitt slik ein SVG gjer. Han gjer det no, i $EXTMIN/$EXTMAX, so ramma
-   * var berre to meter brend line rundt bordkanten. På GRAVER ligg det
-   * adresser: opne strekar, aldri ein lukka ring.
-   */
   const t0 = dxf.split(/\r\n/)
   for (let i = 0; i < t0.length - 1; i += 2) {
     if (t0[i] === "0" && t0[i + 1] === "POLYLINE" && t0[i + 3] === "GRAVER" && t0[i + 7] === "1") {
@@ -454,16 +274,6 @@ function dxfSteg1(namn: string, dxf: string, arkB: number, arkH: number): Steg[]
       break
     }
   }
-  /**
-   * OG GRAVERINGA SKAL LIGGJE PÅ GODS.
-   *
-   * Same regelen som `graveringaLiggInne` held kuttarket til, og han kunne
-   * ikkje porterast hit før: plateramma låg på GRAVER og utanfor kvar
-   * einaste del, so prøva ville ropt på henne kvar gong. Med ramma borte
-   * er GRAVER berre adresser, og då gjeld regelen ordrett — partal og
-   * oddetal over alle kuttbanene, av di pakkinga gjerne legg ein liten del
-   * inni hòlet på ein stor.
-   */
   const omriss: Pt[][] = []
   const grav: Pt[][] = []
   {
@@ -492,9 +302,6 @@ function dxfSteg1(namn: string, dxf: string, arkB: number, arkH: number): Steg[]
     }
     if (ute) feil(namn, `${ute} graverte punkt ligg ikkje på gods`)
   }
-  // ALT SOM ER TEIKNA SKAL LIGGJE PÅ PLATA. Same regelen som
-  // `innanforRamma` held kuttarket til; ein DXF har inga viewBox, so
-  // plata sjølv er ramma. Plateomrisset ligg på kanten og skal so.
   let ute = 0
   let verst = 0
   const t = dxf.split(/\r\n/)
@@ -514,15 +321,6 @@ function dxfSteg1(namn: string, dxf: string, arkB: number, arkH: number): Steg[]
   return steg
 }
 
-/**
- * EIT MERKT PLAN KUTTAR I SIN FARGE, OG BERRE DET.
- *
- * Merket er laget i LightBurn: omrisset og hòla i kvar del av planet går
- * i den fargen, ordrett frå paletten, og ingenting anna gjer det. I
- * DXF-en er det eit lag med LightBurn sitt namn, etter KUTT i tabellen,
- * med den eksakte fargen som 420 attåt ACI-en. Vakta tel banene i kvar
- * farge mot delane på plata, og ser at graveringa framleis er svart.
- */
 function merkteLag(namn: string, p: Params) {
   const { ns } = makeBygg(p, DETAIL.mid)
   const kerf = kerfOf(p)
@@ -544,7 +342,6 @@ function merkteLag(namn: string, p: Params) {
       const hexTal = String(parseInt(hex.slice(1), 16))
       if (!dxf.includes(`\r\n2\r\n${lagNamn}\r\n70\r\n0\r\n62\r\n`) || !dxf.includes(`\r\n420\r\n${hexTal}\r\n`)) feil(`${namn} · dxf ${i + 1}`, `laget ${lagNamn} står ikkje i tabellen med ${hex}`)
     }
-    // kuttet elles er blått, graveringa svart, og ikkje noko anna
     const blaa = (svg.match(/stroke="#0000ff"/g) ?? []).length
     const alle = sheet.placed.reduce((a, q) => a + 1 + q.part.holes.length + q.part.rille.length, 0)
     const merkte = [...vent.values()].reduce((a, b) => a + b, 0)
@@ -552,7 +349,6 @@ function merkteLag(namn: string, p: Params) {
     const lagOrden = [...dxf.matchAll(/\r\n2\r\n(GRAVER|KUTT|C\d\d)\r\n70\r\n/g)].map((m) => m[1])
     if (lagOrden.slice(0, 2).join(",") !== "GRAVER,KUTT" || lagOrden.length !== 2 + vent.size) feil(`${namn} · dxf ${i + 1}`, `lagtabellen: ${lagOrden.join(" ")}`)
   })
-  // profilarket: dei same delane, dei same fargane
   const prof = MOTOR.exportFile(p as unknown as ParamBag, "svg").text ?? ""
   for (const pl of lesPlan(p.plan)) {
     if (!pl.farge) continue
@@ -562,33 +358,7 @@ function merkteLag(namn: string, p: Params) {
 }
 merkteLag("kube, to plan merkte", { ...GRUNN, plan: medFarge(medFarge(nett(4, 4), 2, 3), 5, 5) })
 
-/**
- * DEI TO SKRIVARANE SKAL TEIKNE DET SAME.
- *
- * SVG-en og DXF-en les den same nestinga og skriv kvar sin fil, og
- * `inventar` tel at dei har like mange kuttbaner. Men eit TAL er ikkje ei
- * form: eit forteikn snudd i kompensasjonen gjev like mange baner, kvar
- * del ein heil snittbreidd for lita og kvart spor ein snittbreidd for
- * smalt — og på benken held ikkje rutenettet. Prøvd: eit snudd forteikn i
- * `sheetDxf` gjekk gjennom kvar einaste hovudlaus vakt.
- *
- * So banene vert samanlikna, ikkje talde. Boksen fyrst — han flyttar seg
- * ein halv snittbreidd når forteiknet snur, og han fangar ei fil som er
- * spegla, flytta eller skalert til tommar — og arealet etterpå.
- *
- * FORTEIKNET SKAL VERA DET SAME. Kuttarket speglar Y i ei gruppe og let
- * hjørna stå, so dei to filene har den same vindinga; å normalisere det
- * bort ville kaste den lettaste av alle prøvene.
- *
- * TOLEGRENSA ER KVANTISERINGA: SVG-en skriv to desimalar og DXF-en fire,
- * og på ei ribbe med sytti hjørne er det opp mot halvanna kvadratmillimeter
- * støy. Fem er seksti gonger over støyen og seksti gonger under signalet.
- */
 function toSkrivarar(namn: string, svg: Steg[], dxf: Steg[]) {
-  // PARA ETTER STAD, IKKJE ETTER AREAL. Ein torus med førti ribber har
-  // mange heilt like delar: sorterer ein på areal, byter dei plass med
-  // kvarandre mellom dei to listene, og prøva samanliknar to ulike baner.
-  // Hjørnet av boksen er det same i begge filene når filene er like.
   const kutt = (q: Steg[]) =>
     q
       .filter((r) => !r.grav)
@@ -606,38 +376,10 @@ function toSkrivarar(namn: string, svg: Steg[], dxf: Steg[]) {
   else if (verstAreal > 5) feil(namn, `areala skil ${verstAreal.toFixed(2)} mm² mellom svg og dxf`)
 }
 
-// =============================================================================
-// INVENTAR
-// =============================================================================
-/**
- * KVAR DEL, OG KVART HÒL, SKAL VERE I FILA.
- *
- * Alt over spør om filene er RETTE: rett orden, rett farge, rett veg på
- * kompensasjonen. Ingenting spør om dei er HEILE. Ei kuttfil som manglar
- * ei ribbe er ei feilfri fil etter alle prøvene over — ho har to fargar,
- * graveringa fyrst og omrisset sist — heilt til plata er skoren og
- * fireogseksti ledd skal setjast saman med treogseksti delar.
- *
- * Eit hòl som fell bort er verre enn ein del som fell bort, av di du ikkje
- * ser det. Plata kjem ut av maskina med rett tal delar; det er fyrst når
- * ribbe elleve ikkje vil gå ned over ribbe fem at det kjem fram at sporet
- * aldri vart skore.
- *
- * Fasiten er nestinga: kvar del på ei plate krev nøyaktig éi omrissbane og
- * éi bane per hòl. Og nestinga sjølv vert målt mot delelista ho fekk — ein
- * pakkar som mistar ein del utan å telje han som spilt, ville elles hatt
- * fasiten på si side.
- *
- * SVG og DXF vert prøvde kvar for seg mot den same fasiten. Dei er to
- * uavhengige skrivarar over den same nestinga, so ein skilnad mellom dei
- * er ein av dei som tek feil.
- */
 function inventar(namn: string, p: Params, svg: Steg[][], dxf: Steg[][]) {
   const før = brot
   const { dl, ns } = makeBygg(p, DETAIL.mid)
 
-  // Pakkinga skal gjere greie for kvar einaste del ho fekk: han ligg på ei
-  // plate, eller han er talt som spilt. Det er ingen tredje stad.
   const lagde = ns.sheets.reduce((n, s) => n + s.placed.length, 0)
   if (lagde + ns.spilt !== dl.delar.length) {
     feil(namn, `pakkinga: ${dl.delar.length} delar inn, ${lagde} lagde + ${ns.spilt} spilte ut`)
@@ -689,41 +431,8 @@ const kupong = MOTOR.exportFile(GRUNN as unknown as ParamBag, "prove").text ?? "
 graveringaLiggInne("passprøve", kupong)
 sjekkSteg("passprøve", svgSteg("passprøve", kupong))
 
-// =============================================================================
-// PASSPRØVA SKAL MÅLAST
-// =============================================================================
-/**
- * SJU SPOR, OG DET ER BREIDDA PÅ DEI SOM ER HEILE POENGET.
- *
- * Passprøva er kalibreringa til heile byggjet. Du skjer henne, skyv eit
- * avkapp av den same plata ned i kvart spor, finn det som går inn med
- * tommelkraft, og les talet under. Det talet vert `klaring`, og klaringa
- * går inn i kvart einaste av dei fireogseksti ledda.
- *
- * Er sporet under «15» eigentleg 0,20 breitt, kalibrerer du mot ei løgn.
- * Kvar einaste tapp vert fem hundredelar for laus, heile stabelen sig, og
- * du finn det ikkje att i noko — du har jo MÅLT.
- *
- * Prøvene over ser på prøva som ei kuttfil: rett orden, to fargar, ingen
- * gravering utanfor. Ingen av dei bryr seg om kor breie spora er. Ei prøve
- * med sju like spor ville gått rett gjennom heile skriptet.
- *
- * Difor vert breidda MÅLT, i fila, slik ein maskin ville lese henne.
- *
- * FERDIG breidd, ikkje breidda i fila. Spora er hakk i omrisset, og
- * omrisset er skuve ein halv snittbreidd ut — so i fila er kvart spor ei
- * heil snittbreidd for smalt, og stråla et det opp att. Det er summen som
- * skal stemme, og det er summen tommelen kjenner.
- *
- * Toleransen er ein hundredel: fila ber to desimalar, so eit hjørne kan
- * runde av ein halv hundredel kvar veg. Stega er fem hundredelar frå
- * kvarandre og tommelen kjenner ikkje ein hundredel, so det er langt nok
- * unna til å ikkje tyde noko — men det er grunnen til at talet ikkje er
- * null.
- */
 const KLARINGAR = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
 
-/** dei to endane av kvart spor, målte i golvet på hakket */
 function sporIKupong(svg: string) {
   const baner = [...svg.matchAll(/<path d="([^"]+)"([^>]*)>/g)].map((m) => ({
     grav: GRAV_FARGE.test(m[2]),
@@ -731,8 +440,6 @@ function sporIKupong(svg: string) {
   }))
   const kutt = baner.find((b) => !b.grav)
   if (!kutt) return null
-  // Tre y-nivå i omrisset: botnen, golvet i spora, og overkanten der spora
-  // opnar seg. Golvet er det midtre, og det er der hakka kan målast.
   const niv = [...new Set(kutt.p.map((q) => +q[1].toFixed(3)))].sort((a, b) => a - b)
   if (niv.length !== 3) return null
   const golv = kutt.p
@@ -744,15 +451,6 @@ function sporIKupong(svg: string) {
   return { spor, golvY: niv[1], grav: baner.filter((b) => b.grav) }
 }
 
-/**
- * OG TALET SKAL STÅ UNDER SITT EIGE SPOR.
- *
- * Sju rette spor med talrekkja forskjøve eitt hakk er den verste av alle
- * feila her: prøva er heilt rett, ho er berre feilmerkt, og du les 0,15
- * der du skulle lese 0,20. Talrekkja er den graveringa som ligg nærast
- * spora — under golvet i dei og over dei to bilinene — og kvart tal skal
- * ha tyngdepunktet sitt innanfor sitt eige spor.
- */
 function kupongMaal(namn: string, svg: string, tjukn: number, kerf: number) {
   const k = sporIKupong(svg)
   if (!k) return feil(namn, "fann ikkje omrisset med tre y-nivå")
@@ -768,8 +466,6 @@ function kupongMaal(namn: string, svg: string, tjukn: number, kerf: number) {
     }
   }
 
-  // Digitala i eitt tal står nærare kvarandre enn to tal gjer. Halve
-  // avstanden mellom to spor skil dei to utan å vite kor stor skrifta er.
   const midt = (s: [number, number]) => (s[0] + s[1]) / 2
   const stig = midt(k.spor[1]) - midt(k.spor[0])
   const xs = k.grav
@@ -799,9 +495,6 @@ function kupongMaal(namn: string, svg: string, tjukn: number, kerf: number) {
   )
 }
 
-// Tynt og tjukt, med og utan kompensasjon i fila. Cella, djupna og
-// skuldra skalerer alle med tjukna, so ei prøve som stemmer på tre mm er
-// ikkje eit svar for ei på tolv.
 const proveSaker: [string, Partial<Params>][] = [
   ["passprøve 3 mm", {}],
   ["passprøve 3 mm, maskina", { snittveg: 1 }],
@@ -818,14 +511,6 @@ for (const [namn, over] of proveSaker) {
   kupongMaal(namn, svg, pp.tjukn, kerfOf(pp))
 }
 
-// =============================================================================
-// SNITTET SKAL TAKAST NØYAKTIG EIN GONG
-// =============================================================================
-/**
- * Står `snittveg` på maskina, skal fila levere den nominelle konturen —
- * altso nøyaktig det same som om snittbreidda var null. Er dei to ikkje
- * like, kompenserer nokon to gonger.
- */
 const teikn = (p: Partial<Params>) =>
   JSON.stringify(
     arkSteg("snittveg", { ...GRUNN, ...p }).map((s) =>
@@ -840,16 +525,6 @@ if (iMaskina !== nominell) feil("snitt i maskina", "fila kompenserer likevel")
 else if (iFila === nominell) feil("snitt i fila", "fila kompenserer ikkje")
 else console.log("  ok   snittveg                 fila kompenserer berre når ho skal")
 
-/**
- * OG DÅ MÅ NAMNET SKILJE DEI.
- *
- * Påstanden over er at ei fil med snittet i MASKINA er den same teikninga
- * som ei fil utan snitt i det heile. Det er meint slik — men det tyder at
- * to jobbar som må køyrast ULIKT ikkje kan skiljast på innhaldet. Då er
- * filnamnet den einaste staden skilnaden kan stå, og det er ikkje ein
- * finesse: køyrer du den nominelle fila med snittoffset i maskina, er alt
- * rett; køyrer du henne utan, er kvar del ein snittbreidd for lita.
- */
 for (const kind of ["ark", "dxf"] as const) {
   const iM = MOTOR.exportFile({ ...GRUNN, snitt: 0.2, snittveg: 1 } as unknown as ParamBag, kind).name
   const iF = MOTOR.exportFile({ ...GRUNN, snitt: 0.2, snittveg: 0 } as unknown as ParamBag, kind).name
@@ -857,31 +532,12 @@ for (const kind of ["ark", "dxf"] as const) {
   else console.log(`  ok   snittveg · ${kind.padEnd(14)} ${iM} mot ${iF}`)
 }
 
-/**
- * OG PLATA SKAL STÅ I NAMNET. Eit kuttark er ei oppskrift på ei plate, og
- * eit ark som har lege i nedlastingsmappa i tre veker seier ikkje kva
- * tjukn eller kva material det var meint for om namnet ikkje gjer det.
- */
 for (const [t, mat] of [[3, "mdf"], [4, "finer"], [6, "akryl"]] as [number, string][]) {
   const n = MOTOR.exportFile({ ...GRUNN, tjukn: t, material: mat } as unknown as ParamBag, "ark").name
   if (!n.includes(`${t}mm`) || !n.includes(mat)) feil("plata i namnet", `${n} nemner ikkje ${t} mm ${mat}`)
   else console.log(`  ok   plata i namnet          ${n}`)
 }
 
-/**
- * OG HAN SKAL KOMPENSERE RETT VEG.
- *
- * Prøven over spør berre om fila er ei ANNA fil. Snu forteiknet på
- * kompensasjonen, og ho er framleis ei anna fil — men kvar einaste del
- * kjem ut ei heil snittbreidd for lita, kvart spor for smalt, og
- * rutenettet held seg ikkje sjølv. Det er ein feil du finn med sekstifire
- * skorne delar framfor deg.
- *
- * Retninga er gjeven: omrisset skal skuvast UT og hòla INN, so stråla et
- * seg inn til den nominelle lina frå begge sider. Arealet med forteikn
- * fangar begge: eit omriss som veks gjev meir positivt, eit hòl som
- * krympar gjev mindre negativt. Summen må opp.
- */
 const summer = (p: Partial<Params>) =>
   arkSteg("snittveg", { ...GRUNN, ...p })
     .flat()
@@ -900,26 +556,6 @@ if (!(sumIFila > sumNominell + 1)) {
   )
 }
 
-// =============================================================================
-// OG BØYEPRØVA SKAL MÅLAST
-// =============================================================================
-/**
- * FEM FELT, OG DET ER AVSTANDEN MELLOM RADENE SOM ER HEILE POENGET.
- *
- * Same saka som passprøva over, for det andre talet reiskapen ikkje kan
- * rekne. Bøyeprøva er kalibreringa til kvar einaste rilla del: du skjer
- * henne, krummar kvart felt, og les talet under det grovaste som held. Er
- * feltet under «3,0» eigentleg rilla på 2,4, kalibrerer du mot ei løgn, og
- * den løgna vert med i kvar bøygd ribbe du skjer etterpå.
- *
- * Sjekkane over ser på henne som ei kuttfil — rett orden, to fargar,
- * gravering innanfor. Ingen av dei bryr seg om kor tett radene står. Fem
- * like felt ville gått rett gjennom.
- *
- * Difor vert steget MÅLT, lese ut av banene i fila, og halde mot det som
- * står gravert. Og linene er OPNE, so dei kan ikkje finnast på vindinga slik
- * hòl kan: dei er dei banene som ikkje endar på Z.
- */
 {
   const namn = "bøyeprøve"
   const bag = { ...GRUNN, tjukn: 3, material: "finer" } as unknown as ParamBag
@@ -927,18 +563,11 @@ if (!(sumIFila > sumNominell + 1)) {
   graveringaLiggInne(namn, svg)
   sjekkSteg(namn, svgSteg(namn, svg))
 
-  // dei opne banene, som x-verdiar: kvar er ei loddrett line, so x er rada
   const opne = [...svg.matchAll(/<path d="(M[^"]+)"([^>]*)>/g)]
     .filter((m) => !GRAV_FARGE.test(m[2]) && !/Z\s*$/i.test(m[1].trim()))
     .map((m) => pathPts(m[1]))
   const xs = [...new Set(opne.map((q) => +q[0][0].toFixed(3)))].sort((a, b) => a - b)
 
-  /**
-   * FELTA VERT SKILDE PÅ LUFTA MELLOM DEI. Inne i eit felt er hoppet eit
-   * heilt tal steg — ei rad der alt fall bort gjev to — og mellom to felt er
-   * det minst ei luft. Grensa er difor sett på det GROVASTE steget: alt over
-   * er ei feltgrense, alt under er rader i det same feltet.
-   */
   const VENTA = [1.5, 2.25, 3, 4.5, 6]
   const felt: number[][] = [[xs[0]]]
   for (let i = 1; i < xs.length; i++) {
@@ -951,8 +580,6 @@ if (!(sumIFila > sumNominell + 1)) {
     let verst = 0
     let kvar = ""
     felt.forEach((f, i) => {
-      // det minste hoppet inne i feltet ER steget: eit større hopp er ei rad
-      // der kvart snitt fall bort, og det er eit heilt tal steg
       const steg = f.slice(1).reduce((m, v, j) => Math.min(m, v - f[j]), Infinity)
       const av = Math.abs(steg - VENTA[i])
       if (av > verst) {

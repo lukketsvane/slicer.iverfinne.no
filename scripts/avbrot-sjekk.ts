@@ -1,4 +1,3 @@
-/** Avbrot i teikninga: ekte Chromium-touch, aldri ferdig prosjekt injisert. */
 import assert from "node:assert/strict"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -13,7 +12,6 @@ async function prov() {
   mkdirSync(ut, { recursive: true })
   const nettlesar = await chromium.launch({ executablePath: process.env.PW_CHROMIUM })
   const side = await nettlesar.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
-  // Berre observasjon, registrert før appen kan stoppe hendinga.
   await side.addInitScript(() => {
     const logg: Finger[] = []
     ;(window as unknown as ProvWindow).__avbrotHendingar = logg
@@ -50,7 +48,6 @@ async function prov() {
     await side.touchscreen.tap(344, 87)
     await side.waitForTimeout(650)
     await side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "firkant", exact: true }).tap()
-    // Les peikarnamnet nettlesaren gav; CDP sitt touch-id er ikkje pointerId.
     await side.evaluate(() => window.addEventListener("gotpointercapture", (e) => {
       if (e.target instanceof HTMLCanvasElement) e.target.dataset.provPeikar = String(e.pointerId)
     }, true))
@@ -75,8 +72,6 @@ async function prov() {
     const a = punkt(180, 390), b = punkt(275, 510, 2)
     const foer = await side.evaluate(() => (window as unknown as ProvWindow).__avbrotHendingar.length)
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [a, b] })
-    // Chromium sin CreateWebTouchEvents tek dei SLEPPTE punkta i touchEnd,
-    // ikkje dei som står att. [a] slepp feil finger og fullfører heilt rett.
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [b] })
     const slepp = await side.evaluate((fra) => (window as unknown as ProvWindow).__avbrotHendingar.slice(fra).filter((e) => e.type === "pointerup"), foer)
     assert(slepp.length === 1 && !slepp[0].primary, "prøva må sleppe berre den andre fingeren")
@@ -86,7 +81,6 @@ async function prov() {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
     await side.waitForFunction(() => {
       const p = JSON.parse(decodeURIComponent(location.hash.split("#p=")[1] ?? "%7B%7D"))
-      // Ei tom streng har òg split-lengd 1; vent på ein faktisk plan.
       return !!p.plan && p.plan.split(";").length === 1
     })
     assert.equal(await tal(), 1, "nytt drag etter avbrot lagar nøyaktig éi plate")

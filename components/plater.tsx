@@ -5,39 +5,8 @@ import { LAG_FARGAR, lagFarge, nn, type ArkSyn, type Delplass, type ParamBag } f
 import { DELING_MAX, DELING_MIN, lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
 import { CHIP, chipStyle } from "./deler"
 
-/**
- * PLATA ER IKKJE EIT BILETE. Kvar del er sitt eige element med adressa på
- * seg; banene er DEI SAME som fila skriv, med same snittkompensasjon, i same
- * koordinat — `translate(0,H) scale(1,-1)` er den same snuinga `sheetSvg`
- * gjer, av di geometrien står med y opp og SVG med y ned.
- *
- * Tre ting ein finger kan gjere med ein del: eit trykk peikar, eit trykk som
- * VARER opnar menyen (fest, snu, byt plate), eit drag flyttar han — og der
- * du slepper, står han fast: eit feste er nøyaktig det pakkinga gjev frå seg
- * som plassering. To fingrar på ein vald del dreg og snur han; utan val er
- * to fingrar eit klyp på plata. Éin finger på bert bord dreg utsnittet, og
- * dobbelttrykk syner heile plata.
- */
 const HAIR = { borderColor: "var(--rule)" }
 
-/**
- * MÅLRUTA.
- *
- * Plata er der du avgjer om noko går opp: får delane plass på det
- * restkappet du har, kor langt frå kanten ligg den delen, kor breid er
- * luka. Det stod ingen målestokk i ruta — berre delar på eit kvitt felt —
- * so kvart slikt spørsmål vart eit auge og ei gjetting.
- *
- * STEGET FYLGJER AUGET OG IKKJE PLATA. Ti millimeter på ei plate på tre
- * meter er tre hundre liner og eit grått felt; ti millimeter på eit utsnitt
- * du har zooma inn på er det du vil ha. Difor vert steget valt etter kor
- * mange PIKSLAR det vert på skjermen: det minste steget som gjev minst ni
- * pikslar mellom linene. Kvar femte line er sterkare og ber talet sitt.
- *
- * Ho ligg UNDER delane og tek ikkje imot fingrar. Og ho er berre på
- * skjermen: kuttfila har to fargar og ikkje ein til, og ei hjelpeline i
- * henne er eit lag nokon ein dag gløymer å slå av (sjå `export-svg.ts`).
- */
 const STEG = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000] as const
 
 function Maalrute({ arkB, arkH, v, ppm }: { arkB: number; arkH: number; v: Syn; ppm: number }) {
@@ -53,8 +22,6 @@ function Maalrute({ arkB, arkH, v, ppm }: { arkB: number; arkH: number; v: Syn; 
   const hår = 1 / ppm
   const liner: JSX.Element[] = []
   const tal: JSX.Element[] = []
-  // tala står langs den synlege kanten, ikkje langs plata: zoomar du inn
-  // på midten, skal målestokken framleis stå der du ser
   const tx = Math.max(0, v.x) + 3 * hår
   const ty = Math.min(arkH, v.y + v.h) - 3 * hår
   for (let x = x0; x <= x1 + 1e-6; x += steg) {
@@ -64,7 +31,6 @@ function Maalrute({ arkB, arkH, v, ppm }: { arkB: number; arkH: number; v: Syn; 
   }
   for (let y = y0; y <= y1 + 1e-6; y += steg) {
     const s = paa(y, sterk)
-    // SVG-en har y ned og plata y opp: lina på plate-y står i `arkH − y`
     const sy = arkH - y
     liner.push(<line key={`h${y}`} x1={tx - 3 * hår} y1={sy} x2={x1} y2={sy} strokeWidth={hår} opacity={s ? 0.5 : 0.18} />)
     if (s && y > y0) tal.push(<text key={`th${y}`} x={tx} y={sy - 3 * hår} fontSize={tsz} opacity={0.55}>{y}</text>)
@@ -76,23 +42,6 @@ function Maalrute({ arkB, arkH, v, ppm }: { arkB: number; arkH: number; v: Syn; 
     </g>
   )
 }
-/**
- * EIT SPOR-ENDE, SOM HANDTAK.
- *
- * Prikken står på den lukka enden av sporet; streken bak henne er kor langt
- * ho kan gå — bandet lesinga tek imot, og ikkje ein millimeter meir. Begge
- * er rekna i PIKSLAR og delte på målestokken, so handtaket er like stort
- * anten du ser heile plata eller står tett på eitt spor. Treffesona er
- * større enn prikken: fingeren er ikkje ein peikar.
- */
-/**
- * BRØKEN `u` AV STREKKET, SOM EIT PUNKT PÅ PLATA.
- *
- * Strekket er frå `lo` til `hi`, og for eit ledd mot eit bøygt plan er det
- * ein BOGE og ikkje ei korde: `boge` er den same lina fila vert skoren av,
- * punkt for punkt (sjå `Delplass.spor`). Utan han er det dei to endane, og
- * då er dette ordrett den lineære brøken det alltid var.
- */
 function sporPaa(v: Delplass["spor"][number], u: number): [number, number] {
   const band = v.boge ?? [v.lo, v.hi]
   const d = Math.min(Math.max(0, u), 1) * (band.length - 1)
@@ -104,7 +53,6 @@ function sporPaa(v: Delplass["spor"][number], u: number): [number, number] {
 function Sporende({ v, ppm, t, ned }: {
   v: Delplass["spor"][number]
   ppm: number
-  /** brøken fingeren har han på no, eller null når han står der han står */
   t: number | null
   ned: (e: React.PointerEvent, v: Delplass["spor"][number]) => void
 }) {
@@ -126,12 +74,6 @@ function Sporende({ v, ppm, t, ned }: {
 }
 
 const CHIP_B = CHIP.replace("rounded-full", "rounded-[2px]")
-/**
- * Kor lenge eit trykk må vare for å vera langt. Klokka ser ikkje fingeren:
- * står hovudtråden stille, kjem rørslene i kø bak henne. Hendingane ber si
- * eiga klokke — ei rørsle som HENDE før terskelen, men kom fram etter, seier
- * at det lange trykket var ei feillesing, og då vert det teke attende.
- */
 const LANGT_MS = 450
 const vinkel = (ny: number, gml: number) => {
   let v = ny - gml
@@ -158,10 +100,8 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
   peikt: string | null
   onPeik: (adr: string | null) => void
 }) {
-  // --- festa: kvar ein del står, når handa har sagt det -------------------
   const festa = lesFest(params.fest)
   const skriv = (m: Map<string, Plass>) => onChange({ ...params, fest: skrivFest(m) })
-  /** kvar delen står NO: festet i parametrane går føre plata, som kan vera frå før trykket */
   const plassAv = (adr: string) => festa.get(adr) ?? ark?.plasser.find((d) => d.adr === adr)?.plass
   const vipFest = (adr: string) => {
     const m = new Map(festa)
@@ -173,38 +113,20 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     }
     skriv(m)
   }
-  // --- delinga: kor djupt eitt ledd går ----------------------------------
-  /**
-   * SPOR-ENDANE ER HANDTAK.
-   *
-   * Skyvaren «deling» flyttar botnen i ALLE ledd på ein gong; ho er eitt
-   * tal for heile kroppen. Men eit ledd er to delar som deler ei line, og
-   * kva for ein av dei som skal bere mest er ei avgjerd per ledd: ribba
-   * som ber vekta skal ha mest gods att, og naboen mindre.
-   *
-   * Her er den avgjerda der ho høyrer heime — på plata, med fingeren på
-   * den lukka enden av sporet. Botnen fylgjer lina leddet ligg på, og
-   * `deling` i posen tek imot brøken. Den ANDRE delen i leddet les den
-   * same brøken frå si side og vert grunnare av seg sjølv: det er éi line,
-   * ikkje to tal som må haldast i lag.
-   */
   const setjDeling = (nokkel: string, t: number) => {
     const m = new Map(lesDeling(params.deling))
     m.set(nokkel, +t.toFixed(3))
     onChange({ ...params, deling: skrivDeling(m) })
   }
-  /** botnen der fingeren har han, medan han dreg: brøken langs lo→hi */
   const [sporDra, setSporDra] = useState<{ nokkel: string; t: number } | null>(null)
   const sporDraRef = useRef(sporDra)
   sporDraRef.current = sporDra
 
-  /** eit drag er òg eit feste: ein del flytt for hand og pakka om att er ein del som ikkje vart flytt */
   const flyttDel = (adr: string, plass: Plass) => {
     const m = new Map(festa)
     m.set(adr, { ...plass, x: +plass.x.toFixed(2), y: +plass.y.toFixed(2) })
     skriv(m)
   }
-  /** ein kvart sving kring MIDTEN av masken, so delen står i staden for å hoppe */
   const snuDel = (adr: string) => {
     const d = ark?.plasser.find((q) => q.adr === adr)
     if (!d) return
@@ -219,7 +141,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     m.set(adr, { sheet: d.plass.sheet, rot: ((no.rot + 1) % 4) as 0 | 1 | 2 | 3, x: +Math.max(0, cx - H / 2).toFixed(2), y: +Math.max(0, cy - W / 2).toFixed(2) })
     skriv(m)
   }
-  /** eitt steg fram eller attende i bunken — forbi den siste er ei ny plate. Skuffa fylgjer han. */
   const bytPlate = (adr: string, steg: 1 | -1) => {
     const d = ark?.plasser.find((q) => q.adr === adr)
     if (!d) return
@@ -231,14 +152,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     onArk(til)
   }
 
-  /**
-   * PILENE FLYTTAR DEN VALDE DELEN, ein millimeter per trykk og ti med
-   * skift — for benken, der ein drar han om lag rett og set han nøyaktig
-   * etterpå. Same veg som draget: innanfor plata, med margen, og festa.
-   * Lyttaren står på vindauget medan plata står framme, og les det
-   * nyaste gjennom ein ref: eit tastetrykk skal ikkje flytte ein del slik
-   * han stod for ein render sidan.
-   */
   const stegDel = (dx: number, dy: number) => {
     const d = peikt ? ark?.plasser.find((q) => q.adr === peikt) : undefined
     if (!d || !ark) return
@@ -266,7 +179,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     return () => window.removeEventListener("keydown", tast)
   }, [])
 
-  /** menyen over delen: der fingeren står, ikkje i ein vegg */
   const [meny, setMeny] = useState<{ adr: string; x: number; y: number } | null>(null)
   const menyRef = useRef<HTMLDivElement | null>(null)
   useLayoutEffect(() => {
@@ -276,15 +188,12 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     el.style.left = `${Math.min(Math.max(12, meny.x - w / 2), Math.max(12, window.innerWidth - w - 12))}px`
   }, [meny])
 
-  // --- fingrane -------------------------------------------------------------
   const trykk = useRef<{ adr: string; x: number; y: number; tid: number; plass: Plass; boks: Delplass["boks"]; brukt: boolean; lang: boolean } | null>(null)
   const langt = useRef(0)
-  /** spøkelset: delen der fingeren har han, til plata har teke han att */
   const [dra, setDra] = useState<{ adr: string; dx: number; dy: number; vri?: number } | null>(null)
   const draRef = useRef(dra)
   const flata = useRef<SVGGElement | null>(null)
   useEffect(() => { draRef.current = null; setDra(null) }, [ark])
-  /** utsnittet, i platekoordinatar, alltid med ruta sitt sideforhold; null er heile plata */
   const [syn, setSyn] = useState<Syn | null>(null)
   const synRef = useRef<Syn | null>(null)
   synRef.current = syn
@@ -294,12 +203,9 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
   const pan = useRef<{ id: number; v: Syn; ppm: number; p: { x: number; y: number } } | null>(null)
   const heileRef = useRef<(r: DOMRect) => Syn>(() => ({ x: 0, y: 0, w: 1, h: 1 }))
   const inneRef = useRef<(v: Syn) => Syn>((v) => v)
-  /** to fingrar på den valde delen: dreg han dit dei går og vrir han */
   const grep = useRef<{ adr: string; plass: Plass; boks: Delplass["boks"]; anker: { cx: number; cy: number }; sist: number; vri: number; ppm: number; d0: number; a: { x: number; y: number }; b: { x: number; y: number }; v: Syn; modus: "uavgjort" | "del" } | null>(null)
   const tapp = useRef<{ id: number; x: number; y: number; paaDel: boolean; fleire: boolean } | null>(null)
   useEffect(() => setSyn(null), [ark?.arkB, ark?.arkH])
-  /** kor stor ruta er i pikslar. `stoda()` les DOM-en når han vert kalla og
-   *  duger til gestar; målruta må vite det medan ho vert teikna. */
   const [pikslar, setPikslar] = useState({ w: 0, h: 0 })
   useEffect(() => {
     const el = svgRef.current
@@ -314,7 +220,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     return () => ro.disconnect()
   }, [ark])
 
-  // hjulet gjer det klypet gjer. Ikkje `onWheel`: React set hjulet passivt, og passivt kan ikkje stogge rullinga.
   useEffect(() => {
     const el = svgRef.current
     if (!el) return
@@ -333,12 +238,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     return () => el.removeEventListener("wheel", paa)
   }, [ark])
 
-  /**
-   * Å TA I EIT SPOR-ENDE. Fingeren vert fylgd i millimeter på plata og
-   * projisert ned på lina leddet ligg på: brøken er kor langt ut på det
-   * strekket han står. Klemt til det same bandet lesinga tek imot, so eit
-   * drag ut i lause lufta ikkje vert stille kasta.
-   */
   const taSpor = (e: React.PointerEvent, v: Delplass["spor"][number]) => {
     e.stopPropagation()
     if (!e.isPrimary) return
@@ -371,7 +270,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     el.addEventListener("pointercancel", slepp)
   }
 
-  /** frå skjermpikslar til millimeter på plata, gjennom den same spegelen teikninga ligg i */
   const mm = (cx: number, cy: number): [number, number] | null => {
     const ctm = flata.current?.getScreenCTM()
     if (!ctm) return null
@@ -387,7 +285,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     const h = r.height / ppm
     return { x: (arkB - w) / 2, y: (arkH - h) / 2, w, h }
   }
-  /** utsnittet og målestokken slik dei står NO, til teikninga */
   const utsnitt: Syn = syn ?? (pikslar.w > 0 && pikslar.h > 0
     ? (() => { const q = Math.min(pikslar.w / arkB, pikslar.h / arkH); return { x: (arkB - pikslar.w / q) / 2, y: (arkH - pikslar.h / q) / 2, w: pikslar.w / q, h: pikslar.h / q } })()
     : { x: 0, y: 0, w: arkB, h: arkH })
@@ -398,7 +295,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     const v = synRef.current ?? heile(r)
     return { r, v, ppm: r.width / v.w }
   }
-  /** utsnittet får ikkje gå lenger ut enn at halve ruta framleis er plate */
   const inne = (v: Syn): Syn => ({ ...v, x: Math.min(Math.max(v.x, -v.w / 2), arkB - v.w / 2), y: Math.min(Math.max(v.y, -v.h / 2), arkH - v.h / 2) })
   heileRef.current = heile
   inneRef.current = inne
@@ -408,12 +304,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     draRef.current = null
     setDra(null)
   }
-  /**
-   * SNAPPET: kant i kant er nøyaktig luka. Masken er boksen pluss klaringa,
-   * so to masker kant i kant er det tettaste pakkinga sjølv ville lagt dei.
-   * Åtte PIKSLAR, ikkje millimeter: fingeren er unøyaktig, zoom inn og han
-   * smett fyrst når du er nærare. Og masken stoggar ved kanten av plata.
-   */
   const snapp = (g: { adr: string; plass: Plass; boks: Delplass["boks"] }, dx: number, dy: number, ppm: number) => {
     const rekk = 8 / ppm
     const marg = Math.max(0, g.boks.x - g.plass.x)
@@ -440,7 +330,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     }
     return { dx: naer(g.plass.x + dx, xs, arkB - W) - g.plass.x, dy: naer(g.plass.y + dy, ys, arkH - H) - g.plass.y }
   }
-  /** dei to fingrane slepper: delen står fast der dei hadde han, i næraste kvart sving kring midten */
   const slepp = () => {
     const g = grep.current
     if (!g) return
@@ -465,20 +354,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
   const kryss = ark.plasser.filter((d) => d.kross).length
   const delingar = lesDeling(params.deling)
 
-  /**
-   * ÉI LINE, ALLTID.
-   *
-   * Avlesinga stod på si eiga rad (`basis-full`), og rada kom og gjekk med
-   * kva du hadde teke i. Bandet voks med ei line i det du valde ein del,
-   * arket under fekk mindre å vera på, og heile teikninga hoppa — på
-   * telefonen, medan fingeren stod på delen. Ei rad som kjem av kva du har
-   * valt er nett det README meiner med at synet er ei avgjerd og ikkje ein
-   * konsekvens av det som ligg der.
-   *
-   * Difor deler dei plassen: har du teke i noko, seier lina kva det er;
-   * har du ikkje, seier ho kva plata ber. Dei to er aldri interessante på
-   * same tid, og bandet er like høgt anten vegen.
-   */
   const lesing = ((): { tekst: string; dim: boolean } => {
     if (dra) {
       const d = ark.plasser.find((q) => q.adr === dra.adr)
@@ -557,8 +432,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
               g.vri += vinkel(a, g.sist)
               g.sist = a
               if (g.modus === "uavgjort") {
-                // lese av vegen KVAR FINGER har gått, ikkje av avstanden: to fingrar
-                // rører seg aldri i same augeblinken, og avstanden sprett med steget
                 const da = { x: a1.x - g.a.x, y: a1.y - g.a.y }
                 const db = { x: b1.x - g.b.x, y: b1.y - g.b.y }
                 if (Math.hypot(da.x, da.y) < 8 || Math.hypot(db.x, db.y) < 8) return
@@ -576,7 +449,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
               const [a1, b1] = [...fingrar.current.values()]
               const cx = (a1.x + b1.x) / 2
               const cy = (a1.y + b1.y) / 2
-              // skjermen har y ned og plata y opp, so begge byter forteikn
               const flytt = Math.hypot(cx - gd.anker.cx, cy - gd.anker.cy) > 6
               const grader = (-gd.vri * 180) / Math.PI
               const vri = Math.abs(grader) > 8 ? grader : 0
@@ -611,7 +483,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
             const t = tapp.current
             if (t && t.id === e.pointerId) {
               tapp.current = null
-              // eit trykk på bert bord, stillestandande og åleine, peikar på ingenting
               if (!t.paaDel && !t.fleire && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 6) onPeik(null)
             }
           }}
@@ -625,7 +496,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
               const paa = peikt === d.adr
               const fast = festa.has(d.adr)
               const q = dra?.adr === d.adr ? dra : null
-              // eit merkt plan står i laget sin farge på plata òg: same fargen som i fila
               const strek = d.kross ? "var(--warn)" : lagFarge(d.farge) !== null ? LAG_FARGAR[d.farge as number] : "var(--ink)"
               return (
                 <g
@@ -669,7 +539,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
                     const t = trykk.current
                     const q2 = draRef.current
                     if (t && feillese(t, e.timeStamp)) setMeny(null)
-                    // eit slepp som HENDE etter terskelen utan at klokka fekk fyre er eit langt trykk
                     if (t && !t.brukt && !q2 && e.timeStamp - t.tid >= LANGT_MS) {
                       t.brukt = true
                       t.lang = true
@@ -679,7 +548,6 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
                     }
                     if (!t || t.brukt || !q2) return
                     t.brukt = true
-                    // innanfor plata: masken er boksen pluss margen, og kanten er der masken stoggar
                     const marg = Math.max(0, t.boks.x - t.plass.x)
                     flyttDel(t.adr, { sheet: ark.i, rot: t.plass.rot, x: klem(t.plass.x + q2.dx, arkB - (t.boks.w + 2 * marg)), y: klem(t.plass.y + q2.dy, arkH - (t.boks.h + 2 * marg)) })
                   }}

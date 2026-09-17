@@ -1,4 +1,3 @@
-/** Rekkja må halde mål, eigne profilar, nye ledd og den same kuttmotoren. */
 import assert from "node:assert/strict"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -46,8 +45,6 @@ const bakover = { ...fraa, id: 7, o: [0.43, 0.01, 0.53] as [number, number, numb
 assert.deepEqual(gjentaFlytting([fraa, bakover], { fraa, til: 7 }).kopi?.o, [0.36, -0.13, 0.56])
 sjekkar++
 
-// Seks ribber og ei gjennomgåande plate. Konturane er inndata; alle
-// samanføyingar og kutt kjem frå den ordinære motoren, etter gjentakinga.
 const sete: Plan = { id: 20, o: [0.5, 0.5, 0.78], n: [0, 0, 1], bog: 0, strek: [], omriss: [[-0.42, -0.49], [0.42, -0.49], [0.42, 0.49], [-0.42, 0.49]] }
 const ut = process.env.GJENTA_UT
 if (ut) mkdirSync(ut, { recursive: true })

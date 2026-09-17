@@ -18,7 +18,6 @@ assert(mjuk && mjuk.length >= 12 && mjuk.length <= OMRISS_TAK, "eit rundt finger
 assert(Math.abs(shoelace(mjuk) / shoelace(sirkel) - 1) < 0.03, "sirkelarealet held innanfor tre prosent")
 assert.deepEqual(teiknaKontur([[0, 0], [2, 1], [3, 3], [0, 0]], 1.25), null, "eit mikromerke er ikkje ei plate")
 assert.deepEqual(teiknaKontur([[0, 0], [50, 1], [100, 0]], 1.25), null, "ei line er ikkje ei plate")
-// EI KRYSSANDE RØRSLE ER EI FORM: den største løkka vinn
 const aatte = teiknaKontur([[0, 0], [100, 100], [0, 80], [100, 0]], 1.25)
 assert(aatte && aatte.length >= 3 && Math.abs(shoelace(aatte)) > 1000, "ein kryssande kontur vert den største løkka")
 for (let i = 0; i < aatte!.length; i++) for (let j = i + 2; j < aatte!.length; j++) if (!(i === 0 && j === aatte!.length - 1)) {
@@ -31,7 +30,6 @@ assert(krull && Math.abs(shoelace(krull)) > 0.9 * Math.PI * 120 * 120, "ein krø
 const takt = teiknaKontur(Array.from({ length: 2000 }, (_, i): Pt => { const v = i * Math.PI / 1000; return [(100 + 30 * Math.sin(12 * v)) * Math.cos(v), (100 + 30 * Math.sin(12 * v)) * Math.sin(v)] }), 1.25)
 assert(takt && takt.length === OMRISS_TAK, "ei form med fleire detaljar enn taket vert teken med så mange punkt taket gjev")
 
-// Ei C-side som Sigd: innsøkket må overleve, og opninga må halde seg open.
 const sigd: Pt[] = [[0, 0], [240, 0], [240, 35], [180, 40], [115, 55], [75, 95], [65, 150], [75, 210], [115, 255], [220, 285], [220, 320], [160, 315], [70, 280], [20, 220], [0, 145], [0, 0]]
 const tett = sigd.slice(0, -1).flatMap((p, i) => Array.from({ length: 25 }, (_, j): Pt => [p[0] + (sigd[i + 1][0] - p[0]) * j / 25, p[1] + (sigd[i + 1][1] - p[1]) * j / 25]))
 const start = performance.now()
@@ -48,8 +46,6 @@ assert.deepEqual(lesPlan(skrivPlan([plan]))[0].omriss, omriss, "alle redigerbare
 assert.deepEqual(teiknaFirkant([2, 3], [-1, -2]), [[2, 3], [-1, 3], [-1, -2], [2, -2]], "firkanten held alle fire hjørne i begge dragretningar")
 console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt frå ${tett.length} prøver (${ms.toFixed(1)} ms); areal, innsøkk, avvising og lagring held`)
 
-// KVAR EI NY PLATE LANDAR: to sider med toppen på 438 mm, og eit sete teikna
-// ovanfrå — det skal liggje med underflata på toppen av sidene.
 {
   const S = 450
   const min: Vec3 = [-225, -225, 0]
@@ -59,15 +55,9 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   const sete: Vec3[] = [[-175, -175, 225], [175, -175, 225], [175, 175, 225], [-175, 175, 225]]
   const z = landing(sider, min, max, S, sete)
   assert(z !== null && Math.abs(z - 438) < 0.01, `setet landar på toppen av sidene, ikkje ${z}`)
-  // eit sete som ikkje ligg over noko, står der det vart teikna
   assert.equal(landing(sider, min, max, S, sete.map((p): Vec3 => [p[0] + 800, p[1], p[2]])), null, "eit sete utanfor sidene landar ikkje")
-  // smalare enn toppen: kanten kryssar fotavtrykket utan eit hjørne i det
   const smalt: Vec3[] = [[-60, -175, 225], [60, -175, 225], [60, 175, 225], [-60, 175, 225]]
   assert(Math.abs((landing(sider, min, max, S, smalt) ?? 0) - 438) < 0.01, "eit smalt sete finn kanten mellom hjørna")
-  // STOLEN: sider med ramme på 235 og bakfot opp til 450. Eit sete som stryk
-  // ei tjukn inn på bakfoten landar på ramma, ikkje på toppen av ryggen —
-  // og eit som dekkjer bakfoten med god margin, landar oppå han.
-  // (ramma til eit plan med normal +y har u = −x, so bakfoten på +x er −u)
   const stol = (id: number, y: number): Plan => ({ id, o: [0.5, (y + 225) / S, 0.5], n: [0, 1, 0], bog: 0, strek: [], omriss: ([[-205, 0], [-165, 0], [-165, 200], [165, 200], [165, 0], [205, 0], [205, 450], [165, 450], [165, 235], [-205, 235]] as Pt[]).map(([x, z]): Pt => [-x / S, (z - 225) / S]) })
   const stolsider = [stol(1, -150), stol(2, 150)]
   const t = 12
@@ -76,18 +66,13 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert(Math.abs((landing(stolsider, min, max, S, stolsete(165 + t + 1), t) ?? 0) - 450) < 0.01, "eit sete som dekkjer bakfoten landar oppå han")
   assert(Math.abs((landing(stolsider, min, max, S, stolsete(160), t) ?? 0) - 235) < 0.01, "eit sete framfor bakfoten landar på ramma")
   assert(Math.abs((landing(stolsider, min, max, S, stolsete(165), t) ?? 0) - 235) < 0.01, "eit sete som endar nett ved bakfoten landar på ramma")
-  // KASSA: fire veggar med ytterflata i flukt med setekanten — midtplanet ei
-  // halv tjukn inn — ber setet
   const vegg = (id: number, o: Vec3, n: Vec3): Plan => ({ id, o, n, bog: 0, strek: [], omriss: [[-0.3769, 0.3598], [0.3769, 0.3598], [0.3769, -0.5], [-0.3769, -0.5]] })
   const kasse = [vegg(1, [0.5, 0.8636, 0.5], [0, -1, 0]), vegg(2, [0.1364, 0.5, 0.5], [1, 0, 0]), vegg(3, [0.5, 0.1364, 0.5], [0, 1, 0]), vegg(4, [0.8636, 0.5, 0.5], [-1, 0, 0])]
   const kasseSete: Vec3[] = [[-169.6, -169.6, 225], [169.6, -169.6, 225], [169.6, 169.6, 225], [-169.6, 169.6, 225]]
   assert(Math.abs((landing(kasse, min, max, S, kasseSete, t) ?? 0) - (225 + 0.3598 * S)) < 0.01, `setet på kassa landar på veggane: ${landing(kasse, min, max, S, kasseSete, t)}`)
 
-  // SNAPPET: eit stag teikna frå sida hakar enden fast i midtplanet til sida,
-  // og foten i golvet. Teikneplanet står gjennom midten med normalen langs x.
   const flate = ramme({ o: [0.5, 0.5, 0.5], n: [1, 0, 0] }, min, max)
   const liner = snappliner(sider, min, max, S, flate)
-  // golvet og dei to sidene — og toppen og botnen av sidene, som er kantar langs synsretninga
   assert.equal(liner.filter((l) => Math.abs(l.d[1]) > 0.5).length, 2, "dei to sidene på kant")
   assert.equal(liner.filter((l) => Math.abs(l.d[0]) > 0.5).length, 5, "golvet, og toppen og botnen av kvar side")
   const u = (y: number) => y / S
@@ -97,8 +82,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert.deepEqual(fri, [u(120), 0.1], "langt frå sida står punktet")
   const hjorne = snapp([u(146), -223 / S], liner, 8 / S)
   assert(Math.abs(Math.abs(hjorne[0]) - u(150)) < 1e-9 && Math.abs(hjorne[1] + 225 / S) < 1e-9, `hjørnet ved sida og golvet: ${hjorne}`)
-  // HJØRNA SETT PÅ KANT: ovanfrå er stolsida ei line, men framsida av
-  // bakfoten (x = 165) og dei andre loddrette kantane gjev liner på tvers
   const topp = ramme({ o: [0.5, 0.5, 0.5], n: [0, 0, 1] }, min, max)
   const ovanfraa = snappliner(stolsider, min, max, S, topp)
   const tversX = ovanfraa.filter((l) => Math.abs(l.d[0]) < 1e-9).map((l) => +(l.p[0] * S).toFixed(3))
@@ -106,15 +89,11 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert(!tversX.some((x) => Math.abs(x) < 100), "ramma sine vassrette kantar gjev ingen line")
   const seteHjorne = snapp([160 / S, 0.3], ovanfraa, 8 / S)
   assert(Math.abs(seteHjorne[0] * S - 165) < 1e-6, `setehjørnet hakar seg i framsida av bakfoten: ${seteHjorne[0] * S}`)
-  // og midtstillinga let ein snappa akse stå
   const nesten: Pt[] = [[-0.42, -0.3], [0.367, -0.3], [0.367, 0.3], [-0.42, 0.3]]
   assert.equal(midtPaa(nesten, 0.1, true, [true, false])[1][0], 0.367, "x snappa: står")
   assert.notEqual(midtPaa(nesten, 0.1, true, [false, false])[1][0], 0.367, "ikkje snappa: midtstilt")
-  // SETET MELLOM SIDENE på stolen: endane på midtplana, og bakfoten so vidt nådd
   const mellomStol = mellom(stolsider, min, max, S, t, [[-190, -150, 225], [165 + t - 1, -150, 225], [165 + t - 1, 150, 225], [-190, 150, 225]])
   assert(mellomStol && Math.abs(mellomStol.z - (235 - 2.5 * t)) < 0.01, `setet mellom sidene ligg under ramma, ikkje under ryggen: ${mellomStol?.z}`)
-  // HALDT: ryggen teikna frå sida, midt i kroppen, mellom beina — vert skuva
-  // til bakfoten (390..430 → midten 410). Eit stag i ramma står der det står.
   const rygg: Vec3[] = [[0, -150, 320], [0, 150, 320], [0, 150, 420], [0, -150, 420]]
   const flytta = haldt(stolsider, min, max, S, t, [0, 0, 225], [1, 0, 0], rygg)
   assert(flytta && Math.abs(flytta[0] - 185) <= t / 2 && flytta[1] === 0, `ryggen vert skuva til bakfoten: ${flytta}`)
@@ -126,9 +105,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log("landing og snapp: setet på 438 mm, staget i midtplanet, foten i golvet, setet ved bakfoten, ryggen i bakfoten")
 }
 
-
-// DET FINGEREN MEINTE: ei A-side teikna litt skeiv vert lik på båe sider,
-// og ei side teikna med vilje skeiv står.
 {
   const a: Pt[] = [[-150, 213], [140, 215], [186, -225], [55, -225], [-3, -118], [-62, -225], [-192, -223]]
   const s = symmetrisk(a)
@@ -138,7 +114,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert(s.some((p) => Math.abs(p[0] - c) < 1e-9 && Math.abs(p[1] + 118) < 3), "spissen i hakket står på aksen")
   const skeiv: Pt[] = [[-150, 213], [60, 215], [186, -225], [-192, -223]]
   assert.equal(symmetrisk(skeiv), null, "ei side som er meint skeiv står")
-  // eit hjarte har to hjørne på aksen, og båe står att
   const hjarte = symmetrisk([[-100, 0], [-50, 100], [0, 20], [52, 100], [100, 0], [0, -50]])
   assert(hjarte && hjarte.length === 6 && hjarte.filter((p) => Math.abs(p[0]) < 1.01).length === 2, "eit hjarte har to hjørne på aksen")
   const midt = midtPaa([[-0.3, 0.2], [0.26, 0.2], [0.26, -0.5], [-0.3, -0.5]], 0.05, false)
@@ -150,7 +125,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log(`symmetri: ${a.length} punkt → ${s.length} spegla; skeiv står; hjartet held spissane; midtstilling held`)
 }
 
-// RUNDT OG GJENTA: tre bein på 120°, og ein kopi som går same steget
 {
 
   const min: Vec3 = [-225, -225, 0], max: Vec3 = [225, 225, 450]
@@ -174,7 +148,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log("rundt og gjenta: tre bein på 120°, kryss på 60°, sete dreidd, steget går vidare")
 }
 
-// MJUKT OG SKARPT: bogen i ei side vert rund, hjørna står
 {
   const bue: Pt[] = Array.from({ length: 9 }, (_, i): Pt => [60 * Math.cos(Math.PI * (1 - i / 8)), 80 * Math.sin(Math.PI * (1 - i / 8))])
   const side: Pt[] = [[-150, 300], [150, 300], [180, 0], [60, 0], ...bue.slice(1, -1).reverse(), [-60, 0], [-180, 0]]
@@ -190,13 +163,11 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log(`mjukt og skarpt: ${m.length} runde punkt i bogen, ovalen ${tett.length} punkt`)
 }
 
-// SNAPPET I KONTUREN: foten langs golvet ligg på golvet, gyngemeia rører det i eitt punkt
 {
   const tol = 1.25 / 390
   const golv = 0.4
   const liner: Snappline[] = [{ p: [0, golv], d: [1, 0] }]
   const sn = (p: Pt) => snapp(p, liner, tol * 8)
-  // A-FOTEN: ned langs beinet, bortover golvet tre pikslar over det, og opp att
   const fot: Pt[] = []
   for (let i = 0; i <= 40; i++) fot.push([0.1 + 0.02 * i / 40, 0.1 + 0.3 * i / 40])
   for (let i = 1; i <= 40; i++) fot.push([0.12 + 0.1 * i / 40, golv - 3 * tol + (i % 2 ? tol : 0)])
@@ -204,7 +175,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   const fotUt = snappaKontur(fot, fot.map(sn), tol)
   assert(fotUt.slice(41, 81).every((p) => Math.abs(p[1] - golv) < 1e-12), "foten langs golvet ligg på golvet")
   assert(fotUt.slice(0, 30).every((p, i) => p === fot[i]), "beinet står som det vart teikna")
-  // GYNGEMEIA: ein boge med radius 118 pikslar som rører golvet nedst
   const R = 118 * tol / 1.25
   const meie: Pt[] = []
   for (let i = 0; i <= 80; i++) { const v = Math.PI / 2 + (i / 80 - 0.5) * 1.6; meie.push([0.5 + R * Math.cos(v), golv - R + R * Math.sin(v)]) }
@@ -215,7 +185,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log("snappet i konturen: foten flat på golvet, meia ein boge")
 }
 
-// SETET MELLOM SIDENE: kantane i midtplana → mellom, to tjukner under toppen, ut til utsida
 {
   const S = 450, t = 12
   const min: Vec3 = [-225, -225, 0], max: Vec3 = [225, 225, 450]
@@ -231,7 +200,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log("mellom: setet på 408 mm mellom sidene, kantane på ±156")
 }
 
-// RUNDT MED BEIN SOM STÅR UT FRÅ MIDTEN: radialt plan, men omrisset berre på den eine sida
 {
   const min: Vec3 = [-225, -225, 0], max: Vec3 = [225, 225, 450]
   const ut = rundt({ id: 1, o: [0.5, 0.5, 0.5], n: [0, 1, 0], bog: 0, strek: [], omriss: [[-0.4, 0.4], [-0.1, 0.4], [-0.1, -0.5], [-0.4, -0.5]] }, 3, min, max, 2, 1)
@@ -240,7 +208,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log("rundt: radiale bein ut frå midten får 120°")
 }
 
-// ×4 PÅ EIN VEGG MIDT I: ei kasse med hjørna i flukt
 {
   const min: Vec3 = [-225, -225, 0], max: Vec3 = [225, 225, 450]
   const vegg: Plan = { id: 1, o: [0.5, 0.5, 0.5], n: [0, -1, 0], bog: 0, strek: [], omriss: [[-176 / 450, 0.4], [176 / 450, 0.4], [176 / 450, -0.5], [-176 / 450, -0.5]] }
@@ -254,7 +221,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log("×4 på ein vegg midt i: ei kasse, veggane 170 mm ut")
 }
 
-// eit bein heilt på den eine sida vert ikkje flytt til midten, sjølv som fyrste plate
 {
   const bein: Pt[] = [[0.05, 0.4], [0.3, 0.4], [0.5, -0.5], [0.06, -0.5]]
   assert.deepEqual(midtPaa(bein, Infinity, false), bein, "beinet står der det vart teikna")
@@ -263,7 +229,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log("midtstilling: eit bein ut frå aksen står")
 }
 
-// BILETET: ein svart ring med eit kvadratisk hòl, og eit støvkorn
 {
   const w = 120, h = 100
   const lys = new Float32Array(w * h).fill(1)
@@ -291,7 +256,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log(`bilete: ring med ${f!.omriss.length} punkt og eitt hòl, støvet borte, snudd og tomt held`)
 }
 
-// VEKTORGREPA: ei A-side, redigert med spegelen på
 {
   const side: Plan = { id: 1, o: [0.5, 0.5, 0.5], n: [0, 1, 0], bog: 0, strek: [], omriss: [[-0.3, 0.4], [0.3, 0.4], [0.4, -0.5], [0.1, -0.5], [0, -0.2], [-0.1, -0.5], [-0.4, -0.5]], runde: [4] }
   const erSym = (q: Plan) => q.omriss!.every(([x, y]) => q.omriss!.some(([a, b]) => Math.abs(a + x) < 1e-6 && Math.abs(b - y) < 1e-6))
@@ -315,7 +279,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log("vektor: dra, legg til, ta bort og rund — spegla; hòl flytt og bort")
 }
 
-// DEL I TO: eit sete 350 × 300 vert to på 175 × 300, kant i kant, med same areal
 {
   const sete: Plan = { id: 3, o: [0.5, 0.5, 0.9], n: [0, 0, 1], bog: 0, strek: [], omriss: [[-0.39, -0.33], [0.39, -0.33], [0.39, 0.33], [-0.39, 0.33]] }
   const d = delIto(sete, 9)
@@ -330,7 +293,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   console.log("del i to: setet i to halvdelar, arealet held, bogane finst att")
 }
 
-// SPILER: eit sete 351 × 297 vert fem spiler på 60,6 med tolv millimeter luft
 {
   const sete: Plan = { id: 3, o: [0.5, 0.5, 0.9], n: [0, 0, 1], bog: 0, strek: [], omriss: [[-0.39, -0.33], [0.39, -0.33], [0.39, 0.33], [-0.39, 0.33]] }
   const sp = spiler(sete, 5, 12 / 450, 9)
@@ -343,8 +305,6 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
     assert(Math.abs(luft * 450 - 12) < 0.1, `tolv millimeter luft: ${(luft * 450).toFixed(2)}`)
   }
   assert.equal(spiler(sete, 40, 12 / 450, 9), null, "for mange spiler er ingen spiler")
-  // SPILENE GÅR FRÅ SIDE TIL SIDE: setet mellom sidene (y = ±150, tjukn 12) endar i dei
-  // langs y, so spilene går langs y og vert delte langs x — sjølv om setet er lengst i y
   const S = 450, t = 12
   const min: Vec3 = [-225, -225, 0], max: Vec3 = [225, 225, 450]
   const side = (id: number, y: number): Plan => ({ id, o: [0.5, (y + 225) / S, 0.5], n: [0, 1, 0], bog: 0, strek: [], omriss: [[-150 / S, 213 / S], [150 / S, 213 / S], [190 / S, -225 / S], [-190 / S, -225 / S]] })

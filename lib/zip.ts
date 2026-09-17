@@ -1,17 +1,3 @@
-/**
- * Ein ZIP-skrivar på femti liner.
- *
- * Eit uttak med tre plater er tre filer, og tre filer er ei mappe. Å dra
- * inn eit heilt bibliotek for det er å leggje ein megabyte i nettlesaren
- * for ei arkivformat frå 1989 — og det format har ein modus som er «legg
- * bytane etter kvarandre og skriv ei innhaldsliste til slutt». Ingen
- * komprimering: ein SVG komprimerer godt, men det er ikkje storleiken som
- * er problemet her, det er at det skal vera éi nedlasting.
- *
- * Namna er ASCII. ZIP kan bera UTF-8, men berre med eit flagg somme
- * gamle utpakkarar ikkje les, og filnamna herifrå er alt reinska.
- */
-/** Anten tekst eller bytar. Ein STL og eit nett er ikkje tekst. */
 export type Entry = { name: string; text?: string; data?: Uint8Array }
 
 const TABLE = (() => {
@@ -30,12 +16,6 @@ function crc32(b: Uint8Array): number {
   return (c ^ 0xffffffff) >>> 0
 }
 
-/**
- * `juster` er USDZ og ingenting anna: der SKAL kvar fil byrje på ei adresse
- * som går opp i seksti og fire, og vegen dit er polstring i det ekstrafeltet
- * kvart lokalt hovud har. Ekstrafeltet er null bytar; ein lesar hoppar over
- * det på lengda si — den same lengda `unzip` under les.
- */
 export function zip(entries: readonly Entry[], juster = 0): ArrayBuffer {
   const enc = new TextEncoder()
   const files = entries.map((e) => {
@@ -111,23 +91,10 @@ export function zip(entries: readonly Entry[], juster = 0): ArrayBuffer {
   return buf
 }
 
-/**
- * Og attende igjen.
- *
- * Berre den eine modusen skrivaren over lagar: bytane etter kvarandre,
- * ukomprimerte. Ein ZIP som er komprimert treng ein inflate, og det er
- * hundre gonger meir kode enn heile denne fila — so han vert sagt nei til
- * med eit ord i staden for lesen halvvegs.
- *
- * Innhaldslista til slutt er fasiten, ikkje dei lokale hovuda: eit arkiv
- * som er skrive om att kan ha gamle hovud liggjande att framme.
- */
 export function unzip(buf: ArrayBuffer): { name: string; data: Uint8Array }[] {
   const dv = new DataView(buf)
   const u8 = new Uint8Array(buf)
   const dec = new TextDecoder()
-  // Slutten på innhaldslista står bakarst, og kan ha ein kommentar etter
-  // seg. Difor eit søk bakfrå, og ikkje ei fast adresse.
   let eocd = -1
   for (let i = buf.byteLength - 22; i >= 0 && i > buf.byteLength - 22 - 65536; i--) {
     if (dv.getUint32(i, true) === 0x06054b50) {

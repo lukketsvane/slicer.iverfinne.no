@@ -1,26 +1,14 @@
-/**
- * SLICERMAN — vektorgrepa på eit omriss, flatt.
- *
- * Reint: eit plan inn, eit plan ut. 2D-flata (`components/vektor.tsx`)
- * kallar desse, og vaktene kan kalle dei utan ein nettlesar. Eininga er
- * brøk av storleiken, som i strengen; punkta står i planet si eiga ramme.
- */
 import { shoelace, type Pt, type Vec3 } from "./core"
 import { OMRISS_TAK, STREK_TAK, omrissLine, omrissMidt, ramme, ut as utAv, type Plan, type Ramme, type Strek } from "./plan"
 import { mjukePunkt, teiknaKontur } from "./teikning"
 
 const klem = (v: number) => Math.max(-2, Math.min(2, +v.toFixed(4)))
 const kp = (p: Pt): Pt => [klem(p[0]), klem(p[1])]
-/** bogane er plassar: kvart grep som flyttar plassar, flyttar dei med */
 const skift = (r: number[] | undefined, f: (k: number) => number | null) => {
   const ny = (r ?? []).map(f).filter((k): k is number => k !== null)
   return ny.length ? { runde: ny } : { runde: undefined }
 }
 
-/**
- * SPEGELMAKKEREN: punktet på den andre sida av midtlina (x = 0), eller
- * null. Eit punkt på lina er sin eigen makker.
- */
 export function makker(o: readonly Pt[], i: number, tol = 2e-3): number | null {
   const [x, y] = o[i]
   if (Math.abs(x) <= tol) return i
@@ -33,7 +21,6 @@ export function makker(o: readonly Pt[], i: number, tol = 2e-3): number | null {
   return best
 }
 
-/** eitt punkt dit fingeren er — og makkeren spegla, når spegelen er på */
 export function flyttPunkt(q: Plan, i: number, p: Pt, spegl = false): Plan {
   const o = q.omriss
   if (!o?.[i]) return q
@@ -47,7 +34,6 @@ export function flyttPunkt(q: Plan, i: number, p: Pt, spegl = false): Plan {
   return Math.abs(shoelace(ny)) < 1e-6 ? q : { ...q, omriss: ny }
 }
 
-/** eit nytt punkt midt på stykket etter `i`, på kurva — med makkeren sin */
 export function leggPunkt(q: Plan, i: number, spegl = false): Plan {
   const o = q.omriss
   if (!o?.[i] || o.length >= OMRISS_TAK) return q
@@ -57,7 +43,6 @@ export function leggPunkt(q: Plan, i: number, spegl = false): Plan {
   ny.splice(i + 1, 0, midt)
   let ut: Plan = { ...q, omriss: ny, ...skift(q.runde, (k) => (k > i ? k + 1 : k)) }
   if (spegl && ut.omriss!.length < OMRISS_TAK && Math.abs(midt[0]) > 2e-3) {
-    // makkerstykket: det som endar der det spegla stykket byrjar
     const a = makker(o, (i + 1) % o.length), b = makker(o, i)
     if (a !== null && b !== null && (a + 1) % o.length === b && a !== i) {
       const j = a < i + 1 ? a : a + 1
@@ -69,7 +54,6 @@ export function leggPunkt(q: Plan, i: number, spegl = false): Plan {
   return ut
 }
 
-/** punktet bort, og makkeren. Tre er golvet. */
 export function takPunkt(q: Plan, i: number, spegl = false): Plan {
   const o = q.omriss
   if (!o?.[i]) return q
@@ -81,7 +65,6 @@ export function takPunkt(q: Plan, i: number, spegl = false): Plan {
   return { ...q, omriss: ny, ...skift(q.runde, flytt) }
 }
 
-/** hjørne eller boge — for punktet og makkeren */
 export function rundPunkt(q: Plan, i: number, spegl = false): Plan {
   const o = q.omriss
   if (!o?.[i]) return q
@@ -96,7 +79,6 @@ export function rundPunkt(q: Plan, i: number, spegl = false): Plan {
   return { ...q, runde: ny.length ? ny : undefined }
 }
 
-/** eit strek flytt, eller bort */
 export function flyttStrek(q: Plan, k: number, x: number, y: number): Plan {
   const s = q.strek[k]
   if (!s) return q
@@ -109,7 +91,6 @@ export function leggStrek(q: Plan, s: Strek): Plan {
   return q.strek.length >= STREK_TAK ? q : { ...q, strek: [...q.strek, s] }
 }
 
-/** eit strek som ein ring i planet si ramme: det 2D-flata teiknar og treffer */
 export function strekRing(s: Strek, n = 32): Pt[] {
   const a = (s.a * Math.PI) / 180
   const c = Math.cos(a), si = Math.sin(a)
@@ -122,7 +103,6 @@ export function strekRing(s: Strek, n = 32): Pt[] {
   return lok.map(([x, y]) => [s.x + x * c - y * si, s.y + x * si + y * c])
 }
 
-/** halvplanet `x·a ≤ c` (eller ≥ når `snu`) av ein ring — Sutherland–Hodgman */
 function klippRing(ring: readonly Pt[], a: 0 | 1, c: number, snu: boolean): Pt[] {
   const inne = (p: Pt) => (snu ? p[a] >= c : p[a] <= c)
   const ut: Pt[] = []
@@ -137,12 +117,6 @@ function klippRing(ring: readonly Pt[], a: 0 | 1, c: number, snu: boolean): Pt[]
   return ut
 }
 
-/**
- * DEL I TO: plata vert to, delte på tvers av den lengste leia midt i.
- * Dei ligg i same plan, kant i kant, og snittinga gjev dei fingrar
- * (`skoyt` i tapp.ts). For eit delt sete, og for ei plate som er større
- * enn arket. Bogane vert rekna ut til punkt og funne att.
- */
 export function delIto(q: Plan, nyId: number, tol = 5e-4): [Plan, Plan] | null {
   if (!q.omriss || q.bog) return null
   const tett = omrissLine(q.omriss, q.runde)
@@ -161,22 +135,6 @@ export function delIto(q: Plan, nyId: number, tol = 5e-4): [Plan, Plan] | null {
   return A && B ? [A, { ...B, id: nyId }] : null
 }
 
-/**
- * SPILER: plata vert `n` like breie spiler på tvers av den lengste leia,
- * med ei luft på `glipe` mellom kvar — eit sete av lameller, ei rist. Den
- * fyrste held namnet; dei andre får namna frå `fraaId` og oppover. Kvar
- * spile tek omrisset sitt frå plata, so ein runda kant vert runda i den
- * ytste spila og rett i dei inni.
- */
-/**
- * KVA VEG SPILENE GÅR: langs den aksen der omrisset endar i andre plater.
- *
- * Eit sete mellom to sider når frå den eine sida til den andre, og spilene
- * skal gjera det same — kvar spile er eit sete for seg, med tappane sine i
- * båe endar. Aksen er den der både den lågaste og den høgaste kanten ligg
- * innanfor ei tjukn av midtplanet til ei anna plate. Når ingen eller båe
- * gjer det, seier forma sjølv: null, og `spiler` tek den lengste.
- */
 export function spileAkse(q: Plan, alle: readonly Plan[], min: Vec3, max: Vec3, S: number, t: number): 0 | 1 | null {
   if (!q.omriss || q.bog) return null
   const r = ramme(q, min, max)
@@ -184,7 +142,6 @@ export function spileAkse(q: Plan, alle: readonly Plan[], min: Vec3, max: Vec3, 
   const plan = alle.filter((o) => o.id !== q.id && o.omriss && !o.bog).map((o) => ramme(o, min, max)).filter((o) => Math.abs(o.n[0] * r.n[0] + o.n[1] * r.n[1] + o.n[2] * r.n[2]) < 0.99)
   const naar = (w: Vec3, o: Ramme) => { const L = Math.hypot(o.n[0], o.n[1], o.n[2]) || 1; return Math.abs(((w[0] - o.o[0]) * o.n[0] + (w[1] - o.o[1]) * o.n[1] + (w[2] - o.o[2]) * o.n[2]) / L) <= t }
   const eps = 1e-3
-  // heile kanten i den enden — kvart punkt der — ligg i den same plata
   const kant = (pkt: typeof pk) => pkt.length > 0 && plan.some((o) => pkt.every((k) => naar(k.w, o)))
   const treff = (a: 0 | 1) => {
     const v = pk.map((k) => k.p[a])
@@ -195,7 +152,6 @@ export function spileAkse(q: Plan, alle: readonly Plan[], min: Vec3, max: Vec3, 
   return x === y ? null : x ? 0 : 1
 }
 
-/** `langs` er aksen spilene går langs; utan han går dei langs den lengste */
 export function spiler(q: Plan, n: number, glipe: number, fraaId: number, langs?: 0 | 1 | null, tol = 5e-4): Plan[] | null {
   if (!q.omriss || q.bog || n < 2) return null
   const tett = omrissLine(q.omriss, q.runde)

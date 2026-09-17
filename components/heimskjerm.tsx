@@ -2,16 +2,6 @@
 
 import { useEffect } from "react"
 
-/**
- * Heile verkstaden på telefonen.
- *
- * EI NY UTGÅVE BYTER NÅR INGEN FINGER ER I GANG. Ho venta til appen var
- * lukka — men ein app på heimskjermen vert nesten aldri lukka på iOS, han
- * vert lagd i bakgrunnen, og då såg du aldri noko nytt. No byter ho i dei
- * to augneblinkane ingenting kan gå tapt: ved opning før fyrste trykk, og
- * når appen kjem attende frå bakgrunnen — økta vart skriven då han gjekk
- * (sjå `skrivOkta`). Midt i eit drag byter ho aldri.
- */
 export function Heimskjerm() {
   useEffect(() => {
     if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return
@@ -31,7 +21,6 @@ export function Heimskjerm() {
         .then((r) => {
           registrering = r
           if (!rort) byt(r)
-          // ei utgåve som vert ferdig medan du held på, ventar til appen kjem attende
           r.addEventListener("updatefound", () => {
             const ny = r.installing
             ny?.addEventListener("statechange", () => { if (ny.state === "installed" && !rort) byt(r) })
@@ -41,7 +30,6 @@ export function Heimskjerm() {
     }
     const tilbake = () => {
       if (document.visibilityState !== "visible") return
-      // attende frå bakgrunnen: ei utgåve som ventar, tek over no
       byt(registrering)
       if (Date.now() - sist < 60000) return
       sist = Date.now()

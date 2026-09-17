@@ -1,10 +1,3 @@
-/**
- * Prøvebenken. Han køyrer motoren utan nettlesar og skriv ut det ein
- * elles måtte sjå på skjermen for å vita: kor mange delar, kor mange
- * ledd, kor lang kutten er, og om kuttfilene i det heile vart til noko.
- *
- *   npx tsx scripts/probe.ts
- */
 import { MOTOR, montering } from "../lib/motor"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { parseMesh } from "../lib/io"
@@ -29,13 +22,6 @@ import { checkRules } from "../lib/rules"
 import { existsSync, readFileSync } from "node:fs"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
-/**
- * EI VIFTE AV PLAN, som TESTDATA og ikkje som ein reiskap.
- *
- * `virvel` var eit verkty i appen og er teken bort. Geometrien han laga — n
- * plan kring loddaksen, kvart med si eiga retning — er framleis noko motoren
- * må greie, og noko handa kan setje for hand. Ho vert difor laga her.
- */
 const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1): Plan[] => {
   const W = Math.max(1e-6, vidd[0])
   const D = Math.max(1e-6, vidd[1])
@@ -53,27 +39,10 @@ const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1):
   return ut
 }
 
-
-/**
- * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
- * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
- * det same rutenettet standarden hadde før, og det same objektet.
- */
 const GRUNN = { ...DEFAULT_PARAMS, plan: nett(6, 6) }
-
 
 const nn = (v: number, d = 1) => v.toFixed(d)
 
-/**
- * TRE PÅSTANDAR, OG EIN UTGANGSKODE.
- *
- * Prøvebenken skreiv `!!` framfor kvar påstand som ikkje heldt, og
- * avslutta med null uansett. Ein grøn `pnpm probe` tydde difor berre at
- * skriptet kom til enden — ikkje at ein kube har seks og tretti ledd, at
- * eit vrengd nett gjev det same som eit rettvendt, eller at ein GLB og det
- * same nettet Z-opp gjev det same objektet. Tre påstandar som ingen
- * maskin las.
- */
 let brot = 0
 const bryt = (kva: string) => {
   brot++
@@ -135,7 +104,6 @@ function report(name: string, p: Params) {
   return { m, r, lag }
 }
 
-// --- 1 standarden: kuben --------------------------------------------------
 const kube = report("kube, standard", GRUNN)
 if (kube.m.joints !== 36) {
   bryt(
@@ -143,27 +111,20 @@ if (kube.m.joints !== 36) {
   )
 }
 
-// --- 2 tettare rutenett og tjukkare plate ---------------------------------
 report("kube 400, 12x9 ribber i 6 mm", {
   ...GRUNN, storleik: 400, plan: nett(12, 9), tjukn: 6,
   arkB: 1200, arkH: 900,
 })
 
-// --- 3 tjukk plate --------------------------------------------------------
 report("kube 300 i 9 mm", {
   ...GRUNN, storleik: 300, tjukn: 9, arkB: 1200, arkH: 900,
 })
 
-// --- 4 vend og skaler -----------------------------------------------------
 report("kube, vend 30/20/10 og 700 mm", {
   ...GRUNN,
   rotX: 30, rotY: 20, rotZ: 10, storleik: 700, tjukn: 6, arkB: 1200, arkH: 900,
 })
 
-// --- 4b scena: kroppen sett saman av bitar ---------------------------------
-// Ein kube med ei kule oppå og ein sylinder på skrå inn i sida er éin kropp:
-// strålane tel skal, so overlappet er gods. Skala vert ikkje sydd, og treng
-// ikkje det.
 {
   const alle = ["kube", "kule", "sylinder", "kjegle", "torus"].map((id) => report(`primitiv: ${id}`, { ...GRUNN, scene: `${id}@0,0,0/1/0` }))
   if (alle.some((r) => r.m.parts === 0 || r.m.joints === 0 || r.m.openEdges > 0)) bryt("eit primitiv snittar ikkje til ein lukka kropp med ledd")
@@ -176,20 +137,7 @@ report("kube, vend 30/20/10 og 700 mm", {
   }
 }
 
-/**
- * --- 4c LAGET SOM BAND: EIT PLAN SOM HØYRER TIL EIN BIT ---------------------
- *
- * To figurar som går i kvarandre er éin kropp, og eit plan tvers gjennom gav
- * éi ribbe som strekte seg frå den eine, over glipa, og inn i den andre —
- * éin del som held to figurar i hop der du ville hatt to.
- *
- * Merkjer du biten med eit lag og planet med det same laget, høyrer planet
- * til biten: profilen vert klipt til boksen hans. Vakta måler BREIDDA på
- * delen, av di det er ho spørsmålet handlar om — og ho krev at eit umerkt
- * plan, og eit plan merkt med eit lag ingen bit har, er nøyaktig som før.
- */
 {
-  // to kubar på hundre millimeter som overlappar ti: éin kropp, 190 brei
   const scene = (a: string, b: string) => `kube@-45,0,0/1/0${a};kube@45,0,0/1/0${b}`
   const langs = skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5], n: [0, 1, 0], bog: 0, strek: [] }])
   const merkt = skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5], n: [0, 1, 0], bog: 0, strek: [], farge: 3 }])
@@ -201,19 +149,16 @@ report("kube, vend 30/20/10 og 700 mm", {
   console.log(`\n=== laget som band ===\n  utan merke        ${heil.n} del, ${heil.w.toFixed(0)} mm brei`)
   if (heil.n !== 1 || heil.w < 150) bryt(`to kubar som overlappar skulle gje éi brei ribbe, fekk ${heil.n} delar på ${heil.w.toFixed(0)} mm`)
 
-  // planet merkt, men ingen bit ber laget: alt står som før
   const utan = breidd({ ...GRUNN, storleik: 190, plan: merkt, scene: scene("", "") } as Params)
   if (utan.n !== heil.n || Math.abs(utan.w - heil.w) > 0.01) {
     bryt(`eit lag ingen bit har skulle ikkje klippe noko: ${utan.w.toFixed(1)} mot ${heil.w.toFixed(1)} mm`)
   } else console.log(`  lag utan eigar    ${utan.n} del, ${utan.w.toFixed(0)} mm brei — urørt`)
 
-  // biten merkt, men ikkje planet: heller ikkje noko klipp
   const berreBit = breidd({ ...GRUNN, storleik: 190, plan: langs, scene: scene("/c:3", "") } as Params)
   if (berreBit.n !== heil.n || Math.abs(berreBit.w - heil.w) > 0.01) {
     bryt(`eit umerkt plan skulle skjere heile kroppen: ${berreBit.w.toFixed(1)} mot ${heil.w.toFixed(1)} mm`)
   } else console.log(`  berre biten merkt ${berreBit.n} del, ${berreBit.w.toFixed(0)} mm brei — urørt`)
 
-  // begge merkte: ribba vert klipt til den eine boksen
   const bunde = breidd({ ...GRUNN, storleik: 190, plan: merkt, scene: scene("/c:3", "") } as Params)
   console.log(`  begge merkte      ${bunde.n} del, ${bunde.w.toFixed(0)} mm brei`)
   if (bunde.w > heil.w * 0.62 || bunde.w < heil.w * 0.4) {
@@ -221,7 +166,6 @@ report("kube, vend 30/20/10 og 700 mm", {
   }
   if (bunde.areal >= heil.areal) bryt(`ei klipt ribbe skal ha mindre flate enn ei heil: ${bunde.areal.toFixed(0)} mot ${heil.areal.toFixed(0)} mm²`)
 
-  // og ber BEGGE bitane laget, eig laget båe: ribba er heil att
   const to = breidd({ ...GRUNN, storleik: 190, plan: merkt, scene: scene("/c:3", "/c:3") } as Params)
   console.log(`  begge bitane      ${to.n} del, ${to.w.toFixed(0)} mm brei`)
   if (Math.abs(to.w - heil.w) > heil.w * 0.02) {
@@ -229,15 +173,6 @@ report("kube, vend 30/20/10 og 700 mm", {
   }
 }
 
-/**
- * --- 4d EI VIFTE: PLAN KRING EIN AKSE ---------------------------------------
- *
- * Det andre ribbespråket møblane snakkar. n ribber kring loddaksen, kvar
- * vridd og SKOVEN UT frå han. Skuvet er heile saka: går alle gjennom aksen,
- * kryssar dei kvarandre langs den same lina, og då er det ikkje eit møbel.
- * Difor står det utarta tilfellet her ved sida av det som verkar — ei grense
- * som ikkje er prøvd er ei grense nokon flyttar.
- */
 {
   const kropp = { ...GRUNN, scene: "sylinder@0,0,0/1/0", storleik: 300, tjukn: 9 }
   const vidd: [number, number] = (() => {
@@ -249,19 +184,16 @@ report("kube, vend 30/20/10 og 700 mm", {
   if (open.m.parts === 0 || open.m.joints === 0 || open.m.loose > 0 || open.m.openEdges > 0) {
     bryt(`vifta heng ikkje saman: ${open.m.parts} delar, ${open.m.joints} ledd, ${open.m.loose} lause, ${open.m.openEdges} opne kantar`)
   }
-  // og gjennom aksen fell han frå kvarandre — målt, ikkje gjetta
   const midt = report("vifte gjennom aksen (utarta)", { ...kropp, plan: skrivPlan(vifte(20, 0, vidd)) } as Params)
   if (midt.m.loose <= open.m.loose) {
     bryt(`ribber gjennom aksen skulle falle frå kvarandre: ${midt.m.loose} lause mot ${open.m.loose}`)
   }
-  // trebeint: det låge talet skal òg gje eit møbel som held
   const tre = report("vifte, 3 plan, r 0.18", { ...kropp, plan: skrivPlan(vifte(3, 0.18, vidd)) } as Params)
   if (tre.m.parts !== 3 || tre.m.joints === 0 || tre.m.loose > 0) {
     bryt(`tre ribber heng ikkje saman: ${tre.m.parts} delar, ${tre.m.joints} ledd, ${tre.m.loose} lause`)
   }
 }
 
-// --- 5 eit importert nett: ei kule som STL --------------------------------
 function sphereStl(r: number, seg: number): ArrayBuffer {
   const pos: number[] = []
   const at = (i: number, j: number): [number, number, number] => {
@@ -307,7 +239,6 @@ report("kule, glatta og forenkla", {
   plan: nett(7, 7),
 })
 
-// --- 6 ein torus: to stykke i same søyle, og eit hòl gjennom ---------------
 function torusSoup(R: number, r: number, n: number, m: number) {
   const pos: number[] = []
   const at = (i: number, j: number): [number, number, number] => {
@@ -333,10 +264,6 @@ function torusSoup(R: number, r: number, n: number, m: number) {
 put("torus", "torus", torusSoup(60, 22, 64, 32))
 report("torus, staaende", { ...GRUNN, kjelde: "torus", rotX: 90, plan: nett(9, 9), })
 
-// --- 7 eit nett som er snudd ut-inn ---------------------------------------
-// Ein eksport som gløymde å snu normalane er ei heilt vanleg fil, og
-// stråleskytinga les henne som tom luft om ingen tek tak i det. Ho skal gje
-// nøyaktig det same objektet som den rettvende.
 const vrengd = makeSoup(
   (() => {
     const src = torusSoup(60, 22, 64, 32).pos
@@ -365,16 +292,12 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   )
 }
 
-// --- 8 same forma som GLB og som STL ---------------------------------------
-// Ein GLB er Y-opp og ei STL er som ho er lagd. Same kule, skriven begge
-// vegar, skal difor gje NØYAKTIG same objekt — elles er vendinga feil.
 {
   const seg = 32
   const pos: number[] = []
   const at = (i: number, j: number): [number, number, number] => {
     const th = (i / seg) * Math.PI * 2
     const ph = (j / seg) * Math.PI
-    // Y opp, som glTF krev
     return [
       50 * Math.sin(ph) * Math.cos(th),
       50 * Math.cos(ph) * 1.6,
@@ -387,15 +310,12 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
       const b = at(i + 1, j)
       const c = at(i + 1, j + 1)
       const d = at(i, j + 1)
-      // Y opp er venstrehendt sett frå Z-opp-verda, so vindinga vert snudd
-      // her for at kula skal vende utover etter vendinga.
       pos.push(...a, ...c, ...b, ...a, ...d, ...c)
     }
   }
   const yup = new Float32Array(pos)
   put("glbkule", "kule.glb", parseMesh("k.glb", glb(yup, null, [{ mesh: 0 }], [0])))
 
-  // den same kula, men allereie Z-opp, rett inn som trekantsuppe
   const zup = new Float32Array(pos.length)
   for (let i = 0; i < pos.length; i += 3) {
     zup[i] = pos[i]
@@ -420,16 +340,6 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   }
 }
 
-// --- 9 GLB og USDZ ut: same objektet, lese attende ------------------------
-/**
- * Eit uttak ingen les attende er eit uttak ingen veit noko om. STL-en er
- * millimeter og Z opp, GLB-en er meter og Y opp, og USDZ-en er millimeter
- * og Y opp — tre skrivemåtar for det SAME objektet, og skil dei seg med
- * meir enn tusendelen, er vendinga eller skalaen feil i ein av dei.
- *
- * USDZ er i tillegg ein ZIP med reglar: fyrste fila skal vera USD-en, og
- * kvar fil skal byrje på ei adresse som går opp i 64.
- */
 {
   const bag = GRUNN as unknown as ParamBag
   const stlUt = MOTOR.exportFile(bag, "stl")
@@ -439,20 +349,6 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   const les = parseMesh("ut.glb", glbUt.data as ArrayBuffer)
   console.log(`\n=== glb og usdz ===`)
 
-  /**
-   * OG OBJEKTFILENE ER FINARE LESNE ENN KUTTFILENE.
-   *
-   * Ei fil du tek med deg ut av reiskapen vert skriven éin gong; eit
-   * skyvarhakk vert rekna på kvart drag. Dei to har ikkje same budsjettet,
-   * og difor ikkje same oppløysinga: `DETAIL.fil` mot `DETAIL.mid`.
-   *
-   * TREKANTTALET målte òg slisshjørne: då dei vart meir presise på mid-
-   * nivået, fall forholdet under 1,25 sjølv om kurveavviket framleis vart
-   * seks gonger mindre. Difor les vi no den EKSPORTERTE kanten attende.
-   * Midtsnittet gjennom kula med 48 breiddegradsteg er ein regulær 96-kant.
-   * Radiusen hennar er kjend ved kvar vinkel, utan å spørje snittmotoren.
-   * Fila skal halde 0,03 mm og vere minst tre gonger nærare enn kuttnivået.
-   */
   const krum = { ...GRUNN, kjelde: "kule", storleik: 200, plan: nett(1, 0) } as unknown as Params
   const finStl = MOTOR.exportFile(krum as unknown as ParamBag, "stl")
   const fin = parseMesh("fin.stl", finStl.data as ArrayBuffer)
@@ -502,7 +398,6 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
     console.log(`  usdz      ${usdzUt.name}, ${bytar.length} B, ${punkt} punkt, fyrste fila på ${start}`)
     if (punkt !== fasit.tris * 3) bryt(`USDZ har ${punkt} punkt der nettet har ${fasit.tris * 3} hjørne`)
     if (!/metersPerUnit = 0.001/.test(usda) || !/upAxis = "Y"/.test(usda)) bryt("USDZ manglar eininga eller opp-aksen")
-    // ekstenten er Y opp og i millimeter: høgda står i det andre talet
     const ext = usda.match(/extent = \[\((.+?)\), \((.+?)\)\]/)
     const hog = ext ? Number(ext[2].split(", ")[1]) - Number(ext[1].split(", ")[1]) : 0
     if (Math.abs(hog - (fasit.max[2] - fasit.min[2])) > 0.05) {
@@ -511,19 +406,6 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   }
 }
 
-// --- 9b GLB som SCENE: ein node per del, og dei same delane lagde flatt ---
-/**
- * EIN MONTASJE DU KAN TA FRÅ KVARANDRE.
- *
- * GLB-en er ikkje eitt nett: han er eit tre. Vakta spør treet om det same
- * kuttlista svarar på — kor mange delar, og kva dei heiter — av di det er
- * NAMNET som gjer fila til noko meir enn eit bilete. Er dei to lister
- * ulike, har fila delar som ikkje finst på plata, eller delar utan namn.
- *
- * Og «flat» er den same lista ein gong til, lagd ned på plata: ei gruppe
- * per ark, og kvar del med begge flatene sine mellom null og tjukna. Ligg
- * ein del utanfor det bandet, står han ikkje flatt.
- */
 {
   const bag = GRUNN as unknown as ParamBag
   const p = GRUNN as Params
@@ -549,7 +431,6 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   if (flat.grupper.length !== ark) bryt(`«flat» har ${flat.grupper.length} grupper der nestinga la delane på ${ark} ark`)
   if (flatNamn.length !== paaArk.length) bryt(`«flat» har ${flatNamn.length} nodar der ${paaArk.length} delar ligg på plata`)
   if ([...flatNamn].sort().join() !== paaArk.map((k) => k.adr).sort().join()) bryt("«flat» ber andre adresser enn dei som ligg på plata")
-  // glTF er Y opp, so verkstaden si z — tjukna — er y i fila, i meter
   const t = p.tjukn / 1000
   if (flat.lo < -1e-6 || flat.hog > t + 1e-6) {
     bryt(`«flat» går frå ${nn(flat.lo * 1000, 3)} til ${nn(flat.hog * 1000, 3)} mm og ikkje frå 0 til ${nn(p.tjukn, 2)}`)
@@ -557,26 +438,6 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
     console.log(`  flat      alle delane ligg mellom 0 og ${nn(p.tjukn, 2)} mm — plata står på golvet`)
   }
 
-  /**
-   * EI DELT RIBBE HAR EI ADRESSE MED BOKSTAV I, og det er den saka som
-   * ryk fyrst om nodane skulle finne delane sine ein annan veg enn
-   * kuttlista gjer. To kubar med luft imellom: kvart plan tvers over dei
-   * skjer to lause stykke, og dei heiter «4a» og «4b».
-   */
-  /**
-   * 3MF: DET SAME, I DET FORMATET EIN SLICER OPNAR.
-   *
-   * Ein slicer les ikkje GLB, so «flat» er rett geometri i feil format.
-   * Fila er ein OPC-pakke — tre filer i ein ZIP — og innhaldet er XML som
-   * ein kan lesa. Vakta spør om det som gjer at Bambu Studio opnar henne
-   * utan å klage: at pakka har dei tre filene, at eininga er millimeter,
-   * at kvart objekt står i bygglista, at namna er adressene, og at ingen
-   * trekant peikar utanfor si eiga hjørneliste eller på seg sjølv.
-   *
-   * OG AT TALA IKKJE ER DELTE PÅ TUSEN. 3MF er millimeter og z opp, som
-   * verkstaden; GLB er meter og y opp. To formata som ser like ut i koden
-   * og ikkje i fila, og ein del på 0,003 mm er ein del du ikkje ser.
-   */
   const mfUt = MOTOR.exportFile(bag, "3mf")
   const pakke = unzip(mfUt.data as ArrayBuffer)
   const filer = pakke.map((f) => f.name).sort()
@@ -590,7 +451,6 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   if (mfNamn.length !== paaArk.length) bryt(`3MF har ${mfNamn.length} objekt der ${paaArk.length} delar ligg på plata`)
   if (mfBygg.join() !== mfNamn.map((q) => q.id).join()) bryt("3MF sin byggliste og objektlista er ikkje den same")
   if (mfNamn.map((q) => q.namn).sort().join() !== paaArk.map((k) => k.adr).sort().join()) bryt("3MF ber andre namn enn adressene på plata")
-  // hjørna: same høgda som «flat», og i MILLIMETER
   const zar = [...mf.matchAll(/<vertex [^>]*z="(-?[\d.]+)"/g)].map((m) => Number(m[1]))
   const zLo = Math.min(...zar)
   const zHog = Math.max(...zar)
@@ -599,18 +459,6 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   } else {
     console.log(`  3mf       millimeter og z opp: plata står frå 0 til ${nn(zHog, 2)}`)
   }
-  /**
-   * OG AT KVAR DEL ER EIN LUKKA KROPP.
-   *
-   * Det er dette som avgjer om slicaren opnar fila eller melder «ikkje
-   * manifold — reparer?». Prøva er kantane: i eit lukka nett med rett
-   * vinding går kvar kant nøyaktig éin gong den eine vegen og éin gong
-   * den andre. Ein kant utan makker er eit hòl i skalet; ein kant som
-   * går same vegen to gonger er to flater som vender kvar sin veg.
-   *
-   * Volumet seier kva veg heile skalet vender. Positivt er ut. Eit nett
-   * som er vrengt har same kantane og er like fullt eit hòl i lufta.
-   */
   let vondt = 0
   let opne = 0
   let dobble = 0
@@ -657,11 +505,6 @@ if (a.m.parts !== b.m.parts || a.m.joints !== b.m.joints) {
   else console.log(`  delte     stykka har kvar sin node, i begge filene`)
 }
 
-/**
- * Scena i ein GLB, lese rett av JSON-blokka: gruppene, borna deira, og kor
- * høgt geometrien går. `lib/io/glb.ts` les TREKANTANE og gløymer treet —
- * det er rett der, og feil her, av di det er treet vakta spør om.
- */
 function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; lo: number; hog: number } {
   const dv = new DataView(buf)
   const jsonLen = dv.getUint32(12, true)
@@ -684,23 +527,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   return { grupper, lo, hog }
 }
 
-// =============================================================================
-// FELTET SKAL SYNE DET MOTOREN REKNAR MED
-// =============================================================================
-/**
- * Talfeltet finst for å koma forbi steget til skyvaren: den som har målt
- * plata si til 2,87 skal kunne skrive 2,87, av di klaringa i kvart einaste
- * spor kjem av det talet.
- *
- * Men feltet skreiv talet med STEGET si oppløysing, og la det som stod der
- * inn i utkastet når det vart teke. Eit klikk i feltet og eit klikk ut att
- * las difor «2,9» og skreiv 2,9. Målinga gjekk tapt av å bli sedd på, og
- * ingenting sa frå: oppsettet i verktykassa synte framleis 2.87.
- *
- * Runden nedanfor er akkurat den handlinga — klemme, skrive ut, lese
- * attende, klemme — og han skal ende der han byrja. For KVART band, og for
- * verdiar som med vilje ligg mellom to steg.
- */
 {
   let sett = 0
   const runde = (k: string, v: number) => {
@@ -714,7 +540,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   }
   for (const k of Object.keys(PARAM_RANGES)) {
     const r = PARAM_RANGES[k]
-    // Endane, midten, og fire punkt som med vilje ikkje ligg på eit steg.
     const mid = (r.min + r.max) / 2
     for (const v of [
       r.min,
@@ -731,15 +556,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   console.log(`\n=== talfeltet ===\n  ${sett} verdiar over ${Object.keys(PARAM_RANGES).length} band`)
 }
 
-/**
- * DEI INNEBYGDE FORMENE LIGG SOM FILER, og ei fil som manglar er ikkje ein
- * feil du ser: `source` fell attende på kuben, og menyen tilbyr ei form som
- * gjev deg noko anna enn ho seier. Vakta krev at kvar id i `FILFORMER` har
- * fila si, at ho let seg lese, at ho har trekantar under taket bygget
- * likevel skjer henne ned til, og at ho har ei utstrekning i alle tre
- * retningane — ei form som er flat i ei akse er ei form som vart snudd feil
- * på vegen ut av `scripts/former.ts`.
- */
 {
   console.log("\n=== dei innebygde formene ===")
   for (const id of FILFORMER) {
@@ -757,20 +573,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
     else if (soup.tris > tak) bryt(`${id}: ${soup.tris} trekantar, over taket på ${tak}`)
     else if (flat) bryt(`${id}: boksen er ${boks.join(" × ")} — flat i ei akse`)
     else {
-      /**
-       * OG HO MÅ KUNNE SKJERAST, ikkje berre lesast.
-       *
-       * Vakta over prøver fila: finst ho, har ho trekantar, er ho ikkje
-       * flat. Alt det kan halde medan forma skjer til INGENTING — eit nett
-       * med hòl i, eller eit som er hol inni, gjev null delar, og då fell
-       * skjermen attende på kuben utan å seie frå. Det er den same feilen
-       * som gjekk att heile denne økta: eit svar på eit lettare spørsmål
-       * enn det som vart stilt.
-       *
-       * Difor eit lite rutenett gjennom kvar av dei, og eit krav om at det
-       * kjem delar OG ledd ut. Tre plan kvar veg er nok til å svare, og
-       * billeg nok til at kvar einaste form kan prøvast.
-       */
       put(id, id, soup)
       const fp = { ...DEFAULT_PARAMS, kjelde: id, storleik: 200, plan: nett(3, 3) } as unknown as ParamBag
       const fm = MOTOR.measure(fp)
@@ -784,19 +586,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   }
 }
 
-/**
- * BØYEN: BUELENGDA ER LENGDA.
- *
- * Ei bøygd ribbe vert skoren FLAT og bøygd ved montering, so det flate
- * mønsteret må vera flata rulla ut — buelengda, ikkje korda. Går det gale,
- * kjem delen ut for kort, og ingenting på skjermen seier frå: profilen ser
- * heilt rett ut, plata ser heilt rett ut, og du finn det når delen ikkje
- * når fram.
- *
- * Difor eit tal som kan reknast for hand. Ein kube på 300 mm, kutta av ein
- * sylinder med radius R gjennom midten: korda er 300, halvvinkelen er
- * asin(150/R), og buen er 2·R·asin(150/R). Ved R = 600 er det 303,3 mm.
- */
 {
   console.log("\n=== bøyen ===")
   const S = 300
@@ -812,29 +601,14 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
     const R = bog ? S / bog : Infinity
     const vent = bog ? 2 * R * Math.asin(Math.min(1, S / 2 / R)) : S
     const av = Math.abs(k.w - vent)
-    // ei cellebreidd mon: profilen vert lesen av ei rute, ikkje av formelen
     if (av > 3) bryt(`bog ${bog}: mønsteret er ${nn(k.w, 2)} mm breitt, buen er ${nn(vent, 2)} mm`)
     else console.log(`  bog ${String(bog).padEnd(5)} R ${bog ? nn(R, 0).padStart(5) : " flat"} mm   mønster ${nn(k.w, 1)} mm, bue ${nn(vent, 1)} mm`)
   }
-  // og ein bøy som ikkje er der skal gje NØYAKTIG det same som ingen bøy:
-  // eit tal som snik seg inn i nøkkelen er eit bygg som vert rekna om att
   const flat = MOTOR.measure({ ...grunn } as unknown as ParamBag)
   const null0 = MOTOR.measure({ ...grunn, plan: skrivPlan(lesPlan(grunn.plan).map((q) => ({ ...q, bog: 0 }))) } as unknown as ParamBag)
   if (flat.cutLen !== null0.cutLen || flat.parts !== null0.parts) bryt("bog 0 gjev eit anna svar enn ingen bog")
   else console.log(`  bog 0 er det same som ingen bog: ${nn(flat.cutLen, 0)} mm kutt`)
 
-  /**
-   * OG YTREMÅLET MÅ FYLGJE BOGEN.
-   *
-   * Omrisset er ein mangekant med få punkt, og på ei firkanta ribbe står
-   * alle fire hjørna på same buelengd frå midten — so ein boks kring berre
-   * hjørna er FLAT same kor mykje ribba bognar. Reiskapen sa at eit objekt
-   * på seks centimeter var tre millimeter tjukt.
-   *
-   * Prøvd mot ein heilt annan veg til det same talet: dei tette ringane
-   * profilen vart lesen av, lagde ut i rommet med halve tjukna til kvar
-   * side.
-   */
   for (const bog of [0, 0.3, 0.9]) {
     const bag = { ...grunn, plan: skrivPlan(lesPlan(grunn.plan).map((q) => ({ ...q, bog }))) } as unknown as ParamBag
     const m = MOTOR.measure(bag)
@@ -860,18 +634,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   }
 }
 
-/**
- * LUKA MELLOM TO BØYGDE RIBBER — og kvifor ho ikkje kan lesast av normalen.
- *
- * Normalen til ei bøygd flate er normalen DER BUEN BYRJAR. Flata sjølv
- * vender seg bort frå han heile vegen ut, so eit tal lese langs normalen
- * seier kor langt frå kvarandre GRUNNPLANA står — ikkje ribbene.
- *
- * Her er to ribber 36 mm frå kvarandre, den eine bøygd 0,9 og den andre
- * −0,9, so dei krøkjer seg mot kvarandre. Talet vert prøvt mot ei heilt
- * anna måling: minste avstanden mellom punkta i dei to profilane, lagde ut
- * i rommet. To vegar til det same talet, og dei skal møtast.
- */
 {
   console.log("\n=== luka mellom to bøygde ===")
   const S = 300
@@ -894,18 +656,14 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
       bryt(`${namn}: ribbene kom ikkje ut`)
       continue
     }
-    // den andre vegen til det same talet: punkta i profilane, lagde ut i rommet
     const sky = rib.map((r) => r!.raa.flatMap((ring) => ring.map((q) => ut(r!.r, q, 0))))
     let naer = Infinity
     for (const a of sky[0]) for (const b of sky[1]) naer = Math.min(naer, Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]))
     const ekte = naer - T
     const av = Math.abs(sn.minGap - ekte)
-    // ei millimeter mon: midtlina vert skanna i 64 steg, punktskya er alle punkta
     if (av > 1) bryt(`${namn}: luka er ${nn(sn.minGap, 1)} mm, punkta seier ${nn(ekte, 1)} mm`)
     else console.log(`  ${namn.padEnd(22)} luke ${nn(sn.minGap, 1).padStart(6)} mm   punkta ${nn(ekte, 1).padStart(6)} mm`)
   }
-  // og det er ikkje eit tal som berre fylgjer grunnplana: dei står 36 mm frå
-  // kvarandre i alle tre, og luka skal likevel skilje dei
   const flat = makeBygg({ ...DEFAULT_PARAMS, storleik: S, tjukn: T, plan: par(0, 0, 0.06) } as Params, DETAIL.mid).s
   const krum = makeBygg({ ...DEFAULT_PARAMS, storleik: S, tjukn: T, plan: par(0.9, -0.9, 0.06) } as Params, DETAIL.mid).s
   if (!(krum.minGap < 3 && flat.minGap > 30)) {
@@ -915,24 +673,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   }
 }
 
-/**
- * EIT KRUMT SKAL MED TAK OG BOTN.
- *
- * Eit flatt plan LANGS sylinderaksen møter den bøygde flata i ei rett line.
- * Eit plan VINKELRETT på aksen — eit golv — møter henne i ein SIRKEL med
- * sylinderradien: rett i det utbretta mønsteret, av di `u` er buelengd, og
- * ein boge i golvet si eiga ramme. Båe er ledd.
- *
- * Dei åtte møta desse to golva har mot dei fire bøygde plana fall før bort
- * i stille: ribbene hadde spor frå dei rette møta, so den harde regelen
- * gjekk grøn, og talet i topplina sa ingenting om resten. Her er det rekna,
- * og prøva er den strengaste som finst: EIT BØYGT SETT SKAL TELJE DET SAME
- * SOM DET SAME SETTET FLATT. Bøyen tek ikkje eit ledd, og han finn ikkje
- * opp eitt.
- *
- * Og radien vert lesen av sporet sjølv: krumminga i golvet sitt spor er
- * sylinderen sin, og krumminga i den bøygde delen sitt spor er null.
- */
 {
   console.log("\n=== krumt skal med golv ===")
   const bogna = (bog: number) =>
@@ -948,8 +688,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   const flate = makeBygg({ ...bag, plan: bogna(0) } as unknown as Params, DETAIL.mid).s
   console.log(`  bøygd     ${krum.joints} ledd, ${s.kurva.length} møte som er kurver`)
   console.log(`  rett      ${rett.joints} ledd, ${flate.kurva.length} møte som er kurver`)
-  // radien sporet i golvet fekk, mot sylinderen sin. Storleiken er 300 og
-  // bogen 0,3, so R er 1000 mm — og det er det talet spora skal ha.
   const R = 300 / 0.3
   const golv = s.ribber.find((r) => r.plan.id === 91)
   const skal = s.ribber.find((r) => r.plan.id === 1)
@@ -967,27 +705,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   }
 }
 
-/**
- * HUD PÅ WAFFLE — DET RILLA SKALET OVER EIT STIVT SKJELETT.
- *
- * Dette er den fyrste konstruksjonen som brukar rilla til noko, og han er
- * heile grunnen til at ho vart skriven: eit krumt skal folk faktisk kan
- * sitje på. Fire bøygde hud, fire flate ribber LANGS sylinderaksen, og to
- * golv VINKELRETT på han. Skjelettet set radien; huda er rilla og vert bøygd
- * kring han.
- *
- * SAKA ER HER AV DI HO FANN EIN FEIL. Golva stod «fast» — hard `orden` — for
- * ein montasje du gjer med hendene på eitt minutt. Kvart golv har åtte spor:
- * fire BOGAR mot huda og fire RETTE mot ribbene. Dei fire rette er
- * parallelle og er vegen inn, men dei fire bogane peika kvar sin veg, og
- * rekninga las dei som fire krav som ikkje kunne oppfyllast samstundes.
- *
- * Fritaket «ein bøygd del vert BØYGD inn og ikkje skuva inn» stod alt i
- * `snitt.ts`, men berre for delen som KJEM. Her er den bøygde parten den som
- * LIGG, og fysikken er den same. Den falske raude lina PLAN.md sak A skildrar
- * — «kvar einaste bøygd ribbe med golv ville stått raud for ein montasje som
- * går heilt fint» — sett frå den andre sida.
- */
 {
   console.log("\n=== hud på waffle ===")
   const waffle = (bog: number) =>
@@ -996,8 +713,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
       { id: 91, o: [0.5, 0.5, 0.2] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] },
       { id: 92, o: [0.5, 0.5, 0.8] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] },
     ])
-  // 3 mm finér toler 300 mm radius; storleik 300 med bog 1,2 gjev 250, so
-  // huda MÅ rillast for at dette i det heile skal vera ein lovleg del
   const bag = { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 300, tjukn: 3, material: "finer", plan: waffle(1.2) } as unknown as ParamBag
   const b = makeBygg(bag as unknown as Params, DETAIL.mid)
   const m = MOTOR.measure(bag)
@@ -1015,11 +730,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   else if (b.s.montering.brot.length) bryt(`${b.s.montering.brot.length} del(ar) står fast: ${b.s.montering.brot.join(", ")} — waffelen vert bygd flat og huda bøygd kring han`)
   else console.log(`  og han let seg montere: 0 står fast, ${b.s.montering.orden.length} plan i orden`)
 
-  /**
-   * OG DEN STIVE ØYA SKAL FINNAST ATT I HUDA: ingen rillesnitt får krysse ei
-   * sporline. `pnpm ledd` prøver dette på godset; her vert det lese direkte,
-   * av di det er DENNE konstruksjonen som har flest spor i ei rilla flate.
-   */
   let naer = Infinity
   for (const r of rilla) {
     for (const sp of r.spor) {
@@ -1037,29 +747,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   else console.log(`  og den stive øya held: næraste rillesnitt ${nn(naer, 1)} mm frå ei sporline, krav ${KRAV} mm`)
 }
 
-/**
- * LAMELLAR — DEN ANDRE MÅTEN Å GJERA EI KRUM FLATE PÅ.
- *
- * Huda over er EI plate som vert rilla. Dette er det motsette: mange smale
- * plater ved sida av kvarandre, kvar bøygd langs si eiga lengd, haldne av
- * ribber på tvers. Ein krakk du skal sitje på er truleg betre tent med denne
- * enn med å gjera tolv millimeter finér om til eitt stort hengsle.
- *
- * OG HO TRENG INGEN NY GEOMETRI. Ein lamell er eit BØYGT PLAN MED EIT SMALT
- * OMRISS: `u` er bøyeretninga, `v` er sylinderaksen, og kvar lamell får sin
- * eigen strimmel i `v`. Ribbene har normal langs `u` og ligg dimed LANGS
- * aksen, so kvar av dei møter kvar lamell i ei generatorline — det reine
- * tilfellet `kryssBoygd` alt dekkjer.
- *
- * SAKA ER HER AV DI HO FANN EIN FEIL, som waffelen gjorde. Lamellane er det
- * SAME planet med kvar sin profil, so `o` og `n` er like — og `lukene` målte
- * plan mot plan og sa −3,0 mm om fingrar som ikkje kjem imellom to delar det
- * er sju centimeter mellom. Ho sa det alltid, for kvar lamellkonstruksjon som
- * finst. Ei line som står raud same kva er like ubrukeleg som ei som aldri
- * kan verta det.
- *
- * Og talet som er heile poenget står under: kutt.
- */
 {
   console.log("\n=== lamellar ===")
   const V3 = (x: number, y: number, z: number) => [x, y, z] as Vec3
@@ -1091,10 +778,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   else if (raude.length) bryt(`lamellar skal ikkje bryte ein regel: ${raude.map((r) => `${r.id} ${r.value}`).join(", ")}`)
   else console.log(`  og han let seg montere utan at ein einaste regel ryk: 0 står fast, 0 raude liner`)
 
-  /**
-   * OG DÅ ER SPØRSMÅLET KVA HO KOSTAR MOT HUDA. Den same krumminga, det same
-   * materialet, den same plata — ei rilla hud mot seks lamellar.
-   */
   const hud = { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 300, tjukn: 3, material: "finer",
     plan: skrivPlan([...lesPlan(nett(4, 4)).map((q) => (q.n[0] === 1 ? { ...q, bog: 1.2 } : q)),
       { id: 91, o: [0.5, 0.5, 0.2] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] },
@@ -1103,35 +786,13 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   console.log(`  mot rilla hud: ${(b.dl.cutLen / 1000).toFixed(1)} m lamellar mot ${(hb.dl.cutLen / 1000).toFixed(1)} m hud — ${(hb.dl.cutLen / b.dl.cutLen).toFixed(1)}× kortare køyretur`)
 }
 
-/**
- * MONTASJEN — vegen frå plata til objektet.
- *
- * Heile reiskapen kviler på éin påstand: at ein del ligg på plata og står i
- * objektet som DET SAME nettet, flytt stivt. Held han, treng montasjen
- * berre eitt nett og to matriser, og alt imellom er ei interpolering. Held
- * han ikkje, er animasjonen ei løgn om ein del som ikkje passar.
- *
- * So prøva reknar det ut: ho tek delen sitt eige nett, gonger det med kvar
- * av dei to matrisene, og krev at svaret er NØYAKTIG dei to nettverka
- * motoren byggjer kvar for seg — det same GLB-en og den flate GLB-en er.
- */
 {
   console.log("\n=== montasjen ===")
   const bag = { ...GRUNN, storleik: 300, tjukn: 6 } as unknown as ParamBag
   const m = MOTOR.montasje(bag)
   const b = makeBygg(bag as unknown as Params, DETAIL.mid)
   const staaende = new Map(lagDelar(b.s, b.dl.delar, 6).map((d) => [d.adr, d.positions]))
-  /**
-   * DEN FLATE FASITEN, FLYTT INN I STABELEN.
-   *
-   * `flatDelar` sprer platene bortover x — det er ei fil du ser gjennom.
-   * Montasjen legg dei i stabel midt under kroppen, av di det er benken.
-   * Skilnaden er eit kjent skuv per plate og ingenting anna, so fasiten er
-   * framleis den same geometrien motoren skriv til fila: er ho det ikkje,
-   * ligg delen ein annan stad på plata enn der laseren skjer han.
-   */
   const bk = b.k.solid
-  // det same «brukt»-området montasjen sentrerer stabelen på
   const brukt = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity }
   for (const sh of b.ns.sheets) {
     for (const q of sh.placed) {
@@ -1162,20 +823,16 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   if (m.delar.length !== liste.length) bryt(`montasjen har ${m.delar.length} delar, kuttlista ${liste.length}`)
   else console.log(`  ${m.delar.length} delar, ${m.steg} steg, ${new Set(m.delar.map((d) => d.ark)).size} plate(r)`)
 
-  /** eit punkt gjennom ei 4×4 i kolonnerekkjefylgje */
   const gjennom = (M: Float32Array, x: number, y: number, z: number) => [
     M[0] * x + M[4] * y + M[8] * z + M[12],
     M[1] * x + M[5] * y + M[9] * z + M[13],
     M[2] * x + M[6] * y + M[10] * z + M[14],
   ]
-  /** determinanten til dei tre fyrste kolonnene: +1 er ei ekte rotasjon */
   const det = (M: Float32Array) =>
     M[0] * (M[5] * M[10] - M[6] * M[9]) - M[4] * (M[1] * M[10] - M[2] * M[9]) + M[8] * (M[1] * M[6] - M[2] * M[5])
   let verst = 0
   let skeiv = 0
   for (const d of m.delar) {
-    // ingen spegling og inga skalering: elles er «flytt stivt» ikkje sant,
-    // og ein del som er spegla er ein del som ikkje passar i hòlet sitt
     if (Math.abs(det(d.ferdig) - 1) > 1e-4 || Math.abs(det(d.flat) - 1) > 1e-4) skeiv++
     for (const [M, fasit] of [[d.ferdig, staaende.get(d.adr)], [d.flat, liggjande.get(d.adr)]] as const) {
       if (!fasit || fasit.length !== d.positions.length) {
@@ -1189,32 +846,14 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
     }
   }
   if (skeiv) bryt(`${skeiv} delar er spegla eller skalerte av matrisa si`)
-  // ein tidel av ein mikrometer: dette er den same rekninga gjord to gonger,
-  // so avviket er float32 og ikkje geometri
   if (verst > 1e-3) bryt(`matrisene bommar med ${verst.toExponential(1)} mm på nettet motoren byggjer`)
   else console.log(`  matrisene råkar begge netta: verste avvik ${verst.toExponential(1)} mm, alle stive`)
 
-  /**
-   * OG STEGA ER RETNINGANE. Eit rutenett er to gjengar ribber som ikkje
-   * kryssar sine eigne: to steg, kva veg du enn snur det. Ei vifte har
-   * inga to parallelle ribber, og då er kvar ribbe sitt eige steg — som er
-   * sant om ei vifte: ho vert bygd eitt om gongen.
-   */
   for (const [nx, ny, vent] of [[6, 6, 2], [4, 0, 1]] as const) {
     const g = MOTOR.montasje({ ...GRUNN, plan: nett(nx, ny) } as unknown as ParamBag)
     if (g.steg !== vent) bryt(`rutenett ${nx}×${ny}: ${g.steg} steg, venta ${vent}`)
     else console.log(`  rutenett ${nx}×${ny}: ${g.steg} steg`)
   }
-  /**
-   * OG STEGA MOTSEIER ALDRI `montering.txt`.
-   *
-   * Rekkjefylgja delane KAN monterast i er motoren si — han reknar henne av
-   * ledda, hardregelen «kan monterast» vaktar henne, og ho ligg i eska som
-   * `montering.txt`. Montasjen reknar ikkje ei ny: han klumpar hennar i
-   * retningar. So går ein gjennom ordenen frå ende til annan, skal steget
-   * aldri gå NEDOVER — gjer det det, syner animasjonen ei anna montering
-   * enn arket, og då er det animasjonen som lyg.
-   */
   const orden = b.s.montering.orden
   const plan2steg = new Map<number, number>()
   for (const d of b.dl.delar) {
@@ -1232,19 +871,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   if (fall) bryt(`${fall} stader går steget nedover i monteringsordenen`)
   else console.log(`  og stega fylgjer montering.txt: ${orden.length} plan, aldri eit steg attende`)
 
-  /**
-   * OG VEGEN INN HØYRER RETT DEL TIL.
-   *
-   * At ORDLYDEN stemmer, er det ingen prøve som treng å seie: båe utgåvene
-   * spør `vegen` om det same, so dei kan ikkje verta usamde. Ein prøve på
-   * det ville vore ein prøve på at koden er den koden han er.
-   *
-   * Det som KAN ryke er kopla. Arket går gjennom monteringsordenen og
-   * nummererer plan; fana går gjennom delar og finn dei på ADRESSE, og ein
-   * plan kan verta fleire delar. Ei bom der gjev kvar del vegen til
-   * nabodelen — kvart ord rett, kvart ord på feil rad — og ingenting anna
-   * i huset ville sagt frå. Det er den kopla denne prøva går gjennom.
-   */
   const arket = montering(bag as unknown as Params, b.s)
   const ORD: Record<string, RegExp> = {
     ned: /ovanfrå og ned/,
@@ -1258,24 +884,11 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
     const del = b.dl.delar.find((d) => d.plan === id)
     const md = del ? m.delar.find((q) => q.adr === del.adr) : undefined
     if (!md) continue
-    // lina i arket er nummerert med plassen i ordenen
     const line = arket.split("\n").find((l) => new RegExp(`^\\s*${i + 1}\\s+${id}\\b`).test(l))
     if (!line) continue
     prøvde++
     if (!ORD[md.veg]?.test(line)) ulike++
   }
-  /**
-   * OG EIN MONTASJE SOM IKKJE GÅR OPP SEIER DET I FILA.
-   *
-   * Den harde regelen `orden` seier det på skjermen. Skjermen står ikkje ved
-   * benken. `montering.txt` er fila som gjer det, og ho listar eit plan med
-   * nummer på — so ho skal ikkje gje deg ei liste som ser ut som ein plan
-   * når motoren veit ho stoggar.
-   *
-   * Tre plan gjennom det same senteret er tilfellet: kvart par kryssar langs
-   * si eiga line, og den tredje kjem ikkje inn same kva rekkjefylgje du tek
-   * dei i.
-   */
   {
     const umogeleg = {
       ...DEFAULT_PARAMS,
@@ -1288,18 +901,9 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
     else if (!tekst.includes("DETTE GÅR IKKJE OPP")) bryt("montering.txt listar ei rekkjefylgje som ikkje går, utan å seie det")
     else if (!tekst.includes("STÅR FAST")) bryt("montering.txt seier frå, men merkjer ikkje kva line som stoggar")
     else console.log(`  og ein montasje som ikkje går opp seier det i fila: ${fast.length} del(ar) står fast`)
-    // og eit rutenett skal IKKJE bera varselet
     const greitt = montering(GRUNN as unknown as Params, makeBygg(GRUNN, DETAIL.mid).s)
     if (greitt.includes("DETTE GÅR IKKJE OPP")) bryt("eit rutenett som går opp fekk varselet likevel")
 
-    /**
-     * OG DOMEN FYLGJER MED I PAKKA.
-     *
-     * Tavla står på skjermen, og skjermen er ikkje med når plata ligg på
-     * laseren. `reglar.txt` er reiskapen si eiga lesing, skriven ned der ho
-     * overlever økta. Ho stoggar ingenting — ho står der so ingen kan seie
-     * at han ikkje visste.
-     */
     const pakka = unzip(MOTOR.exportFile(umogeleg as unknown as ParamBag, "alt").data as ArrayBuffer)
     const reglar = pakka.find((f) => f.name === "reglar.txt")
     if (!reglar) bryt("alt-pakka ber ingen reglar.txt")
@@ -1322,19 +926,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   else console.log(`  ei vifte med 9 plan: ${vplan} steg — eitt om gongen`)
 }
 
-/**
- * TO DELAR PÅ DEN SAME STADEN.
- *
- * Eit møte skuldra nektar får ikkje spor, men godset står att i båe — og
- * dei to delane skal vera same staden. Regelen «kan monterast» ser det
- * ikkje: han spør om ein del har éi retning inn, og desse har ikkje eit
- * ledd i det heile på lina dei klemmer på. Nitten av dei tjue innebygde
- * formene hadde minst eitt slikt par medan tavla stod grøn.
- *
- * Vakta krev tre ting, og det midtarste er det som gjer henne verd å
- * køyre: at eit rutenett på ein kube er REINT. Ei vakt som berre krev at
- * talet er over null ville stått grøn om lesinga melde klemme på alt.
- */
 {
   console.log("\n=== klemma ===")
   const rein = makeBygg(GRUNN as unknown as Params, DETAIL.mid).s.montering.klem
@@ -1353,11 +944,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
     else {
       console.log(`  og ei form med ${k.avvist} avviste møte: ${k.montering.klem.length} par i kvarandre, ${k.montering.klem.slice(0, 3).map(([x, y]) => `${x}–${y}`).join(", ")}`)
 
-      /**
-       * OG RÅDET KJEM FRAM TIL NULL. Eitt plan om gongen, det som er med i
-       * flest par. Talet skal falle mot null og aldri stige — steig det,
-       * ville knappen vore ein knapp du kan trykkje deg lengre bort med.
-       */
       let q = kp
       const spor: number[] = []
       for (let i = 0; i < 10; i++) {
@@ -1376,21 +962,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   }
 }
 
-/**
- * NUMMERET SKORE NED I DELEN.
- *
- * Kuttfila graverer adressa med ein strek stråla køyrer langs. Ein trykt
- * del har ingen strek — han er gods — so merket må vera ei LOMME, og ei
- * lomme er geometri: ho må vera lukka, og ho må ta nøyaktig so mykje gods
- * som flata hennar gonga djupna.
- *
- * Vakta måler begge to, og den fyrste er den som fann feilen: «4» og «6»
- * har eit auge inni seg, og eit auge sydd inn i ytterkanten gjev eit
- * polygon med ein kanal utan breidd, som so vart brukt som hòl i endå ei
- * syning. Åtte og fire kantar som ikkje var delte av to flater — eit nett
- * ein trykkjar ikkje kan lese — medan «1», «2», «3» og «5» stod lukka.
- * Difor står bokstavane med auge i lista under, og difor tel vakta kantar.
- */
 {
   console.log("\n=== merket ===")
   const mp = { ...DEFAULT_PARAMS, plan: nett(3, 3), storleik: 200, merk: 1 } as unknown as Params
@@ -1398,7 +969,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   const utan = lagDelar(mb.s, mb.dl.delar, mp.tjukn, false)
   const med = lagDelar(mb.s, mb.dl.delar, mp.tjukn, true)
 
-  /** volumet, og kor mange kantar som ikkje er delte av nøyaktig to flater */
   const maal = (pos: Float32Array) => {
     let V = 0
     const kant = new Map<string, number>()
@@ -1438,7 +1008,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   else if (Math.abs(teke / venta - 1) > 0.01) bryt(`lomma tok ${teke.toFixed(1)} mm³ der flata seier ${venta.toFixed(1)}`)
   else console.log(`  ${med.length} merkte delar: 0 opne kantar, lomma tok ${teke.toFixed(1)} mm³ mot ${venta.toFixed(1)} venta`)
 
-  // og bokstavane med auge er DEI som fall: kvar av dei, kvar for seg
   let auge = 0
   for (const t of ["0", "4", "6", "8", "A", "9"]) {
     const f = merkeFlater(t, 0, 0, 6, 0.8)
@@ -1447,8 +1016,6 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   }
   if (auge) console.log(`  og bokstavane med auge har dei: ${auge} augo over seks teikn`)
 
-  // OG VALET MÅ SYNAST I FILA. Eit flagg som ikkje endrar uttaket er eit
-  // flagg som kan stå kvar som helst.
   const a3 = MOTOR.exportFile({ ...mp, merk: 0 } as unknown as ParamBag, "3mf").data as ArrayBuffer
   const b3 = MOTOR.exportFile(mp as unknown as ParamBag, "3mf").data as ArrayBuffer
   if (a3.byteLength >= b3.byteLength) bryt(`3mf med merke er ikkje større: ${a3.byteLength} → ${b3.byteLength} B`)

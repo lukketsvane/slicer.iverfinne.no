@@ -1,9 +1,3 @@
-/**
- * Samanlikn same teikneoppgåve med og utan gjentaking, gjennom synlege
- * kontrollar og nettlesar-touch. Ingen prosjekt vert lasta inn. Klokka
- * stoggar fyrst når den nesta fila er lagra, før bilete og geometri blir lesne.
- * Automatisert Chromium på Linux er ikkje ein fysisk iPhone eller ein brukar.
- */
 import assert from "node:assert/strict"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -42,7 +36,6 @@ async function hovud() {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM, args: ["--disable-features=WebShare"] })
   const rapport = []
   try {
-    // To sjølvstendige økter; manuell brukar den gamle dubler-og-dra-flyten.
     for (const maate of ["manuell", "gjenta"] as const) {
       const ut = join(UT, maate); mkdirSync(ut, { recursive: true })
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1, acceptDownloads: true })
@@ -73,23 +66,8 @@ async function hovud() {
         await trykk(knapp("dubler planet")); await vent(() => plan(s).length === 2); await heim(); await flyttValt(15)
         const par = plan(s).slice(0, 2)
         assert.equal(await knapp("gjenta flyttinga").count(), 1, "gjentakinga skal finnast rett ved tommelen")
-        // Hit-test midten: ein synleg knapp under eit anna element er ikkje tilgjengeleg.
         assert(await knapp("gjenta flyttinga").evaluate((el) => { const r = el.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest("button") === el }))
         const startRekkje = performance.now()
-        /**
-         * DUBLERINGA GJENTEK STEGET SJØLV — so her skal ingen dra meir.
-         *
-         * Prøva drog fyrst 15 px etter kvar dublering, og då kom draget
-         * OPPÅ den gjentekne flyttinga: målt 33, 66, 132 mm i staden for
-         * 33 kvar gong, og dei tre siste plana hamna utanfor kroppen. Det
-         * var prøva som var utdatert, ikkje reiskapen: «dupliser gjentek
-         * steget» står i README, og lesinga over stadfestar han (plan 3 og
-         * 4 landar nøyaktig eitt steg vidare utan at ein finger rører dei).
-         *
-         * Dei to måtane er difor like mange gestar. Knappen «gjenta
-         * flyttinga» er den eksplisitte vegen, «dubler planet» den som
-         * ber steget med seg; prøva krev at BÅE held avstanden nøyaktig.
-         */
         for (let n = 3; n <= 6; n++) {
           await trykk(knapp(maate === "gjenta" ? "gjenta flyttinga" : "dubler planet"))
           await vent(() => plan(s).length === n)
@@ -104,16 +82,6 @@ async function hovud() {
         await trykk(s.locator("[data-teiknknapp]"))
         await trykk(s.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "firkant", exact: true }))
         await dra(c, line([65, 295], [265, 515]), 550); await vent(() => plan(s).length === 7)
-        /**
-         * SETET LANDAR, OG DET SKAL IKKJE LYFTAST ETTERPÅ.
-         *
-         * Prøva drog setet 80 px opp her. Eit vassrett plan flyttar seg
-         * langs normalen sin, og normalen peikar opp — so draget bar setet
-         * 179 mm OVER toppen av ribbene, der det ikkje kryssar noko og
-         * talet på ledd er null. Målt likt på main og på denne greina.
-         * Landinga legg det alt med underflata på ribbetoppane; det er den
-         * staden prøva skal måle.
-         */
         await heim()
         await trykk(s.getByRole("tab", { name: "kontur", exact: true })); await klar(); await trykk(knapp("eksport"))
         const nedlasting = s.waitForEvent("download", { timeout: 45000 }); await trykk(knapp("ark")); const fil = await nedlasting
@@ -121,8 +89,6 @@ async function hovud() {
         const slutt = performance.now()
         const p = params(s), bygg = makeBygg(p, DETAIL.mid), m = measure(p, bygg)
         assert.equal(readFileSync(filsti, "utf8"), MOTOR.exportFile(p as unknown as ParamBag, "ark").text, "nedlasta geometri skal vere motoren si")
-        // tolv ledd: kvar av dei seks ribbene møter setet i båe endane.
-        // Prøva stod på seks, frå den tida ein ribbe berre bar éin tapp.
         assert.equal(bygg.dl.delar.length, 7); assert.equal(bygg.s.ledd, 12)
         assert.equal(bygg.ns.spilt, 0); assert.equal(bygg.ns.kross, 0)
         assert.equal(bygg.ns.sheets.reduce((n, a) => n + a.placed.length, 0), 7)
@@ -135,7 +101,6 @@ async function hovud() {
         const r = { maate, sekundTilLagraFil: (slutt - start) / 1000, sekundMedOppstart: (slutt - oppstart) / 1000, rekkjeSekund, rekkjeTrykk: 4, rekkjeDrag: 0, storsteAvstandsavvikMM: avvik, delar: 7, ledd: 12, ark: bygg.ns.sheets.length, faktiskeMM: [m.envX, m.envY, m.envZ], params: p }
         rapport.push(r); writeFileSync(join(ut, "rapport.json"), JSON.stringify(r, null, 2))
         console.log(`${maate}: ${r.sekundTilLagraFil.toFixed(2)} s til lagra fil; rekkje ${rekkjeSekund.toFixed(2)} s; avstand ${avvik.toFixed(4)} mm`)
-        // Angre, gjer om og ny arbeidsflate blir prøvde etter at klokka stoggar.
         await trykk(knapp("angre")); await pause(500); await trykk(knapp("gjer om")); await vent(() => params(s).plan === p.plan)
         await trykk(s.locator("[data-kjelde]")); await trykk(knapp("tom arbeidsflate")); await vent(() => plan(s).length === 0)
         assert.equal(await knapp("gjenta flyttinga").count(), 0, "gamal rekkje må ikkje følgje ny arbeidsflate")

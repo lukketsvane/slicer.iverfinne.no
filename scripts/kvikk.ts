@@ -1,35 +1,3 @@
-/**
- * KVIKK: prøv eit verkty eller ein gest på telefonflata med éi line ut.
- *
- * Skal du endre, ta bort eller lage eit verkty, treng du ikkje eit
- * scenario på fire hundre liner og eit bilete per steg. Du treng å gjere
- * dei tre gestane og lese éi line: plan, delar, ledd, reglar, konsoll.
- *
- *   pnpm build && pnpm start -p 3210        (éin gong per kodeendring)
- *   pnpm kvikk "tom; kontur 135,310 255,310 280,506 110,506; spegl y; les"
- *   pnpm kvikk "tom; firkant 110,320 280,490; syn topp; bilete; les"
- *
- * Ordbok (skilde med «;», punkt er px på 390×844):
- *   tom                      tom arbeidsflate
- *   trykk <namn>             knapp med tilgjengeleg namn (regex om /…/)
- *   fane <namn>              fane
- *   kontur x,y x,y …         eit drag gjennom punkta med konturverktyet
- *   firkant x0,y0 x1,y1      eit drag med firkantverktyet
- *   dra x0,y0 x1,y1          eit drag med éin finger, utan verkty
- *   to x0,y0 x1,y1 X0,Y0 X1,Y1   to fingrar frå (x0,y0)(x1,y1) til (X0,Y0)(X1,Y1)
- *   grep <namn> dx dy        dra eit handtak: flytt, vri, strek-flytt, strek-storleik, strek-vri
- *   tapp x,y                 eit trykk på lerretet
- *   tast <tast>              ein tast (z, r, f, Escape …)
- *   syn topp|framme|hogre    synskuben
- *   heim                     ramm inn
- *   spegl x|y|z              spegl planet
- *   vent <ms>
- *   bilete [namn]            skjermbilete til bilete/kvikk[-namn].png
- *   les                      éi line: plan · delar · ledd · tappar · reglar · konsoll · sekund
- *   delar                    éi line per del: namn, mål i mm, tappar, hòl, kor plana står
- *
- * URL og PW_CHROMIUM kan overstyrast. Køyr mot `next start`, aldri dev.
- */
 import { chromium, type CDPSession, type Locator, type Page } from "playwright"
 import { mkdirSync } from "node:fs"
 import { performance } from "node:perf_hooks"
@@ -81,7 +49,6 @@ async function hovud() {
   const konsoll: string[] = []
   side.on("pageerror", (e) => konsoll.push(e.message))
   side.on("console", (m) => { if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) konsoll.push(m.text()) })
-  /** ferdig: kontrollane er ikkje opptekne, og adressa har stått stille i 400 ms — ei lesing midt i eit byte er ei lesing av ingenting */
   const ferdig = async () => {
     await side.locator('[aria-label="kontrollar"][aria-busy="false"]').waitFor()
     let sist = side.url()
@@ -95,7 +62,6 @@ async function hovud() {
     await trykk(side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: slag, exact: true }))
   }
   const kube: Record<string, Punkt> = { topp: [351, 61], framme: [352, 82], hogre: [372, 88] }
-  /** eit drag som teiknar er ferdig når planlista i adressa har vakse — ikkje etter ei pause */
   const talPlan = () => lesPlan(params(side).plan).length
   const ventPlan = async (minst: number) => {
     await side.waitForFunction((n) => { const h = location.hash.split("#p=")[1]; const pl = h ? JSON.parse(decodeURIComponent(h)).plan ?? "" : ""; return (pl ? pl.split(";").length : 0) >= n }, minst, { timeout: 8000 }).catch(() => undefined)

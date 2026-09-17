@@ -1,4 +1,3 @@
-/** Eksport må vera synleg UTAN at Playwright rullar knappen fram åt oss. */
 import assert from "node:assert/strict"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -7,7 +6,6 @@ import { chromium, webkit, type Locator } from "playwright"
 const treffbar = (el: Locator) => el.evaluate((knapp) => {
   const b = knapp.getBoundingClientRect()
   const midt = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)
-  // Heile knappen, ikkje berre ein synleg piksel langs kanten av skuffa.
   let klipt = b.top < 0 || b.bottom > innerHeight || b.left < 0 || b.right > innerWidth
   for (let p = knapp.parentElement; p; p = p.parentElement) {
     if (!/(auto|scroll|hidden)/.test(getComputedStyle(p).overflowY)) continue
@@ -40,7 +38,6 @@ async function prov() {
           assert(await treffbar(knapp("dxf")), "DXF er ikkje direkte synleg frå eksportikonet")
           await side.screenshot({ path: join(ut, `${motor.name()}-${hogd}.png`) })
           await fane("materiale").tap()
-          // Oppsett: ein brukar har rulla ned til platemåla i ei anna fane.
           await side.getByRole("slider", { name: "høgd, tal", exact: true }).scrollIntoViewIfNeeded()
           await fane("plan").tap()
           assert(await treffbar(tal), "ei ny fane arva den gamle rulleposisjonen")

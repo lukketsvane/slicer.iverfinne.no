@@ -1,25 +1,7 @@
-/**
- * Nullstaden i eit skalarfelt, som lukka polygon.
- *
- * Ei ribbe er ikkje eit uttrykk ein kan skrive ned. Nettet kan vera delt i
- * to der ribba står; eit spor kan kappe henne; eit hòl i objektet kan
- * gjera eitt stykke til to. Kva form ho får er eit spørsmål om kva grense
- * som bit kvar, og det er nett det ei marsjerande rute svarar på utan å
- * bli spurd.
- *
- * Kantane vert nøkla på ruta og ikkje på koordinatet. To segment som deler
- * ein kant deler difor NØKKELEN, og kjeda let seg lenkje utan å samanlikne
- * flyttal — som er den eine staden ein slik algoritme plar rakne.
- *
- * Salryttarane (5 og 10) vert avgjorde på midtverdien. Det er ikkje eit
- * hjelpetriks: utan han er valet vilkårleg, og eit vilkårleg val her er
- * skilnaden mellom eitt hòl og to.
- */
 export type Pt2 = [number, number]
 
 export type Loop = {
   pts: Pt2[]
-  /** signert areal: positivt er ytterkant, negativt er hòl */
   area: number
 }
 
@@ -36,10 +18,6 @@ export function contour(
   const W = nx + 1
   const at = (i: number, j: number) => g[j * W + i]
 
-  // Kvar kant i ruta har eit TAL og ikkje ein tekst: den vassrette kanten
-  // ut frå hjørne (i, j) har 2·(j·W + i), den loddrette det talet pluss
-  // éin. Nøklane var tekstar — «h12,7» — og å byggje og slå opp ein tekst
-  // for kvar kant i kvar rute var dyrare enn sjølve marsjen.
   const N = 2 * W * (ny + 1)
   const px = new Float64Array(N)
   const py = new Float64Array(N)
@@ -71,7 +49,6 @@ export function contour(
     return k
   }
 
-  /** par av kantar: frå, til */
   const segs: number[] = []
   for (let j = 0; j < ny; j++) {
     for (let i = 0; i < nx; i++) {
@@ -115,9 +92,6 @@ export function contour(
   }
   for (let s = 0; s < segs.length; s += 2) next[segs[s]] = segs[s + 1]
 
-  // Kjedene vert fylgde frå segmenta i den rekkjefylgja dei vart funne:
-  // det er den rekkjefylgja sløyfene kjem ut i, og stykka i ei delt ribbe
-  // får bokstavane sine etter henne.
   const seen = new Uint8Array(N)
   const loops: Loop[] = []
   for (let s = 0; s < segs.length; s += 2) {
@@ -142,7 +116,6 @@ export function contour(
   return loops
 }
 
-/** avstanden frå p til lina gjennom a og c */
 function fråLina(p: Pt2, a: Pt2, c: Pt2): number {
   const dx = c[0] - a[0]
   const dy = c[1] - a[1]
@@ -151,71 +124,29 @@ function fråLina(p: Pt2, a: Pt2, c: Pt2): number {
   return Math.abs((p[0] - a[0]) * dy - (p[1] - a[1]) * dx) / len
 }
 
-/**
- * Fjernar punkt som ikkje seier noko: tre punkt på ei line er to for
- * mange, og ei ribbe med 900 hjørne er ei DXF-fil ingen fres vil lesa.
- *
- * TOLERANSEN MÅ VERA TOLERANSEN.
- *
- * Den fyrste utgåva prøvde kvart punkt mot lina frå det siste haldne
- * punktet til NABOEN sin — ei kort line som knapt bøyer seg. På ein boge
- * fall punkta då eitt for eitt, og feilen hopa seg opp langt forbi
- * toleransen utan at noko målte henne. Målt på ein sirkel med radius 75,
- * fire hundre punkt: med toleranse 0,125 mm vart det verste avviket 0,45
- * mm, og med 0,25 mm vart det 1,8. Det er ikkje avrunding — det er ein
- * tidels millimeter klaring gonger fire, på ein reiskap der ein
- * tjuedels millimeter avgjer om delane går i hop.
- *
- * No vert kvart punkt som er kasta prøvt mot den lina som FAKTISK vert
- * teikna, og lina får ikkje strekkje seg lenger enn til det fyrste
- * punktet ho ikkje lenger held. Då tyder toleransen det han seier.
- */
 export function simplify(poly: Pt2[], tol: number, lukka = true): Pt2[] {
   const n = poly.length
   if (n < 4) return poly
   const out: Pt2[] = [poly[0]]
   let start = 0
 
-  /**
-   * KJEGLA: SVARET UTAN Å SPØRJE KVART PUNKT.
-   *
-   * Prøva over er kvadratisk på ei rett strekkje: kvart nytt punkt på
-   * lina spør alle dei førre om att, og ei kubeside på hundre punkt
-   * spør fem tusen gonger. Men spørsmålet «ligg alle mellompunkta
-   * innanfor toleransen av lina frå start gjennom punkt i» har eit svar
-   * som kan haldast ved like: kvart mellompunkt i avstand r frå start
-   * tillèt berre liner som peikar innanfor asin(tol/r) av retninga til
-   * punktet, og snittet av dei vinkelromma er ei kjegle. Peikar korda
-   * inn i kjegla, held ho; peikar ho utanfor, held ho ikkje.
-   *
-   * Kjegla avgjer berre det ho er sikker på. Ei kord som ligg nærare
-   * kanten av kjegla enn ein milliarddels radian, eit punkt som ligg
-   * nærare start enn halvannan toleranse, ei kord kortare enn
-   * toleransen — alt slikt går til den gamle prøva, punkt for punkt.
-   * Difor er svaret det same, ned til siste punkt.
-   */
   const EPS = 1e-9
   let senter = 0
   let lo = -Infinity
   let hi = Infinity
   let fyrst = true
   let usikker = false
-  /** vinkelen lagd inn i same halvsirkel som senteret: ei line har inga
-   *  retning, so θ og θ + π er same lina */
   const inn = (a: number) => {
     while (a - senter >= Math.PI / 2) a -= Math.PI
     while (a - senter < -Math.PI / 2) a += Math.PI
     return a
   }
-  /** punkt j er vorte eit mellompunkt for korda frå start */
   const legg = (j: number) => {
     if (usikker) return
     const s = poly[start]
     const dx = poly[j][0] - s[0]
     const dy = poly[j][1] - s[1]
     const r = Math.hypot(dx, dy)
-    // For nær start opnar vinkelrommet seg over ein kvart sirkel, og då
-    // kan det nå rundt halvsirkelen og inn i kjegla frå den andre sida.
     if (r <= tol * Math.SQRT2 + EPS) {
       usikker = true
       return
@@ -269,8 +200,6 @@ export function simplify(poly: Pt2[], tol: number, lukka = true): Pt2[] {
       usikker = false
     }
   }
-  // Det siste punktet står alltid: lina attende til fyrste punktet er ein
-  // ekte kant i ringen, og ikkje ei line nokon har funne på.
   if (start !== n - 1) out.push(poly[n - 1])
   return out.length >= (lukka ? 3 : 2) ? out : poly
 }

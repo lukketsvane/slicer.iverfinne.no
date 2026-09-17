@@ -7,7 +7,6 @@ import type { ArketProps } from "./arket-legacy"
 
 type GjentaProps = Pick<ArketProps, "plan" | "vald" | "valdGruppe" | "params" | "onChange" | "onVald">
 
-/** Minnet høyrer til økta, medan kvar kopi høyrer til prosjektet og angrehistoria. */
 export function useGjenta(p: GjentaProps) {
   const [par, setPar] = useState<Kopipar | null>(null)
   const foer = useRef<Planval>({ plan: p.plan, vald: p.vald })
@@ -29,7 +28,6 @@ export function useGjenta(p: GjentaProps) {
   return {
     grunn,
     gjer: kopi ? () => {
-      // To trykk før React har skrive den nye lista skal ikkje bruke same namn.
       const no = skrivPlan(p.plan)
       if (sendt.current === no) return
       sendt.current = no

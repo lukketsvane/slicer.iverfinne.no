@@ -1,16 +1,3 @@
-/**
- * OBJ inn.
- *
- * Berre `v` og `f`. Normalar, teksturkoordinat, materialbibliotek, grupper
- * og glattekantar vert hoppa over — reiskapen skal snitte forma, og ingen
- * av dei fortel noko om henne.
- *
- * Tre ting som pleier å velte ein OBJ-lesar er handterte: indeksane er
- * einbaserte, dei kan vera NEGATIVE (rekna bakover frå slutten), og ei
- * flate kan ha fleire enn tre hjørne. Ein vifte frå fyrste hjørnet
- * triangulerer alle konvekse flater rett, og OBJ-flater er i praksis alltid
- * konvekse.
- */
 import { makeSoup, type Soup } from "../soup"
 
 export function parseObj(txt: string): Soup {

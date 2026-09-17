@@ -1,38 +1,8 @@
-/**
- * FORMENE: EIT TUNGT NETT VERT EI INNEBYGD FORM.
- *
- * Dei innebygde formene er møblar og ikkje matematikk: ein krakk du kan
- * skjere i seier meir om kva verktyet er til enn ein torus gjer. Men ei
- * modellfil frå verda er seks megabyte tekstur og to hundre tusen trekantar,
- * og INGEN av delane kjem med hit: verktyet snittar geometri, og det snittar
- * ho ned til `trekant`-taket uansett. Å sende bytane er berre venting.
- *
- * Difor dette: les fila, sveis henne, skjer henne ned til taket, og skriv
- * henne att som ein GLB med INDEKS. Hjørna står éin gong kvar i staden for
- * tre, og det er to tredelar av fila.
- *
- * VENDINGA, MEN IKKJE SKALAEN. Lesaren snur glTF sitt y-opp til verkstaden
- * sitt z-opp, so skrivinga må snu attende — elles kjem forma inn liggjande.
- * Men lesaren rører ikkje MÅLESTOKKEN, og `export-glb.ts` deler på tusen på
- * vegen ut (ein kropp er millimeter, glTF er meter). Gjer vi det same her,
- * krympar forma tusen gonger for kvar gong ho går gjennom. Det ser ingen —
- * alt vert skalert til `storleik` uansett — men ei fil med koordinat på ein
- * titusendel er ei fil som til slutt ikkje har att presisjon å miste.
- * Prøva under les fila attende og krev at boksen er den same.
- *
- *   npx tsx scripts/former.ts <namn>=<fil> [<namn>=<fil> ...]
- */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs"
 import { parseMesh } from "../lib/io"
 import { weld } from "../lib/soup"
 import { decimate } from "../lib/mesh/simplify"
 
-/**
- * TAKET PÅ EI FORM. `trekant` står på førti tusen, og bygget skjer ned dit
- * med det same; ei form med meir i seg er berre nedlasting. Tjuefem tusen
- * ligg under taket med god margin og er langt meir enn ein profil gjennom
- * ein krakk kan sjå: feltet er to hundre og tjue celler breitt.
- */
 const TAK = 25_000
 const UT = "public/form"
 
@@ -42,7 +12,6 @@ function glb(m: { verts: Float32Array; idx: Uint32Array }, namn: string): Uint8A
   const min: [number, number, number] = [Infinity, Infinity, Infinity]
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity]
   for (let i = 0; i < nv; i++) {
-    // z opp → y opp, den same vendinga `meshToGlb` gjer, utan delinga
     const v: [number, number, number] = [m.verts[i * 3], m.verts[i * 3 + 2], -m.verts[i * 3 + 1]]
     for (let a = 0; a < 3; a++) {
       pos[i * 3 + a] = v[a]
@@ -50,7 +19,6 @@ function glb(m: { verts: Float32Array; idx: Uint32Array }, namn: string): Uint8A
       if (v[a] > max[a]) max[a] = v[a]
     }
   }
-  // indeksane er 16 bit når dei får plass: halve fila mot 32
   const smaa = nv <= 65535
   const idx = smaa ? new Uint16Array(m.idx) : new Uint32Array(m.idx)
   const idxB = new Uint8Array(idx.buffer, 0, idx.byteLength)
@@ -118,14 +86,9 @@ mkdirSync(UT, { recursive: true })
 for (const [namn, fil] of par) {
   const b = readFileSync(fil)
   const inn = parseMesh(fil, b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer)
-  // Sveisen utan eit tal: `weld` reknar sitt eige på diagonalen. Ei fil i
-  // meter er tusen gonger mindre enn ei i millimeter, og eit fast tal her
-  // hadde smelta den eine og late den andre stå.
   const m = decimate(weld(inn), TAK)
   const ut = glb(m, namn)
   writeFileSync(`${UT}/${namn}.glb`, ut)
-  // og les han attende: ei form som ikkje kan lesast er ei form som fell
-  // attende på kuben utan å seie frå, og det ser ingen før nokon prøver
   const att = parseMesh(`${namn}.glb`, ut.buffer.slice(ut.byteOffset, ut.byteOffset + ut.byteLength) as ArrayBuffer)
   const boks = (s: { min: number[]; max: number[] }) => s.max.map((c, i) => c - s.min[i])
   const a = boks(inn)

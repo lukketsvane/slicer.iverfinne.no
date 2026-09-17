@@ -1,25 +1,5 @@
-/**
- * SLICERMAN — rekkjefylgja delane kjem i.
- *
- * Kvart ledd seier kva veg ein del MÅ gå for å kome inn på ein annan som
- * alt ligg: eit spor langs lina si, med munnen der han kjem frå; ein tapp
- * langs tappen, og ei slisse ned på han. Ein del som møter fleire som alt
- * ligg, må ha éin veg for alle — ei plate kan berre gå éin veg.
- *
- * REKKJEFYLGJA ER EI LESING, IKKJE EIT VAL. Lista er det du teikna, i den
- * rekkjefylgja du teikna det: to sider, so setet, so staga. Det er ikkje
- * rekkjefylgja nokon set ein krakk saman i — staget må inn mellom sidene
- * før den andre sida kjem på. Går lista opp, er ho svaret. Går ho ikkje
- * opp, vert ei anna leita fram av dei same vegane, og ho er svaret om ho
- * står fast på færre. Geometrien er den same same kva: spora er skorne
- * med munnen der lista sa, og vegane over er lesne av dei.
- *
- * Ein bøygd del vert rulla på plass og ikkje skuva, og står ikkje i strid
- * med nokon — sjå `Montering.boygde`.
- */
 import type { Vec3 } from "./core"
 
-/** for kvar del: kva veg han går inn mot kvar partnar, om han kjem etter han */
 export type Vegar = Map<number, Map<number, Vec3>>
 
 const PAR = Math.cos((3 * Math.PI) / 180)
@@ -31,7 +11,6 @@ export function veg(v: Vegar, del: number, mot: number, d: Vec3) {
   if (!m.has(mot)) m.set(mot, d)
 }
 
-/** lista lesen i ei rekkjefylgje: kva veg kvar kjem, og kven som står fast */
 function les(orden: readonly number[], vegar: Vegar, boygde: ReadonlySet<number>) {
   const lagt = new Set<number>()
   const retning: Record<number, Vec3 | null> = {}
@@ -49,12 +28,6 @@ function les(orden: readonly number[], vegar: Vegar, boygde: ReadonlySet<number>
   return { orden: [...orden], retning, brot }
 }
 
-/**
- * GRÅDIG, MED EITT STEG FRAM. Av dei som kan inn no: den som stengjer færrast
- * av dei attverande, so den med flest vegar, so den som står fyrst i lista.
- * To sider og eit stag kan alle leggjast fyrst — men legg du båe sidene
- * før staget, har staget tappar mot to flater som ser kvarandre.
- */
 function leit(liste: readonly number[], vegar: Vegar, boygde: ReadonlySet<number>): number[] {
   const lagt = new Set<number>()
   const att = [...liste]

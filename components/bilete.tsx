@@ -1,18 +1,10 @@
 "use client"
 
-/**
- * BILETET INN: eit mørkt motiv vert ei plate med hòl.
- *
- * Eit drag over biletet er som rutenettet: bortover er terskelen, opp og
- * ned er mjukinga, og omrisset står der heile tida. «snu» gjer det ljose
- * til gods. «legg inn» set plata i teikneplanet du ser på.
- */
 import { useMemo, useRef, useState } from "react"
 import { bileteForm, type BileteForm, type BileteVal, type Maske } from "@/lib/bilete"
 import { omrissLine } from "@/lib/plan"
 import { ORD } from "./deler"
 
-/** den lengste sida biletet vert lese i: nok til ei form, lite nok til å dra i */
 const SIDE = 220
 
 export async function lesBilete(fil: Blob): Promise<{ maske: Maske; url: string }> {
@@ -23,7 +15,6 @@ export async function lesBilete(fil: Blob): Promise<{ maske: Maske; url: string 
   c.width = w
   c.height = h
   const x = c.getContext("2d")!
-  // gjennomsiktig er kvitt: ein logo utan bakgrunn er motivet og ikkje ei plate
   x.fillStyle = "#fff"
   x.fillRect(0, 0, w, h)
   x.drawImage(bm, 0, 0, w, h)

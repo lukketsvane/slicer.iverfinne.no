@@ -31,8 +31,10 @@ and a keyboard, it is not finished.
     source       14 323 lines
     harnesses     5 787 lines   15 files
 
-Of the source, roughly 5 400 lines are comments. That is deliberate and much of it is
-worth keeping as knowledge, but it sits on top of a structure that grew by accretion:
+The comments have since been stripped: 13 180 lines across 89 files, cutting the source
+by a third with every harness green. The reasoning lives in this file, in `README.md` and
+in `PLAN.md`, where it can be read without opening an editor. What remains sits on top of
+a structure that grew by accretion:
 one file of 2 395 lines holds the scene and every gesture in it, another of 1 321 holds the
 whole application state. The rebuild should land far below this, and the reduction should come
 from a simpler model, not from deleting the reasoning.

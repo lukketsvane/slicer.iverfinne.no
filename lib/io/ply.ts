@@ -1,37 +1,7 @@
-/**
- * PLY inn.
- *
- * Formatet ein 3D-skannar spyttar ut. Hovudet er alltid tekst og seier kva
- * som fylgjer: kva element fila har, kor mange av kvart, og kva
- * eigenskapar kvart element ber. Kroppen er anten tekst eller binær.
- *
- * Grunnen til at lesaren er lengre enn STL-lesaren er at ein PLY-fil frå
- * ein skannar sjeldan har berre x, y og z. Ho har normalar, fargar,
- * konfidensverdiar og alt anna kameraet meinte noko om — i vilkårleg
- * rekkjefylgje, med vilkårlege typar. Difor vert steget mellom to hjørne
- * rekna av hovudet i staden for å gjettast, og x, y og z vert henta der
- * hovudet seier dei ligg.
- */
 import { makeSoup, type Soup } from "../soup"
 
 type Prop = { name: string; type: string; list?: { count: string; item: string } }
 
-/**
- * KVA FOR EI LISTE PÅ EI FLATE SOM ER TREKANTANE.
- *
- * Ei PLY-flate kan ha fleire lister. `vertex_indices` er hjørna; ved sida
- * av han ligg det ofte ei `texcoord`-liste med seks flyttal, og på fila
- * frå ein fotogrammetri-pakke er ho der nesten alltid. Blir HO òg lesen
- * som hjørne, kjem det fire ekstra trekantar per flate, laga av
- * teksturkoordinatar tolka som indeksar — eit tetraeder på fire trekantar
- * kom inn med tjue.
- *
- * Ingen av dei ekstra trekantane er der objektet er, og strålane tel
- * vindinga: eit nett med slikt i seg har ikkje ei innside lenger.
- *
- * Er ingen av listene namngjeven som ein indeks, held vi på den fyrste.
- * Ho står fyrst i kvar PLY nokon har skrive.
- */
 function indeksLista(props: Prop[]): number {
   let fyrste = -1
   for (let i = 0; i < props.length; i++) {
@@ -52,9 +22,6 @@ const SIZE: Record<string, number> = {
 
 export function parsePly(buf: ArrayBuffer): Soup {
   const bytes = new Uint8Array(buf)
-  // Hovudet er ASCII same kva kroppen er, so det let seg lesa byte for byte
-  // utan å røre resten. Å avkode heile fila som tekst fyrst ville øydelagt
-  // ein binær kropp på hundre megabyte.
   let end = -1
   const head: string[] = []
   let line = ""
@@ -90,21 +57,6 @@ export function parsePly(buf: ArrayBuffer): Soup {
     }
   }
 
-  /**
-   * TALET I HOVUDET ER EIT TAL NOKON HAR SKRIVE, IKKJE EIT TAL NOKON HAR TALT.
-   *
-   * `element vertex 1000000000` vart lese rett inn som lykkjegrense. Ei fil
-   * på to hundre byte med `element foo 1e18` i hovudet sette difor arbeidaren
-   * til å telje til ein trillion — han kom aldri attende, sida stod på «les
-   * fila …» for alltid, og einaste vegen ut var å laste henne på nytt. Det
-   * skal ikkje ei fil kunne gjere.
-   *
-   * Ei rad kan ikkje vera mindre enn dei faste felta sine: i ei binær fil er
-   * det byta til kvar eigenskap, og i ei tekstfil minst eitt teikn per
-   * verdi. Er talet i hovudet større enn det som får plass i det som ligg
-   * att av fila, er hovudet ikkje til å tru på — og då er det ei ulesbar
-   * fil, som er noko reiskapen alt veit å seie frå om.
-   */
   const att = buf.byteLength - end
   for (const e of elems) {
     const minRad = e.props.reduce(
@@ -204,8 +156,6 @@ function readBinary(dv: DataView, elems: Elem[], le: boolean): Soup {
   for (const e of elems) {
     const fixed = e.props.every((p) => p.type !== "list")
     if (e.name === "vertex" && fixed) {
-      // Steget mellom to hjørne er summen av eigenskapane, og x, y og z
-      // ligg der hovudet sa. Alt anna vert hoppa over utan å lesast.
       let off = 0
       const at3: Record<string, { o: number; t: string }> = {}
       for (const p of e.props) {

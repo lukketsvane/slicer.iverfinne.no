@@ -1,11 +1,3 @@
-/**
- * Mobilredigering gjennom DOM og ekte nettlesar-touch, seriell som panel.
- * Start eit ferdig bygg på 3210. Berre spegelprøva byrjar med ei kjent
- * prosjektlenkje; resten tek i kontrollane frå ei heilt ny nettlesarøkt.
- * Chromium på PC provar gestane og parameterflyten, ikkje iOS-tastaturet.
- *
- *   pnpm exec tsx scripts/redigering-sjekk.ts [teikning materiale spegling skuff ledd]
- */
 import assert from "node:assert/strict"
 import { existsSync, mkdirSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -56,8 +48,6 @@ async function tom(side: Page) {
 
 async function teikning(side: Page, cdp: CDPSession) {
   await tom(side)
-  // Den teikna framsida av synskuben, same synlege treffmål som minutt.
-  // Reiskapen er alt armert: arbeidsplanet vert valt før fyrste drag.
   await side.touchscreen.tap(344, 87)
   await roleg(side)
   sjekk("kniven og skissehandtaka er borte", await side.locator(".handtak").evaluate((el) => getComputedStyle(el).visibility === "hidden") && await side.locator("[data-skisse='snitt']").count() === 0)
@@ -109,7 +99,6 @@ async function materiale(side: Page, cdp: CDPSession) {
   const rad = knapp(side, "18").locator("..")
   const b = await rad.boundingBox()
   assert(b, "tjuknrad manglar")
-  // Dei siste platetjuknene vert nådde ved eit fingerdrag i den vassrette rada.
   await dra(side, cdp, line([Math.min(350, b.x + b.width - 16), b.y + b.height / 2], [70, b.y + b.height / 2]), 350)
   await trykk(knapp(side, "18"))
   await vent(side, (p) => p.tjukn === 18, "18 mm-valet verka ikkje")
@@ -117,8 +106,6 @@ async function materiale(side: Page, cdp: CDPSession) {
   await vent(side, (p) => p.tjukn === 12, "12 mm-valet verka ikkje")
   sjekk("12 og 18 mm er tilgjengelege med fingeren", param(side).tjukn === 12)
   const foer = await side.evaluate(() => ({ skala: visualViewport?.scale ?? 1, breidd: innerWidth, x: scrollX, y: scrollY }))
-  // Klaring startar på 0,1: gå fyrst til 0,2, so ei broten skriving ikkje
-  // kan passere berre fordi målet tilfeldigvis er standardverdien.
   for (const [namn, verdi, felt] of [["klaring", "0,2", "klaring"], ["tjukn", "11,85", "tjukn"], ["klaring", "0,1", "klaring"]] as const) {
     const foerVerdi = param(side)[felt]
     await knapp(side, `${namn}, skriv tal`).tap()
@@ -218,7 +205,6 @@ async function main() {
     for (const [namn, prov] of DELAR.filter(([n]) => !bedne.length || bedne.includes(n))) {
       const start = performance.now()
       const okt = await nettlesar.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 })
-      // Som panel: ei roleg hand held kontrollane vakne medan motoren reknar.
       await okt.addInitScript(() => setInterval(() => window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true })), 700))
       const side = await okt.newPage()
       side.setDefaultTimeout(12000)

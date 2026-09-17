@@ -1,16 +1,3 @@
-/**
- * SLICERMAN — reglane.
- *
- * Reiskapen nektar ikkje å snitte. Han snittar kva som helst, men han seier
- * kva han har snitta, og kva av det som ikkje kan skjerast eller ikkje kan
- * setjast saman. `hard` tyder at delane ikkje let seg lage eller montere;
- * ein mjuk regel er eit val, og eit val skal stå på papiret.
- *
- * Fem av dei harde er heile grunnen til at reiskapen finst: plana må gripe
- * i kvarandre; kvar del må kunne skuvast inn éin veg; det må vera gods att
- * i leddet; sporet må overleve snittet; og delane må få plass på plata du
- * faktisk har.
- */
 import { bbox, nn, type Fiks, type Metrics, type Rule, type Vec3 } from "./core"
 import { measure } from "./metrics"
 import { fitRoom } from "./pack"
@@ -22,56 +9,13 @@ import { bogMin as bogMinAv, rilleMal } from "./rille"
 import { PARAM_RANGES, SNITTVEGAR, lesFest, skrivFest, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
-/** klaringa bur mellom 0,05 og 0,35: éin desimal gjer heile bandet til tre tal */
 const mm2 = (v: number) => nn(v, 2) + " mm"
-/** eit steg opp eller ned i den skyvaren tala faktisk bur i */
 const snapp = (v: number, steg: number) => Math.round(v / steg) * steg
 
-/**
- * NÅR NETTET ER FOR GROVT — OG KVIFOR TALET IKKJE ER TO HUNDRE.
- *
- * Regelen stod på «under to hundre trekantar», og den lina kunne aldri
- * verta raud. Skyvaren botnar på eit halvt tusen, `budsjett` gjev heile
- * taket til ei einsam kjelde, og forenklinga stoggar NÅR ho har nådd
- * budsjettet — ho held ikkje fram under det. Målt på det lågaste hakket:
- *
- *     kule 18 432 trekantar → 384      sylinder 1 024 → 224
- *     kule  4 608 →  384               rutekube 3 072 → 432
- *     kule  1 152 →  408               rutekube   768 → 432
- *
- * Botnen ligg kring tre hundre og femti, og eit nett som ER under to
- * hundre har ikkje fleire å miste — då er `tris >= srcTris` og lina er
- * grøn av den andre grunnen. Ei vakt som ikkje kan verta raud svarar på
- * eit anna spørsmål enn det som vart stilt.
- *
- * Taket sjølv er talet: lina står når forenklinga har teke nettet under
- * det MINSTE skyvaren kan be om, og den er sann nett på det hakket. Kva
- * det kostar, målt på ei kule på to hundre millimeter med fire og fire
- * plan: kuttet 7,413 m mot 7,495 og massen 0,3651 kg mot 0,3759 — tre
- * prosent gods lese av eit nett som ikkje er der.
- */
 const NETT_MINST = 500
 
 const narrowOf = (s: Snitt) => s.ribber.reduce((m, r) => (r.spor.length || r.tapp.some((q) => q.slag === "slisse") ? Math.min(m, r.narrow) : m), Infinity)
 
-/**
- * EI REKKJEFYLGJE SOM GÅR OPP, OM HO FINST.
- *
- * Kvar del skal ha éi retning inn mot dei som alt ligg. Grådig: av delane
- * som kan leggjast no, den med flest retningar i ledda sine — han må inn
- * før alle utanom éi av dei, so han går fyrst. Går det til botns, er det
- * ei rekkjefylgje å tilby; står det fast, finst det truleg inga: tre plan
- * som kryssar kvarandre i gods utan å dele ei line går ikkje i hop i
- * nokon rekkjefylgje, og det er planet og ikkje lista som må endrast.
- */
-/**
- * EI RETNING INN, og om ho har eit forteikn.
- *
- * Eit halvt-om-halvt-spor er ei LINE: delen kan kome frå kva ende som helst,
- * og munnen vert lagd der han kjem frå. Ein tapp er ei PIL — han går inn i
- * slissa frå den eine sida og ingen annan — so eit stag med tappar i to
- * sider som står andlet mot andlet har to retningar og ikkje éi.
- */
 type Inn = { d: Vec3; pil: boolean }
 const saman = (a: Inn, b: Inn, par: number) => (a.pil && b.pil ? dot(a.d, b.d) >= par : Math.abs(dot(a.d, b.d)) >= par)
 
@@ -79,15 +23,10 @@ function ordna(s: Snitt): number[] | null {
   const liner = new Map<number, Map<number, Inn>>()
   for (const r of s.ribber) {
     const m = new Map<number, Inn>()
-    // TAPPANE: delen går langs tappen sin, eller ned på tappen til den andre
     for (const q of r.tapp) {
       if (!m.has(q.mot)) m.set(q.mot, { d: q.slag === "tapp" ? q.inn : [-q.inn[0], -q.inn[1], -q.inn[2]], pil: true })
     }
-    // EIN BØYGD DEL VERT IKKJE SKUVA INN, HAN VERT BØYGD INN, og rullinga
-    // tek generatorane og bogane hans på ein gong (sjå `Montering.boygde`).
-    // Han melder difor inga retning, og står ikkje i strid med nokon.
     for (const q of (r.r.k ? [] : r.spor)) {
-      // sporet si line i rommet: retninga i ramma, lagd ut gjennom u og v
       const d: Vec3 = [
         q.d[0] * r.r.u[0] + q.d[1] * r.r.v[0],
         q.d[0] * r.r.u[1] + q.d[1] * r.r.v[1],
@@ -100,8 +39,6 @@ function ordna(s: Snitt): number[] | null {
   const att = s.ribber.map((r) => r.plan.id)
   const lagt: number[] = []
   const par = Math.cos((3 * Math.PI) / 180)
-  /** kor mange retningar delen har ledd i. Ein del med to eller fleire må
-   *  inn FØR alle utanom éi av retningane sine, so han går fyrst. */
   const klassar = (id: number) => {
     const ds: Inn[] = []
     for (const d of (liner.get(id) ?? new Map<number, Inn>()).values()) {
@@ -110,19 +47,6 @@ function ordna(s: Snitt): number[] | null {
     return ds.length
   }
   const kan = (id: number) => strid(id) === 0
-  /**
-   * KOR MANGE RETNINGAR DELEN STÅR I STRID MED, mot dei som alt ligg. Null
-   * er «han kjem inn»; alt over er kor ille det er.
-   *
-   * Dette var ein ja/nei før, og lykkja under gav opp — `return null` — i
-   * det ingen del kunne leggjast. Alt eller ingenting: eit objekt der EI
-   * rekkjefylgje ville teke deg frå førti fastlåste til fem fekk ikkje eit
-   * råd i det heile, av di rådet ikkje kunne love null.
-   *
-   * No held ho fram med den MINST DÅRLEGE. Ei rekkjefylgje som er betre er
-   * betre, og `ordenFiks` måler etterpå kor mykje ho tok — ho lovar
-   * framleis ingenting ho ikkje har rekna.
-   */
   const strid = (id: number) => {
     const ds: Inn[] = []
     for (const [mot, d] of liner.get(id) ?? []) {
@@ -137,14 +61,6 @@ function ordna(s: Snitt): number[] | null {
     }
     return verst
   }
-  /**
-   * KOR MANGE AV DEI ATTVERANDE SOM STÅR FAST om `id` vert lagd no.
-   *
-   * Grådig åleine tek ein del som kan inn, og det er ikkje nok: to sider
-   * og eit stag imellom kan alle leggjast fyrst, men legg du båe sidene
-   * før staget, har staget tappar mot to flater som ser kvarandre, og det
-   * kjem aldri inn. Eitt steg fram er det som skil dei.
-   */
   const stengjer = (id: number) => {
     lagt.push(id)
     let n = 0
@@ -164,7 +80,6 @@ function ordna(s: Snitt): number[] | null {
       }
     }
     if (best < 0) {
-      // ingen kjem reint inn: ta den som står i strid med færrast, og gå vidare
       for (let i = 0; i < att.length; i++) {
         if (best < 0 || strid(att[i]) < strid(att[best])) best = i
       }
@@ -174,41 +89,6 @@ function ordna(s: Snitt): number[] | null {
   return lagt
 }
 
-/** `bygg` kan sendast inn av den som alt har rekna det; `raad` er om
- *  reglane skal rekne ut råda sine — søket spør berre om dei harde held. */
-/**
- * ALLE RÅDA, TRYKTE FOR DEG — til det ikkje er fleire å trykkje.
- *
- * Kvar regel har alltid hatt rådet sitt, og kvart råd har alltid vore éin
- * knapp. Det held so lenge det er eitt som er gale. Eit objekt med åtte og
- * fyrti plan kan ha seks brot på ein gong, og då er det seks knappar du
- * skal finne, i ei rekkjefylgje ingen har fortalt deg, der kvar av dei
- * endrar kva dei andre svarar.
- *
- * So: EIN runde om gongen, og reglane vert rekna på nytt mellom kvar. Eit
- * råd er ei endring i posen, og posen er alt eit råd nummer to les.
- *
- * TRE REGLAR FOR SJØLVE LYKKJA:
- *
- * Han gjer det ALDRI verre. Kvart råd vert prøvt, og talet på harde brot
- * lese etterpå; steig det, vert rådet kasta og lykkja går vidare til det
- * neste. `pnpm raad` har alltid prøvt dette per råd — her gjeld det for
- * kjeda.
- *
- * Han stoggar når ingenting endrar seg. Eit råd som set det same talet om
- * att er ikkje framgang, og to råd som dreg kvar sin veg ville elles bytt
- * på i det uendelege.
- *
- * Og han har eit tak. Tolv rundar er meir enn nok når kvar runde tek minst
- * eitt brot — og eit tak er det einaste som skil ei lykkje frå ein hengelås
- * når nokon seinare legg til eit råd som ikkje oppfører seg.
- *
- * Han lovar ikkje å fikse ALT, og kan ikkje: «plana grip» og «delar å
- * skjere» har ingen råd, av di svaret er å skjere fleire plan, og det er
- * ikkje reiskapen sitt val. Han fiksar det som HAR eit råd, og seier kva
- * som står att.
- */
-/** posen som streng, med nøklane i orden: to posar er like når dette er likt */
 const posen = (q: Params) =>
   Object.keys(q)
     .sort()
@@ -229,7 +109,6 @@ export function fiksAlt(p: Params): { p: Params; runder: number; fiksa: string[]
       const prov = { ...naa, ...q.fiks!.set } as Params
       if (posen(prov) === posen(naa)) continue
       const etter = harde(prov)
-      // ALDRI VERRE: eit råd som lagar fleire harde brot enn det tek, vert kasta
       if (etter > brot) continue
       naa = prov
       brot = etter
@@ -253,12 +132,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     out.push(r)
   }
 
-  /**
-   * KOR MYKJE MINDRE? Delane er lineære i storleiken, so den verste delen
-   * seier kva heile objektet må gangast med for å kome innanfor plata —
-   * for begge leier, av di pakkinga får snu han. To prosent til gode, so
-   * ned til næraste steg: eit råd på grensa ryk att på ei avrunding.
-   */
   const plateFiks = (): Fiks | undefined => {
     if (ns.spilt === 0 && ns.kross > 0) {
       const f = lesFest(p.fest)
@@ -280,14 +153,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
       kort = Math.max(kort, Math.min(w, h))
     }
     if (verst >= 1) return undefined
-    /**
-     * TEIKNA MØBLAR ER SÅ STORE SOM DEI ER. Ein krakk på 450 mm teikna
-     * for hand vert ikkje betre av å verta 380: storleiken var avgjerda.
-     * Har eit plan eit omriss, er rådet difor eit STØRRE ARK — det minste
-     * i heile femtimillimeter som tek den verste delen, snudd om det
-     * hjelper — og ikkje eit mindre objekt. Ein modell frå eit nett har
-     * ingen slik avgjerd i seg, og der held det gamle rådet.
-     */
     if (lesPlan(p.plan).some((q) => q.omriss)) {
       const opp = (v: number) => Math.ceil(v / 50) * 50
       let B = Math.max(p.arkB, opp(lang)), H = Math.max(p.arkH, opp(kort))
@@ -305,12 +170,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     return ny < p.storleik ? { ord: `prøv ${nn(ny)} mm`, set: { storleik: ny } } : undefined
   }
 
-  /**
-   * EITT HAKK OPP, OG REKNA I STADEN FOR LOVA. Forenklinga stoggar på
-   * budsjettet, so eitt hakk opp doblar det — men nettet vert bygt og talt
-   * før knappen vert tilbydd, av di ei kjelde som er tom for trekantar
-   * ikkje vert finare av eit høgare tak.
-   */
   const nettFiks = (): Fiks | undefined => {
     if (m.tris >= NETT_MINST || m.tris >= m.srcTris) return undefined
     for (const t of [1, 2, 5]) {
@@ -329,11 +188,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     return ny < p.snitt ? { ord: `prøv ${mm2(ny)}`, set: { snitt: ny } } : undefined
   }
 
-  /**
-   * «DEL I MIDTEN» — MEN BERRE OM HAN FAKTISK DELER. `ledd` avgjer òg OM
-   * leddet vert lagt, so rådet vert rekna før det vert tilbydd: eit råd
-   * som tek ledda med seg er ikkje eit råd.
-   */
   const godsFiks = (): Fiks | undefined => {
     if (m.narrow >= minGods || Math.abs(p.ledd - 0.5) <= 0.01) return undefined
     const { s: s2 } = makeBygg({ ...p, ledd: 0.5 }, DETAIL.mid)
@@ -341,11 +195,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     return narrowOf(s2) >= minGods ? { ord: "del i midten", set: { ledd: 0.5 } } : undefined
   }
 
-  /**
-   * RETT UT DEI SOM MISSER MØTE, og berre dei. Rekna og ikkje lova: snittet
-   * vert bygt om att med bøyen borte, og knappen står berre om møta faktisk
-   * kjem attende som ledd.
-   */
   const bogKurveFiks = (idar: readonly number[]): Fiks | undefined => {
     const ny = skrivPlan(lesPlan(p.plan).map((q) => (idar.includes(q.id) ? { ...q, bog: 0 } : q)))
     if (ny === p.plan) return undefined
@@ -365,30 +214,14 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     const plan = lesPlan(p.plan)
     const ny = skrivPlan(orden.map((id) => plan.find((q) => q.id === id)!).filter(Boolean))
     if (ny === p.plan) return undefined
-    // rekna, ikkje lova: retningane vert valde på nytt i den nye rekkjefylgja
     const foer = s.montering.brot.length
     const etter = makeBygg({ ...p, plan: ny }, DETAIL.mid).s.montering.brot.length
-    // ...og eit råd som tek NOKRE er framleis eit råd. Ordet seier kva han
-    // faktisk gjer, so du ikkje trur han lovar meir enn han kan.
     if (etter < foer) {
       return { ord: etter ? `byt rekkjefylgje: ${foer} → ${etter} fast` : "byt rekkjefylgje", set: { plan: ny } }
     }
     return undefined
   }
 
-  /**
-   * OG NÅR INGA REKKJEFYLGJE HJELPER: TA DEI BORT.
-   *
-   * Ein del som har ledd mot to som alt ligg, langs liner som ikkje er
-   * parallelle, kjem ikkje inn i NOKON orden. Regelen sitt eige «kvifor»
-   * seier dei to botemidla: byt rekkjefylgje, eller vinkle planet om. Det
-   * fyrste er prøvt over. Det andre kan reiskapen ikkje gjere for deg — han
-   * veit ikkje kva du ville med planet.
-   *
-   * Det tredje kan han: ta dei ut. Det gjev alltid eit objekt som let seg
-   * setje saman, og det er alltid eit tap. Difor `riv`: knappen står, ordet
-   * seier kor mange, angre tek dei attende — og «fiks alt» rører han ikkje.
-   */
   const ordenRiv = (): Fiks | undefined => {
     const fast = s.montering.brot
     if (!fast.length) return undefined
@@ -397,30 +230,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     return { ord: `ta bort dei ${nn(fast.length)} som står fast`, set: { plan: skrivPlan(att) }, riv: true }
   }
 
-  /**
-   * TO PLAN SOM STÅR FOR TETT: TA BORT DET EINE.
-   *
-   * Regelen sitt eige «kvifor» seier dei to botemidla: flytt det eine,
-   * eller ta det bort. Det fyrste kan reiskapen ikkje gjere for deg — han
-   * veit ikkje kva du ville med planet, og å skuve eit plan er noko du
-   * gjer med fingeren på det.
-   *
-   * Det andre kan han. Lukene vert målte med DEN SAME funksjonen som talet
-   * i tavla er rekna med — `lukene` i `snitt.ts` — og ribbene ligg i lista
-   * i den rekkjefylgja plana står. So går han gjennom dei ein gong: eit
-   * plan som står for tett på eitt som alt er halde, fell. Det som står att
-   * har luke nok mot kvart av dei andre, og det er den same rekninga
-   * regelen les etterpå.
-   *
-   * To rekningar her ville vore verre enn ingen knapp: han ville teke plan
-   * regelen ikkje klaga på, eller late dei stå medan lina var raud. Ei
-   * bøygd flate er nett der dei to ville skilt lag — normalen hennar er
-   * normalen der buen byrjar, og flata sjølv ligg ein annan stad.
-   *
-   * `riv`: knappen står, ordet seier kor mange, angre tek dei attende — og
-   * «fiks alt» rører han ikkje. Eit trykk som tek tjuefire plan du har sett
-   * skal vera eit trykk du meinte.
-   */
   const opningRiv = (): Fiks | undefined => {
     if (m.minGap >= 3) return undefined
     const maal = lukene(s.ribber.map((r) => ({ r: r.r, ringar: r.raa })), p.tjukn)
@@ -436,26 +245,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     return { ord: `ta bort dei ${nn(ute.size)} som står for tett`, set: { plan: skrivPlan(att) }, riv: true }
   }
 
-  /**
-   * OG NÅR TO DELAR STÅR I KVARANDRE: TA EITT PLAN UT — EITT.
-   *
-   * Fyrste utgåva tok alle på ein gong, grådig, og `pnpm raad` felte henne:
-   * to nye harde brot i staden for eitt. Grunnen er at KLEMMA HENG I SPORA.
-   * Tek du eit plan bort, misser naboane spora dei hadde mot det, godset
-   * kjem attende, og par som stod fritt klemmer no. Ei liste rekna på den
-   * gamle geometrien seier ikkje noko om den nye — og tek du nok plan til
-   * at alle dei gamle para er borte, grip ingenting lenger.
-   *
-   * Difor eitt plan: det som er med i flest par. Målt over dei nitten
-   * innebygde formene som klemmer, rutenett 6×6, ved å trykkje knappen om
-   * att til talet er null: åtte og førti steg, og talet FALL i sju og
-   * førti av dei og stod stille i eitt. Det steig aldri. Kvar form er
-   * klemmefri etter høgst fem trykk, og har enno sju plan att av tolv.
-   *
-   * Som `ordenFiks` er dette eit råd som gjer det betre og ikkje ferdig.
-   * `riv` av di det tek eit plan du sette — «fiks alt» skal ikkje rive
-   * arbeid — og ordet seier kva som ryk.
-   */
   const klemRiv = (): Fiks | undefined => {
     const par = s.montering.klem
     if (!par.length) return undefined
@@ -472,7 +261,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     return { ord: `ta bort plan ${verst} · ${nn(flest)} av ${nn(par.length)} par`, set: { plan: skrivPlan(blir) }, riv: true }
   }
 
-  // --- 1 plana grip (hard) ----------------------------------------------------
   add({
     id: "grip",
     rad: "ledd",
@@ -483,7 +271,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     why: "Utan eit einaste kryssledd er dette ikkje eit objekt, men ein bunke laust liggjande plater. Vanlegaste grunnen er at plana ikkje kryssar kvarandre der kroppen har gods, eller at det står for få av dei til at nokon møtest. Er nokre avviste, kryssa dei — men det stod for lite gods ved sida av sporet til at noko heldt. Rutenettet på lina set kolonner og rader med to fingrar.",
   })
 
-  // --- 2 delane finst (hard) --------------------------------------------------
   add({
     id: "delar",
     rad: "delar",
@@ -494,12 +281,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     why: "Ingen plan råka nettet. Anten står plana utanfor kroppen, eller so er nettet so tynt at kvar profil fell under minstearealet — eller du har ikkje låst noko enno. Rutenettet på lina set kolonner og rader med to fingrar.",
   })
 
-  // --- 3 kvar del kan skuvast inn (hard) --------------------------------------
-  /**
-   * Ein del med spor kan berre gå inn langs spora sine. Har han ledd mot to
-   * alt lagde delar som ikkje er parallelle, kjem han ikkje inn same kva
-   * du gjer. Rutenettet kunne aldri bryte denne; eit sett plan for hand kan.
-   */
   const brot = s.montering.brot
   add({
     id: "orden",
@@ -511,18 +292,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     fiks: raad ? (ordenFiks() ?? ordenRiv()) : undefined,
   })
 
-  // --- 3b ingen delar står i kvarandre (hard) ---------------------------------
-  /**
-   * «Kan monterast» spør om ein del har ÉI retning inn. Denne spør om det
-   * finst ein stad å gjere av han når han er komen: to delar som har gods
-   * på den same lina etter at spora er skorne, står i kvarandre.
-   *
-   * Det er eit anna brot, og eit langt vanlegare. Møtet deira vart nekta av
-   * skuldra — det stod ikkje gods nok ved sida av sporet — so ingen av dei
-   * fekk spor, og båe står att med fullt gods der dei kryssar. Målt på dei
-   * tjue innebygde formene med rutenett 6×6: nitten har minst eitt slikt
-   * par, og «kan monterast» stod grøn på alle tjue.
-   */
   const klem = s.montering.klem
   add({
     id: "klem",
@@ -534,12 +303,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     fiks: raad ? klemRiv() : undefined,
   })
 
-  // --- 4 kvar del heng i noko -------------------------------------------------
-  /**
-   * Hard når du tek dei lause øyene med, mjuk når du kastar dei. Eit heilt
-   * plan utan ledd vert aldri kasta — det er det fyrste planet du låste —
-   * og står her som eit tal til det får eit ledd.
-   */
   const utan = dl.lause
   add({
     id: "lause",
@@ -552,7 +315,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     fiks: !p.lause && utan > 0 ? { ord: "kast dei", set: { lause: 1 } } : undefined,
   })
 
-  // --- 5 gods att i leddet (hard) ---------------------------------------------
   const minGods = Math.max(2, p.tjukn)
   add({
     id: "gods",
@@ -565,7 +327,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     fiks: raad ? godsFiks() : undefined,
   })
 
-  // --- 6 delane får plass på plata (hard) -------------------------------------
   add({
     id: "plate",
     rad: "ark",
@@ -579,7 +340,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     fiks: raad ? plateFiks() : undefined,
   })
 
-  // --- 7 klaringa (mjuk) ------------------------------------------------------
   add({
     id: "klaring",
     label: "klaring",
@@ -590,7 +350,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     fiks: p.klaring < 0.05 || p.klaring > 0.35 ? { ord: "prøv 0,10 mm", set: { klaring: 0.1 } } : undefined,
   })
 
-  // --- 8 nokon tek snittbreidda (mjuk) ----------------------------------------
   add({
     id: "snitt",
     label: "snittbreidd",
@@ -601,7 +360,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     fiks: p.snitt > 0 ? undefined : { ord: "prøv 0,2 mm", set: { snitt: 0.2 } },
   })
 
-  // --- 9 snittet et ikkje opp sporet (hard) -----------------------------------
   add({
     id: "snittspor",
     rad: "spor",
@@ -613,7 +371,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     fiks: raad ? snittFiks() : undefined,
   })
 
-  // --- 10 opninga mellom plan (mjuk) ------------------------------------------
   add({
     id: "opning",
     rad: "opning",
@@ -625,7 +382,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     fiks: raad ? opningRiv() : undefined,
   })
 
-  // --- 11 lukka nett (mjuk) ---------------------------------------------------
   add({
     id: "lukka",
     rad: "kantar",
@@ -636,7 +392,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     why: "Snittinga les nettet med strålar og tel kva veg kvar trekant vender. Eit nett med hòl i har ingen innside å telje, og då kan ein profil kome ut som eit stykke der han skulle vore to.",
   })
 
-  // --- 12 oppløysinga (mjuk) --------------------------------------------------
   add({
     id: "nett",
     rad: "nett",
@@ -648,7 +403,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     fiks: raad ? nettFiks() : undefined,
   })
 
-  // --- 13 utnyttinga (mjuk) ---------------------------------------------------
   add({
     id: "utnytting",
     rad: "utnytting",
@@ -659,52 +413,9 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     why: "Meir enn to tredelar av plata går i søppelbøtta. Prøv ei anna plate, eller færre og større delar. Pakkinga fylgjer omrisset og reknar hòla som ledig plass, so det som står att er luft ho ikkje fann nokon del til.",
   })
 
-  /**
-   * BØYEN, MOT DET MATERIALET FAKTISK TOLER (hard).
-   *
-   * Ei plate som vert bøygd strekkjer ytterfiberen: `ε = t / 2R`. Går han
-   * forbi det materialet toler, sprekk plata — og ho sprekk i verkstaden,
-   * ikkje på skjermen. Difor er dette ein HARD regel og ikkje eit råd.
-   *
-   * Faktorane er `R_min / t`, og dei er kaldbøying utan damp:
-   *
-   *   kryssfinér  100   ε 0,5 %   på tvers av fiberen i ytterlaget
-   *   mdf         200   ε 0,25 %  sprøtt, og bøyer seg dårleg utan snitt
-   *   akryl       230   ε 0,2 %   kaldt krakelerer han; varmt er ei anna sak
-   *   papp         10   ε 5 %
-   *
-   * Talet er konservativt med vilje: langs fiberen toler finéren under
-   * halvparten av det han gjer på tvers, og verkstaden veit ikkje kva veg
-   * plata ligg.
-   *
-   * OG DEN VEGEN GJEKK STEG TO: kerfsnitta er skrivne, og tabellen bur i
-   * `rille.ts` saman med mønsteret som er svaret på han. To kopiar av dette
-   * talet ville vore to meiningar om kva finér toler.
-   *
-   * REGELEN ER DIFOR IKKJE LENGER HARD. Under grensa vert plata RILLA, og
-   * det er ei avgjerd og ikkje ein feil: du får ei flate som bøyer seg, mot
-   * mindre gods og ein lengre køyretur. Regelen seier kva det kostar. Han
-   * står raud berre når mønsteret ikkje KAN leggjast — når fasetten vert
-   * grovare enn plata er tjukk, og forma du ser ikkje er den du får.
-   */
   const bogMin = bogMinAv(String(p.material), p.tjukn)
   const boygde = lesPlan(p.plan).filter((q) => q.bog)
-  /** den strammaste radien i lista, i millimeter */
   const strammast = boygde.reduce((m, q) => Math.min(m, p.storleik / Math.abs(q.bog)), Infinity)
-  /**
-   * OG KVA MØNSTERET KOSTAR, NÅR HAN FYRST VERT LAGD.
-   *
-   * Under grensa vert plata rilla, og då er spørsmålet ikkje lenger om ho
-   * sprekk — det er om mønsteret i det heile LET SEG LEGGJE. Éin ting
-   * stengjer for det, og han er geometri: SNITTET ET RADA. Er avstanden
-   * mellom to rader ikkje romsleg større enn snittet er breitt, er det ikkje
-   * eit hengsle — det er ei rad hòl med ingenting imellom. Ein grov fres i ei
-   * tynn plate kjem hit, og han er den einaste som gjer det.
-   *
-   * KVA REGELEN IKKJE SEIER: om brua held. Det er eit vridingsproblem i eit
-   * materiale som ikkje er likt i to retningar, og det talet står ikkje her,
-   * av di det ikkje er lese av geometrien. Skjer ein prøvestrimmel.
-   */
   const mal = rilleMal(strammast, p.tjukn, String(p.material))
   const kanRilla = mal.steg > 3 * p.snitt
   const stram = boygde.length > 0 && strammast < bogMin
@@ -740,28 +451,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
         : undefined,
   })
 
-  /**
-   * OG EI BØYGD RIBBE UTAN LEDD HENG IKKJE I NOKO (hard).
-   *
-   * Spor-maskineriet byggjer på at møtet har éi line og éi krumming. To
-   * plan møtest alltid i ei line. Ein sylinder og eit plan gjer det i to
-   * tilfelle, og dei er ytterpunkta av kvarandre: ligg planet LANGS
-   * sylinderaksen er møtet ein generator (`kryssBoygd`), og står det
-   * VINKELRETT på han er møtet ein sirkel med sylinderradien
-   * (`kryssRing`). Det fyrste er «krumt skal med flate ribber på tvers»,
-   * det andre er «krumt skal med golv», og saman er dei det eit skal
-   * faktisk vert halde av.
-   *
-   * Resten står att: eit plan som SKRÅR mot aksen møter sylinderen i eit
-   * kjeglesnitt som korkje rettar seg ut eller vert ein sirkel, og to
-   * bøygde flater i ei romkurve. Ei bøygd ribbe som ikkje fann eit einaste
-   * ledd kjem ut som ei laus plate, og regelen seier det i staden for å
-   * late deg finne det i eska.
-   *
-   * Difor tel han RIBBER UTAN LEDD — spor eller tappar — og ikkje bøygde plan: det er skilnaden
-   * på «bøygd» og «laus», og etter steg éin er dei to ikkje lenger det same.
-   */
-  // spor eller tappar: eit sadelsete med tappar i sidene er festa
   const lauseBog = s.ribber.filter((r) => !!r.r.k && !r.spor.length && !r.tapp.length)
   add({
     id: "bogledd",
@@ -776,8 +465,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     why: "Ei bøygd ribbe får spor på to måtar: eit flatt plan LANGS sylinderaksen hennar møter henne i ei rett line, og eit flatt plan VINKELRETT på aksen — eit golv — møter henne i ein sirkelboge med sylinderradien. Desse ribbene fann ingen av delane: eit plan som SKRÅR mot aksen møter flata i ei kurve som korkje er det eine eller det andre, og den finnaren er ikkje skriven. Dei kjem ut som lause plater du må feste sjølv. Rett ut bøyen, legg eit plan langs aksen, eller eit golv på tvers av han.",
     fiks: lauseBog.length
       ? {
-          // berre DEI SOM HENG LAUST. Å rette ut alle ville teke bøyen av
-          // ribber som gjer nett det dei skal.
           ord: lauseBog.length === boygde.length ? "rett ut alle" : "rett ut dei lause",
           set: {
             plan: skrivPlan(
@@ -788,21 +475,6 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
       : undefined,
   })
 
-  /**
-   * OG DEI MØTA SOM ER KURVER (mjuk).
-   *
-   * Den harde regelen over tel ribber UTAN SPOR. Ei bøygd ribbe som har eit
-   * plan langs aksen sin ER festa, og gjekk difor grøn gjennom han — medan
-   * kvart plan som SKRÅR mot aksen fall bort i stille. Eit krumt skal med
-   * tak og botn melde fire og tjue ledd og sa ingenting om dei åtte som
-   * skulle halde golva. Dei åtte er ledd no (`kryssRing`); talet står att
-   * for det som framleis fell, og det er dei SKRÅ plana.
-   *
-   * Difor står dette talet ved sida av det harde: ikkje «ribba heng laust»,
-   * men «so mange møte vart ikkje ledd, og delane kjem ut utan spor for
-   * kvarandre der». Mjuk, av di delane framleis let seg skjere og setje
-   * saman — dei grip berre i færre stader enn du sikta på.
-   */
   const kurvePlan = [...new Set(s.kurva)]
   add({
     id: "bogkurve",
@@ -820,4 +492,3 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
 
   return out
 }
-

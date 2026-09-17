@@ -19,17 +19,13 @@ type Teikning = {
   onStart: () => void
   paaFlata: (x: number, y: number) => Pt | null
   paaSkjermen: (punkt: Pt[]) => Pt[]
-  /** `snappa` seier kva aksar snappet flytta eit punkt i — dei skal midtstillinga la stå */
   onLukk: (omriss: Pt[], slag: "firkant" | "kontur", tol: number, snappa: readonly [boolean, boolean]) => void
-  /** hakar eit punkt fast — golvet, sidene på kant. `tol` er ein fingerbreidd i planet si eining */
   snapp?: (q: Pt, tol: number) => Pt
 }
 
-/** Eitt drag eig éin peikar. Berre det ferdige omrisset går til React. */
 export function useTeikning(q: Teikning) {
   const naa = useRef(q)
   naa.current = q
-  /** `punkt` er snappa, til å sjå medan du dreg; `raa` er der fingeren var — sjå `snappaKontur` */
   const drag = useRef<{ id: number; slag: Teikning["slag"]; x: number; y: number; a: Pt; b: Pt; punkt: Pt[]; raa: Pt[]; tol: number } | null>(null)
   const bane = useMemo(() => q.svg?.querySelector("polygon"), [q.svg])
   const maal = useMemo(() => q.svg?.querySelector("text"), [q.svg])
@@ -69,7 +65,6 @@ export function useTeikning(q: Teikning) {
       const t = e.target as Element | null
       if (!e.isPrimary || drag.current || arb.current || (e.pointerType === "mouse" && e.button !== 0)) return
       if (!t || t.closest("button, a, input, [role=slider], [role=tab], [role=option], header, aside, [aria-label='kontrollar'], section[aria-label='verkty'], section[aria-label='bilete']")) return
-      // Synskuben er WebGL på same lerret. Han må få både ned- og opptrykket.
       const rute = lerret.getBoundingClientRect(), fri = naa.current.fri
       const x = e.clientX - rute.left, y = e.clientY - rute.top
       if (x >= fri.L + fri.w - 76 && x <= fri.L + fri.w && y >= fri.T && y <= fri.T + 76) return
@@ -83,7 +78,6 @@ export function useTeikning(q: Teikning) {
       e.stopImmediatePropagation()
       melding.current = ""
       const tol = Math.max(1e-5, Math.hypot(nabo[0] - raa[0], nabo[1] - raa[1]))
-      // TI PIKSLAR: ein fingerbreidd, og tol er 1,25 piksel
       const a = naa.current.snapp?.(raa, tol * 8) ?? raa
       drag.current = { id: e.pointerId, slag: naa.current.slag, x: e.clientX, y: e.clientY, a, b: a, punkt: [a], raa: [raa], tol }
       arb.current = "teikn"
@@ -116,7 +110,6 @@ export function useTeikning(q: Teikning) {
       slepp()
       if (!b) return
       if (d.slag === "firkant" && (Math.abs(e.clientX - d.x) < 12 || Math.abs(e.clientY - d.y) < 12)) return
-      // Slippet sjølv er med, òg når nettlesaren ikkje sende siste move.
       const raaAlle = [...d.raa, raa]
       const snappaAlle = d.slag === "firkant" ? [d.a, b] : snappaKontur(raaAlle, [...d.punkt, b], d.tol)
       const raaHjorne = d.slag === "firkant" ? [d.raa[0], raa] : raaAlle
@@ -125,7 +118,6 @@ export function useTeikning(q: Teikning) {
       if (omriss) naa.current.onLukk(omriss, d.slag, d.tol, [flytta(0), flytta(1)])
       else melding.current = "teikn ein tydeleg kontur"
     }
-    // Mist grepet: kast berre draget som eig peikaren, aldri lag ei plate.
     const mist = (e: PointerEvent) => { if (e.pointerId === drag.current?.id) slepp() }
     const gøymd = () => { if (document.visibilityState === "hidden") slepp() }
     window.addEventListener("pointerdown", paa, true)

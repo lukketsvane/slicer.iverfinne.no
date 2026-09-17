@@ -1,16 +1,5 @@
 "use client"
 
-/**
- * 2D-FLATA: EIT PLAN, FLATT, MED VEKTORGREPA.
- *
- * I rommet står eit omriss på skrå og handtaka er der kameraet lèt dei
- * vera. Her ligg planet flatt i si eiga ramme, med millimeter på: dra eit
- * punkt, trykk midt på eit stykke for eit nytt, «rund» og «slett» på det
- * valde. Spegelen er på for ei side som er lik på båe sider: makkeren
- * fylgjer. «hòl» teiknar ein kontur inni, «firkant» og «sirkel» drar ein
- * boks. To fingrar flyttar og zoomar flata. Eit drag er ÉI endring: utkastet
- * står her medan fingeren er nede, og går til parametrane når han slepper.
- */
 import { useEffect, useMemo, useRef, useState } from "react"
 import { inRing, nn, shoelace, type Pt, type Vec3 } from "@/lib/core"
 import { omrissLine, omrissMidt, type Plan } from "@/lib/plan"
@@ -31,7 +20,6 @@ type Drag =
   | null
 
 const bane = (p: readonly Pt[]) => (p.length ? `M${p.map(([x, y]) => `${x.toFixed(5)},${(-y).toFixed(5)}`).join("L")}Z` : "")
-/** hakket, millimeter */
 const RUTE_MM = 1
 
 export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onLukk }: { plan: Plan; S: number; t: number; nyId: number; /** høgda på topplina: verktya står under henne, ikkje bak henne */ topp: number; /** dei andre plana og kroppen: spilene går den vegen plata når dei — sjå `spileAkse` */ alle: readonly Plan[]; boks: { min: Vec3; max: Vec3 } | null; onEndre: (q: Plan) => void; onDel: (fleire: Plan[]) => void; onLukk: () => void }) {
@@ -71,7 +59,6 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
     const b = svg.current!.getBoundingClientRect()
     return [v.cx + (e.clientX - b.left - px.w / 2) / v.ppe, v.cy - (e.clientY - b.top - px.h / 2) / v.ppe]
   }
-  // MILLIMETEREN: punkta hakar seg i heile millimeter, og i x eller y til naboane innanfor seks pikslar
   const hakk = (p: Pt, i?: number): Pt => {
     const mm = RUTE_MM / S
     let [x, y] = [Math.round(p[0] / mm) * mm, Math.round(p[1] / mm) * mm]
@@ -93,7 +80,6 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
     fingrar.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
     if (fingrar.current.size === 2) {
-      // to fingrar: flata, og ingenting anna
       setUtkast(null)
       const [a, b] = [...fingrar.current.values()]
       klyp.current = { d: Math.hypot(a.x - b.x, a.y - b.y), syn: v, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }
@@ -101,7 +87,6 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
       return
     }
     const p = inn(e)
-    // synet står still medan fingeren er nede: ei form som veks skal ikkje flytte flata under han
     if (!syn) setSyn(v)
     const pi = t.closest("[data-vpunkt]")?.getAttribute("data-vpunkt")
     const mi = t.closest("[data-vmidt]")?.getAttribute("data-vmidt")
