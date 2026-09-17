@@ -443,6 +443,17 @@ export type Lukka =
 const sameOmriss = (a: readonly Pt[] | undefined, b: readonly Pt[] | undefined): boolean =>
   !!a && !!b && a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1])
 
+export function ogSysken(fyrr: readonly Plan[], l: readonly Plan[], id: number): Plan[] {
+  const f = fyrr.find((q) => q.id === id)
+  const m = l.find((q) => q.id === id)
+  if (!f?.omriss || !m?.gruppe) return [...l]
+  const sysken = (q: Plan) => q.id !== id && q.gruppe === m.gruppe && sameOmriss(q.omriss, f.omriss)
+  if (!m.omriss) return l.map((q) => (sysken(q) ? (({ omriss: _o, runde: _r, ...rest }) => rest as Plan)(q) : q))
+  return l.map((q) =>
+    sysken(q) ? { ...q, omriss: m.omriss, ...(m.runde ? { runde: m.runde } : { runde: undefined }) } : q,
+  )
+}
+
 export function medStrek(l: readonly Plan[], id: number, strek: readonly Strek[], min: Vec3, max: Vec3): Plan[] {
   const maal = l.find((q) => q.id === id)
   if (!maal) return [...l]

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
 import { lesPlan, OMRISS_TAK, skrivPlan, ut } from "../lib/plan"
-import { haldt, landing, lukkTeikning, mellom, midtPaa, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
+import { haldt, landing, lukkTeikning, mellom, midtPaa, ogSysken, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import { bileteForm, skalerForm } from "../lib/bilete"
@@ -116,7 +116,14 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
     const nett = [{ ...kasse[0] }, { id: 2, o: [0.14, 0.5, 0.5] as Vec3, n: [1, 0, 0] as Vec3, bog: 0, strek: [], gruppe: 7 }]
     const r3 = lukkTeikning(nett, 1, ut(flate, [0, 0]), kasse[0].n, hol, hol, min, max, S, t)
     if (r3.slag === "hol") assert.deepEqual(r3.plan.map((q: Plan) => q.strek.length), [1, 0], "eit plan utan omriss får ikkje hòlet")
-    console.log("gruppehòl: ein oval i éin vegg står i alle fire, og berre i dei som er same plata")
+    const ny: Pt[] = [[-0.25, 0.3], [0.25, 0.3], [0.25, -0.45], [-0.25, -0.45]]
+    const forma = ogSysken(kasse, kasse.map((q) => (q.id === 1 ? { ...q, omriss: ny } : q)), 1)
+    assert.deepEqual(forma.map((q) => q.omriss?.[0][0]), [-0.25, -0.25, -0.25, -0.25], "ei forma kant i éin vegg står i alle fire")
+    const losna = ogSysken(kasse, kasse.map((q) => (q.id === 1 ? (({ omriss: _o, ...r }) => r as Plan)(q) : q)), 1)
+    assert.deepEqual(losna.map((q) => !!q.omriss), [false, false, false, false], "og eit sleppt omriss vert sleppt i alle fire")
+    const ulikForm = ogSysken(ulik, ulik.map((q) => (q.id === 1 ? { ...q, omriss: ny } : q)), 1)
+    assert.equal(ulikForm[1].omriss?.[0][0], -0.2, "ein medlem med eit anna omriss står")
+    console.log("gruppehòl og gruppeform: éin vegg formar alle fire, og berre dei som er same plata")
   }
 
   console.log("landing og snapp: setet på 438 mm, staget i midtplanet, foten i golvet, setet ved bakfoten, ryggen i bakfoten")
