@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
-import { lesPlan, OMRISS_TAK, skrivPlan } from "../lib/plan"
-import { haldt, landing, mellom, midtPaa, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
+import { lesPlan, OMRISS_TAK, skrivPlan, ut } from "../lib/plan"
+import { haldt, landing, lukkTeikning, mellom, midtPaa, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import { bileteForm, skalerForm } from "../lib/bilete"
@@ -102,6 +102,23 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert.equal(haldt(stolsider, min, max, S, t, [0, 0, 225], [1, 0, 0], rygg.map((p): Vec3 => [p[0], p[1] * 0.5, p[2]])), null, "ei plate som ikkje endar i sidene vert ikkje skuva")
   const breiRygg = haldt(stolsider, min, max, S, t, [0, 0, 225], [1, 0, 0], rygg.map((p): Vec3 => [p[0], p[1] * 1.4, p[2]]))
   assert(breiRygg && Math.abs(breiRygg[0] - 185) <= t / 2, `ein rygg breiare enn stolen kryssar sidene og går til bakfoten: ${breiRygg}`)
+  {
+    const ru = (id: number, o: Vec3, n: Vec3): Plan => ({ id, o, n, bog: 0, strek: [], omriss: [[-0.3, 0.35], [0.3, 0.35], [0.3, -0.5], [-0.3, -0.5]], gruppe: 7 })
+    const kasse = [ru(1, [0.5, 0.86, 0.5], [0, -1, 0]), ru(2, [0.14, 0.5, 0.5], [1, 0, 0]), ru(3, [0.5, 0.14, 0.5], [0, 1, 0]), ru(4, [0.86, 0.5, 0.5], [-1, 0, 0])]
+    const flate = ramme({ o: kasse[0].o, n: kasse[0].n }, min, max)
+    const hol: Pt[] = [[-0.08, 0.08], [0.08, 0.08], [0.08, -0.08], [-0.08, -0.08]].map((q) => [q[0], q[1]] as Pt)
+    const r = lukkTeikning(kasse, 1, ut(flate, [0, 0]), kasse[0].n, hol, hol, min, max, S, t)
+    assert.equal(r.slag, "hol", "eit drag inni ein vegg i ei ×4-gruppe er eit hòl")
+    if (r.slag === "hol") assert.deepEqual(r.plan.map((q: Plan) => q.strek.length), [1, 1, 1, 1], "og hòlet står i alle fire veggane")
+    const ulik = [kasse[0], { ...kasse[1], omriss: [[-0.2, 0.3], [0.2, 0.3], [0.2, -0.4], [-0.2, -0.4]] as Pt[] }]
+    const r2 = lukkTeikning(ulik, 1, ut(flate, [0, 0]), kasse[0].n, hol, hol, min, max, S, t)
+    if (r2.slag === "hol") assert.deepEqual(r2.plan.map((q: Plan) => q.strek.length), [1, 0], "ein gruppemedlem med eit anna omriss får ikkje hòlet")
+    const nett = [{ ...kasse[0] }, { id: 2, o: [0.14, 0.5, 0.5] as Vec3, n: [1, 0, 0] as Vec3, bog: 0, strek: [], gruppe: 7 }]
+    const r3 = lukkTeikning(nett, 1, ut(flate, [0, 0]), kasse[0].n, hol, hol, min, max, S, t)
+    if (r3.slag === "hol") assert.deepEqual(r3.plan.map((q: Plan) => q.strek.length), [1, 0], "eit plan utan omriss får ikkje hòlet")
+    console.log("gruppehòl: ein oval i éin vegg står i alle fire, og berre i dei som er same plata")
+  }
+
   console.log("landing og snapp: setet på 438 mm, staget i midtplanet, foten i golvet, setet ved bakfoten, ryggen i bakfoten")
 }
 

@@ -212,8 +212,6 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
           </dd>
         </div>
       ))}
-      {/* ...og eitt trykk som tek alle dei som ikkje riv noko. Nedst, av di
-          han gjeld linene over — og berre når det finst noko å ta. */}
       {fiksKnapp && (
         <div className="col-span-2 flex items-baseline justify-end py-[2px] leading-4">{fiksKnapp}</div>
       )}

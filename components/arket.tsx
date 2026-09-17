@@ -285,7 +285,6 @@ function MaterialTab({ p }: { p: ArketProps }) {
           </button>
         ))}
       </div>
-      {/* KILANE: eitt ord, og kvar tapp gjennom stikk ut og får kilen sin — sjå `KILAR` */}
       <div className="flex h-9 items-center gap-1">
         <span className="dim mr-1 shrink-0 text-[9px] uppercase tracking-[0.12em]">kilar</span>
         {KILAR.map((namn, i) => (
@@ -460,10 +459,6 @@ function MobileArket(p: ArketProps) {
           transform: pull ? `translateY(${pull}px)` : undefined,
         }}
       >
-        {/* GREPET. Han var berre eit merke å dra i; no er han òg knappen som
-            lèt att, av di lina under er borte når skuffa er open. Eit drag
-            gjer det same som før, og klikket som fylgjer eit drag vert
-            svelgd (`dro`) so han ikkje vippar attende. */}
         <button
           type="button"
           aria-label={open ? "lat att kontrollane" : "opne kontrollane"}
@@ -486,15 +481,6 @@ function MobileArket(p: ArketProps) {
           <span aria-hidden="true" className="mx-auto mt-2 block h-1 w-9 rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 22%, transparent)" }} />
         </button>
 
-        {/**
-          * LINA ER SKUFFA NÅR HO ER LUKKA, OG INGENTING NÅR HO ER OPEN.
-          *
-          * Ho stod i båe tilstandane, og open var ho ei rad som sa det same
-          * fanene under alt seier — med eit uttaksikon som er den siste fana
-          * ein gong til. To inngangar til det same, éin rad frå kvarandre.
-          *
-          * So ho er det lukka arket, og berre det. Grepet over lèt att.
-          */}
         {!open && (
           <div className="flex h-9 shrink-0 items-center gap-1 px-2">
             <button
@@ -515,9 +501,6 @@ function MobileArket(p: ArketProps) {
         {open && (
           <>
             <Tabs fane={fane} onFane={setFane} />
-            {/* fanen fyller det som er att av den faste høgda, og rullar
-                om ho treng meir enn det. `overscroll-contain` av di sida
-                sjølv aldri rullar. */}
             <div key={fane} ref={rull} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {content}
             </div>

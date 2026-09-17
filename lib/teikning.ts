@@ -440,6 +440,28 @@ export type Lukka =
   | { slag: "plate"; o: Vec3; omriss?: Pt[] }
   | { slag: "nei"; kvifor: string }
 
+const sameOmriss = (a: readonly Pt[] | undefined, b: readonly Pt[] | undefined): boolean =>
+  !!a && !!b && a.length === b.length && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1])
+
+export function medStrek(l: readonly Plan[], id: number, strek: readonly Strek[], min: Vec3, max: Vec3): Plan[] {
+  const maal = l.find((q) => q.id === id)
+  if (!maal) return [...l]
+  const med: Plan = { ...maal, strek: [...strek] }
+  const par = maal.gruppe ? l.filter((q) => q.gruppe === maal.gruppe && q.id !== maal.id) : []
+  const akse = par.length === 1 ? spegelakse(maal, par[0]) : null
+  const spegla = akse !== null ? speglPlan(med, akse, min, max).strek : null
+  const like = akse !== null || !maal.omriss ? new Set<number>() : new Set(par.filter((q) => sameOmriss(q.omriss, maal.omriss)).map((q) => q.id))
+  return l.map((q) =>
+    q.id === maal.id
+      ? med
+      : spegla && q.id === par[0].id
+        ? { ...q, strek: spegla }
+        : like.has(q.id)
+          ? { ...q, strek: [...strek] }
+          : q,
+  )
+}
+
 export function lukkTeikning(l: readonly Plan[], vald: number | null, po: Vec3, pn: Vec3, punkt: readonly Pt[], omriss: readonly Pt[], min: Vec3, max: Vec3, S: number, t: number): Lukka {
   const flate = ramme({ o: broek(po, min, max), n: pn }, min, max)
   const maal = l.find((q) => q.id === vald)
@@ -447,13 +469,7 @@ export function lukkTeikning(l: readonly Plan[], vald: number | null, po: Vec3, 
   if (maal && hol) {
     if (maal.strek.length >= STREK_TAK) return { slag: "nei", kvifor: `taket er ${STREK_TAK} strek` }
     const med: Plan = { ...maal, strek: [...maal.strek, hol] }
-    const par = maal.gruppe ? l.filter((q) => q.gruppe === maal.gruppe && q.id !== maal.id) : []
-    const akse = par.length === 1 ? spegelakse(maal, par[0]) : null
-    return {
-      slag: "hol",
-      plan: l.map((q) => (q.id === maal.id ? med : akse !== null && q.id === par[0].id ? { ...q, strek: speglPlan(med, akse, min, max).strek } : q)),
-      strek: med.strek.length - 1,
-    }
+    return { slag: "hol", plan: medStrek(l, maal.id, med.strek, min, max), strek: med.strek.length - 1 }
   }
   let p = po
   if (pn[2] > 0.999) {

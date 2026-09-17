@@ -1826,10 +1826,6 @@ function Montasjen({ f, mont, T, spel, vakn, material, onSteg, vald, onVeld }: {
             receiveShadow
             {...tak(d.adr)}
           >
-            {/* OG DEN VALDE STÅR I BLEKK. Adressa står i lina, men du peika
-                på éi ribbe i ein stabel like ribber, og eit svar som ikkje
-                seier KVA EIN du tok er eit halvt svar. Same oransje som eit
-                valt plan i rommet. */}
             <meshStandardMaterial color={vald === d.adr ? VALT : MATERIALS[mat].hex} roughness={0.9} metalness={0} side={THREE.DoubleSide} />
           </mesh>
           {geo[i].boygd && (
@@ -1952,17 +1948,6 @@ function Kroppen({ f, kropp, lag, view, skal, material, liste, vald, gruppe, pla
 
   return (
     <group {...gruppa(f)}>
-      {/*
-        TO MESH-AR OG IKKJE EIN MED TO ANSIKT. Kroppen er den same
-        geometrien i båe lesemåtane, men i «flate» ber han materialet som
-        ein PROP og i «lag» som eit BARN — og byter eitt og same elementet
-        mellom dei to, får det ingen av delane: React ser same slaget på
-        same plassen og held instansen, materialprop-en fell bort, og
-        instansen sit att med standardmaterialet sitt. Det er kvitt og
-        ugjennomsiktig, og skalet la seg over delane som ei maling.
-        To plassar i lista er to identitetar: ein av dei vert montert, den
-        andre riven, og materialet fylgjer med.
-      */}
       {gKropp && solid && <mesh geometry={gKropp} material={surf} castShadow receiveShadow />}
       {gKropp && !solid && skal && (
         <mesh geometry={gKropp} raycast={() => null} renderOrder={1}>
@@ -1986,7 +1971,6 @@ function Kroppen({ f, kropp, lag, view, skal, material, liste, vald, gruppe, pla
       ))}
       {gVald && (
         <>
-          {/* det valde planet: omrisset lyft fram, og flata so vidt synleg — same språk som skissa */}
           <mesh geometry={gVald.flate} raycast={() => null} renderOrder={2}>
             <meshBasicMaterial color={VALT} transparent opacity={0.07} depthWrite={false} side={THREE.DoubleSide} />
           </mesh>
@@ -2432,16 +2416,6 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <directionalLight position={[2, 1.5, 7]} intensity={0.35} />
         <directionalLight position={[0.5, -3, 2]} intensity={0.3} />
         <group position={[0, GROUND_Y, 0]}>
-          {/*
-            MONTASJEN STÅR I STADEN FOR ALT DETTE, og ikkje oppå det.
-
-            Det er dei same delane: to utgåver av dei same delane i eitt
-            bilete er eit objekt du ikkje kan lese. Og alt det andre her —
-            snittet, ledda, streka, omrisset, boksane — høyrer til å ENDRE
-            kroppen. Montasjen endrar ingenting; han syner deg kva du skal
-            gjere med hendene. Eit snitt gjennom eit objekt som er halvvegs
-            teke frå kvarandre er ei line utan noko på den andre sida.
-          */}
           {f && mont ? (
             <Montasjen f={f} mont={mont} T={montT} spel={montSpel} vakn={montVakn} material={material} onSteg={onMontSteg} vald={montVald} onVeld={onMontVald} />
           ) : (
@@ -2454,18 +2428,12 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
               <Snittet f={f} snitt={snitt} farge={vald === null ? SKISSE : VALT} />
             </Sovnen>
           )}
-          {/* LEDDA SOM HANDTAK: berre på eit LÅST plan, og berre når det er
-              valt — ein prikk per ledd på kvar ribbe ville vore ei stjerne
-              av prikkar over heile kroppen. */}
           {!teikn && f && vald !== null && !montasje && snitt?.spor?.length ? (
             <Sovnen sov={sov}>
               <Spora f={f} snitt={snitt} boks={sporBoks} onDeling={onDeling} />
             </Sovnen>
           ) : null}
           {!teikn && f && valt && rValt && valt.strek.length > 0 && <Streka f={f} r={rValt} strek={valt.strek} vald={valdStrek} live={live && live.id === valt.id ? live.s : null} S={storleik} farge={VALT} />}
-          {/* FLATA DU TEIKNAR. Ho står over alt anna medan ho vert til, av
-              di ho er det einaste på skjermen som ikkje finst enno. Han
-              teiknar ingenting sjølv — han set berre hjørna i flata over. */}
           {f && teikneplan && <Teikneplanet f={f} ut={teikneplan} />}
           {f && teikn && (
             <Teikninga
@@ -2506,11 +2474,6 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         </group>
         <FitCamera fit={f?.fit ?? null} rute={rute} sikt={sikt} laast={laast} />
         <Kamerataket ut={zoom} />
-        {/*
-          SYNSKUBEN, øvst til høgre i det FRIE bandet: marginen er kanten av
-          arket og kolonna, ikkje kanten av lerretet, so han står i biletet og
-          ikkje under kontrollane.
-        */}
         <GizmoHelper alignment="top-right" margin={[rute.hogre + 38, rute.topp + 38]}>
           <Sovnen sov={sov}>
             <group scale={KUBE_SKALA}>
@@ -2527,26 +2490,12 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             </group>
           </Sovnen>
         </GizmoHelper>
-        {/* ETTER synskuben, med vilje: begge skriv på kameraet i same
-            biletet, og den som skriv sist er den som vert teikna. Rekninga
-            i `Flatsynet` tek seg att om rekkjefylgja skulle svikte — det
-            kostar eit bilete eller to, ikkje storleiken på objektet. */}
         <Flatsynet />
-        {/* OG SKODDA ETTER FLATSYNET, av same grunn den andre vegen: ho LES
-            avstanden, og flatsynet gongar han med 1,17 per bilete medan
-            synet rettar seg ut. Stod ho før, las ho avstanden frå biletet
-            FØR — og då låg skodda eit hakk for nær (objektet tona bort i
-            bakgrunnen på veg inn i flatsynet) og `near` eit hakk for langt
-            ute (objektet vart klipt bort på veg ut av det). Eit blink kvar
-            gong du trykte på ei side av kuben. */}
         <Skodda />
         <Demping onSein={setSein} />
-        {/* Eiga teikning har inga knivskisse eller gamle handtak å ta i. */}
         <Streket f={teikn ? null : f} r={rValt} valt={valt} valdStrek={valdStrek} S={storleik} boks={boks} arb={arb} snapp={snapp} setLive={setLive} onSynStrek={onSynStrek} onStrek={onStrek} />
         <Zoom onGest={onGest} />
         <Handa f={teikn ? null : f} fri={fri} sov={sov} modus={modus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} arb={arb} snapp={snapp} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
-        {/* Kroppen snur heile vegen rundt — undersida er der ledda sit, og
-            eit syn du ikkje kjem til er ein kontroll som manglar. */}
         <OrbitControls
           target={[0, 0.35, 0]}
           enablePan={benk}
@@ -2565,41 +2514,18 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           makeDefault
         />
       </Canvas>
-      {/*
-        INNRAMMINGA, under synskuben øvst til høgre. Ho låg i dobbelttrykket
-        før, der ho kom av seg sjølv midt i ei sikting; her er ho ein knapp
-        du trykkjer på.
-      */}
       <div className="synskube" style={{ right: rute.hogre + 16, top: rute.topp + 72 }}>
-        {/*
-          LÅSEN, ØVST: synsvinkelen står der du sette han.
-
-          Synet er ei avgjerd (sjå README), og dette er den avgjerda teken
-          heilt ut: med låsen på snur korkje éin finger eller heimknappen
-          objektet, og synskuben berre til dei seks sidene — eit aksesyn er
-          eit arbeidsplan og ikkje ei vinkling. Du kan framleis gå nærare og lenger unna —
-          det er ikkje ei ny vinkling, det er det same synet på nært hald.
-        */}
         <button type="button" data-laas="" aria-pressed={laast} aria-label="lås synet" title={laast ? "synsvinkelen er låst: berre dei seks sidene på synskuben snur. trykk for å sleppe han" : "lås synsvinkelen: éin finger og heimknappen snur han ikkje meir, synskuben berre til dei seks sidene"} onClick={() => setLaast((v) => !v)}>
           {IkonLaas(!laast)}
         </button>
         <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt (F)" onClick={heim}>
           {IkonHeim}
         </button>
-        {/* SKALET. Kroppen slik han var ligg gjennomsiktig kring delane og
-            seier kor mykje av forma ribbene fangar. Han er òg det som står
-            mellom deg og dei når du vil sjå spora — difor ein brytar, her,
-            i spalta for det rommet SYNER. I «flate» er kroppen kroppen, og
-            då er det ingenting å slå av. Det same i montasjen: der er det
-            delane som reiser seg, og eit skal kring dei finst ikkje. */}
         {view === "lag" && !montasje && (
           <button type="button" data-skal="" aria-pressed={skal} aria-label="skalet" title={skal ? "skalet: kroppen slik han var. trykk for å sjå berre delane" : "skalet er av: berre delane står. trykk for å sjå kroppen kring dei"} onClick={onSkal}>
             {IkonSkal}
           </button>
         )}
-        {/* LUPA: éin finger. Trykk og dra opp for å gå nærare, ned for å gå
-            lenger unna — den same dollyen klypet gjer, for handa som held
-            telefonen og berre har ein tommel ledig. */}
         <button
           type="button"
           data-lupe=""
@@ -2621,25 +2547,6 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           {IkonLupe}
         </button>
       </div>
-      {/*
-        HANDTAKA ER DOM, IKKJE NETT. Eit handtak på 48 pikslar skal kunne
-        takast med tommelen og finnast av ein som ikkje ser; ein trekant i
-        WebGL kan ingen av delane. Flytt får ledig rom med line til snittet,
-        vri står på toppen; scena skriv plassen kvar teikning. Lappen ber
-        `data-skisse="snitt"` nett når det finst eit snitt å lese av. Med
-        eit strek valt står tre handtak på streken i staden (`data-strek`).
-      */}
-      {/* PRIKKANE PÅ SIDENE: seks knappar, plasserte av scena kvar teikning.
-          Dei ligg i sitt eige lag so dei ikkje deler tilstand med handtaka
-          på snittet — dei to er aldri framme samstundes, men eit lag som
-          ber to meiningar er eit lag nokon gløymer å slå av. */}
-      {/* LEDDA SOM HANDTAK: éin prikk per ledd i det valde planet, på den
-          lukka enden av sporet. Scena skriv plassen deira kvar teikning
-          (sjå `Spora`); dei står berre der det finst eit låst plan valt. */}
-      {/* Og dei står ikkje medan montasjen gjer det: komponentane som set
-          plassen deira kvar teikning (`Spora`, `Omrisset`) er ikkje monterte
-          då, so knappane ville hopa seg opp usette i hjørnet av lerretet —
-          synlege, trykkbare og utan nokon bak seg. */}
       <div ref={setSporBoks} className="spor">
         {vald !== null && !montasje && !teikn &&
           (snitt?.spor ?? []).map((q) => (
@@ -2648,19 +2555,6 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             </button>
           ))}
       </div>
-      {/* PUNKTA I OMRISSET: eitt handtak per punkt i det valde planet, sett
-          på plass av scena kvar teikning (sjå `Omrisset`). Dei står berre
-          der handa har frose profilen — elles er profilen nettet, og det er
-          ingen punkt å ta i.
-
-          OG EIT MIDTMERKE PER KANT, mindre og rundt: eit punkt du ikkje har
-          enno. Firkanta er eit hjørne som står, rundt er ein stad eit hjørne
-          kan verte til. Scena gøymer dei der kanten er for kort til at
-          fingeren kan skilje dei frå punkta i endane. */}
-      {/* FLATA DU TEIKNAR, som DOM og ikkje som eit overlegg inni lerretet:
-          eit overlegg ligg oppå og stel trykka. React set kor mange punkt
-          det er; `Teikninga` set KVAR dei er, kvar ramme — nøyaktig same
-          arbeidsdelinga som `.punkt` har. */}
       {teikn && (
         <svg ref={setTeiknSvg} data-teikn="klar" className="teiknflate" aria-hidden="true">
           <polygon points="" fill="none" stroke="var(--warn)" strokeWidth="2" strokeLinejoin="round" />
