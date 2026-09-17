@@ -1053,21 +1053,6 @@ waits for the body to reach those dimensions before it frames it.
   **×4 on a wall through the middle is a box**: each wall moves out by half
   its width less half a thickness, and the corners meet flush as fingers.
 
-`pnpm minutt` draws the reference stool (A-sides with a window, a mirrored
-pair, a landed seat, three rails) from an empty workspace to a downloaded,
-nested cut file, and checks the geometry and the file: 16 s automated.
-`MINUTT_KRAKK=1` draws arched sides with an oval window instead, `=2` two
-crossed legs (×2) under a hexagonal seat, `=3` the arched sides with the seat
-between them, and `=4` the cube stool: one wall with an arched opening, ×4 to
-a finger-jointed box, a seat on top — 11 s — `=5` the triangle stool:
-one leg standing out from the middle, ×3, a rounded triangular seat — 11 s —
-and `=6` the slat stool: arched sides without the window, wedges on, the
-seat between them cut into five slats in the flat editor, three rails — ten
-plates, sixteen wedged tenons and their sixteen wedges, 20 s.
-`MINUTT_KILAR=1` turns wedges on in any of them before drawing: the plain
-stool then has its sides wedged through the seat and its rails wedged
-through the sides, 19 s.
-
 ## Assembly
 
 The list order decides the slots. A part slides in along its slots, and a
