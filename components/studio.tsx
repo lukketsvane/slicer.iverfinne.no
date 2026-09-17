@@ -200,6 +200,8 @@ const INGEN: readonly number[] = []
 /** det ei tom arbeidsflate opnar i: ein krakk, ikkje ein modell av han */
 const MOBEL_STORLEIK = 450
 const MOBEL_TJUKN = 12
+/** og arket er ei halv kryssfinerplate: ei side på 445 mm får aldri plass på 600 × 400 */
+const MOBEL_ARK = [1200, 600] as const
 export function Studio() {
   const [params, setParams] = useState<ParamBag>(() => ({ ...MOTOR.defaults }))
   const [view, setView] = useState<View>("lag")
@@ -1361,6 +1363,7 @@ export function Studio() {
       deling: "",
       ...(cur.storleik === MOTOR.defaults.storleik ? { storleik: MOBEL_STORLEIK } : {}),
       ...(cur.tjukn === MOTOR.defaults.tjukn ? { tjukn: MOBEL_TJUKN } : {}),
+      ...(cur.arkB === MOTOR.defaults.arkB && cur.arkH === MOTOR.defaults.arkH ? { arkB: MOBEL_ARK[0], arkH: MOBEL_ARK[1] } : {}),
     }))
     setTeiknSlag("kontur")
     // synet vert sett når kroppen i dei nye måla er framme, ikkje før: ei

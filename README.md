@@ -1023,8 +1023,11 @@ the cube's section when bound, and the whole outline when not.
 ## Drawing furniture
 
 **An empty workspace is a piece of furniture.** Half a metre, twelve
-millimetres, the front view facing you and the contour tool ready; the view
-waits for the body to reach those dimensions before it frames it.
+millimetres, a half sheet of plywood (1200 × 600) to cut it from, the front
+view facing you and the contour tool ready; the view waits for the body to
+reach those dimensions before it frames it. Each of the three numbers is set
+only if it is still at its default: a size, a thickness or a sheet you chose
+stays.
 
 - **A seat lands.** A plate drawn from above settles with its underside on
   the tops of what it covers — but not on an edge it barely reaches: an edge
