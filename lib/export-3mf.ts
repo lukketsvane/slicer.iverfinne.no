@@ -1,37 +1,10 @@
-/**
- * SLICERMAN — 3MF ut, til trykkjaren.
- *
- * Bambu Studio, PrusaSlicer og Cura les 3MF og ikkje GLB. Det er heile
- * grunnen til at fila finst: «flat» er den rette geometrien for ein
- * trykkjar — delane ligg flatt, kvar for seg, med plata på golvet — og
- * so er ho i eit format ingen slicer opnar.
- *
- * Og eitt til: 3MF er MILLIMETER og Z OPP. Det er verkstaden sine eigne
- * einingar, so her vert ingenting vendt og ingenting delt på tusen. GLB-en
- * måtte gjennom (x, y, z) → (x, z, −y) og ein tusendel; dette er tala slik
- * dei står i snittet. Ein del som er 3 mm tjukk står som 3 i fila.
- *
- * KVAR DEL ER EIT EIGE OBJEKT, ikkje ein del av eitt. Slicaren listar dei
- * med adressa si, du kan sløkkje ein av dei, gje ein annan fleire skal, og
- * «arranger» legg dei på platen for seg sjølv. Eitt nett med tolv ribber i
- * er tolv ribber du ikkje kan velje mellom.
- *
- * HJØRNA VERT SVEISTE. Snittet byggjer lause trekantar — ni tal om gongen,
- * som STL vil ha dei — og eit slikt nett har ingen naboar: kvar kant er ei
- * kant mot ingenting. 3MF vil ha hjørne og indeksar, og ein slicer som får
- * eit usveisa nett melder «ikkje-manifold» og reparerer det sjølv. Betre å
- * levere det heilt: `weld` gjer nett dette steget, det same importen gjer
- * med ei fil som kjem inn.
- */
 import { makeSoup, weld } from "./soup"
 import { zip } from "./zip"
 
-/** ein del i fila: namnet objektet får — adressa — og trekantane hans */
 export type MfDel = { namn: string; positions: Float32Array; tris: number }
 
 const NS = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"
 
-/** OPC vil ha ei innhaldstypeliste og ei rot-relasjon. Begge er faste. */
 const TYPES = `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -45,11 +18,8 @@ const RELS = `<?xml version="1.0" encoding="UTF-8"?>
 </Relationships>
 `
 
-/** Adressa er tal og bokstavar, men kjelda kan heite kva som helst, og
- *  eit filnamn med & i vert eit XML-dokument som ikkje let seg opne. */
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c] as string)
 
-/** mikrometeren er meir enn nok, og halverer fila mot full flyttalsutskrift */
 const tal = (v: number) => String(+v.toFixed(3))
 
 export function delarTo3mf(delar: readonly MfDel[], namn = "slicerman"): Uint8Array {
@@ -63,9 +33,6 @@ export function delarTo3mf(delar: readonly MfDel[], namn = "slicerman"): Uint8Ar
     for (let i = 0; i < verts.length; i += 3) {
       v.push(`   <vertex x="${tal(verts[i])}" y="${tal(verts[i + 1])}" z="${tal(verts[i + 2])}"/>`)
     }
-    // Sveisen kan slå to hjørne i ein trekant saman til eitt. Då har
-    // trekanten ikkje lenger areal, og 3MF krev at dei tre indeksane er
-    // ulike — so han fell bort, slik han alt hadde falle bort i handa.
     const t: string[] = []
     for (let i = 0; i < idx.length; i += 3) {
       const a = idx[i]
@@ -88,8 +55,6 @@ export function delarTo3mf(delar: readonly MfDel[], namn = "slicerman"): Uint8Ar
       "   </mesh>",
       "  </object>",
     )
-    // Delane ligg alt der nestinga la dei, so vendinga er den same for alle.
-    // Matrisa er rad for rad, med flyttinga sist — her berre einingsmatrisa.
     bygg.push(`  <item objectid="${id}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`)
   }
   const model = [

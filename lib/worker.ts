@@ -1,12 +1,3 @@
-/// <reference lib="webworker" />
-/**
- * SLICERMAN — motoren i eigen tråd.
- *
- * Hovudtråden teiknar, og gjer ikkje anna. Alt som rører geometri ligg her:
- * fila som vert lesen, nettet som vert sveist og forenkla, plana som vert
- * snitta, ledda, kuttfilene. Eit skann på to millionar trekantar tek
- * sekund å sveise, og eit grensesnitt som frys i sekund les som krasj.
- */
 import { MOTOR } from "./motor"
 import { parseMesh } from "./io"
 import { forget, put, type SourceInfo } from "./sources"
@@ -19,25 +10,10 @@ import type { ArkSyn, DetailKey, ExportKind, Kutt, Metrics, ParamBag, Rom, Rule,
 
 export type BuildReq = { kind: "build"; id: number; params: ParamBag; detail: DetailKey; view: Rom }
 export type ExportReq = { kind: "export"; id: number; params: ParamBag; what: ExportKind }
-/**
- * `som` gjev nettet eit FAST namn i staden for eit av bytane sine: dei
- * innebygde formene skal heite det same kvar gong, so ei lenkje som ber
- * «stolform-03» finn den same forma i morgon.
- *
- * `etikett` er kva det skal HEITE for den som ser på skjermen. Dei to fall
- * saman før, og ei økt som vart henta inn att kom difor tilbake med
- * «fqf8szf1v» på brikka i staden for «hunden.stl»: nettet hadde rett namn
- * og feil etikett. Ei innebygd form treng ingen — der er namnet etiketten.
- */
 export type ImportReq = { kind: "import"; id: number; name: string; buf: ArrayBuffer; som?: string; etikett?: string }
-/** «syn meg plate nummer i» — teikninga kjem attende, ikkje ei fil */
 export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number }
-/** «snitt skissa for meg»: profilen gjennom kroppen og kryssa mot dei låste
- *  plana, medan du siktar. Ein straum av punkt; berre det siste tel. */
 export type SkisseReq = { kind: "skisse"; id: number; params: ParamBag; plan: Plan }
-/** «rekn montasjen for meg»: kvar kvar del ligg, kvar han skal, og i kva runde */
 export type MontReq = { kind: "montasje"; id: number; params: ParamBag }
-/** alle råda, trykte i eitt — sjå `fiksAlt` i `rules.ts` */
 export type FiksReq = { kind: "fiksalt"; id: number; params: ParamBag }
 export type Req = BuildReq | ExportReq | ImportReq | ArkReq | SkisseReq | MontReq | FiksReq
 
@@ -52,25 +28,17 @@ export type BuildRes = {
   max: Vec3
   kant: Float32Array<ArrayBufferLike>
   del: Float32Array<ArrayBufferLike>
-  /** bitane kroppen er sett saman av — berre «flate» — og skalaen mellom dei to romma */
   bitar: { id: string; min: Vec3; max: Vec3 }[]
   skala: number
 }
-/** Måltala kjem i eiga melding, ETTER nettet. Kuttlista fylgjer med: ho er
- *  lesen rett ut av bygget målinga alt har rekna. */
 export type MaalRes = { kind: "maal"; id: number; metrics: Metrics; rules: Rule[]; liste: Kutt[] }
 export type ExportRes = { kind: "export"; id: number; name: string; mime: string; text?: string; data?: ArrayBuffer; merknad?: string }
 export type KjeldeRes = { kind: "kjelde"; id: number; src: SourceInfo }
-/** ei prosjektfil som er opna: nettet OG innstillingane som låg med det */
 export type ProsjektRes = { kind: "prosjekt"; id: number; src: SourceInfo | null; params: ParamBag }
 export type ArkRes = { kind: "ark"; id: number } & ArkSyn
 export type MontRes = { kind: "montasje"; id: number } & Montasje
-/** posen etter at alle råda er trykte, kva han tok, og kva som står att */
 export type FiksRes = { kind: "fiksalt"; id: number; params: ParamBag; fiksa: string[]; att: string[] }
 export type SkisseRes = { kind: "skisse"; id: number } & SkisseSyn
-/** Noko som kasta. Svaret finst av éin grunn: porten på hovudtråden slepp
- *  ikkje neste førespurnad før den førre er svara, og eit unntak utan svar
- *  ville låse appen for alltid. */
 export type FeilRes = { kind: "feil"; id: number; kva: string; view?: Rom; kvifor?: string }
 export type Res =
   | BuildRes
@@ -90,8 +58,6 @@ const post = (r: Res, transfer: Transferable[] = []) =>
 function build(req: BuildReq) {
   const out = MOTOR.build(req.params, req.detail, req.view)
   const res: BuildRes = { kind: "build", id: req.id, view: req.view, ...out }
-  // Berre bufferar med innhald, og kvar berre éin gong: same buffer to
-  // gonger i lista er ein DataCloneError som tek heile meldinga.
   const transfer: Transferable[] = []
   for (const a of [out.positions, out.normals, out.kant, out.del]) {
     if (a.byteLength && !transfer.includes(a.buffer)) transfer.push(a.buffer)
@@ -99,19 +65,6 @@ function build(req: BuildReq) {
   return { res, transfer }
 }
 
-/**
- * NAMNET PÅ EI KJELDE FYLGJER BYTANE, ikkje rekkjefylgja fila kom i.
- *
- * Scena peikar på kjeldene sine med namn. Var namnet ein teljar, fekk den
- * same fila eit nytt namn kvar gong ho kom inn — ei økt attende, ei
- * prosjektfil opna — og bitane i scena peika på noko som ikkje fanst
- * lenger. Med bytane som namn kjem ho attende som seg sjølv.
- *
- * Dei fyrste seksti og fire kilobytane og lengda, og ikkje heile fila:
- * eit skann er hundre megabyte, og to filer som er like i hovudet OG like
- * lange er den same fila i denne samanhengen. Namnet kan ikkje gjettast
- * frå ein URL — det er bytane, og dei ligg ikkje i lenkja.
- */
 function kjeldeId(b: Uint8Array): string {
   let h = 0x811c9dc5
   const n = Math.min(b.length, 65536)
@@ -119,33 +72,16 @@ function kjeldeId(b: Uint8Array): string {
   return "f" + (h >>> 0).toString(36) + b.length.toString(36)
 }
 
-/**
- * Nettet fyrst, måltala etterpå — og berre for det SISTE punktet.
- *
- * Ein skyvar sender ein straum av punkt, og å måle kvart av dei er å måle
- * objekt ingen ser. Målinga vert utsett med setTimeout: meldingar som alt
- * står i kø får køyre fyrst, og når ho slepp til veit ho om eit nyare
- * punkt har teke over. Fristen er ikkje null: klienten sender neste punkt
- * fyrst når svaret på det førre er framme, so ei måling som fyrte med det
- * same ville alltid vinne det kappløpet.
- */
 let newest = 0
 
 self.onmessage = (e: MessageEvent<Req>) => {
   const req = e.data
   try {
     if (req.kind === "import") {
-      // EI PROSJEKTFIL BER TO TING: eit oppsett og eit nett i lag. Nettet
-      // vert lese som vanleg; oppsettet fylgjer med i svaret, so
-      // hovudtråden set dei saman i eitt steg.
       const erZip = req.buf.byteLength > 4 && new DataView(req.buf).getUint32(0, true) === 0x04034b50
       if (erZip) {
         const filer = unzip(req.buf)
         const opp = filer.find((f) => f.name === "oppsett.json" || f.name.endsWith("/oppsett.json"))
-        // KVART nett i arkivet, ikkje berre det fyrste: ein kropp av fleire
-        // bitar peikar på kvar si kjelde, og ei kjelde som ikkje kom med er
-        // ein bit som fell attende på kuben utan å seie frå. Det fyrste er
-        // kjelda; namnet ber id-en si, og etiketten står etter han.
         const nett = filer.filter((f) => f.name.startsWith("nett/") && f.data.byteLength > 0)
         if (!opp && !nett.length) throw new Error("arkivet er korkje eit oppsett eller eit nett")
         let params: ParamBag = {}
@@ -153,12 +89,10 @@ self.onmessage = (e: MessageEvent<Req>) => {
         let src: SourceInfo | null = null
         for (const f of nett) {
           const kort = f.name.slice(5).replace(/^[a-z0-9]+__/i, "")
-          // eigen kopi: `subarray` peikar inn i arkivet, og arkivet skal sleppast
           const bytes = new Uint8Array(f.data)
           const soup = parseMesh(kort, bytes.buffer.slice(0) as ArrayBuffer)
           if (soup.tris < 1) continue
           const inn = put(kjeldeId(bytes), kort, soup, bytes)
-          /* scena avgjer kva som skal hugsast — sjå bygg */
           if (!src) src = inn
         }
         post({ kind: "prosjekt", id: req.id, src, params })
@@ -171,19 +105,15 @@ self.onmessage = (e: MessageEvent<Req>) => {
         return
       }
       const src = put(req.som ?? kjeldeId(bytes), req.etikett ?? req.som ?? req.name, soup, bytes)
-      /* scena avgjer kva som skal hugsast — sjå bygg */
       post({ kind: "kjelde", id: req.id, src })
       return
     }
 
     if (req.kind === "build") {
-      // Importar hopar seg opp. Det scena ikkje bruker lenger, kan gå.
       forget([String(req.params.kjelde), ...lesScene(String(req.params.scene || "")).map((b) => b.id)])
     }
 
     if (req.kind === "skisse") {
-      // Utanom porten, som plata: skissa skal svare medan bygget står i kø,
-      // og ei skisse som er gått ut på dato svarar hovudtråden ikkje på.
       post({ kind: "skisse", id: req.id, ...MOTOR.skisse(req.params, req.plan) })
       return
     }
@@ -194,19 +124,12 @@ self.onmessage = (e: MessageEvent<Req>) => {
     }
 
     if (req.kind === "fiksalt") {
-      /**
-       * Utanom porten, som plata og montasjen: dette er eit trykk du gjorde,
-       * ikkje noko som fylgjer ein skyvar, og det skal ikkje stå i kø bak
-       * eit bygg du ikkje ventar på lenger.
-       */
       const ut = MOTOR.fiksAlt(req.params)
       post({ kind: "fiksalt", id: req.id, params: ut.p, fiksa: ut.fiksa, att: ut.att })
       return
     }
 
     if (req.kind === "montasje") {
-      // Utanom porten, som plata og skissa: montasjen er noko du ber om når
-      // du opnar reiskapen, og han skal ikkje stå i kø bak eit bygg.
       const m = MOTOR.montasje(req.params)
       const transfer: Transferable[] = []
       for (const d of m.delar) {
@@ -239,8 +162,6 @@ self.onmessage = (e: MessageEvent<Req>) => {
       }
     }, 100)
   } catch (err) {
-    // Ein parameterkombinasjon som får motoren til å gje opp er ein feil i
-    // motoren. Meld frå, lat det førre stå — og SVAR, alltid.
     console.error("slicerman: bygget slo feil", err)
     post({
       kind: "feil",

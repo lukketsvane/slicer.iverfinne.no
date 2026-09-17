@@ -3,10 +3,8 @@ import { add3, bogeVed, broek, dot, kryss, mul3, omrissLine, OMRISS_TAK, ramme, 
 import { speglPlan } from "./spegl"
 import { spegelakse } from "./gruppe"
 
-/** Teikna inndata i planet si ramme, før motoren får ein ferdig profil. */
 export const teiknaFirkant = (a: Pt, b: Pt): Pt[] => [a, [b[0], a[1]], b, [a[0], b[1]]]
 
-/** Synskuben står nesten langs aksen av omsyn til kameraet. Plata er eksakt. */
 export function teikneNormal(n: Vec3): Vec3 {
   const akse = n.findIndex((v) => Math.abs(v) > Math.cos(Math.PI / 60))
   return akse < 0 ? n : n.map((v, i) => i === akse ? Math.sign(v) : 0) as Vec3
@@ -19,22 +17,14 @@ const fraaKant = (p: Pt, a: Pt, b: Pt) => {
   return avstand(p, [a[0] + t * x, a[1] + t * y])
 }
 
-/**
- * Hald dei punkta som seier mest om forma, òg i innsøkk. Tol er kring éin
- * skjermpiksel i planet sine einingar. Kvar forkasta prikk vert prøvd mot
- * kanten som faktisk kjem i staden; punkt-taket får aldri flattrykkje ein
- * detalj meir enn to toleransar eller 1,25 % av diagonalen.
- */
 export function teiknaKontur(punkt: readonly Pt[], tol: number): Pt[] | null {
   if (!Number.isFinite(tol) || tol <= 0 || punkt.some((p) => !p.every(Number.isFinite))) return null
   const raa = punkt.filter((p, i) => !i || avstand(p, punkt[i - 1]) > 1e-7)
   if (raa.length > 1 && avstand(raa[0], raa[raa.length - 1]) <= tol * 2) raa.pop()
-  // EI KRYSSANDE RØRSLE ER FRAMLEIS EI FORM: den største lukka løkka i henne
   const ring = storsteLokke(raa)
   if (ring.length < 3) return null
   const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1])
   const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys)
-  // berre eit trykk eller eit merke er ikkje ei plate
   if (Math.max(w, h) < tol * 16 || Math.min(w, h) < tol * 3 || Math.abs(shoelace(ring)) < tol * tol * 32) return null
 
   let fjern = 1
@@ -49,7 +39,6 @@ export function teiknaKontur(punkt: readonly Pt[], tol: number): Pt[] | null {
         if (d > feil) { feil = d; neste = i }
       }
     }
-    // taket er eit tak, ikkje ei avvising: forma vert so god som punkta rekk
     if (neste < 0 || (feil <= tol && hald.length >= 3) || hald.length >= OMRISS_TAK) break
     hald.push(neste)
     hald.sort((a, b) => a - b)
@@ -59,7 +48,6 @@ export function teiknaKontur(punkt: readonly Pt[], tol: number): Pt[] | null {
   return omriss
 }
 
-/** krysset mellom stykka ab og cd, eller null */
 function kryssPkt(a: Pt, b: Pt, c: Pt, d: Pt): Pt | null {
   const r: Pt = [b[0] - a[0], b[1] - a[1]], q: Pt = [d[0] - c[0], d[1] - c[1]]
   const nemn = r[0] * q[1] - r[1] * q[0]
@@ -69,12 +57,6 @@ function kryssPkt(a: Pt, b: Pt, c: Pt, d: Pt): Pt | null {
   return t > 1e-9 && t < 1 - 1e-9 && u > 1e-9 && u < 1 - 1e-9 ? [a[0] + t * r[0], a[1] + t * r[1]] : null
 }
 
-/**
- * DEN STØRSTE ENKLE LØKKA. Kryssar ringen seg sjølv, vert han delt i
- * krysset i to ringar, og den med størst flate vinn — ein åtte vert den
- * største bogen, ein krøll i enden fell bort. Ein enkel ring kjem ut som han
- * gjekk inn.
- */
 export function storsteLokke(ring: readonly Pt[], djup = 0): Pt[] {
   const n = ring.length
   if (n < 4 || djup > 64) return ring.slice()
@@ -92,12 +74,8 @@ export function storsteLokke(ring: readonly Pt[], djup = 0): Pt[] {
   return ring.slice()
 }
 
-// =============================================================================
-// KVAR EI NY PLATE LANDAR, OG KVA TEIKNINGA HAKAR SEG FAST I
-// =============================================================================
 type Boks2 = { x0: number; x1: number; y0: number; y1: number }
 
-/** stykket av linja a→b som ligg inne i boksen, i xy — Liang–Barsky */
 function klippXY(a: Vec3, b: Vec3, k: Boks2): [Vec3, Vec3] | null {
   let t0 = 0
   let t1 = 1
@@ -117,28 +95,6 @@ function klippXY(a: Vec3, b: Vec3, k: Boks2): [Vec3, Vec3] | null {
   return [pa(t0), pa(t1)]
 }
 
-/**
- * EI PLATE TEIKNA OVANFRÅ LANDAR OPPÅ DET SOM STÅR UNDER HO.
- *
- * Teikneplanet går gjennom midten av kroppen, og eit sete teikna der står
- * midt i beina. Det er aldri det nokon meinte: frå toppsynet teiknar du det
- * som skal liggje OPPÅ. So den nye plata vert lagd med underflata på den
- * høgaste kanten av dei ståande platene innanfor fotavtrykket hennar — og
- * tappane gjer resten. Ingenting under: ho står der ho vart teikna.
- *
- * Men ein kant fotavtrykket berre SÅ VIDT når, ber ikkje: eit stolsete
- * teikna frå framfoten til bakfoten stryk gjerne nokre millimeter inn på
- * bakfoten, og lagt oppå han hadde det hange laust på toppen av ryggen.
- * Ein kant tel difor berre når stykket av han som ligg INNI fotavtrykket
- * er minst ei tjukn langt — kortare er ein finger som gjekk litt for langt,
- * ikkje ein kant å kvile på — og ein kant som ligg PÅ grensa av
- * fotavtrykket (framsida av bakfoten, når setet endar nett der) tel ikkje.
- * Setet landar på ramma, og bakfoten går gjennom det som eit ledd. Ein
- * vegg med ytterflata i flukt med setekanten står med midtplanet ei halv
- * tjukn inn, og toppen hans er lang: han ber.
- *
- * Svaret er høgda på den kanten, i millimeter, eller null.
- */
 export function landing(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, fot: readonly Vec3[], t = 0): number | null {
   if (fot.length < 3) return null
   const eps = Math.max(0.5, 0.002 * S)
@@ -162,16 +118,6 @@ export function landing(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, 
   return Number.isFinite(topp) ? topp : null
 }
 
-/**
- * SETET MELLOM SIDENE.
- *
- * Eit sete teikna ovanfrå som ENDAR i sidene — kantane hakar i midtplana
- * deira, og ingenting stikk forbi — skal ikkje liggje oppå, det skal stå
- * mellom dei. Det vert lagt to tjukner under den lågaste toppen, og kantane
- * går ut til utsida av sidene: tappane går gjennom og syner i flukt.
- * Null når fotavtrykket ikkje endar i minst to ståande plater, eller går
- * forbi ei av dei.
- */
 export function mellom(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t: number, fot: readonly Vec3[]): { z: number; fot: Vec3[] } | null {
   if (fot.length < 3) return null
   const eps = Math.max(0.5, 0.002 * S)
@@ -187,16 +133,11 @@ export function mellom(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t
     const av = (p: Vec3) => (p[0] - r.o[0]) * nx + (p[1] - r.o[1]) * ny2
     const side = Math.sign(av([cx, cy, 0]))
     const d = fot.map(av)
-    // stikk fotavtrykket forbi midtplanet, er det ikkje mellom
     if (!side || d.some((v) => v * side < -eps)) { if (d.some((v) => Math.abs(v) <= eps)) return null; continue }
     const paa = d.map((v) => Math.abs(v) <= eps)
     if (!paa.some((b, i) => b && paa[(i + 1) % paa.length])) continue
     let hoeg = -Infinity
     const pk = omrissLine(q.omriss, q.runde).map((p) => ut(r, [p[0] * S, p[1] * S]))
-    // ein kant tel berre når stykket inni fotavtrykket er minst ei tjukn
-    // langt — som i `landing`: ein bakfot setet so vidt når, er ikkje ein
-    // topp å leggje seg under. Boksen er utvida med eps, so ei kant nett på
-    // grensa vert eit stykke på 2·eps: for kort.
     for (let i = 0; i < pk.length; i++) {
       const sg = klippXY(pk[i], pk[(i + 1) % pk.length], k)
       if (sg && Math.hypot(sg[1][0] - sg[0][0], sg[1][1] - sg[0][1]) >= t) hoeg = Math.max(hoeg, sg[0][2], sg[1][2])
@@ -213,22 +154,6 @@ export function mellom(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t
   return tal >= 2 ? { z: topp - 2.5 * t, fot: ny } : null
 }
 
-/**
- * EI PLATE TEIKNA FRÅ SIDA VERT LAGD DER SIDENE HELD HENNE.
- *
- * Teikneplanet går gjennom midten av kroppen, og eit stag teikna frå sida
- * med endane i sidene står midt i dei. For eit stag under setet er det
- * rett: sida har gods der. For ryggen på ein stol er det aldri det nokon
- * meinte — midt i kroppen er det luft mellom beina, og tappane som
- * endane fekk går i ingenting. Frå sidesynet kan fingeren ikkje seie kor
- * djupt plata skal stå, so svaret vert lese av sidene sjølve: plata vert
- * skuva langs normalen sin til den næraste staden der KVAR side ho endar
- * i — eller går gjennom, som ein rygg breiare enn stolen, som får spor —
- * har gods over heile høgda hennar: bakfoten. Står ho alt i gods, står
- * ho. Ingen slik stad: ho står der ho vart teikna.
- *
- * Svaret er det nye punktet i planet, i millimeter, eller null.
- */
 export function haldt(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t: number, po: Vec3, pn: Vec3, fot: readonly Vec3[]): Vec3 | null {
   if (fot.length < 3 || Math.abs(pn[2]) > 1e-3) return null
   const eps = Math.max(0.5, 0.002 * S)
@@ -240,8 +165,6 @@ export function haldt(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t:
     if (Math.abs(dot(r.n, pn)) > 0.999) continue
     const L = Math.hypot(r.n[0], r.n[1])
     const av = (p: Vec3) => ((p[0] - r.o[0]) * r.n[0] + (p[1] - r.o[1]) * r.n[1]) / L
-    // ho endar i sida, eller går gjennom henne — ein rygg breiare enn stolen
-    // kryssar sidene og får spor, og treng gods i dei like mykje som ein tapp
     const d = fot.map(av)
     if (Math.min(...d) > eps || Math.max(...d) < -eps) continue
     sider.push({ r, ring: omrissLine(q.omriss, q.runde).map((p): Pt => [p[0] * S, p[1] * S]) })
@@ -252,7 +175,6 @@ export function haldt(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t:
     return inRing(ring, [dot(sub3(q, r.o), r.u), dot(sub3(q, r.o), r.v)])
   }))
   if (held(po)) return null
-  // kandidatane langs normalen, eit halvt tjukn om gongen, innanfor kroppen
   const steg = t / 2
   const inne = (p: Vec3) => p[0] >= min[0] && p[0] <= max[0] && p[1] >= min[1] && p[1] <= max[1]
   const gode: number[] = []
@@ -261,7 +183,6 @@ export function haldt(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t:
     if (inne(p) && held(p)) gode.push(k)
   }
   if (!gode.length) return null
-  // dei gode i strekk; det strekket som ligg nærast, og midten av det
   const strekk: [number, number][] = []
   for (const k of gode) {
     const sist = strekk[strekk.length - 1]
@@ -272,18 +193,8 @@ export function haldt(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t:
   return add3(po, mul3(pn, ((naer[0] + naer[1]) / 2) * steg))
 }
 
-/** ei line i teikneplanet, i brøk av storleiken: eit punkt og ei retning */
 export type Snappline = { p: Pt; d: Pt }
 
-/**
- * KVA TEIKNINGA HAKAR SEG FAST I: golvet, og midtplanet til kvar plate
- * teikneplanet ser på kant.
- *
- * Eit stag skal ende i sida, og sida står på kant når du teiknar staget:
- * ei tynn line. Treff fingeren innanfor ein tomme av henne, ligg enden
- * PÅ henne — i midtplanet, der tappen vert lesen frå. Golvet er det same
- * for foten på ei side: han står på golvet, ikkje ein millimeter under.
- */
 export function snappliner(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, flate: Ramme): Snappline[] {
   const til = (p: Vec3): Pt => [dot(sub3(p, flate.o), flate.u) / S, dot(sub3(p, flate.o), flate.v) / S]
   const retn = (d: Vec3): Pt => {
@@ -297,8 +208,6 @@ export function snappliner(plan: readonly Plan[], min: Vec3, max: Vec3, S: numbe
     const x = kryss(flate, r)
     if (x) ut2.push({ p: til(x.p), d: retn(x.d) })
   }
-  // OG KANTANE PÅ PLATER SOM LIGG PARALLELT: den andre halvdelen av eit sete
-  // skal ende nett der den fyrste endar, so skøyten finn kanten
   for (const q of plan) {
     if (q.bog || !q.omriss) continue
     const r = ramme(q, min, max)
@@ -310,12 +219,6 @@ export function snappliner(plan: readonly Plan[], min: Vec3, max: Vec3, S: numbe
       if (L > 0.02) ut2.push({ p: a, d: [(b[0] - a[0]) / L, (b[1] - a[1]) / L] })
     }
   }
-  // OG HJØRNA PÅ PLATER SETT PÅ KANT: ei stolside er ei line ovanfrå, men
-  // framsida av bakfoten er eit punkt på henne, og setet skal ende DER —
-  // ikkje ei tjukn inn på foten. Kvar kant i omrisset som står langs
-  // synsretninga (ei fotside, sett ovanfrå) gjev ei line på tvers av den
-  // lina plata er, gjennom hjørnet. Berre dei: kvart hjørne i ein boga side
-  // hadde gjort flata til eit nett ein ikkje kan teikne fritt i.
   for (const q of plan) {
     if (q.bog || !q.omriss) continue
     const r = ramme(q, min, max)
@@ -327,7 +230,6 @@ export function snappliner(plan: readonly Plan[], min: Vec3, max: Vec3, S: numbe
       const a = pk[i], b = pk[(i + 1) % pk.length]
       const e = sub3(b, a)
       const L = Math.hypot(e[0], e[1], e[2])
-      // langs normalen innanfor tre grader
       if (L < 0.02 * S || Math.abs(dot(e, flate.n)) / L < 0.9986) continue
       ut2.push({ p: til(a), d: tvers })
     }
@@ -335,10 +237,6 @@ export function snappliner(plan: readonly Plan[], min: Vec3, max: Vec3, S: numbe
   return ut2
 }
 
-/**
- * PUNKTET HAKA FAST: i den næraste lina innanfor `tol`, og i krysset
- * mellom to når båe er nære — hjørnet der eit stag møter sida og golvet.
- */
 export function snapp(q: Pt, liner: readonly Snappline[], tol: number): Pt {
   const naer = liner
     .map((l) => {
@@ -354,7 +252,6 @@ export function snapp(q: Pt, liner: readonly Snappline[], tol: number): Pt {
   for (const s of naer.slice(1)) {
     const c = f.l.d[0] * s.l.d[1] - f.l.d[1] * s.l.d[0]
     if (Math.abs(c) < 0.2) continue
-    // krysset: f.p + t·f.d på s-lina
     const t = ((s.l.p[0] - f.l.p[0]) * s.l.d[1] - (s.l.p[1] - f.l.p[1]) * s.l.d[0]) / c
     const x: Pt = [f.l.p[0] + f.l.d[0] * t, f.l.p[1] + f.l.d[1] * t]
     if (Math.hypot(x[0] - q[0], x[1] - q[1]) <= tol * 1.5) return x
@@ -362,29 +259,10 @@ export function snapp(q: Pt, liner: readonly Snappline[], tol: number): Pt {
   return paa
 }
 
-/**
- * KVA I EIN KONTUR SOM FÅR HAKE SEG FAST: endane, hjørna, og flate strekk
- * langs lina — ikkje ein boge som berre strykjer henne.
- *
- * Snappet les kvart punkt for seg medan fingeren dreg, og det er rett for
- * ein fot langs golvet: kvart punkt der er meint å liggje på golvet. Ein
- * gyngestol er noko anna: botnen hans er ein boge som ROM golvet i eitt
- * punkt, og punkt for punkt ville snappet ha lagt heile botnen flat — ei
- * meie på to hundre millimeter av ein boge som skulle gynge. Difor vert det
- * avgjort etterpå, med både det rå og det snappa: eit punkt held det
- * snappa når det er ein ende, eit hjørne (kanten snur over 45° kring det,
- * lese over seks toleransar til kvar side), eller står i eit strekk av
- * snappa punkt mellom to slike der det rå strekket går JAMT LANGS lina —
- * avstanden til henne skil seg ikkje meir enn to toleransar over strekket.
- * Ein boge i snappbandet gjer det ikkje, og får stå som han vart teikna;
- * det gjer heller ikkje beinet på veg ned i bandet mot hjørnet, so beinet
- * står rett heilt til hjørnet, og hjørnet står på golvet.
- */
 export function snappaKontur(raa: readonly Pt[], snappa: readonly Pt[], tol: number): Pt[] {
   const n = Math.min(raa.length, snappa.length)
   if (n < 3) return snappa.slice(0, n)
   const flytta = raa.map((p, i) => i < n && avstand(p, snappa[i]) > 1e-9)
-  // hjørna: retninga inn mot punktet mot retninga ut frå det, lese over ei fingerbreidd
   const vindauge = 6 * tol
   const retn = (i: number, fram: boolean): Pt | null => {
     let k = i
@@ -401,15 +279,12 @@ export function snappaKontur(raa: readonly Pt[], snappa: readonly Pt[], tol: num
     if (i === 0 || i === n - 1) return true
     const inn = retn(i, false), ut = retn(i, true)
     if (!inn || !ut) return false
-    // inn peikar attende: snuen er vinkelen mellom −inn og ut
     const c = -(inn[0] * ut[0] + inn[1] * ut[1])
     return Math.acos(Math.max(-1, Math.min(1, c))) > (45 * Math.PI) / 180
   })
   const ut = raa.slice(0, n)
   for (let i = 0; i < n; i++) if (anker[i] && flytta[i]) ut[i] = snappa[i]
-  // i bandet: flytt, eller eit punkt som råka lina midt mellom to flytte
   const iBand = flytta.map((f, i) => f || (i > 0 && i < n - 1 && flytta[i - 1] && flytta[i + 1]))
-  // strekka: samanhengande punkt i bandet, delte av ankera
   let i = 0
   while (i < n) {
     if (!iBand[i] || anker[i]) { i++; continue }
@@ -423,16 +298,6 @@ export function snappaKontur(raa: readonly Pt[], snappa: readonly Pt[], tol: num
   return ut
 }
 
-/**
- * EIN KONTUR TEIKNA INNI DEN VALDE PLATA ER EIT HÒL I HO.
- *
- * Punkta kjem frå det frosne teikneplanet, i brøk kring midten av kroppen;
- * plata står parallelt med det, ein annan stad langs normalen. Ført ut i
- * rommet og inn att i ramma til plata er dei same punkta — og ligg dei
- * alle innanfor omrisset hennar, er det eit hòl og ikkje ei ny plate.
- * Null når plata ikkje er parallell, ikkje har eit omriss, eller når
- * konturen går utanfor.
- */
 export function holAv(punkt: readonly Pt[], flate: Ramme, q: Plan, min: Vec3, max: Vec3, S: number): Strek | null {
   if (!q.omriss || q.bog || punkt.length < 3) return null
   const r = ramme(q, min, max)
@@ -464,14 +329,6 @@ export function holAv(punkt: readonly Pt[], flate: Ramme, q: Plan, min: Vec3, ma
   }
 }
 
-/**
- * MJUKT DER FINGEREN GJEKK MJUKT, SKARPT DER HAN SNUDDE.
- *
- * Ein boge teikna med ein finger vert tjue punkt med knekk imellom. Eit
- * punkt der kanten snur under 50° og begge nabostykka er korte (under
- * 30 % av diagonalen), låg på ei kurve: det vert rundt, og omrisset går
- * mjukt gjennom det. Eit hjørne står skarpt.
- */
 export function mjukePunkt(o: readonly Pt[]): number[] {
   const n = o.length
   if (n < 5) return []
@@ -489,7 +346,6 @@ export function mjukePunkt(o: readonly Pt[]): number[] {
   return ut
 }
 
-/** eit hòl har ingen runde punkt i strengen: kurva vert tetta til punkt, hjørna står */
 export function tettMjukt(o: readonly Pt[], tak = OMRISS_TAK): Pt[] {
   const rund = new Set(mjukePunkt(o))
   const n = o.length
@@ -505,28 +361,14 @@ export function tettMjukt(o: readonly Pt[], tak = OMRISS_TAK): Pt[] {
   return ut
 }
 
-// =============================================================================
-// DET FINGEREN MEINTE: SYMMETRISK OG MIDT PÅ
-// =============================================================================
 const tilKant = (p: Pt, a: Pt, b: Pt) => fraaKant(p, a, b)
 
-/** avstanden frå punktet til omrisset */
 function tilRing(p: Pt, ring: readonly Pt[]): number {
   let m = Infinity
   for (let i = 0; i < ring.length; i++) m = Math.min(m, tilKant(p, ring[i], ring[(i + 1) % ring.length]))
   return m
 }
 
-/**
- * EI SIDE TEIKNA NESTEN LIK PÅ BÅE SIDER ER EI SIDE SOM SKAL VERA LIK.
- *
- * Ein finger teiknar ikkje to like bein. Er konturen spegla om sin eigen
- * midtakse nær nok seg sjølv — i snitt under fem prosent av breidda, og
- * ingen stad over tolv — vert den høgre halvdelen klipt ved aksen og spegla
- * over. Ein kontur som er meint skeiv, er skeivare enn det, og står som han
- * vart teikna. Aksen må skjere konturen nett to gonger; ein W har fleire,
- * og han står òg.
- */
 export function symmetrisk(punkt: readonly Pt[]): Pt[] | null {
   if (punkt.length < 3) return null
   const xs = punkt.map((p) => p[0])
@@ -539,7 +381,6 @@ export function symmetrisk(punkt: readonly Pt[]): Pt[] | null {
   const avvik = punkt.map((p) => tilRing(p, spegl))
   const snitt = avvik.reduce((s, d) => s + d, 0) / avvik.length
   if (snitt > 0.05 * w || Math.max(...avvik) > 0.12 * w) return null
-  // Sutherland–Hodgman mot x ≥ c
   const halv: { p: Pt; paa: boolean }[] = []
   for (let i = 0; i < punkt.length; i++) {
     const a = punkt[i]
@@ -549,13 +390,11 @@ export function symmetrisk(punkt: readonly Pt[]): Pt[] | null {
     if (ai) halv.push({ p: a, paa: Math.abs(a[0] - c) < 1e-9 })
     if (ai !== bi) {
       const t = (c - a[0]) / (b[0] - a[0])
-      // eit hjørne PÅ aksen er alt med, som seg sjølv eller som neste punkt
       if (t > 1e-12 && t < 1 - 1e-12) halv.push({ p: [c, a[1] + (b[1] - a[1]) * t], paa: true })
     }
   }
   const paa = halv.map((h, i) => (h.paa ? i : -1)).filter((i) => i >= 0)
   if (paa.length !== 2) return null
-  // kjeda utanfor aksen: frå det eine aksepunktet til det andre, den vegen som ikkje går langs aksen
   const n = halv.length
   const kjede = (fraa: number, til: number) => {
     const k: Pt[] = []
@@ -572,9 +411,6 @@ export function symmetrisk(punkt: readonly Pt[]): Pt[] | null {
   if (hogre.length < 3) return null
   const venstre = hogre.slice(1, -1).reverse().map((p): Pt => [2 * c - p[0], p[1]])
   const ut: Pt[] = [...hogre, ...venstre]
-  // Eit aksepunkt nesten på lina mellom naboane sine er ikkje eit hjørne: ein
-  // topp teikna ein millimeter skeiv vert eit tak med møne når han vert
-  // spegla, og det meinte ingen.
   return ut.filter((p, i) => {
     if (Math.abs(p[0] - c) > 1e-9) return true
     const f = ut[(i + ut.length - 1) % ut.length]
@@ -583,46 +419,22 @@ export function symmetrisk(punkt: readonly Pt[]): Pt[] | null {
   })
 }
 
-/**
- * OG MIDT PÅ. Står midten av det teikna innanfor `tol` av midtlina til
- * arbeidsflata, var det der det skulle stå: ei side du teiknar rett
- * framfor deg skal stå midt i krakken, og eit par stag spegla om midten
- * treff henne berre då. `vassrett` sentrerer òg i den andre retninga —
- * eit sete — der eit loddrett plan har golvet sitt og står der det står.
- */
 export function midtPaa(punkt: readonly Pt[], tol: number, vassrett: boolean, snappa: readonly [boolean, boolean] = [false, false]): Pt[] {
   const xs = punkt.map((p) => p[0])
   const ys = punkt.map((p) => p[1])
   const cx = (Math.min(...xs) + Math.max(...xs)) / 2
   const cy = (Math.min(...ys) + Math.max(...ys)) / 2
-  // ei teikning som ligg heilt på den eine sida av midten — eit bein som
-  // står ut frå aksen — er meint der ho ligg
   const eiSide = Math.min(...xs) > 0 || Math.max(...xs) < 0
-  // og ein akse snappet alt har sett — enden i sida, setet ved bakfoten —
-  // står: eit hake som midtstillinga skuva ei tjukn vidare var ikkje eit hake
   const dx = !snappa[0] && Math.abs(cx) <= tol && !(eiSide && tol === Infinity) ? -cx : 0
   const dy = !snappa[1] && vassrett && Math.abs(cy) <= tol ? -cy : 0
   return dx || dy ? punkt.map((p): Pt => [+(p[0] + dx).toFixed(6), +(p[1] + dy).toFixed(6)]) : [...punkt]
 }
 
-/**
- * DET TEIKNA SLIK DET VART MEINT: ein kontur spegla om han nesten er lik på
- * båe sider, og båe slag midt på når dei nesten står der. `tol` er ein
- * fingerbreidd i planet si eining.
- */
 export function rettOpp(punkt: readonly Pt[], slag: "firkant" | "kontur", tol: number, vassrett: boolean, snappa: readonly [boolean, boolean] = [false, false]): Pt[] {
   const s = slag === "kontur" ? symmetrisk(punkt) ?? punkt : punkt
   return midtPaa(s, tol, vassrett, snappa)
 }
 
-/**
- * KVA EIT LUKKA DRAG VERT.
- *
- * Inni den valde plata er det eit hòl — og i spegelbiletet hennar òg, når
- * ho er ein del av eit spegla par. Ovanfrå landar det oppå det som står
- * under. Elles er det ei ny plate der teikneplanet stod. Reint: studioet
- * gjer berre det svaret seier.
- */
 export type Lukka =
   | { slag: "hol"; plan: Plan[]; strek: number }
   | { slag: "plate"; o: Vec3; omriss?: Pt[] }
@@ -654,7 +466,6 @@ export function lukkTeikning(l: readonly Plan[], vald: number | null, po: Vec3, 
     const z = landing(l, min, max, S, fot, t)
     if (z !== null) p = [po[0], po[1], z + t / 2]
   } else if (Math.abs(pn[2]) < 1e-3) {
-    // frå sida: der sidene held henne
     const fot = omriss.map((q) => ut(flate, [q[0] * S, q[1] * S]))
     p = haldt(l, min, max, S, t, po, pn, fot) ?? po
   }

@@ -1,39 +1,9 @@
-/**
- * NUMMERET I DELEN.
- *
- * Kuttfila graverer adressa med `strokesAt`: eit einstrøks alfabet, polyliner
- * utan breidd, av di stråla køyrer LANGS streken og fyller ingenting. Det
- * held på ei plate. Det held ikkje i eit nett: ein tredimensjonal del er
- * gods, og ein strek utan breidd er ingen ting å skjere bort.
- *
- * Så streken må verte ei FLATE fyrst, og det er den eine reelle vanskelege
- * biten: to strekar i ein bokstav møtest i eit punkt, og legg du eit
- * rektangel kring kvar av dei, OVERLAPPAR rektangla i møtet. To overlappande
- * ringar er ikkje eit polygon øyreklippet kan lese — med partal/oddetal
- * slettar dei kvarandre i skjeringa, og «4» får eit hòl der streken er
- * tjukkast.
- *
- * Difor same vegen profilane sjølve går: legg streken ut i eit felt, og les
- * konturen av feltet. Eit felt har ingen skjeringar — det har ein verdi per
- * punkt — so eit møte mellom to strekar er berre ein stad der to avstandar
- * er små, og konturen går utanom heile klumpen på ein gong. Same svaret som
- * ein union, utan å skrive ein union.
- *
- * Rutesteget er ein tredel av strekbreidda. Det er ikkje eit val for
- * kvalitet: under det byrjar ringen å klatre i trappa si eiga rute, og over
- * det kan ei rute misse heile streken mellom to prøvepunkt.
- */
 import { simplify } from "./contour"
 import { strokesAt } from "./stroke"
 import { inRing, type Pt } from "./core"
 
-/**
- * EI FLATE TEKSTEN DEKKJER: ytterkanten, og dei lukka romma inni han —
- * augo i «0», «4», «6», «8» og «A». Begge mot uret.
- */
 export type Flate = { ytre: Pt[]; indre: Pt[][] }
 
-/** avstand frå eit punkt til eit linestykke */
 function tilStrek(px: number, py: number, a: Pt, b: Pt): number {
   const vx = b[0] - a[0]
   const vy = b[1] - a[1]
@@ -43,22 +13,11 @@ function tilStrek(px: number, py: number, a: Pt, b: Pt): number {
   return Math.hypot(px - (a[0] + vx * t), py - (a[1] + vy * t))
 }
 
-/**
- * KONTURANE KRING TEKSTEN, i det same rommet `strokesAt` teiknar i.
- *
- * `brei` er kor brei streken vert. Svaret er ringar som ikkje skjer
- * kvarandre: ytterkantane fyrst, og hòla inni «0», «8» og «A» med motsett
- * omløp — det øyreklippet og `bridge` treng for å lese dei som hòl.
- *
- * Tom liste tyder at det ikkje vart noko å skjere: tom tekst, eller ein
- * storleik som er null.
- */
 export function merkeRingar(tekst: string, cx: number, cy: number, size: number, brei: number): Pt[][] {
   if (!tekst || size <= 0 || brei <= 0) return []
   const strek: [Pt, Pt][] = []
   for (const line of strokesAt(tekst, cx, cy, size)) {
     for (let i = 1; i < line.length; i++) strek.push([line[i - 1], line[i]])
-    // eit punkt for seg sjølv er ein prikk, og han skal ha flate òg
     if (line.length === 1) strek.push([line[0], line[0]])
   }
   if (!strek.length) return []
@@ -75,8 +34,6 @@ export function merkeRingar(tekst: string, cx: number, cy: number, size: number,
     y1 = Math.max(y1, a[1], b[1])
   }
   const steg = Math.max(brei / 3, 0.02)
-  // to ruter luft kring, so konturen aldri vert klipt av kanten på feltet:
-  // ei open kjede er ikkje ein ring
   const pad = r + 2 * steg
   x0 -= pad
   y0 -= pad
@@ -103,7 +60,6 @@ export function merkeRingar(tekst: string, cx: number, cy: number, size: number,
     }
   }
 
-  /** punktet på ei kant mellom to naboar, der feltet skiftar teikn */
   const paa = (i: number, j: number, vassrett: boolean): Pt => {
     const fa = at(i, j)
     const fb = vassrett ? at(i + 1, j) : at(i, j + 1)
@@ -113,12 +69,6 @@ export function merkeRingar(tekst: string, cx: number, cy: number, size: number,
   const idH = (i: number, j: number) => `h${i},${j}`
   const idV = (i: number, j: number) => `v${i},${j}`
 
-  /**
-   * KVAR RUTE GJEV NULL, EITT ELLER TO STYKKE, og stykka peikar so godset
-   * ligg på same sida heile vegen. Dei to tvitydige rutene (berre dei to
-   * motståande hjørna inne) vert løyste med midtverdien, som er den einaste
-   * opplysninga ruta har om kva som heng i hop.
-   */
   const fraa = new Map<string, { til: string; p: Pt; q: Pt }>()
   for (let j = 0; j < ny; j++) {
     for (let i = 0; i < nx; i++) {
@@ -174,45 +124,15 @@ export function merkeRingar(tekst: string, cx: number, cy: number, size: number,
   return ringar
 }
 
-/** signert areal — positivt mot klokka */
 export function areal(ring: readonly Pt[]): number {
   let a = 0
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) a += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1]
   return a / 2
 }
 
-/**
- * FLATENE TEKSTEN DEKKJER, kvar som EITT enkelt polygon.
- *
- * Ein ring for seg sjølv er ikkje nok: «0» er ein ring med to hòl i, og
- * «4» og «A» har kvart sitt. Skal flata brukast som ei lomme, må hòlet
- * vera med — elles vert nullen ein fylt klump.
- *
- * `bridge` er den same funksjonen ribba sjølv vert lagd ut med: han syr
- * hòla inn i ytterkanten gjennom ein kanal utan breidd, og resultatet er
- * eitt polygon øyreklippet kan lese. So ei lomme her er nøyaktig det same
- * slaget form som eit stykke av ein profil, og ikkje eit nytt slag.
- */
 export function merkeFlater(tekst: string, cx: number, cy: number, size: number, brei: number): Flate[] {
   const raa = merkeRingar(tekst, cx, cy, size, brei)
   if (!raa.length) return []
-  /**
-   * KVA SOM ER YTTERKANT OG KVA SOM ER HÒL, lese av NESTINGA og ikkje av
-   * omløpet. Marsjen gjev eit omløp som heng saman — hòl går motsett veg av
-   * ytterkanten sin — men kva veg det heile går er ein konvensjon i tabellen
-   * og ikkje ei opplysning om forma. Ligg ein ring inni eit ULIKT tal andre
-   * ringar, er han eit hòl. Det er den same partal/oddetal-regelen resten av
-   * fila les gods med.
-   *
-   * OG DEI VERT IKKJE SYDDE I HOP HER. Ein «4» er ein ytterkant med ein
-   * trekant inni, og syr du trekanten inn i kanten får du eit polygon med
-   * ein kanal utan breidd i seg. Det polygonet er greitt for seg sjølv —
-   * men brukt som HÒL i endå ei syning finn næraste-punkt-regelen punkt på
-   * kvar si side av kanalen, og sauma kryssar seg sjølv. Målt: «4» og «6»
-   * gav åtte og fire kantar som ikkje var delte av to flater, medan «1»,
-   * «2», «3» og «5» stod lukka. Difor ligg dei kvar for seg her, og den
-   * som legg dei ut avgjer kva han treng.
-   */
   const djup = raa.map((r) => raa.filter((q) => q !== r && inRing(q, r[0])).length)
   const motUret = (r: Pt[]) => (areal(r) < 0 ? r.slice().reverse() : r.slice())
   const ut: Flate[] = []

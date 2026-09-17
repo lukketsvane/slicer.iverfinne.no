@@ -1,4 +1,3 @@
-/** WebKit på PC: mobil-layout, talfelt og teikning; ikkje fysisk iOS. */
 import assert from "node:assert/strict"
 import { mkdirSync } from "node:fs"
 import { webkit } from "playwright"
@@ -28,8 +27,6 @@ async function prov() {
     await side.touchscreen.tap(344, 87)
     await side.waitForTimeout(900)
     await side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "kontur", exact: true }).tap()
-    // Playwright har ikkje fleirfingerdrag i WebKit. Denne delen prøver
-    // den same peikarløypa med mus; knappetrykka over/under er touch.
     const bane = [[100, 300], [230, 300], [260, 490], [210, 490], [195, 450], [130, 450], [110, 490], [75, 490], [100, 300]]
     await side.mouse.move(...bane[0] as [number, number])
     await side.mouse.down()

@@ -3,51 +3,23 @@
 import { useEffect, useRef, useState, type JSX } from "react"
 import type { View } from "@/lib/core"
 import { FORMAT } from "@/lib/io"
-/** eit bilete vert ei plate (sjå `bilete.tsx`), ikkje eit nett */
 export const BILETE = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"] as const
 import { FORMER } from "@/lib/scene"
 import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./deler"
 
-/**
- * TOPPLINA. Det som ikkje skal ligge to steg ned i eit ark: angre og gjer
- * om, kroppen du står på (og vegen til ein annan), dei fire lesemåtane,
- * lenkja. Éi smal line på begge flatene, over lerretet; kameraet rammar inn
- * under henne. På ein telefon som er lagd på heimeskjermen ligg statuslina
- * over sida, so lina tek den tryggje sona som luft over seg. Ein knapp er
- * eit ikon eller eit ord, aldri begge; filnamnet er innhald og står som det er.
- */
 export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, hopHint, onFile, bibliotek, onLeggLagra, onLegg, onTom, onTomArbeidsflate, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, onHogd }: {
   benk: boolean
   kjelde: string
-  /** kor mange bitar kroppen er sett saman av: eitt er ei kjelde åleine */
   bitar: number
-  /**
-   * FAMILIEN TIL DEN VALDE BITEN, og tom streng når ingen bit står vald.
-   *
-   * Det er han som avgjer kva ei line i menyen gjer: ingen bit vald legg
-   * ein til, ein annan familie byter forma i den valde, og DEN SAME
-   * familien blar til den neste utgåva hennar.
-   */
   byt: string
   view: View
   onView: (v: View) => void
-  /** går objektet i hop? Er det ikkje det, er montasjefana slegen av */
   montasjeOk: boolean
-  /** kva som er i vegen, ordrett frå regelen — det er han som veit det */
   hopHint: string
   onFile: (f: File[]) => void
-  /**
-   * DET DU HAR HENTA INN FØR.
-   *
-   * Ei fil du har opna éin gong står i basen, og då skal ho stå i menyen
-   * òg — det er heile skilnaden mellom ein reiskap du hentar fram att og
-   * ein du hentar fila til på nytt kvar gong.
-   */
   bibliotek: readonly { id: string; label: string }[]
   onLeggLagra: (id: string) => void
-  /** eit primitiv til i kroppen */
   onLegg: (id: string) => void
-  /** attende til kjelda åleine */
   onTom: () => void
   onTomArbeidsflate: () => void
   onAngre: () => void
@@ -55,17 +27,10 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
   onGjerOm: () => void
   kanGjerOm: boolean
   onShare: () => void
-  /** kor høg lina er, i pikslar: kameraet stiller objektet inn under henne */
   onHogd: (px: number) => void
 }): JSX.Element {
   const pick = useRef<HTMLInputElement | null>(null)
   const el = useRef<HTMLElement | null>(null)
-  /**
-   * KJELDEMENYEN. Kroppen er ei liste av bitar, ikkje éi fil, so brikka er
-   * ikkje ein filveljar: ho er dei fem primitiva som finst utan ei fil, og
-   * vegen til di eiga. Han lukkar seg av eit trykk utanfor og av escape —
-   * ein meny som står att er ein meny som dekkjer objektet.
-   */
   const [meny, setMeny] = useState(false)
   const boks = useRef<HTMLSpanElement | null>(null)
   useEffect(() => {
@@ -202,9 +167,6 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
             ER. Det kostar ingenting og er sant. */}
         <span role="tablist" aria-label="lesemåte" className="mx-auto flex items-center">
           {VIEWS.map((v) => {
-            // montasjen er ei lesing av ein montasje: finst det ingen, er det
-            // ingenting å lesa, og fana seier det på den eine måten eit
-            // flatt grensesnitt har — dempa blekk
             const av = v.id === "montasje" && !montasjeOk
             return (
               <button key={v.id} type="button" role="tab" title={av ? hopHint : v.hint} aria-selected={view === v.id} disabled={av} data-fane={v.id} onClick={() => onView(v.id)} className={ORD} style={av ? { opacity: 0.25 } : undefined}>{v.label}</button>

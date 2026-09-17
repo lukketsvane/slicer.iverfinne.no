@@ -1,25 +1,12 @@
-/**
- * SLICERMAN — eit bilete vert ei plate.
- *
- * Ein silhuett, ein logo, ei skisse på papir: det mørke er gods, det ljose
- * er luft. Biletet vert lese som ljosstyrke, jamna ut, skore ved ein
- * terskel, og nullstaden er omrisset — den største ytterkanten — med hòla
- * inni han som teikna konturar. Reint: pikslar inn, punkt ut. Studioet
- * set det inn i teikneplanet.
- */
 import { contour } from "./contour"
 import { inRing, shoelace, type Pt } from "./core"
 import { OMRISS_TAK, STREK_TAK, type Strek } from "./plan"
 import { mjukePunkt, teiknaKontur, tettMjukt } from "./teikning"
 
-/** ljosstyrke 0 (svart) til 1 (kvitt), rad for rad ovanfrå */
 export type Maske = { lys: Float32Array; w: number; h: number }
-/** terskel 0–1, mjuking i pikslar, snu gjer det ljose til gods */
 export type BileteVal = { terskel: number; mjuk: number; snu: boolean }
-/** i einingar av den lengste sida av biletet, kring midten, y opp */
 export type BileteForm = { omriss: Pt[]; runde: number[]; hol: Strek[] }
 
-/** eit boksslør i to gonger, rad og kolonne */
 function sloer(a: Float32Array, w: number, h: number, r: number): Float32Array {
   const b = new Float32Array(a.length)
   const c = new Float32Array(a.length)
@@ -42,7 +29,6 @@ function sloer(a: Float32Array, w: number, h: number, r: number): Float32Array {
   return c
 }
 
-/** eit hòl som konturstrek: punkta i einingsboksen, boksen der hòlet er */
 export function konturStrek(p: readonly Pt[]): Strek {
   const xs = p.map((q) => q[0]), ys = p.map((q) => q[1])
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys)
@@ -52,13 +38,6 @@ export function konturStrek(p: readonly Pt[]): Strek {
   return { slag: "hol", form: "kontur", punkt: p.map((q): Pt => [k((q[0] - x) / w), k((q[1] - y) / h)]), x, y, w, h, a: 0 }
 }
 
-/**
- * FORMA I BILETET, eller null når ingenting er mørkt nok.
- *
- * Ein ramme av luft kring biletet gjer at kvar kant er lukka, òg der det
- * mørke går ut i kanten. Hòl mindre enn ein promille av biletet er støv og
- * fell bort; dei største kjem fyrst, opp til streketaket.
- */
 export function bileteForm(m: Maske, val: BileteVal): BileteForm | null {
   const { w, h } = m
   if (w < 2 || h < 2) return null
@@ -70,7 +49,6 @@ export function bileteForm(m: Maske, val: BileteVal): BileteForm | null {
     for (let x = 0; x < w; x++) {
       const v = lys[y * w + x]
       const d = val.snu ? v - val.terskel : val.terskel - v
-      // null er ein knivsegg for marsjen: ein bitteliten skuv avgjer han
       g[(h - y) * W + x + 1] = d === 0 ? -1e-6 : d
     }
   }
@@ -93,7 +71,6 @@ export function bileteForm(m: Maske, val: BileteVal): BileteForm | null {
   return { omriss, runde: mjukePunkt(omriss), hol }
 }
 
-/** forma skalert med `k` — frå einingar av biletet til brøk av storleiken */
 export function skalerForm(f: BileteForm, k: number): BileteForm {
   const r = (v: number) => +(v * k).toFixed(4)
   return {

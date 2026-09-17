@@ -1,49 +1,20 @@
-/**
- * SLICERMAN — liner gjennom profilar.
- *
- * Kvar ei line — rett eller boge — går gjennom gods, og kvar eit punkt
- * ligg langs henne. Snittinga, tappane, vaktene og teikninga spør om det
- * same, og svaret skal vera det same same kven som spør. Difor éin stad.
- */
 import { inRing, type Pt } from "./core"
 import type { Span } from "./mesh/solid"
 import { bogPar } from "./plan"
 
-/**
- * PUNKTET `t` MILLIMETER LANGS SPORLINA, `s` MILLIMETER TIL SIDES.
- *
- * Éin stad, av di sju stader spurde om det same: feltet som skjer sporet,
- * stykket ein ende høyrer til, handtaka på plata, handtaka i rommet,
- * skissa og leddvakta. Ei rett line og ein boge er det same uttrykket her —
- * `bogPar` går mot `[t, 0]` når krumminga går mot null — men greina står
- * likevel, av di eit flatt spor er det vanlege og ein `sin` og ein `cos`
- * per celle i ei rute på 220 × 220 er ikkje gratis.
- *
- * Sida er mot VENSTRE for `d`, som overalt elles i huset: `n̂⊥ = (−d_y, d_x)`.
- */
 export function sporPunkt(q: { p: Pt; d: Pt; k: number }, t: number, s = 0): Pt {
   const nx = -q.d[1]
   const ny = q.d[0]
   if (!q.k) return [q.p[0] + q.d[0] * t + nx * s, q.p[1] + q.d[1] * t + ny * s]
   const a = q.k * t
   const [su, sn] = bogPar(q.k, t)
-  // `s` fylgjer flata og ikkje der bogen byrja — same rekninga som tjukna
-  // på ei bøygd ribbe i `ut`, so sporet er like breitt heile vegen
   const du = su - s * Math.sin(a)
   const dn = sn + s * Math.cos(a)
   return [q.p[0] + q.d[0] * du + nx * dn, q.p[1] + q.d[1] * du + ny * dn]
 }
 
-/** ei sporline for seg: det dei to rekningane over treng, og ikkje eit heilt ledd */
 export type Line = { p: Pt; d: Pt; k: number }
 
-/**
- * OG ATTENDE: buelengda langs lina, og kor langt frå henne punktet ligg.
- *
- * Tal og ikkje eit punkt inn, av di den eine staden dette vert spurt tett
- * er feltet, og der ligg tala alt i kvar sin variabel. Rekninga er
- * `inn`/`avFlata` i `plan.ts`, med ei dimensjon mindre.
- */
 export function sporInn(px: number, py: number, dx: number, dy: number, k: number, x: number, y: number): [number, number] {
   const rx = x - px
   const ry = y - py
@@ -55,15 +26,6 @@ export function sporInn(px: number, py: number, dx: number, dy: number, k: numbe
   return [Math.atan2(sg * a, sg * (R - b)) * R, R - Math.hypot(a, R - b) * sg]
 }
 
-// =============================================================================
-// LINER GJENNOM RINGAR
-// =============================================================================
-/**
- * Kvar ei line går gjennom gods: stykka [t0, t1] langs `d` frå `p`, lesne
- * av alle ringane med partal/oddetal. Eit hòl er ein ring, og ei line som
- * går inn i eit hòl går ut av godset — det er det same talet. Halvopen
- * regel på hjørna, so ei line gjennom eit hjørne tel éin gong.
- */
 export function stykkeLangs(ringar: readonly Pt[][], p: Pt, d: Pt, k = 0): Span[] {
   if (k) return stykkeBoge(ringar, p, d, k)
   const nx = -d[1]
@@ -87,24 +49,10 @@ export function stykkeLangs(ringar: readonly Pt[][], p: Pt, d: Pt, k = 0): Span[
   return ut
 }
 
-/**
- * DET SAME, MEN LANGS EIN BOGE.
- *
- * Ei rett line er open i båe endar, so ho byrjar i lufta og pari kan
- * lesast av rekkjefylgja åleine: fyrste kryssinga går INN i gods. Ein
- * sirkel er LUKKA — han har ingen ende å byrje utanfor — so pariteten må
- * lesast éin stad og gjelde derifrå.
- *
- * Skøyta ligg på ±πR, og `kryssRing` legg nullpunktet midt i delen nett
- * for at ho skal liggje langt frå godset. Går bogen heilt rundt utan å
- * krysse noko, er han anten heilt inne eller heilt ute, og eitt punkt
- * svarar på kva.
- */
 function stykkeBoge(ringar: readonly Pt[][], p: Pt, d: Pt, k: number): Span[] {
   const q = { p, d, k }
   const R = 1 / k
   const omkrins = 2 * Math.PI * Math.abs(R)
-  // sentrum ligg på `p + n̂⊥·R` — same teiknvedtaket som `bogPar`
   const cx = p[0] - d[1] * R
   const cy = p[1] + d[0] * R
   const rad = Math.abs(R)
@@ -113,7 +61,6 @@ function stykkeBoge(ringar: readonly Pt[][], p: Pt, d: Pt, k: number): Span[] {
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
       const a = ring[j]
       const b = ring[i]
-      // |a + t(b−a) − c|² = R², t i [0, 1)
       const ex = b[0] - a[0]
       const ey = b[1] - a[1]
       const fx = a[0] - cx
@@ -137,7 +84,6 @@ function stykkeBoge(ringar: readonly Pt[][], p: Pt, d: Pt, k: number): Span[] {
     for (const ring of ringar) if (inRing(ring, p)) n++
     return n % 2 === 1 ? [[-omkrins / 2, omkrins / 2]] : []
   }
-  // spenna mellom to nabokryssingar, med den siste attende til den fyrste
   const ut: Span[] = []
   for (let i = 0; i < ts.length; i++) {
     const lo = ts[i]
@@ -151,7 +97,6 @@ function stykkeBoge(ringar: readonly Pt[][], p: Pt, d: Pt, k: number): Span[] {
   return ut
 }
 
-/** snittet av to stykkelister */
 export function felles(a: Span[], b: Span[]): Span[] {
   const ut: Span[] = []
   for (const [a0, a1] of a) {
@@ -164,7 +109,6 @@ export function felles(a: Span[], b: Span[]): Span[] {
   return ut
 }
 
-/** stykka i `a` som ikkje er i `b` */
 export function utan(a: readonly Span[], b: readonly Span[]): Span[] {
   let ut: Span[] = a.map(([lo, hi]) => [lo, hi])
   for (const [b0, b1] of b) {
@@ -182,7 +126,6 @@ export function utan(a: readonly Span[], b: readonly Span[]): Span[] {
   return ut
 }
 
-/** ligg punktet i gods: i eit oddetal ringar */
 export function iGods(ringar: readonly Pt[][], q: Pt): boolean {
   let n = 0
   for (const r of ringar) if (inRing(r, q)) n++

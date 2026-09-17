@@ -225,6 +225,10 @@ Kvar økt er eit budsjett. Reglane som held det:
   éi bash-line med `&&`; aldri fire kall der eitt held. Skriv output gjennom
   `tail`/`grep`/`node -e` so berre svaret kjem attende — aldri heile JSON-en,
   aldri heile loggen.
+- **Ingen kommentarar i koden.** Kjelda er kode. Kvifra høyrer heime i
+  `README.md`, `REBUILD.md` og `PLAN.md`; ei line som seier kva koden gjer
+  er ei line som lyg fyrste gong koden endrar seg. Skriv du ein kommentar,
+  har du skrive feil kode eller feil fil.
 - **Les smalt.** `Grep -n` fyrst, `Read` med `offset`/`limit` på treffet; aldri
   heile fila for å finne ei line. Store filer (`studio.tsx`, `scene.tsx`,
   `snitt.tsx`) vert ALDRI lesne heilt.

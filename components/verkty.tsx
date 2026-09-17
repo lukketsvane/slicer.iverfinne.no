@@ -1,12 +1,5 @@
 "use client"
 
-/**
- * VERKTYA: det du slår opp i. Kuttlista og oppsettet treng brei plass og
- * skal ikkje stå framme heile tida, so dei bur i ei skuff over lerretet,
- * eitt om gongen. Ingen av dei reknar noko: kuttlista er bygget lese line
- * for line, oppsettet er parametrane du alt står i. Platene er ikkje her —
- * dei er konturvisinga, som er heile flata og ikkje ei skuff.
- */
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from "react"
 import { kuttCsv, nn, type Kutt, type ParamBag } from "@/lib/core"
 import { ALLE_KEYS, PARAM_RANGES } from "@/lib/params"
@@ -18,11 +11,7 @@ export const VERKTY: { id: VerktyId; ord: string }[] = [
   { id: "oppsett", ord: "oppsett" },
 ]
 
-// =============================================================================
-// KUTTLISTA — éi line per del, samla under planet sitt
-// =============================================================================
 type Kolonne = { id: string; ord: string; tal?: boolean; les: (k: Kutt) => string; smal?: boolean }
-/** sju kolonnar er ein tabell for ein skjerm; på 390 px står fire */
 const KOLONNAR: Kolonne[] = [
   { id: "adr", ord: "adresse", les: (k) => k.adr },
   { id: "id", ord: "form", les: (k) => k.id, smal: true },
@@ -41,13 +30,11 @@ function Kuttliste({ liste, peikt, onPeik, onOrd }: {
 }) {
   const peiktRad = useRef<HTMLTableRowElement | null>(null)
   useEffect(() => { peiktRad.current?.scrollIntoView({ block: "nearest" }) }, [peikt])
-  /** kor mange gonger kvar form går att — det er oppspenningane */
   const former = useMemo(() => {
     const m = new Map<string, number>()
     for (const k of liste) m.set(k.id, (m.get(k.id) ?? 0) + 1)
     return m
   }, [liste])
-  /** plana du har bretta saman: overskrifta er knappen, som bolkane i arket */
   const [bretta, setBretta] = useState<ReadonlySet<number>>(() => new Set())
   const brett = (plan: number) =>
     setBretta((s) => {
@@ -77,9 +64,6 @@ function Kuttliste({ liste, peikt, onPeik, onOrd }: {
           </thead>
           <tbody>
             {grupper.map(([plan, rader]) => {
-              // planet med fleire stykke er ei GRUPPE, og overskrifta hennar
-              // brettar henne saman: eit rutenett er hundre liner, og du les
-              // eitt plan om gongen
               const att = rader.length > 1 && bretta.has(plan)
               return (
                 <Fragmentet key={plan}>
@@ -122,16 +106,6 @@ function Kuttliste({ liste, peikt, onPeik, onOrd }: {
 }
 const Fragmentet = ({ children }: { children: React.ReactNode }) => <>{children}</>
 
-// =============================================================================
-// OPPSETTET — alle innstillingane som tekst: kopier ut, lim inn att
-// =============================================================================
-/**
- * Teksten er LESING, ikkje eit felt. Eit felt som kan skrivast i tek fokus,
- * og på ein iPhone er fokus eit tastatur over objektet og ei side som zoomar.
- * Vegen inn er utklippstavla: «kopier» tek teksten med seg, «lim inn» les
- * henne attende og set det som står der. Klemminga er motoren si eiga, og
- * ingenting vert sett før du trykkjer.
- */
 function Oppsett({ params, clamp, onChange }: {
   params: ParamBag
   clamp: (o: unknown, prev: ParamBag) => ParamBag
@@ -145,7 +119,6 @@ function Oppsett({ params, clamp, onChange }: {
     })
     .join("\n")
   const [ord, setOrd] = useState("")
-  /** utan utklippstavle-API: eit mål å lime i, éin gong */
   const [maal, setMaal] = useState(false)
   const set = (inn: string) => {
     const sett: Record<string, number | string> = {}
@@ -192,12 +165,8 @@ function Oppsett({ params, clamp, onChange }: {
   )
 }
 
-// =============================================================================
-// SKUFFA
-// =============================================================================
 export function Skuff(props: {
   open: VerktyId | null
-  /** kvar skuffa står, i CSS-pikslar */
   rute: CSSProperties
   liste: readonly Kutt[]
   params: ParamBag

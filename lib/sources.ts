@@ -1,33 +1,12 @@
-/**
- * SLICERMAN — kjeldene.
- *
- * Eit nett er for stort til å liggje i ein URL og for stort til å sendast
- * fram og attende for kvart skyvartrykk. Difor bur nettet i arbeidaren, og
- * parameterlista ber berre NAMNET på det. Hovudtråden les fila, sender
- * bytane éin gong, og etter det er ein import berre eit ord.
- *
- * Kuben er alltid der. Han er ikkje ei prøvefil — han er standardobjektet,
- * og han vert laga i koden i staden for lasta ned, so fyrste biletet står
- * på skjermen før noko nett har vore i nærleiken av eit nettverk.
- */
 import { erFilform } from "./scene"
 import { makeSoup, type Soup } from "./soup"
 
 export type SourceInfo = {
   id: string
-  /** namnet slik brukaren kjenner det */
   label: string
   tris: number
 }
 
-/**
- * Ein kube som lause trekantar, sentrert i planet og med botnen i z = 0.
- *
- * Storleiken er likegyldig: alt vert skalert til `storleik` før det vert
- * snitta. Han er skriven som seks sider og ikkje som tolv lause trekantar
- * av di vindinga då er ei line kode i staden for tolv sjansar til å snu ein
- * normal feil veg — og ein normal feil veg er eit hòl i kroppen.
- */
 export function cubeSoup(side = 100): Soup {
   const h = side / 2
   const v: [number, number, number][] = [
@@ -40,7 +19,6 @@ export function cubeSoup(side = 100): Soup {
     [h, h, side],
     [-h, h, side],
   ]
-  // kvar side mot klokka sedd UTANFRÅ
   const faces: [number, number, number, number][] = [
     [0, 3, 2, 1], // botn
     [4, 5, 6, 7], // topp
@@ -67,47 +45,15 @@ export function cubeSoup(side = 100): Soup {
   return makeSoup(pos)
 }
 
-/**
- * Fila slik ho kom inn, ved sida av nettet ho vart til.
- *
- * Ein URL kan ikkje bera eit nett, so ei lenkje tek deg attende til
- * innstillingane og ikkje til arbeidet. Ei prosjektfil kan — men berre om
- * nokon har teke vare på bytane. Difor ligg dei her, hjå kjelda dei høyrer
- * til, og `forget` ryddar dei bort saman med henne.
- *
- * Med eit tak: over dette er nettet alt so stort at ein kopi til er ein
- * kopi for mykje, og prosjektfila seier frå i staden for å ta maskina.
- */
 const MAX_RAW = 96 * 1024 * 1024
 
 const RAW = new Map<string, { soup: Soup; label: string; fil?: Uint8Array }>()
 
-/**
- * KVA NETT SOM LIGG I MINNET, som eit tal.
- *
- * Nøklane til dei hugsa bygga er skrivne av PARAMETRANE, og ein parameter
- * seier kva kjelde som GJELD — ikkje kva nett som ligg bak namnet hennar.
- * Ei form som kjem inn etter at scena alt peika på henne endrar ikkje eit
- * einaste teikn i nøkkelen, og då vert kuben som stod der medan ho lasta
- * servert for alltid. Talet her endrar seg kvar gong eit nett kjem inn, og
- * det står i nøklane.
- */
 let gen = 0
 export const generasjon = (): number => gen
 
 export const KUBE = "kube"
 
-/**
- * KUBEN, laga i koden og ikkje lasta: hundre millimeter, sentrert i planet
- * og med botnen på z = 0, vindinga mot klokka sedd utanfrå. Han er
- * standardobjektet, og det einaste som står på skjermen utan at eit nett
- * har vore i nærleiken av eit nettverk. Dei andre formene er filer — sjå
- * `FILFORMER` i `scene.ts`.
- *
- * Her stod ei kule, ein sylinder, ei kjegle og ein torus òg, laga av ein
- * rotasjonsprofil. Dei var ærleg matematikk, og ingen av dei fortalde kva
- * verktyet er til.
- */
 const PRIMITIV: Record<string, () => Soup> = {
   kube: () => cubeSoup(),
 }
@@ -130,7 +76,6 @@ export function put(id: string, label: string, soup: Soup, fil?: Uint8Array): So
   return { id, label, tris: soup.tris }
 }
 
-/** fila kjelda kom av, om ho er teken vare på */
 export function raw(id: string): Uint8Array | undefined {
   return RAW.get(id)?.fil
 }
@@ -139,14 +84,9 @@ export function label(id: string): string {
   return RAW.get(id)?.label ?? (id === KUBE ? "kube" : id)
 }
 
-/** Importar hopar seg opp i minnet. Ein brukar som har prøvd seks filer
- *  treng ikkje dei fem fyrste, og eit skann er lett hundre megabyte. */
 export function forget(keep: string | readonly string[]) {
   const hald = new Set(typeof keep === "string" ? [keep] : keep)
   for (const id of [...RAW.keys()]) {
-    // FORMENE STÅR. Dei er fem og små, og eit fall attende på kuben av di
-    // ho vart gløymd mellom to bygg er ei anna form på skjermen enn den du
-    // valde — utan at noko sa frå.
     if (!hald.has(id) && !(id in PRIMITIV) && !erFilform(id)) RAW.delete(id)
   }
 }

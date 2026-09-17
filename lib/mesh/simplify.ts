@@ -1,32 +1,6 @@
-/**
- * SLICERMAN — forenklinga.
- *
- * Nokon dreg inn eit skann av ein elefant på to millionar trekantar. Det
- * er tre problem i eitt: det er tregt, det er ruglete, og det er meir
- * oppløysing enn ein sag med tre millimeter snittbreidd nokon gong kan
- * bruke. Forenklinga tek det fyrste og halvparten av det andre.
- *
- * Metoden er hjørneklynging. Boksen kring nettet vert delt i eit rutenett,
- * alle hjørne i same celle vert eitt hjørne, og trekantar som endar med to
- * like hjørne fell bort. Det er ikkje den finaste forenklinga som finst —
- * ein kvadrikkfeil-kollaps held silhuetten betre — men han er lineær i tal
- * hjørne, han rører aldri meir enn ei celle om gongen, og han kan ikkje
- * lage sjølvgjennomtrengingar. På eit skann er det tre eigenskapar som er
- * meir verdt enn ein litt betre silhuett.
- *
- * Representanten for cella er MIDDELET av hjørna i henne, ikkje det fyrste
- * eller det næraste hjørnet. Middelet ligg litt inne i flata der ho er
- * krum, og det er rett veg: ei celle som spenner over ein rugl skal svare
- * med rugelen sitt senter og ikkje med toppen hans.
- */
 import type { Indexed } from "../soup"
 import { bounds } from "../soup"
 
-/**
- * `n` er kor mange celler den lengste sida vert delt i. Under fire er det
- * ikkje eit objekt lenger; over det nettet sjølv har oppløysing til, er
- * det inga forenkling og steget vert hoppa over.
- */
 export function cluster(m: Indexed, n: number): Indexed {
   const V = m.verts
   const nv = V.length / 3
@@ -40,8 +14,6 @@ export function cluster(m: Indexed, n: number): Indexed {
   const nx = Math.max(1, Math.ceil(dx / cell))
   const ny = Math.max(1, Math.ceil(dy / cell))
   const nz = Math.max(1, Math.ceil(dz / cell))
-  // Er rutenettet finare enn nettet sjølv, er det ingenting å hente — og
-  // ei tabell på ein milliard celler er verre enn ingenting.
   if (nx * ny * nz > 4 * nv + 4096) return m
 
   const inv = 1 / cell
@@ -52,7 +24,6 @@ export function cluster(m: Indexed, n: number): Indexed {
     return (cz * ny + cy) * nx + cx
   }
 
-  // Fyrste runde: kva celler er tekne, og kva er middelet i kvar av dei.
   const slot = new Map<number, number>()
   const sum: number[] = []
   const cnt: number[] = []
@@ -80,9 +51,6 @@ export function cluster(m: Indexed, n: number): Indexed {
     verts[s * 3 + 2] = sum[s * 3 + 2] / k
   }
 
-  // Andre runde: trekantane. Ein trekant der to hjørne fall i same celle
-  // har null areal og skal bort — han ville berre stå i vegen for
-  // nabooppslaget seinare.
   const out: number[] = []
   for (let t = 0; t < m.idx.length; t += 3) {
     const a = map[m.idx[t]]
@@ -95,15 +63,6 @@ export function cluster(m: Indexed, n: number): Indexed {
   return { verts, idx: new Uint32Array(out) }
 }
 
-/**
- * Same forenkling, men styrt av eit TAK på tal trekantar i staden for av
- * ei celleoppløysing. Ein skyvar som seier «tjue tusen trekantar» er noko
- * ein kan svare på; ein som seier «celle 3,4 mm» er det ikkje.
- *
- * Talet trekantar fell om lag som kvadratet av celleoppløysinga — flata er
- * todimensjonal, same kva ho ligg i — so eit halveringssøk over ti runder
- * treffer nært nok, og kvar runde er lineær.
- */
 export function decimate(m: Indexed, maxTris: number): Indexed {
   if (m.idx.length / 3 <= maxTris) return m
   let lo = 3

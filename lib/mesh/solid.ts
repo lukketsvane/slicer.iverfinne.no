@@ -1,34 +1,8 @@
-/**
- * SLICERMAN — nettet som ein kropp.
- *
- * Ei ribbe er eit snitt gjennom eit legeme, og eit snitt treng eit svar på
- * eitt einaste spørsmål: er dette punktet inne i objektet eller ute? Eit
- * trekantnett svarar ikkje på det av seg sjølv. Det er ei skalvegg, ikkje
- * ein kropp.
- *
- * Svaret vert henta med ein stråle. Skyt ein stråle langs ein akse gjennom
- * punktet, og tel kva veg kvar trekant han råkar vender: ein trekant som
- * vender MOT strålen er ein veg inn, ein som vender med han er ein veg ut.
- * Summen undervegs er kor mange skal du står inne i, og alt over null er
- * material. Difor kjem svaret ikkje som ein bit, men som LISTA over dei
- * stykka strålen ligg inne i objektet — og det er nett den lista både
- * ledda, profilane og målinga vil ha.
- *
- * Summen og ikkje paritet: eit skann har ofte to skal oppå kvarandre, eller
- * ein hatt som stikk inn i eit hovud. Paritet ville lese overlappet som
- * LUFT — eit hòl midt i objektet der to skal krysser. Summen les det som
- * det er.
- *
- * Kostnaden er ei rutetabell per akse: trekantane sortert etter kvar dei
- * ligg i det planet strålen står vinkelrett på. Utan henne kostar kvar
- * stråle heile nettet, og eit bygg er nokre tusen strålar.
- */
 import type { Vec3 } from "../core"
 import type { Soup } from "../soup"
 
 export type Span = [number, number]
 
-/** aksane, sykliske og høgrehendte: (u, v, w) er (y,z,x), (z,x,y), (x,y,z) */
 const AX = [
   { u: 1, v: 2, w: 0 },
   { u: 2, v: 0, w: 1 },
@@ -53,8 +27,6 @@ function bucketFor(s: Soup, axis: 0 | 1 | 2): Bucket {
   const v0 = s.min[v]
   const du = Math.max(1e-6, s.max[u] - u0)
   const dv = Math.max(1e-6, s.max[v] - v0)
-  // Sikt på nokre få trekantar per celle. Fleire celler enn trekantar er
-  // berre minne; færre er berre arbeid.
   const g = Math.min(192, Math.max(6, Math.round(Math.sqrt(n))))
   const cell = Math.max(du, dv) / g
   const inv = 1 / cell
@@ -109,48 +81,15 @@ export type Solid = {
   soup: Soup
   min: Vec3
   max: Vec3
-  /** stykka strålen ligg inne i objektet, langs aksen, sortert */
   runs(axis: 0 | 1 | 2, u: number, v: number): Span[]
-  /** loddrette stykke med material i søyla (x, y) — den vanlegaste */
   runsZ(x: number, y: number): Span[]
   inside(x: number, y: number, z: number): boolean
-  /** samla volum av nettet, mm³ — divergenssetninga */
   volume(): number
 }
 
-/**
- * Strålen vert flytta eit hårstrå til sides før han vert skoten.
- *
- * Grunnen er kuben. Ein kube har hjørne og kantar som ligg NØYAKTIG på
- * heiltalskoordinat, og eit rutenett med runde tal legg strålar rett
- * gjennom dei. Ein stråle gjennom ein kant høyrer til to trekantar eller
- * til ingen, og eit slikt svar er ikkje eit svar. To ulike, irrasjonalt
- * valde forskyvingar tek både aksane og diagonalane — og eit tidels
- * mikrometer flyttar ingen kutt.
- */
 const E1 = 1.7e-4
 const E2 = 1.0513e-4
 
-/**
- * SKRAPEPLASSEN, DELT AV ALLE STRÅLANE.
- *
- * `runs` er den innarste funksjonen i heile reiskapen: eit snitt av eit
- * rutenett er eit par tusen kall, og eit drag på ein bit er eit snitt per
- * bilete. Han la før opp fire lister per kall — treffa, retningane,
- * rekkjefylgja og svaret — og sorterte den tredje med `Array.sort` og ein
- * lukking. Tre av dei fire er MELLOMREKNING som ingen ser etterpå, so dei
- * ligg her i staden, éin gong, og veks berre når ein stråle treffer meir
- * enn dei har plass til.
- *
- * Svaret sjølv (`Span[]`) vert framleis lagt opp på nytt kvar gong: det er
- * det som vert teke vare på i ruta, og eit delt svar ville vore det same
- * svaret for alle strålane.
- *
- * Sorteringa er innsetjing og ikkje `Array.sort`. Ein stråle gjennom ein
- * kropp treffer ti–tjue trekantar; på slike lengder er innsetjing raskare
- * enn eit kall per samanlikning, og ho er stabil, so lik djupn med lik
- * retning står i den rekkjefylgja ho alltid har stått i.
- */
 let sHit = new Float64Array(64)
 let sDir = new Int8Array(64)
 let sOrd = new Int32Array(64)
@@ -197,9 +136,6 @@ export function makeSolid(soup: Soup): Solid {
       const cu = P[o + 6 + u]
       const cv = P[o + 6 + v]
       const cw = P[o + 6 + w]
-      // Dobbelt det signerte arealet av trekanten sedd langs aksen. Ligg
-      // trekanten i strålen sitt eige plan er han null, og då kryssar
-      // strålen han ikkje — han glir langs han.
       const d = (bu - au) * (cv - av) - (bv - av) * (cu - au)
       if (d > -1e-12 && d < 1e-12) continue
       const w0 = (bu - uu) * (cv - vv) - (bv - vv) * (cu - uu)
@@ -208,49 +144,18 @@ export function makeSolid(soup: Soup): Solid {
       if (d > 0) {
         if (w0 < 0 || w1 < 0 || w2 < 0) continue
       } else if (w0 > 0 || w1 > 0 || w2 > 0) continue
-      // Ligg alle tre hjørna i same plan vinkelrett på strålen — ei
-      // loddrett vegg, ei vassrett plate, kvar einaste flate på ein kube —
-      // er svaret det planet, og ingenting anna. Utrekninga gjev det same
-      // talet matematisk, men ikkje bitvis: w0+w1+w2 er d berre om ein
-      // reknar eksakt. Skilnaden er ein tiandels mikrometer, og han er
-      // nok til at to ribber som skal vera identiske får kvar sin profil i
-      // fjerde desimal — og då står det to delar i kuttlista der det er
-      // éin. Difor denne lina.
       hit[nh] = aw === bw && bw === cw ? aw : (w0 * aw + w1 * bw + w2 * cw) / d
-      // vender trekanten MOT strålen, er han ein veg INN
       dir[nh] = d < 0 ? 1 : -1
       nh++
     }
     if (!nh) return []
 
-    /**
-     * LIKT DJUP: INN FØR UT.
-     *
-     * Eit skal som sluttar nett der det neste byrjar — ein kropp som står
-     * på bein, to klossar oppå kvarandre, ein skann sydd av to delar — gjev
-     * ei utgang og ei inngang på NØYAKTIG same koordinaten. Vart dei
-     * sorterte på djupn åleine, låg dei i den rekkjefylgja trekantane
-     * tilfeldigvis stod i fila, og talet på skal gjekk innom null midt i
-     * godset. Éin samanhengande køyr vart lesen som to som ligg inntil
-     * kvarandre.
-     *
-     * To like klossar, 100 mm kvar, som deler planet z = 100:
-     *   nedre boks fyrst i fila → [[0,100],[100,200]]
-     *   øvre boks fyrst i fila  → [[0,200]]
-     * Same geometri, to svar. Og eit skøytepunkt som er to køyrar er eit
-     * spor til: leddet vert lagt der det ikkje er noka opning.
-     *
-     * Går inngangen fyrst, kan djupna aldri falle til null i eit punkt der
-     * noko byrjar, og svaret sluttar å henge på fillekkjefylgja.
-     */
     const ord = sOrd
     for (let k = 0; k < nh; k++) {
       const kk = k
       const hk = hit[kk]
       const dk = dir[kk]
       let q = k - 1
-      // «djupare fyrst, og ved same djupn inngang før utgang» — same
-      // ordninga som før, sett opp med innsetjing
       for (; q >= 0 && (hit[ord[q]] > hk || (hit[ord[q]] === hk && dir[ord[q]] < dk)); q--) ord[q + 1] = ord[q]
       ord[q + 1] = kk
     }

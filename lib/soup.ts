@@ -1,22 +1,6 @@
-/**
- * SLICERMAN — nettet, slik reiskapen held det.
- *
- * To former for det same. `Soup` er lause trekantar, ni tal om gongen: det
- * er formatet STL kjem i, det er formatet skjermkortet vil ha, og det er
- * formatet stråleskytinga les. `Indexed` er hjørne og indeksar: det er
- * formatet ein må ha for å kunne spørje kven som er NABO — og glattinga,
- * forenklinga, kanttalet og skyggjinga er alle reine nabospørsmål.
- *
- * Vegen mellom dei to går gjennom sveisinga: to hjørne som ligg nærare
- * kvarandre enn ein tidels promille av nettet si eiga utstrekning ER det
- * same hjørnet. Utan det steget er ein STL-fil frå ein skannar tre
- * millionar hjørne utan ein einaste nabo, og då har verken glattinga eller
- * forenklinga noko å arbeide med.
- */
 import type { Vec3 } from "./core"
 
 export type Soup = {
-  /** ni tal per trekant: a, b, c */
   pos: Float32Array
   tris: number
   min: Vec3
@@ -24,9 +8,7 @@ export type Soup = {
 }
 
 export type Indexed = {
-  /** tre tal per hjørne */
   verts: Float32Array
-  /** tre indeksar per trekant */
   idx: Uint32Array
 }
 
@@ -55,34 +37,9 @@ export function makeSoup(pos: Float32Array): Soup {
 export const diag = (s: { min: Vec3; max: Vec3 }) =>
   Math.hypot(s.max[0] - s.min[0], s.max[1] - s.min[1], s.max[2] - s.min[2]) || 1
 
-// =============================================================================
-// SVEIS OG SPLITT
-// =============================================================================
-/**
- * Lause trekantar inn, hjørne og indeksar ut.
- *
- * Nøkkelen er koordinatet runda til `eps`, og det er runding og ikkje
- * avstandssøk: eit ekte næraste-nabo-søk over tre millionar punkt kostar
- * eit tre å byggje, og skilnaden på resultatet er hjørne som ligg nøyaktig
- * på ei cellegrense. Dei vert to i staden for eitt, og det er ein feil
- * ingen kan sjå på eit nett med fleire tusen hjørne.
- *
- * Steget er det som ber heile importen: det som tek lengst tid på ein stor
- * fil, er dette og ikkje sjølve snittinga.
- */
 export function weld(s: Soup, eps = 0): Indexed {
   const e = eps > 0 ? eps : diag(s) * 1e-4
   const inv = 1 / e
-  // Nøkkelen er eit TAL og ikkje ein streng.
-  //
-  // Det er ikkje mikrooptimering. Ein streng per hjørne på eit skann med
-  // tre millionar hjørne er tre millionar strengar som skal setjast saman,
-  // hashast og samlast opp att — og det åleine er halvanna sekund, meir enn
-  // heile resten av snittinga til saman. Kvar akse vert klemd inn i sytten
-  // bit og pakka i eitt tal; femtien bit ligg godt innanfor det ein double
-  // held eksakt, so to like koordinat gjev framleis nøyaktig same nøkkel.
-  // Spennet per akse er per definisjon under ti tusen celler, av di `e` er
-  // ein titusendel av diagonalen.
   const M = 131072
   const bx = s.min[0]
   const by = s.min[1]
@@ -112,47 +69,12 @@ export function weld(s: Soup, eps = 0): Indexed {
   return { verts: new Float32Array(verts), idx }
 }
 
-/**
- * Normalar med KNEKK.
- *
- * Ein skanna elefant med flatenormalar ser ut som ein diamant. Ein kube med
- * mjuke normalar ser ut som ei pute. Begge er feil, og dei er feil av
- * motsett grunn: den eine glattar ingenting, den andre glattar alt.
- *
- * Rett svar er å glatte over kantar som ikkje er kantar, og la dei som ER
- * det stå. Kvart hjørne i kvar trekant får summen av flatenormalane til dei
- * nabotrekantane som vender OM LAG same veg som han sjølv — er naboen
- * meir enn førti grader unna, er det ein ekte kant, og då skal dei to ha
- * kvar sin normal. Det er den same regelen som «smoothing groups» i eit
- * modelleringsprogram, berre rekna ut av geometrien i staden for sett av
- * ein brukar.
- *
- * Resultatet er per HJØRNE i kvar trekant og ikkje per hjørne i nettet: eit
- * hjørne på ein kubekant har tre ulike normalar alt etter kva side ein ser
- * han frå, og det er heile poenget.
- */
 export function shade(m: Indexed, creaseDeg = 40): { pos: Float32Array; nrm: Float32Array } {
   const V = m.verts
   const nf = m.idx.length / 3
   const nv = V.length / 3
   const cosMin = Math.cos((creaseDeg * Math.PI) / 180)
 
-  /**
-   * MATEMATIKKEN ER DEN SAME, REKNINGA ER DET IKKJE.
-   *
-   * `Math.hypot` er korrekt avrunda og handterer overflyt, og det kostar:
-   * han er variadisk og skalerer argumenta før han kvadrerer dei. I den
-   * indre lykkja under vart han kalla éin gong per NABOFLATE per hjørne per
-   * trekant — nokre hundre tusen gonger for eitt bygg — og lengda han rekna
-   * var den same for den same flata kvar gong.
-   *
-   * So lengdene står her, éi per flate, rekna med `sqrt` av kvadratsummen.
-   * Ein trekantnormal på ein kropp i millimeter kan korkje flyte over eller
-   * under, so svaret er det same talet; den indre lykkja har att ein
-   * prikk og ei samanlikning. Målt på ein kropp av fire bitar: 24 ms → 4.
-   */
-  // flatenormalane, ikkje normaliserte: lengda er dobbelt arealet, og det
-  // er nett den vektinga ein vil ha når fleire flater møtest i eit hjørne
   const fn = new Float32Array(nf * 3)
   const fl = new Float32Array(nf)
   for (let t = 0; t < nf; t++) {
@@ -174,7 +96,6 @@ export function shade(m: Indexed, creaseDeg = 40): { pos: Float32Array; nrm: Flo
     fl[t] = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1
   }
 
-  // kva trekantar kvart hjørne høyrer til, pakka (CSR)
   const start = new Uint32Array(nv + 1)
   for (let i = 0; i < m.idx.length; i++) start[m.idx[i] + 1]++
   for (let i = 0; i < nv; i++) start[i + 1] += start[i]
@@ -191,8 +112,6 @@ export function shade(m: Indexed, creaseDeg = 40): { pos: Float32Array; nrm: Flo
     const ay = fn[t * 3 + 1]
     const az = fn[t * 3 + 2]
     const aL = fl[t]
-    // grensa flytt ut av lykkja: `a·b / (aL·bL) < cosMin` er det same som
-    // `a·b < cosMin·aL·bL`, og då står berre eitt gonge att per nabo
     const grense = cosMin * aL
     for (let c = 0; c < 3; c++) {
       const v = m.idx[t * 3 + c]
@@ -230,41 +149,8 @@ export function shade(m: Indexed, creaseDeg = 40): { pos: Float32Array; nrm: Flo
   return { pos, nrm }
 }
 
-// =============================================================================
-// VINDINGA
-// =============================================================================
-/**
- * Volumet med forteikn, av divergenssetninga.
- *
- * Talet er interessant for ein einaste grunn: FORTEIKNET. Eit lukka nett
- * med normalane ut har positivt volum; eit med normalane inn har negativt.
- * Og eit nett med normalane inn er akkurat like vanleg som det andre —
- * ein eksport som gløymde å snu, eit skann sett frå «feil» side, ein
- * boolsk operasjon i eit program som ikkje reinsa opp etter seg.
- */
 export function signedVolume(m: Indexed): number {
   const V = m.verts
-  /**
-   * RUNDT NETTET SITT EIGE MIDTPUNKT, IKKJE RUNDT ORIGO I FILA.
-   *
-   * For ei LUKKA flate er summen den same kvar du legg origo — det er
-   * divergensteoremet, og flyttinga fell ut. For ei OPEN flate gjer ho
-   * ikkje det: kjeglene frå origo ut til randa tel med, og då avgjer det
-   * punktet fila tilfeldigvis har som null kva forteikn svaret får.
-   *
-   * Ein kube utan ei sideflate, rett vunden heile vegen:
-   *   origo i hjørnet      +1 000 000   står
-   *   origo 300 mm unna             0   står
-   *   origo 500 mm unna      −666 667   VERT SNUDD
-   *
-   * Same form, same vinding. Og eit nett som vert snudd ut-inn les som
-   * ingen ting: null ribber, null delar, tom skjerm — nett det `flip` er
-   * til for å hindre. «Eit nett frå ein skannar har origo der skannaren
-   * stod», seier `place` sin eigen kommentar; det er den situasjonen.
-   *
-   * Midtpunktet i boksen kring nettet er eit punkt som fylgjer forma og
-   * ikkje fila. For lukka nett endrar det ingenting.
-   */
   let x0 = Infinity
   let y0 = Infinity
   let z0 = Infinity
@@ -302,19 +188,6 @@ export function signedVolume(m: Indexed): number {
   return v
 }
 
-/**
- * Nettet snudd ut-inn.
- *
- * Snittinga les innsida ved å telje kva veg kvar trekant vender. Vender
- * dei alle feil veg, tel ho kvar veg INN som ein veg UT, summen kjem
- * aldri over null, og svaret er at objektet ikkje finst: null ribber, null
- * delar, tom skjerm. Reiskapen skal ikkje svare det på ei fil som er heilt
- * i orden bortsett frå ein forteiknsfeil, so han snur henne i staden.
- *
- * Dette rettar den GLOBALE feilen. Eit nett der somme trekantar vender ut
- * og andre inn, om kvarandre, er ein annan og verre skade — der hjelper
- * berre å reparere nettet, og det er ikkje denne reiskapen sin jobb.
- */
 export function flip(m: Indexed): Indexed {
   const idx = Uint32Array.from(m.idx)
   for (let t = 0; t < idx.length; t += 3) {
@@ -325,15 +198,6 @@ export function flip(m: Indexed): Indexed {
   return { verts: m.verts, idx }
 }
 
-// =============================================================================
-// KANTAR
-// =============================================================================
-/**
- * Kantar som berre høyrer til éin trekant. Eit lukka nett har ingen; eit
- * skann har som regel nokre, og eit nett med hòl i er eit nett stråla går
- * rett gjennom. Difor står talet i tavla i staden for i ein feilmelding:
- * reiskapen snittar det likevel, men han seier frå kva han snittar.
- */
 export function openEdges(m: Indexed): number {
   const seen = new Map<number, number>()
   const n = m.verts.length / 3
@@ -342,14 +206,6 @@ export function openEdges(m: Indexed): number {
     const a = m.idx[t]
     const b = m.idx[t + 1]
     const c = m.idx[t + 2]
-    // Ein NULLTREKANT, ikkje berre den samanfalne kanten hans.
-    //
-    // Ein trekant med to like hjørne har ikkje noka flate. Berre den
-    // samanfalne kanten vart hoppa over, so dei to andre — som er den
-    // SAME kanten, gått kvar sin veg — vart begge talde, og den kanten
-    // kom opp i fire og vart meld som open. Ei UV-kule har ein slik
-    // trekant per rute ved kvar pol: kule(50, 40) er tett, og vart meld
-    // med 80 opne kantar. Panelet sa «open» om eit nett som er lukka.
     if (a === b || b === c || c === a) continue
     for (const [u, v] of [
       [a, b],
@@ -365,21 +221,6 @@ export function openEdges(m: Indexed): number {
   return open
 }
 
-// =============================================================================
-// FLYTTING
-// =============================================================================
-/**
- * Rotasjon, skalering og landing, i den rekkjefylgja.
- *
- * Rekkjefylgja er ikkje ein smak: skalerer ein fyrst og roterer etterpå,
- * er «lengste side = 300 mm» ikkje sant lenger — rotasjonen har gjeve
- * objektet ein ny omsluttande boks. Difor vert boksen alltid lesen ETTER
- * at nettet står slik det skal stå.
- *
- * Til slutt vert objektet sentrert i planet og sett ned på golvet. Eit nett
- * frå ein skannar har origo der skannaren stod, og eit objekt som svevar
- * tre meter over golvet er eit objekt kameraet ikkje finn.
- */
 export function place(
   pos: Float32Array,
   o: { rotX: number; rotY: number; rotZ: number; storleik: number },
@@ -387,16 +228,6 @@ export function place(
   return plassering(pos, o).pos
 }
 
-/**
- * Plasseringa med reknestykket sitt synleg.
- *
- * `place` gjev berre hjørna. Men den som skal flytte ein BIT av kroppen med
- * fingeren treng vegen attende: eit drag på skjermen er millimeter i det
- * plasserte rommet, og biten står i det felles. Skalaen `k` og vendinga er
- * det som skil dei to, og dei vert rekna her — éin gong, på same staden som
- * hjørna. `vend` er den same avbildinga for eitt punkt, so ein boks kan
- * fylgje med utan at nokon skriv matematikken om att.
- */
 export function plassering(
   pos: Float32Array,
   o: { rotX: number; rotY: number; rotZ: number; storleik: number },
@@ -415,15 +246,12 @@ export function plassering(
     let x = pos[i]
     let y = pos[i + 1]
     let z = pos[i + 2]
-    // X
     let t = y * cx - z * sx
     z = y * sx + z * cx
     y = t
-    // Y
     t = x * cy + z * sy
     z = -x * sy + z * cy
     x = t
-    // Z
     t = x * cz - y * sz
     y = x * sz + y * cz
     x = t

@@ -1,14 +1,3 @@
-/**
- * Uttaka på disk, og som bilete.
- *
- * Ei pakking kan vera rett i tal og likevel gale for handa: nummer som
- * fell utanfor delen, tekst opp-ned, eit ark som er tomt. Talet fangar
- * ikkje det. Difor vert filene skrivne ut og fotograferte — og zoomen vert
- * rekna av SVG-en sitt eige millimetermål, so eit ark på seks hundre
- * millimeter og ein kupong på sytti begge fyller ruta.
- *
- *   npx tsx scripts/ark.ts
- */
 import { chromium } from "playwright"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -23,13 +12,7 @@ import type { ExportKind, ParamBag } from "../lib/core"
 import { rutenett, skrivPlan } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
-/**
- * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
- * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
- * det same rutenettet standarden hadde før, og det same objektet.
- */
 const GRUNN = { ...DEFAULT_PARAMS, plan: nett(6, 6) }
-
 
 const UT = "bilete"
 const RUTE = { width: 1180, height: 800 }
@@ -69,22 +52,16 @@ const main = async () => {
 
   for (const [namn, p] of saker) {
     const bag = p as unknown as ParamBag
-    // uttaka slik brukaren får dei
     for (const kind of ["ark", "prove", "svg", "dxf"] as ExportKind[]) {
       const o = MOTOR.exportFile(bag, kind)
       const data = o.text ? Buffer.from(o.text) : Buffer.from(new Uint8Array(o.data!))
       writeFileSync(join(UT, o.name), data)
       console.log(`${namn} ${kind.padEnd(6)} → ${o.name} (${data.length} B)`)
     }
-    // og kvar einskild plate, til biletet
     const { ns } = makeBygg(p, DETAIL.mid)
     ns.sheets.forEach((_, i) => {
       filer.push({
         namn: `ark-${namn}-${i + 1}av${ns.sheets.length}`,
-        // Den SAME kompensasjonen som uttaket. Skriptet fotograferer
-        // «uttaka slik brukaren får dei», og står `snittveg` på maskina,
-        // ber ikkje fila kompensasjonen — teikninga her gjorde det
-        // likevel, og synte eit ark ingen får.
         svg: sheetSvg(ns, i, kerfOf(p)),
       })
     })
@@ -95,7 +72,6 @@ const main = async () => {
     executablePath: process.env.PW_CHROMIUM || undefined,
   })
   for (const { namn, svg } of filer) {
-    // millimetermålet står i sjølve fila; zoomen fell ut av det
     const mm = svg.match(/width="([\d.]+)mm" height="([\d.]+)mm"/)
     const px = (v: number) => (v / 25.4) * 96
     const zoom = mm

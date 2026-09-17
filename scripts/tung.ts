@@ -1,10 +1,3 @@
-/**
- * Tungprøva. Eit skann er ikkje fire tusen trekantar — det er to millionar,
- * og heile spørsmålet om reiskapen er brukbar er om han overlever eit slikt
- * eit. Her vert eitt laga, importert som STL, og snitta.
- *
- *   npx tsx scripts/tung.ts
- */
 import { makeSoup } from "../lib/soup"
 import { meshToStl } from "../lib/export-stl"
 import { parseMesh } from "../lib/io"
@@ -15,15 +8,8 @@ import type { ParamBag } from "../lib/core"
 import { rutenett, skrivPlan } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
-/**
- * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
- * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
- * det same rutenettet standarden hadde før, og det same objektet.
- */
 const GRUNN = { ...DEFAULT_PARAMS, plan: nett(6, 6) }
 
-
-/** ei knudrete kule: ei kule med støy på, som eit skann */
 function scan(seg: number): Float32Array {
   const pos: number[] = []
   const noise = (a: number, b: number) =>
@@ -80,8 +66,6 @@ for (const trekant of [8, 20, 60]) {
   )
 }
 
-// Vendinga skal vera billeg. Nettet er alt sveisa og forenkla; det einaste
-// som står att er ein rotasjon, ein skalering og ei ny rutetabell.
 {
   const base = { ...DEFAULT_PARAMS, kjelde: "skann", trekant: 20, glatt: 4, plan: nett(8, 8), }
   MOTOR.measure(base as unknown as ParamBag)

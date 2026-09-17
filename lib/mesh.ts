@@ -1,14 +1,3 @@
-/**
- * SLICERMAN — nettet, i tre lesemåtar.
- *
- *   flate   nettet slik det kom inn, etter forenkling og glatting. Det er
- *           ikkje objektet — det er forma objektet er ei tilnærming til.
- *   lag     ribbene med spor, kvar der ho står. Dette ER objektet.
- *   kontur  profilane lagde flatt ved sida av kvarandre.
- *
- * Nettet og kuttfila kjem frå dei same polygona. Ein laser som fylgjer
- * konturen skjer den ribba biletet viser.
- */
 import { bbox, inRing, type Pt, type Vec3 } from "./core"
 import { merkeFlater, type Flate } from "./merke"
 import { anchor } from "./pack"
@@ -18,12 +7,6 @@ import { placedRings, type Nesting } from "./nest"
 import { ut, type Ramme } from "./plan"
 import type { Del, Ribbe, Snitt } from "./snitt"
 
-/**
- * kant: 0 = plateflate, 1 = kutt gjennom plata
- * del:  kva stykke i kuttlista trekanten høyrer til, eller −1
- * Begge er merke motoren set der han byggjer trekanten, og som fylgjer
- * han heilt fram til skjermkortet.
- */
 export type Soup = { pos: number[]; nrm: number[]; kan: number[]; k: number; del: number[]; d: number }
 export const newSoup = (): Soup => ({ pos: [], nrm: [], kan: [], k: 1, del: [], d: -1 })
 
@@ -76,11 +59,6 @@ export function boxOf(positions: Float32Array) {
   return { tris: positions.length / 9, min, max }
 }
 
-// =============================================================================
-// TRIANGULERING
-// =============================================================================
-/** Øyreklipping. Polygonet er lite, og ein kvadratisk algoritme på nokre
- *  hundre hjørne er raskare enn eit bibliotek, og lesbar. */
 function earClip(poly: Pt[]): [Pt, Pt, Pt][] {
   const n = poly.length
   if (n < 3) return []
@@ -93,9 +71,6 @@ function earClip(poly: Pt[]): [Pt, Pt, Pt][] {
   const idx = Array.from({ length: n }, (_, i) => i)
   if (area < 0) idx.reverse()
   const cross = (o: Pt, a: Pt, b: Pt) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
-  // STRENGT inni, og punkt som fell saman med eit hjørne tel ikkje: brua
-  // frå eit hòl legg att koordinat-dublettar, og med >= ville kvar dublett
-  // blokkere kvart einaste øyre han rører.
   const same = (u: Pt, v: Pt) => u[0] === v[0] && u[1] === v[1]
   const inside = (a: Pt, b: Pt, c: Pt, p: Pt) =>
     !same(p, a) && !same(p, b) && !same(p, c) && cross(a, b, p) > 0 && cross(b, c, p) > 0 && cross(c, a, p) > 0
@@ -112,8 +87,6 @@ function earClip(poly: Pt[]): [Pt, Pt, Pt][] {
       const c = poly[ic]
       const cc = cross(a, b, c)
       if (cc === 0) {
-        // Eit hjørne utan areal. Ein DUBLETT fell stilt bort; eit ekte
-        // kolineært hjørne må LIKEVEL leggjast, elles står skalet ope der.
         if (!same(a, b) && !same(b, c)) out.push([a, b, c])
         idx.splice(i, 1)
         cut = true
@@ -140,8 +113,6 @@ function earClip(poly: Pt[]): [Pt, Pt, Pt][] {
   return out
 }
 
-/** Eit hòl vert sydd inn i ytterkanten med ei bru fram og attende, so
- *  polygonet framleis er eitt einfelt polygon. */
 export function bridge(outline: Pt[], holes: Pt[][]): Pt[] {
   let poly = outline.slice()
   for (const h of holes) {
@@ -171,42 +142,17 @@ export function bridge(outline: Pt[], holes: Pt[][]): Pt[] {
   return poly
 }
 
-// =============================================================================
-// FLATE — nettet slik det kom inn
-// =============================================================================
 export function flateMesh(k: Kropp) {
-  // KOPI: bufferane vert OVERFØRTE til hovudtråden, og ei overføring koplar
-  // dei frå. Kroppen er hugsa og lever vidare, so utan kopien er han tom
-  // andre gongen nokon spør.
   const positions = k.soup.pos.slice()
   const normals = k.nrm.slice()
   return { positions, normals, kant: new Float32Array(0), ...boxOf(positions) }
 }
 
-// =============================================================================
-// LAG — objektet slik det står
-// =============================================================================
-/**
- * Ribba som ei plate: to sider og ein kant heile vegen rundt, lagd ut frå
- * profilen gjennom ramma hennar. (u, v, n) er høgrehendt, so ein profil
- * mot klokka gjev flater som vender ut — for alle plan, utan unnatak.
- */
 export function ribSolid(s: Soup, r: Pick<Ribbe, "r" | "outlines" | "holes">, t: number, del0 = -1, merke?: Merke) {
   const h = t / 2
   const put = (q: Pt, off: number): Vec3 => ut(r.r, q, off)
   const boygd = !!r.r.k
   const nBack: Vec3 = [-r.r.n[0], -r.r.n[1], -r.r.n[2]]
-  /**
-   * EI BØYGD RIBBE MÅ DELAST FØR HO VERT LAGD UT.
-   *
-   * Profilen er eit flatt polygon, og øyreklippet gjev store trekantar av
-   * han. Store trekantar lagde ut på ein sylinder er korder: dei skjer av
-   * buen og ribba ser ut som ei kasse som påstår at ho er bøygd. Same
-   * grensa som utrullinga bruker — `√(8·R·tol)` — og same grunnen.
-   *
-   * Normalen fylgjer med: ei bøygd flate har inga einaste normal, so han
-   * vert rekna per trekant i staden for gjeven.
-   */
   const lim = boygd ? Math.sqrt(8 * Math.abs(1 / r.r.k) * 0.05) : Infinity
   const flate = (a: Pt, b: Pt, c: Pt, off: number, n: Vec3 | undefined, djup: number) => {
     const lang =
@@ -227,31 +173,16 @@ export function ribSolid(s: Soup, r: Pick<Ribbe, "r" | "outlines" | "holes">, t:
   }
   for (let oi = 0; oi < r.outlines.length; oi++) {
     const o = r.outlines[oi]
-    // Same rekkjefylgje som `buildDelar` går omrissa i, so dette er det
-    // same stykket som line nummer `del0+oi` i kuttlista.
     s.d = del0 < 0 ? -1 : del0 + oi
     const mine = r.holes.filter((hole) => inRing(o, hole[0]))
     const merged = mine.length ? bridge(o, mine) : o
     s.k = 0
     for (const [a, b, c] of earClip(merged)) flate(c, b, a, -h, boygd ? undefined : nBack, 0)
-    /**
-     * NUMMERET SOM EI LOMME I FRAMSIDA.
-     *
-     * Framsida er den einaste flata som veit om merket: baksida er heil, og
-     * kanten er den same. Lomma er difor ikkje eit nytt slag geometri — ho
-     * er eit hòl i ei flate, ein vegg og ein botn, som eit kvart anna hòl,
-     * berre at veggen stoggar før han er komen gjennom.
-     *
-     * Og ho er HEVA og ikkje senka? Nei — senka. Eit tal som stod opp av
-     * flata ville halde delane frå kvarandre nett der dei skal møtast, og
-     * eit merke som er i vegen for montasjen er verre enn ikkje noko merke.
-     */
     const lommer = merke ? merke.flater.filter((f) => inRing(o, f.ytre[0])) : []
     const framme = lommer.length ? bridge(o, [...mine, ...lommer.map((f) => f.ytre)]) : merged
     for (const [a, b, c] of earClip(framme)) flate(a, b, c, h, boygd ? undefined : r.r.n, 0)
     if (merke && lommer.length) {
       const botn = h - merke.djup
-      /** vegg mellom to høgder langs ein ring; `ut` snur kva veg flata vender */
       const vegg = (ring: Pt[], lag: number, hogg: number, utover: boolean) => {
         s.k = 1
         for (let i = 0; i < ring.length; i++) {
@@ -263,17 +194,10 @@ export function ribSolid(s: Soup, r: Pick<Ribbe, "r" | "outlines" | "holes">, t:
       }
       for (const f of lommer) {
         s.k = 0
-        // BOTNEN er ringen minus augo sine: der auget står, held godset fram
-        // heilt opp til framsida. Her er syninga trygg — ho gjeng éin gong,
-        // og polygonet vert ikkje brukt som hòl i noko etterpå.
         const golv = f.indre.length ? bridge(f.ytre, f.indre.map((q) => q.slice().reverse())) : f.ytre
         for (const [a, b, c] of earClip(golv)) flate(a, b, c, botn, boygd ? undefined : r.r.n, 0)
-        // ytterveggen vender INN i lomma
         vegg(f.ytre, botn, h, false)
         for (const q of f.indre) {
-          // AUGET ER EIN TAPP og ikkje eit hòl: framsida har hòl over heile
-          // ytterkanten, so godset som står att inni må ha vegg som vender
-          // UT og eit lok oppe. Utan loket ville «4» hatt eit gap i seg.
           vegg(q, botn, h, true)
           s.k = 0
           for (const [a, b, c] of earClip(q)) flate(a, b, c, h, boygd ? undefined : r.r.n, 0)
@@ -281,15 +205,10 @@ export function ribSolid(s: Soup, r: Pick<Ribbe, "r" | "outlines" | "holes">, t:
       }
     }
     s.k = 1
-    // Hòlveggen med SAME vinding som ytterkanten: `contour` gjev hòl med
-    // motsett omløp, so den same rekkjefylgja peikar den andre vegen av
-    // seg sjølv. Å snu han her er å snu han to gonger.
     for (const ring of [o, ...mine]) {
       for (let i = 0; i < ring.length; i++) {
         const a = ring[i]
         const b = ring[(i + 1) % ring.length]
-        // kanten er alt korte bitar: konturen fylgjer ruta, og ho er finare
-        // enn grensa over
         tri(s, put(a, -h), put(b, -h), put(b, h))
         tri(s, put(a, -h), put(b, h), put(a, h))
       }
@@ -307,22 +226,6 @@ export function lagMesh(sn: Snitt, t: number) {
   return soupToMesh(s)
 }
 
-// =============================================================================
-// DELANE KVAR FOR SEG — det same nettet, delt der kuttlista deler det
-// =============================================================================
-/**
- * EIN DEL SOM SITT EIGE NETT, MED ADRESSA SI.
- *
- * `lagMesh` byggjer heile stabelen som éin haug trekantar, og det er rett
- * for skjermkortet: han skal teikne alt kvar ramme. Ei FIL er noko anna.
- * Ein montasje som kjem inn i Blender som eitt einaste nett er ein
- * montasje du ikkje kan ta frå kvarandre — du ser han, og du kan ikkje
- * dra ei ribbe ut av han utan å skilje trekantane for hand.
- *
- * Difor får kvar del sitt eige nett her, og namnet er ADRESSA — det same
- * som står gravert på plata og i kuttlista og i monteringa. Éin del i
- * fila, éin del på benken, eitt namn.
- */
 export type DelMesh = { adr: string; positions: Float32Array; tris: number }
 
 const delMesh = (adr: string, s: Soup): DelMesh => ({
@@ -331,34 +234,8 @@ const delMesh = (adr: string, s: Soup): DelMesh => ({
   tris: s.pos.length / 9,
 })
 
-/**
- * Montasjen slik han står, delt.
- *
- * Delane kjem frå kuttlista og ikkje frå ribbene: der ligg omrisset,
- * hòla som høyrer til det, og adressa — alt utanom RAMMA, som er planet
- * si og finst per plan. Å gå ribbene i staden ville krevd at denne
- * lykkja delte omrissa i same rekkjefylgje som `buildDelar` gjer det, og
- * to lykkjer som må halde takta er ei takt som fyrr eller seinare ryk.
- */
-/** ei lomme i framsida av ein del: flatene, og kor djupt dei gjeng */
 export type Merke = { flater: Flate[]; djup: number }
 
-/**
- * ADRESSA SKORE NED I DELEN, i det same rommet profilen ligg i.
- *
- * Ankeret er det SAME som kuttfila graverer på — `anchor` på delen sine
- * eigne ringar — so nummeret står på den same staden i fila du skjer og i
- * fila du skriv ut. To ankerrekningar ville vore to svar på kvar delen har
- * plass, og det synest fyrst når du held dei to delane opp mot kvarandre.
- *
- * Djupna er ein tredel av plata, og aldri meir enn ein millimeter: djupare
- * enn det tek han bort gods der ribba er smalast, og grunnare enn eit par
- * tidelar ser du ikkje i finér.
- *
- * Null tilbake tyder at delen er for liten til å merkjast. Det er det same
- * svaret kuttfila gjev, og av den same grunnen: å la vera er betre enn å
- * skjere utanfor.
- */
 export function merkeFor(q: Del, t: number): Merke | undefined {
   const a = anchor([q.outline, ...q.holes])
   const bb = bbox(q.outline)
@@ -375,9 +252,6 @@ export function lagDelar(sn: Snitt, delar: readonly Del[], t: number, merk = fal
   const ut: DelMesh[] = []
   for (const q of delar) {
     const r = rammer.get(q.plan)
-    // Kuttlista er BYGD av desse ribbene, so det finst alltid ei ramme.
-    // Skulle ho likevel mangle, ville delen falle stilt ut av fila — og
-    // det er nett det `pnpm probe` tel: like mange nodar som liner.
     if (!r) continue
     const s = newSoup()
     ribSolid(s, { r, outlines: [q.outline], holes: q.holes }, t, -1, merk ? merkeFor(q, t) : undefined)
@@ -386,7 +260,6 @@ export function lagDelar(sn: Snitt, delar: readonly Del[], t: number, merk = fal
   return ut
 }
 
-/** ei flat ramme i XY, med plata frå z = 0 og opp til tjukna */
 const flatRamme = (dx: number, t: number): Ramme => ({
   o: [dx, 0, t / 2],
   n: [0, 0, 1],
@@ -395,22 +268,6 @@ const flatRamme = (dx: number, t: number): Ramme => ({
   k: 0,
 })
 
-/**
- * DEI SAME DELANE, LAGDE FLATT DER MASKINA SKJER DEI.
- *
- * Ringane er nestinga sine — same plassering, same sving, same plate som
- * DXF-en og arket — so fila er kuttjobben i tre dimensjonar: ho ligg
- * flatt, ho er sprengd frå kvarandre, og kvar del ligg alt der han skal
- * liggje. Ein montasje du kan sjå gjennom, og ei plate du kan måle.
- *
- * Omrisset er det NOMINELLE: snittet vert teke i kuttfila og berre der.
- * Ein 3D-modell som var kompensert for laseren sin veg ville vera ein
- * modell av noko ingen skal lage.
- *
- * Platene ligg ved sida av kvarandre langs x, med ein tidel av breidda
- * imellom: nok til at auget ser kvar den eine sluttar, og lite nok til at
- * to plater framleis er eitt bilete.
- */
 export function flatDelar(ns: Nesting, t: number, merk = false): { ark: number; delar: DelMesh[] }[] {
   return ns.sheets.map((sh, i) => {
     const r = flatRamme(i * ns.sheetW * 1.1, t)
@@ -419,10 +276,6 @@ export function flatDelar(ns: Nesting, t: number, merk = false): { ark: number; 
       delar: sh.placed.map((q) => {
         const rg = placedRings(q)
         const s = newSoup()
-        // Merket vert rekna i delen sitt EIGE rom og so lagt ut gjennom den
-        // flate ramma, som ringane er. Rekna han på dei plasserte ringane
-        // ville nummeret stått rett veg på plata og opp-ned i objektet —
-        // og det er dei same delane.
         ribSolid(s, { r, outlines: [rg.outline], holes: rg.holes }, t, -1, merk ? merkeFor({ ...q.part, outline: rg.outline, holes: rg.holes }, t) : undefined)
         return delMesh(q.part.adr, s)
       }),

@@ -1,24 +1,3 @@
-/**
- * SLICERMAN — kroppen.
- *
- * Mellom fila brukaren drog inn og ribbene som kjem ut, ligg fire steg, og
- * dei skjer alltid i denne rekkjefylgja:
- *
- *   1  SVEIS      lause trekantar vert hjørne med naboar
- *   2  SNU        er heile nettet ut-inn, vert det snudd
- *   3  FORENKL    hjørneklynging ned til det taket skyvaren set
- *   4  GLATT      Taubin, so ruglet går og volumet står
- *   5  PLASSER    vend, skaler til storleiken, sentrer og sett på golvet
- *
- * Rekkjefylgja er ikkje ein smak. Glatting før forenkling er å bruke tid
- * på hjørne som skal bort; forenkling etter plassering gjer at «tjue tusen
- * trekantar» tyder noko ulikt alt etter kva rotasjon som står — og eit tal
- * på ein skyvar skal tyde det same uansett kva dei andre står på.
- *
- * Heile kroppen er hugsa på innhaldet sitt. For eitt og same punkt spør
- * arbeidaren om bygg, måltal og reglar etter kvarandre, og alle tre startar
- * her; utan hugs kostar eit skyvartrykk tre snittingar av same nett.
- */
 import { keep } from "./core"
 import {
   flip,
@@ -41,25 +20,12 @@ import { PLAN_TAK } from "./plan"
 import type { Vec3 } from "./core"
 import type { Params } from "./params"
 
-/** ein bit av kroppen, slik han hamna: kva kjelde han er, laget han er
- *  merkt med, og boksen kring han */
 export type BitBoks = { id: string; farge?: number; min: Vec3; max: Vec3 }
 
 export type Kropp = {
-  /** nettet slik det står: vend, skalert, sentrert, på golvet */
   soup: Soup
-  /**
-   * Bitane kroppen er sett saman av, med boksen sin i det PLASSERTE rommet.
-   *
-   * Dei er ikkje ein del av geometrien — dei er kvar bit vart av. Handa
-   * treng dei for å kunne peike på ein bit og flytte han, og då må dei
-   * reknast der plasseringa vert rekna. Å rekne dei om att på teiknetråden
-   * er å be om to sanningar om same kroppen.
-   */
   bitar: BitBoks[]
-  /** millimeter i det plasserte rommet per millimeter i det felles: `place` sin k */
   skala: number
-  /** dei same trekantane med mjuke hjørnenormalar — «flate»-visinga */
   nrm: Float32Array
   net: Indexed
   solid: Solid
@@ -67,67 +33,17 @@ export type Kropp = {
   openEdges: number
 }
 
-/**
- * To hugs og ikkje éin.
- *
- * Grunnen er dei to fyrste stega. Å sveise og forenkle eit skann på ein
- * million trekantar tek nærare eit sekund; å vende det og skalere det tek
- * fem millisekund. Låg dei i same hugsen, ville kvart einaste dytt på
- * vendeskyvaren kosta det fyrste sekundet om att — og ein skyvar som
- * kostar eit sekund per steg er ein skyvar ingen dreg i.
- *
- * Difor står NETTET for seg: han avheng av fila, trekanttaket og
- * glattinga, og ingenting anna. Kroppen legg vendinga og storleiken oppå.
- * Det er òg heile grunnen til at rekkjefylgja i toppen av fila er som ho
- * er: hadde plasseringa kome før forenklinga, hadde dei ikkje late seg
- * skilje.
- */
 type Net = { net: Indexed; srcTris: number; openEdges: number; bitar: BitBoks[] }
 
-// `generasjon` står i nøkkelen av di scena namngjev nett og ikkje ber dei:
-// eit nett som kjem inn etter at scena peika på det ville elles aldri verte
-// bygd. Sjå `sources.ts`.
 const NETT_NOKKEL = (p: Params) => [scenaAv(p), generasjon(), p.trekant, p.glatt].join("|")
 const KROPP_NOKKEL = (p: Params) =>
   [scenaAv(p), generasjon(), p.trekant, p.glatt, p.storleik, p.rotX, p.rotY, p.rotZ].join("|")
 
-/** scena som gjeld: lista, eller kjelda åleine når lista er tom */
 export const scenaAv = (p: Params) => p.scene || eiKjelde(p.kjelde)
 
-/**
- * SVEISEN, SNUINGA, FORENKLINGA OG GLATTINGA HØYRER TIL KJELDA — ikkje til
- * kroppen ho står i.
- *
- * Dei fire fyrste stega les geometrien i ei form og seier ingenting om kvar
- * ho står. Dei låg likevel på den SAMLA kroppen, og då kosta kvart einaste
- * bilete av eit drag på ein bit ein ny sveis og ei ny forenkling av alle
- * bitane — same forma, om att, av di ein annan bit hadde flytt seg fire
- * millimeter. Målt på ein kropp av fire former: 23 ms sveis og 20 ms
- * forenkling per bilete, av 65.
- *
- * Her ligg dei per KJELDE, i kjelda sitt eige rom, og vert hugsa der. Eit
- * drag har att transformasjonen og samanlegginga, og dei er lineære i
- * trekantane som ER att etter forenklinga — ikkje i dei som kom inn.
- *
- * DET FLYTTAR FORENKLINGA FØR PLASSERINGA, og det er rett veg: kommentaren
- * øvst i fila seier at «tjue tusen trekantar» skal tyde det same uansett kva
- * rotasjon som står, og no tyder det same uansett kvar biten står òg. Ein
- * bit som vert dregen breiare får ikkje eit anna nett enn den same biten
- * smal.
- *
- * SNUINGA VART BETRE PÅ VEGEN: eit ut-inn nett vart før lese på den samla
- * kroppen, so éi vrang form av fire kunne ikkje rettast utan å snu dei tre
- * andre med. No svarar kvar kjelde for si eiga vinding.
- */
 type Kjeldenett = { net: Indexed; tris: number; opne: number }
 const KJELDE_HUGS = keep<Kjeldenett>(SCENE_TAK + 4)
 
-/**
- * KOR OFTE HUGSEN SVARTE, so ei vakt kan prøve det — same grunnen som
- * `vendTal` nedanfor: ei tidsprøve på ein liten prøvekropp fangar ikkje at
- * ein sveis vart gjord om att, av di ein kube sveisar seg på ingen tid.
- * Talet på bom gjer det, og det er det same på kvar maskin.
- */
 let kjeldeTreff = 0
 let kjeldeBom = 0
 export const kjeldeTal = () => ({ treff: kjeldeTreff, bom: kjeldeBom })
@@ -142,8 +58,6 @@ function kjeldenett(id: string, tak: number, glatt: number): Kjeldenett {
     bom = true
     const src = source(id)
     let net = weld(src)
-    // Ut-inn fyrst, og før alt anna: er nettet snudd, er kvar einaste
-    // seinare avgjerd teken på feil side av flata.
     if (signedVolume(net) < 0) net = flip(net)
     net = decimate(net, tak)
     net = taubin(net, glatt)
@@ -154,18 +68,6 @@ function kjeldenett(id: string, tak: number, glatt: number): Kjeldenett {
   return ut
 }
 
-/**
- * TREKANTBUDSJETTET DELT MELLOM KJELDENE, etter kor mange dei har med inn.
- *
- * Taket er eitt tal for heile kroppen, og det skal halde fram med å vera
- * det: fire former deler dei førti tusen. Delt LIKT hadde ein kube på tolv
- * trekantar fått ti tusen han ikkje har bruk for, medan skannet ved sida av
- * han svelt. Delt etter kva kvar har med inn, går budsjettet dit detaljen
- * er — og med éi kjelde er det heile taket, som før.
- *
- * Talet endrar seg berre når SETTET av kjelder gjer det. Å flytte, vri
- * eller dra ein bit rører det ikkje, so eit drag treff hugsen kvar gong.
- */
 function budsjett(idar: readonly string[], tak: number): Map<string, number> {
   const eine = [...new Set(idar)]
   const inn = eine.map((id) => source(id).tris)
@@ -173,15 +75,6 @@ function budsjett(idar: readonly string[], tak: number): Map<string, number> {
   return new Map(eine.map((id, i) => [id, Math.max(64, Math.round((tak * inn[i]) / sum))]))
 }
 
-/**
- * BITANE LAGDE SAMAN TIL EITT NETT.
- *
- * Kvar bit vert skalert til hundre millimeter på det lengste gonger sin
- * eigen storleik, vend kring z, flytt, og so lagd rett inn i det same
- * nettet. Ingen boolsk operasjon: strålane tel skal, so der to lukka skal
- * ligg oppå kvarandre er det gods, og der ingen ligg er det luft. Det er
- * nett det ein kropp bygd av klossar treng, og ikkje meir.
- */
 function samlaNett(p: Params): Net {
   const lest = lesScene(scenaAv(p))
   const bitar = lest.length ? lest : lesScene(eiKjelde(p.kjelde))
@@ -198,8 +91,6 @@ function samlaNett(p: Params): Net {
     tris += kj.tris
     opne += kj.opne
     const span = Math.max(src.max[0] - src.min[0], src.max[1] - src.min[1], src.max[2] - src.min[2], 1e-6)
-    // ein faktor per akse, mot den SAME lengste sida: alle tre like gjev
-    // nett den same kroppen det eine talet gav, og forholdet i kjelda står
     const k: Vec3 = [(100 * b.s[0]) / span, (100 * b.s[1]) / span, (100 * b.s[2]) / span]
     const cx = (src.min[0] + src.max[0]) / 2
     const cy = (src.min[1] + src.max[1]) / 2
@@ -262,8 +153,6 @@ export function makeKropp(p: Params): Kropp {
     const net = { verts: pl.pos, idx: n.net.idx }
     const flat = shade(net)
     const soup = makeSoup(flat.pos)
-    // boksane gjennom den same avbildinga som hjørna: ein vend boks er
-    // ingen boks, so det er dei åtte hjørna som vert vende og målte om att
     const bitar = n.bitar.map((b) => {
       const lo: Vec3 = [Infinity, Infinity, Infinity]
       const hi: Vec3 = [-Infinity, -Infinity, -Infinity]
@@ -289,56 +178,10 @@ export function makeKropp(p: Params): Kropp {
   })
 }
 
-/**
- * KROPPEN SEDD LANGS EI NORMAL.
- *
- * Strålane går langs aksane, og eit skrått plan har ingen akse. I staden
- * for å lære strålane å gå på skrå vert NETTET snudd: (u, v, n) vert
- * (x, y, z), og planet er då eit z-snitt som alle andre — same rader, same
- * kolonnar, same marsjerande rute. Å snu tjue tusen trekantar kostar
- * ingenting mot å snitte dei; å snu ein million kostar eit par titals
- * millisekund, og svaret vert hugsa per retning. Eit rutenett har to.
- *
- * Vendinga er høgrehendt, so vindinga står og innsida er innsida.
- */
 const VENDT = new WeakMap<Kropp, Map<string, { sol: Solid; b: number }>>()
-/**
- * HUGSEN ER EIT MINNEBUDSJETT, IKKJE EIT TAL PÅ RETNINGAR.
- *
- * Taket stod på tolv vendingar. Eit rutenett har to, so det var rikeleg —
- * men eit sett plan sett for hand kan ha éi eiga retning PER PLAN. Over tolv
- * av dei fall hugsen i den klassiske FIFO-fella: same bygget går gjennom
- * retningane i same rekkjefylgja kvar gong, so den eldste vert alltid kasta
- * rett før han skal brukast att. Målt, med tre bygg på rad, på ei vifte av
- * plan kring loddaksen (`pnpm tak` lagar henne framleis):
- *
- *   rutenett 6x6     24 treff · 0 bom
- *   vifte 8 plan     16 treff · 0 bom
- *   vifte 20 plan     0 treff · 40 bom      ← heile nettet snudd 20 gonger
- *   vifte 32 plan     0 treff · 64 bom
- *
- * Å byte FIFO mot LRU rettar det IKKJE: ei syklisk rekkje som er lengre enn
- * hugsen bommar like mykje med LRU. Det som rettar det er å ha plass til
- * arbeidssettet, og då må taket telje BYTE og ikkje oppslag: ei vending
- * kostar 0,54 MB på trekantbudsjettet som står som standard og 1,76 MB på
- * det høgste, altso tre gonger så mykje for det same talet.
- *
- * Budsjettet er sett til det dei tolv kosta på det DYRASTE nettet — 21 MB —
- * so ingen konfigurasjon brukar meir minne enn før. På standardnettet er det
- * fire og førti vendingar i staden for tolv, og vifta treff kvar gong.
- * Talet står òg med eit hardt tak på plantaket: eit lite nett skal ikkje
- * kunne samle fleire vendingar enn det finst plan.
- */
 const VENDT_BUDSJETT = 24 * 1024 * 1024
 const VENDT_TAK = PLAN_TAK
 
-/**
- * KOR OFTE HUGSEN SVARTE, so ei vakt kan prøve det.
- *
- * Ei tidsprøve på ein liten prøvekropp fangar ikkje dette: å snu fem tusen
- * trekantar kostar knapt noko, og terskelen druknar i støy. Talet på bom
- * gjer det, og det er det same på kvar maskin.
- */
 let vendTreff = 0
 let vendBom = 0
 export const vendTal = () => ({ treff: vendTreff, bom: vendBom })
@@ -355,8 +198,6 @@ export function vend(k: Kropp, n: Vec3): Solid {
     VENDT.set(k, per)
   }
   const hit = per.get(key)
-  // Sett inn att på treff, so det eldste OPPSLAGET ryk og ikkje den eldste
-  // skrivinga — same LRU-en `keep()` i core.ts gjer.
   if (hit) {
     vendTreff++
     per.delete(key)
@@ -387,28 +228,8 @@ export function vend(k: Kropp, n: Vec3): Solid {
   return sol
 }
 
-/**
- * OG DET SAME FOR EIN BØYGD PLAN: RULL ROMMET UT.
- *
- * `vend` snur nettet so eit skrått plan vert eit z-snitt. Ein bøygd plan er
- * ingen plan, so vendinga duger ikkje — men det same trikset gjer det.
- * Rullar du ROMMET ut kring sylinderaksen, vert den bøygde flata eit plan
- * att, og då er snittet det same z-snittet som alle andre: same rader, same
- * kolonnar, same marsjerande rute. Og profilen som kjem ut er alt det flate
- * kuttmønsteret, av di utrullinga tek buelengd til lengd — det er nett det
- * ei plate gjer når du bøyer henne.
- *
- * EI RETT LINE VERT EI KURVE PÅ VEGEN. Ein trekant har rette kantar, og
- * utrulla er dei det ikkje lenger; held vi dei rette, kuttar korda av
- * buen. Feilen er `Δu²/8R`, so kantar lengre enn `√(8·R·tol)` vert delte
- * til dei er korte nok. Ein krakk på tjuefem tusen trekantar har kantar på
- * ti millimeter og vert knapt rørt; ein KUBE har kantar på hundre og seks
- * sider, og utan delinga hadde han vore ei kasse med rette sider som
- * påstod at ho var bøygd.
- */
 const RULLA = new WeakMap<Kropp, Map<string, Solid>>()
 const RULLA_TAK = 8
-/** kor langt korda får skjere av buen, i millimeter */
 const RULL_TOL = 0.05
 
 export function rull(k: Kropp, r: Ramme): Solid {
@@ -427,8 +248,6 @@ export function rull(k: Kropp, r: Ramme): Solid {
     const q = inn(r, p)
     return [q[0], q[1], avFlata(r, p)]
   }
-  // deling i fire, om att til kantane er korte nok. Djupna er kappa: eit
-  // nett med ein einaste diger trekant skal ikkje kunne be om ein million.
   const del = (a: Vec3, b: Vec3, c: Vec3, djup: number) => {
     const lang =
       djup < 6 &&

@@ -1,28 +1,3 @@
-/**
- * LEDDVAKTA — står ledda i FILA?
- *
- * Panelet seier «36 ledd». Det talet er talet på ledd reiskapen VILLE
- * skjere: det vert talt når kryssa vert funne, før ein einaste kontur er
- * lesen. Mellom det talet og plata ligg heile snittinga — sporet vert
- * skore i feltet, feltet vert lese med ei marsjerande rute, og ruta vert
- * forenkla. Kvart av dei tre stega kan miste eit spor utan å seie frå:
- * eit for grunt spor forsvinn i ein celle, eit for smalt fell for
- * forenklinga, og ein profil som ikkje nådde ned dit sporet står har
- * aldri hatt det.
- *
- * Eit tapt spor er den dyraste feilen reiskapen kan gjere. Ribba ser rett
- * ut på skjermen og i kuttfila; ho er berre eit par millimeter for heil,
- * og det oppdagar du når du står med sekstifire skorne delar og to av dei
- * ikkje går i hop.
- *
- * Difor spør denne vakta profilen sjølv, og ikkje bokføringa: for kvart
- * ledd vert det målt om det finst gods i sporet. Midt i sporet skal det
- * ikkje vera gods. Ein halv millimeter utanfor kvar sporvegg, i same
- * høgd, skal det vera gods — elles er ikkje dette eit spor, det er enden
- * av ribba.
- *
- *   npx tsx scripts/ledd.ts
- */
 import { inRing, shoelace, type Pt, type Vec3 } from "../lib/core"
 import { makeBygg } from "../lib/bygg"
 import { newSoup, ribSolid, soupToMesh } from "../lib/mesh"
@@ -33,45 +8,19 @@ import { put } from "../lib/sources"
 import { ein2, lesPlan, rutenett, skrivPlan, ut, type Strek } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
-/**
- * EIT NETT DER DEN EINE FAMILIEN ER BØYGD.
- *
- * Ei bøygd flate er ein sylinder med aksen langs `v`, og for eit plan med
- * normalen langs x er `v` loddrett. Y-familien har normalen sin vassrett og
- * ligg difor PARALLELT med den aksen — og eit plan langs aksen skjer
- * sylinderen i generatorlinene hans, som er rette både i rommet og utbretta.
- * Det er «krumt skal med flate ribber på tvers», og det er tilfellet steg
- * éin av dei bøygde ledda dekkjer.
- */
 const bogNett = (nx: number, ny: number, bog: number) =>
   skrivPlan(rutenett(nx, ny).map((q) => (q.n[0] === 1 ? { ...q, bog } : q)))
 
-/**
- * OG DET SAME MED GOLV I.
- *
- * Steg to: eit flatt plan VINKELRETT på sylinderaksen møter flata i ein
- * SIRKEL med sylinderradien. Sporet på den bøygde delen er ei rett line i
- * det utbretta mønsteret — `u` er buelengd — medan sporet i golvet er ein
- * BOGE. Det er den eine staden i huset ei sporline ikkje er rett, og difor
- * den eine saka denne vakta ikkje kunne sjå før.
- */
 const bogGolv = (nx: number, ny: number, bog: number, golv: readonly number[]) =>
   skrivPlan([
     ...lesPlan(bogNett(nx, ny, bog)),
     ...golv.map((z, i) => ({ id: 90 + i, o: [0.5, 0.5, z] as [number, number, number], n: [0, 0, 1] as [number, number, number], bog: 0, strek: [] })),
   ])
 
-/**
- * PRØVEKROPPEN. Standarden opnar UTAN plan — reiskapen er tom til du skjer
- * — so ei vakt som måler geometri må seie kva ho måler. Seks kvar veg er
- * det same rutenettet standarden hadde før, og det same objektet.
- */
 const GRUNN = { ...DEFAULT_PARAMS, plan: nett(6, 6) }
-
 
 let brot = 0
 
-/** ligg punktet i gods? Innanfor ein ytterkant, og ikkje i eit hòl. */
 function gods(r: Rib, p: Pt): boolean {
   for (const o of r.outlines) {
     if (!inRing(o, p)) continue
@@ -81,18 +30,6 @@ function gods(r: Rib, p: Pt): boolean {
   return false
 }
 
-/**
- * SPORET SKAL IKKJE NÅ INN I NABOSTYKKET.
- *
- * Ei søyle kan treffe kroppen fleire gonger: ein torus som står har ein
- * nedre og ein øvre boge, ein hest har eit bein under ein kropp. Sporet
- * skal gå ut gjennom sin eigen kant og stogge i lufta over eller under.
- * Når det held fram inn i stykket på andre sida av lufta, vert ribba saga
- * i to i staden for å få eit hakk, og det som fell av vert ei laus plate.
- *
- * Å skjere gjennom LUFT er greitt — der er det ingenting å skjere. Det er
- * nabostykket det ikkje har noko i å gjere.
- */
 function inniNabo(r: Rib): { tal: number; verst: number } {
   let tal = 0
   let verst = 0
@@ -112,26 +49,10 @@ function inniNabo(r: Rib): { tal: number; verst: number } {
   return { tal, verst }
 }
 
-/**
- * STÅR DET SAME OBJEKTET PÅ SKJERMEN SOM I FILA?
- *
- * Profilen er sanninga: han er det laseren fylgjer. Klumpen på skjermen
- * vert bygd av den same profilen, so volumet hans er gjeve på førehand —
- * arealet innanfor ytterkanten, minus hòla, gonger tjukna. Er det noko
- * anna, er det ikkje den same forma.
- *
- * Det er ikkje ein teoretisk fare. Sideveggene i eit HÒL var vende
- * baklengs: `contour` gjev hòl med motsett omløp av ytterkantar, so
- * rekkjefylgja peikar rett veg av seg sjølv, og koden snudde han ein gong
- * til. Ei ribbe i den ståande torusen kom ut på 52 386,6 mm³ der ho skulle
- * vore 33 216,3 — og STL-en hadde vrengde flater rundt kvart hòl.
- */
 function volumAvvik(g: Snitt, tjukn: number): { tal: number; verst: number } {
   let tal = 0
   let verst = 0
   for (const r of g.ribber) {
-    // ei bøygd ribbe er ei fasettert skål i nettet: volumet hennar er
-    // biletet sitt og ikkje kuttet sitt — kuttet er flatt og vert målt over
     if (!r.outlines.length || r.r.k) continue
     const s = newSoup()
     ribSolid(s, r, tjukn)
@@ -168,21 +89,15 @@ function sjekk(namn: string, p: Params): number {
   let nabo = 0
   let naboVerst = 0
 
-  /** punktet `t` langs sporet, `s` til sides — og sporet kan vera ein BOGE */
   const paa = (q: Spor, t: number, s = 0): Pt => sporPunkt(q, t, s)
   for (const r of g.ribber) {
     const n = inniNabo(r)
     nabo += n.tal
     naboVerst = Math.max(naboVerst, n.verst)
     for (const q of r.spor) {
-      // Eit spor som høyrer til eit stykke som er kasta, er ikkje eit
-      // spor lenger. Det er berre bokføring frå før kastinga.
       if (!r.outlines.some((o) => jointsIn([q], o) > 0)) continue
       ledd++
 
-      // Midt i sporet, på halve djupna. Nær munnen kan konturen framleis
-      // vera i ferd med å runde inn; nær botnen kan hundebeinet ha teke
-      // hjørnet. Midten er det einaste punktet som er eit spor uansett.
       const z = (q.munn + q.botn) / 2
       if (gods(r, paa(q, z))) {
         tapt++
@@ -195,15 +110,6 @@ function sjekk(namn: string, p: Params): number {
         continue
       }
 
-      // Og gods på BEGGE sider, ein halv millimeter utanfor veggen. Utan
-      // det er ikkje dette eit spor — det er enden av ribba, eller ei
-      // kløft som alt var der.
-      //
-      // Talet vart rekna og skrive, og so kasta: det stod i lina, men
-      // ikkje i `ok`. Ei ribbe kunne mist skuldra på kvart einaste spor
-      // og skriptet ville framleis sagt at alle ledd står. Eit spor utan
-      // skulder er eit spor som ikkje held noko — den kryssande ribba sig
-      // rett gjennom — og det er nett det harnesset er her for.
       const ut = q.w / 2 + 0.5
       if (!gods(r, paa(q, z, -ut)) || !gods(r, paa(q, z, ut))) {
         uteneskulder++
@@ -218,20 +124,6 @@ function sjekk(namn: string, p: Params): number {
     }
   }
 
-  /**
-   * NUMMERET I NØKKELEN TEL LEDD, IKKJE FORSØK.
-   *
-   * Tredje feltet i ein leddnøkkel er kva møte på kryssingslina det er, og
-   * `snitt.ts` seier i sin eigen kommentar at det er talt over dei som VART
-   * LEDD. Det er handa si adresse: `deling` skriv «5-12-1:0.35», og hoppar
-   * nummeret over eit møte som fall på skuldra, landar brøken på eit anna
-   * ledd enn det du stilte — eitt spor djupt og makkeren grunn, som er nett
-   * det den delte nøkkelen finst for å hindre.
-   *
-   * So numra på kvar kryssingsline skal vera 0, 1, 2 … utan hopp. Prøva er
-   * billeg og fangar heile klassen; ho stod ikkje her før, og det er difor
-   * teljinga kunne stå på feil side av to prøver utan at nokon såg det.
-   */
   const liner = new Map<string, number[]>()
   for (const r of g.ribber) {
     for (const q of r.spor) {
@@ -253,46 +145,12 @@ function sjekk(namn: string, p: Params): number {
     }
   }
 
-  // GODSET ER EI LENGD, OG EI LENGD ER IKKJE NEGATIV.
-  //
-  // «Minste gods» er det tynnaste som står att i eit ledd, og panelet
-  // vrakar heile modellen på det talet. Det vart lese ved å slå opp
-  // stykket sporet står i, og oppslaget gjekk på MUNNEN — som ligg på
-  // kanten mellom to stykke når ein kropp står på bein. Då fann han
-  // stykket under, og trekte frå feil veg: firbeint kom ut på −22,4 mm,
-  // den harde regelen rauk, og «finn innstillingar» gav null kandidatar
-  // på ein modell det ikkje var noko gale med.
-  //
-  // Talet er ikkje til å gjette på fortegnet til. Står det negativt, er
-  // det ikkje ei tynn ribbe — det er ei måling som har spegla seg.
   let godsVerst = Infinity
   for (const r of g.ribber) if (r.spor.length) godsVerst = Math.min(godsVerst, r.narrow)
   const godsOk = !Number.isFinite(godsVerst) || godsVerst > 0
 
   const vol = volumAvvik(g, p.tjukn)
 
-  /**
-   * OG DEI TO SIDENE AV EIT LEDD SKAL VERA DET SAME LEDDET.
-   *
-   * Alt over prøver kvar ribbe FOR SEG: at sporet står i profilen, at det er
-   * gods på begge sider, at det ikkje går inn i nabostykket. Ingenting av det
-   * spør om det andre sporet — og eit ledd er to spor som skal møtast.
-   *
-   * Påstanden ligg i `Spor`: «buelengd er òg det som gjer at dei to sidene av
-   * eit ledd kan lesa det same talet». Han vert prøvd slik: botnen på kvar
-   * side, ført ut i ROMMET gjennom kvar si ramme. To tal som tyder det same
-   * skal gje det same punktet.
-   *
-   * DET ER HER EIT BØYGT LEDD KAN RYKE UTAN AT NOKO ANNA SEIER FRÅ. På flate
-   * plan er lengd lengd og påstanden er triviell. På ei bøygd flate er `u`
-   * BUELENGD, og at han framleis tyder det same på den andre sida av leddet
-   * er ei rekning — ikkje ein definisjon. Går ho gale, kjem begge delane ut
-   * med spor som ser rette ut kvar for seg, og møtest ikkje i verkstaden.
-   *
-   * Og `t` — kvar i overlappet botnen står — skal vera det same talet på båe
-   * sidene. Det er det som gjer at eit djupare spor i den eine er eit
-   * grunnare i den andre, utan at nokon reknar det om.
-   */
   const par = new Map<string, { r: Rib; q: Spor }[]>()
   for (const r of g.ribber) {
     for (const q of r.spor) {
@@ -316,8 +174,6 @@ function sjekk(namn: string, p: Params): number {
     if (Math.abs(ta - tb) > 1e-9) motUlikT++
     motTal++
   }
-  // ein tidels snittbreidd: under det maskina kan halde, og fire storleiksordenar
-  // over det rekninga faktisk kjem ut på (1,6e−6 mm på eit bøygt skal)
   const motOk = motVerst < 0.02 && motUlikT === 0
 
   const ok = tapt === 0 && uteneskulder === 0 && nabo === 0 && godsOk && vol.tal === 0 && hopp === 0 && motOk
@@ -336,9 +192,6 @@ function sjekk(namn: string, p: Params): number {
   return g.avvist
 }
 
-// =============================================================================
-// SAKENE
-// =============================================================================
 function kule(r: number, seg: number, strekk = 1) {
   const pos: number[] = []
   const at = (i: number, j: number): [number, number, number] => {
@@ -383,12 +236,6 @@ function torus(R: number, r: number, n: number, m: number) {
   return makeSoup(new Float32Array(pos))
 }
 
-/**
- * Ein kropp på fire bein. Poenget er ikkje at han liknar ein hest, men at
- * ei loddrett søyle gjennom eit bein treffer kroppen ein gong til lenger
- * oppe, med luft imellom — og det er nett den forma sporet kan sage seg
- * gjennom.
- */
 function firbeint() {
   const out: number[] = []
   const boks = (w: number, d: number, h: number, ox: number, oy: number, oz: number) => {
@@ -413,7 +260,6 @@ put("firbeint", "firbeint", firbeint())
 put("egg", "egg", kule(50, 40, 1.6))
 put("torus", "torus", torus(50, 18, 48, 24))
 
-/** eit merke lagt i eit namngjeve plan: gjennom lesinga, so strengen er den vakta ser */
 const medStrek = (plan: string, id: number, st: Strek) =>
   skrivPlan(lesPlan(plan).map((q) => (q.id === id ? { ...q, strek: [...q.strek, st] } : q)))
 
@@ -435,43 +281,17 @@ const SAKER: [string, Partial<Params>][] = [
   ["firbeint, 10 ribber", { kjelde: "firbeint", plan: nett(10, 10), lause: 0 }],
   ["firbeint, tjukk plate", { kjelde: "firbeint", tjukn: 6, storleik: 300, lause: 0 }],
   ["kule, tett og tynt", { kjelde: "kule", plan: nett(24, 24), tjukn: 1 }],
-  // STREK HANDA HAR SETT. Eit hòl tvers over ei plate deler henne, og eit
-  // gods legg til material der nettet ikkje gav noko — begge endrar kva som
-  // står att kring spora, og det er nett det denne vakta måler.
   ["kube, strek i to plan", {
     plan: medStrek(medStrek(nett(4, 4), 2, { slag: "hol", form: "rekt", x: 0, y: -0.32, w: 0.45, h: 0.04, a: 0 }),
       6, { slag: "gods", form: "rekt", x: 0, y: 0.42, w: 0.4, h: 0.06, a: 0 }),
   }],
-  // DELINGA SETT MED HANDA på eitt ledd: spora flyttar seg, og vakta krev
-  // at dei framleis står i profilane og møtest der dei skal.
   ["kube, eitt ledd delt for hand", {
     plan: nett(4, 4),
     deling: [leddNokkel(1, 5, 0), 0.72].join(":") + ";" + [leddNokkel(2, 6, 0), 0.28].join(":"),
   }],
-  // BØYGDE LEDD, STEG EIN: ein sylinder kryssa av flate plan som ligg langs
-  // aksen hans. Møtet er ein generator — rett i rommet OG utbretta — so
-  // spora skal stå i profilane som alle andre.
   ["kube, x-familien bøygd", { plan: bogNett(4, 4, 0.3) }],
   ["kule, x-familien bøygd", { kjelde: "kule", plan: bogNett(4, 4, 0.25) }],
   ["kule, x-familien bøygd, tett", { kjelde: "kule", plan: bogNett(8, 8, 0.2) }],
-  /**
-   * BØYGDE LEDD, STEG TO: sylindrar med GOLV på tvers av aksen.
-   *
-   * Møtet er ein sirkelboge, og sporet i golvet fylgjer han. Vakta måler
-   * luft midt i sporet og gods ein halv millimeter utanfor kvar vegg — og
-   * ho gjer det langs BOGEN, so eit spor som stod att som ei KORDE ville
-   * slått ut med gods midt i sporet. Det er prøva på at bogen er rekna og
-   * ikkje rett ut.
-   *
-   * TO FAMILIAR OG IKKJE TRE. Eit rutenett med x, y OG golv er noko anna
-   * enn eit bøyespørsmål: tre familiar halvved-spor som kryssar kvarandre
-   * sagar kvar ribbe i lause øyer, av di kvart spor går til midten og to
-   * spor som kryssar der tek godset to gonger. Det gjer dei like mykje
-   * FLATT som bøygt — målt, med det same settet og `bog: 0`: 32 av 64 ledd
-   * utan skulder, båe vegar. Det er den saka `orden`, `klem` og delinga er
-   * til for, og ho høyrer ikkje heime i ei prøve på om ein boge er rekna
-   * rett.
-   */
   ["kube, bøygd med to golv", { plan: bogGolv(4, 0, 0.3, [0.35, 0.65]) }],
   ["kule, bøygd med tre golv", { kjelde: "kule", plan: bogGolv(4, 0, 0.25, [0.3, 0.5, 0.7]) }],
   ["egg, bøygd med golv, tjukk plate", { kjelde: "egg", plan: bogGolv(3, 0, 0.4, [0.4, 0.6]), tjukn: 12, storleik: 400 }],
@@ -485,19 +305,6 @@ const SAKER: [string, Partial<Params>][] = [
 let avvistIAlt = 0
 for (const [namn, over] of SAKER) avvistIAlt += sjekk(namn, { ...GRUNN, ...over })
 
-// =============================================================================
-// TAPP OG SLISSE
-// =============================================================================
-/**
- * DEI SAME SPØRSMÅLA TIL EIT MØTE DER EIN KANT SLUTTAR MOT EI FLATE.
- *
- * Tavla tel tappar når dei vert lagde ut; profilen er det laseren fylgjer.
- * For kvar tapp: gods midt i tappen og like innanfor tuppen, luft like
- * forbi tuppen og like ved sida av han — elles er kanten ikkje klipt ved
- * skuldra, og plata står i setet. For kvar slisse: luft midt i, gods på
- * alle fire sider. Og dei to skal vera same staden i rommet: tappen sin
- * midt, lagd ut gjennom si ramme, er slissa sin midt lagd ut gjennom si.
- */
 function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: number }): void {
   const { s: g } = makeBygg(p, DETAIL.mid)
   let feil = 0
@@ -515,13 +322,11 @@ function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: numb
       const tvers = ein2(h2, h1)
       const L = q.boge ? q.boge.t1 - q.boge.t0 : Math.hypot(h1[0] - h0[0], h1[1] - h0[1])
       const W = q.boge ? Math.abs(q.boge.s1 - q.boge.s0) : Math.hypot(h2[0] - h1[0], h2[1] - h1[1])
-      // langs ein boge: `a` er buelengd frå starten, `b` er avstand frå den fyrste sida
       const bg = q.boge
       const pk = (a: number, b: number): Pt => (bg ? sporPunkt(bg, bg.t0 + a, bg.s0 + Math.sign(bg.s1 - bg.s0) * b) : [h0[0] + langs[0] * a + tvers[0] * b, h0[1] + langs[1] * a + tvers[1] * b])
       if (q.slag === "tapp") {
         tappar++
         if (!gods(r, pk(L / 2, q.kile ? MOBEL.tjukn - 1 : W / 2))) seg(`${q.nokkel}: tappen manglar i profilen til ${r.plan.id}`)
-        // kilen: hòlet står like innanfor den fjerne flata, og det står gods utanfor det
         if (q.kile) {
           const tb2 = MOBEL.tjukn / 2
           if (gods(r, pk(L / 2, 2 * tb2 - 0.5 + q.kile.w / 2))) seg(`${q.nokkel}: kilehòlet manglar`)
@@ -529,7 +334,6 @@ function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: numb
           if (!gods(r, pk(L / 2, 2 * tb2 - 0.5 + q.kile.w + MOBEL.tjukn * 0.9))) seg(`${q.nokkel}: for lite gods utanfor kilehòlet`)
         }
         if (!gods(r, pk(L / 2, W - 0.3))) seg(`${q.nokkel}: tappen når ikkje fram til den fjerne flata`)
-        // eit stag som går gjennom held fram forbi flata — det er heile poenget
         if (!/^[gs]/.test(q.nokkel) && gods(r, pk(L / 2, W + 0.3))) seg(`${q.nokkel}: tappen stikk ut forbi den fjerne flata`)
         for (const a of [-0.4, L + 0.4]) if (gods(r, pk(a, W / 2))) seg(`${q.nokkel}: kanten ved tappen er ikkje klipt ved skuldra`)
         if (!q.nokkel.startsWith("g") && !gods(r, pk(L / 2, -0.3))) seg(`${q.nokkel}: tappen heng ikkje i plata`)
@@ -546,7 +350,6 @@ function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: numb
   }
   let verst = 0
   for (const [nk, l] of par) {
-    // ein finger i eit hjørne har ingen makker: han fyller hakket i den andre
     if (nk.startsWith("f") || nk.startsWith("s")) {
       if (l.length !== 1) seg(`${nk}: ${l.length} fingrar med same namn`)
       continue
@@ -564,11 +367,6 @@ function sjekkTapp(namn: string, p: Params, venta: { tappar: number; brot?: numb
   console.log(`${feil ? "FEIL" : "  ok "}  ${namn.padEnd(26)} ${String(tappar).padStart(4)} tappar i profilane · ${par.size} par møtest, verst ${verst.toFixed(4)} mm`)
 }
 
-/**
- * KRAKKEN FRÅ REFERANSEBILETET: to sider med ein fot i kvar ende, eit sete
- * oppå, tre stag imellom. Alt er teikna omriss i brøk av 450 mm, med
- * sidene i rekkjefylgja folk set dei saman — side, stag, side, sete.
- */
 const S = 450
 const bf = (mm: number) => +(mm / S).toFixed(4)
 const plate = (id: number, o: [number, number, number], n: [number, number, number], pts: [number, number][]) =>
@@ -588,17 +386,10 @@ const krakk = (o: { setaZ?: number; stagY?: number; sideTopp?: number; sete?: nu
   ])
 const MOBEL = { ...DEFAULT_PARAMS, storleik: S, tjukn: 12, skal: false, arkB: 1000, arkH: 1000 }
 sjekkTapp("krakk, tappar og stag", { ...MOBEL, plan: krakk() }, { tappar: 10, brot: 0 })
-// setet tre millimeter for høgt: kanten vert løfta opp til flata
 sjekkTapp("krakk, setet over sidene", { ...MOBEL, plan: krakk({ setaZ: 447 }) }, { tappar: 10, brot: 0 })
-// staga teikna til ytterflata på sidene: kanten vert retta til skuldra
 sjekkTapp("krakk, staga for lange", { ...MOBEL, plan: krakk({ stagY: 156 }) }, { tappar: 10, brot: 0 })
-// setet smalare enn toppen på sidene: tappane står der setet er
 sjekkTapp("krakk, smalt sete", { ...MOBEL, plan: krakk({ sete: 110 }) }, { tappar: 8, brot: 0 })
-// i tre millimeter: modellen på bordet før møbelet
 sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5 }) }, { tappar: 10, brot: 0 })
-// i LISTEREKKJEFYLGJA ein teiknar — sider, sete, stag — går lista ikkje
-// opp: staga står fast mellom to sider. Motoren les då ei anna rekkjefylgje
-// av dei same vegane, og ho er side, stag, side, sete.
 {
   const p = { ...MOBEL, plan: skrivPlan([1, 2, 3, 4, 5, 6].map((id) => lesPlan(krakk()).find((q) => q.id === id)!)) }
   sjekkTapp("krakk, teikna rekkjefylgje", p, { tappar: 10, brot: 0 })
@@ -608,34 +399,18 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
     console.log(`FEIL  krakk, rekkjefylgja       ${orden}, venta 1,4,5,6,2,3`)
   }
 }
-/**
- * SKRÅ BEIN: sidene lener ti grader innover, og tappen går skrått gjennom
- * setet. Slissa må vera breiare enn plata — ho ser tappen på to stader —
- * og vakta krev framleis at tapp og slisse er same staden.
- */
 {
   const v = (10 * Math.PI) / 180
-  // sidene lener INN: toppen står nærare midten enn foten, og den skrå
-  // høgda er lengre enn den loddrette
   const topp = 225 + 213 / Math.cos(v)
-  // SETET FYRST: tappane på dei to sidene peikar tjue grader frå
-  // kvarandre, so setet kan ikkje trykkjast ned på båe. Snudd, går kvar
-  // side inn langs sin eigen tapp — og det er rekkjefylgja vakta krev.
   const skraa = skrivPlan([
     plate(3, [0.5, 0.5, 444 / S], [0, 0, 1], firkant(175, 200)),
     plate(1, [0.5, (225 - 150) / S, 0.5], [0, Math.cos(v), -Math.sin(v)], side(topp)),
     plate(2, [0.5, (225 + 150) / S, 0.5], [0, Math.cos(v), Math.sin(v)], side(topp)),
   ].map((q) => ({ ...q, n: q.n.map((c) => +c.toFixed(4)) as [number, number, number] })))
   sjekkTapp("krakk, skrå sider", { ...MOBEL, plan: skraa }, { tappar: 4, brot: 0 })
-  // og i den rekkjefylgja ein teiknar dei: sidene fyrst
   const snudd = skrivPlan([...lesPlan(skraa).slice(1), lesPlan(skraa)[0]])
   sjekkTapp("krakk, skrå sider, sete sist", { ...MOBEL, plan: snudd }, { tappar: 4, brot: 0 })
 }
-/**
- * KRYSSBEIN: to sider som går gjennom kvarandre, halvt om halvt, og eit
- * sete oppå båe. Dei to slaga møte i det same objektet, og ingen av dei
- * skal ta det andre.
- */
 {
   const x = skrivPlan([
     plate(1, [0.5, 0.5, 0.5], [0, 1, 0], [[-180, 213], [180, 213], [180, -225], [-180, -225]]),
@@ -652,10 +427,6 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
 
   sjekk("kryssbein, spora", { ...MOBEL, plan: x })
 }
-/**
- * BUNDE AV NETTET: eit omriss dobbelt so stort som kuben gjev kuben sitt
- * snitt med merket, og omrisset utan.
- */
 {
   const stort = (nett: boolean) => skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5], n: [1, 0, 0], bog: 0, strek: [], omriss: [[-0.8, -0.8], [0.8, -0.8], [0.8, 0.8], [-0.8, 0.8]], ...(nett ? { nett: true as const } : {}) }])
   const areal = (nett: boolean) => { const { s: g } = makeBygg({ ...MOBEL, plan: stort(nett) }, DETAIL.mid); return g.ribber[0].outlines.reduce((a, o) => a + Math.abs(shoelace(o)), 0) }
@@ -666,10 +437,6 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
     console.log(`FEIL  bunde av nettet              fritt ${fri.toFixed(0)} mm², bunde ${bunde.toFixed(0)} mm², venta ${venta}`)
   } else console.log(`  ok   bunde av nettet            fritt ${(fri / 1e6).toFixed(3)} m², bunde ${(bunde / 1e6).toFixed(3)} m² (kuben ${(venta / 1e6).toFixed(3)})`)
 }
-/**
- * LAMELLANE: sju ribber og eit stag gjennom alle. Ribbene får eit lukka hòl
- * kvar, staget ingen spor — og ingen ribbe vert skoren frå kanten.
- */
 {
   const rib: [number, number][] = [[-200, -225], [200, -225], [200, 0], [-100, 50], [-150, 200], [-200, 200]]
   const l = [
@@ -686,10 +453,6 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
     console.log(`FEIL  lameller                    ${kanalar} spor frå kanten, hòl i alle: ${hol}`)
   }
 }
-/**
- * KASSA: fire sider som endar i flukt med utsida av kvarandre, og eit sete
- * i flukt oppå. Kvart hjørne er fingrar, og ingen hjørnekube har to eigarar.
- */
 {
   const W = 170
   const s4 = (id: number, o: [number, number, number], n: [number, number, number]) => plate(id, o, n, firkant(0, W + 6).map(([a], i): [number, number] => [a, i < 2 ? 175 : -225]))
@@ -702,10 +465,6 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
   ])
   sjekkTapp("kasse med fingrar", { ...MOBEL, plan: kasse }, { tappar: 40, brot: 0 })
 }
-/**
- * SADELSETET: ei bøygd plate som endar i to flate sider. Møtet er ei
- * generatorline — rett i båe — og tappane går langs tangenten der ho er.
- */
 {
   const R = 400
   const sider: [number, number][] = [[-170, 245], [170, 245], [190, -225], [-190, -225]]
@@ -717,10 +476,6 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
   sjekkTapp("sadelsete i flukt", { ...MOBEL, plan: sadel(160) }, { tappar: 4 })
   sjekkTapp("sadelsete, tappar ut", { ...MOBEL, plan: sadel(172) }, { tappar: 4 })
 }
-/**
- * SETET SOM BØYER SEG MELLOM SIDENE: aksen står vinkelrett på sidene, so
- * møtet er ein boge i sida og ei rett line i setet. Slissene fylgjer bogen.
- */
 {
   const sider: [number, number][] = [[-200, -225], [200, -225], [200, 175], [-200, 175]]
   for (const [namn, y] of [["bogesete i flukt", 156], ["bogesete, tappar ut", 170]] as const) {
@@ -732,11 +487,6 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
     sjekkTapp(namn, { ...MOBEL, plan }, { tappar: 4 })
   }
 }
-/**
- * DET DELTE SETET: to halvdelar i same plan, kant i kant. Fingrane går
- * annakvar veg; kvar finger er gods i si plate og hòl i den andre, og ingen
- * punkt er gods i båe — òg når den eine halvdelen har snudd normal.
- */
 {
   const sider: [number, number][] = [[-150, -225], [150, -225], [150, 213], [-150, 213]]
   for (const snu of [false, true]) {
@@ -760,7 +510,6 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
         if (gods(Q, inn(m))) feil++
       }
     }
-    // ingen punkt langs lina er gods i båe, og alle er gods i éin
     for (let x = -170; x <= 170; x += 1.7) for (const y of [-10, -3, 3, 10]) {
       const a = gods(A, [x, y]), b = gods(B, i4([x, y]))
       if (a === b) feil++
@@ -771,10 +520,6 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
     } else console.log(`  ok   ${namn.padEnd(26)} ${String(tal).padStart(4)} fingrar, kvar i si plate og hòl i den andre`)
   }
 }
-/**
- * KILANE: eit sete som stikk nesten to tjukner gjennom sidene får kilehòl
- * i tappane og ein kile per tapp i kuttlista, gravert med tappen sitt namn.
- */
 {
   const plan = skrivPlan([
     plate(1, [0.5, (225 - 150) / S, 0.5], [0, 1, 0], side()),
@@ -788,11 +533,6 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
   const feil = kilar.length !== 4 || med.length !== 4 || dl.lause !== 0 || !kilar.every((d) => /^k3-[12]-\d+$/.test(d.adr) && Math.abs(Math.abs(shoelace(d.outline)) - 48 * med[0].kile!.w) < 1)
   if (feil) brot++
   console.log(`${feil ? "FEIL" : "  ok "}  ${"kilar".padEnd(26)} ${String(kilar.length).padStart(4)} kilar i lista, ${med.length} tappar med hòl, ${dl.lause} lause`)
-  /**
-   * KILAR PÅ: det same setet i flukt med utsida får òg kilar — kvar tapp
-   * gjennom stikk ut ei halv millimeter under to tjukner, og det står ei
-   * tjukn gods utanfor kilehòlet. Med kilar av er det same setet i flukt.
-   */
   const flukt = skrivPlan([
     plate(1, [0.5, (225 - 150) / S, 0.5], [0, 1, 0], side()),
     plate(2, [0.5, (225 + 150) / S, 0.5], [0, 1, 0], side()),
@@ -806,10 +546,6 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
   if (feilPaa) brot++
   console.log(`${feilPaa ? "FEIL" : "  ok "}  ${"kilar på".padEnd(26)} ${String(medPaa.length).padStart(4)} tappar med hòl på ${medPaa[0]?.kile?.w} mm, ingen med kilar av`)
 }
-/**
- * SETET MELLOM SIDENE: i flukt med utsida, og femten millimeter forbi —
- * då er det synlege tappar og ikkje halvt om halvt.
- */
 {
   for (const [namn, y] of [["sete mellom, i flukt", 156], ["sete mellom, tappar ut", 171]] as const) {
     const l = skrivPlan([
@@ -832,19 +568,6 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
   }
 }
 
-/**
- * OG TELJAREN SKAL VERA LEVANDE.
- *
- * «Avviste» er talet på møte som kryssa, var lange nok, og likevel ikkje
- * fekk gods nok ved sida av sporet til å halde. Det er eit tal som SKAL
- * vera null på ein kube — difor ser ingen det der — og som er eit kvart av
- * alle møte på dei innebygde formene. Ein teljar som alltid står på null er
- * ein teljar ingen oppdagar er kopla frå; dette prosjektet har nett brukt
- * ein commit på å finne fire konstantar av det slaget.
- *
- * So: minst éi av sakene skal ha avvist noko. To av dei gjer det i dag —
- * kuben med 32 plan kvar veg, og den vende kuben.
- */
 if (avvistIAlt === 0) {
   brot++
   console.log("FEIL  avviste                   ingen av sakene avviste eit einaste møte — er teljaren kopla frå?")

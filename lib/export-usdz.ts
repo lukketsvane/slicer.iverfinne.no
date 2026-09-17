@@ -1,23 +1,5 @@
-/**
- * SLICERMAN — USDZ ut.
- *
- * Det same objektet, i det eine formatet ein iPhone opnar i rommet. Deler
- * du fila frå delingsarket, står montasjen på bordet framfor deg i rett
- * storleik før du har skore ei einaste plate — og det er den prøva denne
- * reiskapen ikkje kunne gje før.
- *
- * USDZ er ein ZIP med reglar: ingenting komprimert, og kvar fil byrjar på
- * ei adresse som går opp i seksti og fire. Difor `juster` i `lib/zip.ts`.
- * Inni ligg éi tekstfil — USD sitt ASCII-format, som spesifikasjonen
- * reknar likt med det binære, og som kan lesast av eit menneske.
- *
- * Eininga står i fila: `metersPerUnit = 0.001` tyder at tala ER millimeter,
- * so ingenting vert skalert her. Y opp, som USD ventar; vendinga er den
- * same som GLB-en gjer. Ingen normalar — flatene er flate.
- */
 import { zip } from "./zip"
 
-/** ein prim-namn er ein identifikator, ikkje eit filnamn: eitt fast ord */
 const PRIM = "slicerman"
 
 const tal = (v: number) => String(+v.toFixed(2))

@@ -4,12 +4,6 @@ import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { feltTal, lesTal, nn, snap, type ExportKind, type Metrics, type ParamBag, type Range, type Rule, type View } from "@/lib/core"
 import { RADER } from "@/lib/metrics"
 
-/**
- * DELANE. Det som ikkje er eit oppsett: brikker, ikon, skyvarar, tavla.
- * Dei står i arket på telefonen og i spalta på benken, og ei brikke som
- * ser ulik ut på dei to flatene er to brikker.
- */
-
 export const VIEWS: readonly { id: View; label: string; hint: string }[] = [
   { id: "flate", label: "flate", hint: "nettet slik det kom inn (1)" },
   { id: "lag", label: "lag", hint: "kroppen som skugge, delane som står (2)" },
@@ -17,15 +11,6 @@ export const VIEWS: readonly { id: View; label: string; hint: string }[] = [
   { id: "montasje", label: "montasje", hint: "kroppen reiser seg av platene sine, ein gjeng ribber om gongen (4)" },
 ]
 
-/**
- * UTTAKA, I TRE BOLKAR: rommet, plata, og det som ber heile jobben.
- *
- * Eit dusin brikker i ein haug er eit dusin val du må lesa kvar gong.
- * Bolken seier kva fila er til før du les namnet hennar: skal ho SJÅAST
- * eller TRYKKJAST (stl, glb, flat, 3mf, usdz), skal ho SKJERAST (dxf,
- * svg, ark, png, passprøve), eller ber ho ALT (alt, lagre). Ordet i
- * margen er det same som over skyvargruppene.
- */
 export const UTTAK: readonly { bolk: string; filer: readonly { id: ExportKind; label: string; hint: string }[] }[] = [
   {
     bolk: "rom",
@@ -57,12 +42,9 @@ export const UTTAK: readonly { bolk: string; filer: readonly { id: ExportKind; l
   },
 ]
 
-/** Ein knapp som leverer ei tom fil lyg, og han lyg i LightBurn. Dei to
- *  prøvene og prosjektfila treng ingen delar. */
 export function stengd(x: ExportKind, m: Metrics | null): string {
   if (x === "prove" || x === "bogprove" || x === "prosjekt" || !m) return ""
   if (m.parts === 0) return "ville vorte ei tom fil: ingen delar"
-  // «flat» og «3mf» er nestinga si: får ingen del plass på plata, ligg ingen del flatt
   if ((x === "ark" || x === "png" || x === "dxf" || x === "alt" || x === "flat" || x === "3mf") && m.sheets === 0) {
     return "ville vorte ei tom fil: ingen del fekk plass på plata"
   }
@@ -70,40 +52,17 @@ export function stengd(x: ExportKind, m: Metrics | null): string {
 }
 
 export const DASH = "–"
-/** 2,5 mm er ikkje 3 mm: desimalen står når han finst */
 export const tjukn = (v: number) => nn(v, Number.isInteger(v) ? 0 : 1)
 export const n0 = (v: number) => nn(v, 0)
 export const num = (p: ParamBag, k: string, fallback: number) =>
   typeof p[k] === "number" ? (p[k] as number) : fallback
 
 export const HAIR: CSSProperties = { borderColor: "var(--rule)" }
-/**
- * TO TRYKK LENGRE FRÅ KVARANDRE ENN DETTE ER TO TRYKK.
- *
- * Same vindauge som eit trykk på lerretet får (`tapDown` i scene.tsx), og
- * det står her av di tre reiskapar deler det: forma tek boksen, bøyen rettar
- * planet ut, og eit punkt i omrisset vert ein boge. Ei hand skal ikkje måtte
- * lære seg tre ulike dobbelttrykk.
- */
 export const DOBBELT_MS = 320
-/* Flate knappar: fyllet byter, og ikkje noko anna — ingen skugge, ingen overgang, inga krymping under fingeren. */
-/**
- * EIT VERKTY ER EIT IKON, og ikkje anna.
- *
- * Ringen og den fylte sirkelen kring kvart ikon var chrome som sa det
- * ikonet alt sa. Treffeflata er den same — `hit` gjev fire og førti pikslar
- * same kva — men flata er borte: full blekk når knappen gjeld, dempa når
- * han er av eller stengd, og eit trykk dempar han eit augeblikk.
- */
 export const ICON_BTN =
   "hit ikon relative flex h-9 w-9 shrink-0 items-center justify-center"
 export const CHIP =
   "hit min-h-[36px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] disabled:opacity-30"
-/**
- * OG EIT ORD ER EIN KNAPP. Sjå `.ord` i `globals.css`: same tilstandane som
- * ikonet, utan ringen og den fylte flata. Lesemåtane i toppen og
- * speglingane over skjer er ord, ikkje piller.
- */
 export const ORD =
   "hit ord min-h-[36px] text-[11px] leading-none tracking-[0.04em]"
 export function chipStyle(active: boolean): CSSProperties {
@@ -112,8 +71,6 @@ export function chipStyle(active: boolean): CSSProperties {
     : { color: "var(--ink)", borderColor: "var(--rule)" }
 }
 
-/** RÅDET SOM KNAPP. Regelen har rekna talet; knappen set det gjennom den
- *  vanlege vegen, so det ligg i angrelista som alt anna. */
 export function Fiksen({ rule, params, onChange }: { rule: Rule; params: ParamBag; onChange: (p: ParamBag) => void }) {
   if (rule.ok || !rule.fiks) return null
   const f = rule.fiks
@@ -131,45 +88,23 @@ export function Fiksen({ rule, params, onChange }: { rule: Rule; params: ParamBa
   )
 }
 
-/** ikona er strekar, teikna her: ti ikon er ikkje verdt ein avhengnad */
 const ikon = (d: string, k = "h-4 w-4") => (
   <svg viewBox="0 0 24 24" className={k} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     {d.split("|").map((q, i) => <path key={i} d={q} />)}
   </svg>
 )
-/** verktyet for rutenettet: kolonner og rader */
 export const IcoRute = ikon("M3 3h18v18H3z|M9 3v18|M15 3v18|M3 9h18|M3 15h18")
-/**
- * VERKTYET FOR MONTASJEN: tre plater som lyfter seg av ein stabel.
- *
- * Ikkje ein pilknapp og ikkje ei klokke — dei ville sagt «spel», og det er
- * ikkje kva reiskapen er. Han er kroppen som reiser seg av platene sine, og
- * det er det biletet seier: nedst ligg stabelen, over han står to plater
- * på veg opp, kvar sitt hakk.
- */
 export const IcoMontasje = ikon("M3 20h18|M6 15.5h12|M8.5 11h7|M11 6.5h2")
 
 export const IcoSliders = ikon("M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4")
 export const IcoDown = ikon("m6 9 6 6 6-6")
 export const IcoAngre = ikon("M9 14 4 9l5-5|M4 9h10a6 6 0 0 1 0 12h-3", "h-3.5 w-3.5")
 export const IcoGjerOm = ikon("m15 14 5-5-5-5|M20 9H10a6 6 0 0 0 0 12h3", "h-3.5 w-3.5")
-/**
- * FIRKANTEN: profilen vert boksen kring seg sjølv. Ramma er svaret, og
- * kurva inni er det ho tek over for.
- */
 export const IcoFirkant = ikon("M4 5h16v14H4z|M7.5 16c1.2-4.5 3.2-2.4 4.3-5.4")
-/** MJUKINGA: eit hjørne som er runda av — det er heile handlinga */
 export const IcoMjuk = ikon("M4 20V11a7 7 0 0 1 7-7h9")
 export const IcoReset = ikon("M3 12a9 9 0 1 0 2.6-6.36|M3 4v4.5h4.5", "h-3.5 w-3.5")
 export const IcoShare = ikon("M12 3v12|m8 7 4-4 4 4|M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8", "h-3.5 w-3.5")
 export const IcoUttak = ikon("M12 15V3|m8 11 4 4 4-4|M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4")
-/**
- * FORMA: PROFILEN SOM PUNKT.
- *
- * Ei mangekant med prikkar i hjørna. Prikkane er heile saka — dei er det
- * handa tek i — so dei står i papirfarge inni streken og ikkje som fylte
- * punkt: eit handtak er ein ring du kan setje fingeren i.
- */
 export const IcoForm = (
   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
     <path d="M5.5 9 12 4l6.5 5-2.5 9.5h-8z" />
@@ -178,14 +113,6 @@ export const IcoForm = (
     ))}
   </svg>
 )
-/**
- * TEIKN EI FLATE: ei open kjede med eit ope hjørne att.
- *
- * Skilnaden frå `IcoForm` er heile poenget: DEN er ei lukka mangekant med
- * handtak i hjørna — ei form som står. Denne er tre strekar og eit hjørne
- * som ikkje er sett enno, med det fyrste punktet i papirfarge: det er DET
- * du lukkar mot. Ikonet seier kva handlinga er, ikkje kva ho endar i.
- */
 export const IcoTeikn = (
   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
     <path d="M5 19 4 7l9-3 7 6" />
@@ -193,11 +120,8 @@ export const IcoTeikn = (
     <circle cx={5} cy={19} r={2.2} fill="var(--paper)" />
   </svg>
 )
-/** SKJER: kniven. Handlinga som gjer skissa til ein del — eit ikon og aldri eit ord. */
 export const IcoSkjer = ikon("M3 21l6-6|M9 15 20.5 3.5c1.3 3.3.4 6.3-2.4 8.4L9 15z", "h-7 w-7")
-/** slett det valde planet */
 export const IcoSlett = ikon("M4 7h16|M9 7V4h6v3|M6 7l1 13h10l1-13|M10 11v6|M14 11v6", "h-5 w-5")
-/** streka i profilen: gods er ein fylt firkant med pluss, eit hòl er ein ring med minus */
 export const IcoGods = (
   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
     <rect x="4" y="4" width="16" height="16" rx="2" fill="currentColor" />
@@ -210,41 +134,23 @@ export const IcoHol = (
     <path d="M8.5 12h7" />
   </svg>
 )
-/**
- * SKALET: kroppen slik han var, teikna gjennomsiktig kring delane.
- * Ikonet er den saka: eit stipla omriss — det som ikkje vert skore — med
- * ribbene i fullt blekk inni.
- */
 export const IcoSkal = (
   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="4.5" width="18" height="15" rx="1.5" strokeWidth={1.5} strokeDasharray="3 2.6" />
     <path d="M8 8.5v7M12 8.5v7M16 8.5v7" strokeWidth={2.2} />
   </svg>
 )
-/**
- * BØYEN: ei plate sedd frå enden, krum. Streken over er den flate ho var —
- * det er skilnaden knappen set.
- */
 export const IcoBoy = (
   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round">
     <path d="M3 7h18" strokeWidth={1.2} opacity={0.45} />
     <path d="M3 17c4.5-7 13.5-7 18 0" strokeWidth={2.4} />
   </svg>
 )
-/** verktyet for kroppen: bitane som ein boks */
 export const IcoBit = ikon("M12 3 3 7.5v9L12 21l9-4.5v-9L12 3z|M3 7.5 12 12l9-4.5|M12 12v9", "h-5 w-5")
-/** ein bit til, lik den valde */
 export const IcoDupliser = ikon("M9 9h10v10H9z|M5 15V5h10", "h-5 w-5")
-/** oppsettet: kopier det ut, lim det inn */
 export const IcoKopier = ikon("M9 9h10v10H9z|M5 15V5h10", "h-4 w-4")
 export const IcoLimInn = ikon("M9 4h6v3H9z|M15 5h3v15H6V5h3|M12 10v7|m9 14 3 3 3-3", "h-4 w-4")
-/** dei to fyrste stega i rettleiinga: snu, og sikt */
 
-/**
- * TAVLA OG REGLANE ER DEN SAME LISTA. Éi line per avlesing: verdien frå
- * målinga, farga av regelen som dømer henne (`Rule.rad`), med rådet i lina.
- * Tom tavle og full tavle er same lista, so dei kan ikkje drive frå kvarandre.
- */
 export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
   metrics: Metrics | null
   rules: readonly Rule[]
@@ -253,19 +159,6 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
   onChange: (p: ParamBag) => void
   onFiksAlle: () => void
 }) {
-  /**
-   * ALLE RÅDA I EITT TRYKK.
-   *
-   * Kvart råd har alltid vore ein knapp, og det held so lenge det er EITT
-   * som er gale. Eit objekt med åtte og fyrti plan kan ha seks brot på ein
-   * gong, i ei rekkjefylgje ingen har fortalt deg, der kvar av dei endrar
-   * kva dei andre svarar. Då er seks knappar ikkje ein veg ut, det er ei
-   * oppgåve.
-   *
-   * Han står berre når det finst noko TRYGT å trykkje. Eit råd som riv
-   * arbeid — «ta bort dei som står fast» — er ikkje med her; det skal vera
-   * eit trykk du meinte, og det har sin eigen knapp på rada si.
-   */
   const trygge = rules.filter((r) => !r.ok && r.fiks && !r.fiks.riv)
   const eig = new Map<string, Rule>()
   for (const r of rules) if (r.rad) eig.set(r.rad, r)
@@ -284,21 +177,6 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
     </button>
   ) : null
   const rader = metrics ? metrics.list : RADER.map((r) => ({ ...r, text: DASH }))
-  /**
-   * REGLANE UTAN EI RAD, NÅR DEI RYK.
-   *
-   * Tavla teiknar avlesingane, og ein regel finn lina si gjennom `rad`.
-   * Tre reglar har inga rad å peike på — dei dømer noko som ikkje er eit
-   * tal i tavla: rekkjefylgja delane går inn i, klaringa og snittbreidda,
-   * som er skyvarar og ikkje geometri. Dei vart difor rekna, dømde, gjevne
-   * eit råd, og TEIKNA INGEN STAD. «Kan monterast» er hard og ber knappen
-   * som byter rekkjefylgja: kroppen din kunne ikkje setjast saman, reiskapen
-   * visste det, reiskapen hadde vegen ut — og du fekk aldri sjå noko av det.
-   *
-   * Dei står her, under avlesingane, og berre når dei ryk: ein regel som
-   * held har ikkje noko å seie, og ei tavle med tretten grøne liner er ei
-   * tavle ingen les.
-   */
   const utanRad = rules.filter((r) => !r.rad && !r.ok)
   return (
     <dl
@@ -312,7 +190,6 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
           <div
             key={q.id}
             title={r?.why}
-            // ei rad som ryk får heile lina: regelen sitt tal og knappen
             className={"flex items-baseline justify-between gap-2 py-[2px] leading-4" + (brote ? " col-span-2" : "")}
           >
             <dt className="dim shrink-0 truncate">{q.label}</dt>
@@ -344,42 +221,21 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
   )
 }
 
-/** kven som eig rullinga no, og når ho sist rørte seg — sjå `SliderRow` */
 const hjul: { el: Element | null; tid: number } = { el: null, tid: 0 }
 
-/**
- * ÉIN VERDI, SETT MED EIN EIGENTLEG SKYVAR.
- *
- * Sporet tek trykk og drag, og nettlesaren gjev same kontroll på mus, finger
- * og tastatur. Piler gjev eitt steg, skift gjev ti, og sidepilene gjev ti.
- * Verdien går live medan du dreg, og heile draget vert eitt steg i angre.
- *
- * EITT TRYKK PÅ TALET OPNAR FELTET: materialet er målt med skyvelær
- * og 11,85 mm må kunne setjast utan at eit trykk i sporet fyrst endrar
- * tjukna. Feltet er 16 px på telefonen for å unngå iOS-zoom. Enter i
- * skyvaren eller dobbeltklikk på benken verkar òg. Feltet finst
- * berre medan du skriv — elles er rada den same skrubbaren som på
- * telefonen, og eit felt som stod der heile tida ville teke fokus frå
- * tastane som styrer rommet.
- */
 export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
   k: string
   r: Range
   value: number
-  /** ei måling som høyrer til verdien, under etiketten */
   bi?: string
-  /** pilene stegar berre der det finst eit tastatur */
   benk?: boolean
   onChange: (k: string, v: number) => void
-  /** draget er i gang: angre ventar til det er sleppt */
   onSkrubb?: (aktiv: boolean) => void
 }) {
   const shown = r.names ? (r.names[Math.round(value)] ?? String(value)) : feltTal(value, r.step).replace(".", ",")
-  /** talet medan det vert skrive; null er ikkje-skriv */
   const [skriv, setSkriv] = useState<string | null>(null)
   const kanSkrive = !r.names
   const opneFelt = () => setSkriv(feltTal(value, r.step).replace(".", ","))
-  /** eitt send per felt: enter tek feltet bort, og blur-en som fylgjer skal ikkje sende att */
   const sendt = useRef(false)
   const send = (s: string) => {
     if (sendt.current) return
@@ -388,23 +244,6 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
     const v = lesTal(s)
     if (s.trim() !== "" && Number.isFinite(v)) onChange(k, snap(v, r))
   }
-  /**
-   * HJULET STEGAR VERDIEN, og spalta under står stille.
-   *
-   * På benken er handa på ei mus, og det som ligg under peikaren er det du
-   * meiner. Eit hakk er eit steg, skift er ti — dei same to stega pilene
-   * alt gjev — og retninga er den same om du rullar loddrett eller
-   * sidelengs, av di rada ER vassrett.
-   *
-   * TERSKELEN ER EIT HAKK PÅ MUSA. Ei mus sender hundre per hakk; ei
-   * styreflate sender ein straum av små tal, og eitt steg per melding
-   * ville sendt verdien til taket av ei lita rørsle. Difor vert dei lagde
-   * saman til eit hakk er fullt, og summen vert nullstilt når du snur.
-   *
-   * Lyttaren er hengd på for hand av di React sin `onWheel` er passiv:
-   * `preventDefault` der er ei åtvaring i konsollen og ei spalte som
-   * rullar likevel.
-   */
   const rad = useRef<HTMLDivElement | null>(null)
   const naa = useRef({ value, r, k, skriv })
   naa.current = { value, r, k, skriv }
@@ -417,15 +256,6 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
       if (sk !== null) return
       const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : -e.deltaY
       if (!d) return
-      /**
-       * EI RULLING SOM ALT ER I GANG HØYRER TIL DEN HO BYRJA I.
-       *
-       * Spalta er høg og radene ligg tett: rullar du deg nedover ho med to
-       * fingrar, glir peikaren over ti tal på vegen, og kvart av dei ville
-       * teke rullinga frå deg og sett seg sjølv i staden. Difor eig den
-       * fyrste mottakaren gesten so lenge ho held fram — ein pause på ein
-       * sjettedels sekund er ny gest, og då er det raden under peikaren.
-       */
       const no = e.timeStamp
       if (hjul.el && hjul.el !== el && no - hjul.tid < 160) {
         hjul.tid = no

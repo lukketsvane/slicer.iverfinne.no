@@ -1,27 +1,3 @@
-/**
- * TAKET PÅ PLANA, MÅLT.
- *
- * `REBUILD.md` spør: «How many hand-placed planes before a phone gives up?
- * Find the ceiling on real hardware early. It sets how ambitious the
- * editing model can be.» Spørsmålet stod ope, og ingen vakt såg langs den
- * aksen: `tung` måler TREKANTAR — ein kropp på ein million — og alt anna
- * måler eitt objekt med tolv plan i. Kva som skjer når du dreg rutenettet
- * til seksti og fire, visste ingen.
- *
- * Her vert det målt, og det vert eit BUDSJETT. Ei rekning som går frå
- * lineær til kvadratisk i talet på plan er den dyraste feilen denne koden
- * kan gjere, og den einaste som ikkje syner seg som eit gale tal: alt er
- * rett, det tek berre ti sekund.
- *
- * TO KOEFFISIENTAR, SKILDE MED EIN KONTROLL. Kostnaden er to ting som veks
- * ulikt: kvart plan vert snitta for seg (lineært), og kvart PAR av plan som
- * kryssar må finne ledda sine (kvadratisk i talet på plan). Eit rutenett
- * n×n har begge. Same talet plan, alle PARALLELLE, har berre den fyrste —
- * dei kryssar aldri. Skilnaden mellom dei to er leddarbeidet, og då står
- * dei to koeffisientane kvar for seg og kan få kvar sitt tak.
- *
- *   npx tsx scripts/tak.ts
- */
 import { MOTOR } from "../lib/motor"
 import { kjeldeNull, kjeldeTal, makeKropp, vendNull, vendTal } from "../lib/kropp"
 import { put } from "../lib/sources"
@@ -41,18 +17,6 @@ const ok = (namn: string, sant: boolean, kva = "") => {
   else bryt(`${namn.padEnd(46)} ${kva}`)
 }
 
-/**
- * PRØVEKROPPEN er ei kule på to hundre millimeter: krum overalt, so kvart
- * plan gjev ein ulik profil og ingen av dei er gratis. Han vert snitta med
- * dei same plana kvar gong, so tala kan samanliknast frå køyring til
- * køyring — det er utviklinga i dei som er saka, ikkje talet i seg sjølv.
- */
-/**
- * Kula vert laga her og ikkje henta: dei innebygde formene er filer no, og
- * ein prøvebenk som må over nettet for å måle er ein prøvebenk som måler
- * nettet. Same kula som `vrient` bruker, og ho står i minnet under sitt
- * eige namn so ingen ting anna kan koma til å svare på det.
- */
 function kuleSuppe(r: number, seg: number): Float32Array {
   const p: number[] = []
   const at = (i: number, j: number): [number, number, number] => {
@@ -75,16 +39,6 @@ put("t-kule", "kule", makeSoup(kuleSuppe(50, 48)))
 
 const GRUNN = { ...DEFAULT_PARAMS, kjelde: "t-kule", storleik: 200 } as Params
 
-/**
- * Eitt mål, med nettet varmt: det er snittinga som skal målast, ikkje
- * sveisinga.
- *
- * `frø` skuvar storleiken ein millimeter per runde. Det er ikkje pynt: både
- * bygget og snittet vert hugsa på ein nøkkel som har storleiken i seg, so
- * det SAME plansettet målt to gonger er eit oppslag og ikkje ei rekning. Vil
- * du måle det same arbeidet om att, må du be om noko som er likt og ikkje
- * identisk.
- */
 function maal(plan: string, frø = 0): { ms: number; delar: number; ledd: number; plan: number } {
   const bag = { ...GRUNN, storleik: 200 + frø, plan } as unknown as ParamBag
   const t0 = Date.now()
@@ -92,15 +46,6 @@ function maal(plan: string, frø = 0): { ms: number; delar: number; ledd: number
   return { ms: Date.now() - t0, delar: m.parts, ledd: m.joints, plan: lesPlan(plan).length }
 }
 
-/**
- * OPPVARMINGA MÅ STÅ UTANFOR MÅLINGA.
- *
- * Bygget og snittet vert begge hugsa (`keep` i `bygg.ts`, og snittet på
- * `snittKey`), so eit plansett som er MÅLT ÉIN GONG er gratis andre gongen.
- * Varmar du opp med eit sett som seinare står i sveipet, måler du oppslaget
- * og ikkje rekninga — og kurva får eit hòl i seg som ser ut som ei
- * forbetring. Difor eitt einaste plan her, og aldri eit tal frå TAL.
- */
 MOTOR.measure({ ...GRUNN, plan: skrivPlan(rutenett(1, 1)) } as unknown as ParamBag)
 
 console.log("taket på plana, målt på ei kule på 200 mm:\n")
@@ -118,10 +63,7 @@ const TAL = [8, 16, 32, 48, PLAN_TAK] as const
 const rader: { n: number; rute: number; para: number; ledd: number; perPlan: number; perLedd: number }[] = []
 
 for (const n of TAL) {
-  // Rutenettet: n/2 kvar veg er n plan, og nesten kvart par på tvers kryssar.
   const rute = maal(skrivPlan(rutenett(n / 2, n / 2)))
-  // Kontrollen: like mange plan, alle langs same aksen. Ingen av dei kryssar
-  // kvarandre, so her er det berre snittinga.
   const para = maal(skrivPlan(rutenett(n, 0)))
   if (rute.plan !== n || para.plan !== n) {
     bryt(`${n} plan vart ${rute.plan} og ${para.plan} — rutenettet gjev ikkje talet det skal`)
@@ -144,18 +86,6 @@ for (const n of TAL) {
 
 console.log("")
 
-/**
- * BUDSJETTA er romslege med vilje. Talet på ei anna maskin er eit anna tal,
- * og ei vakt som ryk av di prøvebenken var travel lærer deg å sjå bort frå
- * henne. Det som skal fangast er ikkje ein halv millisekund, det er ei
- * rekning som har bytt orden — og då er tre til fire gonger for lite,
- * ikkje for mykje.
- *
- * Målt på maskina dette vart skrive på: 16 ms per plan og 1,6 ms per ledd
- * ved taket, so seksti og fire plan er kring to sekund. Ein telefon er tre
- * til fem gonger tregare, og DET er svaret på spørsmålet i REBUILD.md:
- * taket er nådd lenge før seksti og fire.
- */
 const MS_PER_PLAN = 60
 const MS_PER_LEDD = 6
 
@@ -166,41 +96,8 @@ else {
   ok(`leddarbeidet held seg under ${MS_PER_LEDD} ms per ledd`, siste.perLedd < MS_PER_LEDD, `${siste.perLedd.toFixed(2)} ms ved ${siste.ledd} ledd`)
 }
 
-/**
- * OG FORMA PÅ KURVA, som er det vakta eigentleg er til for.
- *
- * Snittinga er eitt plan om gongen og skal vera LINEÆR i talet på plan.
- * Prøva er difor DOBLINGA, på dei parallelle: dobbelt so mange plan skal
- * kosta dobbelt, ikkje fire gonger. Målt på rein kode ligg han på 1,89 til
- * 1,97 over mange køyringar — teorien seier 2,00, og han held seg der.
- *
- * Taket på 2,3 er rekna og ikkje gjetta. Legg nokon inn eit ledd som veks
- * kvadratisk og er berre HALVT so tungt som den lineære rekninga ved taket,
- * vert doblinga 2,40; er det like tungt, 2,67; er alt kvadratisk, 4,00. Ei
- * grense på 2,3 fangar difor sjølv den halve — og ligg framleis eit stykke
- * over det reine talet. Éin koeffisient per plan fanga ikkje det same: han
- * er ei brøk mellom to målingar med kvar sin støy, og ei innsprøyting som
- * dobla kostnaden per plan flytte han berre frå 14,6 til 28,7.
- */
 const halv = rader.find((r) => r.n === 32)
 if (halv && siste && halv !== siste && siste.n === halv.n * 2) {
-  /**
-   * OG HO VERT MÅLT TRE GONGER, med den BESTE som svar.
-   *
-   * Brøken er to veggklokkemålingar med kvar sin støy, og denne vakta står i
-   * CI, der naboen er ukjend. Målt her: ×1,84, ×1,95 og ×1,90 på ei roleg
-   * maskin — og ×2,55 medan eit bygg åt fire kjernar, mot ei grense på 2,3.
-   * Det er ikkje koden som endra seg mellom dei to, det er maskina.
-   *
-   * Ei vakt som kan verta raud av ein travel tenar lærer folk å køyre henne
-   * om att, og ei vakt folk køyrer om att er ikkje lenger ei vakt. So ho
-   * køyrer sjølv: trengsel gjer tal STØRRE og aldri mindre, so den beste av
-   * tre er den reinaste målinga, og ein kode som verkeleg har bytt orden
-   * ligg over grensa i alle tre.
-   *
-   * Kvar runde får sitt eige frø — sjå `maal`: det same settet om att er eit
-   * bufferoppslag og ikkje ei måling.
-   */
   let dobling = siste.para / Math.max(1, halv.para)
   const alle = [dobling]
   for (const frø of [1, 2]) {
@@ -217,11 +114,6 @@ if (halv && siste && halv !== siste && siste.n === halv.n * 2) {
   )
 }
 
-/**
- * OG TAKET SKAL VERA NÅBART. Seksti og fire plan er det lista tek imot, og
- * det skal gje ein kropp med delar, ledd og ei pakking — ikkje eit unntak,
- * og ikkje null delar. Ei grense du ikkje kan gå heilt til er ei anna grense.
- */
 {
   const full = maal(skrivPlan(rutenett(PLAN_TAK / 2, PLAN_TAK / 2)))
   ok(`taket på ${PLAN_TAK} plan er nåbart`, full.delar > 0 && full.ledd > 0, `${full.delar} delar, ${full.ledd} ledd`)
@@ -230,15 +122,6 @@ if (halv && siste && halv !== siste && siste.n === halv.n * 2) {
   ok("og kuttfila kjem ut av det", (ark.data?.byteLength ?? ark.text?.length ?? 0) > 0, `${ark.name}`)
 }
 
-/**
- * EI VIFTE AV PLAN, som TESTDATA og ikkje som ein reiskap.
- *
- * `virvel` var eit verkty i appen og er teken bort. Men det han laga — n
- * plan kring loddaksen, kvart med si eiga retning — er framleis den
- * hardaste prøva på hugsen i `vend`: eit rutenett har TO retningar same kor
- * mange plan det har, ei vifte har éi per plan. Geometrien vert difor laga
- * her, der ho høyrer heime når ho berre er noko å måle på.
- */
 const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1): Plan[] => {
   const W = Math.max(1e-6, vidd[0])
   const D = Math.max(1e-6, vidd[1])
@@ -256,22 +139,6 @@ const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1):
   return ut
 }
 
-/**
- * OG EI VIFTE, SOM ER DEN HARDASTE PRØVA PÅ HUGSEN.
- *
- * Eit rutenett har TO retningar same kor mange plan det har; ei vifte har
- * EI PER PLAN. `vend` snur heile nettet per retning og hugsar svaret, so
- * rutenettet betaler den snuinga to gonger og vifta n gonger — med
- * mindre hugsen held. Han heldt ikkje: taket stod på tolv oppslag, og over
- * det fall han i FIFO-fella der same bygget går gjennom retningane i same
- * rekkjefylgja og alltid kastar den eldste rett før han skal brukast att.
- * Målt før rettinga: null treff og førti bom på tjue ribber.
- *
- * Vakta er difor FORMA på kostnaden per plan. Held hugsen, kostar ein
- * vifte med fire gonger så mange plan om lag fire gonger så mykje — det
- * er berre fleire plan å snitte. Fell han attende i fella, betaler kvar
- * ribbe ei heil vending av nettet, og talet per plan spring.
- */
 {
   const vifteMaal = (n: number) => maal(skrivPlan(vifte(n, 0.25, [1, 1])))
   const lite = vifteMaal(8)
@@ -282,20 +149,7 @@ const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1):
     `\n  vifte: ${lite.plan} plan ${lite.ms} ms (${perLite.toFixed(1)} ms/plan) · ` +
       `${stort.plan} ribber ${stort.ms} ms (${perStort.toFixed(1)} ms/plan)`,
   )
-  /**
-   * OG PRØVA ER BOMMANE, IKKJE TIDA.
-   *
-   * Prøvekroppen her er liten med vilje, og å snu fem tusen trekantar
-   * kostar knapt noko — ein terskel på millisekund ville drukna i støy og
-   * stått grøn med heile fella attende. Talet på bom er eksakt og likt på
-   * kvar maskin: byggjer du DET SAME plansettet ein gong til, skal `vend`
-   * ikkje snu nettet ein einaste gong.
-   */
   const plan32 = skrivPlan(vifte(32, 0.25, [1, 1]))
-  // Eit IDENTISK bygg til når aldri fram til `vend`: heile snittet er
-  // hugsa på `snittKey`. Det som skal målast er redigeringssløyfa — ein
-  // finger på tjukna, som byggjer om alt NEDANFOR vendinga men spør om
-  // nøyaktig dei same retningane.
   MOTOR.measure({ ...GRUNN, plan: plan32 } as unknown as ParamBag)
   vendNull()
   MOTOR.measure({ ...GRUNN, plan: plan32, tjukn: 3.5 } as unknown as ParamBag)
@@ -307,20 +161,6 @@ const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1):
   )
 }
 
-/**
- * --- EIN GEST PÅ EIN BIT, OG KVA HAN KOSTAR --------------------------------
- *
- * Det dyraste ein finger kan gjere er å vri ein bit i ein kropp av fleire:
- * kvart einaste bilete er ein ny kropp, og han vert bygd om att medan
- * fingeren står på. Sveisen, snuinga, forenklinga og glattinga høyrer til
- * KJELDA og ikkje til kroppen ho står i, so dei skal ikkje gjerast om att av
- * di ein annan bit flytta seg fire millimeter — og det er bommane som seier
- * det, ikkje tida: eit prøvenett er lite, og ei tidsgrense ville drukna i
- * støy og stått grøn med heile fella attende.
- *
- * Tida står likevel, som opplysning. Det er ho ein argumenterer frå når
- * nokon spør om reiskapen held på ein telefon.
- */
 {
   console.log("\n=== ein gest på ein bit ===")
   const plan = skrivPlan(rutenett(3, 3))
@@ -329,7 +169,6 @@ const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1):
   const frame = (rz: number) => {
     const p = { ...GRUNN, plan, scene: scene(rz) } as unknown as ParamBag
     const t0 = Date.now()
-    // det appen gjer per bilete: skalet fyrst, so ribbene
     MOTOR.build(p, "lav", "flate")
     MOTOR.build(p, "lav", "lag")
     return Date.now() - t0
@@ -348,18 +187,6 @@ const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1):
   console.log(`  gest: ${Math.min(...tider)}–${Math.max(...tider)} ms per bilete, tre bitar`)
 }
 
-/**
- * BOGAR I OMRISSA, VED TAKET.
- *
- * Punkta frå `omrissLine` går rett inn i feltet, og der vert kvar kant gått
- * for kvar celle i ruta. Ei fast deling på åtte gjorde eit omriss på 24
- * punkt til 192 og bygget fire gonger dyrare — på arbeidaren, for kvart tal
- * du dreg i. Delinga er adaptiv no (sjå `BOGE_TOL`), og dette er talet som
- * held henne der: bogar skal koste under det doble av ingen bogar.
- *
- * Rutenettet ovanfor har ingen omriss i det heile, so utan denne målte
- * ingenting dette.
- */
 {
   console.log("\n=== bogar ved taket ===")
   const sirkel = (n: number, r = 0.35) =>
@@ -390,30 +217,6 @@ const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1):
   )
 }
 
-/**
- * RILLA VED TAKET — OG HO VERT MÅLT I SNITT, IKKJE I MILLISEKUND.
- *
- * TRE FREISTNADER PÅ EI TIDSMÅLING MÅLTE NOKO ANNA ENN DEI SA, og dei står
- * her av di den neste elles prøver dei om att. Den fyrste varma opp med den
- * same saka og las eit bufra null. Den andre dropp oppvarminga og målte
- * JIT-EN: fyrste kallet 1,1 s, andre 0,3 s, same kva for eit material som
- * kom fyrst — talet sa 2,6× og meinte «V8 hadde ikkje sett denne koden før».
- * Den tredje bygde kroppen inni målinga, og han vert bufra mellom dei to, so
- * det RILLA bygget kom ut raskare enn det urilla. `buildSnitt` hugsar
- * dessutan på `snittKey`, so det fjerde forsøket målte eit oppslag.
- *
- * Tida ER målt, ved å kalle mønsteret direkte: 50 ms for 3000 snitt, mot ei
- * snitting på kring 300. Det talet står her som eit TAL og ikkje som ein
- * påstand, av di det ikkje let seg lesa stabilt gjennom fire lag med bufring.
- *
- * Det som ER stabilt, og som er sjølve kostnadsdrivaren, er KOR MANGE SNITT
- * mønsteret legg. Eksploderer det talet, eksploderer alt som fylgjer: kuttfila,
- * platesynet, nestinga. Difor er taket eit tal på snitt — og saka er den
- * same geometrien to gonger, der berre materialet skil: papp toler R = 30 mm
- * og vert ikkje rilla, finér krev 300 og vert det. At dei to i det heile er
- * ulike er sjølv ei prøve, av di materialet kom inn i snittnøkkelen den dagen
- * rilla vart skriven.
- */
 {
   console.log("\n=== rilla ved taket ===")
   const plan = skrivPlan(
@@ -432,17 +235,8 @@ const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1):
     utan === 0 && med > 0 && med < TAK_SNITT,
     `papp ${utan} · finér ${med} snittliner over ${rilla.ribber.filter((q) => q.r.k).length} bøygde ribber`,
   )
-  /**
-   * OG RADENE SKAL STÅ DER STEGET SEIER. Talet over seier kor mange; dette
-   * seier at dei ligg som eit mønster og ikkje som ein haug. Tre millimeter
-   * finér gjev eit steg på ei tjukn — og u er BUELENGD, so avstanden er den
-   * same heile vegen rundt bogen.
-   */
   const ribbe = rilla.ribber.find((q) => q.r.k && q.rille.length)
   const us = [...new Set((ribbe?.rille ?? []).map((l) => +l[0][0].toFixed(3)))].sort((a, b) => a - b)
-  // EIT HEILT TAL STEG og ikkje eitt steg: ei rad der kvart einaste snitt
-  // fall i ei sperresone er ei rad utan liner, og då er hoppet to steg. Det
-  // er mønsteret som fungerer, ikkje mønsteret som sviktar.
   const verst = us.slice(1).reduce((m, v, i) => {
     const n = (v - us[i]) / 3
     return Math.max(m, Math.abs(n - Math.round(n)))
@@ -454,22 +248,10 @@ const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1):
   )
 }
 
-/**
- * OG MONTASJEN VED TAKET.
- *
- * Han byggjer eit nett per DEL og ikkje eitt for heile stabelen, so han er
- * den eine rekninga som veks med kor mange delar du har og ikkje med kor
- * fint nettet er. Med plantaket fullt er det verste tilfellet, og det er
- * eit tal verdt å ha skrive ned: reiskapen vert spurd når du opnar han, og
- * ein reiskap som brukar fleire sekund på å opne seg er ein reiskap du
- * trur er broten.
- */
 {
   console.log("\n=== montasjen ved taket ===")
   const plan = skrivPlan(rutenett(PLAN_TAK / 2, PLAN_TAK / 2))
   const bag = { ...GRUNN, plan } as unknown as ParamBag
-  // bygget fyrst, so tida er montasjen og ikkje snittinga: appen har alt
-  // bygd kroppen når du trykkjer på knappen
   MOTOR.liste(bag)
   const t0 = Date.now()
   const m = MOTOR.montasje(bag)

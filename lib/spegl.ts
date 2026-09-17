@@ -2,14 +2,11 @@ import type { Pt, Vec3 } from "./core"
 import { add3, dot, inn, nyGruppe, nyId, omrissLine, ramme, spegla, ut, type Plan } from "./plan"
 import { stykkeLangs } from "./stykke"
 
-/** Spegelbiletet tek heile teikninga med inn i den nye lokale ramma. */
 export function speglPlan(p: Plan, akse: number, min: Vec3, max: Vec3): Plan {
   const ny = { ...p, ...spegla(p.o, p.n, akse) }
   const foer = ramme(p, min, max)
   const etter = ramme(ny, min, max)
   const vend = (v: Vec3): Vec3 => v.map((q, i) => i === akse ? -q : q) as Vec3
-  // Hovudaksane held referanseaksen i akser(). Difor er avbildinga to
-  // forteikn: ingen skeivskalering av eit rundt hòl eller av bøyen.
   const su = Math.sign(dot(etter.u, vend(foer.u)))
   const sv = Math.sign(dot(etter.v, vend(foer.v)))
   const punkt = ([x, y]: Pt): Pt => [su * x || 0, sv * y || 0]
@@ -20,23 +17,12 @@ export function speglPlan(p: Plan, akse: number, min: Vec3, max: Vec3): Plan {
     strek: p.strek.map((s) => {
       const [x, y] = punkt([s.x, s.y])
       const a = s.a * Math.PI / 180
-      // ei spegling er ei dreiing og ein snudd lokal y — ein firkant og ein
-      // ellipse ser ikkje det siste, ein teikna kontur gjer
       const snudd = su * sv < 0 && s.punkt ? { punkt: s.punkt.map(([px, py]): Pt => [px, -py || 0]) } : {}
       return { ...s, ...snudd, x, y, a: +((Math.atan2(sv * Math.sin(a), su * Math.cos(a)) * 180) / Math.PI).toFixed(4) }
     }),
   }
 }
 
-/**
- * EI PLATE SOM STÅR PÅ SPEGELEN ER EI SIDE SOM SKAL VERA TO.
- *
- * Du teiknar sida rett framfor deg, og teikneplanet går gjennom midten — so
- * spegelen er planet ho står i. Å snu henne der gjev ingenting nokon ville
- * ha; å dele henne i eit par gjev krakken. Dei to går ein tredel av
- * storleiken ut til kvar side og er ei gruppe; eit drag i den eine flyttar
- * den andre spegla (`medGruppa`). Null når plata ikkje står på spegelen.
- */
 export function speglPar(q: Plan, akse: number, min: Vec3, max: Vec3, S: number, l: readonly Plan[], t = 0): { flytt: Plan; kopi: Plan } | null {
   if (q.bog || Math.abs(Math.abs(q.n[akse]) - 1) > 1e-6 || Math.abs(q.o[akse] - 0.5) > 1e-4) return null
   const ut = Math.min(S / 3, innafor(q, akse, min, max, S, l, t) - 2.5 * t) / Math.max(1e-6, max[akse] - min[akse])
@@ -46,21 +32,6 @@ export function speglPar(q: Plan, akse: number, min: Vec3, max: Vec3, S: number,
   return { flytt, kopi: { ...speglPlan(flytt, akse, min, max), id: nyId(l), gruppe } }
 }
 
-/**
- * KOR LANGT UT EIT PAR KAN GÅ, og framleis stå i det det skal festast i.
- *
- * Eit par stag spegla om midten skal treffe sidene — og ikkje ytst ute, der
- * sida smalnar og slissa får ein vegg tynnare enn plata. For kvar plate
- * paret kryssar (ståande på tvers av både spegelaksen og paret), vert
- * breidda hennar lesen i høgdene paret står i, og den smalaste tel. Paret
- * går inn til to og ei halv tjukn frå den kanten, og aldri lenger ut enn
- * ein tredel av storleiken.
- *
- * KRYSSAR er ordet: eit stag under setet kryssar sidene, ikkje setet — og
- * fem spiler i setet er fem smale plater som ville klemt paret inn til
- * ingenting. Ei plate tel berre når paret når fram til planet hennar,
- * innanfor ei tjukn.
- */
 function innafor(q: Plan, akse: number, min: Vec3, max: Vec3, S: number, l: readonly Plan[], t: number): number {
   const aks = (n: Vec3) => n.findIndex((c) => Math.abs(Math.abs(c) - 1) < 1e-6)
   const rq = ramme(q, min, max)
@@ -71,7 +42,6 @@ function innafor(q: Plan, akse: number, min: Vec3, max: Vec3, S: number, l: read
     if (Q.id === q.id || Q.bog || !Q.omriss || b < 0 || b === akse || !qp.length) continue
     const ob = ramme(Q, min, max).o[b]
     if (ob < Math.min(...qp.map((p) => p[b])) - t || ob > Math.max(...qp.map((p) => p[b])) + t) continue
-    // høgdeaksen: den som korkje er spegelaksen eller normalen til plata
     const h = 3 - akse - b
     const h0 = Math.min(...qp.map((p) => p[h]))
     const h1 = Math.max(...qp.map((p) => p[h]))

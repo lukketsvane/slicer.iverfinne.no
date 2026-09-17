@@ -1,14 +1,3 @@
-/**
- * HANDA: HANDA OG FESTA DELAR.
- *
- * Ribbene var eit tal og er ei liste. Denne fila prøver dei to påstandane
- * lista må halde: at eit objekt UTAN låsar er nøyaktig det same objektet
- * som før, og at ei låst ribbe står der ho er låst same kva skyvaren seier.
- *
- * Og ho prøver vegen inn. `laas` og `fest` er dei to fyrste parametrane som
- * ikkje er tal med eit band kring seg — dei er strengar, dei kjem frå ei
- * lenkje, og ei lenkje er skriven av kven som helst.
- */
 import { clampParams, DEFAULT_PARAMS, reinFest, reinDeling, skrivDeling, leddNokkel, type Params } from "../lib/params"
 import { delAv, dreiing, lesPlan, nyGruppe, nyId, omrissLine, ramme, reinPlan, rutenett, sameSnitt, skilRute, skuvKopi, spegla, speglingar, skrivPlan, slaaSaman, snappPunkt, ut, vriOm, MJUK_TAK, PLAN_ROM, OMRISS_TAK, PLAN_TAK, STREK_TAK, type Plan } from "../lib/plan"
 import { reinScene, SCENE_TAK } from "../lib/scene"
@@ -19,7 +8,6 @@ import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
 import { bbox, nn, type ParamBag, type Pt, type Vec3 } from "../lib/core"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
-/** n punkt på ein sirkel, skrivne slik `skrivPlan` skriv dei */
 const sirkel = (n: number, r = 0.3) =>
   Array.from({ length: n }, (_, i) => {
     const a = (i * Math.PI) / 20
@@ -32,15 +20,6 @@ const sjekk = (namn: string, ok: boolean, sagt = "") => {
   if (!ok) feil++
 }
 
-/**
- * PLANA ER EI LISTE, OG LISTA ER STRENGEN.
- *
- * Alt handa gjer med eit plan — låse, flytte, vinkle om, slette — er ei
- * endring i éi oppføring, og dei andre står. Det var det låsane måtte
- * reknast fram til før; no er det det lista ER. Vakta held likevel på det:
- * ein streng inn skal kome ut som den same lista, og alt som ikkje er eit
- * plan skal falle på golvet før det når geometrien.
- */
 for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0", "1@0.5,0.5,0.5/1,0,0"],
   ["3@0.25,0.5,0.5/0,1,0;7@0.5,0.5,0.5/0,0,1", "3@0.25,0.5,0.5/0,1,0;7@0.5,0.5,0.5/0,0,1"],
@@ -54,19 +33,15 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0/-o:0,0,0.1,0.1,0", "1@0.5,0.5,0.5/1,0,0/-o:0,0,0.1,0.1,0"],
   ["1@0.5,0.5,0.5/1,0,0/+r:0,0,0,0.1,0", "1@0.5,0.5,0.5/1,0,0"],  // strek utan breidd
   ["1@0.5,0.5,0.5/1,0,0/tull", "1@0.5,0.5,0.5/1,0,0"],
-  // GRUPPA: eit heiltal over null, elles inga gruppe. Ho står etter bøyen og før streka.
   ["1@0.5,0.5,0.5/1,0,0/g:3", "1@0.5,0.5,0.5/1,0,0/g:3"],
   ["1@0.5,0.5,0.5/1,0,0/b:0.5/g:2/-o:0,0,0.1,0.1,0", "1@0.5,0.5,0.5/1,0,0/b:0.5/g:2/-o:0,0,0.1,0.1,0"],
   ["1@0.5,0.5,0.5/1,0,0/g:0", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/g:x", "1@0.5,0.5,0.5/1,0,0"],
-  // LAGET: eit av dei handa får merkje med, C02–C29. Svart og blått er teke, og tretti finst ikkje.
   ["1@0.5,0.5,0.5/1,0,0/c:3", "1@0.5,0.5,0.5/1,0,0/c:3"],
   ["1@0.5,0.5,0.5/1,0,0/g:2/c:29/-o:0,0,0.1,0.1,0", "1@0.5,0.5,0.5/1,0,0/g:2/c:29/-o:0,0,0.1,0.1,0"],
   ["1@0.5,0.5,0.5/1,0,0/c:1", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/c:0", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/c:30", "1@0.5,0.5,0.5/1,0,0"],
-  // FIRKANTEN OG MJUKINGA: to operatorar på profilen. Merket står eller
-  // står ikkje, og mjukinga er ein brøk over null, klemt til taket.
   ["1@0.5,0.5,0.5/1,0,0/f:1", "1@0.5,0.5,0.5/1,0,0/f:1"],
   ["1@0.5,0.5,0.5/1,0,0/m:0.01", "1@0.5,0.5,0.5/1,0,0/m:0.01"],
   ["1@0.5,0.5,0.5/1,0,0/f:1/m:0.005/g:2", "1@0.5,0.5,0.5/1,0,0/f:1/m:0.005/g:2"],
@@ -74,11 +49,8 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0/m:0", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/m:-0.01", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/f:2", "1@0.5,0.5,0.5/1,0,0"],
-  // OMRISSET: punkta på rad, tre eller fleire, kvart innanfor to storleikar
-  // av planet sitt punkt. Alt anna er ikkje ei flate handa har sett.
   ["1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2"],
   ["1@0.5,0.5,0.5/1,0,0/m:0.01/p:-0.2,-0.2,0.2,-0.2,0,0.2/g:2", "1@0.5,0.5,0.5/1,0,0/m:0.01/p:-0.2,-0.2,0.2,-0.2,0,0.2/g:2"],
-  // BUNDE AV NETTET: eit merke som berre tyder noko med eit omriss
   ["1@0.5,0.5,0.5/1,0,0/n:1/p:-0.2,-0.2,0.2,-0.2,0,0.2", "1@0.5,0.5,0.5/1,0,0/n:1/p:-0.2,-0.2,0.2,-0.2,0,0.2"],
   ["1@0.5,0.5,0.5/1,0,0/n:1", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/n:2/p:-0.2,-0.2,0.2,-0.2,0,0.2", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0,0.2"],
@@ -88,19 +60,12 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/1,0,0/p:0,0,0.1,0,0.2,0", "1@0.5,0.5,0.5/1,0,0"], // tre punkt på ei line òg
   ["1@0.5,0.5,0.5/1,0,0/p:0,0,9,0,0,9", "1@0.5,0.5,0.5/1,0,0"],    // langt utanfor kroppen
   ["1@0.5,0.5,0.5/1,0,0/p:0,0,x,0,0,1", "1@0.5,0.5,0.5/1,0,0"],
-  // og fleire punkt enn taket vert kutta der taket går
   [`1@0.5,0.5,0.5/1,0,0/p:${sirkel(OMRISS_TAK + 16, 0.3)}`, `1@0.5,0.5,0.5/1,0,0/p:${sirkel(OMRISS_TAK)}`],
-  // BOGANE: plassar i omrisset, og ingenting anna. Ein plass som ikkje
-  // finst, eit tal som ikkje er eit heiltal, eller bogar utan eit omriss å
-  // høyre til — alt fell på golvet, og forma står att som hjørne.
   ["1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:0,2", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:0,2"],
   ["1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:2,0,2", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:0,2"],
   ["1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:9", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2"],
   ["1@0.5,0.5,0.5/1,0,0/r:0,1", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2/r:x", "1@0.5,0.5,0.5/1,0,0/p:-0.2,-0.2,0.2,-0.2,0.2,0.2,-0.2,0.2"],
-  // EIT MERKE FRÅ EI GAMMAL LENKJE. Handteikna baner fanst ein periode og
-  // vart skrivne som `b`. Dei er borte, og ei lenkje som ber ein må miste
-  // NETT det streket — planet og dei andre streka hans står.
   ["1@0.5,0.5,0.5/1,0,0/-b:0.04_0_0_0.1_0.1", "1@0.5,0.5,0.5/1,0,0"],
   ["1@0.5,0.5,0.5/1,0,0/-b:0.04_0_0_0.1_0.1/-o:0,0,0.1,0.1,0", "1@0.5,0.5,0.5/1,0,0/-o:0,0,0.1,0.1,0"],
   ["<script>", ""],
@@ -109,16 +74,9 @@ for (const [inn, vent] of [
 ] as const) {
   const fekk = reinPlan(inn)
   sjekk(`rein «${String(inn).slice(0, 26)}»`, fekk === vent, fekk.slice(0, 40))
-  // FASTPUNKTET. `MOTOR.clamp` køyrer `reinPlan` på kvar einaste endring,
-  // og eit råd som rettar ein strengparameter må overleve det ordrett.
   sjekk(`  og han er eit fastpunkt`, reinPlan(fekk) === fekk, reinPlan(fekk).slice(0, 40))
 }
 
-/**
- * GRUPPENE. Eit rutenett er to rekkjer; og det ei rad gjer
- * med det leiaren fekk er eit tal per plan: alt (saman), eller sin del av
- * vegen frå den ståande enden til leiaren (fordelt).
- */
 {
   const r22 = rutenett(2, 2)
   sjekk("rutenettet er to grupper: tvers og langs", r22.map((p) => p.gruppe).join() === "1,1,2,2", r22.map((p) => p.gruppe).join())
@@ -137,7 +95,6 @@ for (const [inn, vent] of [
   sjekk("motsett normal er ein halv", Math.abs(dreiing([0, 0, 1], [0, 0, -1]).ang - Math.PI) < 1e-9)
 }
 
-/** TAKET: eit strek er tri og førti teikn same kva, so `STREK_TAK` held strengen nede. */
 {
   const mange = Array.from({ length: 25 }, () => "-o:0,0,0.1,0.1,0").join("/")
   const fekk = lesPlan(`1@0.5,0.5,0.5/1,0,0/${mange}`)
@@ -159,14 +116,6 @@ for (const [inn, vent] of [
   const fekk = reinScene(inn)
   sjekk(`scene «${String(inn).slice(0, 24)}»`, fekk === vent, fekk.slice(0, 40))
 }
-/**
- * STORLEIKEN PER AKSE.
- *
- * Han var eitt tal og er tre. Tre like er nett det eine talet var, og vert
- * skrivne som eitt — so ei lenkje frå i fjor opnar det same objektet, og ei
- * lenkje frå i dag med ein kube i vert ikkje lengre for ein ting ingen har
- * rørt.
- */
 console.log("\nstorleiken per akse:")
 for (const [inn, vent] of [
   ["kube@0,0,0/1/0", "kube@0,0,0/1/0"],                       // eitt tal står som eitt
@@ -181,12 +130,9 @@ for (const [inn, vent] of [
   sjekk(`storleik «${String(inn).slice(5, 24)}»`, fekk === vent, fekk)
 }
 {
-  // og geometrien fylgjer: ein kube dregen breiare vert breiare, og BERRE det
   const bag = (scene: string) => ({ ...DEFAULT_PARAMS, scene, storleik: 300, plan: nett(2, 2) }) as unknown as ParamBag
   const a = MOTOR.measure(bag("kube@0,0,0/1/0"))
   const b = MOTOR.measure(bag("kube@0,0,0/2,1,1/0"))
-  // storleiken normaliserer den lengste sida, so ein kube dregen dobbelt so
-  // brei vert 300 brei og 150 djup — forholdet er det som endrar seg
   const fyrr = a.envX / a.envY
   const etter = b.envX / b.envY
   sjekk("ein akse dregen for seg endrar forholdet", Math.abs(fyrr - 1) < 0.02 && Math.abs(etter - 2) < 0.05, `${fyrr.toFixed(2)} → ${etter.toFixed(2)}`)
@@ -205,7 +151,6 @@ console.log("")
 {
   const alle = lesPlan(nett(6, 6))
   sjekk("rutenettet 6×6 er tolv plan med tolv namn", alle.length === 12 && new Set(alle.map((p) => p.id)).size === 12)
-  /** det studioet gjer: byt ut éi oppføring */
   const flytt = alle.map((p) => (p.id === 2 ? { ...p, o: [0.35, 0.5, 0.5] as [number, number, number] } : p))
   sjekk(
     "flytt plan 2 til 0,35: dei elleve andre står stille",
@@ -230,14 +175,6 @@ console.log("")
   sjekk("og adressa er namnet på planet", liste.every((k) => new RegExp(`^${k.plan}[a-z]*$`).test(k.adr)))
 }
 
-/**
- * STREKA: gods legg til, hòl tek bort, og eit strek som rekk ut forbi
- * kroppen er ikkje eit strek som kløyver plata.
- *
- * Det var det: ruta som feltet vert lese på dekte kroppen og ikkje
- * streka, og eit strek over kanten vart klipt av ruta — ei open kjede,
- * lukka på måfå, og plata kom ut i to stykke med eit skrått band imellom.
- */
 console.log("")
 {
   const grunn = lesPlan(nett(6, 6))
@@ -254,12 +191,6 @@ console.log("")
   sjekk("gods over kanten legg til flate, og delar ikkje plata", gods.delar === utan.delar && gods.flate > utan.flate && gods.ledd === utan.ledd, `${utan.delar}→${gods.delar} delar, ${Math.round(utan.flate)}→${Math.round(gods.flate)} mm², ${gods.ledd} ledd`)
   sjekk("eit hòl tek flate og legg til ein ring", hol.delar === utan.delar && hol.flate < utan.flate && hol.nodar > utan.nodar, `${Math.round(utan.flate)}→${Math.round(hol.flate)} mm²`)
 
-  /**
-   * EIT STREK ER EI SAG, IKKJE EIN ANGRE. Han skil ikkje gods du la til frå
-   * gods nettet gav deg: eit strek tvers over plata deler henne i to
-   * delar, og adressene fylgjer med. Det er meininga med han, og det er
-   * grunnen til at knappen heiter «skjer hòl».
-   */
   const tvers = med([{ slag: "hol", form: "rekt", x: 0, y: -0.15, w: 1.2, h: 0.04, a: 0 }])
   sjekk(
     "eit strek tvers over plata deler henne",
@@ -278,21 +209,12 @@ console.log("")
     gStrek.delar === utan.delar && gStrek.flate > utan.flate,
     `${utan.delar}→${gStrek.delar} delar, ${Math.round(utan.flate)}→${Math.round(gStrek.flate)} mm²`,
   )
-  // rekkjefylgja er geometrien: eit gods etter eit hòl fyller det att
   const attfylt = med([
     { slag: "hol", form: "rekt", x: 0, y: 0, w: 0.2, h: 0.04, a: 0 },
     { slag: "gods", form: "rekt", x: 0, y: 0, w: 0.22, h: 0.06, a: 0 },
   ])
   sjekk("og eit gods etter eit hòl fyller det att", attfylt.flate > kort.flate, `${Math.round(kort.flate)}→${Math.round(attfylt.flate)} mm²`)
 
-  /**
-   * DEI TO OPERATORANE PÅ PROFILEN.
-   *
-   * FIRKANTEN er boksen kring profilen, lagd til som gods: eit hakk i
-   * kanten vert fylt att, og flata veks til rektangelet. MJUKINGA slører
-   * feltet før konturen: hjørna vert runda, so både flata og kutten
-   * krympar litt — og ledda står, av di spora vert skorne etterpå.
-   */
   const hakk = [{ slag: "hol", form: "rund", x: 0.42, y: 0, w: 0.3, h: 0.3, a: 0 }]
   const medHakk = med(hakk)
   const firk = medOp(hakk, { firkant: true })
@@ -308,19 +230,6 @@ console.log("")
     `${Math.round(utan.flate)}→${Math.round(mj.flate)} mm², ${Math.round(utan.kutt)}→${Math.round(mj.kutt)} mm, ${mj.ledd} ledd`,
   )
 
-  /**
-   * OMRISSET STÅR I STADEN FOR KROPPEN.
-   *
-   * Det er heile påstanden, og han kan berre provast ved å gjere forma
-   * MINDRE: eit merke som vart lagt til som gods kunne aldri det. Ei plate
-   * på ein tidel av storleiken i kvadrat er langt mindre enn ribba gjennom
-   * ein kube — og ho står framleis i lag med naboane, so ledda vert lesne
-   * av henne som av alt anna.
-   */
-  /**
-   * EITT PLAN OG INGEN NABOAR: då er flata i tavla flata til DEN ribba, og
-   * påstanden kan lesast som eit tal og ikkje som ein skilnad.
-   */
   const kvadrat = (r: number): Pt[] => [[-r, -r], [r, -r], [r, r], [-r, r]]
   const eitt = (op: Partial<Plan> = {}) => {
     const bag = { ...DEFAULT_PARAMS, plan: skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5], n: [1, 0, 0], bog: 0, strek: [], ...op } as Plan]) } as unknown as ParamBag
@@ -328,9 +237,6 @@ console.log("")
     return { delar: m.parts, flate: m.plyArea, nodar: m.nodes }
   }
   const nett1 = eitt()
-  // 0,2 × 0,2 av storleiken (150 mm) er 30 × 30 mm = 900 mm². Mindre enn
-  // det er flis: `MIN_AREA` kastar eit stykke under 400, og eit omriss er
-  // ikkje unnateke frå det.
   const om = eitt({ omriss: kvadrat(0.1) })
   sjekk(
     "omrisset er profilen: flata er den mangekanten seier, ikkje den nettet seier",
@@ -343,10 +249,6 @@ console.log("")
     `${Math.round(nett1.flate)}→${Math.round(om.flate)} mm²`,
   )
 
-  /**
-   * OG I EIT RUTENETT STÅR RIBBA I LAG MED NABOANE: ledda vert lesne av
-   * omrisset som av alt anna, og eit strek vert skore i det.
-   */
   const stort = medOp([], { omriss: kvadrat(0.4) })
   sjekk(
     "ei ribbe med omriss har framleis ledd med naboane sine",
@@ -360,16 +262,6 @@ console.log("")
     `${Math.round(stort.flate)}→${Math.round(skore.flate)} mm²`,
   )
 
-  /**
-   * EIN BOGE ER EI KURVE, OG EIT HJØRNE ER FRAMLEIS EIT HJØRNE.
-   *
-   * Bogen ligg ikkje i strengen — han er eit flagg på eit punkt, og kurva
-   * vert rekna av naboane (sjå `omrissLine`). Difor tre påstandar, og alle
-   * tre må halde samstundes: kurva GÅR GJENNOM punkta (elles er handtaket
-   * ikkje på kanten det styrer), eit stykke mellom to hjørne er NØYAKTIG ei
-   * rett line (elles er kvar gammal form ei anna form no), og ein boge
-   * kjem faktisk fram i geometrien og ikkje berre på skjermen.
-   */
   const rutene = kvadrat(0.1)
   const rein = omrissLine(rutene)
   sjekk(
@@ -420,7 +312,6 @@ sjekk("clampParams reinsar fest", f.fest === "1:0,0,5,5", f.fest)
 
 const rute = (w: number, h: number): Pt[] => [[0, 0], [w, 0], [w, h], [0, h]]
 const bitar = ["a", "b", "c"].map((key) => ({ key, rings: [rute(100, 100)] }))
-/** kvar ein del hamna, som hjørnet av boksen sin */
 const kvar = (pk: ReturnType<typeof pack>, i: number) => {
   const sl = pk.slots.find((q) => q.piece === i)
   if (!sl) return null
@@ -443,7 +334,6 @@ sjekk(
   `${p0.x},${p0.y}`,
 )
 
-// og ingen av dei tre overlappar kvarandre
 const boksar = [0, 1, 2].map((i) => {
   const sl = med.slots.find((q) => q.piece === i)!
   return bbox(bitar[i].rings[0].map((q) => apply(sl.m, q)))
@@ -457,15 +347,6 @@ for (let i = 0; i < 3; i++)
   }
 sjekk("med feste: ingen overlappar", kross === 0, `${kross} kryss`)
 
-/**
- * TO FESTE I KVARANDRE.
- *
- * Pakkinga overprøver ikkje handa: set du to delar i kvarandre, ligg dei i
- * kvarandre. Men ho skal SEIE det — to kutt som går i kvarandre er to
- * stykke skrap — og det er `kross` som ber ordet frå pakkinga til regelen
- * og til plata. Éin del vert talt: den som vart lagd ned i gods som alt
- * låg der. Den fyrste låg på tomt bord.
- */
 const iKvarandre = pack(bitar, 400, 400, 4, new Map<number, Fest>([
   [0, { sheet: 0, rot: 0, x: 100, y: 100 }],
   [1, { sheet: 0, rot: 0, x: 150, y: 120 }],
@@ -479,14 +360,6 @@ sjekk(
 )
 sjekk("og den frie tredje går utanom", iKvarandre.slots.length === 3 && med.kross === 0, `kross utan ${med.kross}`)
 
-/**
- * EIT FESTE PÅ EI PLATE SOM IKKJE TRENGST LENGER.
- *
- * Delen vart festa på plate fire då jobben var stor. No er han liten, og
- * resten får plass på éi. Dei tomme platene imellom fell bort, delen
- * står att på si eiga — plate to no — og ingen fil er tom. To feste med
- * same nummer held saman.
- */
 const langtUte = pack(bitar, 400, 400, 4, new Map<number, Fest>([[0, { sheet: 3, rot: 0, x: 50, y: 50 }]]))
 sjekk(
   "eit feste på plate 4 lagar ikkje tomme plater",
@@ -505,16 +378,8 @@ sjekk(
   `${toUte.sheets} plater · 2@${plateAv(2)} 0@${plateAv(0)} 1@${plateAv(1)}`,
 )
 
-/**
- * SYMMETRIEN PÅ SNITTET.
- *
- * Brytarane over skjer lagar spegelbileta av snittet du siktar, om
- * midtplana i kroppen. Rekninga er heile saka og ho er rein: eit punkt som
- * er brøk av boksen, og ei normal. Ingen kropp, ingen geometri.
- */
 console.log("\nsymmetrien på snittet:")
 {
-  // eit skrått snitt ute på minus x
   const o0: Vec3 = [0.25, 0.5, 0.5]
   const n0: Vec3 = [0.7071, 0, 0.7071]
   const x = spegla(o0, n0, 0)
@@ -528,8 +393,6 @@ console.log("\nsymmetrien på snittet:")
   const y = spegla(o0, n0, 1)
   sjekk("ein akse snittet alt står symmetrisk om gjev det same snittet", sameSnitt({ o: o0, n: n0 }, y))
 
-  // eit snitt gjennom midten, på tvers av x: spegelbiletet er han sjølv med
-  // normalen snudd, og det er éin del og ikkje to
   const m = { o: [0.5, 0.5, 0.5] as Vec3, n: [1, 0, 0] as Vec3 }
   sjekk("eit snitt gjennom midten speglar seg til seg sjølv", sameSnitt(m, spegla(m.o, m.n, 0)))
 
@@ -538,10 +401,6 @@ console.log("\nsymmetrien på snittet:")
     JSON.stringify(speglingar(3)))
   sjekk("og alle tre gjev åtte", speglingar(7).length === 8)
 
-  // FIRE RIBBER AV EI — men berre når snittet er skeivt i BEGGE aksane. Eit
-  // snitt som alt står symmetrisk om y (o.y ein halv og n.y null, som det
-  // over) vert seg sjølv av eit spegl om y, og fire vert to. Det er rett,
-  // og det er verdt å prøve begge vegar.
   const alle = (o: Vec3, n: Vec3, sp: number) => {
     const ut: { o: Vec3; n: Vec3 }[] = []
     for (const akser of speglingar(sp)) {
@@ -558,7 +417,6 @@ console.log("\nsymmetrien på snittet:")
   sjekk("og alle tre aksane på eit heilt skeivt snitt gjev åtte", alle([0.25, 0.3, 0.35], [0.5774, 0.5774, 0.5774], 7).length === 8)
 }
 
-// Eit spegl av møbelplata tek omriss, bogar og skrå hòl med seg.
 {
   const min: Vec3 = [-180, -140, -230]
   const max: Vec3 = [220, 160, 270]
@@ -582,8 +440,6 @@ console.log("\nsymmetrien på snittet:")
         const y = s.h / 2 * Math.sin(t)
         return [(s.x + x * Math.cos(a) - y * Math.sin(a)) * S, (s.y + x * Math.sin(a) + y * Math.cos(a)) * S]
       }
-      // Ei spegling snur omløpsretninga. Vinkel null er same enden av
-      // lengdeaksen, og den andre aksen får motsett teikn.
       const feilHol = Math.max(...[0, 0.6, 1.7, 3.1].map(t => avstand(spegel(ut(r0, hòl(p.strek[0], t))), ut(r1, hòl(q.strek[0], -t)))))
       sjekk(`spegl ${akse}, normal ${n.join(",")}, bøy ${bog}: heile profilen står rett`, feilOm < 0.0001 && feilHol < 0.0001, `${feilOm.toFixed(6)} / ${feilHol.toFixed(6)} mm`)
       sjekk("speglinga bevarer eigenskapar og to gonger gjev originalen", q.farge === p.farge && q.gruppe === p.gruppe && q.mjuk === p.mjuk && skrivPlan([speglPlan(q, akse, min, max)]) === skrivPlan([p]))
@@ -591,8 +447,6 @@ console.log("\nsymmetrien på snittet:")
   }
 }
 
-// Ein skrå kopi ved romgrensa må skiljast frå originalen langs normalen.
-// Før snudde berre éin komponent, og like komponentar gav null avstand.
 {
   const min: Vec3 = [-200, -100, -50], max: Vec3 = [200, 100, 50]
   const h = Math.SQRT1_2
@@ -611,7 +465,6 @@ console.log("\nsymmetrien på snittet:")
     sjekk(`kopi ved ${namn} overlever lagring`, !!q)
     if (!q) continue
     const feil = Math.hypot(...q.o.map((c, a) => (c - o[a]) * (max[a] - min[a]) - forteikn * 24 * n[a]))
-    // Avrundinga i lenkja er 0,0001 av boksen: høgst 0,023 mm her.
     sjekk(`kopi ved ${namn} går 24 mm langs heile normalen`, feil < 0.024, `${feil.toFixed(5)} mm avvik`)
   }
   const fast = { o: [1 + PLAN_ROM, -PLAN_ROM, 0.5] as Vec3, n: [h, h, 0] as Vec3 }
@@ -619,16 +472,6 @@ console.log("\nsymmetrien på snittet:")
   sjekk("ei for smal boks lagar ingen klemt kopi", skuvKopi({ o: [0.5, 0.5, 0.5], n: [1, 0, 0] }, [0, 0, 0], [1, 2, 3], 25) === null)
 }
 
-/**
- * KVA VERKTYET FOR RUTENETTET EIG.
- *
- * Han skreiv lista OM, og ti plan sette for hand var borte i det du tok i
- * han. No eig han berre dei plana eit rutenett ville laga, kjende att på
- * geometrien. Vakta prøver båe vegar: at eit heilt rutenett vert kjent att
- * med rett tal, og at alt som IKKJE er det — eit skrått plan, ei ribbe
- * flytt ut av rekkja, eit plan med eit strek, eit med bøy, eit med lag —
- * står att som ditt.
- */
 console.log("\nrutenettet og det som er ditt:")
 {
   const rute = rutenett(3, 2)
@@ -641,8 +484,6 @@ console.log("\nrutenettet og det som er ditt:")
   const tomt = skilRute([])
   sjekk("ei tom liste er null og null", tomt.nx === 0 && tomt.ny === 0 && tomt.rute.length === 0)
 
-  // Ei handteikna plate kan stå nøyaktig der eit einsleg rutenettplan
-  // ville stått. Det gjev ikkje rutenettet rett til å byte henne ut.
   for (const [ord, meir] of [
     ["omriss", { omriss: [[-0.3, -0.4], [0.3, -0.4], [0.2, 0.4], [-0.2, 0.4]] as Pt[] }],
     ["boksprofil", { firkant: true as const }],
@@ -654,7 +495,6 @@ console.log("\nrutenettet og det som er ditt:")
     sjekk(`${ord} på rutenettplassen er handa sin`, skild.nx === 0 && skild.rute.length === 0 && skrivPlan(ny.slice(0, 1)) === skrivPlan([eiga]))
   }
 
-  /** eitt plan av kvart slag som verktyet IKKJE skal ta */
   const mine: [string, ReturnType<typeof lesPlan>[number]][] = [
     ["eit skrått plan", hand(90, [0.5, 0.5, 0.5], [0.7071, 0.7071, 0])],
     ["eit vassrett plan", hand(91, [0.5, 0.5, 0.4], [0, 0, 1])],
@@ -664,23 +504,15 @@ console.log("\nrutenettet og det som er ditt:")
     ["ei ribbe skoven ut av rekkja", hand(95, [0.31, 0.5, 0.5], [1, 0, 0])],
   ]
   for (const [ord, q] of mine) {
-    // planet står ÅLEINE med rutenettet, so det er berre det eine som vert prøvt
     const r = skilRute([...rute, q])
     const eig = r.andre.some((p) => p.id === q.id)
-    // ei ribbe i rekkja gjer heile rada til di: fire punkt er ikkje eit nett på tre
     const heil = q.id === 95 ? r.nx === 0 && r.andre.filter((p) => Math.abs(p.n[0]) > 0.999).length === 4 : r.nx === 3
     sjekk(`${ord} står att som ditt`, eig && heil, `${r.nx}×${r.ny}, ${r.andre.length} andre`)
   }
 
-  /**
-   * OG DET VIKTIGE: EIT NYTT NETT TEK IKKJE DEI ANDRE MED SEG.
-   *
-   * Det er nett den rekninga verktyet gjer for kvart bilete av eit drag.
-   */
   {
     const eigne = mine.map(([, q]) => q)
     const foer = [...rute, ...eigne]
-    // rada langs x er broten av plan 95, so ho er DI og fylgjer med i «andre»
     const { rute: eigd, andre } = skilRute(foer)
     const nytt = [...andre, ...rutenett(5, 5, nyId(andre), nyGruppe(andre))]
     const att = new Set(nytt.map((q) => q.id))
@@ -691,27 +523,10 @@ console.log("\nrutenettet og det som er ditt:")
     const gRute = new Set(nytt.slice(andre.length).map((q) => q.gruppe))
     const gAndre = new Set(andre.map((q) => q.gruppe).filter(Boolean))
     sjekk("og gruppene til nettet krasjar ikkje med dei andre", [...gRute].every((g) => !gAndre.has(g)), `nett ${[...gRute].join(",")} · andre ${[...gAndre].join(",") || "ingen"}`)
-    // og strengen ber alt saman
     sjekk("lista går gjennom strengen som ho er", reinPlan(skrivPlan(nytt)) === skrivPlan(nytt), `${skrivPlan(nytt).length} teikn`)
   }
 }
 
-/**
- * DELINGA PÅ EITT LEDD.
- *
- * `ledd` er ein skyvar for heile objektet; denne strengen er handa på eitt
- * einaste ledd. Nøkkelen er dei to namna i stigande rekkjefylgje og kva
- * møte på kryssingslina det er, so det same leddet får den same nøkkelen
- * frå kva side du enn ser det.
- */
-/**
- * BØYEN I STRENGEN.
- *
- * Han står mellom normalen og streka, med sitt eige teikn, so han ikkje
- * kan lesast som eit strek og eit strek ikkje kan lesast som han. Eit flatt
- * plan skriv ingen bøy i det heile — elles ville kvar einaste lenkje i
- * verda vorte lengre for ein ting ingen har rørt.
- */
 console.log("\nbøyen i plana:")
 for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/0,1,0/b:0.5", "1@0.5,0.5,0.5/0,1,0/b:0.5"],
@@ -721,14 +536,12 @@ for (const [inn, vent] of [
   ["1@0.5,0.5,0.5/0,1,0/b:-99", "1@0.5,0.5,0.5/0,1,0/b:-4"],
   ["1@0.5,0.5,0.5/0,1,0/b:NaN", "1@0.5,0.5,0.5/0,1,0"],
   ["1@0.5,0.5,0.5/0,1,0/b:tull", "1@0.5,0.5,0.5/0,1,0"],
-  // bøyen og eit strek på det same planet, kvar for seg
   ["1@0.5,0.5,0.5/0,1,0/b:0.3/+r:0.1,0.2,0.3,0.4,0", "1@0.5,0.5,0.5/0,1,0/b:0.3/+r:0.1,0.2,0.3,0.4,0"],
 ] as const) {
   const fekk = reinPlan(inn)
   sjekk(`bøy «${String(inn).slice(-14)}»`, fekk === vent, fekk)
 }
 {
-  // og bøyen fylgjer planet gjennom ei redigering av eit anna plan
   const to = "1@0.5,0.5,0.5/0,1,0/b:0.4;2@0.6,0.5,0.5/1,0,0"
   const l = lesPlan(to)
   l[1] = { ...l[1], o: [0.7, 0.5, 0.5] }
@@ -753,14 +566,6 @@ for (const [inn, vent] of [
   sjekk(`deling «${String(inn).slice(0, 24)}»`, fekk === vent, fekk)
 }
 {
-  /**
-   * OG DET SOM TEL: EITT TAL FLYTTAR TO SPOR OG INGEN FLEIRE.
-   *
-   * Botnen i sporet på A og botnen i sporet på B er det SAME talet, lese
-   * frå kvar si side av den same lina. Difor er eit djupare spor i den eine
-   * eit grunnare i den andre, utan at noko held dei i lag. Prøva set eitt
-   * ledd og tel kor mange spor i heile kroppen som rører seg.
-   */
   const grunn = { ...DEFAULT_PARAMS, plan: skrivPlan(rutenett(3, 3)), storleik: 200, tjukn: 6 } as Params
   const spora = (p: Params) => {
     const { s } = makeBygg(p, DETAIL.mid)
@@ -773,33 +578,16 @@ for (const [inn, vent] of [
   const med = spora({ ...grunn, deling: skrivDeling(new Map([[nokk, 0.75]])) })
   const ulike = utan.filter((q, i) => q !== med[i])
   sjekk("ei hand på eitt ledd flyttar NØYAKTIG to spor", ulike.length === 2, `${ulike.length} av ${utan.length}`)
-  // og dei to er dei to halvdelane av det leddet
   sjekk("og dei to er dei to sidene av det leddet",
     ulike.length === 2 && ulike.every((q) => /^(1→4|4→1) /.test(q)), ulike.join(" · "))
-  // djupare frå den eine sida er grunnare frå den andre: munnane ligg i kvar sin ende
   const par = med.filter((q) => /^(1→4|4→1) /.test(q)).map((q) => q.split(" ").slice(1).map(Number))
   sjekk("dei har same botn, og munnane i kvar sin ende",
     par.length === 2 && Math.abs(par[0][0] - par[1][0]) < 1e-6 && par[0][1] !== par[1][1],
     par.map((q) => `botn ${q[0]} munn ${q[1]}`).join(" · "))
-  // eit ledd som ikkje finst rører ingenting
   const tull = spora({ ...grunn, deling: skrivDeling(new Map([[leddNokkel(1, 2, 0), 0.75]])) })
   sjekk("og ein nøkkel til eit ledd som ikkje finst rører ingenting", tull.every((q, i) => q === utan[i]))
 }
 
-/**
- * OG HANDTAKA: EIT SPOR-ENDE PÅ PLATA ER EIT LEDD I POSEN.
- *
- * Handtaka i plateflata les tre ting rett ut av `arkSyn`: nøkkelen på
- * leddet, og dei to endane av strekket det kan delast på — alt i
- * millimeter på plata, gjennom den same plasseringa som omrisset. Fingeren
- * projiserer seg på det strekket og skriv brøken.
- *
- * Prøva er RUNDTUREN, og ho er den einaste vakta som kan fange at
- * handtaket peikar ein annan stad enn sporet: les eit handtak av plata,
- * skriv brøken, les plata att — botnen skal stå der brøken seier. Står
- * plasseringa i vegen, står han ein annan stad, og ingen ville sett det
- * på eit tal.
- */
 console.log("\nhandtaka på spor-endane:")
 {
   const grunn = { ...DEFAULT_PARAMS, plan: nett(3, 3), storleik: 200, tjukn: 6 } as unknown as ParamBag
@@ -811,17 +599,12 @@ console.log("\nhandtaka på spor-endane:")
   const medSpor = a0.plasser.filter((d) => d.spor.length)
   sjekk("plata gjev spor-endar på delane", medSpor.length > 0, `${medSpor.length} av ${a0.plasser.length} delar`)
 
-  // Skyvaren står på 0,5, og botnen skal stå midt på strekket — same kva
-  // veg pakkinga har snutt delen.
   const skeivt = medSpor.flatMap((d) => d.spor.filter((v) => langt(v.botn, paaBroek(v, 0.5)) > 0.5).map((v) => `${d.adr} ${v.nokkel}`))
   sjekk("botnen står der skyvaren seier, i plata sine koordinatar", skeivt.length === 0, skeivt.slice(0, 4).join(" · "))
 
-  // Og strekket er så langt som sporet er djupt: munnen ligg i den eine
-  // enden av det, ikkje ein tilfeldig stad.
   const laus = medSpor.flatMap((d) => d.spor.filter((v) => Math.min(langt(v.munn, v.lo), langt(v.munn, v.hi)) > 0.5).map((v) => `${d.adr} ${v.nokkel}`))
   sjekk("og munnen ligg i den eine enden av strekket", laus.length === 0, laus.slice(0, 4).join(" · "))
 
-  // RUNDTUREN.
   const v0 = medSpor[0].spor[0]
   const adr = medSpor[0].adr
   const T = 0.72
@@ -836,8 +619,6 @@ console.log("\nhandtaka på spor-endane:")
     sjekk("og han flytte seg", flytta > 1, `${flytta.toFixed(1)} mm`)
   }
 
-  // Begge sidene av leddet ber den same nøkkelen: det er slik den eine vert
-  // grunnare når den andre vert djupare.
   const alle = new Map<string, string[]>()
   for (let i = 0; i < a0.tal; i++) {
     for (const d of arket(grunn, i).plasser) for (const v of d.spor) alle.set(v.nokkel, [...(alle.get(v.nokkel) ?? []), d.adr])
@@ -846,18 +627,8 @@ console.log("\nhandtaka på spor-endane:")
   sjekk("kvart ledd har handtak på nøyaktig to delar", eine.length === 0, eine.slice(0, 4).map(([k, d]) => `${k}:${d.length}`).join(" · "))
 }
 
-/**
- * SNAPPET I OMRISSET.
- *
- * Reine tal: gjeve eit omriss og eit punkt som er drege, kva fell det på?
- * Rekkjefylgja er heile poenget — eit punkt er meir bestemt enn ei line, og
- * ei line meir enn ein akse — so vakta prøver dei mot kvarandre og ikkje
- * kvar for seg. Og ho krev at eit punkt midt i inkje står HEILT stille:
- * ein snapp som alltid fangar er ikkje eit snapp, det er eit rutenett.
- */
 {
   console.log("\n=== snappet i omrisset")
-  /** eit kvadrat med hjørna i (0,0), (1,0), (1,1), (0,1) */
   const kv: Pt[] = [[0, 0], [1, 0], [1, 1], [0, 1]]
   const R = 0.1
 
@@ -867,29 +638,20 @@ console.log("\nhandtaka på spor-endane:")
   const nær = snappPunkt(kv, 0, [0.95, 0.03], R)
   sjekk("nær eit anna punkt fell det PÅ punktet", nær.slag === "punkt" && nær.mot === 1 && nær.p[0] === 1 && nær.p[1] === 0, `${nær.slag} mot ${nær.mot} → ${nær.p.join(",")}`)
 
-  /**
-   * OG PUNKTET HAR SIN EIGEN RADIUS, som er trongare.
-   * Same staden, same vidde for kant og akse — men eit punkt fangar berre
-   * om du la det oppå. Det som elles hende: eit vanleg drag mista eit hjørne.
-   */
   const langt = snappPunkt(kv, 0, [0.95, 0.03], R, 0.02)
   sjekk("men ikkje når punktradien er trongare enn avstanden", langt.slag !== "punkt", `${langt.slag}`)
   const paa = snappPunkt(kv, 0, [0.995, 0.005], R, 0.02)
   sjekk("og legg du det OPPÅ, fangar han likevel", paa.slag === "punkt" && paa.mot === 1, `${paa.slag} mot ${paa.mot}`)
 
-  // midt på kanten mellom punkt 1 og 2 (x = 1): punkt 0 er ikkje ende i henne
   const kant = snappPunkt(kv, 0, [0.97, 0.5], R)
   sjekk("nær ei kant fell det NED PÅ kanten", kant.slag === "kant" && Math.abs(kant.p[0] - 1) < 1e-9 && Math.abs(kant.p[1] - 0.5) < 1e-9, `${kant.slag} → ${kant.p.join(",")}`)
 
-  // rett under punkt 3 (0,1) som er nabo til 0, men langt frå alle kantar
   const akse = snappPunkt(kv, 0, [0.04, 0.5], R)
   sjekk("nær aksen til ein nabo fangar berre den eine koordinaten", akse.slag === "akse" && akse.p[0] === 0 && akse.p[1] === 0.5, `${akse.slag} → ${akse.p.join(",")}`)
 
-  // OG PUNKTET SITT EIGE STED FANGAR IKKJE SEG SJØLV
   const sjolv = snappPunkt(kv, 0, [0.001, 0.001], R)
   sjekk("punktet fangar ikkje seg sjølv", sjolv.slag !== "punkt" || sjolv.mot !== 0, `${sjolv.slag} mot ${sjolv.mot}`)
 
-  // SLÅ SAMAN: naboar vert eitt, andre ikkje, og tre punkt aldri
   const nabo = slaaSaman(kv, 0, 1)
   sjekk("to naboar som fell saman vert eitt punkt", !!nabo && nabo.omriss.length === 3, `${nabo?.omriss.length} att`)
   const over = slaaSaman(kv, 0, 2)
@@ -897,16 +659,6 @@ console.log("\nhandtaka på spor-endane:")
   const tre = slaaSaman([[0, 0], [1, 0], [0, 1]], 0, 1)
   sjekk("og tre punkt slår aldri saman: under fire er det ikkje ei flate", tre === null)
 
-  /**
-   * OG STEGET STYRER KVA VINKLAR SOM FINST.
-   *
-   * Same punktet, tre ulike steg. Med 45 finst diagonalen frå naboen og
-   * punktet fell på henne; med 90 finst han ikkje og punktet står fritt.
-   * Det er heile skilnaden knappen gjer, og han er prøvd på det eine
-   * punktet der dei to svara IKKJE er like.
-   */
-  // strålen på 45° ned frå naboen (0,1) er lina x + y = 1. Punktet ligg
-  // like utanfor henne — nær nok til å fangast, langt nok til at det SYNEST
   const diag = snappPunkt(kv, 0, [0.55, 0.48], R, 0.02, 45)
   sjekk("med steg 45 finst diagonalen frå naboen", diag.slag === "akse" && Math.abs(diag.p[0] + diag.p[1] - 1) < 1e-4, `${diag.slag} → ${diag.p.join(",")}`)
   const ikkje = snappPunkt(kv, 0, [0.55, 0.48], R, 0.02, 90)
@@ -914,18 +666,6 @@ console.log("\nhandtaka på spor-endane:")
   const utan = snappPunkt(kv, 0, [0.04, 0.5], R, 0.02, 0)
   sjekk("og steg null slår vinkelsnappet heilt av", utan.slag === null, `${utan.slag}`)
 
-  /**
-   * OG EIT PLAN FÅR STÅ UTANFOR KROPPEN.
-   *
-   * Grensa var ein halv boks kvar veg, og ho kom frå den tida eit plan berre
-   * kunne skjere noko. Eit plan som ber eit omriss teiknar si eiga flate, og
-   * då er det heilt vanleg å setje han VED SIDA AV kroppen. Det verste med
-   * den gamle grensa var at ho var still: planet vart ikkje flytta, det vart
-   * borte — og fyrst ved neste lesing av strengen.
-   *
-   * Vakta krev begge sidene: at fire boksbreidder står, og at sludder framleis
-   * fell. Ei grense som slepper alt gjennom er ikkje ei grense.
-   */
   const utePlan = lesPlan(`1@0.5,4,0.5/0,1,0`)
   sjekk("eit plan fire boksbreidder ute står", utePlan.length === 1, `${utePlan.length} plan`)
   const langtUte = lesPlan(`1@0.5,9,0.5/0,1,0`)
@@ -933,7 +673,6 @@ console.log("\nhandtaka på spor-endane:")
   const paaGrensa = lesPlan(`1@0.5,${1 + PLAN_ROM},0.5/0,1,0`)
   sjekk("og grensa sjølv står", paaGrensa.length === 1, `${paaGrensa.length} plan ved ${1 + PLAN_ROM}`)
 
-  // OG RADIEN STYRER: null radius fangar ingenting
   const av = snappPunkt(kv, 0, [0.95, 0.03], 0)
   sjekk("radius null fangar ingenting", av.slag === null, `${av.slag}`)
 }

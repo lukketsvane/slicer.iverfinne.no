@@ -386,27 +386,6 @@ function ExportTab({ p }: { p: ArketProps }) {
   )
 }
 
-/**
- * KOR HØG SKUFFA ER NÅR HO ER OPE — EITT TAL, OG DET SAME FOR KVAR FANE.
- *
- * Ho var `maxHeight` og ikkje `height`: eit TAK, so kvar fane fekk den
- * høgda innhaldet sitt bad om. Målt på ein kube med rutenett 4×4, 390×844:
- *
- *     form 220   grupper 172   materiale 204   kutt 240   sjekk 156   uttak 192
- *
- * Fire og åtti pikslar mellom den lågaste og den høgaste — so skuffa
- * hoppa kvar gong du bytte fane, og objektet over henne hoppa med, av di
- * `onHogd` melder høgda til kameraet som rammar inn i det som er att.
- *
- * Ei skuff med faner som endrar storleik når du byter fane er det same som
- * ei dør som flyttar seg når du går gjennom henne. Tala over er kva det
- * KOSTA; talet her er kva ho ER.
- *
- * Seks og tjue prosent av høgda er 219 px på telefonen. Den høgaste fana er
- * 204 når lina ikkje står der lenger, so det dekkjer alle seks med ei rad
- * att og lite luft under dei låge. Ei fane som veks forbi det rullar — ho
- * vert ikkje klipt, og skuffa står like høg.
- */
 const SKUFF_H = "26dvh"
 
 function MobileArket(p: ArketProps) {
@@ -420,7 +399,6 @@ function MobileArket(p: ArketProps) {
   const rull = useRef<HTMLDivElement | null>(null)
   const [tilUttak, setTilUttak] = useState(false)
 
-  // Eksportikonet går til filene, ikkje toppen av den lange sjekklista.
   useLayoutEffect(() => {
     if (!open || fane !== "status" || !tilUttak || !rull.current || !uttak.current) return
     rull.current.scrollTop += uttak.current.getBoundingClientRect().top - rull.current.getBoundingClientRect().top
@@ -441,8 +419,6 @@ function MobileArket(p: ArketProps) {
     setFane(f)
     if (!open) p.onSteg("midt")
   }
-  /** sett når eit DRAG alt har opna eller lete att: klikket som kjem etter
-   *  eit drag skal ikkje vippe det attende */
   const dro = useRef(false)
   const dragOpp = (e: ReactPointerEvent) => {
     const d = drag.current

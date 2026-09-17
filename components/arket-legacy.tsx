@@ -11,37 +11,12 @@ import {
 } from "./deler"
 import type { VerktyId } from "./verkty"
 
-/**
- * ARKET. Tre høgder på ein telefon: éi line, midten av jobben, alt. På
- * benken er det ei fast spalte til høgre med det same innhaldet.
- *
- * Lina er det som avgjer om uttaket er verdt å skjere: kor mange plan, kor
- * mange delar, kor mange plater, kor lang tid — og rutenettet og uttaket
- * eitt trykk unna. Sjølve handlinga, skjer, står ikkje her: ho står under høgre
- * tommel, i spalta over arket (sjå studio.tsx). Midten er plana
- * du har låst — berre dei låste; eit skissa plan finst ikkje nokon annan
- * stad enn på lerretet. Alt er resten: materialet, skyvarane, tavla,
- * uttaka, verktya. Fila, lesemåtane, angre og lenkja står i topplina.
- */
 export type Steg = "line" | "midt" | "alt"
 const STEG: readonly Steg[] = ["line", "midt", "alt"]
 export const KOL = 340
-/**
- * TOMMELSPALTA EIG DEN HØGRE KANTEN, og ein boks over arket må vike for
- * henne. Skjer er 64 px brei og spalta står 16 frå kanten av ruta, so ho
- * tek dei ytste 80. Arket ligg 12 frå kanten, og då er det 68 att å halde
- * fri langs si eiga høgre side.
- *
- * Utan det la den femte brikka i «rom» seg under skjer: ho stod der, ho
- * var synleg, og eit trykk midt på henne gjekk til kniven. `pnpm panel
- * uttaka` trykkjer på KVAR brikke og fangar det — ei prøve på berre den
- * fyrste ville sagt ja, av di den fyrste står lengst frå spalta.
- */
 const TUMME_FRI = 68
-/** storleiken står framme; plata står saman med materialet */
 const FRAMME = new Set(["storleik", "arkB", "arkH"])
 
-/** kva planet er, lese av normalen: loddrett, vassrett eller skrått, med kursen */
 export function kvaSlag(n: Vec3): string {
   const tilt = (Math.asin(Math.min(1, Math.abs(n[2]))) * 180) / Math.PI
   const kurs = (((Math.atan2(n[1], n[0]) * 180) / Math.PI + 360) % 180 + 360) % 180
@@ -56,54 +31,31 @@ export type ArketProps = {
   onSteg: (s: Steg) => void
   params: ParamBag
   onChange: (p: ParamBag) => void
-  /** ein verdi vert dregen: angre ventar til fingeren slepper */
   onSkrubb: (aktiv: boolean) => void
   view: View
-  /** kor høg topplina er: kolonna på benken byrjar under henne */
   topp: number
   metrics: Metrics | null
   rules: readonly Rule[]
-  /** boksen kring kroppen, i millimeter: der planet står, lese av som eit tal */
   boks: { min: Vec3; max: Vec3 } | null
   liste: readonly Kutt[]
   plan: readonly Plan[]
-  /** alle råda, trykte i eitt: sjå `fiksAlt` i `rules.ts` */
   onFiksAlle: () => void
-  /** montasjen, når fana hans står framme — og kva steg han er på, frå 1 */
   mont: Montasje | null
   montSteg: number
   vald: number | null
   onVald: (id: number | null) => void
-  /** gruppa som er vald, om nokon: trykk på gruppa i lista vel alle plana i henne */
   valdGruppe: number | null
   onVelGruppe: (g: number) => void
   onSlettGruppe: (g: number) => void
-  /**
-   * MJUKINGA PÅ PROFILEN til det valde planet — eller til heile den valde
-   * gruppa. Ho bur i arket og ikkje i tommelspalta: eit TAL høyrer heime på
-   * ei rad, saman med laget. Firkanten stod her ved sida av henne og er
-   * flytt: han var ei HANDLING på forma, og handlingar bur under tommelen —
-   * sjå forma i spalta (`studio.tsx`).
-   *
-   * Som brøkdel av den lengste sida; rada syner henne i millimeter.
-   */
   mjuk: number
   onMjuk: (v: number) => void
-  /**
-   * VIRRET: kor mange millimeter du har skuva rada ut av lina, denne økta.
-   * Berre med ei gruppe vald — ein einsleg plan har ingen line å bryte.
-   */
   virr: number
   onVirr: (mm: number) => void
-  /** laget (C02–C29) på det valde planet — eller heile den valde gruppa; 0 er ikkje noko lag */
   onFarge: (farge: number) => void
-  /** laget på den valde biten, eller null når ingen bit står vald */
   bitFarge: number | null
   onBitFarge: (farge: number) => void
   onSlett: (id: number) => void
-  /** høgreklikk på ei planrad — berre på benken; sjå `Meny` */
   onMeny: (id: number, x: number, y: number) => void
-  /** skift-trykk: frå det som er valt, til dette — som ei kvar anna liste */
   onSkiftVel: (id: number) => void
   busy: boolean
   feil: string | null
@@ -117,7 +69,6 @@ export type ArketProps = {
   onHogd: (px: number) => void
 }
 
-/** dei fire tala i lina, farga av den harde regelen som dømer kvart av dei */
 function Lina({ p }: { p: ArketProps }) {
   const { metrics: m, rules, plan, feil, melding, hentar } = p
   if (feil) return <span style={{ color: "var(--warn)" }}>{feil}</span>
@@ -129,7 +80,6 @@ function Lina({ p }: { p: ArketProps }) {
     { id: "plan", text: `${plan.length} plan` },
     { id: "delar", text: `${n0(m.parts)} delar` },
     { id: "ark", text: `${n0(m.sheets)} ark` },
-    // tida er det fyrste som må vike på ein smal telefon: ho står òg i tavla
     { id: "tid", text: klokke(m.cutTime), smal: true },
   ]
   return (
@@ -144,32 +94,10 @@ function Lina({ p }: { p: ArketProps }) {
   )
 }
 
-/** éi rad per låst plan: namn, kva det er, streka handa la i det, ledd (og stykke når det er fleire), og vegen ut.
- *  Tom liste er tom: rettleiinga og snittet seier alt kva som skal til. */
-/** Lista står der jamvel når ho er tom: ho er staden plana bur, og ei tom
- *  liste teiknar ingenting likevel. */
-/**
- * STEGET, SOM ORD — spalta si utgåve av `montering.txt`.
- *
- * Montasjen syner RØRSLA: kva som reiser seg, og i kva rekkjefylgje. Det er
- * halve svaret. Den andre halvdelen er kva delane HEITER og kva veg dei
- * kjem inn, og det stod berre i ei tekstfil inni ALT-pakka — so telefonen i
- * handa hadde biletet og orda låg på ei anna maskin.
- *
- * Planlista høyrer ikkje heime her. Montasjen endrar ikkje eit einaste tal,
- * so ei rad du kan velje er eit val fana ikkje kan svare på: han merkte seg
- * sjølv, og ingenting hende nokon stad. Lista er rommet sitt innhald; her
- * er innhaldet steget.
- *
- * Berre det steget som står. Å lista alle ville vore `montering.txt` på ein
- * skjerm som er for liten til henne, og du treng det som skjer no.
- */
 function Stega({ p }: { p: ArketProps }) {
   const VEGORD: Record<Veg, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg", boygd: "bøygd inn" }
   const mine = (p.mont?.delar ?? []).filter((d) => d.steg === p.montSteg - 1)
   if (!mine.length) {
-    // EIN TOM MONTASJE SEIER DET. Ingen plan er ein gyldig tilstand — du har
-    // ikkje skore noko enno — og ein blank skjerm er ikkje eit svar.
     return <p className="dim px-1.5 py-2 text-[11px]">ingen delar</p>
   }
   return (
@@ -186,21 +114,6 @@ function Stega({ p }: { p: ArketProps }) {
 }
 
 function Plana({ p }: { p: ArketProps }) {
-  /**
-   * EI GRUPPE LIGG BRETTA. Eit rutenett er tretti plan i lista, og lista er
-   * det meste av det du ser på ein telefon — so gruppa er si eine rad til
-   * du ber om noko anna. Trykket på henne gjer det han alltid har gjort —
-   * han TEK henne, so handtaka, pilene, slett og dubler gjeld alle plana i
-   * henne — og han brettar henne ut medan han gjer det. Trykk att, og ho
-   * vert sleppt og lagd saman.
-   *
-   * Det du HELD står likevel: planet som er valt er med i lista jamvel om
-   * gruppa hans ligg saman, av di lista alltid skal syne kva handa har.
-   *
-   * Bretten fylgjer trykket og ikkje valet: vel du ei anna gruppe, ligg den
-   * fyrste open vidare. Gruppetalet vert aldri brukt om att (`nyGruppe`),
-   * so eit tal som ligg att her etter ei sletta gruppe kan aldri treffe ei ny.
-   */
   const [utbretta, setUtbretta] = useState<ReadonlySet<number>>(() => new Set())
   const brett = (g: number) => {
     const paa = p.valdGruppe === g
@@ -213,7 +126,6 @@ function Plana({ p }: { p: ArketProps }) {
     if (paa) p.onVald(null)
     else p.onVelGruppe(g)
   }
-  /** gruppene, i den rekkja dei fyrst syner seg: ei rad over det fyrste planet i kvar */
   const sett = new Set<number>()
   return (
     <ul className="py-1" role="listbox" aria-label="plan">
@@ -294,32 +206,13 @@ function Plana({ p }: { p: ArketProps }) {
   )
 }
 
-/**
- * LAGET, SOM EI RAD MED FARGAR. LightBurn sine eigne, C02 til C29, i
- * palettorden — svart og blått er graveringa og kuttet og står ikkje til
- * val. Ringen fyrst er «ikkje noko lag»: kuttet blått som alle andre.
- *
- * Rada står under det valde PLANET, og under den valde BITEN, og ho er den
- * same rada båe stader — av di fargen er den same fargen. Merkjer du ein
- * bit og eit plan med det same laget, høyrer planet til biten og vert
- * skore inne i han åleine; det er heile grunnen til at biten har eit lag i
- * det heile. Med ei gruppe vald gjeld valet heile gruppa.
- */
 function Lagrad({ no, ord, tittel, onFarge }: {
   no: number
-  /** ordet i margen: kva det er som får laget — og kva rada er, for vaktene */
   ord: string
-  /** eitt kort tillegg til kvar farge si forklaring, om det trengst */
   tittel: string
   onFarge: (farge: number) => void
 }) {
   return (
-    /* ÉI RAD, OG HO RULLAR. Åtte og tjue fargar braut i tre rader og tok
-       ein tredjedel av arket for eit val du gjer sjeldan. No er det éi
-       line som rullar sidelengs inni seg sjølv: like mange fargar, og
-       arket får høgda si attende. Prikkane kunne ikkje krympast i staden
-       — tolv pikslar kvar er tolv pikslar med treffesoner som ligg oppå
-       kvarandre, og då tek feil farge trykket. */
     <li role="group" aria-label="lag" data-lag={ord} className="flex items-center gap-1 px-1.5 pb-1 pt-0.5">
       <span className="dim w-6 shrink-0 text-[9px] uppercase tracking-[0.12em]">{ord}</span>
       <span className="rull-x flex min-w-0 flex-1 items-center gap-x-0.5 overflow-x-auto overscroll-contain">
@@ -338,19 +231,6 @@ function Lagrad({ no, ord, tittel, onFarge }: {
   )
 }
 
-/**
- * VIRRET: RADA UT AV LINA.
- *
- * Eit rutenett er jamt, og jamt er ærleg — men ei rad ribber som står
- * millimeteren jamt er òg ei rad ingen har teke i. Rada her skuvar kvart
- * plan i gruppa langs si eiga normal, med eit hakk som er gjeve av namnet:
- * same planet får same hakket kvar gong, so du kan dra deg attende.
- *
- * Talet er det du har lagt på MEDAN DU STÅR HER, og ikkje noko som ligg i
- * lenkja: det som ligg der er kvar plana står. Difor byrjar rada på null
- * kvar gong du tek ei gruppe — virret er ikkje ei innstilling, det er ei
- * hand som skuvar.
- */
 function Virret({ p }: { p: ArketProps }) {
   const S = num(p.params, "storleik", 150)
   return (
@@ -367,17 +247,6 @@ function Virret({ p }: { p: ArketProps }) {
   )
 }
 
-/**
- * PROFILEN: KVA SOM SKJER MED KANTEN FØR SPORA VERT SKORNE.
- *
- * Mjukinga rundar av hakket trekantane i nettet la att, og ho tek heile
- * gruppa når ho er vald, som laget under.
- *
- * Ho står i MILLIMETER her og som ein brøk i strengen: brøken fylgjer
- * kroppen når han vert skalert, og millimeteren er det du ser på plata.
- * Rada er den same skrubbaren som alle andre tal — drag, piler, hjul, og
- * skriving på benken.
- */
 function Profilen({ p }: { p: ArketProps }) {
   const S = num(p.params, "storleik", 150)
   const tak = +(MJUK_TAK * S).toFixed(1)
@@ -410,41 +279,14 @@ function Laga({ p }: { p: ArketProps }) {
   )
 }
 
-/** planet sitt punkt, som avstand frå midten av kroppen langs normalen, i millimeter */
 function fraaMidten(pl: Plan, b: { min: Vec3; max: Vec3 }): string {
   let d = 0
   for (let a = 0; a < 3; a++) d += (pl.o[a] - 0.5) * (b.max[a] - b.min[a]) * pl.n[a]
   return `${d < -0.05 ? "−" : "+"}${nn(Math.abs(d), 1)} mm`
 }
 
-/**
- * UTTAKA: éi rad per bolk, éi brikke per fil, og kva dei to fargane tyder.
- *
- * Bolken står i margen — rom, plate, alt — der skyvargruppene har ordet
- * sitt. Eit dusin brikker på ei line er ein haug du må lesa gjennom kvar
- * gong; tre korte rader med eit ord framfor seg er tre stader å sjå.
- *
- * Fargeforklaringa høyrer til PLATA og står under henne. Ho sat nedst,
- * ved sida av «lagre», og forklarte noko som ikkje stod der.
- */
 function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
   const { metrics } = p
-  /**
-   * EIT HARDT BROT FYLGJER MED UT.
-   *
-   * Ein hard regel tyder at delane ikkje LET SEG lage eller setje saman:
-   * ein del som ikkje kjem inn same kva du gjer, eit ledd utan gods att,
-   * ein del som ikkje får plass på plata. Han har alltid stått raud i
-   * tavla — og tavla er ei rad du kan ha rulla forbi. Uttaket er der du
-   * gjer noko du ikkje kan gjere om: ei plate finér er skoren éin gong.
-   *
-   * Difor ber brikkene varselet, og tittelen seier kva som er broten.
-   * Dei er ikkje stengde: reiskapen avgjer ikkje for deg, og det finst
-   * grunnar til å skjere delane likevel — du vil sjå dei i handa, du skal
-   * lime i staden for å hekte, du rettar det i neste runde. `stengd` er
-   * for filer som ville vorte TOMME, og det er noko anna: der er det ikkje
-   * eit val, der er det ingenting å skrive.
-   */
   const harde = p.rules.filter((r) => r.hard && !r.ok)
   const varsel = harde.length
     ? `${harde.length === 1 ? "eit hardt brot" : `${harde.length} harde brot`}: ${harde.map((r) => r.label).join(", ")} — delane let seg ikkje setje saman slik dei står`
@@ -482,7 +324,6 @@ function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
           {g.bolk === "plate" && (
             <span className="dim flex items-center gap-3 pb-0.5 pl-[42px] text-[10px] uppercase tracking-[0.14em]" title="svart graverer, blått kutt. fargen er rekkjefylgja">
               {[["#000000", "graver"], ["#0000ff", "kutt"]].map(([farge, ord]) => (
-                // ringen kring prikken: den svarte er ein svart prikk på svart papir når systemet står mørkt
                 <span key={ord} className="flex items-center gap-1.5"><span aria-hidden="true" className="block h-[7px] w-[7px] rounded-full border" style={{ background: farge, borderColor: "var(--rule)" }} />{ord}</span>
               ))}
             </span>
@@ -493,12 +334,10 @@ function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
   )
 }
 
-/** alt: material og plate, verdiane, tavla med reglane i, uttaka, verktya. Reglane står HER og i dei raude tala i lina, ikkje i midten. */
 function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | null> }) {
   const { params, onChange, metrics } = p
   const setParam = (k: string, v: number) => onChange({ ...params, [k]: v })
   const naaTjukn = num(params, "tjukn", TJUKNER[0])
-  /** bolkane du har bretta saman: overskrifta er knappen, som gruppa i planlista */
   const [bretta, setBretta] = useState<ReadonlySet<string>>(() => new Set())
   const brett = (id: string) =>
     setBretta((s) => {
@@ -575,7 +414,6 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
 export function Arket(p: ArketProps): JSX.Element {
   const { benk, steg, onSteg, onHogd } = p
   const open = benk || steg !== "line"
-  /** uttaka eitt trykk unna: ein liten boks over lina. I «alt» står dei alt i arket, og knappen rullar dit. */
   const [visUttak, setVisUttak] = useState(false)
   const uttak = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
@@ -590,8 +428,6 @@ export function Arket(p: ArketProps): JSX.Element {
     if (steg === "alt") uttak.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
     else setVisUttak((v) => !v)
   }
-  // Kor mykje av ruta arket tek, MÅLT: kameraet stiller objektet inn i det
-  // som er att. Grovkorna, so ei line til i arket ikkje rykkjer kameraet.
   const el = useRef<HTMLElement | null>(null)
   useEffect(() => {
     const s = el.current
@@ -603,7 +439,6 @@ export function Arket(p: ArketProps): JSX.Element {
     return () => ro.disconnect()
   }, [onHogd, benk])
 
-  // iOS-ark: dra i hovudlina, opp for meir og ned for mindre
   const drag = useRef<{ y0: number; id: number } | null>(null)
   const [pull, setPull] = useState(0)
   const svelg = useRef(false)
@@ -677,20 +512,6 @@ export function Arket(p: ArketProps): JSX.Element {
     )
   }
 
-  /**
-   * UTTAKSBOKSEN STÅR OVER ARKET OG IKKJE INNI DET.
-   *
-   * Han låg inne i arket, absolutt plassert over toppen av det. Arket
-   * klipper: `overflow-x-hidden` gjer at nettlesaren reknar den andre
-   * aksen som `auto`, og alt som stikk opp over kanten vert skore bort.
-   * Boksen hadde difor plass, mål og knappar — og teikna ingenting. Ei
-   * rute du kan måle og ikkje sjå er den verste sorten feil: han syner
-   * seg ikkje i eit einaste tal.
-   *
-   * No er han eit sysken av arket i den same faste ramma, over det.
-   * Søvnen tek han med (sjå `.uttak` i globals.css), som han tek alt
-   * anna som ikkje er objektet.
-   */
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex flex-col items-center px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
       {visUttak && steg !== "alt" && (
@@ -711,11 +532,9 @@ export function Arket(p: ArketProps): JSX.Element {
         className="ark pointer-events-auto relative flex min-w-0 max-w-md flex-col overflow-x-hidden rounded-3xl border sm:max-w-xl"
         style={{
           ...HAIR,
-          // aldri breiare enn skjermen: ei rad med for lang tekst skal ikkje skuve arket ut av kanten
           width: "calc(100vw - 24px)",
           background: "var(--paper)",
           color: "var(--ink)",
-          // taket ligg på ARKET, og trygdesona tel med: summen er taket
           maxHeight: steg === "alt" ? "calc(72dvh - env(safe-area-inset-bottom) - 12px)" : "calc(48dvh - env(safe-area-inset-bottom) - 12px)",
           transform: pull ? `translateY(${pull}px)` : undefined,
         }}

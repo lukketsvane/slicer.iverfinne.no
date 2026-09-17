@@ -1,17 +1,3 @@
-/**
- * SLICERMAN — STL ut.
- *
- * Binær STL, millimeter, éin sekvens av lause trekantar utan indeksar.
- * Formatet er dumt med vilje: det er det einaste alle slicerar og alle
- * 3D-trykkjarar les likt.
- *
- * To fallgruver er handterte her. Den eine er hovudet: byrjar dei 80 fyrste
- * teikna på «solid», les mange program fila som ASCII og får berre søppel.
- * Den andre er vindinga: kvar trekant har både ein normal i fila og ei
- * rekkjefylgje på hjørna, og dei to skal seie det same. Nettet vårt ber
- * mjuke hjørnenormalar; her vert flatenormalen rekna på nytt av
- * geometrien, og hjørna bytte om når dei to peikar kvar sin veg.
- */
 export function meshToStl(
   mesh: { positions: Float32Array; normals: Float32Array; tris: number },
   name = "slicerman",
@@ -43,7 +29,6 @@ export function meshToStl(
     let ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az)
     let nz = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
 
-    // snittet av dei tre hjørnenormalane seier kva veg flata skal vende
     const wx = N[o] + N[o + 3] + N[o + 6]
     const wy = N[o + 1] + N[o + 4] + N[o + 7]
     const wz = N[o + 2] + N[o + 5] + N[o + 8]
@@ -62,8 +47,6 @@ export function meshToStl(
       nz = -nz
     }
 
-    // Degenererte trekantar får normalen frå skyggjinga i staden. Å skrive
-    // (0,0,0) er lovleg, men nokre slicerar tolkar det som ei feilflate.
     const L = Math.hypot(nx, ny, nz)
     if (L > 1e-12) {
       nx /= L
@@ -94,6 +77,4 @@ export function meshToStl(
   return u8
 }
 
-/** Hovudet er byte, ikkje tekst. Ein «é» skrive med charCodeAt vert
- *  avkorta til éin byte og kjem ut som søppel, so alt utanom ASCII går. */
 const ascii = (s: string) => s.replace(/[^\x20-\x7e]/g, "-")

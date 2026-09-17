@@ -29,18 +29,9 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary_large_image", title: TITLE, description: NOTE },
   applicationName: TITLE,
-  // gjennomsiktig statusline: topplina tek den tryggje sona sjølv (sjå toppline.tsx)
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: TITLE },
 }
 
-/**
- * SIDA ER SKJERMEN. iPhone 16e, lagra på heimskjermen, er det einaste
- * målet: ingenting på sida skal merkast, forstørrast eller rullast. Klypet
- * er ein gest reiskapen brukar sjølv, og eit klyp som forstørrar sida i
- * staden for objektet er eit klyp som gjekk til systemet. Difor er skalaen
- * låst her, og resten — gestane, merkinga, rullinga — i globals.css og i
- * studioet.
- */
 export const viewport: Viewport = {
   colorScheme: "light dark",
   width: "device-width",
@@ -48,8 +39,6 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  // lina rundt sida er papiret: kvitt i lys, svart i mørk. Same tokena som
-  // globals.css set — dei står her òg av di nettlesaren les dei før CSS-en.
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#000000" },

@@ -1,47 +1,13 @@
-/**
- * SLICERMAN — kontrakten.
- *
- * Reiskapen gjer éin ting: han tek eit tredimensjonalt nett og gjev deg
- * flate delar du kan skjere ut på laser eller fres, og som held seg sjølve
- * saman når du set dei i hop. Ingen dyr programvare, ingen lisens, ingen
- * eksportdialog i tolv steg.
- *
- * Denne fila er det alt anna les frå: kva ein parameter er, kva eit måltal
- * er, kva ein regel er, og geometrien som både snittinga, målinga og
- * kuttfilene deler. Ho kjenner korkje vaffel, kube eller STL.
- *
- * Aksar: X og Y er planet, Z er opp. Alt i millimeter, vinklar i grader ut
- * mot skyvaren.
- */
 
 export type Pt = [number, number]
 export type Vec3 = [number, number, number]
 
-// =============================================================================
-// MATERIALE
-// =============================================================================
 export type Material = "bjork" | "finer" | "mdf" | "akryl" | "papp"
 
 export const MATERIALS: Record<
   Material,
   { label: string; rho: number; hex: string }
 > = {
-  // rho i kg/m³ — det er han massen vert rekna av
-  /**
-   * BJØRK, OG HO ER MASSIVT TRE OG IKKJE EI PLATE AV LIM OG FINER.
-   *
-   * Fargen er MÅLD og ikkje vald: dei opplyste flatene på ein bjørkekrakk,
-   * lese piksel for piksel med bakgrunn og skugge filtrerte bort på metning.
-   * Snittet over tre flater er #dbb589, og det er talet som står her. Han
-   * skil seg tydeleg frå mdf i veljaren — mdf er gråare, bjørka varmare og
-   * lysare — og det måtte prøvast, av di prikken er det einaste som skil to
-   * material frå kvarandre der.
-   *
-   * Massivt tre er ikkje kryssfinér, og det synest to stader: det bøyer seg
-   * DÅRLEGARE (ingen kryssande lag til å stogge ei flis som vil gå langs
-   * fiberen) og det vil ha tettare riller av den same grunnen. Sjå
-   * `BOG_FAKTOR` og `STEG` i `rille.ts`.
-   */
   bjork: { label: "bjørk", rho: 670, hex: "#dbb589" },
   finer: { label: "kryssfinér", rho: 680, hex: "#e9dcc0" },
   mdf: { label: "mdf", rho: 750, hex: "#c9a889" },
@@ -49,30 +15,10 @@ export const MATERIALS: Record<
   papp: { label: "papp", rho: 220, hex: "#d8c9ac" },
 }
 
-/** Platetjukner ein faktisk får kjøpt. Skyvaren er fri — ei plate kan vera
- *  5,8 mm om ho er det — men desse er dei ein finn på lager, og difor er
- *  dei knappar og ikkje eit tal ein må treffe. */
-/**
- * Platene som står som knappar i panelet.
- *
- * Rada rullar på telefonen og tek òg møbelplater. Den målte tjukna kan
- * setjast nøyaktig under passform; namna her er berre raske startpunkt.
- */
 export const TJUKNER = [2, 2.5, 3, 4, 6, 9, 12, 15, 18, 24] as const
 
-/**
- * Minste stykke som er ein DEL, mm².
- *
- * Under fire kvadratcentimeter er det ein flis: fresen slit han laus,
- * laseren slepp han ned i bordet, og ingen finn han att i eska. Talet står
- * her og ikkje i kuttlista, av di rutenettet må bruke det same: eit stykke
- * som ikkje kjem i fila, skal ikkje stå i biletet heller.
- */
 export const MIN_AREA = 400
 
-// =============================================================================
-// PARAMETERROM
-// =============================================================================
 export type Range = {
   min: number
   max: number
@@ -80,34 +26,13 @@ export type Range = {
   label: string
   unit?: string
   int?: boolean
-  /** namn i staden for tal: eit val og ikkje ei mengd */
   names?: readonly string[]
 }
 
 export type Group = { id: string; label: string; keys: readonly string[] }
 
-/** Ein parametersats slik grensesnittet ser han: tal, pluss dei få nøklane
- *  som er namn — materialet og kjelda. */
 export type ParamBag = Record<string, number | string>
 
-/**
- * EIT TAL INN I EIT BAND — REGELEN, EIN STAD.
- *
- * Ein skyvar kan ikkje gå utanfor bandet sitt, men eit talfelt kan, og ei
- * URL-hash kan kva som helst. Difor vert kvart tal klemt inn i sitt eige
- * band før det får røre noko.
- *
- * Fire desimalar er taket. Det er ikkje pynt: eit flyttal etter ei klemming
- * ber gjerne på 0,30000000000000004, og eit slikt tal i ein memo-nøkkel er
- * ein nøkkel som aldri treffer seg sjølv.
- *
- * `clamp1` gjev NaN når talet ikkje er eit tal — den som les ei lenkje vil
- * VITE at feltet var tull, so han kan la det gamle stå. `snap` gjev botnen
- * i staden, av di eit felt i grensesnittet må ende opp med ein verdi. Same
- * regel, to svar på det eine spørsmålet dei er usamde om. Dei stod som to
- * kopiar i kvar sin fil, og ein kopi som er nesten lik er ein kopi som
- * driv.
- */
 const clamp1 = (v: number, r: Range) => {
   if (!Number.isFinite(v)) return NaN
   const c = Math.min(r.max, Math.max(r.min, v))
@@ -119,42 +44,15 @@ export const snap = (v: number, r: Range) => {
   return Number.isFinite(c) ? c : r.min
 }
 
-/** «1,5» er eit tal for eit menneske og NaN for Number() */
 export const lesTal = (raw: string) => Number(String(raw).replace(",", ".").replace(/\s+/g, ""))
 
-/** kor mange desimalar steget til ein skyvar treng */
 export const decimals = (step: number) => (step >= 1 ? 0 : step >= 0.1 ? 1 : step >= 0.01 ? 2 : 3)
 
-/**
- * TALET SLIK DET ER, IKKJE SLIK SKYVAREN VILLE SKRIVE DET.
- *
- * Steget er skyvaren si oppløysing, ikkje verdien si. Talfeltet finst nett
- * for å koma forbi steget: den som har målt plata si til 2,87 med
- * skyvelære skal kunne skrive 2,87, av di klaringa i kvart einaste spor
- * kjem av det talet — og passprøva er laga for å måle til ein tjuedels
- * millimeter.
- *
- * Men feltet skreiv talet med STEGET si oppløysing. 2,87 stod som «2,9»
- * medan motoren rekna med 2,87, og oppsettet i verktykassa skreiv 2.87 —
- * to visningar av det same talet som ikkje var samde.
- *
- * Og verre: feltet legg det som STÅR der inn i utkastet når det vert teke.
- * Eit klikk i feltet og eit klikk ut att las difor «2,9» og skreiv 2,9. Ei
- * måling gjekk tapt av å bli sedd på.
- *
- * So steget er eit MINSTE tal desimalar og ikkje eit største. Fire er
- * taket, av di klemminga ikkje held fleire.
- */
 export const feltTal = (v: number, step: number) => {
   for (let d = decimals(step); d < 4; d++) if (+v.toFixed(d) === v) return v.toFixed(d)
   return v.toFixed(4)
 }
 
-/**
- * URL-hashen er ikkje til å stole på. Kvart felt vert lese for seg, klemt
- * inn i sitt eige band, og alt som ikkje er eit tal fell tilbake til det som
- * stod frå før — inga laga lenkje kan skyve NaN inn i snittinga.
- */
 export function clampBag<P extends ParamBag>(
   o: unknown,
   prev: P,
@@ -173,22 +71,15 @@ export function clampBag<P extends ParamBag>(
   if (typeof rec.material === "string" && rec.material in MATERIALS) {
     out.material = rec.material
   }
-  // Kjelda er eit lause-handtak til eit nett som ligg i arbeidaren. Ei
-  // lenkje kan ikkje bera nettet, so ho ber berre namnet — og eit namn
-  // arbeidaren ikkje kjenner fell tilbake til kuben når han vert bygd.
   if (typeof rec.kjelde === "string" && /^[a-z0-9_-]{1,40}$/i.test(rec.kjelde)) {
     out.kjelde = rec.kjelde
   }
   return out as P
 }
 
-/** Norsk desimalskiljeteikn. Eit tal med punktum i ein norsk tabell les som
- *  eit tal henta frå eit anna dokument. */
 export const nn = (v: number, d = 0) =>
   Number.isFinite(v) ? v.toFixed(d).replace(".", ",") : "–"
 
-/** Sekund som klokke. «1520 s» er eit tal ein må rekne om for å kjenne att;
- *  «25:20» er den same opplysninga i det formatet ein alt les tid i. */
 export const klokke = (s: number) => {
   if (!Number.isFinite(s) || s < 0) return "–"
   const t = Math.round(s)
@@ -199,12 +90,6 @@ export const klokke = (s: number) => {
   return h ? `${h}:${pad(m)}:${pad(r)}` : `${m}:${pad(r)}`
 }
 
-// =============================================================================
-// MÅLTAL
-// =============================================================================
-/** Eit måltal med ferdig sats. Formateringa skjer i motoren og ikkje i
- *  grensesnittet: målinga går i ein worker, og ein funksjon kan ikkje
- *  sendast gjennom postMessage — han ville drepe heile meldinga. */
 export type Metric = {
   id: string
   label: string
@@ -213,10 +98,6 @@ export type Metric = {
   text: string
 }
 
-/**
- * Det reiskapen må kunne svare på. Alt er LESE av geometrien: eit tal her
- * er aldri ei avskrift av eit tal frå ein skyvar.
- */
 export type Metrics = {
   envX: number // ytre mål på det ferdige objektet, mm
   envY: number
@@ -226,8 +107,6 @@ export type Metrics = {
   unique: number // kor mange av dei som er ULIKE — det er oppspenningane
   loose: number // stykke utan eit einaste ledd: kasta, eller med i lista
   joints: number // kryssledd som faktisk vart skorne
-  /** møte som kryssa og var lange nok, men der skuldra ikkje heldt — sjå
-   *  `avvist` i `Snitt`. Eit kvart av dei på ei vanleg form. */
   avvist: number
   units: number // plan i alt
   unitLabel: string
@@ -239,8 +118,6 @@ export type Metrics = {
   cutLen: number // samla kuttlengd, mm — laseren si eiga tid
   cutTime: number // kuttetid, sekund: kuttlengda delt på kuttfarta
 
-  /** punkt i kuttbanen, alle delar. Det er dette forenklinga kostar og
-   *  sparar: ein node er eit punkt maskina må ta stilling til. */
   nodes: number
 
   narrow: number // smalaste gods som er att i eit ledd, mm
@@ -254,180 +131,52 @@ export type Metrics = {
   list: Metric[]
 }
 
-// =============================================================================
-// KUTTLISTA
-// =============================================================================
-/**
- * EI LINE PER DEL SOM SKAL SKJERAST.
- *
- * Panelet seier «12 delar · 12 · 2 unike». Det er sant, og det er ikkje
- * nok når du står ved maskina: kva for tolv, kor store, kva for plate,
- * og kva for to av dei er den same forma. Kuttlista er det same talet
- * skrive ut — ikkje ei ny rekning, berre den som alt er gjord, lesen linje
- * for linje.
- *
- * Adressa er den som står gravert på delen. Det er nøkkelen mellom denne
- * lista, kuttfila og plata du held i handa.
- */
 export type Kutt = {
-  /** «3», «3b» — det som er gravert på delen */
   adr: string
-  /** forma. To delar med same id er den same delen, og treng éi oppspenning */
   id: string
-  /** ytremål, mm */
   w: number
   h: number
-  /** flate, mm² */
   area: number
-  /** kuttlengd for denne eine delen, mm */
   cutLen: number
-  /** kryssledd som fell i dette stykket */
   joints: number
-  /** kva plate han ligg på, frå 1. Null tyder at han ikkje fekk plass. */
   ark: number
-  /**
-   * KVA PLAN HAN HØYRER TIL.
-   *
-   * Kuttlista sa kva du skal skjere og kor stort. Ho sa ikkje kvar det
-   * skal stå — og det er det siste spørsmålet du har att når delane ligg
-   * skorne på bordet. Talet er namnet på planet stykket er ein del av;
-   * planet står éin stad i lista over plan, med punkt og retning.
-   *
-   * To stykke av det same planet deler det: «3a» og «3b» er to øyer i
-   * det same planet.
-   */
   plan: number
 }
 
-/**
- * EIN DEL SLIK HAN LIGG PÅ PLATA, SOM NOKO DU KAN PEIKE PÅ.
- *
- * Plata var eit BILETE — ein SVG-streng i ein `<img>`. Eit bilete er
- * nøyaktig like mykje verdt som fila det er teikna av, og ikkje meir: du
- * kan sjå at ein del ligg feil, og du kan ikkje ta i han. Alt som skal
- * gjerast med ein einskild del — peike på han, låse han, dra han, telje
- * han to gonger — treng at delen finst som noko for seg sjølv.
- *
- * Banene er DEI SAME som kuttfila skriv, med den same snittkompensasjonen,
- * i dei same koordinatane (millimeter, y opp). Det er heile poenget: det
- * du ser på skjermen er ikkje ei framsyning av plata, det ER plata.
- */
-/**
- * LAGA I LIGHTBURN, SOM FARGAR.
- *
- * Ein SVG har ikkje lag; laserprogrammet les fargen og gjer henne til eit
- * lag, og LightBurn — der ni av ti av desse filene endar — held ein
- * palett med tretti faste verdiar (C00–C29) og krev dei EKSAKT. Dei to
- * fyrste er teke: svart er graveringa og blått er kuttet, og rekkjefylgda
- * ligg i dei (sjå `export-svg.ts`). Dei åtte og tjue andre er MERKE handa
- * kan setje på eit plan eller ei gruppe: same kutt, same fil, men på sitt
- * eige lag, so den som står ved maskina kan gje det si eiga fart, eller
- * skjere det sist, eller slå det av. Tabellen er LightBurn sin eigen
- * (docs.lightburnsoftware.com, «Layer Colors»), og han vert skriven
- * ordrett: ein farge som ligg nær ein av dei er ikkje den fargen.
- */
 export const LAG_FARGAR: readonly string[] = [
   "#000000", "#0000ff", "#ff0000", "#00e000", "#d0d000", "#ff8000", "#00e0e0", "#ff00ff", "#b4b4b4", "#0000a0",
   "#a00000", "#00a000", "#a0a000", "#c08000", "#00a0ff", "#a000a0", "#808080", "#7d87b9", "#bb7784", "#4a6fe3",
   "#d33f6a", "#8cd78c", "#f0b98d", "#f6c4e1", "#fa9ed4", "#500a78", "#b45a00", "#004754", "#86fa88", "#ffdb66",
 ]
-/** det fyrste laget handa kan merkje med: C00 og C01 er graveringa og kuttet */
 export const FARGE_MIN = 2
-/** eit gyldig merke, eller null: berre laga handa får bruke */
 export const lagFarge = (v: unknown): number | null =>
   typeof v === "number" && Number.isInteger(v) && v >= FARGE_MIN && v < LAG_FARGAR.length ? v : null
 
 export type Delplass = {
-  /** adressa som vert gravert — «3a». Same nøkkelen som kuttlista og
-   *  objektet brukar, so ein del kan fylgjast mellom dei tre. */
   adr: string
-  /** forma. To plassar med same id er den same delen om att. */
   id: string
-  /** omrisset, som ein SVG-bane */
   ut: string
-  /** hòla, kvart som si eiga bane */
   inn: string[]
-  /**
-   * RILLA, SOM ÉIN BANE MED MANGE DELSTREKK.
-   *
-   * Éin streng og ikkje ei liste, av di ho aldri vert fylt og aldri peikt
-   * på: eit mønster er éi handling. Og av di ei bøygd plate har seks hundre
-   * av dei — seks hundre element i treet, per del, ville kosta meir enn
-   * alt anna på plata til saman.
-   */
   rille: string
-  /** boksen kring han, til å ramme inn den som er peikt på */
   boks: { x: number; y: number; w: number; h: number }
-  /**
-   * Kvar pakkinga la han: plate, kvartsving og hjørnet av masken i
-   * millimeter. Det er nøyaktig det ein FEST er, so «sett han fast der han
-   * står» er å sende dette talet attende utan å rekne på det.
-   */
   plass: { sheet: number; rot: 0 | 1 | 2 | 3; x: number; y: number }
-  /**
-   * Han ligg i ein annan festa del. Berre handa kan få til det — pakkinga
-   * går aldri i nokon sjølv — og då skal plata syne det der det skjedde,
-   * og ikkje berre seie det i ei regel.
-   */
   kross?: boolean
-  /** laget handa merkte planet med (C02–C29), om noko: plata teiknar streken i den fargen */
   farge?: number
-  /**
-   * Adressa slik ho vert GRAVERT, som ei bane.
-   *
-   * Skuffa seier om seg sjølv at ho ikkje er eit bilete av fila, ho ER
-   * fila — og so mangla ho det einaste laseren skriv på delane. Du fann
-   * att X3a i eska ved å telje ribber.
-   *
-   * Same rekninga som uttaket: same staden på delen, same høgda, same
-   * streksettet. Tom når delen er for liten til å merkjast, som i fila.
-   */
   merke: string
-  /**
-   * LEDDA HANS, DER DEI LIGG PÅ PLATA.
-   *
-   * Eit spor er ikkje berre eit hakk i omrisset — det er eit LEDD, delt med
-   * ein annan del, og kor djupt det går er ei avgjerd. Difor kjem endane
-   * med hit: `botn` er den lukka enden, `lo` og `hi` er heile strekket
-   * leddet kan delast på, og `nokkel` er namnet på leddet i `deling`. Alt i
-   * millimeter på plata, gjennom den same plasseringa som omrisset — ein
-   * finger på handtaket dreg i den same geometrien fila vert skoren av.
-   *
-   * Begge delane i eit ledd har SAMA nøkkel og same strekket: dreg du den
-   * eine botnen djupare, vert den andre grunnare, av seg sjølv.
-   */
-  /**
-   * `boge` står der leddet ligg på ein BOGE og ikkje ei rett line — eit
-   * krumt skal møtt av eit golv. Då er dei fire punkta framleis dei fire
-   * punkta, men strekket mellom dei er ikkje ei korde, og handtaket skal
-   * teiknast der plata faktisk vert skoren.
-   */
   spor: { nokkel: string; munn: Pt; botn: Pt; lo: Pt; hi: Pt; boge?: Pt[] }[]
 }
 
-/** Ei plate slik ho ligg, til skjermen: teikninga og dei to tala som høyrer
- *  til henne. `tal` er kor mange plater det er i alt. */
 export type ArkSyn = {
   i: number
   tal: number
   svg: string
   delar: number
   util: number
-  /** dei same delane, kvar for seg. Sjå `Delplass`. */
   plasser: Delplass[]
-  /** plata sjølv, i millimeter */
   arkB: number
   arkH: number
 }
 
-// =============================================================================
-// REGLAR
-// =============================================================================
-/**
- * Det som skil ein reiskap frå ein demonstrasjon er om han seier nei.
- * `hard` tyder at delane ikkje kan skjerast eller ikkje kan setjast saman;
- * ein mjuk regel er eit val som skal stå på papiret i staden for i hovudet.
- */
 export type Rule = {
   id: string
   label: string
@@ -435,108 +184,36 @@ export type Rule = {
   hard: boolean
   value: string
   why: string
-  /**
-   * KVA AVLESING HAN DØMER.
-   *
-   * Ein regel er ikkje eit tal for seg sjølv: han er ein dom over eit tal
-   * som står i tavla frå før. «ribbene grip · 36 ledd» og rada «ledd · 36»
-   * er den same avlesinga, skriven to gonger, og den eine av dei stod raud
-   * medan den andre stod svart om det same objektet.
-   *
-   * Difor peikar regelen på rada si, og tavla har ÉI line per tal: verdien
-   * frå målinga, farga av regelen som dømer henne, med grunngjevinga og
-   * rådet i den same lina. Dei to reglane som ikkje har noko å peike på —
-   * klaringa og snittbreidda — les av ein skyvar og ikkje av geometrien, og
-   * dei syner seg berre når dei ryk.
-   */
   rad?: string
-  /** kva som rettar han, om noko av det reiskapen rår over gjer det */
   fiks?: Fiks
 }
 
-/**
- * REGELEN BER RÅDA SI.
- *
- * Ein regel som ryk og ikkje seier vegen ut er ei blindgate: «delane får
- * plass · 15 utanfor», og so står du der med to uttak strekne over og
- * ingen ting å trykkje på. Grunngjevinga sa alt kva som måtte gjerast —
- * «anten mindre objekt, fleire ribber, eller ei større plate» — men ho sa
- * det med ord, og orda måtte lesast, tolkast og reknast om til eit tal du
- * sjølv skulle finne fram til i ein skyvar.
- *
- * Tala står alt her. Regelen som veit at femten delar er for store veit
- * òg kor mykje for store dei er, og då kan han seie 420 i staden for
- * «mindre». `set` går rett inn i parametrane gjennom den vanlege vegen,
- * so eit råd du ikkje likar er eitt angre unna.
- *
- * Nokre reglar har ikkje noko råd, og då skal dei ikkje lage eit. Eit
- * nett med hòl i vert ikkje lukka av eit tal.
- */
 export type Fiks = {
-  /** det som står på knappen: «prøv 420 mm» */
   ord: string
-  /** parametrane som skal endrast. Tal for skyvarane; ein streng for dei
-   *  få parametrane som er lister — festa, som eit råd kan sleppe. */
   set: Record<string, number | string>
-  /**
-   * RÅDET RIV ARBEID: det tek plan du har sett, og ikkje eit tal du kan
-   * skyve attende.
-   *
-   * Eit slikt råd står som knappen sin, som alle andre — du kan trykkje han
-   * når du vil ha han, og angre tek han. Men «fiks alt» hoppar over dei.
-   * Eit trykk som tek førti plan du har sett skal vera eit trykk du meinte,
-   * og ikkje noko som fylgde med på kjøpet av å rette klaringa.
-   */
   riv?: true
 }
 
-// =============================================================================
-// NETT UT AV MOTOREN
-// =============================================================================
 export type DetailKey = "lav" | "mid" | "hog"
 
-/** Dei fire lesemåtane av eitt og same objekt:
- *   flate     nettet slik det kom inn — etter forenkling og glatting
- *   lag       ribbene slik dei faktisk står, med spor
- *   kontur    delane liggjande på plata, der dei vert skorne ut
- *   montasje  kroppen som reiser seg av platene sine, steg for steg
- *
- * Dei to fyrste er ROM og vert bygde av motoren. Konturen er PLATA, og ho
- * kjem av nestinga («ark»), ikkje av eit nett. Montasjen er dei same delane
- * med to matriser kvar (`lib/montasje.ts`) — difor `Rom` fyrst: det `build`
- * svarar for, og ikkje meir. */
 export type Rom = "flate" | "lag"
 export type View = Rom | "kontur" | "montasje"
 
 export type ExportKind =
   | "stl"
-  /** same objektet som GLB — det formatet resten av verda opnar */
   | "glb"
-  /** dei same delane, men lagde flatt der nestinga la dei: kuttjobben i tre
-   *  dimensjonar, sprengd frå kvarandre og klar til å målast */
   | "flat"
-  /** dei same flate delane i det formatet ein slicer opnar: eitt objekt per
-   *  del, millimeter og z opp, til 3D-trykk */
   | "3mf"
-  /** og som USDZ: montasjen på bordet framfor deg, gjennom delingsarket */
   | "usdz"
   | "dxf"
   | "svg"
   | "ark"
-  /** platene som bilete. Rasterisert på hovudtråden, sjå `pngAvArk`. */
   | "png"
   | "prove"
-  /** og den andre prøva: fem rilla felt med kvart sitt steg, til å bøye */
   | "bogprove"
   | "alt"
   | "prosjekt"
 
-/**
- * Kuttlista som tekst, til rekneark og til innkjøpslista.
- *
- * Semikolon og ikkje komma: tala er norske og har komma i seg, og eit
- * rekneark som skal gjettast på er eit rekneark som gjettar feil.
- */
 export function kuttCsv(liste: readonly Kutt[]): string {
   return [
     "adresse;form;breidd_mm;hogd_mm;flate_cm2;kutt_mm;ledd;plate",
@@ -561,32 +238,8 @@ export type BuildOut = {
   tris: number
   min: Vec3
   max: Vec3
-  /**
-   * Flate eller kant, eitt tal per hjørne: 0 er ei PLATEFLATE, 1 er eit
-   * KUTT gjennom plata. Skiljet er noko berre byggjaren veit — ei loddrett
-   * ribbe har flatene sine liggjande vassrett i normalen, og ei global
-   * tommelfingerregel ville farga henne feil.
-   */
   kant: Float32Array<ArrayBufferLike>
-  /**
-   * Kva line i kuttlista kvart hjørne høyrer til, eller −1.
-   *
-   * Berre «lag» har dette: der ER kvar flate ein del du kan halde i handa.
-   * Merket vert sett der trekanten vert bygd, og det er den einaste vegen
-   * frå ein piksel på skjermen til ei line i lista — å gjette ut frå kvar
-   * peikaren står i rommet ville vore ei ny rekning som kunne svare noko
-   * anna enn snittinga.
-   */
   del: Float32Array<ArrayBufferLike>
-  /**
-   * Bitane kroppen er sett saman av, med boksen sin i millimeter.
-   *
-   * Berre «flate» ber dei: det er DER kroppen er ein kropp og ikkje ein
-   * stabel delar. Handa peikar på ein boks for å ta i biten han er, og
-   * `skala` er vegen attende — millimeter i det plasserte rommet per
-   * millimeter i det felles rommet bitane står i. Begge vert rekna der
-   * plasseringa vert rekna, so ingen reknar dei om att.
-   */
   bitar: { id: string; min: Vec3; max: Vec3 }[]
   skala: number
 }
@@ -596,14 +249,9 @@ export type ExportOut = {
   mime: string
   text?: string
   data?: ArrayBuffer
-  /** Noko fila IKKJE bar. Ei fil som manglar noko og ikkje seier det, er
-   *  verre enn ei fil som feila: du finn det ut når du opnar henne att. */
   merknad?: string
 }
 
-// =============================================================================
-// GEOMETRI ALLE DELER
-// =============================================================================
 export function shoelace(poly: Pt[]): number {
   let a = 0
   for (let i = 0; i < poly.length; i++) {
@@ -627,13 +275,6 @@ export function bbox(poly: Pt[]): { x0: number; y0: number; x1: number; y1: numb
   return { x0, y0, x1, y1 }
 }
 
-/**
- * Ligg punktet inne i ringen? Stråle mot høgre, tel kryssingar.
- *
- * Ho står her og ikkje i vaffelmappa av di tre ting spør om det same:
- * kva hòl som høyrer til kva ytterkant når ei ribbe er delt i fleire
- * stykke — i biletet, i kuttlista og i ribba sjølv.
- */
 export function inRing(ring: Pt[], p: Pt): boolean {
   let inside = false
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -647,7 +288,6 @@ export function inRing(ring: Pt[], p: Pt): boolean {
   return inside
 }
 
-/** omkrinsen av ein ring — kuttlengda hans */
 export function perimeter(ring: Pt[]): number {
   let L = 0
   for (let i = 0; i < ring.length; i++) {
@@ -658,7 +298,6 @@ export function perimeter(ring: Pt[]): number {
   return L
 }
 
-/** sats av eit måltal: teksten som skal stå på skjermen */
 export function metric(
   id: string,
   label: string,
@@ -669,12 +308,6 @@ export function metric(
   return { id, label, value, unit, text }
 }
 
-/**
- * Konturen skuva `d` millimeter utover langs vinkelhalveringslina. Det er
- * ikkje eit ekte offset — eit ekte offset kollapsar hjørne der radien er
- * mindre enn skuvet — men på ein tidels millimeter mot ein hjørneradius på
- * fleire er skilnaden under det maskina kan halde, og han går rette vegen.
- */
 export function offsetPoly(poly: Pt[], d: number): Pt[] {
   const n = poly.length
   if (n < 3 || Math.abs(d) < 1e-6) return poly
@@ -696,14 +329,12 @@ export function offsetPoly(poly: Pt[], d: number): Pt[] {
     }
     mx /= L
     my /= L
-    // korriger for at halveringslina er kortare enn normalen i eit hjørne
     const k = Math.max(0.4, n1[0] * mx + n1[1] * my || 1)
     out.push([b[0] + (s * mx) / k, b[1] + (s * my) / k])
   }
   return out
 }
 
-/** utovernormalen til kanten a→b i eit polygon mot klokka */
 function norm(a: Pt, b: Pt): Pt {
   const dx = b[0] - a[0]
   const dy = b[1] - a[1]
@@ -711,21 +342,6 @@ function norm(a: Pt, b: Pt): Pt {
   return [dy / L, -dx / L]
 }
 
-// =============================================================================
-// HUGS
-// =============================================================================
-/**
- * Hugsar dei siste resultata per nøkkel — ein bitteliten LRU.
- *
- * For eitt og same punkt spør arbeidaren om bygg, måltal og reglar etter
- * kvarandre, og kvar av dei tre startar med å reise det same rutenettet frå
- * dei same tala. Utan hugs kostar kvart skyvartrykk tre snittingar; med han
- * kostar det éin.
- *
- * Berre mellombygg skal hugsast — ALDRI eit nett som vert sendt gjennom
- * postMessage: overføringa koplar frå bufferane, og eit hugsa nett med
- * fråkopla bufferar er eit usynleg objekt.
- */
 export function keep<T>(size = 3): (key: string, make: () => T) => T {
   const m = new Map<string, T>()
   return (key, make) => {

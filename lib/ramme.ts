@@ -1,29 +1,10 @@
-/**
- * INNRAMMINGA — kor langt attende kameraet skal stå, og kva del av ruta
- * objektet skal stå midt i.
- *
- * Objektet vert alltid skalert til den same ramma, so «kor stort er det» er
- * ikkje eit spørsmål her. Spørsmålet er kva del av ruta som er FRI: eit
- * kontrollark nedst tek den nedste halvdelen, og to veggar tek kvar sin
- * kant. Eit objekt som er ramma inn i heile ruta står bak dei.
- *
- * Rekninga står her og ikkje i scena av éin grunn: eit objekt som gøymer
- * seg bak menyen er ein feil som ikkje kastar, ikkje loggar og ikkje syner
- * att på noko måltal. Det einaste som fangar han er å rekne kvar objektet
- * hamnar på skjermen, og det kan berre gjerast på tal som let seg lesa
- * utanfor ein nettlesar.
- */
 export type Fit = {
-  /** rotasjonsfast radius i sceneeiningar */
   r: number
-  /** breidd og høgd, for ei teikning som ikkje kan snuast */
   w: number
   h: number
-  /** halve høgda: der midten av objektet ligg over golvet */
   cy: number
 }
 
-/** ruta og kva som ligg over henne, i CSS-pikslar */
 export type Rute = {
   W: number
   H: number
@@ -33,98 +14,25 @@ export type Rute = {
   botn: number
 }
 
-/** golvet i scena */
 export const GROUND_Y = -0.9
-/** luft kring objektet */
 export const FIT_MARGIN = 1.35
-/** Golvlina står i same skjermhøgd same kor stort objektet er: siktepunktet
- *  stig i takt med kameraavstanden, so vinkelen ned mot golvet er fast. */
 export const FLOOR_TAN = 0.1637
 export const MIN_DIST = 3.2
-/**
- * KOR LANGT ATTENDE DU FÅR KOME.
- *
- * Taket stod på 18. Innramminga treng aldri meir enn 14,5 av dei — det er
- * det verste tilfellet, ein like brei som høg kropp på ein telefonskjerm —
- * so ho var aldri i vegen. Men handa var: hadde du fyrst ramma inn, var det
- * berre 1,27 gonger att å dra seg attende på, og på ein kropp med mange
- * plan er det for lite til å sjå kva du held på med.
- *
- * No er det 3,4 gonger. Kroppen fyller 41 % av det frie bandet innramma og
- * 12 % heilt ute; under det er han ein prikk, og eit tak som slepper deg
- * til ein prikk er eit tak som ikkje gjer nytte.
- *
- * DETTE TALET HENG SAMAN MED SKODDA. Ho stod på faste tal, 22 til 48, og
- * eit kamera forbi 22 tynna kroppen ut mot bakgrunnen. Taket på 18 låg
- * akkurat under den kanten, so ingen fann det. Skal taket opp, må skodda
- * fylgje kameraet — sjå `SKODDE_NAER`.
- */
 export const MAX_DIST = 48
-/**
- * SKODDA LIGG EI FAST DJUPN BAK KROPPEN, ikkje på ein fast avstand frå null.
- *
- * Same lufta bak objektet kvar du enn står. Tala er dei same som dei faste
- * var på den innramma avstanden på ein telefon — 14,1 pluss 7,9 og 33,9 —
- * so synet er uendra der du alt var, og kroppen kan ikkje lenger tynnast
- * ut av å verte sett på frå langt unna.
- *
- * Kroppen sin eigen radius er kring 1,6; `SKODDE_NAER` må vera større enn
- * han, elles byrjar skodda inne i det ho skulle liggje bak.
- */
 export const SKODDE_NAER = 8
 export const SKODDE_FJERN = 34
-/**
- * OG KLIPPEPLANA GJER DET SAME.
- *
- * `near` stod på 0,1 og `far` på 1000, og på den innramma avstanden er det
- * godt nok. Flatsynet er det ikkje: der står kameraet femten gonger lenger
- * ute, og djupnebufferet har mesteparten av oppløysinga si rett framfor
- * `near`. Ved 222 med `near` 0,1 er steget i djupna 0,03 einingar — ei halv
- * ribbe — og då blinkar to ribber som ligg inntil kvarandre om kven som er
- * framfor. Med djupna lagd kring AVSTANDEN i staden er steget 2,5e-6.
- *
- * Lufta framfor må vera romsleg nok til at kroppen aldri når henne: han er
- * kring 1,6 i radius, og `SKODDE_NAER` er alt 8. Bak treng ho ikkje vera
- * det — alt forbi `SKODDE_FJERN` er allereie skodde, og skodda er nøyaktig
- * bakgrunnsfargen.
- */
 export const NAER_LUFT = 12
-/** synsfeltet i perspektiv */
 export const FOV_NAER = 30
-/**
- * OG SYNSFELTET I FLATSYNET.
- *
- * Ikkje null: eit ortografisk kamera er ei anna projeksjonsmatrise, og alt
- * som reknar på skjermpunkt måtte hatt to utgåver. To grader gjev strålar
- * som er parallelle til 1,4 % — under ein piksel over eit objekt på denne
- * skjermen — med den same matrisa som alt anna byggjer på.
- */
 export const FOV_FLAT = 2
-/**
- * Kor mykje lenger attende eit trongare synsfelt må stå for at biletet skal
- * stå stille: `d · tan(fov/2)` er det som avgjer kor stort noko vert, so
- * han skal vera konstant. Både innramminga og taket på dollyen er tal i
- * PERSPEKTIVET, og dei fylgjer med.
- */
 export const fovSkala = (fovDeg: number) =>
   Math.tan((FOV_NAER * Math.PI) / 360) / Math.tan((fovDeg * Math.PI) / 360)
-/**
- * Kor lite det frie bandet får verte før innramminga sluttar å ta omsyn.
- *
- * Eit ark som tek to tredelar er ikkje eit ark nokon les objektet gjennom;
- * det er eit ark nokon arbeider i. Å sende objektet til himmels for å berge
- * dei siste pikslane gjer begge delar verre.
- */
 export const MIN_FRITT = 0.5
 
-/** det frie bandet i piksel, med kvar akse klemt for seg */
 export function fritt(rute: Rute) {
   const takX = rute.W * (1 - MIN_FRITT)
   const takY = rute.H * (1 - MIN_FRITT)
   const sumX = Math.max(0, rute.venstre) + Math.max(0, rute.hogre)
   const sumY = Math.max(0, rute.topp) + Math.max(0, rute.botn)
-  // Klemminga må halde FORHALDET mellom kantane, elles hoppar objektet
-  // sidelengs når det eine panelet veks.
   const kx = sumX > takX ? takX / sumX : 1
   const ky = sumY > takY ? takY / sumY : 1
   const L = Math.max(0, rute.venstre) * kx
@@ -144,17 +52,9 @@ export function ramme(
   const fri = fritt(o.rute)
   const vHalf = (o.fovDeg * Math.PI) / 360
   const hHalf = Math.atan(Math.tan(vHalf) * (fri.w / fri.h))
-  // Eit objekt kan snuast, og då må innramminga halde same kva veg det
-  // står: difor radien, som er den same frå alle kantar.
   const raw = (fit.r * FIT_MARGIN) / Math.tan(Math.min(vHalf, hHalf))
-  // golvet og taket er tal i perspektivet; i flatsynet står heile biletet
-  // lenger ute, og då må dei det òg
   const k = fovSkala(o.fovDeg)
   const dist = Math.min(MAX_DIST * k, Math.max(MIN_DIST * k, raw))
-  // Golvpinninga held golvlina i same skjermhøgd, men berre så lenge ho
-  // ikkje kastar sikta over objektet. På eit høgt og smalt lerret vert
-  // avstanden stor, og då ville siktepunktet flyge opp i lause lufta med
-  // objektet langt nede. Difor eit tak på objektet si eiga midje.
   return {
     dist,
     y: Math.min(GROUND_Y + dist * FLOOR_TAN, GROUND_Y + fit.cy),
@@ -162,12 +62,6 @@ export function ramme(
   }
 }
 
-/**
- * Kvar objektet hamnar i det FRIE bandet, som brøkdel ovanfrå.
- *
- * 0 er øvste kanten av bandet og 1 er nedste. Kula kring objektet er det
- * einaste som held same kva veg det er snutt, so ho er det som vert målt.
- */
 export function paaSkjermen(
   fit: Fit,
   r: { dist: number; y: number },

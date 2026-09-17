@@ -1,33 +1,10 @@
-/**
- * PANELET — kontrollane i ein ekte nettlesar, på begge flatene.
- *
- * Kikken (`look.ts`) ser om sida står. Dette harnesset TEK I HENNE: låser
- * og slettar plan med knapp og tast, vel eit plan i lista, skisserer med to
- * fingrar (CDP-touch: dra og vri) og ser at planet som vert låst faktisk
- * flytta seg og vinkla seg, angrar, set eit rutenett med to fingrar, opnar
- * platene og snur ein del, les oppsettet som tekst. Alt vert lese attende
- * frå lenkja — ho ber parameterposen, og posen er sanninga.
- *
- *   pnpm build && pnpm start -p 3210
- *   PW_CHROMIUM=/opt/pw-browsers/chromium pnpm panel [del ...]
- *
- * `URL` seier kvar sida står, `LAG` kor mange bilete den andre fingeren kjem
- * etter den fyrste i ein togripargest (sjå `toFingrar`).
- */
 import { chromium, type Browser, type Page } from "playwright"
 import { lesPlan, OMRISS_TAK, rutenett, skrivPlan, type Strek } from "../lib/plan"
 import type { Vec3 } from "../lib/core"
 import { FORMER } from "../lib/scene"
 import type { Params } from "../lib/params"
 
-/**
- * KVAR SIDA STÅR, og kva delar som skal køyrast. Argumenta er delenamn;
- * adressa kjem frå miljøet, av di ho er den same kvar gong og delenamna
- * ikkje er det. Ei adresse som fyrste argument ville tydd at «boyen» var
- * ein tenar.
- */
 const URL = process.env.URL ?? process.env.PANEL_URL ?? "http://127.0.0.1:3210"
-/** vindauget for eit dobbelttrykk, det same som studioet held */
 const DOBBELT = 320
 const HOVUDLINA = "[aria-label='plan, delar, ark og tid']"
 
@@ -43,7 +20,6 @@ const ferdig = (page: Page) =>
     undefined,
     { timeout: 45000 },
   )
-/** parameterposen slik lenkja ber henne */
 const hash = (page: Page): Params => {
   const h = page.url().split("#p=")[1]
   return h ? (JSON.parse(decodeURIComponent(h)) as Params) : ({} as Params)
@@ -54,7 +30,6 @@ const roleg = async (page: Page, ms = 500) => {
   await ferdig(page)
   await page.waitForTimeout(ms)
 }
-/** vent på noko som må lesast av SIDA og ikkje av posen — ei line, eit merke */
 const vent2 = async (page: Page, f: () => Promise<boolean>, ms = 8000) => {
   const t0 = Date.now()
   while (Date.now() - t0 < ms) {
@@ -62,7 +37,6 @@ const vent2 = async (page: Page, f: () => Promise<boolean>, ms = 8000) => {
     await page.waitForTimeout(100)
   }
 }
-/** lenkja vert skriven litt etter handlinga; vent på at posen seier det ho skal */
 const vent = async (page: Page, f: (p: Params) => boolean, ms = 10000) => {
   const t0 = Date.now()
   while (Date.now() - t0 < ms) {
@@ -72,11 +46,6 @@ const vent = async (page: Page, f: (p: Params) => boolean, ms = 10000) => {
   await roleg(page, 200)
 }
 const talPlan = (n: number) => (p: Params) => lesPlan(p.plan).length === n
-/**
- * GRUPPENE LIGG SAMAN, so ei rad i lista er ikkje der før nokon ber om
- * henne. Eit trykk på gruppa brettar henne ut (og tek henne, som før);
- * eit trykk på eit plan etterpå slepper gruppa att.
- */
 const utbrett = async (page: Page) => {
   const rader = page.locator("[role=listbox][aria-label='plan'] [data-gruppe] button[aria-expanded='false']")
   for (let vakt = 0; vakt < 8 && (await rader.count()) > 0; vakt++) {
@@ -85,7 +54,6 @@ const utbrett = async (page: Page) => {
   }
 }
 
-/** arket i midten, med planlista synleg */
 const midt = async (page: Page) => {
   if ((await page.locator("[role=listbox][aria-label='plan']").count()) === 0) {
     await page.locator(HOVUDLINA).click()
@@ -93,19 +61,6 @@ const midt = async (page: Page) => {
   }
 }
 
-/**
- * EIN FINGER PÅ SKJERMEN, TIL VAKTA.
- *
- * Grensesnittet SØV etter to sekund utan ei rørsle, og medan det søv tek
- * det ikkje imot fingrar — det er heile poenget med det. Ein prøvebenk har
- * ingen finger: han ventar på eit bygg i fire sekund og trykkjer så på ein
- * knapp som ikkje er der lenger, og då ryk hundre vakter av éi avgjerd dei
- * ikkje prøver.
- *
- * Difor seier benken at handa ligg på: ei rørsle i sekundet, som ein som
- * sit med telefonen. Søvnen sjølv vert prøvd i sin eigen del, der handa er
- * teken bort med vilje (`opne(..., { sov: true })`).
- */
 async function opne(url: string, browser: Browser, w: number, h: number, o?: { sov?: boolean }) {
   const page = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: w < 1180 })
   if (!o?.sov) {
@@ -123,76 +78,21 @@ async function opne(url: string, browser: Browser, w: number, h: number, o?: { s
   return { page, konsoll }
 }
 
-/**
- * KOR MANGE BILETE DEN ANDRE FINGEREN KJEM ETTER DEN FYRSTE.
- *
- * `toFingrar` sende begge i den same `touchStart`-en, og ei hand gjer aldri
- * det: tommelen landar, glaset kjenner éin finger i nokre bilete, og so kjem
- * peikefingeren. Nett den rekkjefylgja er ein heil klasse feil — kameraet som
- * snudde seg av den fyrste fingeren åleine levde gjennom eit grønt harness av
- * di harnesset aldri sende han åleine (sjå prikkane på sidene av ein bit i
- * «telefon», der prøva måtte skrive CDP-en sin eigen for å nå han).
- *
- * Seks bilete er hundre millisekund: ein rask klyp med to fingrar, målt på ei
- * hand. `LAG=0` sender dei saman att, og `LAG=14` er ei roleg hand.
- *
- * OG DEN FYRSTE FINGEREN VANDRAR IKKJE MEDAN HAN VENTAR. Han landar der gesten
- * byrjar og skjelv dei pikslane ei hand skjelv på eit glas; sjølve gesten tek
- * til frå byrjinga si når begge er nede. Fyrste utkastet lét han gå sin del av
- * VEGEN åleine, og då målte prøvene eit kortare drag i staden for ei anna
- * hand: rutenettet fekk to kolonner der draget seier fire.
- */
 const LAG = Number(process.env.LAG ?? 6)
-/** kor mange pikslar ein finger som ligg og ventar skjelv */
 const SKJELV = 1
 
-/**
- * TO FINGRAR, GJENNOM CDP. Playwright har éin finger; skissa treng to.
- * `steg` gjev fingrane sine plassar frå 0 til 1.
- *
- * OG DEI KJEM IKKJE NED SAMSTUNDES.
- *
- * Prøva sette båe punkta i den SAME `touchStart`. Det er greitt når båe
- * høyrer til éin gest som byrjar i same augeblinken — men ei hand gjer aldri
- * det. Den eine fingeren når glaset fyrst, og i det glipet ser appen éin
- * finger åleine: ein gest som er noko anna enn den som kjem. Nett den
- * rekkjefylgja var heile feilen med prikkane på sidene, som levde gjennom
- * eit grønt panel so lenge han gjorde — og han kunne ikkje ha vorte fanga
- * av ein prøve der båe fingrane melder seg i det same millisekundet.
- *
- * `lag` er kor mange bilete den fyrste fingeren er åleine, og han RØRER seg
- * i det glipet: ein finger som ligg heilt i ro er ikkje ein gest, og då
- * prøver ein ikkje det som hender. Null er den gamle åtferda.
- *
- * OG HAN SKJELV IKKJE BERRE — HAN KAN VANDRE.
- *
- * `SKJELV` er éin piksel, og éin piksel er under dei tolv som skil eit trykk
- * frå eit drag. Ein finger som aldri kryssar den grensa vert aldri sleppt til
- * orbiten, so heile den vegen gjennom koden stod uprøvd: synet svinga fritt
- * medan den fyrste fingeren gjekk, og vart rykt attende i det den andre
- * landa. Sluttilstanden var perfekt, og difor sa kvar einaste vakt ok.
- *
- * `vandre` er kor mange pikslar han går FØR den andre landar, og gesten held
- * fram der han sluttar — ein finger teleporterer ikkje attende når handa
- * legg seg ned.
- */
 async function toFingrar(
   page: Page,
   steg: (t: number) => [[number, number], [number, number]],
   n = 12,
-  /** køyrt etter kvart hakk, MEDAN handa er nede — den fyrste fingeren sine
-   *  hakk med (sjå `lag`): ingen av dei skal røre kameraet. Sjå «undervegs». */
   mellom?: () => Promise<void>,
-  /** kor mange hakk den andre fingeren kjem etter den fyrste; sjå `LAG` */
   lag = LAG,
-  /** kor mange pikslar den fyrste fingeren VANDRAR åleine; sjå over */
   vandre = 0,
 ) {
   const cdp = await page.context().newCDPSession(page)
   const pkt = (t: number) => steg(t).map(([x, y], id) => ({ x, y, id, radiusX: 4, radiusY: 4, force: 1 }))
   const l = Math.max(0, Math.round(lag))
   if (l) {
-    // TOMMELEN FYRST, og glaset kjenner han åleine medan handa legg seg ned.
     const a = pkt(0)[0]
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [a] })
     for (let i = 1; i <= l; i++) {
@@ -202,7 +102,6 @@ async function toFingrar(
       if (mellom) await mellom()
     }
   }
-  // og so er begge nede, og gesten går som han alltid har gjort
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pkt(0) })
   for (let i = 1; i <= n; i++) {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pkt(i / n) })
@@ -217,13 +116,6 @@ async function telefon(browser: Browser) {
   console.log("\n=== telefon 390×844")
   const { page, konsoll } = await opne(URL, browser, 390, 844)
 
-  /**
-   * ORD, IKKJE PILLER. Lesemåtane i toppen og speglingane øvst i midten stod
-   * i ringar, med ei fylt flate under den som gjaldt — chrome som sa det ordet
-   * alt sa, og tre flater midt i biletet. No er dei ord i det same blekket
-   * ikona bruker. Vakta ser etter ringen og flata, ikkje etter utsjånaden:
-   * ein kant med breidd, eller ein bakgrunn som ikkje er ingenting.
-   */
   const pille = await page.evaluate(`(() => {
     var ut = []
     document.querySelectorAll("header button[aria-pressed], [data-speil]").forEach(function (e) {
@@ -235,12 +127,6 @@ async function telefon(browser: Browser) {
     return ut
   })()`) as string[]
   sjekk("lesemåtane og speglingane er ord, ikkje piller", pille.length === 0, pille.join(" · "))
-  /**
-   * OG SPEGLINGANE STÅR ØVST I MIDTEN. Dei låg i tommelspalta før, og tok
-   * ei høgd tommelen kunne brukt. No er dei ei line for seg i det frie
-   * bandet: midtstilte om skjermen, oppe under topplina — og bandet slepper
-   * fingrar gjennom, so ein tur på objektet der oppe er objektet sin.
-   */
   {
     const x = await page.locator("[data-speil='x']").boundingBox()
     const z = await page.locator("[data-speil='z']").boundingBox()
@@ -261,11 +147,6 @@ async function telefon(browser: Browser) {
     sjekk("men ordet tek sitt eige", kven.paa === "ordet", kven.paa)
   }
 
-  /**
-   * RUTENETTET ER EIN REISKAP, og reiskapane bur i tommelspalta. Han stod i
-   * lina på arket, ved talet han endrar; no står han øvst i spalta, over dei
-   * andre — same språket som verktyet for kroppen og skissebrytaren.
-   */
   {
     const r = await page.locator("[data-ruteverkty]").boundingBox()
     const b = await page.locator("[data-bitverkty]").boundingBox()
@@ -274,15 +155,12 @@ async function telefon(browser: Browser) {
     sjekk("og ikkje i lina på arket lenger", (await page.locator("[aria-label='kontrollar'] [data-ruteverkty]").count()) === 0)
   }
 
-  // --- arket har tre høgder ---------------------------------------------------
   const liste = page.locator("[role=listbox][aria-label='plan']")
   sjekk("arket startar som éi line", (await liste.count()) === 0)
-  // ikon ELLER ord på ein knapp, aldri begge: låsen er ikonet åleine
   const laasKnapp = page.getByRole("button", { name: "skjer", exact: true })
   sjekk("skjer-knappen er eit ikon utan tekst", (await laasKnapp.count()) === 1 && ((await laasKnapp.innerText()).trim() === ""), `«${(await laasKnapp.innerText()).trim()}»`)
   const kb = await laasKnapp.boundingBox()
   sjekk("og han ligg under høgre tommel: nedst til høgre, minst 56 px", !!kb && kb.x + kb.width / 2 > 390 * 0.6 && kb.y + kb.height / 2 > 844 * 0.6 && Math.min(kb.width, kb.height) >= 56, kb ? `${Math.round(kb.x)},${Math.round(kb.y)} ${Math.round(kb.width)}×${Math.round(kb.height)}` : "finst ikkje")
-  // snittet er synleg før du skjer: skissa har ein profil gjennom kroppen
   const snitt = page.locator("[data-skisse='snitt']")
   await snitt.first().waitFor({ timeout: 15000 }).catch(() => undefined)
   sjekk("skissa syner snittet gjennom kroppen før du skjer", (await snitt.count()) >= 1)
@@ -291,16 +169,8 @@ async function telefon(browser: Browser) {
   sjekk("eit trykk på lina opnar midten, med planlista", (await liste.count()) === 1)
   await page.getByRole("button", { name: "alle kontrollane" }).click()
   await page.waitForTimeout(500)
-  // Tala er DRAGSKIVER og ikkje tekstfelt: eit felt tek fokus, og iOS
-  // zoomar sida. Difor `[aria-label$=", tal"]` og ikkje `input[…]`.
   const felt = await page.locator("[aria-label$=', tal'][role=slider]").count()
   sjekk("«alle kontrollane» syner skyvarane", felt >= 12, `${felt} dragskiver`)
-  /**
-   * OG BOLKANE BRETTAR SEG. Sju overskrifter og tjue skyvarar er meir enn
-   * eit ark på ein telefon syner, og du arbeider i éin bolk om gongen:
-   * overskrifta er knappen, og skyvarane under henne fell bort til du
-   * trykkjer att.
-   */
   const bolk = page.locator("[data-bolk='kutt']")
   await bolk.click()
   await page.waitForTimeout(300)
@@ -313,7 +183,6 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(400)
   sjekk("esc stengjer arket til lina", (await liste.count()) === 0)
 
-  // --- TALA: tap-drag set verdien, ingen tekstfelt å zoome inn i ----------------
   await midt(page)
   const talet = page.locator("[aria-label='storleik, tal']")
   const tb = await talet.boundingBox()
@@ -337,7 +206,6 @@ async function telefon(browser: Browser) {
   await vent(page, (p) => p.storleik === sFør)
   sjekk("ingen tekstfelt på sida å zoome inn i", (await page.locator("input:not([type=file]):not([type=range])").count()) === 0)
 
-  // --- lås og slett, med knapp og med tast ------------------------------------
   const n0 = plana(page).length
   await page.getByRole("button", { name: "skjer", exact: true }).click()
   await vent(page, talPlan(n0 + 1))
@@ -356,9 +224,6 @@ async function telefon(browser: Browser) {
   await rad.locator("button").first().click()
   await page.waitForTimeout(300)
   sjekk("eit trykk på rada vel planet", (await rad.getAttribute("aria-selected")) === "true")
-  // DEN STORE KNAPPEN STÅR TOM med eit plan valt: det er ingenting å skjere,
-  // og «ferdig» var ein knapp for å slutte å gjere noko — eit trykk utanfor,
-  // eit trykk på rada eller escape slepper planet frå før.
   sjekk("og den store knappen står tom", (await page.getByRole("button", { name: "ferdig", exact: true }).count()) === 0 && (await page.getByRole("button", { name: "skjer", exact: true }).count()) === 0)
   await page.keyboard.press("Backspace")
   await vent(page, talPlan(n0 + 1))
@@ -368,7 +233,6 @@ async function telefon(browser: Browser) {
   await vent(page, talPlan(n0))
   sjekk("× på rada tek planet bort", plana(page).length === n0 && !plana(page).some((p) => p.id === nytt.id))
 
-  // --- angre --------------------------------------------------------------------
   await page.keyboard.press("z")
   await vent(page, talPlan(n0 + 1))
   sjekk("Z angrar slettinga", plana(page).length === n0 + 1)
@@ -390,30 +254,9 @@ async function telefon(browser: Browser) {
   await vent(page, talPlan(n0))
   sjekk("og tre til er attende ved starten", plana(page).length === n0)
 
-  // --- GESTANE: klyp = synet, vri = vend, dra = flytt snittet ----------------
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
-  /**
-   * TO FINGRAR RØRER IKKJE KAMERAET. IKKJE EIN GONG EIT REINT KLYP.
-   *
-   * Klypet zooma synet før, og det er teke bort. Grunnen er at dei tre
-   * kanalane deler éi rørsle: draget må gå seks pikslar, klypet fire
-   * prosent — og fire prosent er tre pikslar PER FINGER på ei hand som held
-   * hundre og seksti. Ei hand som tek tak spriker so mykje før ho har drege
-   * i det heile, so klypet vann opninga på kvart einaste drag og kameraet
-   * krøkte seg ut og inn att. Ingen daudsone kan lese kva handa MEINTE.
-   *
-   * So kameraet er teke ut av striden. Zoomen har sine eigne kontrollar —
-   * lupa under synskuben, og hjulet på ein benk — og dei vert prøvde like
-   * under (`forstørraren`) og i `benk`.
-   *
-   * Prøva spreier fingrane like mykje som ho gjorde då dette var ein zoom,
-   * og krev at BÅDE kameraet og storleiken på kroppen står. Storleiken av
-   * di klypet skalerte objektet ein gong i tida: du ville sjå nærare og
-   * fekk ein større krakk.
-   */
   const kamDist = async () => Number((await page.locator(".handtak").getAttribute("data-avstand")) ?? 0)
-  /** ...og STADEN. Ein orbit held avstanden og flyttar synet; sjå `kamPos`. */
   const kamStad = async () => ((await page.locator(".handtak").getAttribute("data-kamera")) ?? "0,0,0").split(",").map(Number)
   const stadAv = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2])
   const s0 = hash(page).storleik
@@ -426,17 +269,6 @@ async function telefon(browser: Browser) {
   sjekk("eit reint klyp på objektet rører ikkje kameraet", Math.abs(d1 - d0) < 1e-3 && stadAv(p0, p1) < 1e-3, `avstand ${d0.toFixed(3)} → ${d1.toFixed(3)}, staden ${stadAv(p0, p1).toFixed(4)}`)
   sjekk("og storleiken på kroppen står", hash(page).storleik === s0, `${s0} mm`)
 
-  /**
-   * OG DU SKAL KOME LANGT NOK ATTENDE.
-   *
-   * Taket stod på 18. Innramminga tek 14,1 av dei på ein telefon, so det var
-   * 1,27 gonger att å dra seg attende på — for lite til å sjå ein kropp med
-   * mange plan. Prøva rammar inn, dreg forstørraren heilt ned, og krev at
-   * ho kjem minst tre gonger så langt ut som innramminga stod.
-   *
-   * Ho krev òg at det ER eit tak: eit kamera som kan dra i veg for alltid
-   * er ein kropp du aldri finn att.
-   */
   await page.locator("[data-heim]").click()
   await roleg(page, 600)
   const innramma = await kamDist()
@@ -457,17 +289,10 @@ async function telefon(browser: Browser) {
     `innramma ${innramma.toFixed(1)} → ute ${ute.toFixed(1)} (${(ute / innramma).toFixed(2)}×)`,
   )
   sjekk("og stoggar der: eit kamera utan tak finn ingen att", ute <= 48.001, `avstand ${ute.toFixed(2)}`)
-  // og attende dit vi stod: resten av seksjonen siktar med fingrane på
-  // kroppen, og ein kropp langt borte er ein kropp fingrane bommar på
   await page.locator("[data-heim]").click()
   await roleg(page, 600)
   sjekk("og innramminga tek deg attende", Math.abs((await kamDist()) - innramma) < 0.5, `avstand ${(await kamDist()).toFixed(2)}`)
 
-  /**
-   * VRIDINGA SIKTAR SNITTET, IKKJE KROPPEN. Ho snudde objektet på bordet
-   * før. Prøva vrir, låser, og les normalen på planet som vart til: han
-   * skal stå på skrå — og vendinga på kroppen skal stå urørt.
-   */
   const vriFingrar = (grader: number) => (t: number) => {
     const a = (grader * t * Math.PI) / 180
     return [[195 - 80 * Math.cos(a), 380 - 80 * Math.sin(a)], [195 + 80 * Math.cos(a), 380 + 80 * Math.sin(a)]] as [[number, number], [number, number]]
@@ -481,28 +306,8 @@ async function telefon(browser: Browser) {
   sjekk("og kroppen står som han stod", hash(page).rotZ === 0, `rotZ ${hash(page).rotZ}°`)
   await page.keyboard.press("z")
   await vent(page, talPlan(n0))
-  // og attende: skissa hugsar vinkelen sin, so ho vert vridd like mykje motsett
   await toFingrar(page, vriFingrar(-40))
   await page.waitForTimeout(300)
-  /**
-   * ALLE TRE PÅ EIN GONG — det dommaren stod i vegen for.
-   *
-   * Gesten fekk eitt namn før: klyp ELLER vri ELLER dra, aldri fleire. Ei
-   * hand som ville skuve snittet litt og vinkle det litt fekk det eine og
-   * ikkje det andre. Her går fingrane rundt EIN MIDT SOM GLID: det er ei
-   * vriding og eit drag i den same rørsla, og prøva krev at planet som vert
-   * låst har fått BEGGE.
-   *
-   * HER, medan skissa står i midten: handtaket hennar er ei flate på åtte og
-   * førti pikslar midt i snittet, og ein finger som landar på det dreg
-   * handtaket i staden for å gjere ein gest. Prøvene under skuvar skissa av
-   * garde, og då kjem handtaket vandrande inn under fingrane.
-   *
-   * Draget går PÅ SKRÅ. Skissa flyttar seg berre på tvers av si eiga line, og
-   * kva veg den lina står er noko prøva arvar frå vridingane over — eit drag
-   * langs éin akse kan difor vera eit drag som ikkje flyttar noko som helst.
-   * Skrått er det einaste draget som bit same kva vinkel ho står i.
-   */
   sjekk("det finst ingen skissebrytar lenger", (await page.getByRole("button", { name: "skisse", exact: true }).count()) === 0)
   const gest2 = (grader: number, dx: number, dy: number) => (t: number) => {
     const a = (grader * t * Math.PI) / 180
@@ -510,7 +315,6 @@ async function telefon(browser: Browser) {
     const cy = 380 + dy * t
     return [[cx - 80 * Math.cos(a), cy - 80 * Math.sin(a)], [cx + 80 * Math.cos(a), cy + 80 * Math.sin(a)]] as [[number, number], [number, number]]
   }
-  // skissa slik ho står NO: prøva måler skilnaden gesten gjer, og ikkje eit tal
   await page.keyboard.press("l")
   await vent(page, talPlan(n0 + 1))
   const foer = plana(page)[plana(page).length - 1]
@@ -530,13 +334,9 @@ async function telefon(browser: Browser) {
   )
   await page.keyboard.press("z")
   await vent(page, talPlan(n0))
-  // og attende: skissa hugsar både vinkelen og plassen sin, so gesten vert
-  // gjord motsett veg — prøvene under står på at ho står der ho stod
   await toFingrar(page, gest2(-34, 42, 42))
   await page.waitForTimeout(300)
 
-  // Skisseplanet står gjennom midten. Dra to fingrar sidelengs over objektet,
-  // lås, og planet som vart låst står ikkje i midten lenger.
   await toFingrar(page, (t) => [[150 + 90 * t, 330], [150 + 90 * t, 430]])
   await page.waitForTimeout(300)
   await page.keyboard.press("l")
@@ -548,24 +348,11 @@ async function telefon(browser: Browser) {
   await page.keyboard.press("z")
   await vent(page, talPlan(n0))
 
-  /**
-   * ALLE TRE PÅ EIN GONG — det dommaren stod i vegen for.
-   *
-   * Gesten fekk eitt namn før: klyp ELLER vri ELLER dra, aldri fleire. Ei
-   * hand som ville skuve snittet litt og vinkle det litt fekk det eine og
-   * ikkje det andre. Her går fingrane rundt EIN MIDT SOM GLID: det er ei
-   * vriding og eit drag i den same rørsla, og prøva krev at planet som vert
-   * låst har fått BEGGE — han står på skrå OG han står ikkje i midten.
-   *
-   * Og brytaren som slo dommaren av er borte med han: det finst ikkje ein
-   * «skisse»-knapp lenger, av di alle modusane er det han var.
-   */
   const s1 = hash(page).storleik
   await toFingrar(page, (t) => [[195 - 30 - 70 * t, 380], [195 + 30 + 70 * t, 380]])
   await page.waitForTimeout(400)
   sjekk("og eit knip rører ikkje storleiken på kroppen", hash(page).storleik === s1, `${s1} → ${hash(page).storleik}`)
 
-  // --- HANDTAKA: éin finger på handtaket flyttar og vrir --------------------------
   const flyttH = page.locator("[data-handtak='flytt']")
   const vriH = page.locator("[data-handtak='vri']")
   sjekk("skissa har eit handtak å flytte og eitt å vri", (await flyttH.count()) === 1 && (await vriH.count()) === 1)
@@ -592,15 +379,12 @@ async function telefon(browser: Browser) {
     await vent(page, talPlan(n0))
   }
 
-  // --- eit valt plan tek gestane ---------------------------------------------
-  // Standarden er tom: vakta skjer eitt plan å ta i.
   await page.keyboard.press("l")
   await vent(page, talPlan(n0 + 1))
   await midt(page)
   const fyrst = plana(page)[0]
   await liste.locator("[role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(300)
-  // lina lukkar arket utan å sleppe valet — esc ville sleppt det
   await page.locator(HOVUDLINA).click()
   await page.waitForTimeout(400)
   const før = plana(page)
@@ -609,26 +393,7 @@ async function telefon(browser: Browser) {
   const etter = plana(page)[0]
   const rørt = Math.hypot(etter.o[0] - fyrst.o[0], etter.o[1] - fyrst.o[1], etter.o[2] - fyrst.o[2]) > 0.02
   sjekk("med eit plan valt flyttar to fingrar DET planet", rørt && etter.id === fyrst.id, `o ${fyrst.o.map((c) => c.toFixed(2))} → ${etter.o.map((c) => c.toFixed(2))}`)
-  /**
-   * OG KAMERAET STÅR MEDAN DEI GJER DET.
-   *
-   * Ei hand held aldri to fingrar nøyaktig like langt frå kvarandre medan ho
-   * dreg. Prøva under dreg planet OG lèt fingrane gli frå kvarandre femten
-   * prosent — meir enn nok til å låse opp klypet — og krev at avstanden til
-   * kameraet er den same etterpå. Eit drag på planet er ikkje ein zoom.
-   */
   const avstandNo = async () => Number((await page.locator(".handtak").getAttribute("data-avstand")) ?? 0)
-  /**
-   * KAMERAET ER EIN STAD, IKKJE EIN AVSTAND.
-   *
-   * Kvar einaste kameraprøve i denne fila las `data-avstand`. Ein ORBIT
-   * held avstanden konstant — han går i ring kring det same punktet — so
-   * eit sving på atten grader måler null. Målt på koden som stod: den
-   * fyrste fingeren aleine på lerretet svinga synet 4,6 einingar på ein
-   * avstand av 14,45, og `restore()` sette det attende i det den andre
-   * fingeren landa. Sluttilstanden var perfekt, avstanden var perfekt, og
-   * det einaste som var gale var det du såg.
-   */
   const kamPos = async () => ((await page.locator(".handtak").getAttribute("data-kamera")) ?? "0,0,0").split(",").map(Number)
   const kamAv = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2])
   const kamFør = await avstandNo()
@@ -648,21 +413,6 @@ async function telefon(browser: Browser) {
     Math.abs(kamEtter - kamFør) < 1e-3 && kamAv(stadFør, stadEtter) < 1e-3 && flytta > 0.005,
     `avstand ${kamFør.toFixed(3)} → ${kamEtter.toFixed(3)}, staden ${kamAv(stadFør, stadEtter).toFixed(4)}, planet flytta ${flytta.toFixed(3)}`,
   )
-  /**
-   * OG DET GJELD FRÅ DET FYRSTE HAKKET.
-   *
-   * Prøva over lèt fingrane gli sakte, so draget rakk sine seks pikslar før
-   * klypet rakk sine fire prosent. Ei hand gjer det motsett like ofte: ho
-   * spriker i det ho tek i, og DÅ slo klypet inn fyrst.
-   *
-   * Her spriker fingrane tolv prosent FØR midten rører seg i det heile, og
-   * so kjem draget. Kameraet skal stå der det stod.
-   *
-   * Draget går ANDRE VEGEN enn det over: eit plan er ikkje klemt inn i
-   * boksen (`flyttPlan`), og to drag same vegen skuvar det ut av det
-   * `lesPlan` tek imot — då fell planet ut av lista, og prøvene under står
-   * att utan noko å ta i.
-   */
   const kamFør2 = await avstandNo()
   const planStod2 = plana(page)[0]
   await toFingrar(page, (t) => {
@@ -679,25 +429,6 @@ async function telefon(browser: Browser) {
     Math.abs(kamEtter2 - kamFør2) < 1e-3 && flytta2 > 0.005,
     `avstand ${kamFør2.toFixed(3)} → ${kamEtter2.toFixed(3)}, planet flytta ${flytta2.toFixed(3)}`,
   )
-  /**
-   * OG KAMERAET STÅR UNDERVEGS, IKKJE BERRE ETTERPÅ.
-   *
-   * Dei to prøvene over måler kvar kameraet ENDA. Det er ikkje det same som
-   * at det stod: `restore()` set det attende, so ein dolly og ein
-   * tilbakesetjing i byrjinga av kvart drag går rett gjennom dei begge. Og
-   * det var nett det som stod att å sjå — eit rykk ut og eit rykk inn,
-   * kvar einaste gong to fingrar tok i noko.
-   *
-   * Difor les denne avstanden ETTER KVART HAKK medan fingrane er nede, og
-   * krev at han ikkje rører seg i det heile.
-   *
-   * OG RØRSLA ER DEN HANDA FAKTISK GJER. Ho spriker i det ho tek tak —
-   * fem prosent, framme i rørsla — og draget tek av frå null. Målt på det
-   * som stod: ved tredje hakket hadde fingrane gått sine fire prosent og
-   * midten berre fire pikslar av seks, so klypet vann, kameraet dollya, og
-   * ved fjerde hakket tok draget gesten og `restore()` sette det attende.
-   * Eit rykk ut og eit rykk inn, kvar einaste gong.
-   */
   const kamFør3 = await kamPos()
   const planStod3 = plana(page)[0]
   const undervegs: number[] = []
@@ -723,8 +454,6 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(700)
   await page.keyboard.press("z")
   await vent(page, (p) => JSON.stringify(lesPlan(p.plan)[0]?.o) === JSON.stringify(planStod3.o))
-  // og prøva ryddar etter seg sjølv: draget er EI bokføring i angrestakken,
-  // og kjeda under tel steg. La bokføringa falle på plass fyrst (450 ms).
   await page.waitForTimeout(700)
   await page.keyboard.press("z")
   await vent(page, (p) => JSON.stringify(lesPlan(p.plan)[0]?.o) === JSON.stringify(planStod2.o))
@@ -738,8 +467,6 @@ async function telefon(browser: Browser) {
   await page.keyboard.press("z")
   await vent(page, talPlan(n0))
 
-  // --- TEIKNE I PROFILEN: gods og hòl på eit valt plan ---------------------------
-  // Standarden er tom, so vakta skjer sjølv det planet ho skal teikne i.
   await page.keyboard.press("l")
   await vent(page, talPlan(n0 + 1))
   await midt(page)
@@ -748,11 +475,6 @@ async function telefon(browser: Browser) {
   const hol = page.getByRole("button", { name: "skjer hòl", exact: true })
   const dubl = page.getByRole("button", { name: "dubler planet", exact: true })
   sjekk("eit valt plan får «skjer hòl» og «dubler planet» under tommelen", (await hol.count()) === 1 && (await dubl.count()) === 1)
-  /**
-   * DUBLERINGA. Knappen stod for «legg til gods» og lagar no eit plan til:
-   * same normal, same strek, skuva eitt hakk langs normalen — og det NYE er
-   * det valde, av di du dublerer for å flytte kopien.
-   */
   {
     const fyrr = plana(page)
     await dubl.click()
@@ -797,32 +519,11 @@ async function telefon(browser: Browser) {
     await vent(page, (p) => Math.abs(holX(lesPlan(p.plan)[0]?.strek[0]) - holX(medHol.strek[0])) > 0.01)
     const flytta = plana(page)[0].strek[0]
     sjekk("handtaket flyttar hòlet, og lenkja veit det", Math.abs(holX(flytta) - holX(medHol.strek[0])) > 0.01, `x ${holX(medHol.strek[0])} → ${holX(flytta)}`)
-    // draget må få falle på plass i angrestakken før neste endring, elles er
-    // dei to éi bokføring — som er meint, men ikkje det vakta måler her
     await page.waitForTimeout(1400)
 
-    /**
-     * OG DEI TO ANDRE HANDTAKA, som stod uprøvde.
-     *
-     * Kanalen har tre modus — flytt, storleik, vri — og berre den fyrste
-     * var måld. Dei tre deler stat (`stak`) og slepp (`sleppHandtak`), so
-     * ein feil i den delte delen synte seg berre i ein tredel av han.
-     *
-     * Kvar av dei vert prøvd på SITT EIGE TAL: storleiken på `w`, vridinga
-     * på `a`. Ei prøve som berre spurde «endra strengen seg» ville stått
-     * grøn om draget flytta streken i staden for å vri han.
-     */
     const drag = async (vel: string, dx: number, dy: number) => {
       const b = await page.locator(vel).boundingBox()
       if (!b) return false
-      /**
-       * OG STARTPUNKTET MÅ VERA PÅ SKJERMEN.
-       *
-       * Handtaka fylgjer streken, og har du drege han ut mot kanten ligg
-       * eit av dei halvvegs utanfor. Midten av boksen er då x = 390 på ein
-       * skjerm som er 390 brei, og fingeren landar ingen stad: vrihandtaket
-       * stod «a 0 → 0» av det og ikkje av koden.
-       */
       const vp = page.viewportSize()!
       const x = Math.max(2, Math.min(b.x + b.width / 2, vp.width - 2))
       const y = Math.max(2, Math.min(b.y + b.height / 2, vp.height - 2))
@@ -845,12 +546,6 @@ async function telefon(browser: Browser) {
       await page.waitForTimeout(1400)
     }
     const strek1 = plana(page)[0].strek[0]
-    // PÅ TVERS AV RADIEN og ikkje langs han: handtaket ligg ut frå midten,
-    // so eit drag rett utover endrar avstanden og ikkje vinkelen. Fyrste
-    // utgåva drog langs, fekk «a 0 → 0», og det var prøva som var feil.
-    // OG LANGT NOK: vridinga snappar til 0° og 90° innan fem grader, so eit
-    // kort drag vert dregest attende dit det kom frå. Prøva må ut av det
-    // vindauget for å måle noko anna enn snappet.
     if (await drag("[data-handtak='strek-vri']", 0, 180)) {
       const na = plana(page)[0].strek[0]
       sjekk("vrihandtaket endrar VINKELEN", Math.abs((na?.a ?? 0) - (strek1?.a ?? 0)) > 0.5, `a ${strek1?.a} → ${na?.a}`)
@@ -859,40 +554,18 @@ async function telefon(browser: Browser) {
   }
   await page.keyboard.press("Backspace")
   await vent(page, (p) => lesPlan(p.plan)[0]?.strek.length === 0)
-  // Bokføringa i angrestakken er dempa 450 ms — eit drag er hundre punkt og
-  // éi endring. Vakta må la ho falle på plass før ho angrar.
   await page.waitForTimeout(1400)
   sjekk(
     "⌫ tek streken bort, ikkje planet",
     plana(page)[0]?.strek.length === 0 && plana(page).length === n0 + 1 && plana(page)[0].id === planFør.id,
     `${plana(page).length} plan (venta ${n0 + 1}), namn ${plana(page)[0]?.id ?? "–"} av ${planFør.id}, ${plana(page)[0]?.strek.length ?? "–"} strek`,
   )
-  /**
-   * Z HENTAR STREKEN ATT — men ikkje prøvd her.
-   *
-   * Han gjer det: prøvd for hand, skjer → hòl → ⌫ → Z gjev hòlet attende.
-   * Men etter eit HANDTAKSDRAG i same rekkja er dempinga på 450 ms og
-   * arbeidaren si eiga svartid ikkje til å tidfeste utanfrå, og dei to
-   * endringane fell i lag til éi bokføring like ofte som ikkje. Ei vakt som
-   * er grøn halvparten av gongene er verre enn inga: ho lærer deg å sjå bort
-   * frå henne. Draget og slettinga står prøvde kvar for seg over.
-   */
   await page.keyboard.press("Escape")
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
   await page.keyboard.press("z")
   await vent(page, talPlan(n0))
 
-  // --- RUTENETTET ---------------------------------------------------------------
-  /**
-   * VERKTYET SOM SET DEI TO TALA. Vassrett er kolonner, loddrett er rader,
-   * og fyrtifire pikslar er eitt plan. Vakta les grunnstoda av lista slik
-   * ho står, dreg til høgre, og ser at lista har nett so mange plan fleire
-   * langs x — og ikkje eitt fleire langs y.
-   *
-   * Verktyet tek berre SITT EIGE: dei plana eit rutenett ville laga. Alt
-   * anna i lista står, so vakta reknar med dei og ikkje i staden for dei.
-   */
   const rutAv = (p: Params) => {
     let nx = 0
     let ny = 0
@@ -909,10 +582,7 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(200)
   sjekk("og knappen seier at han står på", (await ruteKnapp.getAttribute("aria-pressed")) === "true")
   sjekk("skissehandtaket er borte medan han står på", !(await page.locator("[data-handtak='flytt']").isVisible()))
-  // fingrane står midt i det frie bandet: arket veks når lista veks, og eit
-  // drag som byrjar på arket er eit drag lerretet aldri ser
   const [nx0, ny0] = rutTal()
-  /** dei som ikkje er nettet: dei skal stå der etterpå, kvar og ein */
   const utanfor = plana(page).filter((q) => Math.abs(q.n[0]) <= 0.999 && Math.abs(q.n[1]) <= 0.999)
   await toFingrar(page, (t) => [[120 + 176 * t, 300], [120 + 176 * t, 380]])
   await vent(page, (p) => rutAv(p)[0] >= nx0 + 3)
@@ -924,14 +594,12 @@ async function telefon(browser: Browser) {
     plana(page).length === utanfor.length + nx1 + ny1 && utanfor.every((q) => plana(page).some((p) => p.id === q.id)),
     `${plana(page).length} plan = ${utanfor.length} + ${nx1}×${ny1}`,
   )
-  // draget må falle på plass i angrestakken før det neste, elles er dei to éi bokføring
   await page.waitForTimeout(1400)
   await toFingrar(page, (t) => [[130, 380 - 176 * t], [260, 380 - 176 * t]])
   await vent(page, (p) => rutAv(p)[1] >= ny1 + 3)
   const [nx2, ny2] = rutTal()
   sjekk("to fingrar oppover set rader", ny2 >= ny1 + 3, `${ny1} → ${ny2} rader`)
   sjekk("og kolonner står", nx2 === nx1, `${nx1} → ${nx2} kolonner`)
-  // eitt drag er éi bokføring: Z tek heile rutenettet attende, ikkje eitt plan
   await page.waitForTimeout(1400)
   await page.keyboard.press("z")
   await vent(page, talPlan(utanfor.length + nx1 + ny1))
@@ -940,16 +608,7 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(200)
   sjekk("trykk att slepper verktyet", (await ruteKnapp.getAttribute("aria-pressed")) === "false")
 
-  /**
-   * OG VERKTYET TEK IKKJE DET DU HAR SETT.
-   *
-   * Han skreiv lista om før: eit plan du hadde skore for hand var borte i
-   * det du drog i rutenettet. Vakta skjer eit SKRÅTT plan — eit rutenett har
-   * ingen slike, so det kan ikkje forvekslast med hans eigne — dreg nettet,
-   * og krev at planet står der med namnet sitt etterpå.
-   */
   {
-    // eit skrått snitt: to fingrar som vrir, so skjer
     await toFingrar(page, (t) => [[150, 330 + 60 * t], [230, 430 - 60 * t]])
     await roleg(page, 400)
     await page.keyboard.press("l")
@@ -968,21 +627,12 @@ async function telefon(browser: Browser) {
     sjekk("nettet kom i tillegg", etter.length > (mitt ? 1 : 0), `${etter.length} plan`)
     await ruteKnapp.click()
     await page.waitForTimeout(200)
-    // attende til det vakta under ventar seg
     for (let i = 0; i < 4 && plana(page).length > utanfor.length + nx1 + ny1; i++) {
       await page.keyboard.press("z")
       await roleg(page, 500)
     }
   }
 
-  // --- PLATEFLATA: konturvisinga ER platene ------------------------------------
-  /**
-   * «Kontur» var ei stripe med profilane ved sida av kvarandre i lerretet,
-   * og platene låg i ei skuff. No er dei det same: trykk «kontur» og du står
-   * på arket delane vert skorne ut av, med fingrane på dei. Skuffa har ikkje
-   * platene lenger — det står i vakta under, med talet på verkty.
-   */
-  /** arket ope med «alt»: storleiken står alt i midten, verktya står i alt */
   const alt = async () => {
     await midt(page)
     if ((await page.getByRole("button", { name: "kuttliste", exact: true }).count()) === 0) {
@@ -1000,31 +650,11 @@ async function telefon(browser: Browser) {
   const delar = flata.locator("g[data-del]")
   const nDel = await delar.count()
   sjekk("platene syner delane som noko du kan ta i", nDel > 0, `${nDel} delar på plata`)
-  /**
-   * MÅLRUTA. Plata er der du avgjer om noko går opp på det restkappet du
-   * har, og det stod ingen målestokk i ruta. No ligg ho under delane, med
-   * eit steg som fylgjer auget og tal på kvar femte line. Vakta krev at ho
-   * finst, at ho ber millimeter, og at ho IKKJE tek imot fingrar — ei
-   * hjelpeline som stel eit drag frå ein del er verre enn ingen målestokk.
-   */
   const maalrute = flata.locator("svg g[aria-hidden='true']").first()
   const nLiner = await maalrute.locator("line").count()
   sjekk("målruta ligg i plata", nLiner > 4, `${nLiner} liner`)
-  // `allInnerTexts` gjev undefined for SVG-tekst: han har ikkje innerText
-  // `allInnerTexts` gjev undefined for kvar SVG-tekst — han har ikkje
-  // innerText — og ei prøve på undefined kastar i staden for å seie frå
   const merke = await maalrute.locator("text").allTextContents()
   sjekk("og ho ber tal i millimeter", merke.length > 0 && merke.every((t) => /^\d+$/.test((t ?? "").trim())), merke.join(" "))
-  /**
-   * OG HO TEK IKKJE IMOT FINGRAR — prøvt ved å TRYKKJE.
-   *
-   * `pointer-events: none` på gruppa er regelen. Same forma som søvnen
-   * hadde, og der heldt han ikkje: eit barn med `auto` tek fingeren jamvel
-   * om forelderen seier nei. Her er det sant av lukke — ei gruppe med liner
-   * og tal har ingen born som tek noko — men «sant av lukke» er ikkje noko
-   * ei vakt skal byggje på. So ho trykkjer midt i ruta og krev at valet står
-   * som det stod.
-   */
   sjekk("og regelen står skriven på henne", (await maalrute.evaluate((el) => getComputedStyle(el).pointerEvents)) === "none")
   {
     const vald0 = await page.locator("[data-plan][aria-selected='true']").count()
@@ -1035,23 +665,6 @@ async function telefon(browser: Browser) {
     }
     sjekk("og eit trykk i ruta endrar ingenting", (await page.locator("[data-plan][aria-selected='true']").count()) === vald0, `${vald0} valde`)
   }
-  /**
-   * EIN DEL ER EIT PLAN. Eit trykk på ein del i plata vel planet han vart
-   * skoren av — det same valet eit trykk i rommet gjev.
-   *
-   * OG SPALTA BER DET PLATA KAN SYNE, og ikkje meir. Dubler og slett er
-   * knappar og ikkje anna, og svaret på dei ligg rett framfor deg: ei rute
-   * meir, eller ei rute mindre. Hòlet, forma, bøyen og fordel teiknar seg
-   * alle på lerretet — som ligg gøymt under arka her — so dei står i
-   * rommet, der du kan sjå kva dei gjorde. Det same gjeld rutenettet,
-   * kroppsverktyet og skjer: alle tre vert sette med fingrane
-   * PÅ objektet, og objektet er ikkje her.
-   */
-  // Trykket må kome når hovudtråden er ledig. Eit trykk gjennom CDP ber
-  // klokka si frå då det vart sendt, ikkje frå då fingeren letta, so eit
-  // svar som ligg i kø bak eit bygg les seg som eit LANGT trykk — og då
-  // opnar menyen i staden for å velje. Ein finger av kjøt og blod har
-  // maskinvara si eiga klokke og møter det aldri.
   await roleg(page, 700)
   await delar.first().click()
   const slettPlan = page.getByRole("button", { name: "slett", exact: true })
@@ -1078,7 +691,6 @@ async function telefon(browser: Browser) {
     await page.keyboard.press("z")
     await roleg(page)
   }
-  // menyen ligg over alt til du trykkjer utanfor han
   const bak = page.locator("div[aria-hidden='true'].fixed.inset-0")
   if (await bak.count()) await bak.dispatchEvent("pointerdown")
   await page.waitForTimeout(200)
@@ -1104,42 +716,20 @@ async function telefon(browser: Browser) {
   sjekk("kuttlista har éi line per del, med plan og ledd", /ledd/i.test(kutt) && /\b1\b/.test(kutt), kutt.slice(0, 60))
   await page.keyboard.press("Escape")
 
-  // --- SYNSKUBEN, INNRAMMINGA OG DOBBELTTRYKKET -------------------------------
-  /**
-   * Kameraet står i lappen scena skriv kvar teikning (`data-kamera`), so
-   * her kan ein LESE kva synet gjer: at ei side set det, at innramminga tek
-   * det heim att — og at eit dobbelttrykk ikkje rører det. Det siste er
-   * heile poenget: innramminga skal kome av at du bad om henne.
-   */
   await page.keyboard.press("Escape")
   await roleg(page, 400)
   const kamera = async (): Promise<[number, number, number]> => {
     const s = (await page.locator(".handtak").getAttribute("data-kamera")) ?? "0,0,0"
     return s.split(",").map(Number) as [number, number, number]
   }
-  /**
-   * AVSTANDEN OG SYNSFELTET, og produktet av dei to.
-   *
-   * `d · tan(fov/2)` er kor stort objektet vert på skjermen. Flatsynet
-   * byter begge to — 30° på 14 vert 2° på 222 — og heile poenget er at
-   * PRODUKTET står stille. Det er den eine talet prøva har lov å tru på:
-   * står det, har biletet ikkje flytt seg medan projeksjonen skifta.
-   */
   const syn = async () => {
     const b = page.locator(".handtak")
     const d = Number((await b.getAttribute("data-avstand")) ?? "0")
     const fov = Number((await b.getAttribute("data-fov")) ?? "30")
     return { d, fov, skala: d * Math.tan((fov * Math.PI) / 360) }
   }
-  /**
-   * SYNSKUBEN er geometri i lerretet no (`GizmoViewcube` frå drei) og ikkje
-   * knappar i DOM: han vert prøvd med fingeren der han står, og svaret vert
-   * lese av kameraet scena skriv i lappen. Midten av kuben er sida som
-   * vender mot deg; hjørnet hans er synet frå tre sider på ein gong.
-   */
   const h = await page.locator("header").boundingBox()
   const v = page.viewportSize()!
-  // dei same tala som marginen i scena: 38 px inn frå det frie bandet
   const kx = v.width - 38
   const ky = (h?.height ?? 44) + 38
   await page.locator("[data-heim]").click()
@@ -1151,13 +741,6 @@ async function telefon(browser: Browser) {
   const framme = await kamera()
   sjekk("eit tapp midt på synskuben ser rett framanfrå", Math.abs(framme[0]) < 0.5 && framme[2] > 10, `${kubeFør.map((c) => c.toFixed(1)).join(", ")} → ${framme.map((c) => c.toFixed(2)).join(", ")}`)
 
-  /**
-   * FLATSYNET. Ei side er ei side og ikkje eit perspektiv: står du rett ned
-   * ei akse, vert synsfeltet snevra inn til to grader medan kameraet går
-   * like mykje lenger attende. Prøva les begge tala og krev at PRODUKTET
-   * står — eit sprang der er eit objekt som hoppa i storleik då sida låste
-   * seg, og det er akkurat det ingen skal sjå.
-   */
   const synFlat = await syn()
   sjekk("og då flatar synet seg ut: synsfeltet ned mot to grader", synFlat.fov < 2.2 && synFlat.d > synFør.d * 10, `${synFør.fov.toFixed(1)}° på ${synFør.d.toFixed(1)} → ${synFlat.fov.toFixed(2)}° på ${synFlat.d.toFixed(1)}`)
   sjekk("utan at objektet vert større eller mindre", Math.abs(synFlat.skala / synFør.skala - 1) < 0.02, `${synFør.skala.toFixed(3)} → ${synFlat.skala.toFixed(3)}`)
@@ -1166,22 +749,10 @@ async function telefon(browser: Browser) {
   await page.waitForTimeout(1700)
   const hjorne = await kamera()
   sjekk("og eit tapp på hjørnet hans ser frå tre sider", Math.min(...hjorne) > 1 && Math.max(...hjorne) - Math.min(...hjorne) < 1, hjorne.map((c) => c.toFixed(2)).join(", "))
-  /**
-   * OG ATTENDE. Hjørnet er ikkje ei akse, so perspektivet skal kome att av
-   * seg sjølv — og storleiken skal framleis stå. Denne er den strenge av
-   * dei to: synskuben svingar kameraet med den radien han fanga då du
-   * trykte, og skriv over det flatsynet legg der medan han svingar. Reknar
-   * flatsynet avstanden ut på nytt kvart bilete, tek han dei stega att;
-   * skalerer han han eit steg om gongen, står objektet att tre gonger for
-   * lite og INGEN annan prøve merkar det.
-   */
   const synHjorne = await syn()
   sjekk("og perspektivet kjem attende når du forlet sida", synHjorne.fov > 29, `${synHjorne.fov.toFixed(2)}°`)
   sjekk("med objektet framleis like stort", Math.abs(synHjorne.skala / synFør.skala - 1) < 0.02, `${synFør.skala.toFixed(3)} → ${synHjorne.skala.toFixed(3)}`)
 
-  // Og den andre vegen ut: ein finger, ikkje kuben. Innramminga fyrst —
-  // midten av synskuben er den flata som VENDER MOT DEG, og frå hjørnet er
-  // det hjørnet sjølv, so eit tapp der ville late deg stå.
   await page.locator("[data-heim]").click()
   await page.waitForTimeout(700)
   await page.touchscreen.tap(kx, ky)
@@ -1200,19 +771,8 @@ async function telefon(browser: Browser) {
   const heim = await kamera()
   sjekk("innramminga tek synet heim att", heim[1] > 0 && heim[2] > Math.abs(heim[0]), heim.map((c) => c.toFixed(2)).join(", "))
 
-  /**
-   * LÅSEN: SYNSVINKELEN STÅR, OG INGENTING RØRER HAN.
-   *
-   * Tre ting kan snu objektet — ein finger på lerretet, ei side på
-   * synskuben, og heimknappen — og prøva tek alle tre med låsen på. Ho krev
-   * TALET og ikkje ei kjensle: kameraet skal stå på same staden på tre
-   * desimalar etterpå.
-   */
   const laas = page.locator("[data-laas]")
   sjekk("låsen står under kuben, open", (await laas.count()) === 1 && (await laas.getAttribute("aria-pressed")) === "false")
-  // FYRST EIN ANNAN VINKEL ENN HEIMVINKELEN. Står synet i heimvinkelen når
-  // du låser, seier «innramminga snur ikkje» ingenting — ho ville landa på
-  // det same om ho snudde aldri så mykje. Vakta under held prøva ærleg.
   await page.mouse.move(195, 430)
   await page.mouse.down()
   await page.mouse.move(300, 350, { steps: 12 })
@@ -1246,7 +806,6 @@ async function telefon(browser: Browser) {
   sjekk("og eit trykk til slepper han: fingeren snur att", (await kamera()).join() !== laastFraa.join(), (await kamera()).map((c) => c.toFixed(2)).join(", "))
   await page.locator("[data-heim]").click()
   await roleg(page, 700)
-  // eit dobbelttrykk på objektet: to korte trykk, same staden
   await page.touchscreen.tap(195, 380)
   await page.waitForTimeout(90)
   await page.touchscreen.tap(195, 380)
@@ -1255,22 +814,7 @@ async function telefon(browser: Browser) {
   const kSprang = Math.hypot(kEtter[0] - heim[0], kEtter[1] - heim[1], kEtter[2] - heim[2])
   sjekk("eit dobbelttrykk rammar IKKJE inn på nytt", kSprang < 1e-3, `${kSprang.toFixed(4)} frå der det stod`)
 
-  // --- SKALET ER GJENNOMSIKTIG, OG BLIR VERANDE DET -------------------------
-  /**
-   * Kroppen er den same geometrien i «flate» og i «lag», men med materialet
-   * som prop det eine stadet og som barn det andre. Byter eitt element
-   * mellom dei to, sit instansen att med standardmaterialet — kvitt og tett
-   * — og skalet legg seg over delane som ei maling. Prøva er at biletet er
-   * NØYAKTIG det same før og etter ein tur innom «flate».
-   */
   const klipp = { x: 30, y: 150, width: 330, height: 420 }
-  /**
-   * BILETET MÅ STÅ STILLE FØR DET VERT MÅLT. Skissa vert ikkje snitta medan
-   * konturen står framme, so snittet kjem fyrst etter ein tur innom
-   * arbeidaren når vi er attende i rommet — og kameraet dempar seg på plass
-   * imens. Ei prøve som skyt før det er stille måler tida og ikkje
-   * materialet. Difor: skyt til to bilete på rad er like.
-   */
   const stille = async (n = 12) => {
     let fyrr = await page.screenshot({ clip: klipp })
     for (let i = 0; i < n; i++) {
@@ -1289,29 +833,15 @@ async function telefon(browser: Browser) {
   const skalEtter = await stille()
   sjekk("ein tur innom «flate» let skalet stå som det stod", skalFør.equals(skalEtter), `${skalFør.length} B → ${skalEtter.length} B`)
 
-  /**
-   * OG PLATEFLATA HAR INGEN PENN. Pennen og viskelêret som teikna i den
-   * gamle stripa er borte — konturen er plateflata, ikkje ei teikneflate.
-   */
   sjekk("det finst ingen penn å teikne med", (await page.locator("button[data-penn]").count()) === 0 && (await page.getByRole("button", { name: "teikn", exact: true }).count()) === 0)
 
-  // --- KROPPEN ER EI LISTE: menyen legg til eit primitiv ----------------------
   const kjelde = page.locator("button[data-kjelde]")
   sjekk("kjelda står i toppen med namn", (await kjelde.isVisible()) && (await kjelde.innerText()).trim() === "kube")
   await kjelde.click()
   await page.waitForTimeout(250)
   const meny2 = page.locator("[data-meny]")
-  /** ÉI LINE PER FAMILIE, ikkje per utgåve: ti stolformer var ti liner i ein
-   *  meny som dekte objektet. Lista er familiane pluss fila. */
   sjekk("og opnar lista med familiane og fila", (await meny2.count()) === 1 && (await meny2.getByRole("button").count()) === FORMER.length + 1, `${FORMER.join(" ")} + fil`)
   sjekk("og ingen utgåve står i henne", (await meny2.getByRole("button", { name: /-\d\d$/ }).count()) === 0)
-  /**
-   * EI INNEBYGD FORM ER EI FIL. Kuben er laga i koden; dei andre ligg
-   * under `public/form` og vert henta når du tek i dei. Prøva er at biletet
-   * ENDRAR SEG: eit nett som kom inn etter at scena peika på det endra ikkje
-   * eit teikn i byggjenøkkelen, og kuben som stod der medan det lasta vart
-   * servert for alltid. Det såg ut som ein kube ingen hadde bede om.
-   */
   {
     const klipp = { x: 40, y: 200, width: 310, height: 380 }
     const fyrr = await page.screenshot({ clip: klipp })
@@ -1324,15 +854,6 @@ async function telefon(browser: Browser) {
     await page.keyboard.press("z")
     await roleg(page, 600)
 
-    /**
-     * OG KVAR FAMILIE I MENYEN HENTAR NOKO.
-     *
-     * Lina over tel at menyen har rett tal på liner. Eit tal er ikkje ein
-     * kropp: ein familie utan filer under seg står i menyen, vert vald, og
-     * gjev deg kuben attende utan å seie frå — og det er den same feilen
-     * denne fila er full av vakter mot. So kvar av dei vert vald, og
-     * biletet må endre seg.
-     */
     for (const fam of FORMER.filter((f) => f !== "kube" && f !== "stolform")) {
       await kjelde.click()
       await page.waitForTimeout(300)
@@ -1345,14 +866,11 @@ async function telefon(browser: Browser) {
       await page.keyboard.press("z")
       await roleg(page, 600)
     }
-    // eit val lèt menyen att; neste prøve tek han fram att
     await kjelde.click()
     await page.waitForTimeout(300)
   }
   await meny2.getByRole("button", { name: "kube", exact: true }).click()
   await vent(page, (p) => !!p.scene)
-  // Ein kube til, og ikkje ei form: bitane vert prøvde her, ikkje henting,
-  // og ei form på tjuefem tusen trekantar for kvar gest er berre venting.
   sjekk("ein bit til vert lagd til kroppen", /kube@.*;kube@/.test(hash(page).scene ?? ""), (hash(page).scene ?? "").slice(0, 40))
   sjekk("og brikka seier kor mange bitar han er", (await kjelde.innerText()).trim() === "kube +1")
   await page.keyboard.press("z")
@@ -1363,30 +881,12 @@ async function telefon(browser: Browser) {
   await page.close()
 }
 
-/**
- * SKRIVEBORDET: FLEIRE FILER, BIBLIOTEKET, OG SKIFT.
- *
- * Tre ting som berre finst der det er ei mus og eit tastatur, og som heng i
- * hop: du hentar inn fleire filer på ein gong, dei står i menyen etterpå, og
- * du plukkar frå lista i staden for å finne fila på nytt.
- *
- * BIBLIOTEKET VERT PRØVD OVER EI OMLASTING. Ei liste som berre står så lenge
- * sida står er ikkje eit bibliotek — det er ein tilstand — og skilnaden
- * synest ikkje på ein skjerm du ikkje har lasta om.
- */
 async function skrivebordet(browser: Browser) {
   console.log("\n=== skrivebordet")
   const { page, konsoll } = await opne(URL, browser, 1400, 900)
   const tetra = (a: number) => `v 0 0 0\nv ${a} 0 0\nv 0 ${a} 0\nv 0 0 ${a}\nf 1 3 2\nf 1 2 4\nf 2 3 4\nf 1 4 3\n`
   const kjeldeknapp = page.locator("[data-kjelde]")
   const lagra = () => page.locator("[data-meny] [data-lagra]")
-  /**
-   * OPNA KJELDEMENYEN SLIK EI HAND GJER DET.
-   *
-   * Det fyrste trykket etter at chromen har vakna vert ete med vilje — ein
-   * orbit skal ikkje ende i ein knapp — so ei prøve som trykkjer éin gong og
-   * krev at menyen står open, prøver svelgjaren og ikkje menyen.
-   */
   const opneKjelde = async () => {
     for (let i = 0; i < 3 && (await kjeldeknapp.getAttribute("aria-expanded")) !== "true"; i++) {
       await kjeldeknapp.click()
@@ -1400,8 +900,6 @@ async function skrivebordet(browser: Browser) {
   ])
   await vent(page, (p) => typeof p.kjelde === "string" && p.kjelde !== "kube", 25000)
   await roleg(page, 1800)
-  // id-en er ein hash og ikkje filnamnet — det er NAMNET brikka syner, og
-  // det er namnet som seier kva du ser på
   const vist = (await kjeldeknapp.innerText()).trim()
   sjekk("den fyrste fila vert kroppen", /ein/.test(vist), vist)
 
@@ -1418,33 +916,13 @@ async function skrivebordet(browser: Browser) {
   const etter = await lagra().allInnerTexts()
   sjekk("og lista står over ei omlasting", etter.length >= 2, etter.join(" · "))
 
-  /**
-   * OG HO RULLAR NÅR HO VERT LANG.
-   *
-   * Lista var fem former og ei fil-line: ho fekk plass same kva. No er ho òg
-   * biblioteket ditt, og tjue filer er lengre enn ein telefon er høg — menyen
-   * rann ut nedanfor skjermen, og linene du nett hadde henta inn var dei du
-   * ikkje kunne nå.
-   *
-   * Prøva står på TELEFONSTORLEIK, av di det er der han rann ut, og ho
-   * krev to ting: at nedkanten er på skjermen, og at lista faktisk rullar.
-   * Ei liste som får plass av di ho er klipt er ikkje ei liste som får plass.
-   */
   await page.locator("header input[type=file]").setInputFiles(
     Array.from({ length: 22 }, (_, i) => ({ name: `fyll-${i}.obj`, mimeType: "text/plain", buffer: Buffer.from(tetra(20 + i)) })),
   )
-  // ti importar på ein gong er ti bygg: vent til han er ferdig, ikkje til
-  // klokka seier at han burde vera det
   await ferdig(page)
   await roleg(page, 2000)
   await page.setViewportSize({ width: 390, height: 844 })
   await roleg(page, 800)
-  // VEKK CHROMEN FYRST: to sekund utan ein finger og alt som ikkje er
-  // objektet er borte, og medan det er borte tek grensesnittet ingen trykk.
-  // Innlastinga over tek lenger enn det, so det fyrste trykket vart ete.
-  // og VENT UT SVELGJAREN: det fyrste trykket etter at chromen vaknar vert
-  // ete med vilje, so ein orbit ikkje endar i ein knapp. Han slepper etter
-  // eit lite bel, og prøva må vera på den andre sida av det.
   await page.mouse.move(200, 400)
   await roleg(page, 1000)
   await opneKjelde()
@@ -1454,12 +932,8 @@ async function skrivebordet(browser: Browser) {
   const vh = page.viewportSize()!.height
   sjekk("menyen held seg innanfor skjermen", !!mm && mm.y + mm.height <= vh, mm ? `botn ${Math.round(mm.y + mm.height)} av ${vh} px` : "fann han ikkje")
   const rullar = await boks.evaluate((e) => ({ s: e.scrollHeight, c: e.clientHeight, t: e.getBoundingClientRect().top }))
-  // OG SITUASJONEN MÅ VERA EKTE: hadde innhaldet fått plass på skjermen
-  // likevel, målte prøva ingenting — ho ville stått grøn på den koden som
-  // rann ut nedanfor kanten.
   sjekk("lista er lengre enn skjermen", rullar.t + rullar.s > vh, `${Math.round(rullar.t + rullar.s)} px mot ${vh} px skjerm`)
   sjekk("og ho rullar inni seg sjølv", rullar.s > rullar.c + 4, `${rullar.s} px innhald i ${rullar.c} px`)
-  // og den SISTE lina er å nå: ei liste som rullar utan å kome fram er ikkje betre enn ei som er klipt
   await boks.evaluate((e) => { e.scrollTop = e.scrollHeight })
   await roleg(page, 400)
   const sist = boks.locator("[data-lagra]").last()
@@ -1477,12 +951,6 @@ async function skrivebordet(browser: Browser) {
   await roleg(page, 900)
   sjekk("eit trykk i lista legg nettet i kroppen", String(hash(page).scene ?? "").split(";").filter(Boolean).length > bitFoer, String(hash(page).scene ?? "").slice(0, 50))
 
-  /**
-   * SKIFT-TRYKK PÅ PLANRADENE. Fire plan, og eit skift-trykk frå det fyrste
-   * til det siste skal gjere dei til ÉI gruppe. Vakta krev begge delar: at
-   * gruppa vart til, og at ho tok dei som ligg imellom — ei gruppe på to er
-   * ikkje eit strekk.
-   */
   await page.evaluate("location.hash = '#p=' + encodeURIComponent(JSON.stringify({ plan: '1@0.2,0.5,0.5/1,0,0;2@0.4,0.5,0.5/1,0,0;3@0.6,0.5,0.5/1,0,0;4@0.8,0.5,0.5/1,0,0' }))")
   await page.reload({ waitUntil: "load" })
   await ferdig(page)
@@ -1502,28 +970,12 @@ async function skrivebordet(browser: Browser) {
   await page.close()
 }
 
-/**
- * VERKTYET FOR KROPPEN, I SIN EIGEN DEL.
- *
- * Det låg i «telefon», og «telefon» var hundre og seksti av dei tre hundre og
- * seksti sekunda panelet tek. CLAUDE.md seier at du skal køyre den delen du
- * tok i medan du arbeider, og ein del som er halve harnesset er ikkje ein del
- * du kan køyre. Dette er det eine stykket som står for seg sjølv: det tek ei
- * scene med to kubar og prøver berre bitane.
- */
 async function kroppen(browser: Browser) {
   console.log("\n=== verktyet for kroppen")
   const { page, konsoll } = await opne(URL, browser, 390, 844)
-  /** brikka med kjelda i toppen, og menyen ho opnar */
   const kjelde = page.locator("button[data-kjelde]")
   const meny2 = page.locator("[data-meny]")
 
-  /**
-   * Bitane er boksar du kan peike på, og dei same tre gestane gjeld dei:
-   * draget flyttar (loddrett lyfter), klypet gjer større, vridinga snur.
-   * Prøva les scenestrengen — han er sanninga om kroppen, og han ligg i
-   * lenkja.
-   */
   const bitScene = () => hash(page).scene ?? ""
   const bitTal = () => (bitScene() ? bitScene().split(";").length : 0)
   await kjelde.click()
@@ -1535,22 +987,10 @@ async function kroppen(browser: Browser) {
   await bitVerkty.click()
   await page.waitForTimeout(500)
   sjekk("og eit trykk slår han på", (await bitVerkty.getAttribute("aria-pressed")) === "true")
-  // den andre biten ligg til høgre i kroppen; boksen hans tek trykket
   await page.touchscreen.tap(250, 430)
   await page.waitForTimeout(500)
   sjekk("eit trykk vel ein bit", (await page.locator("[aria-label='dubler biten']").count()) === 1)
 
-  /**
-   * MED EIN BIT VALD BYTER EIT VAL HAN UT.
-   *
-   * Du peika på ein bit; det du vel etterpå er eit svar om HAN, ikkje ein
-   * bit til. Prøva er scenestrengen: talet på bitar står, plassen og
-   * storleiken hans står, og berre namnet på forma er eit anna.
-   *
-   * OG DET ER FAMILIEN DU VEL: den same lina om att blar til den neste
-   * utgåva, ein annan familie byrjar på si eiga fyrste. So attende med
-   * angre, so gestane under prøver den kroppen dei alltid har prøvd.
-   */
   {
     const foer = bitScene().split(";")
     const valdBit = () => bitScene().split(";")[1] ?? ""
@@ -1571,28 +1011,11 @@ async function kroppen(browser: Browser) {
     await vent(page, (p) => /stolform-02/.test(String(p.scene ?? "")), 20000)
     sjekk("den same familien om att blar til den neste utgåva", /^stolform-02@/.test(valdBit()), valdBit().slice(0, 40))
     sjekk("og han står framleis der han stod", hale(valdBit()) === hale(foer[1] ?? ""), valdBit())
-    /**
-     * OG BLADREN GJER DET I EITT TRYKK, NEDST TIL VENSTRE.
-     *
-     * Menyen er to trykk med kroppen dekt, kvar gong, for det eine
-     * spørsmålet «er denne stolen den rette?». Knappen står motsett veg av
-     * reiskapane — venstre tommelen — og han går den same vegen inn, so
-     * plassen, storleiken og angre er dei same.
-     */
     const bla = page.locator("[data-bla]")
     const bx = await bla.boundingBox()
     const tx = await page.locator("[data-bitverkty]").boundingBox()
     sjekk("bladeren står med ein bit som har fleire utgåver", (await bla.count()) === 1)
     sjekk("og han står motsett veg av reiskapane", !!bx && !!tx && bx.x + bx.width < tx.x, `${bx ? Math.round(bx.x) : "–"} mot ${tx ? Math.round(tx.x) : "–"} px`)
-    /**
-     * OG SYNET STÅR MEDAN DU BLAR.
-     *
-     * Ei innebygd form kjem same vegen som ei fil — nettet vert henta, og
-     * kjelda melder seg — og det rammar inn. Men ho er ikkje ein ny kropp:
-     * ho er ein bit som byter form, med plassen sin i behald. Å kaste
-     * vinkelen du står og ser frå, ti gonger medan du ser gjennom ti
-     * stolar, er å ta arbeidet frå deg.
-     */
     const kamBla = async () => (await page.locator(".handtak").getAttribute("data-kamera")) ?? "?"
     const kFyrr = await kamBla()
     await bla.click()
@@ -1600,14 +1023,12 @@ async function kroppen(browser: Browser) {
     sjekk("eitt trykk blar til den neste utgåva", /^stolform-03@/.test(valdBit()), valdBit().slice(0, 40))
     sjekk("og synet står medan du blar", (await kamBla()) === kFyrr, `${kFyrr} → ${await kamBla()}`)
     sjekk("og plassen, storleiken og vendinga står", hale(valdBit()) === hale(foer[1] ?? ""), valdBit())
-    // og B er den same vegen inn, for den som har eit tastatur
     await page.keyboard.press("b")
     await vent(page, (p) => /stolform-04/.test(String(p.scene ?? "")), 20000)
     sjekk("og B gjer det same frå tastaturet", /^stolform-04@/.test(valdBit()), valdBit().slice(0, 40))
     await vel("sau")
     await vent(page, (p) => /sau-01/.test(String(p.scene ?? "")), 20000)
     sjekk("ein annan familie byrjar på si eiga fyrste", /^sau-01@/.test(valdBit()), valdBit().slice(0, 40))
-    // fem endringar, og angre kan ha slege nokon av dei saman
     for (let i = 0; i < 8 && bitScene() !== foer.join(";"); i++) {
       await page.keyboard.press("z")
       await roleg(page, 500)
@@ -1615,11 +1036,6 @@ async function kroppen(browser: Browser) {
     sjekk("og angre tek bytta attende", bitScene() === foer.join(";"), bitScene().slice(0, 48))
   }
 
-  /**
-   * OG EI FIL GJER DET SAME. Ein import er elles ein annan kropp — plana
-   * fylgjer ikkje med — men med ein bit vald er fila eit svar om HAN: ho
-   * går inn i klossen du peika på, og kroppen elles står.
-   */
   {
     const foer = bitScene().split(";")
     const planFoer = plana(page).length
@@ -1635,14 +1051,6 @@ async function kroppen(browser: Browser) {
   }
 
   const bitFør = bitScene()
-  /**
-   * TO FINGRAR PÅ BITEN, UTANOM PRIKKANE.
-   *
-   * Prikkane på sidene tek den fyrste fingeren og dreg éin akse; det er
-   * meininga. Gesten som FLYTTAR biten er to fingrar på han, og ho må
-   * byrje ein stad som ikkje er ein prikk — elles prøver vi dragingen av
-   * ein akse og kallar han ei flytting.
-   */
   const prikkar = await page.locator(".sider button").evaluateAll((el) =>
     el.map((e) => {
       const r = e.getBoundingClientRect()
@@ -1656,7 +1064,6 @@ async function kroppen(browser: Browser) {
   })
   await toFingrar(page, (t) => [[par[0][0], par[0][1] - 90 * t], [par[1][0], par[1][1] - 90 * t]])
   await vent(page, (p) => (p.scene ?? "") !== bitFør)
-  // den ANDRE biten i lista, ikkje eit namn: kva form han har er ei anna sak
   const andre = () => bitScene().split(";")[1] ?? ""
   const lyft = /@[-\d.]+,[-\d.]+,([\d.]+)/.exec(andre())
   sjekk("to fingrar rett opp lyfter biten", !!lyft && Number(lyft[1]) > 5, bitScene().slice(0, 48))
@@ -1666,12 +1073,6 @@ async function kroppen(browser: Browser) {
   await vent(page, (p) => (p.scene ?? "") !== førKlyp)
   const stor = /@[^/]+\/([\d.]+)\//.exec(andre())
   sjekk("og eit klyp gjer HAN større, ikkje kroppen", !!stor && Number(stor[1]) > 1.05 && hash(page).storleik === 150, `${stor?.[1]} · kroppen ${hash(page).storleik} mm`)
-  /**
-   * PRIKKANE PÅ SIDENE. Klypet gjer heile biten større og let forholdet stå;
-   * ein prikk dreg éin akse. Prøva er at NØYAKTIG éin av dei tre tala rører
-   * seg — ein prikk som drog alle tre var berre eit klyp med ein annan
-   * gest, og det såg ingen på skjermen.
-   */
   {
     const sider = page.locator(".sider button")
     sjekk("den valde biten har seks prikkar", (await sider.count()) === 6, `${await sider.count()}`)
@@ -1682,17 +1083,6 @@ async function kroppen(browser: Browser) {
       return d.length === 3 ? d : [d[0], d[0], d[0]]
     }
     const foer = tal3(andre())
-    /**
-     * OG SYNET STÅR MEDAN DU REDIGERER.
-     *
-     * Ramma vart rekna av geometrien: skalaen var `FRAME / lengste sida` og
-     * midten var midten av boksen, so KVAR endring flytta og skalerte heile
-     * biletet. Dreg du ein bit ut, krympa alt anna medan fingeren stod på,
-     * og du sikta mot eit mål som gleid unna. Kameraet gjorde det same ved
-     * ti prosent. No står synet der det vart sett til nokon ber om ei ny
-     * innramming — og prøva er kameralappen scena skriv: han skal vera
-     * teikn for teikn den same før og etter.
-     */
     const kamera = async () => (await page.locator(".handtak").getAttribute("data-kamera")) ?? "?"
     const kamFoer = await kamera()
     const d = await page.locator('.sider [data-side="0"]').boundingBox()
@@ -1710,27 +1100,12 @@ async function kroppen(browser: Browser) {
       sjekk("eit drag i prikken rører NØYAKTIG éin akse", rort === 1, `${foer.join(",")} → ${etter.join(",")}`)
       await roleg(page, 900)
       sjekk("og synet står stille medan du dreg", (await kamera()) === kamFoer, `${kamFoer} → ${await kamera()}`)
-      /**
-       * OG DEN ANDRE FINGEREN SNUR HAN IKKJE HELLER.
-       *
-       * Ei hand som held telefonen kviler mot glaset medan tommelen dreg.
-       * Prikken er DOM over lerretet, so HANS finger når aldri orbiten —
-       * men den som kviler gjer det, og han var den fyrste lerretet såg:
-       * orbiten las han som ein finger åleine og snudde kroppen heilt rundt
-       * medan du drog i sida av biten.
-       *
-       * Prøva må difor setje fingrane NED ETTER KVARANDRE. `toFingrar`
-       * sender begge i den same `touchStart`-en — det er greitt når begge
-       * høyrer til den same gesten, men ei hand gjer aldri det, og nett den
-       * rekkjefylgja er heile feilen.
-       */
       {
         const cdp = await page.context().newCDPSession(page)
         const pt = (px: number, py: number, id: number) => ({ x: px, y: py, id, radiusX: 4, radiusY: 4, force: 1 })
         const kamHald = await kamera()
         await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pt(cx, cy, 0)] })
         await page.waitForTimeout(24)
-        // den andre fingeren landar på lerretet, langt frå prikkane
         await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pt(cx, cy, 0), pt(60, 700, 1)] })
         await page.waitForTimeout(24)
         for (let i = 1; i <= 12; i++) {
@@ -1743,22 +1118,11 @@ async function kroppen(browser: Browser) {
         await roleg(page, 900)
         sjekk("og ein finger til på lerretet snur han ikkje", (await kamera()) === kamHald, `${kamHald} → ${await kamera()}`)
       }
-      // og innrammingsknappen ramar framleis inn: synet er ei avgjerd, ikkje ei låsing
       await page.locator("[data-heim]").click()
       await roleg(page, 900)
       sjekk("men innrammingsknappen ramar inn på nytt", (await kamera()) !== kamFoer, await kamera())
     }
   }
-  /**
-   * LAGET BITEN EIG, og det plana kjenner han att på.
-   *
-   * Rada er den same fargerada plana har, og ho står under storleiken når
-   * ein bit er vald. Prøva er at valet hamnar i SCENESTRENGEN — han er
-   * sanninga om kroppen, og han ligg i lenkja — og at biten sin farge og
-   * planet sin er den same paletten, so eit merkt plan finn den merkte
-   * biten. Sjølve klippet vert målt i `pnpm probe`, der ei ribbe kan
-   * målast i millimeter i staden for på skjermen.
-   */
   {
     await midt(page)
     const rad = page.locator("[data-lag='bit']")
@@ -1791,18 +1155,6 @@ async function kroppen(browser: Browser) {
   await page.close()
 }
 
-/**
- * TEIKNE EI FLATE.
- *
- * Reiskapen lagar noko frå ingenting: du dreg EIN firkant på skisseplanet,
- * og slepper. Vakta går heile vegen — frå ingen plan til ein DEL som kan
- * skjerast — av di det er den vegen som seier at flata vart ei flate og
- * ikkje berre ei line på skjermen.
- *
- * Og ho prøver det som skil reiskapen frå eit uhell: at eit TRYKK ikkje
- * vert eit plan, at fire hjørne kjem ut av eitt drag, og at escape slepper
- * alt utan å lage noko.
- */
 async function teikninga(browser: Browser) {
   console.log("\n=== teikne ei flate")
   const { page, konsoll } = await opne(URL, browser, 1400, 900)
@@ -1815,16 +1167,11 @@ async function teikninga(browser: Browser) {
   await roleg(page, 500)
   sjekk("og eit trykk tek han", (await knapp.getAttribute("aria-pressed")) === "true")
 
-  /**
-   * EIT TRYKK ER IKKJE EIN FIRKANT. Fingeren landa og gjekk att; det finst
-   * ingen flate å lage, og reiskapen skal stå att og vente.
-   */
   const foer0 = plana(page).length
   await page.mouse.click(mid.x, mid.y)
   await roleg(page, 400)
   sjekk("eit trykk lagar ingenting, og reiskapen står att", plana(page).length === foer0 && (await knapp.getAttribute("aria-pressed")) === "true", `${plana(page).length} plan, venta ${foer0}`)
 
-  // og dragat: ned i eit hjørne, over til det motsette, slepp
   const foer = plana(page).length
   await page.mouse.move(mid.x - 90, mid.y - 90)
   await page.mouse.down()
@@ -1840,21 +1187,12 @@ async function teikninga(browser: Browser) {
   sjekk("og eitt drag gjev eitt plan", plana(page).length === foer + 1)
   const pl = lesPlan(hash(page).plan)[foer]
   sjekk("og planet ber ein firkant på fire punkt", (pl?.omriss?.length ?? 0) === 4, `${pl?.omriss?.length ?? 0} punkt i omrisset`)
-  /**
-   * OG HAN ER EIN EKTE FIRKANT: to u-verdiar og to v-verdiar, kvar to
-   * gonger. Det er prøva på at hjørna vart rekna og ikkje berre samla.
-   */
   const om = pl?.omriss ?? []
   const uu = [...new Set(om.map((q) => q[0]))]
   const vv = [...new Set(om.map((q) => q[1]))]
   sjekk("og hjørna står på to u og to v", uu.length === 2 && vv.length === 2, `${uu.length} u, ${vv.length} v`)
   sjekk("og reiskapen slepper seg sjølv etterpå", (await knapp.getAttribute("aria-pressed")) === "false")
 
-  /**
-   * OG FLATA ER EIN DEL. Det er den eine påstanden som seier at ho vart
-   * geometri: eit omriss i ein streng er ein streng, men ein del i lista er
-   * noko som kan skjerast.
-   */
   await vent2(page, async () => (await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").count()) > 0, 15000)
   const rad = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").last()
   const tekst = (await rad.innerText()).replace(/\s+/g, " ")
@@ -1876,39 +1214,15 @@ async function teikninga(browser: Browser) {
   await page.close()
 }
 
-
-/**
- * KAMERAET MEDAN TO FINGRAR FLYTTAR EIT PLAN.
- *
- * Regelen står i `CLAUDE.md`: to fingrar høyrer objektet til og rører aldri
- * kameraet. Vakta for det las SLUTTEN — og sluttilstanden var perfekt heile
- * tida. Det som var gale var det du SÅG: den fyrste fingeren gjekk sin veg
- * åleine medan handa la seg ned, kryssa dei tolv pikslane som skil eit trykk
- * frå eit drag, og synet svinga. I det den andre fingeren landa vart heile
- * svingen rykt attende i eitt bilete.
- *
- * Målt på koden som stod, med den fyrste fingeren på vandring seksti pikslar:
- * ut til 3,2 einingar på ein avstand av 14,5, og heile vegen attende i eitt
- * bilete.
- *
- * Vakta står for seg og ikkje i «telefon», av di ho måler ÉIN ting og skal
- * kunne køyrast åleine medan ein arbeider med henne.
- *
- * HO MÅLER FRÅ DET BEGGE FINGRANE ER NEDE. Det som hende før, hende med éin
- * finger, og ein finger har lov til å snu synet — det er gesten hans. Det
- * som ikkje har lov er at kameraet rører seg når to fingrar dreg.
- */
 async function kamera(browser: Browser) {
   console.log("\n=== kameraet under to fingrar")
   const { page, konsoll } = await opne(URL, browser, 390, 844)
-  // tre plan utan gruppe, so kvart av dei er si eiga rad i lista
   await page.evaluate(() => {
     location.hash = "p=" + encodeURIComponent(JSON.stringify({ kjelde: "kube", storleik: 300, plan: "1@0.3,0.5,0.5/1,0,0;2@0.7,0.5,0.5/1,0,0;3@0.5,0.5,0.5/0,1,0" }))
     location.reload()
   })
   await roleg(page, 1500)
 
-  // vel eit plan gjennom lista i skuffa, som handa gjer det
   await page.locator(HOVUDLINA).click()
   await roleg(page, 500)
   await page.locator("[role=tab][aria-label='grupper']").click()
@@ -1917,7 +1231,6 @@ async function kamera(browser: Browser) {
   sjekk("planlista står i skuffa", (await page.locator("[role=option][data-plan]").count()) >= 2, `${await page.locator("[role=option][data-plan]").count()} rader`)
   await rad.locator("button").first().click()
   await roleg(page, 400)
-  // grepet lèt att — lina er borte når skuffa er open
   await page.getByRole("button", { name: "lat att kontrollane" }).click()
   await roleg(page, 500)
   sjekk("og eit plan er valt", (await page.locator(".handtak").getAttribute("data-slag")) === "plan", (await page.locator(".handtak").getAttribute("data-slag")) ?? "?")
@@ -1925,15 +1238,9 @@ async function kamera(browser: Browser) {
   const kamPos = async () => ((await page.locator(".handtak").getAttribute("data-kamera")) ?? "0,0,0").split(",").map(Number)
   const kamAv = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2])
 
-  /**
-   * VANDRINGA er seksti pikslar: godt forbi dei tolv som slepper orbiten
-   * laus, so heile den vegen gjennom koden vert prøvd. GLIDET er femten
-   * prosent — meir enn nok til å låse opp klypet.
-   */
   const VANDRE = 60
   const planStod = plana(page)[0]
   const kamFor = await kamPos()
-  /** kvart hakk, med eit merke om kor mange fingrar som var nede */
   const spor: { ein: boolean; p: number[] }[] = []
   let hakk = 0
   await toFingrar(
@@ -1957,33 +1264,16 @@ async function kamera(browser: Browser) {
   const ein = spor.filter((q) => q.ein)
   const to = spor.filter((q) => !q.ein)
 
-  /**
-   * FYRST: PRØVA MÅ VERA EI PRØVE. Gjekk ikkje den eine fingeren forbi dei
-   * tolv pikslane, vart orbiten aldri sleppt laus, og alt under er vakuum.
-   */
   const einSvinga = ein.length ? kamAv(kamFor, ein[ein.length - 1].p) : 0
   sjekk("den eine fingeren snudde synet før den andre landa", einSvinga > 0.5, `${einSvinga.toFixed(2)} einingar`)
 
-  /**
-   * OG SÅ SJØLVE SAKA: synet vert ikkje teke ATTENDE i det den andre
-   * fingeren landar. Ein orbit går i ring, so avstanden til kameraet
-   * fortel ingenting — det som fortel er om kameraet nærmar seg der det
-   * STOD FØR gesten. Gjer det det, er svingen din rykt bort.
-   */
   const etterTo = to.length ? kamAv(kamFor, to[0].p) : 0
-  /**
-   * EIN TIDEL, og ikkje null. Mellom det siste biletet med éin finger og
-   * det fyrste med to ligg det eit bilete der dempinga framleis lettar av
-   * svingen din — det er den fysikken ein orbit har, og han er på nokre få
-   * promille av avstanden. Koden som stod mista HEILE svingen; 3,21 → 0,00.
-   */
   sjekk(
     "og den andre fingeren tek ikkje svingen attende",
     etterTo >= einSvinga * 0.9,
     `${einSvinga.toFixed(2)} → ${etterTo.toFixed(2)} einingar frå der synet stod`,
   )
 
-  /** og frå då av står kameraet, hakk for hakk, medan planet flyttar seg */
   const verst = to.length > 1 ? Math.max(...to.slice(1).map((q) => kamAv(to[0].p, q.p))) : Infinity
   sjekk(
     "kameraet står i kvart hakk etter at BEGGE fingrane er nede",
@@ -2014,8 +1304,6 @@ async function benk(browser: Browser) {
   await vent(page, talPlan(n0))
   sjekk("Delete tek det valde bort", plana(page).length === n0)
 
-
-  // storleiken er eit tal du DREG i, ikkje skriv: eit tekstfelt zoomar sida
   const felt = page.locator("[aria-label='storleik, tal']")
   const fb = await felt.boundingBox()
   const s0b = hash(page).storleik
@@ -2032,14 +1320,6 @@ async function benk(browser: Browser) {
   await page.keyboard.press("z")
   await vent(page, (p) => p.storleik === s0b)
 
-  /**
-   * HJULET PÅ EI TALRAD.
-   *
-   * Eitt hakk på musa (deltaY 100) er eitt steg, skift er ti — og ei
-   * rulling som alt er i gang høyrer til den raden ho byrja i, so ein
-   * peikar som glir over ti tal på veg nedover spalta ikkje set kvart av
-   * dei. Prøva sender hjulet sjølv, so tida mellom meldingane er kjend.
-   */
   const rulle = (merke: string, shift = false) =>
     page.evaluate(
       ([m, sh]) => {
@@ -2052,7 +1332,6 @@ async function benk(browser: Browser) {
   await vent(page, (p) => p.arkB !== b0)
   const b1 = hash(page).arkB
   sjekk("eit hjulhakk stegar talet under peikaren", b1 < b0, `${b0} → ${b1} mm`)
-  // same gesten, ei anna rad: ho skal ikkje ta han
   const h0 = hash(page).arkH
   await page.evaluate(() => {
     for (const m of ["breidd, tal", "høgd, tal"]) {
@@ -2061,16 +1340,10 @@ async function benk(browser: Browser) {
   })
   await roleg(page, 400)
   sjekk("ei rulling som er i gang tek ikkje raden ho glir over", hash(page).arkH === h0, `${h0} → ${hash(page).arkH} mm`)
-  // og etter ein pause er det raden under peikaren
   await rulle("høgd, tal", true)
   await vent(page, (p) => p.arkH !== h0)
   sjekk("etter ein pause er hakket hennar, og skift er ti steg", hash(page).arkH < h0 - (b0 - b1) * 5, `${h0} → ${hash(page).arkH} mm`)
 
-  /**
-   * KVAR REISKAP SIN TAST. R, V og S hadde ein; kroppen hadde ingen, og
-   * bladeren fanst ikkje. På ein benk er tastane vegen inn til reiskapane,
-   * og ein reiskap utan tast er ein reiskap du må sikte på med musa.
-   */
   await page.keyboard.press("k")
   await page.waitForTimeout(300)
   sjekk("K tek verktyet for kroppen", (await page.locator("[data-bitverkty][aria-pressed='true']").count()) === 1)
@@ -2081,15 +1354,6 @@ async function benk(browser: Browser) {
   await page.keyboard.press("r")
   await page.waitForTimeout(200)
   sjekk("R tek verktyet for rutenettet", (await page.locator("button[aria-label='rutenett'][aria-pressed='true']").count()) === 1)
-  /**
-   * OG MUSA SET DEI TO TALA.
-   *
-   * Rutenettet var TO FINGRAR og ingenting anna, og ei mus har
-   * éin peikar: to av dei fem reiskapane kunne ikkje brukast på ein benk i
-   * det heile — brytaren stod på, og ingenting hende. Med reiskapen open er
-   * venstre knappen hans: vassrett kolonner, loddrett rader, og orbiten står
-   * over so lenge draget varer.
-   */
   {
     const kamera = async () => (await page.locator(".handtak").getAttribute("data-kamera")) ?? "?"
     const k0 = await kamera()
@@ -2111,7 +1375,6 @@ async function benk(browser: Browser) {
   }
   await page.keyboard.press("r")
 
-  // --- TALET KAN SKRIVAST: dobbeltklikk opnar eit felt, enter set, escape let stå ---
   const tjukn = page.locator("[aria-label='tjukn, tal']")
   await tjukn.dblclick()
   const felt2 = page.locator("input[aria-label='tjukn, skriv']")
@@ -2129,14 +1392,11 @@ async function benk(browser: Browser) {
   await tjukn.focus()
   await page.keyboard.press("Shift+ArrowRight")
   await vent(page, (p) => p.tjukn !== 4.5)
-  // ti steg, og steget på tjukna er ein tjuedels millimeter: ho er talet
-  // du les av skyvelæret, ikkje det plata heiter
   sjekk("skift+pil stegar ti", hash(page).tjukn === 5, String(hash(page).tjukn))
   await page.keyboard.press("z")
   await page.keyboard.press("z")
   await vent(page, (p) => p.tjukn !== 4.5 && Math.abs(p.tjukn - 4.5) < 3)
 
-  // --- PILENE FLYTTAR DET VALDE PLANET éin millimeter langs normalen; D dublerer; tab går vidare ---
   await page.keyboard.press("l")
   await vent(page, talPlan(n0 + 1))
   const ida = plana(page)[n0].id
@@ -2146,7 +1406,6 @@ async function benk(browser: Browser) {
   const radTekst = async () => (await rad.innerText()).replace(/\s+/g, " ").trim()
   const mm0 = (await rad.innerText()).match(/[+−]\d+,\d mm/)?.[0] ?? ""
   sjekk("rada på benken les millimeteren frå midten", /[+−]\d+,\d mm/.test(mm0), mm0)
-  // millimeteren i rada er det pilene lovar: éin per trykk, ti med skift, og tolv tett i hop er tolv
   const mmNo = async () => Number((await rad.innerText()).match(/[+−]\d+,\d mm/)?.[0]?.replace("−", "-").replace(",", ".").replace(" mm", "") ?? NaN)
   const ventMm = async (v: number) => {
     for (let i = 0; i < 60; i++) {
@@ -2174,7 +1433,6 @@ async function benk(browser: Browser) {
   await page.waitForTimeout(200)
   sjekk("skift+tab går attende", (await rad.innerText()).startsWith(String(plana(page)[n0 + 1].id)), await radTekst())
 
-  // --- F rammar inn: den same knappen som under synskuben ---
   const boks = page.locator(".handtak")
   const avst0 = await boks.getAttribute("data-avstand")
   await page.mouse.move(400, 450)
@@ -2186,7 +1444,6 @@ async function benk(browser: Browser) {
   await page.waitForTimeout(600)
   sjekk("F rammar inn att", (await boks.getAttribute("data-avstand")) === avst0, `${avst0} vs ${await boks.getAttribute("data-avstand")}`)
 
-  // --- PÅ PLATA: pilene flyttar den valde delen éin millimeter ---
   await page.keyboard.press("Escape")
   await page.keyboard.press("3")
   await roleg(page, 600)
@@ -2204,23 +1461,6 @@ async function benk(browser: Browser) {
   } else sjekk("plata har ein del å flytte", false)
   await page.keyboard.press("2")
 
-  /**
-   * OG DESSE TO STÅR SIST I BOLKEN, med vilje.
-   *
-   * Begge LAGAR plan, og lista på benken fylgjer motoren medan lenkja
-   * fylgjer parametrane — mellom dei to ligg ein arbeidar som ikkje er
-   * ferdig i same augneblinken. Ei opprydding som klikkar rader les difor
-   * to ulike tal, og under full køyring rakk ho ikkje alltid å finne dei.
-   * Ei prøve som må rydde etter seg for at dei under skal halde, er ei
-   * prøve som kan rydde feil. Her er det ingenting under.
-   */
-  /**
-   * OG MELLOMROMMET SKJER, med eitt vilkår: ein knapp som er teken eig
-   * mellomrommet sitt sjølv. Vakta prøver BÅDE at han skjer når ingenting
-   * er teke, OG at han lèt vera når fokus står på ein knapp — den andre er
-   * den som ville brote noko, av di nettlesaren trykkjer knappen med same
-   * tasten og du ville fått to ting av eitt trykk.
-   */
   await page.evaluate("(document.activeElement instanceof HTMLElement) && document.activeElement.blur()")
   const s0 = plana(page).length
   await page.keyboard.press(" ")
@@ -2233,13 +1473,6 @@ async function benk(browser: Browser) {
   await roleg(page, 400)
   sjekk("men ikkje når ein knapp er teken — han eig tasten sjølv", plana(page).length === s1, `${s1} → ${plana(page).length}`)
 
-  /**
-   * HØGREMENYEN PÅ EI PLANRAD.
-   *
-   * Han legg ikkje til ei einaste handling — kvar line er ein tast som
-   * fanst frå før — so vakta spør om det: at han opnar seg, at han vel rada
-   * han står på, at ei line GJER det ho seier, og at han lukkar seg att.
-   */
   const mrad = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first()
   await mrad.click({ button: "right" })
   await roleg(page, 300)
@@ -2258,39 +1491,16 @@ async function benk(browser: Browser) {
   await page.keyboard.press("Escape")
   await roleg(page, 250)
   sjekk("og escape lukkar han", (await page.locator("[data-meny]").count()) === 0)
-  // og attende til der bolken stod. Rekna på RADENE og ikkje på lenkja:
-  // lenkja kjem etter, og ein lekk som trur det står eitt plan att når
-  // lista er tom ventar på ei rad som aldri kjem.
-  // OG INGA OPPRYDDING: sida vert lukka to liner under, so alt som vert
-  // teke bort her vert teke bort frå noko som forsvinn uansett. Det stod ei
-  // her, og ho var ikkje berre unyttig — ho las lenkja og klikka rader, og
-  // dei to tala kjem frå kvar si side av ein arbeidar. Ho stod raud av å
-  // rydde, i ein bolk der det ikkje var noko å rydde for.
 
   sjekk("ingen konsollfeil på benken", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await page.close()
 }
 
-/**
- * GRUPPENE, PÅ BENKEN.
- *
- * Plan som vart til i éi handling høyrer i hop. Trykk på gruppa i lista,
- * og alt handa gjer med leiaren — pilene her, handtaka og to fingrar
- * elles — gjer alle plana i henne: saman, eller fordelt frå den ståande
- * enden til leiaren, so ei dreiing vert ei vifte og eit skuv eit nytt
- * mellomrom. Prøva les lenkja og ser at rada svarar som éi.
- */
 async function grupper(browser: Browser) {
   console.log("\n=== grupper (benk 1400×900)")
   const plan = skrivPlan(rutenett(0, 4))
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })), browser, 1400, 900)
   sjekk("lista har gruppa som rad", (await page.locator("[data-gruppe='1']").count()) === 1)
-  /**
-   * OG HO LIGG SAMAN. Eit rutenett er tretti plan i lista, og lista er det
-   * meste av det ein telefon syner: gruppa er si eine rad til du ber om
-   * noko anna. Trykket brettar henne ut OG tek henne — leiaren er det siste
-   * planet, som før.
-   */
   const iLista = page.locator("[role=listbox][aria-label='plan'] [data-plan]")
   sjekk("og plana hennar ligg saman frå fyrst av", (await iLista.count()) === 0, `${await iLista.count()} av 4 plan i lista`)
   await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
@@ -2317,7 +1527,6 @@ async function grupper(browser: Browser) {
   const s2 = y2.map((v, i) => v - y1[i])
   sjekk("fordelt: det fyrste står, leiaren tek alt, dei imellom sin del", Math.abs(s2[0]) < 1e-9 && s2[3] > 0.005 && Math.abs(s2[1] - s2[3] / 3) < 3e-4 && Math.abs(s2[2] - (2 * s2[3]) / 3) < 3e-4, s2.map((d) => d.toFixed(4)).join(" "))
 
-  // ⌥-drag med musa vrir leiaren om synsaksen; fordelt er det ei vifte
   const n0 = plana(page).map((p) => p.n)
   await page.keyboard.down("Alt")
   await page.mouse.move(520, 450)
@@ -2331,11 +1540,6 @@ async function grupper(browser: Browser) {
   const v = n1.map((n, i) => vinkel(n, n0[i]))
   sjekk("⌥-drag vrir leiaren, og rada er ei vifte", v[0] < 1e-3 && v[3] > 0.05 && v[1] > 1e-3 && v[1] < v[2] && v[2] < v[3], v.map((a) => ((a * 180) / Math.PI).toFixed(1) + "°").join(" "))
 
-  /**
-   * VIRRET: RADA UT AV LINA. Kvart plan får sitt eige hakk langs si eiga
-   * normal, gjeve av namnet — so eit drag attende tek rada nøyaktig dit ho
-   * stod. Prøva les lenkja: nokre plan opp, nokre ned, og ingen drift.
-   */
   const virr = page.locator("[aria-label='virr, tal']")
   sjekk("ei vald gruppe har ei virr-rad", (await virr.count()) === 1)
   const yv0 = y()
@@ -2372,12 +1576,9 @@ async function grupper(browser: Browser) {
   await vent(page, talPlan(0))
   sjekk("× på gruppa tek alle plana", plana(page).length === 0)
 
-  // --- LAGET: eit merke på eit plan, eller på heile gruppa, i LightBurn sin farge ---
-  // berre hashen byter: sida les han ved lasting, so ho må lastast om att
   await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })))
   await page.reload({ waitUntil: "networkidle" })
   await roleg(page, 800)
-  // gruppa ligg saman etter ei omlasting: brett henne ut for å nå eit plan
   await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
   await page.waitForTimeout(300)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
@@ -2401,14 +1602,6 @@ async function grupper(browser: Browser) {
   await vent(page, (p) => lesPlan(p.plan).every((q) => !q.farge))
   sjekk("og ringen tek merket bort att", plana(page).every((q) => !q.farge))
 
-  /**
-   * OG EIT PLAN MED FLEIRE STYKKE ER EI GRUPPE I KUTTLISTA.
-   *
-   * Same saka ei rad ned: overskrifta «plan 1 · 2 stykke» samlar dei, og ho
-   * brettar dei saman. To kubar med luft imellom og eitt vassrett plan gjev
-   * nett det — eitt snitt, to stykke — og det er den einaste kroppen som
-   * gjev det utan å hente eit nett.
-   */
   await page.goto(
     URL + "#p=" + encodeURIComponent(JSON.stringify({
       scene: "kube@-90,0,0/1/0;kube@90,0,0/1/0",
@@ -2436,16 +1629,6 @@ async function grupper(browser: Browser) {
   await page.close()
 }
 
-/**
- * FLYTEN PÅ TELEFONEN SLIK HO STÅR PÅ HEIMSKJERMEN.
- *
- * Målet er ein PWA på iPhone 16e, lagra og opna frå heimskjermen. Det er
- * ikkje det same som «sida i Safari»: statuslina ligg over toppen, det finst
- * ingen adresselinje å rulle bort, eit felt under seksten pikslar zoomar
- * sida inn når det får fokus, og alt som ikkje er nådd med éin tumme er
- * ikkje nådd. Harnesset går flyten frå fyrste opning til fyrste låste plan
- * som ein ny brukar, og måler det som kan målast utan ei ekte iPhone.
- */
 async function flyt(browser: Browser) {
   console.log("\n=== flyten på heimskjermen (iPhone 16e)")
   const ctx = await browser.newContext({
@@ -2469,7 +1652,6 @@ async function flyt(browser: Browser) {
   const tTal = Date.now() - t0
   sjekk("fyrste tal i lina innan fem sekund", tTal < 5000, `side ${tSide} ms, tal ${tTal} ms`)
 
-  // --- det ein PWA treng i hovudet på sida --------------------------------------
   const meta = await page.evaluate(() => ({
     viewport: document.querySelector("meta[name=viewport]")?.getAttribute("content") ?? "",
     capable: !!document.querySelector("meta[name='apple-mobile-web-app-capable'][content=yes], meta[name='mobile-web-app-capable'][content=yes]"),
@@ -2478,7 +1660,6 @@ async function flyt(browser: Browser) {
     tema: !!document.querySelector("meta[name=theme-color]"),
   }))
   sjekk("viewport-fit=cover, so innhaldet går under statuslina med vilje", /viewport-fit=cover/.test(meta.viewport), meta.viewport)
-  // Telefonen er det einaste målet: ingenting kan forstørrast, merkjast eller rullast.
   sjekk("sida kan ikkje forstørrast (maximum-scale=1, user-scalable=no)", /maximum-scale=1/.test(meta.viewport) && /user-scalable=no/.test(meta.viewport), meta.viewport)
   const merkbart = await page.evaluate(() => {
     const ut: string[] = []
@@ -2505,7 +1686,6 @@ async function flyt(browser: Browser) {
       .slice(0, 5),
   )
   sjekk("ingen kontroll med touch-action: auto (dobbelttrykk-zoom)", laust.length === 0, laust.join(" · "))
-  // Flatt: ingen skugge, glød, forstørring eller animasjon på ein knapp.
   const pynt = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("button, [data-handtak], [aria-label='kontrollar']")]
       .filter((e) => e.getBoundingClientRect().width > 0)
@@ -2515,9 +1695,6 @@ async function flyt(browser: Browser) {
       .slice(0, 6),
   )
   sjekk("flate knappar: ingen skugge, glød, gradient eller animasjon", pynt.length === 0, pynt.join(" · "))
-  // Ord og tal, ikkje setningar: ingen knapp seier meir enn tre ord.
-  // Hovudlina er TAL og ikkje ei setning — «12 plan · 12 delar · 2 ark» er
-  // fire avlesingar, ikkje fire ord prosa. Ho er den eine som er unnateken.
   const ordrike = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("button")]
       .filter((e) => e.getBoundingClientRect().width > 0 && e.getAttribute("aria-label") !== "plan, delar, ark og tid")
@@ -2528,7 +1705,6 @@ async function flyt(browser: Browser) {
   sjekk("ingen knapp ber ei setning", ordrike.length === 0, ordrike.join(" | ").slice(0, 120))
   sjekk("kan lagrast på heimskjermen: capable, manifest, ikon, tema", meta.capable && meta.manifest && meta.ikon && meta.tema, JSON.stringify(meta))
 
-  // --- sida rullar ikkje, korkje opp-ned eller sidelengs, i nokon høgd ---------
   const rull = () => page.evaluate(() => ({
     h: document.documentElement.scrollHeight - window.innerHeight,
     w: document.documentElement.scrollWidth - window.innerWidth,
@@ -2541,8 +1717,6 @@ async function flyt(browser: Browser) {
   await page.waitForTimeout(400)
   const r2 = await rull()
   sjekk("dokumentet rullar aldri", [r0, r1, r2].every((r) => r.h <= 0 && r.w <= 0), JSON.stringify([r0, r1, r2]))
-  // Arket ligg INNANFOR skjermen i alle tre høgdene, og alt i det òg. På ein
-  // ekte iPhone stakk det ut til venstre: etikettane las «IK» og «ana grip».
   const utanfor = await page.evaluate(() => {
     const ut: string[] = []
     const W = window.innerWidth
@@ -2561,14 +1735,12 @@ async function flyt(browser: Browser) {
   await page.waitForTimeout(400)
   sjekk("midten er storleik og planlista, ingen reglar", (await page.locator("[aria-label='kontrollar'] button[aria-label^='fiks ']").count()) === 0 && (await page.locator("[role=listbox][aria-label='plan']").count()) === 1)
 
-  // --- trykkflatene: alt som kan trykkjast er stort nok for ein tumme ----------
   const smaa = await page.evaluate(() => {
     const ut: string[] = []
     for (const b of document.querySelectorAll<HTMLElement>("button, [role=button], input[type=range], [data-handtak]")) {
       const r = b.getBoundingClientRect()
       if (r.width === 0 || r.height === 0) continue
       const st = getComputedStyle(b)
-      // padding tel med i trykkflata; eit «hit»-pseudo-element òg, men det kan vi ikkje måle her
       if (Math.min(r.width, r.height) < 36 && !b.classList.contains("hit") && st.visibility !== "hidden") {
         ut.push(`${(b.getAttribute("aria-label") || b.textContent || b.tagName).trim().slice(0, 18)} ${Math.round(r.width)}×${Math.round(r.height)}`)
       }
@@ -2577,7 +1749,6 @@ async function flyt(browser: Browser) {
   })
   sjekk("ingen trykkflate under 36 px utan utvida treffsone", smaa.length === 0, smaa.slice(0, 6).join(" · "))
 
-  // --- felt som iOS ville zooma inn på -----------------------------------------
   const smaaFelt = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("input:not([type=range]):not([type=file]), textarea")]
       .filter((e) => e.getBoundingClientRect().width > 0)
@@ -2586,13 +1757,10 @@ async function flyt(browser: Browser) {
   const zoomar = smaaFelt.filter((f) => f.px < 16)
   sjekk("ingen tekstfelt under 16 px (iOS zoomar inn på fokus)", zoomar.length === 0, zoomar.slice(0, 4).map((f) => `${f.n} ${f.px}px`).join(" · ") || `${smaaFelt.length} felt`)
 
-  // --- flyten: ny brukar, éin tumme ----------------------------------------------
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
-  // Ingen rettleiing og inga hintline: grensesnittet er handlingar og tal.
   const prosa = await page.locator("text=/knip = storleik|éin finger snur|slik skjer du/i").count()
   sjekk("ingen introtekst på skjermen", prosa === 0)
-  // éin finger snur objektet
   await page.touchscreen.tap(195, 300)
   const cdp = await page.context().newCDPSession(page)
   const pkt = (x: number, y: number) => [{ x, y, id: 0, radiusX: 4, radiusY: 4, force: 1 }]
@@ -2610,7 +1778,6 @@ async function flyt(browser: Browser) {
   await vent(page, talPlan(n0 + 1))
   await page.waitForFunction((n) => new RegExp(`${n} plan`).test(document.querySelector("[aria-label='plan, delar, ark og tid']")?.textContent ?? ""), n0 + 1, { timeout: 15000 })
   sjekk("skjer svarar i lina innan to sekund", Date.now() - t1 < 2000, `${Date.now() - t1} ms`)
-  // uttaket er eitt trykk unna lina
   const eksport = page.getByRole("button", { name: "eksport", exact: true })
   sjekk("eksport ligg på lina", (await eksport.count()) === 1)
   if (await eksport.count()) {
@@ -2619,19 +1786,12 @@ async function flyt(browser: Browser) {
     sjekk("og opnar uttaka med eitt trykk", (await page.getByRole("button", { name: "ark", exact: true }).count()) >= 1)
     await page.keyboard.press("Escape")
   }
-  // og fila du la inn står i toppen, eitt trykk frå å byte
   sjekk("kjelda står synleg med namn, eitt trykk frå å byte", (await page.locator("button[data-kjelde]").first().isVisible()))
 
   sjekk("ingen konsollfeil i flyten", konsoll.length === 0, konsoll.join(" | ").slice(0, 200))
   await ctx.close()
 }
 
-/**
- * MØRKT ER SVART. Ingen brytar: systemet seier det, og sida fylgjer.
- * Fargane står i fire token i `globals.css`, og prøva her er at dei —
- * og berre dei — bestemmer kva flatene vert. Ei flate som er mørkegrå
- * er ein farge nokon har skrive ein annan stad.
- */
 async function mork(browser: Browser) {
   console.log("\n=== mørkt (systemet står mørkt)")
   const side = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, colorScheme: "dark" })
@@ -2648,13 +1808,10 @@ async function mork(browser: Browser) {
       skjema: s.colorScheme,
     }
   })
-  // nettlesaren kortar ned #000000 til #000 når han les tokenet attende
   const hex = (v: string) => v.replace(/^#([0-9a-f])\1?([0-9a-f])\2?([0-9a-f])\3?$/i, "#$1$1$2$2$3$3").toLowerCase()
   sjekk("papiret er svart og blekket kvitt", hex(token.paper) === "#000000" && hex(token.ink) === "#ffffff", JSON.stringify(token))
   sjekk("og sida er svart, ikkje mørkegrå", token.body === "rgb(0, 0, 0)", token.body)
   sjekk("color-scheme seier frå til nettlesaren", /dark/.test(token.skjema), token.skjema)
-  // Flatene som ber grensesnittet skal vera papiret sjølv — ikkje ein grå
-  // tone nokon har skrive i ein komponent.
   const graa = await side.evaluate(() => {
     const ut: string[] = []
     for (const e of document.querySelectorAll<HTMLElement>("header, [aria-label='kontrollar'], section[aria-label='verkty'], .tumme button, [data-kjelde], [data-heim]")) {
@@ -2662,14 +1819,12 @@ async function mork(browser: Browser) {
       const m = /^rgba?\((\d+), (\d+), (\d+)/.exec(bg)
       if (!m) continue
       const [r, g, b] = [Number(m[1]), Number(m[2]), Number(m[3])]
-      // svart, kvitt eller heilt gjennomsiktig er greitt; alt imellom er ein gråtone
       const kant = (r === 0 && g === 0 && b === 0) || (r === 255 && g === 255 && b === 255)
       if (!kant && !/rgba\(0, 0, 0, 0\)/.test(bg)) ut.push(`${e.tagName.toLowerCase()}${e.getAttribute("aria-label") ? `[${e.getAttribute("aria-label")}]` : ""} ${bg}`)
     }
     return ut
   })
   sjekk("ingen flate er ein gråtone", graa.length === 0, graa.slice(0, 4).join(" · "))
-  // og lerretet tek den same fargen: teiknar han kvitt, blinkar sida
   const lerret = await side.evaluate(() => {
     const c = document.querySelector("canvas")
     if (!c) return "ikkje noko lerret"
@@ -2684,20 +1839,6 @@ async function mork(browser: Browser) {
   await side.close()
 }
 
-/**
- * REGLANE SOM INGEN KUNNE SJÅ.
- *
- * Tavla teiknar avlesingane, og ein regel finn lina si gjennom `rad`. Tre
- * reglar har inga rad å peike på — «kan monterast», klaringa og
- * snittbreidda — og dei vart difor rekna, dømde, gjevne eit råd og teikna
- * INGEN STAD. Den fyrste av dei er hard: delane kunne ikkje setjast saman
- * i nokon rekkjefylgje, reiskapen visste det, reiskapen hadde knappen som
- * retta det, og du fekk aldri sjå noko av det.
- *
- * Lenkja her er den same saka `pnpm raad` prøver hovudlaust: tre plan der
- * eitt har to vegar inn. Vakta ser at lina STÅR i tavla, at ho ber knappen
- * sin, og at knappen tek brotet bort.
- */
 async function reglar(browser: Browser) {
   console.log("\n=== reglane utan ei rad")
   const bag = { plan: "1@0.2,0.5,0.5/1,0,0;2@0.5,0.5,1/0.7071,0,0.7071;3@0.5,0.5,0.5/0,1,0", klaring: 0 }
@@ -2711,18 +1852,6 @@ async function reglar(browser: Browser) {
   sjekk("den harde regelen utan ei rad står i tavla", /kan monterast/.test(tekst), tekst.slice(-90))
   sjekk("og den mjuke òg", /klaring/.test(tekst))
 
-  /**
-   * OG MONTASJEFANA ER SLEGEN AV MEDAN OBJEKTET IKKJE GÅR I HOP.
-   *
-   * Animasjonen syner delane kome inn éin etter éin. Står ein del fast,
-   * er den rekkjefylgja ikkje noko som KAN hende — og filmen synte deg
-   * likevel at det gjekk. Uttaka står opne med varselet sitt; det er
-   * avgjerda, og ho gjeld eit kutt du kan sjå på. Ein film som seier at
-   * det gjekk er noko anna.
-   *
-   * Bagen her har alt eit brot på «kan monterast», so vakta treng ikkje
-   * lage seg eit: ho spør fana medan lina er raud, og tasten med.
-   */
   const mfane = page.getByRole("tab", { name: "montasje", exact: true })
   sjekk("og montasjefana er slegen av medan det ikkje går i hop", await mfane.isDisabled(), (await mfane.getAttribute("title")) ?? "")
   await page.keyboard.press("4")
@@ -2740,17 +1869,6 @@ async function reglar(browser: Browser) {
     await roleg(page, 400)
     sjekk("og rådet tek brotet bort", !/kan monterast/.test((await tavla.innerText()).replace(/\s+/g, " ")), hash(page).plan.slice(0, 40))
   }
-  /**
-   * OG EITT TRYKK SOM TEK ALLE DEI TRYGGE.
-   *
-   * Eit objekt kan ha fleire brot på ein gong, og då er kvart råd ein knapp
-   * du skal finne i ei rekkjefylgje ingen har fortalt deg. Her er to på ein
-   * gong — objektet får ikkje plass på plata, og snittet et opp sporet — og
-   * eitt trykk skal ta båe.
-   *
-   * Og han skal vera ÉITT steg i angre: motoren gjekk rundane, men du
-   * trykte éin gong.
-   */
   {
     const to = { plan: skrivPlan(rutenett(3, 3)), storleik: 1200, arkB: 300, arkH: 200, tjukn: 1, snitt: 6 }
     await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify(to)), { waitUntil: "networkidle" })
@@ -2784,7 +1902,6 @@ async function symmetri(browser: Browser) {
   const speil = (ord: string) => page.locator(`[data-speil='${ord}']`)
   sjekk("tre brytarar står over skjer", (await speil("x").count()) === 1 && (await speil("y").count()) === 1 && (await speil("z").count()) === 1)
   sjekk("og dei står av", (await speil("x").getAttribute("aria-pressed")) === "false")
-  // snittet til sides, so spegelbiletet er eit anna plan enn snittet sjølv
   await toFingrar(page, (t) => [[150 + 80 * t, 330], [150 + 80 * t, 430]])
   await page.waitForTimeout(300)
   await speil("x").click()
@@ -2807,24 +1924,8 @@ async function symmetri(browser: Browser) {
   await page.close()
 }
 
-/**
- * UTTAKSBOKSEN, OG DEN FEILEN INGEN VAKT KUNNE SJÅ.
- *
- * Boksen låg INNI arket, absolutt plassert over toppen av det. Arket
- * klipper — `overflow-x-hidden` gjer at den andre aksen vert `auto` — so
- * boksen hadde ei rute, ei høgd og elleve knappar, og teikna ingen ting.
- * Kvar einaste ting ein vanleg vakt spør om var rett: han var i DOM-en,
- * `aria-expanded` stod på sant, `boundingBox` gav tal, og `isVisible`
- * sa ja. Berre auget kunne sjå at der ikkje var noko.
- *
- * Difor spør denne vakta noko anna: kva ligg ØVST i punktet midt på
- * brikka? `elementFromPoint` er eit ekte treff-oppslag og fylgjer
- * klippinga. Er svaret ikkje brikka sjølv, er ho ikkje der for fingeren
- * heller — og det er den eine påstanden som held boksen synleg.
- */
 async function uttaka(browser: Browser) {
   console.log("\n=== uttaksboksen")
-  // eit rutenett gjennom lenkja: boksen skal ha delar å gje filer av
   const plan = skrivPlan(rutenett(3, 3))
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan })), browser, 390, 844)
   await vent(page, talPlan(6))
@@ -2835,17 +1936,8 @@ async function uttaka(browser: Browser) {
   sjekk("trykk på uttak opnar boksen", (await boks.count()) === 1 && (await knapp.getAttribute("aria-expanded")) === "true")
   const bolkar = await page.locator("[data-bolk]").evaluateAll((e) => e.map((q) => q.getAttribute("data-bolk")))
   sjekk("og han står i tre bolkar", bolkar.join(" ") === "rom plate alt", bolkar.join(" "))
-  // kvar fil har ei brikke, og «flat» er ei av dei
   const namn = await boks.locator("button").evaluateAll((e) => e.map((q) => q.textContent?.trim() ?? ""))
   sjekk("tolv brikker, med flat og 3mf mellom dei", namn.length === 12 && namn.includes("flat") && namn.includes("3mf"), namn.join(" "))
-  /**
-   * DET SOM TEL: ligg brikka øvst i sitt eige midtpunkt?
-   *
-   * KVAR brikke, ikkje den fyrste. Den fyrste står lengst til venstre og
-   * er den siste som vert dekt av noko; det er den siste i ei full rad som
-   * går under tommelspalta, og ei prøve på berre den fyrste ville sagt ja
-   * til nett den rada som ikkje går an å trykkje på.
-   */
   const daarlege = await page.evaluate(() => {
     const ut: string[] = []
     for (const b of document.querySelectorAll('[role="group"][aria-label="uttak"] button')) {
@@ -2861,21 +1953,9 @@ async function uttaka(browser: Browser) {
     return ut
   })
   sjekk("og KVAR brikke ligg øvst der ho står — ingen er klipt eller dekt", daarlege.length === 0, daarlege.join(" · "))
-  // eit trykk utanfor lukkar han att
   await page.mouse.click(195, 260)
   await page.waitForTimeout(250)
   sjekk("eit trykk utanfor lukkar boksen", (await boks.count()) === 0)
-  /**
-   * OG EIT HARDT BROT FYLGJER MED HIT.
-   *
-   * Tavla har alltid stått raud. Tavla er ei rad du kan ha rulla forbi.
-   * Uttaket er der du gjer noko du ikkje kan gjere om — ei plate finér er
-   * skoren éin gong — so varselet høyrer heime på brikkene òg.
-   *
-   * Tre plan gjennom det same senteret: kvart par kryssar langs si eiga
-   * line, og den tredje kjem ikkje inn same kva rekkjefylgje du tek dei i.
-   * Rutenettet over har ingen harde brot, so prøva ser BÅE sidene.
-   */
   sjekk("eit rutenett utan brot ber ikkje varselet", (await page.locator("[data-uttakvarsel]").count()) === 0)
   await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.5/0,1,0;3@0.5,0.5,0.5/0,0,1" })), { waitUntil: "networkidle" })
   await page.reload({ waitUntil: "networkidle" })
@@ -2892,14 +1972,6 @@ async function uttaka(browser: Browser) {
   await page.close()
 }
 
-/**
- * TAKET SEIER FRÅ.
- *
- * Lista stoggar på `PLAN_TAK`, og eit trykk på skjer gav att posen han
- * fekk — men blinken fyrte likevel. Du trykte, noko lyste opp, og ingen
- * del vart laga. Vakta fyller lista til taket gjennom lenkja, trykkjer
- * skjer, og krev at TALET STÅR og at lina seier kva som ikkje hende.
- */
 async function taket(browser: Browser) {
   console.log("\n=== taket på plana")
   const fullt = skrivPlan(rutenett(32, 32))
@@ -2914,15 +1986,6 @@ async function taket(browser: Browser) {
   await page.close()
 }
 
-/**
- * HANDTAKA PÅ SPOR-ENDANE.
- *
- * `hand` prøver rekninga: at brøken som vert skriven set botnen der
- * handtaket vart sleppt, i plata sine eigne koordinatar. Det denne prøver
- * er det andre halve: at ein FINGER på prikken skriv den brøken — at
- * handtaket tek imot trykket sitt sjølv i staden for å sende det vidare til
- * delen under, som ville dregi heile delen i staden for eitt spor.
- */
 async function handtaka(browser: Browser) {
   console.log("\n=== handtaka på spor-endane")
   const plan = skrivPlan(rutenett(2, 2))
@@ -2934,17 +1997,6 @@ async function handtaka(browser: Browser) {
   const handtak = flata.locator("g[data-spor]")
   sjekk("ingen handtak før du har peikt på ein del", (await handtak.count()) === 0)
 
-  /**
-   * OG BANDET OVER PLATA ER LIKE HØGT ETTER SOM FØR.
-   *
-   * Avlesinga stod på si eiga rad, og rada kom i det du tok på ein del.
-   * Bandet voks med ei line, teikninga under fekk mindre plass, og heile
-   * plata hoppa — under fingeren som nett hadde valt noko. Difor deler
-   * avlesinga og platetalet den same lina no.
-   *
-   * Målt i pikslar og ikkje på klassenamn: det er HØGDA som er feilen, og
-   * ein klasse kan byttast utan at høgda står stille.
-   */
   const band = page.locator("[data-arkband]")
   const foerH = (await band.boundingBox())?.height ?? 0
   await flata.locator("g[data-del]").first().click()
@@ -2955,9 +2007,6 @@ async function handtaka(browser: Browser) {
   const n = await handtak.count()
   sjekk("den valde delen har eitt handtak per ledd", n > 0, `${n} handtak`)
   if (n > 0) {
-    // RETNINGA STÅR I TEIKNINGA. Sporet ligg langs éi line, og eit drag på
-    // tvers av henne projiserer seg til ingenting. Streken bak prikken er
-    // den lina: er han høgare enn han er brei, går draget opp og ned.
     const spor = handtak.first()
     const bane = await spor.locator("line").boundingBox()
     const prikk = await spor.locator("circle").last().boundingBox()
@@ -2982,15 +2031,6 @@ async function handtaka(browser: Browser) {
     }
   }
 
-  /**
-   * OG DEI SAME HANDTAKA I ROMMET.
-   *
-   * Spor-endane var på plata og berre der: du kunne setje kor djupt eit
-   * ledd går medan du såg teikninga, men ikkje medan du såg kroppen — og
-   * det er kroppen du ser på når du avgjer kva for ei ribbe som skal bere.
-   * Prikkane står på det valde planet, og talet dei skriv er det same
-   * `deling` tek imot frå plata.
-   */
   await page.getByRole("tab", { name: "lag", exact: true }).click()
   await roleg(page, 800)
   const prikk = page.locator("[data-spor]")
@@ -3014,8 +2054,6 @@ async function handtaka(browser: Browser) {
     await vent(page, (p) => !!p.deling)
     const d3 = String(hash(page).deling ?? "")
     sjekk("eit drag i rommet skriv den same delinga", /^\d+-\d+-\d+:[\d.]+$/.test(d3), d3)
-    // eit drag på ein prikk er ikkje eit drag på rommet: orbiten skal stå
-    // stille medan handtaket går, elles svingar kroppen medan du set eit ledd
     sjekk("og synet stod stille medan du drog", (await kamera()) === kFyrr, `${kFyrr} → ${await kamera()}`)
   }
 
@@ -3023,21 +2061,12 @@ async function handtaka(browser: Browser) {
   await page.close()
 }
 
-/**
- * SKALET, OG SØVNEN.
- *
- * To ting du ikkje kan lese av eit tal: at brytaren for skalet faktisk tek
- * det gjennomsiktige omrisset bort — biletet må endre seg — og at
- * grensesnittet fell bort av seg sjølv når ingen rører skjermen, og kjem
- * att med det same nokon gjer.
- */
 async function skaletOgSovnen(browser: Browser) {
   console.log("\n=== skalet og søvnen")
   const plan = skrivPlan(rutenett(3, 2))
   const adressa = URL + "#p=" + encodeURIComponent(JSON.stringify({ plan }))
   const { page, konsoll } = await opne(adressa, browser, 390, 844, { sov: true })
   const lerret = { x: 20, y: 240, width: 350, height: 380 }
-  /** biletet når det står stille — vakna, so ingenting glir medan vi skyt */
   const stille = async (n = 10) => {
     await page.mouse.move(190, 700)
     let fyrr = await page.screenshot({ clip: lerret })
@@ -3063,18 +2092,12 @@ async function skaletOgSovnen(browser: Browser) {
   await vent(page, (p) => (p as unknown as { skal?: boolean }).skal !== false)
   const att = await stille()
   sjekk("og eit trykk til set det attende", med.equals(att))
-  // I «flate» ER kroppen kroppen, og då er det ingenting å slå av
   await page.getByRole("tab", { name: "flate", exact: true }).click()
   await roleg(page, 700)
   sjekk("i «flate» finst brytaren ikkje", (await skalKnapp.count()) === 0)
   await page.getByRole("tab", { name: "lag", exact: true }).click()
   await roleg(page, 700)
 
-  /**
-   * SØVNEN. Etter to sekund utan ein finger fell alt som ikkje er objektet
-   * bort. Prøva les gjennomsikta, ikkje eit bilete: ho skal vera null, og
-   * grensesnittet skal ikkje ta imot fingrar medan det ligg der.
-   */
   const gjennomsikt = async () => page.evaluate(`(() => {
     var ut = {}
     ;[["topp", "header"], ["tumme", ".tumme"], ["synskube", ".synskube"], ["ark", "[aria-label='kontrollar']"]].forEach(function (p) {
@@ -3098,37 +2121,11 @@ async function skaletOgSovnen(browser: Browser) {
   const attende = await gjennomsikt()
   sjekk("ei rørsle hentar det att", attende.sov === false && attende.topp === 1, JSON.stringify(attende))
 
-  /**
-   * OG SO DET SOM BETYR NOKO: EIT TRYKK MEDAN DET SØV SKAL IKKJE GJERE NOKO.
-   *
-   * Lina over prøver at REGELEN ER SKRIVEN — `pointer-events: none` på
-   * spalta. Det er ikkje det same som at han VERKAR, og skilnaden er ikkje
-   * teoretisk: `.tumme > *` set barna attende på `auto`, ein `none` hjå
-   * forelderen overlever ikkje det, og barnet er det som tek fingeren. Den
-   * gamle prøva las forelderen og var grøn medan eit trykk der `skjer` står
-   * skar eit plan på ein skjerm som synte ingenting.
-   *
-   * So denne les VERKNADEN: kom klikket fram til knappen, og endra posen
-   * seg. Og fingeren må vera ein FINGER — `mouse.click` flyttar peikaren dit
-   * fyrst, og den rørsla vekkjer grensesnittet før trykket landar, so ei
-   * musevakt ville målt ein vaken skjerm og aldri sett dette.
-   *
-   * Kvar kontroll får si eiga sovnad: det fyrste trykket vekkjer, og etter
-   * det er knappane levande med rette.
-   */
   const doed = async (namn: string, veljar: string) => {
-    // Frisk side OG frisk lagring kvar gong. Eit trykk set gjerne ein modus,
-    // og `skjer` let det nye planet stå valt — båe er grensesnitt som IKKJE
-    // skal sovne, med rette. Nettlesaren hugsar økta i IndexedDB, so ein
-    // reload åleine ber det valde planet med seg, og den neste kontrollen
-    // ville prøvd ein skjerm den fyrste heldt vaken.
     await page.evaluate(`new Promise(function (res) {
       var r = indexedDB.deleteDatabase("slicer")
       r.onsuccess = r.onerror = r.onblocked = function () { res(null) }
     })`)
-    // ...og `goto` åleine er ikkje ei ny side: appen skriv hashen sin medan
-    // du arbeider, so ei adresse som berre skil seg i fragmentet er ei
-    // hash-endring og ikkje ei lasting. Reiskapen stod open tvers gjennom.
     await page.goto(adressa, { waitUntil: "networkidle" })
     await page.reload({ waitUntil: "networkidle" })
     await roleg(page, 800)
@@ -3153,32 +2150,18 @@ async function skaletOgSovnen(browser: Browser) {
   await doed("ein reiskap i spalta", ".tumme button:not(.skjer)")
   await doed("synskuben", ".synskube button")
 
-  /**
-   * OG BERRE I KVILE. Står eit plan valt, er du midt i noko: det som står
-   * framme er det du arbeider i, og det skal ikkje forsvinne under handa.
-   */
   await page.mouse.move(190, 700)
   await page.locator(HOVUDLINA).click()
   await page.waitForTimeout(500)
   await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(400)
-  // arket att: eit ope ark held det vake av seg sjølv, og då prøver vi ingenting
   await page.locator(HOVUDLINA).click()
   await roleg(page, 600)
   await page.waitForTimeout(3200)
   const valt = await gjennomsikt()
   sjekk("med eit plan valt søv det ikkje", valt.sov === false && valt.tumme === 1, JSON.stringify(valt))
 
-  /**
-   * OG MONTASJEN KVILER IKKJE.
-   *
-   * `kvile` tok `kontur` ut av søvnen — der ligg lerretet gøymt, og det er
-   * ingenting å sjå på. Montasjen er det motsette: han ER eit bilete i
-   * rørsle, med éin einaste kontroll. Å sjå på noko som rører seg er ikkje
-   * kvile, og ein skjerm som fell bort midt i animasjonen tek steget med
-   * seg. Han stod ikkje i lista, og difor sovna han.
-   */
   await page.evaluate(`new Promise(function (res) {
     var r = indexedDB.deleteDatabase("slicer")
     r.onsuccess = r.onerror = r.onblocked = function () { res(null) }
@@ -3197,17 +2180,6 @@ async function skaletOgSovnen(browser: Browser) {
   await page.close()
 }
 
-/**
- * DEN ANDRE FINGEREN.
- *
- * Nettlesaren lagar berre `click` av den FYRSTE fingeren på skjermen. Held
- * du snitthandtaket med tommelen og trykkjer skjer med peikefingeren, er
- * det andre trykket ikkje primært, og knappen høyrde det aldri — tommelen
- * måtte sleppe det du nett hadde sikta inn.
- *
- * Vakta gjer nett det: tek handtaket med finger éin, dreg det, og trykkjer
- * skjer med finger to. Målt på koden før dette var svaret ingen plan.
- */
 async function andreFingeren(browser: Browser) {
   console.log("\n=== den andre fingeren")
   const { page, konsoll } = await opne(URL, browser, 390, 844)
@@ -3221,18 +2193,14 @@ async function andreFingeren(browser: Browser) {
     const hy = h.y + h.height / 2
     const kx = k.x + k.width / 2
     const ky = k.y + k.height / 2
-    // finger éin tek handtaket og dreg snittet dit han vil ha det
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pt(hx, hy, 0)] })
     for (let i = 1; i <= 8; i++) {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [pt(hx + 4 * i, hy, 0)] })
       await page.waitForTimeout(20)
     }
     const foer = plana(page).length
-    // finger to trykkjer skjer, medan finger éin framleis held
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [pt(hx + 32, hy, 0), pt(kx, ky, 1)] })
     await page.waitForTimeout(80)
-    // CDP kan berre sleppe alle på ein gong; det er den ANDRE fingeren sitt
-    // trykk som skal telje, og han er ikkje primær same kva
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
     await cdp.detach()
     await vent(page, (p) => lesPlan(p.plan).length === foer + 1)
@@ -3243,14 +2211,6 @@ async function andreFingeren(browser: Browser) {
   await page.close()
 }
 
-/**
- * BØYEN, MED EIN FINGER.
- *
- * Eit plan treng ikkje vera flatt. Knappen under tommelen er eit DRAG som
- * lupa er: opp bøyer den eine vegen, ned den andre, og null i midten er
- * flatt. Prøva les lenkja — bøyen står i plan-strengen — og ser at
- * regelen om materialet fylgjer med når han vert for stram.
- */
 async function boyen(browser: Browser) {
   console.log("\n=== bøyen")
   const plan = skrivPlan(rutenett(3, 0))
@@ -3275,29 +2235,17 @@ async function boyen(browser: Browser) {
     const opp = bogAv()
     sjekk("eit drag opp bøyer planet", opp > 0.2, `bog ${opp}`)
     sjekk("og dei andre plana står flate", lesPlan(hash(page).plan).slice(1).every((q) => q.bog === 0))
-    // og ned att, forbi null, til andre vegen. FØR arket vert opna: escape
-    // slepper planet, og då er knappen borte.
     await page.mouse.move(cx, cy)
     await page.mouse.down()
     await page.mouse.move(cx, cy + 260, { steps: 20 })
     await page.mouse.up()
     await vent(page, (p) => (lesPlan(p.plan)[0]?.bog ?? 0) < 0)
     sjekk("og eit drag ned bøyer han andre vegen", bogAv() < 0, `bog ${bogAv()}`)
-    // regelen om materialet: 300 mm kropp, 6 mm finér toler 600 mm radius
     await midt(page)
     await page.getByRole("button", { name: "alle kontrollane" }).click()
     await roleg(page, 900)
     const tekst = (await page.locator("[aria-label='kontrollar']").innerText()).replace(/\s+/g, " ")
     sjekk("bøyeradien står i tavla", /bøyeradius/.test(tekst), (tekst.match(/bøyeradius[^·]{0,44}/) ?? [""])[0])
-    /**
-     * OG EIT DOBBELTTRYKK RETTAR HAN UT ATT. Knappen er ein skrubbar, so
-     * eit TRYKK på han er ei rørsle som aldri kom i gang — to av dei tett i
-     * hop er vegen attende til null. Prøva krev at eitt trykk ikkje gjer
-     * det: eit einslegt trykk skal ikkje kaste bøyen du står og set.
-     *
-     * Knappen vert MÅLT PÅ NYTT: arket står ope no, og spalta er eit band
-     * som endar over det — knappen står ikkje der han stod.
-     */
     const b2 = await knapp.boundingBox()
     if (b2) {
       const tx = b2.x + b2.width / 2
@@ -3311,29 +2259,6 @@ async function boyen(browser: Browser) {
     }
   }
 
-  /**
-   * OG HEILE TOMMELSPALTA STÅR PÅ SKJERMEN — OG UNDER SYNSKUBEN.
-   *
-   * Med eit plan valt og arket ope er ho på sitt lengste og bandet på sitt
-   * kortaste — rutenett, dubler, hòl, form, bøy, slett, kropp — so
-   * det er her ho ryk om ho skal ryke. (Montasjen stod her ein gong; han er
-   * ei fane no, og spalta hans ber berre steget. Virvelen stod her òg og er
-   * teken heilt bort; den åttande er snappknappen, som seier talet sitt.)
-   *
-   * TALET ER EI NEDRE GRENSE, ikkje ei teljing. `ute.length === 0` er sann
-   * av seg sjølv om spørjinga ikkje finn ein einaste knapp, so golvet er
-   * det som gjer prøva verd å køyre. Det står på dei sju reiskapane som er
-   * lista over — snappknappen er den åttande og er ikkje ein reiskap.
-   *
-   * TO TING VERT KREVDE. Ein reiskap utanfor ruta er ein reiskap som ikkje
-   * finst, og det HAR hendt: stabelen gjekk 156 pikslar over topplina før
-   * spalta vart eit band. Og dei to spaltene står i den SAME kanten —
-   * synskuben med låsen, innramminga og lupa øvst, reiskapane nedst — so ein
-   * stabel som rekk opp i han legg seg over innrammingsknappen. Det HAR
-   * hendt òg: elleve knappar, og eit trykk på innramminga gjekk til
-   * rutenettet. Difor spør prøva DOM-en kva som faktisk ligg øvst midt på
-   * innrammingsknappen, og ikkje berre kva tala seier.
-   */
   const spalta = await page.evaluate(`(function () {
     function bb(e) { return e.getBoundingClientRect() }
     var h = document.querySelector("header") ? bb(document.querySelector("header")).bottom : 0
@@ -3369,11 +2294,6 @@ async function boyen(browser: Browser) {
   sjekk("so innrammingsknappen tek sitt eige trykk", spalta.tek === "innramminga", spalta.tek)
   sjekk("og ingen reiskap er klemt under 44 px", spalta.smaa.length === 0, spalta.smaa.slice(0, 3).join(" · "))
 
-  /**
-   * MJUKINGA. Ho står under den same tommelen som bøyen — i arket — og går
-   * den same vegen inn: plan-strengen. So prøva er den same: dra, og les
-   * lenkja. Forma har si eiga bolk; ho treng eit anna syn (sjå `forma`).
-   */
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
   await midt(page)
@@ -3382,7 +2302,6 @@ async function boyen(browser: Browser) {
   await roleg(page, 500)
   const mjuk = page.locator("[aria-label='mjuk, tal']")
   sjekk("eit valt plan har mjukinga i arket og forma i spalta", (await mjuk.count()) === 1 && (await page.locator("[data-form]").count()) === 1)
-  // rada er den same skrubbaren som alle andre tal: eit vassrett drag
   const dra = async (dx: number) => {
     const mb = await mjuk.boundingBox()
     if (!mb) return
@@ -3405,37 +2324,6 @@ async function boyen(browser: Browser) {
   await page.close()
 }
 
-/**
- * DELANE, SOM DATA OG IKKJE SOM TOLV LINER.
- *
- * Panelet driv ein ekte nettlesar i minutt, og han vert køyrd om att for
- * kvar minste endring. Å køyre ALT for å prøve éin knapp er å vente på
- * elleve delar som ikkje vart rørte — og ventinga er lang nok til at ein
- * sluttar å køyre han i det heile, som er den verste utgangen.
- *
- *   pnpm panel            heile panelet
- *   pnpm panel boyen      berre bøyen
- *   pnpm panel boyen sider   to delar
- *
- * Kvar del seier kor lang tid ho tok. Det er tala ein treng for å vite kva
- * som er verdt å korte ned; utan dei er «panelet er treg» ei kjensle.
- *
- * Delane er IKKJE parallelle med vilje. Fleire av vaktene måler TID — at
- * fyrste talet står innan fem sekund, at skjer svarar innan to, at
- * grensesnittet søv etter to — og eit trykk gjennom CDP les seg som langt
- * om hovudtråden ligg bak. Fire sider på ein gong deler éin prosessor, og
- * då ryk dei vaktene av travelheita og ikkje av koden.
- */
-/**
- * SNAPPET I OMRISSET — EIGA BOLK, med si eiga side.
- *
- * Grunnen er at prøva ENDRAR forma: ho legg eit hjørne oppå eit anna, og
- * dei to vert eitt. Stod ho inni «forma» måtte ho leggje alt attende
- * etterpå, og ei prøve som ryddar etter seg er ei prøve som kan rydde feil.
- *
- * Same synet som «forma» treng: eit plan på kant har ikkje ei flate å
- * lesast mot, so synskuben vert sett før noko vert teke i.
- */
 async function snappet(browser: Browser) {
   console.log("\n=== snappet i omrisset")
   const plan = skrivPlan(rutenett(2, 2))
@@ -3450,11 +2338,6 @@ async function snappet(browser: Browser) {
   await roleg(page, 600)
   await page.locator(HOVUDLINA).click()
   await roleg(page, 400)
-  /**
-   * BOKSEN: fire hjørne, langt frå kvarandre. Det MÅ vera eitt dobbelttrykk
-   * og ikkje to trykk — to `click()` etter kvarandre ligg lenger frå
-   * kvarandre enn vindauget, og då frys og slepper du i staden.
-   */
   const form = page.locator("[data-form]")
   await page.waitForTimeout(DOBBELT + 80)
   await form.dblclick()
@@ -3462,15 +2345,6 @@ async function snappet(browser: Browser) {
   await roleg(page, 600)
   sjekk("boksen står med fire hjørne", (await page.locator("[data-punkt]").count()) === 4, `${await page.locator("[data-punkt]").count()} punkt`)
 
-  /**
-   * FIRE FORMER Å STEMPLE, I EIN RUNDDANS.
-   *
-   * Kvart dobbelttrykk er eitt steg vidare — det fyrste trykket slepper
-   * forma, det andre stemplar den neste — so vakta tel punkt etter kvart
-   * trykk. Ho krev at TALA er dei rette og at SIRKELEN har bogar: fire
-   * punkt utan bogeflagg er ein firkant, og fire med er ein sirkel. Utan
-   * det siste ville dei to vore det same for ei prøve som berre tel.
-   */
   const om3 = () => lesPlan(hash(page).plan).find((q) => q.id === 3)
   const runde = () => (om3()?.runde ?? []).length
   const spor: string[] = [`${om3()?.omriss?.length ?? 0}`]
@@ -3483,20 +2357,12 @@ async function snappet(browser: Browser) {
   }
   sjekk("kvart dobbelttrykk stemplar den neste forma", spor.join(" → ") === "4 → 3 → 6 → 4", spor.join(" → "))
   sjekk("og sirkelen er fire punkt med boge på alle fire", runde() === 4, `${runde()} bogar`)
-  // og attende til firkanten, som resten av bolken står på
   await page.waitForTimeout(DOBBELT + 80)
   await form.dblclick()
   await vent(page, (q) => (lesPlan(q.plan).find((x) => x.id === 3)?.omriss?.length ?? 0) === 4, 8000)
   await roleg(page, 500)
   sjekk("og ein runde til er firkanten att", (om3()?.runde ?? []).length === 0, `${runde()} bogar`)
 
-  /**
-   * OG SNAPPKNAPPEN SYNER TALET SITT.
-   *
-   * Han er ikkje eit ikon: det han seier ER eit tal. Vakta krev at ordet på
-   * knappen og talet i lenkja er det same etter kvart trykk — ein brytar
-   * som syner eitt og gjer eit anna er verre enn ingen brytar.
-   */
   const sknapp = page.locator("[data-snapp]")
   const runda: string[] = []
   for (let i = 0; i < 4; i++) {
@@ -3514,30 +2380,14 @@ async function snappet(browser: Browser) {
   const tal = () => page.locator("[data-punkt]").count()
   await page.mouse.move(200, 450)
   await roleg(page, 400)
-  /**
-   * EIT HJØRNE SOM STÅR BAK OBJEKTET ER SKJULT — handtaka fell bort når
-   * punktet ikkje er å sjå. Prøva tek difor dei to fyrste som STÅR, og
-   * krev at dei er naboar: berre naboar slår saman.
-   */
   const synleg: number[] = []
   for (let i = 0; i < 4; i++) if (await pkt(i)) synleg.push(i)
   const iA = synleg.find((i) => synleg.includes((i + 1) % 4)) ?? -1
   const iB = (iA + 1) % 4
   const a = iA >= 0 ? await pkt(iA) : null
   const b = iA >= 0 ? await pkt(iB) : null
-  // EIN BLOKK SOM HOPPAR OVER SEG SJØLV ER EI PRØVE SOM ALLTID HELD.
   sjekk("to nabohjørne er å ta i", !!a && !!b, a && b ? `${Math.round(Math.hypot(b.x - a.x, b.y - a.y))} px mellom dei` : "fann dei ikkje")
   if (a && b) {
-    /**
-     * TO PÅSTANDAR, og den andre er den som ber vekta. At eit hjørne som
-     * vert lagt OPPÅ nabohjørnet vert eitt punkt, er det du bad om. At eit
-     * drag som stoggar EIT STYKKE unna IKKJE tek hjørnet, er det du ikkje
-     * bad om — og det var nett det som hende: radien vart rekna i
-     * millimeter medan omrisset står i brøk av storleiken, so han var to
-     * hundre gonger for stor og eit vanleg drag åt opp eit hjørne. Ei prøve
-     * som berre spurde om snappet VERKAR hadde stått grøn gjennom heile
-     * den feilen.
-     */
     const midtveges = { x: a.x + (b.x - a.x) * 0.45, y: a.y + (b.y - a.y) * 0.45 }
     await page.mouse.move(a.x, a.y)
     await page.mouse.down()
@@ -3562,26 +2412,11 @@ async function snappet(browser: Browser) {
   await page.close()
 }
 
-/**
- * FORMA: PROFILEN SOM PUNKT.
- *
- * Eiga bolk, og ikkje ein hale på bøyen, av éin grunn: reiskapen treng eit
- * SYN. Skissa er sikta langs synsaksen — det er heile ideen med henne — so
- * eit nylåst plan står på KANT og profilen hans projiserer til ei line.
- * Punkta ligg då oppå kvarandre, og eit drag har ikkje ei flate å lesast
- * mot. Difor står lista her som ei lenkje med kjende normalar, og synet
- * vert sett med synskuben før noko vert teke i.
- *
- * Rutenettet 2×2 gjev to plan langs x og to langs y. Synskuben sett midt på
- * ser rett framanfrå — kameraet står i kroppen sitt −y og ser mot +y — so
- * det er y-plana (namn 3 og 4) som ligg flatt mot deg.
- */
 async function forma(browser: Browser) {
   console.log("\n=== forma")
   const plan = skrivPlan(rutenett(2, 2))
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })), browser, 390, 844)
   const om = (id: number) => lesPlan(hash(page).plan).find((q) => q.id === id)?.omriss ?? []
-  // synskuben midt på: rett framanfrå. Same tala som i «handtaka».
   const h = await page.locator("header").boundingBox()
   const v = page.viewportSize()!
   await page.touchscreen.tap(v.width - 38, (h?.height ?? 44) + 38)
@@ -3591,13 +2426,9 @@ async function forma(browser: Browser) {
   await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan='3'] button").first().click()
   await roleg(page, 600)
-  // og arket att: forma vert arbeidd med medan du ser på KROPPEN, og eit
-  // handtak som fell bak arket står ikkje framme (sjå `Omrisset`). Lina
-  // lukkar utan å sleppe valet — escape ville sleppt det.
   await page.locator(HOVUDLINA).click()
   await roleg(page, 400)
   const form = page.locator("[data-form]")
-  /** kor mange av dei som faktisk står framme: scena gøymer dei som ikkje har plass */
   const synlege = async (vel: string) => {
     let n = 0
     for (const e of await page.locator(vel).all()) if (await e.isVisible()) n++
@@ -3606,10 +2437,6 @@ async function forma(browser: Browser) {
   sjekk("eit valt plan har forma i spalta", (await form.count()) === 1)
   sjekk("og ho står i ro til nokon trykkjer", (await form.getAttribute("aria-pressed")) === "false" && (await page.locator("[data-punkt]").count()) === 0)
 
-  /**
-   * EITT TRYKK FRYS PROFILEN. Han skal kome ut som PUNKT — fleire enn tre,
-   * færre enn taket — og dei skal liggje kring planet sitt eige punkt.
-   */
   await form.click()
   await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) >= 3)
   const frose = om(3)
@@ -3622,23 +2449,9 @@ async function forma(browser: Browser) {
   sjekk("merket på knappen fylgjer forma", (await form.getAttribute("aria-pressed")) === "true")
   const n = await page.locator("[data-punkt]").count()
   sjekk("og kvart punkt står som eit handtak i rommet", n === frose.length, `${n} handtak av ${frose.length} punkt`)
-  /**
-   * OG MIDTMERKA STÅR BERRE DER DET ER PLASS TIL EITT PUNKT TIL.
-   *
-   * Ein frosen profil har både lange kantar og korte — snittet gjennom ein
-   * kube er mest ein firkant med nokre punkt attåt — so nokre kantar får eit
-   * merke og andre ikkje. Det er heile regelen, og prøva her er at han
-   * VERKAR: færre merke enn kantar. Boksen under er den andre halvdelen av
-   * han — der er alle fire kantane lange, og alle fire får eit merke.
-   */
   const midtFrose = await synlege("[data-midt]")
   sjekk("og midtmerka står berre der kanten har plass til eitt", midtFrose > 0 && midtFrose < frose.length, `${midtFrose} merke på ${frose.length} kantar`)
 
-  /**
-   * OG HANDTAKA LIGG DER PROFILEN LIGG, ikkje på ei line: står planet på
-   * kant, er dette ei line, og då er det ikkje forma du ser. Prøva måler
-   * spreiinga i BEGGE aksane.
-   */
   const boksar = []
   for (let i = 0; i < n; i++) boksar.push(await page.locator(`[data-punkt='${i}']`).boundingBox())
   const xs = boksar.map((b) => b?.x ?? 0)
@@ -3647,13 +2460,6 @@ async function forma(browser: Browser) {
   const hogd = Math.max(...ys) - Math.min(...ys)
   sjekk("handtaka står som profilen står, og ikkje på ei line", bredd > 40 && hogd > 40, `${bredd.toFixed(0)} × ${hogd.toFixed(0)} px`)
 
-  /**
-   * EIT DRAG I EIT PUNKT FLYTTAR NØYAKTIG DET PUNKTET.
-   *
-   * Kva for eit handtak fingeren tek er ikkje prøva sitt å avgjere —
-   * handtaka er fire og førti pikslar og kan liggje oppå kvarandre — so ho
-   * krev at det er EITT punkt som er rørt, og at dei andre står.
-   */
   const bb = boksar[0]
   if (bb) {
     const cx = bb.x + bb.width / 2
@@ -3670,17 +2476,6 @@ async function forma(browser: Browser) {
     const i = drege.findIndex((q, k) => !frose[k] || q[0] !== frose[k][0] || q[1] !== frose[k][1])
     const rort = drege.filter((q, k) => !frose[k] || q[0] !== frose[k][0] || q[1] !== frose[k][1])
     sjekk("eit drag i eit punkt flyttar NØYAKTIG det punktet", rort.length === 1 && drege.length === frose.length, `${rort.length} av ${drege.length} punkt rørte`)
-    /**
-     * OG MERKET ENDAR UNDER FINGEREN.
-     *
-     * Det er heile påstanden, og han er sagt i PIKSLAR: kvar punktet hamna i
-     * planet si eiga eining er ei omrekning som avheng av kva vinkel flata
-     * står i og kor langt unna ho er — eit tal prøva måtte gjette på. Der
-     * fingeren slapp, derimot, veit ho nøyaktig, og der skal merket stå.
-     *
-     * Det fangar kvar faktor som har snike seg inn i omrekninga: går
-     * punktet for langt, hamnar merket forbi fingeren.
-     */
     const etterBb = await page.locator(`[data-punkt='${i}']`).boundingBox()
     if (i >= 0 && etterBb) {
       const av = Math.hypot(etterBb.x + etterBb.width / 2 - (cx + 46), etterBb.y + etterBb.height / 2 - (cy - 34))
@@ -3688,12 +2483,6 @@ async function forma(browser: Browser) {
     }
   }
 
-  /**
-   * DOBBELTTRYKKET GJEV BOKSEN: fire punkt, to x-verdiar og to y-verdiar.
-   */
-  // to `click()` etter kvarandre ligg lenger frå kvarandre enn vindauget —
-  // Playwright ventar på at knappen skal stå stille mellom dei — so det må
-  // vera eitt dobbelttrykk og ikkje to trykk
   await page.waitForTimeout(DOBBELT + 80)
   await form.dblclick()
   await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) === 4)
@@ -3703,34 +2492,9 @@ async function forma(browser: Browser) {
   sjekk("eit dobbelttrykk gjer forma til boksen kring henne", boks.length === 4 && bx.length === 2 && by.length === 2, boks.map((q) => q.join(",")).join(" · "))
   sjekk("og hjørna er handtak som alle andre punkt", (await page.locator("[data-punkt]").count()) === 4)
 
-  /**
-   * MIDTMERKA: EIT PUNKT DU IKKJE HAR ENNO.
-   *
-   * Ein boks er fire lange kantar, so alle fire har plass til eit merke. Ei
-   * FROSEN ribbe er atten korte, og då har ingen av dei det — du kan leggje
-   * til eit punkt der det er plass til eitt, og ingen annan stad.
-   */
-  /**
-   * BOKSEN HAR MIDTMERKE Å TA I — men ikkje naudsynleg fire.
-   *
-   * Snittet ber sine eigne handtak: flytt står midt i det og vri rett over,
-   * og dei ligg over dette laget (15 mot 6). Eit midtmerke under eit av dei
-   * er eit merke fingeren ikkje kan nå, so det står ikkje framme — og då
-   * har kanten det sat på ikkje noko merke. Det er RETT: reiskapen som
-   * alltid må vera der vinn over den som kjem att på neste kant.
-   */
   const midtBoks = await synlege("[data-midt]")
   sjekk("boksen har midtmerke å ta i", midtBoks >= 2, `${midtBoks} av 4 kantar`)
 
-  /**
-   * OG KVART MERKE SOM STÅR FRAMME KAN TAKAST.
-   *
-   * Det er heile grunnen til at merka vert gøymde i det heile. Prøva spør
-   * DOM-en det same spørsmålet scena gjer — kva er øvst her? — for kvart
-   * merke som står framme, og krev at svaret er merket sjølv. Målt før
-   * dette stod: eit punkt låg under tommelspalta, og dobbelttrykket som
-   * skulle ta det bort dubla planet i staden.
-   */
   const utanfor = async () => {
     const feil: string[] = []
     for (const e of await page.locator("[data-punkt], [data-midt]").all()) {
@@ -3748,13 +2512,6 @@ async function forma(browser: Browser) {
   const dekte = await utanfor()
   sjekk("og kvart merke som står framme kan takast", dekte.length === 0, dekte.slice(0, 2).join(" · "))
 
-  /**
-   * OG EIT DRAG I EIT MIDTMERKE ER EITT PUNKT TIL, PÅ RETT PLASS.
-   *
-   * Rekkjefylgja i lista ER mangekanten, so prøva krev meir enn eit punkt
-   * til: ho krev at naboane står som dei stod, og at det nye ligg MELLOM
-   * dei. Eit punkt lagt bakarst ville dregi ei line tvers over forma.
-   */
   const mb = await page.locator("[data-midt='1']").boundingBox()
   if (mb) {
     const foer = om(3)
@@ -3772,14 +2529,6 @@ async function forma(browser: Browser) {
     sjekk("og det står som eit handtak med dei andre", (await page.locator("[data-punkt]").count()) === 5)
   }
 
-  /**
-   * DOBBELTTRYKK VRIR HJØRNE TIL BOGE, OG ATTENDE.
-   *
-   * Same vegen inn som forma og bøyen har, og det er den KORTE vegen: ei
-   * kurve er noko du lagar med tommelen på punktet du ser på. Bogen ligg
-   * ikkje i punktet — han er ein plass i `r:` — so prøva les strengen og
-   * ikkje berre eit merke, og krev at punkta står som dei stod.
-   */
   const rund = () => lesPlan(hash(page).plan).find((q) => q.id === 3)?.runde ?? []
   const midtBb = async (i: number) => {
     const e = page.locator(`[data-midt='${i}']`)
@@ -3798,12 +2547,6 @@ async function forma(browser: Browser) {
       `bogar: ${rund().join(",") || "ingen"} · ${om(3).length} punkt står`,
     )
     sjekk("og merket seier kva punktet er vorte", (await page.locator("[data-punkt='1']").getAttribute("data-rund")) !== null)
-    /**
-     * OG MIDTMERKET FYLGJER KANTEN DET STYRER. Bognar stykket, ligg merket
-     * på KURVA og ikkje på korda mellom punkta — elles ville det drive av
-     * garde frå den kanten det høyrer til, og punktet det lagar ville rykt
-     * forma rett i det du tok i det.
-     */
     const mEtter = await midtBb(1)
     if (mFoer && mEtter) {
       const flytt = Math.hypot(mEtter.x - mFoer.x, mEtter.y - mFoer.y)
@@ -3815,14 +2558,6 @@ async function forma(browser: Browser) {
     sjekk("og eit til vrir det attende til eit hjørne", rund().length === 0 && JSON.stringify(om(3)) === JSON.stringify(foer), `bogar: ${rund().join(",") || "ingen"}`)
   }
 
-  /**
-   * OG EIT LANGT TRYKK TEK PUNKTET BORT.
-   *
-   * Den vegen dobbelttrykket gjekk før. Ho måtte flytte seg, og ho gjekk
-   * hit av di dette er den einaste rørsla att som korkje er eit drag eller
-   * eit trykk. Tre er golvet: under det er det inga flate, so trykket etter
-   * det gjer ingenting i staden for å late heile omrisset falle.
-   */
   const lb = await page.locator("[data-punkt='1']").boundingBox()
   if (lb) {
     const foer = om(3)
@@ -3838,18 +2573,6 @@ async function forma(browser: Browser) {
       `${foer.length} → ${ny.length} punkt`,
     )
   }
-  /**
-   * OG TRE PUNKT ER GOLVET. Under det er det inga flate, og `lesPlan` ville
-   * late HEILE omrisset falle — ei form som forsvinn av di du tok eitt punkt
-   * for mykje er ikkje ei form du kan arbeide i. Fjerde trykket gjer difor
-   * ingenting, og prøva krev nett det: ikkje ein feil, berre ingen ting.
-   */
-  /**
-   * ⌫ TEK DET SOM ER TEKE. Fingeren på eit punkt ER å ta det, so prøva
-   * treng ikkje eit trykk til: ho legg fingeren på eit SYNLEG handtak — eit
-   * som ligg under arket eller spalta står ikkje framme (sjå `Omrisset`) —
-   * og trykkjer ⌫.
-   */
   const taSynleg = async () => {
     for (const e of await page.locator("[data-punkt]").all()) {
       if (!(await e.isVisible())) continue
@@ -3864,16 +2587,8 @@ async function forma(browser: Browser) {
     await page.mouse.click(t1.x, t1.y)
     await page.waitForTimeout(500)
     sjekk("eit trykk på eit punkt tek det: merket står fullt", (await t1.el.getAttribute("aria-current")) === "true")
-    /**
-     * OG PILENE FLYTTAR DET, i millimeter i profilen si eiga ramme: éin på
-     * ei pil, ti med skift. Storleiken er 150 mm, so éin millimeter er
-     * 1/150 av eininga punktet er skrive i — og det er DET talet prøva
-     * les, ikkje «det rørte seg».
-     */
     const i1 = Number(await t1.el.getAttribute("data-punkt"))
     const p0 = om(3)[i1]
-    // planet sitt eige punkt, FØR pilene: dei skal flytte punktet i
-    // profilen og ikkje planet langs normalen sin
     const planFoer = JSON.stringify(lesPlan(hash(page).plan).find((q) => q.id === 3)?.o)
     await page.keyboard.press("ArrowRight")
     await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.[i1]?.[0] ?? 0) !== p0[0])
@@ -3883,11 +2598,6 @@ async function forma(browser: Browser) {
     await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.[i1]?.[1] ?? 0) !== p1[1])
     const p2 = om(3)[i1]
     sjekk("og skift gjer han ti", Math.abs(p2[1] - p1[1] - 10 / 150) < 1e-4 && p2[0] === p1[0], `${p1.join(",")} → ${p2.join(",")}`)
-    /**
-     * OG SKIFT LÅSER AKSEN I EIT DRAG. Fingeren går på skrå — meir i u enn i
-     * v — og punktet skal ha gått i u og STÅTT i v. Ei rett kant er det ein
-     * oftast er ute etter, og han er vanskeleg å treffe på frihand.
-     */
     await page.keyboard.down("Shift")
     await page.mouse.move(t1.x, t1.y)
     await page.mouse.down()
@@ -3903,12 +2613,6 @@ async function forma(browser: Browser) {
     await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) === foer - 1)
     sjekk("og ⌫ tek det bort — ikkje planet", om(3).length === foer - 1 && lesPlan(hash(page).plan).length === 4, `${foer} → ${om(3).length} punkt · ${lesPlan(hash(page).plan).length} plan`)
   }
-  /**
-   * OG TRE PUNKT ER GOLVET. Under det er det inga flate, og `lesPlan` ville
-   * late HEILE omrisset falle — ei form som forsvinn av di du tok eitt punkt
-   * for mykje er ikkje ei form du kan arbeide i. Trykket etter det gjer
-   * difor ingenting: ikkje ein feil, berre ingen ting.
-   */
   for (let vakt = 0; vakt < 4 && om(3).length > 3; vakt++) {
     const t = await taSynleg()
     if (!t) break
@@ -3927,7 +2631,6 @@ async function forma(browser: Browser) {
   }
   sjekk("og tre punkt er golvet: forma kan ikkje trykkjast bort", golv === 3 && om(3).length === 3, `${golv} → ${om(3).length} punkt`)
 
-  /** og eit einslegt trykk slepper forma: profilen er nettet att */
   await page.waitForTimeout(DOBBELT + 80)
   await form.click()
   await vent(page, (p) => !lesPlan(p.plan).find((q) => q.id === 3)?.omriss)
@@ -3940,46 +2643,16 @@ async function forma(browser: Browser) {
   await page.close()
 }
 
-/**
- * MONTASJEN — KROPPEN SOM REISER SEG AV PLATENE SINE.
- *
- * Rekninga står i `lib/montasje.ts` og vert prøvd i `pnpm probe`: der vert
- * dei to matrisene gonga med delen sitt eige nett og samanlikna med dei to
- * netta motoren skriv til filene, punkt for punkt. Det treng ingen
- * nettlesar, og det er den prøva som held geometrien ærleg.
- *
- * HER ER DET RØRSLA. At delane FAKTISK flyttar seg, at dei kjem fram i
- * rekkjefylgje, at animasjonen står stille når han er ferdig — og at
- * fingeren kan stoppe han midt i og stå der. Ingen av dei fire let seg
- * lesa av eit tal i lenkja: dei skjer berre på skjermen.
- */
 async function montasjen(browser: Browser) {
   console.log("\n=== montasjen")
-  // eit rutenett med to retningar: to steg, og tre ribber i kvart
   const bag = { plan: skrivPlan(rutenett(3, 3)), storleik: 150, tjukn: 6 }
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
   const fana = page.getByRole("tab", { name: "montasje", exact: true })
   const kn = page.locator(".tumme [data-montasje]")
-  /**
-   * LESINGA OVER OBJEKTET — og `count()` FØR `textContent()`.
-   *
-   * Ein locator som ikkje råkar noko ventar heile standardtimeouten sin før
-   * han gjev opp: to slike kall er seksti sekund i ein del som elles tek
-   * ti. Her er «ingenting» eit gyldig svar — fana er ikkje framme — so
-   * spørsmålet må vera «finst han?» og ikkje «kva står det i han?».
-   */
   const lesing = async () => {
     const e = page.locator("[data-lesing] .tab").first()
     return (await e.count()) ? ((await e.textContent()) ?? "").trim() : ""
   }
-  /**
-   * MONTASJEN ER EI FANE, og ikkje ein reiskap i tommelspalta lenger.
-   *
-   * Han endrar ingenting — han er ein måte å LESA det same objektet på,
-   * som «flate», «lag» og «kontur» — og han stod i ei spalte der kvar
-   * einaste andre knapp skriv om plana. Difor: eit ord i topplina, ved sida
-   * av dei tre andre, og spalta hans ber det eine som er att å gjere.
-   */
   sjekk("montasjen er ei fane i topplina", (await fana.count()) === 1 && (await fana.getAttribute("aria-selected")) === "false")
   sjekk("og ingen montasjeknapp står i tommelspalta", (await kn.count()) === 0)
   sjekk("og han er av til nokon vel fana", (await lesing()) === "")
@@ -3988,22 +2661,11 @@ async function montasjen(browser: Browser) {
   await vent2(page, async () => /^steg /.test(await lesing()), 8000)
   const opna = await lesing()
   sjekk("fana opnar han, og lina seier kva steg vi er på", /^steg 1\/2 · 3$/.test(opna), opna)
-  /**
-   * OG REISKAPANE STÅR IKKJE HER — INGEN AV DEI.
-   *
-   * Montasjen endrar ingenting: det finst inga skisse å skjere, ingen plan
-   * å bøye, ingen bit å dra i. Ein knapp du ikkje ser verknaden av er ein
-   * knapp som lyg, so spalta ber ÉITT: steget.
-   */
   const spalta = async () =>
     page.locator(".tumme button").evaluateAll((el) => el.map((e) => (e.getAttribute("aria-label") || e.textContent || "?").trim()))
   sjekk("og spalta ber berre steget", JSON.stringify(await spalta()) === JSON.stringify(["steget"]), JSON.stringify(await spalta()))
   sjekk("og speglingane er borte med resten", (await page.locator(".speil").count()) === 0)
 
-  /**
-   * HAN SPELAR AV SEG SJØLV. Du valde fana for å SJÅ montasjen, og eit
-   * objekt som står stille i utgangsstillinga si seier ingenting.
-   */
   const klipp = { x: 20, y: 120, width: 350, height: 560 }
   const bilete = async () => (await page.screenshot({ clip: klipp })).length
   const tidleg = await bilete()
@@ -4013,20 +2675,10 @@ async function montasjen(browser: Browser) {
   await page.waitForTimeout(1600)
   const ferdig = await bilete()
   sjekk("og delane har faktisk flytt seg", Math.abs(ferdig - tidleg) > 200, `${tidleg} B → ${ferdig} B`)
-  /**
-   * OG SO STÅR HAN. Ein animasjon som aldri vert ferdig er ein animasjon du
-   * ikkje kan sjå PÅ — og i eit lerret som teiknar på oppmoding er han
-   * dessutan eit bilete i sekundet for alltid.
-   */
   await page.waitForTimeout(700)
   const staar = await bilete()
   sjekk("og so står han stille: animasjonen er ferdig", Math.abs(staar - ferdig) < 200, `${ferdig} B → ${staar} B`)
 
-  /**
-   * EIT DRAG NED TEK DEG ATTENDE. Den vegen delane kom frå, og du skal
-   * kunne STÅ der: ein animasjon du ikkje kan stoppe midt i er ein
-   * animasjon du må sjå fire gonger.
-   */
   const kb = await kn.boundingBox()
   if (kb) {
     const cx = kb.x + kb.width / 2
@@ -4043,11 +2695,6 @@ async function montasjen(browser: Browser) {
     await page.waitForTimeout(700)
     const staaOgso = await bilete()
     sjekk("og han vert STÅANDE der fingeren slapp han", Math.abs(staaOgso - attende) < 200, `${attende} B → ${staaOgso} B`)
-    /**
-     * OG EIT TRYKK SPELAR HAN OM ATT. Han slo verktyet av før; no er det
-     * fana som gjer det, so trykket står ledig til det du eigenleg ville:
-     * sjå det ein gong til.
-     */
     await page.mouse.click(cx, cy)
     await page.waitForTimeout(400)
     const omatt = await lesing()
@@ -4056,16 +2703,6 @@ async function montasjen(browser: Browser) {
     sjekk("og han går heile vegen opp att", (await lesing()).startsWith("steg 2/2"), await lesing())
   }
 
-  /**
-   * OG ARKET BER STEGET, IKKJE PLANLISTA.
-   *
-   * Montasjen endrar ikkje eit einaste tal, so ei planrad du kan velje er
-   * eit val fana ikkje kan svare på: ho merkte seg sjølv, og ingenting hende
-   * nokon stad. Det arket skal bere her er det `montering.txt` alltid har
-   * skrive og som berre låg inni ALT-pakka — kva delane HEITER, og kva veg
-   * dei kjem inn.
-   */
-  // arket ligg lukka på ein telefon; lina opnar det
   await page.locator(HOVUDLINA).click()
   await roleg(page, 600)
   const rader = page.locator("[aria-label='steget'] [data-steg-del]")
@@ -4077,25 +2714,12 @@ async function montasjen(browser: Browser) {
   await page.locator(HOVUDLINA).click()
   await roleg(page, 500)
 
-  /**
-   * OG EI RIBBE ER TIL Å PEIKE PÅ.
-   *
-   * Det opplagde å gjere i denne fana — du ser ein stabel like ribber reise
-   * seg og lurer på kva DEN der er — og det gjorde ingenting. No svarar lina
-   * med adressa som er gravert på henne og steget ho kjem i, og ribba står i
-   * blekk so du ser kva ein du tok.
-   */
   {
-    // animasjonen må stå stille fyrst: eit bilete som er ulikt av di delane
-    // rører seg seier ingenting om kva farge éin av dei har
     await page.waitForTimeout(1800)
     const klipp2 = { x: 20, y: 360, width: 350, height: 300 }
     const utan = await page.screenshot({ clip: klipp2 })
     let sagt = ""
     let traff: [number, number] | null = null
-    // Ein stabel ribber har luft mellom seg, og han står LÅGT i ruta — dei
-    // reiser seg or plata på golvet. Prøv nokre punkt der godset er til eit
-    // av dei råkar; fyrst når eit gjer det, er det noko å prøve.
     for (const [x, y] of [[195, 470], [195, 520], [150, 440], [240, 500], [195, 400], [120, 560]] as [number, number][]) {
       await page.touchscreen.tap(x, y)
       await page.waitForTimeout(400)
@@ -4109,25 +2733,16 @@ async function montasjen(browser: Browser) {
     sjekk("og eit trykk til slepper henne, og steget står att", /^steg /.test(await lesing()), await lesing())
   }
 
-  // ei anna fane slepper han, og kroppen står som han stod
   await page.getByRole("tab", { name: "lag", exact: true }).click()
   await roleg(page, 700)
   sjekk("ei anna fane slepper montasjen", (await fana.getAttribute("aria-selected")) === "false" && (await lesing()) === "")
   sjekk("og skjer er attende", (await page.getByRole("button", { name: "skjer", exact: true }).count()) === 1)
-  // og tasten gjer det same, for benken — handa hugsar M frå då han var ein reiskap
   await page.keyboard.press("m")
   await vent2(page, async () => /^steg /.test(await lesing()), 8000)
   sjekk("og M gjer det same frå tastaturet", (await fana.getAttribute("aria-selected")) === "true")
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
   sjekk("og escape tek deg attende dit du kom frå", (await fana.getAttribute("aria-selected")) === "false" && (await page.getByRole("tab", { name: "lag", exact: true }).getAttribute("aria-selected")) === "true")
-  /**
-   * OG FRÅ KONTUREN LIKESO — som er den saka som ikkje heldt.
-   *
-   * Vegen ut las `romsyn`, og `romsyn` er eit ROM: konturen skriv han
-   * aldri. So `kontur` → `M` → `Esc` landa i «lag», ei fane du ikkje hadde
-   * vore i. Prøva over går frå «lag» og ville stått grøn same kva.
-   */
   await page.getByRole("tab", { name: "kontur", exact: true }).click()
   await roleg(page, 700)
   await page.keyboard.press("m")
@@ -4141,7 +2756,6 @@ async function montasjen(browser: Browser) {
   )
   await page.getByRole("tab", { name: "lag", exact: true }).click()
   await roleg(page, 700)
-  // og talet gjer det, som dei tre andre
   await page.keyboard.press("4")
   await vent2(page, async () => /^steg /.test(await lesing()), 8000)
   sjekk("og 4 er fana hans, som 1, 2 og 3 er dei andre sine", (await fana.getAttribute("aria-selected")) === "true")
@@ -4151,7 +2765,6 @@ async function montasjen(browser: Browser) {
   await page.close()
 }
 
-/** Den same teiknereiskapen med ei hand på 390-punktsflata. */
 async function teiknehand(browser: Browser) {
   console.log("\n=== teiknehand 390×844")
   const { page, konsoll } = await opne(URL, browser, 390, 844)
@@ -4192,7 +2805,6 @@ async function teiknehand(browser: Browser) {
   await page.close()
 }
 
-/** Opning frå heimskjermen har inga prosjektlenkje og kan vera utan nett. */
 async function heimskjermen(browser: Browser) {
   console.log("\n=== heimskjermen utan nett")
   const plan = skrivPlan(rutenett(2, 2))
@@ -4213,9 +2825,7 @@ async function heimskjermen(browser: Browser) {
   sjekk("prosjektet kjem att utan nett og utan lenkje", hash(page).storleik === 187 && hash(page).plan === foer.plan)
   sjekk("og same arbeidsflate er open", await page.getByRole("tab", { name: "kontur", exact: true }).getAttribute("aria-selected") === "true")
 
-  // Ei økt som iOS stogga før IndexedDB stadfesta skrivinga.
   await page.addInitScript((params) => localStorage.setItem("slicer-okt-vakt", JSON.stringify({ params: { ...params, storleik: 213 }, view: "lag", skal: false })), foer)
-  // Basen opnar seinare enn den vanlege autosave-fristen på 150 ms.
   await page.addInitScript(() => {
     const opne = indexedDB.open.bind(indexedDB)
     indexedDB.open = (...args: Parameters<IDBFactory["open"]>) => {
@@ -4232,7 +2842,6 @@ async function heimskjermen(browser: Browser) {
   sjekk("og synet fylgjer den berga økta", await page.getByRole("tab", { name: "lag", exact: true }).getAttribute("aria-selected") === "true" && await page.getByRole("button", { name: "skalet", exact: true }).getAttribute("aria-pressed") === "false")
   sjekk("kvitteringa slepper fyrst etter lagring", await page.evaluate(() => localStorage.getItem("slicer-okt-vakt")) === null)
 
-  // Henta fyrst NO, medan sambandet er borte: ikkje berre eit HTTP-minne.
   const form = await page.evaluate(async () => {
     const r = await fetch("/form/stolform-01.glb")
     return r.ok && (await r.arrayBuffer()).byteLength > 100000

@@ -7,7 +7,6 @@ import { DEFAULT_PARAMS } from "../lib/params"
 import { rutenett, skrivPlan } from "../lib/plan"
 import { buildSnitt, DETAIL, sporPunkt, stykkeLangs } from "../lib/snitt"
 
-/** Les den opne luka mellom gods på kvar side. Manglande vegg er feil. */
 function breidd(ringar: Pt[][], punkt: Pt, retning: Pt): number {
   const deler = stykkeLangs(ringar, punkt, retning)
   if (deler.some(([a, b]) => a < 0 && b > 0)) return Infinity
@@ -16,7 +15,6 @@ function breidd(ringar: Pt[][], punkt: Pt, retning: Pt): number {
   return venstre === undefined || hogre === undefined ? Infinity : hogre - venstre
 }
 
-// Fri flytting bryt samanfallet mellom slissane og det vanlege rasteret.
 const plan = skrivPlan(rutenett(2, 2).map(q => ({ ...q,
   o: q.o.map((c, i) => c + q.n[i] * 0.0017) as Vec3,
   omriss: [[-0.45, -0.45], [0.45, -0.45], [0.45, 0.45], [-0.45, 0.45]] as Pt[],
@@ -35,8 +33,6 @@ for (const storleik of [200, 450, 600, 1000]) {
       const pt = sporPunkt(q, q.botn + t * (q.munn - q.botn))
       verst = Math.max(verst, Math.abs(breidd([...r.outlines, ...r.holes], pt, [-q.d[1], q.d[0]]) - q.w))
     }
-    // Fire firkantar med åtte rette slissar treng få hjørne. Ein open
-    // vegg må ikkje falle attende til hundrevis av kollineære feltprøver.
     const talPunkt = s.ribber.reduce((sum, r) => sum + r.outlines.reduce((n, o) => n + o.length, 0), 0)
     const ok = s.ledd === 4 && verst < 0.001 && talPunkt < 200
     if (!ok) brot++
@@ -44,7 +40,6 @@ for (const storleik of [200, 450, 600, 1000]) {
   }
 }
 
-// Heile vegen til nesta SVG: les maskinbanen attende, med kerf teken éin gong.
 const { ns } = makeBygg({ ...DEFAULT_PARAMS, storleik: 600, tjukn: 3, plan, arkB: 1500, arkH: 1500 }, DETAIL.mid)
 for (const kerf of [0, 0.2, 0.5]) {
   let verst = 0

@@ -2,11 +2,7 @@ import type { Spor } from "./snitt"
 import type { Pt } from "./core"
 import { simplify } from "./contour"
 
-/** ein rett boks i profilen si ramme: midt, halve lengder, retning */
 export type Veggboks = { cx: number; cy: number; hw: number; hh: number; c: number; s: number }
-
-/** Forenklinga av silhuetten får ikkje vippe ein rett slissvegg innover.
- *  Hald endepunkta til veggane feltet faktisk fann, og forenkle imellom. */
 
 export function forenklaSpor(poly: Pt[], tol: number, spor: readonly Spor[], boksar: readonly Veggboks[] = []): Pt[] {
   if (!spor.length && !boksar.length) return simplify(poly, tol)
@@ -29,9 +25,6 @@ export function forenklaSpor(poly: Pt[], tol: number, spor: readonly Spor[], bok
       if (Math.abs(au - s.halv) < 1e-6 && Math.abs(bu - s.halv) < 1e-6) return i * 3 + 1
       if (Math.abs(u - s.botn) < 1e-6 && Math.abs(v - s.botn) < 1e-6 && Math.max(Math.abs(au), Math.abs(bu)) <= s.halv + 1e-6) return i * 3 + 2
     }
-    // TAPPAR OG SLISSER: kvar side av boksen er ein vegg for seg. Eit hjørne
-    // som ligg innanfor toleransen av naboane sine er framleis eit hjørne
-    // ein tapp skal sitje i, og forenklinga skal ikkje skråskjere det.
     for (let i = 0; i < boksar.length; i++) {
       const b = boksar[i]
       const ax = a[0] - b.cx, ay = a[1] - b.cy
@@ -58,13 +51,6 @@ export function forenklaSpor(poly: Pt[], tol: number, spor: readonly Spor[], bok
   return ut
 }
 
-/** Ekstra feltprøver kring rette slissveggar. Eit 1 mm spor kan liggje
- *  heilt mellom to 3 mm ruter; begge sider av kvar vegg må prøvast.
- *
- *  `liner` er koordinatar som skal stå i ruta som dei er: kantane på
- *  tappar og slisser. Ei rutelinje som ligg PÅ kanten gjev ein nullstad i
- *  hjørnet, og då er hjørnet skarpt — eit fasa hjørne i ei slisse er gods
- *  tappen ikkje kjem forbi. */
 export function sporAksar(x0: number, dx: number, nx: number, y0: number, dy: number, ny: number, spor: readonly Spor[], liner?: { x: readonly number[]; y: readonly number[] }) {
   const xx: number[] = [...(liner?.x ?? [])]
   const yy: number[] = [...(liner?.y ?? [])]
@@ -97,8 +83,6 @@ export function sporRute(g: Float64Array, x0: number, dx: number, nx: number, y0
   if (!aksar) return null
   const { x, y } = aksar
   const felt = new Float64Array(x.length * y.length)
-  // Kroppen og mjukinga er alt lesne. Del opp det same feltet, so ekstra
-  // prøver ved eit spor ikkje gjer sløret smalare eller les nettet på nytt.
   for (let j = 0; j < y.length; j++) {
     const vy = Math.max(0, Math.min(ny, (y[j] - y0) / dy))
     const iy = Math.min(ny - 1, Math.floor(vy))
