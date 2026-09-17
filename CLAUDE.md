@@ -163,6 +163,8 @@ pnpm look     # screenshots of the page, and any console errors
 pnpm panel    # the controls in a real browser: both surfaces, gestures, keys
 pnpm panel montasjen  # the montage: it plays, it stops, and a finger can hold it mid-way
 pnpm panel boyen   # ONE section of it — the full run is 3.5 minutes, one part is seconds
+pnpm kvikk "tom; kontur 135,310 255,310 280,506 110,506; spegl y; syn topp; firkant 110,320 280,490; les"
+                   # a tool or a gesture on the phone surface, ONE line back: plan · delar · ledd · reglar · konsoll · s
 ```
 
 The headless ones (`probe` through `tak`) are fast and must stay green. Point
@@ -230,9 +232,12 @@ Kvar økt er eit budsjett. Reglane som held det:
   bytast i eitt kall; `Edit` for éi. Ikkje `Read` etter eiga skriving.
 - **Prøv smalt fyrst.** `pnpm sjekk` + den eine harnessen som dekkjer endringa;
   heile suiten éin gong før push, i bakgrunnen medan du skriv neste ting.
-- **Ingen minuttscenario i nettlesaren.** `pnpm minutt` er sletta: det kosta
-  meir tid og tokens enn det fann. Geometrien vert prøvd i `pnpm ledd`/`probe`
-  utan nettlesar; brukaren prøver flyten på telefonen.
+- **Ingen scenario i nettlesaren.** `pnpm minutt` er sletta: det kosta meir
+  tid og tokens enn det fann, og det same gjeld kvart nytt skript av same
+  slag. Geometrien vert prøvd i `pnpm ledd`/`probe` utan nettlesar. Eit
+  verkty eller ein gest vert prøvd med `pnpm kvikk "…"`: ordbok i
+  `scripts/kvikk.ts`, éi line ut, `bilete` berre når du må sjå. Aldri eit
+  skjermbilete per steg, aldri ei rapportfil.
 - **Push utan å spørje.** Bundle → `device_commit_files` → PowerShell-lina, i
   tre kall, utan tekst imellom. Sei éi line når det er oppe.
 - **Svar i éi setning.** Kva som er gjort, kva som står att. Ingen oppsummering
