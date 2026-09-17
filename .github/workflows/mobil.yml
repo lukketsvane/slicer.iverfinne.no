@@ -80,17 +80,6 @@ jobs:
       - name: Seks ribber med og utan gjentaking
         if: ${{ !cancelled() }}
         run: pnpm exec tsx scripts/gjenta-mobil.ts
-      - name: Tom flate til nesta kuttfil
-        if: ${{ !cancelled() }}
-        run: pnpm minutt
-        env:
-          MINUTT_UT: bilete/minutt
-      - name: Krakk med bindebit til nesta kuttfil
-        if: ${{ !cancelled() }}
-        run: pnpm minutt
-        env:
-          MINUTT_KRAKK: '1'
-          MINUTT_UT: bilete/minutt-krakk
       - name: WebKit med mobilflate
         if: ${{ !cancelled() }}
         run: pnpm webkit
@@ -103,24 +92,6 @@ jobs:
       - name: Direkte tilgang til kuttfiler
         if: ${{ !cancelled() }}
         run: pnpm exec tsx scripts/uttak-sjekk.ts
-      - name: Vis dei målte tidene
-        if: ${{ !cancelled() }}
-        run: |
-          node --input-type=module <<'NODE'
-          import { existsSync, readFileSync, appendFileSync } from 'node:fs'
-          let tekst = '# Mobilflyt\n\nAutomatisert Linux-nettlesar på delt tenar. Ikkje fysisk iPhone, iOS-delingsark eller menneskeleg tidsprøve.\n\n'
-          for (const mappe of ['minutt', 'minutt-krakk']) {
-            const fil = `bilete/${mappe}/rapport.json`
-            if (!existsSync(fil)) { tekst += `## ${mappe}\nIngen fullført måling; sjå feillogg og skjermbilete.\n\n`; continue }
-            const r = JSON.parse(readFileSync(fil, 'utf8'))
-            tekst += `## ${mappe}\n${r.scenario}\n\nTom arbeidsflate → lagra fil: **${r.sekundTilLagraFil.toFixed(2)} s**. Med oppstart: **${r.sekundMedOppstart.toFixed(2)} s**.\n\n`
-            tekst += `Under 60 s med alle geometrisjekkar grøne: **${r.maalNaadd ? 'ja' : 'nei'}**.\n\n`
-            tekst += r.steg.map(s => `- ${s.namn}: ${s.sekund.toFixed(2)} s`).join('\n') + '\n\n'
-            const feil = Object.entries(r.sjekkar).filter(([, v]) => !v).map(([k]) => k)
-            tekst += `Geometrisjekkar: ${feil.length ? feil.join(', ') : 'alle grøne'}.\n\n${r.avgrensing}\n\n`
-          }
-          appendFileSync(process.env.GITHUB_STEP_SUMMARY, tekst)
-          NODE
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:

@@ -25,6 +25,7 @@
  *   vent <ms>
  *   bilete [namn]            skjermbilete til bilete/kvikk[-namn].png
  *   les                      éi line: plan · delar · ledd · tappar · reglar · konsoll · sekund
+ *   delar                    éi line per del: namn, mål i mm, tappar, hòl, kor plana står
  *
  * URL og PW_CHROMIUM kan overstyrast. Køyr mot `next start`, aldri dev.
  */
@@ -130,6 +131,17 @@ async function hovud() {
           const brot = checkRules(pr, measure(pr, bygg), bygg, false).filter((r) => !r.ok)
           const s = ((performance.now() - t0) / 1000).toFixed(1)
           console.log(`${lesPlan(pr.plan).length} plan · ${bygg.dl.delar.length} delar · ${bygg.s.ledd} ledd · ${bygg.s.tappar} tappar · ${brot.length ? brot.map((r) => `${r.hard ? "HARD " : ""}${r.label}: ${r.value}`).join(" | ") : "ingen brot"} · ${konsoll.length ? `KONSOLL ${konsoll.length}: ${konsoll[0].slice(0, 80)}` : "konsoll rein"} · ${s} s`)
+          break
+        }
+        case "delar": {
+          await ferdig()
+          const pr = params(side)
+          const bygg = makeBygg(pr, DETAIL.mid)
+          for (const q of lesPlan(pr.plan)) console.log(`  plan ${q.id} o ${q.o.map((v) => v.toFixed(3)).join(",")} n ${q.n.join(",")}${q.bog ? ` bog ${q.bog}` : ""}${q.omriss ? ` omriss ${q.omriss.length}` : ""}`)
+          for (const d of bygg.dl.delar) {
+            const b = d.outline.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[2], p[0]), Math.max(a[3], p[1])], [Infinity, Infinity, -Infinity, -Infinity])
+            console.log(`  ${d.adr}: ${(b[2] - b[0]).toFixed(0)} × ${(b[3] - b[1]).toFixed(0)} mm · ${d.outline.length} pkt · ${d.holes.length} hòl`)
+          }
           break
         }
         default: throw new Error(`ukjent ord «${kva}»`)
