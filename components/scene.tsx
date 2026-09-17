@@ -2013,7 +2013,7 @@ function Teikninga({ f, S, fri, slag, svg, arb, plan, onLukk }: {
     // Førti pikslar er «nesten midt på» (tol er 1,25). Den FYRSTE plata står
     // alltid midt på: det finst ingenting anna å stå i høve til, og det er ho
     // alt anna vert spegla om.
-    onLukk: (omriss, slag, tol) => { const r = frose.current; if (r) onLukk(r.o, r.n, rettOpp(omriss, slag, plan.length ? tol * 32 : Infinity, Math.abs(r.n[2]) > 0.999)) },
+    onLukk: (omriss, slag, tol, snappa) => { const r = frose.current; if (r) onLukk(r.o, r.n, rettOpp(omriss, slag, plan.length ? tol * 32 : Infinity, Math.abs(r.n[2]) > 0.999, snappa)) },
   })
   return null
 }
