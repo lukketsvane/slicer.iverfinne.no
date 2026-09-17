@@ -85,7 +85,8 @@ async function hovud() {
         case "dra": await drag(cdp, linje(p[0], p[1]), 400); await pause(300); break
         case "to": await toFingrar(cdp, [p[0], p[1]], [p[2], p[3]]); await pause(300); await ferdig(); break
         case "grep": {
-          const b = await side.locator(`[data-handtak='${resten[0]}']`).boundingBox()
+          const sel = `[data-handtak='${resten[0]}'], [data-${resten[0]}]`
+          const b = await side.locator(sel).first().boundingBox()
           if (!b) throw new Error(`fann ikkje handtaket «${resten[0]}»`)
           const [gx, gy] = pt(resten[1])
           await drag(cdp, linje([b.x + b.width / 2, b.y + b.height / 2], [b.x + b.width / 2 + gx, b.y + b.height / 2 + gy]), 450)

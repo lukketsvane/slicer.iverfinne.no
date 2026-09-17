@@ -7,7 +7,7 @@ import { alleNett, gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett 
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_ROM, PLAN_TAK, broek, dot, iGruppa, lesPlan, nyGruppe, nyId, omrissLine, ramme as planRamme, formPunkt, FORM_SLAG, rutenett, sameSnitt, skilRute, skuvKopi, slaaSaman, spegla, speglingar, skrivPlan, sub3, type FormSlag, type Plan, type Strek } from "@/lib/plan"
-import { lukkTeikning, medStrek, mjukePunkt } from "@/lib/teikning"
+import { lukkTeikning, medStrek, mjukePunkt, ogSysken } from "@/lib/teikning"
 import { medGruppa, nesteSteg, rundt } from "@/lib/gruppe"
 import { simplify, type Pt2 } from "@/lib/contour"
 import { speglPar, speglPlan } from "@/lib/spegl"
@@ -967,7 +967,7 @@ export function Studio() {
       const ou = dot(r.o, r.u)
       const ov = dot(r.o, r.v)
       l[j] = { ...l[j], omriss: pts.slice(0, OMRISS_TAK).map((q) => klemPunkt([(q[0] - ou) / S, (q[1] - ov) / S])), runde: undefined }
-      return { ...cur, plan: skrivPlan(l) }
+      return { ...cur, plan: skrivPlan(ogSysken(lesPlan(cur.plan), l, l[j].id)) }
     })
   }, [])
   const formOmriss = useCallback((id: number, slag: FormSlag) => {
@@ -992,7 +992,7 @@ export function Studio() {
       if (!(x1 > x0 && y1 > y0)) return cur
       const f = formPunkt(slag, { x0, y0, x1, y1 })
       l[j] = { ...l[j], omriss: f.omriss.map(klemPunkt), runde: f.runde }
-      return { ...cur, plan: skrivPlan(l) }
+      return { ...cur, plan: skrivPlan(ogSysken(lesPlan(cur.plan), l, l[j].id)) }
     })
   }, [])
   const losOmriss = useCallback((id: number) => {
@@ -1003,7 +1003,7 @@ export function Studio() {
       if (j < 0 || !l[j].omriss) return cur
       const { omriss: _, runde: _r, ...utan } = l[j]
       l[j] = utan
-      return { ...cur, plan: skrivPlan(l) }
+      return { ...cur, plan: skrivPlan(ogSysken(lesPlan(cur.plan), l, id)) }
     })
   }, [])
   const leggPunkt = useCallback((id: number, i: number, q: Pt) => {
@@ -1015,7 +1015,7 @@ export function Studio() {
       const ny = om.slice()
       ny.splice(i + 1, 0, klemPunkt(q))
       l[j] = { ...l[j], omriss: ny, ...skiftRunde(l[j].runde, (k) => (k > i ? k + 1 : k)) }
-      return { ...cur, plan: skrivPlan(l) }
+      return { ...cur, plan: skrivPlan(ogSysken(lesPlan(cur.plan), l, l[j].id)) }
     })
   }, [])
   const taPunkt = useCallback((id: number, i: number) => {
@@ -1026,7 +1026,7 @@ export function Studio() {
       const om = l[j]?.omriss
       if (!om || !om[i] || om.length <= 3) return cur
       l[j] = { ...l[j], omriss: om.filter((_, k) => k !== i), ...skiftRunde(l[j].runde, (k) => (k === i ? null : k > i ? k - 1 : k)) }
-      return { ...cur, plan: skrivPlan(l) }
+      return { ...cur, plan: skrivPlan(ogSysken(lesPlan(cur.plan), l, l[j].id)) }
     })
   }, [])
   const vriPunkt = useCallback((id: number, i: number) => {
@@ -1051,7 +1051,7 @@ export function Studio() {
       const ny = om.slice()
       ny[i] = klemPunkt([om[i][0] + du / S, om[i][1] + dv / S])
       l[j] = { ...l[j], omriss: ny }
-      return { ...cur, plan: skrivPlan(l) }
+      return { ...cur, plan: skrivPlan(ogSysken(lesPlan(cur.plan), l, l[j].id)) }
     })
   }, [])
   const slaaSamanPunkt = useCallback((id: number, i: number, mot: number) => {
@@ -1064,7 +1064,7 @@ export function Studio() {
       if (!ny) return cur
       l[j] = { ...l[j], omriss: ny.omriss, ...skiftRunde(l[j].runde, (k) => (k === i ? null : k > i ? k - 1 : k)) }
       setValdPunkt(null)
-      return { ...cur, plan: skrivPlan(l) }
+      return { ...cur, plan: skrivPlan(ogSysken(lesPlan(cur.plan), l, l[j].id)) }
     })
   }, [])
   const flyttPunkt = useCallback((id: number, i: number, q: Pt) => {
@@ -1076,7 +1076,7 @@ export function Studio() {
       const ny = om.slice()
       ny[i] = klemPunkt(q)
       l[j] = { ...l[j], omriss: ny }
-      return { ...cur, plan: skrivPlan(l) }
+      return { ...cur, plan: skrivPlan(ogSysken(lesPlan(cur.plan), l, l[j].id)) }
     })
   }, [])
   const snappNo = Math.min(SNAPPSTEG.length - 1, Math.max(0, Math.round(Number(params.snapp ?? 3))))
@@ -1684,7 +1684,7 @@ export function Studio() {
       else if (k === "t" && rom) vekslTeikn()
       else if (k === "d" && vald !== null && rom) dupliserPlan(vald)
       else if (k === "h" && vald !== null && rom) leggStrek("hol")
-      else if (k === "o" && vald !== null && valdGruppe === null && rom) formTrykk()
+      else if (k === "o" && vald !== null && rom) formTrykk()
       else if (k.startsWith("arrow") && vald !== null && valdPunkt !== null && rom && t?.getAttribute("role") !== "slider") {
         const mm = e.shiftKey ? 10 : 1
         stegPunkt(vald, valdPunkt, k === "arrowright" ? mm : k === "arrowleft" ? -mm : 0, k === "arrowup" ? mm : k === "arrowdown" ? -mm : 0)
@@ -1974,7 +1974,7 @@ export function Studio() {
                 {SNAPP_NAMN[snappNo]}
               </button>
               )}
-              {rom && valdGruppe === null && (
+              {rom && (
                 <button
                   type="button"
                   aria-pressed={harOmriss}
@@ -1988,10 +1988,10 @@ export function Studio() {
                   {IcoForm}
                 </button>
               )}
-              {rom && valdGruppe === null && harOmriss && (
+              {rom && harOmriss && (
                 <button type="button" aria-label="2d-flata" title="planet flatt: dra punkt, legg til, rund, teikn hòl" onClick={() => setFlatt(true)} className={ORD} data-flatt="">2d</button>
               )}
-              {rom && valdGruppe === null && (
+              {rom && (
                 <button type="button" aria-pressed={bunde} aria-label="bunde av nettet" title={bunde ? "profilen er bunden av nettet. trykk for å sleppe han" : "profilen er fri av nettet. trykk for å binde omrisset til kroppen"} onClick={vekslNett} disabled={!harOmriss && !snitt} className={ORD} data-nett="">
                   nett
                 </button>

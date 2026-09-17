@@ -1046,6 +1046,10 @@ stays.
   that plate: from above a chair side is a line, but the front of its back
   leg is a point on it, and a seat drawn to it ends there. An axis the snap
   has set, the centring leaves alone.
+- **The shape follows the group too.** Reshape one wall of a ×4 box and all
+  four take the same outline; release the shape and all four release it.
+  Form, 2d and nett used to vanish while a group was selected, so the only
+  way in was to undo the group first.
 - **A hole follows the group.** Cut a hole in one wall of a ×4 box and it
   appears in all four; drag it oval and all four follow. It reaches only
   group members that are the same plate — identical outline, point for
