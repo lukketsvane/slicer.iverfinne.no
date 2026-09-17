@@ -1290,7 +1290,10 @@ the rules that judge something the table does not show: whether the parts can be
 in any order at all, and the two sliders. Those appear only when they break.
 
 Most broken rules carry their own way out: the rule that knows fifteen parts are
-too big also knows *how much*, so it offers `prøv 290 mm` and sets it. **Some
+too big also knows *how much*, so it offers `prøv 290 mm` and sets it — unless
+the parts were drawn by hand: a stool drawn at 450 mm is 450 mm, so there the
+advice is a larger sheet, `prøv 600 × 450`, the smallest in whole fifties that
+takes the worst part. **Some
 carry none, on purpose.** «Planes grip» and «parts exist» used to offer a 6×6
 grid — one press and your plane list was replaced by a generated one. That is
 not advice, it is a different drawing; now that the grid tool sets the two
