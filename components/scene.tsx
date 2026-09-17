@@ -675,7 +675,15 @@ function Streket({ f, r, valt, valdStrek, S, boks, arb, snapp, setLive, onSynStr
         // hjørnet nede til høgre fylgjer fingeren og midten står: det fingeren
         // har gått i streken si eiga ramme, lagt til halvsidene — som skilnad
         // frå der han tok tak, so handtaket kan stå utanfor hjørnet utan at
-        // storleiken hoppar. Ein rund strek held same mål begge vegar.
+        // storleiken hoppar.
+        //
+        // EIN RUND STREK ER EIN ELLIPSE, OG EIN SIRKEL NÅR DU SIKTA PÅ EIN.
+        // Klemma til w = h var den einaste staden i huset som batt dei to —
+        // snittet, spegelen, 2d-ringen og lappen les alle w og h fritt — so
+        // ho tok bort ei oval opning resten alt kunne kutte. No er det eit
+        // snapp, som på vri-handtaket: fem prosent av det største målet, og
+        // aldri smalare enn tre prosent av storleiken, av di eit reint
+        // prosentband er under éin piksel på eit lite hòl. `sn.pos` tikkar.
         const a = (s0.a * Math.PI) / 180
         const dx = q[0] - stak.q0[0]
         const dy = q[1] - stak.q0[1]
@@ -684,7 +692,10 @@ function Streket({ f, r, valt, valdStrek, S, boks, arb, snapp, setLive, onSynStr
         const minst = 0.01 * SS
         let hw = Math.max(minst, (s0.w * SS) / 2 + lx)
         let hh = Math.max(minst, (s0.h * SS) / 2 - ly)
-        if (s0.form === "rund") hw = hh = Math.max(minst, (s0.w * SS) / 2 + (lx - ly) / 2)
+        if (s0.form === "rund" && Math.abs(hw - hh) <= Math.max(0.03 * SS, 0.05 * Math.max(hw, hh))) {
+          hw = hh = (hw + hh) / 2
+          sn.pos = true
+        }
         s = { ...s0, w: Math.min(2, (2 * hw) / SS), h: Math.min(2, (2 * hh) / SS) }
       } else {
         // vinkelen i planet, kring midten; snappar til 0 og 90 innan fem grader
@@ -3920,7 +3931,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <button type="button" data-handtak="flytt" aria-label="flytt snittet" title="dra: flytt snittet over kroppen">{IkonFlytt}</button>
         <button type="button" data-handtak="vri" aria-label="vri snittet" title="dra: vri snittet">{IkonVri}</button>
         <button type="button" data-handtak="strek-flytt" aria-label="flytt streken" title="dra: flytt streken i planet">{IkonFlytt}</button>
-        <button type="button" data-handtak="strek-storleik" aria-label="storleiken på streken" title="dra: breidd og høgd. ein rund strek held same mål begge vegar">{IkonStor}</button>
+        <button type="button" data-handtak="strek-storleik" aria-label="storleiken på streken" title="dra: breidd og høgd. ein rund strek snappar til sirkel når måla er nære">{IkonStor}</button>
         <button type="button" data-handtak="strek-vri" aria-label="vri streken" title="dra: vri streken. snappar til 0° og 90°">{IkonVri}</button>
         <span data-merke="" aria-hidden="true">
           <span data-ord="">skisse</span>

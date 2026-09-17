@@ -17,6 +17,7 @@
  *   firkant x0,y0 x1,y1      eit drag med firkantverktyet
  *   dra x0,y0 x1,y1          eit drag med éin finger, utan verkty
  *   to x0,y0 x1,y1 X0,Y0 X1,Y1   to fingrar frå (x0,y0)(x1,y1) til (X0,Y0)(X1,Y1)
+ *   grep <namn> dx dy        dra eit handtak: flytt, vri, strek-flytt, strek-storleik, strek-vri
  *   tapp x,y                 eit trykk på lerretet
  *   tast <tast>              ein tast (z, r, f, Escape …)
  *   syn topp|framme|hogre    synskuben
@@ -117,6 +118,13 @@ async function hovud() {
         case "firkant": { const n = talPlan(); await verkty("firkant"); await drag(cdp, linje(p[0], p[1]), 500); await ventPlan(n + 1); break }
         case "dra": await drag(cdp, linje(p[0], p[1]), 400); await pause(300); break
         case "to": await toFingrar(cdp, [p[0], p[1]], [p[2], p[3]]); await pause(300); await ferdig(); break
+        case "grep": {
+          const b = await side.locator(`[data-handtak='${resten[0]}']`).boundingBox()
+          if (!b) throw new Error(`fann ikkje handtaket «${resten[0]}»`)
+          const [gx, gy] = pt(resten[1])
+          await drag(cdp, linje([b.x + b.width / 2, b.y + b.height / 2], [b.x + b.width / 2 + gx, b.y + b.height / 2 + gy]), 450)
+          await pause(300); await ferdig(); break
+        }
         case "tapp": await side.touchscreen.tap(p[0][0], p[0][1]); await pause(300); break
         case "tast": await side.keyboard.press(resten[0]); await pause(300); await ferdig(); break
         case "syn": await trykk(knapp("ramm inn")); await pause(500); await side.touchscreen.tap(...kube[resten[0]]); await pause(800); break
@@ -140,7 +148,7 @@ async function hovud() {
           for (const q of lesPlan(pr.plan)) console.log(`  plan ${q.id} o ${q.o.map((v) => v.toFixed(3)).join(",")} n ${q.n.join(",")}${q.bog ? ` bog ${q.bog}` : ""}${q.omriss ? ` omriss ${q.omriss.length}` : ""}`)
           for (const d of bygg.dl.delar) {
             const b = d.outline.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[2], p[0]), Math.max(a[3], p[1])], [Infinity, Infinity, -Infinity, -Infinity])
-            console.log(`  ${d.adr}: ${(b[2] - b[0]).toFixed(0)} × ${(b[3] - b[1]).toFixed(0)} mm · ${d.outline.length} pkt · ${d.holes.length} hòl`)
+            console.log(`  ${d.adr}: ${(b[2] - b[0]).toFixed(0)} × ${(b[3] - b[1]).toFixed(0)} mm · ${d.outline.length} pkt · ${d.holes.length} hòl${d.holes.map((h) => { const c = h.reduce((a, q) => [Math.min(a[0], q[0]), Math.min(a[1], q[1]), Math.max(a[2], q[0]), Math.max(a[3], q[1])], [Infinity, Infinity, -Infinity, -Infinity]); return ` [${(c[2] - c[0]).toFixed(0)}×${(c[3] - c[1]).toFixed(0)}]` }).join("")}`)
           }
           break
         }
