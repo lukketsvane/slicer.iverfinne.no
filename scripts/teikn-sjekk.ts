@@ -121,6 +121,8 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   const stag: Vec3[] = [[0, -150, 205], [0, 150, 205], [0, 150, 230], [0, -150, 230]]
   assert.equal(haldt(stolsider, min, max, S, t, [0, 0, 225], [1, 0, 0], stag), null, "eit stag i ramma står der det vart teikna")
   assert.equal(haldt(stolsider, min, max, S, t, [0, 0, 225], [1, 0, 0], rygg.map((p): Vec3 => [p[0], p[1] * 0.5, p[2]])), null, "ei plate som ikkje endar i sidene vert ikkje skuva")
+  const breiRygg = haldt(stolsider, min, max, S, t, [0, 0, 225], [1, 0, 0], rygg.map((p): Vec3 => [p[0], p[1] * 1.4, p[2]]))
+  assert(breiRygg && Math.abs(breiRygg[0] - 185) <= t / 2, `ein rygg breiare enn stolen kryssar sidene og går til bakfoten: ${breiRygg}`)
   console.log("landing og snapp: setet på 438 mm, staget i midtplanet, foten i golvet, setet ved bakfoten, ryggen i bakfoten")
 }
 

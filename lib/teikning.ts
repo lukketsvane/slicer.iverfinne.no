@@ -223,7 +223,8 @@ export function mellom(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t
  * endane fekk går i ingenting. Frå sidesynet kan fingeren ikkje seie kor
  * djupt plata skal stå, so svaret vert lese av sidene sjølve: plata vert
  * skuva langs normalen sin til den næraste staden der KVAR side ho endar
- * i har gods over heile høgda hennar — bakfoten. Står ho alt i gods, står
+ * i — eller går gjennom, som ein rygg breiare enn stolen, som får spor —
+ * har gods over heile høgda hennar: bakfoten. Står ho alt i gods, står
  * ho. Ingen slik stad: ho står der ho vart teikna.
  *
  * Svaret er det nye punktet i planet, i millimeter, eller null.
@@ -232,7 +233,6 @@ export function haldt(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t:
   if (fot.length < 3 || Math.abs(pn[2]) > 1e-3) return null
   const eps = Math.max(0.5, 0.002 * S)
   const z0 = Math.min(...fot.map((p) => p[2])), z1 = Math.max(...fot.map((p) => p[2]))
-  const cx = fot.reduce((a, p) => a + p[0], 0) / fot.length, cy = fot.reduce((a, p) => a + p[1], 0) / fot.length
   const sider: { r: Ramme; ring: Pt[] }[] = []
   for (const q of plan) {
     if (!q.omriss || q.bog || Math.abs(q.n[2]) > 1e-3) continue
@@ -240,11 +240,10 @@ export function haldt(plan: readonly Plan[], min: Vec3, max: Vec3, S: number, t:
     if (Math.abs(dot(r.n, pn)) > 0.999) continue
     const L = Math.hypot(r.n[0], r.n[1])
     const av = (p: Vec3) => ((p[0] - r.o[0]) * r.n[0] + (p[1] - r.o[1]) * r.n[1]) / L
-    const side = Math.sign(av([cx, cy, 0]))
+    // ho endar i sida, eller går gjennom henne — ein rygg breiare enn stolen
+    // kryssar sidene og får spor, og treng gods i dei like mykje som ein tapp
     const d = fot.map(av)
-    if (!side || d.some((v) => v * side < -eps)) continue
-    const paa = d.map((v) => Math.abs(v) <= eps)
-    if (!paa.some((b, i) => b && paa[(i + 1) % paa.length])) continue
+    if (Math.min(...d) > eps || Math.max(...d) < -eps) continue
     sider.push({ r, ring: omrissLine(q.omriss, q.runde).map((p): Pt => [p[0] * S, p[1] * S]) })
   }
   if (!sider.length) return null

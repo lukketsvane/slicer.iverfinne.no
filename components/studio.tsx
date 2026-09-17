@@ -197,11 +197,8 @@ function useVindu() {
 type Port = { inFlight: boolean; pending: Req | null; shown: number }
 
 const INGEN: readonly number[] = []
-/** det ei tom arbeidsflate opnar i: ein krakk, ikkje ein modell av han */
-const MOBEL_STORLEIK = 450
-const MOBEL_TJUKN = 12
-/** og arket er ei halv kryssfinerplate: ei side på 445 mm får aldri plass på 600 × 400 */
-const MOBEL_ARK = [1200, 600] as const
+/** ei tom arbeidsflate opnar som eit møbel: krakkmål, tolv millimeter, ei halv kryssfinerplate */
+const [MOBEL_STORLEIK, MOBEL_TJUKN, MOBEL_ARK] = [450, 12, [1200, 600] as const]
 export function Studio() {
   const [params, setParams] = useState<ParamBag>(() => ({ ...MOTOR.defaults }))
   const [view, setView] = useState<View>("lag")
