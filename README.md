@@ -1046,6 +1046,12 @@ stays.
   that plate: from above a chair side is a line, but the front of its back
   leg is a point on it, and a seat drawn to it ends there. An axis the snap
   has set, the centring leaves alone.
+- **A hole follows the group.** Cut a hole in one wall of a ×4 box and it
+  appears in all four; drag it oval and all four follow. It reaches only
+  group members that are the same plate — identical outline, point for
+  point — so a grid rib or a member you reshaped yourself is left alone.
+  The same holds for moving and deleting a hole, and a mirrored pair
+  mirrors it as before.
 - **A round hole is an ellipse.** Its size handle used to force width and
   height equal; now they are free and snap together when they come within
   five percent. A circle is one drag, an oval opening in a wall is one more.

@@ -7,7 +7,7 @@ import { alleNett, gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett 
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_ROM, PLAN_TAK, broek, dot, iGruppa, lesPlan, nyGruppe, nyId, omrissLine, ramme as planRamme, formPunkt, FORM_SLAG, rutenett, sameSnitt, skilRute, skuvKopi, slaaSaman, spegla, speglingar, skrivPlan, sub3, type FormSlag, type Plan, type Strek } from "@/lib/plan"
-import { lukkTeikning, mjukePunkt } from "@/lib/teikning"
+import { lukkTeikning, medStrek, mjukePunkt } from "@/lib/teikning"
 import { medGruppa, nesteSteg, rundt } from "@/lib/gruppe"
 import { simplify, type Pt2 } from "@/lib/contour"
 import { speglPar, speglPlan } from "@/lib/spegl"
@@ -1299,8 +1299,9 @@ export function Studio() {
       const ll = lesPlan(cur.plan)
       const jj = ll.findIndex((q) => q.id === id)
       if (jj < 0) return cur
-      ll[jj] = { ...ll[jj], strek: [...ll[jj].strek, s] }
-      return { ...cur, plan: skrivPlan(ll) }
+      const kk = kroppRef.current
+      const ny = [...ll[jj].strek, s]
+      return { ...cur, plan: skrivPlan(kk ? medStrek(ll, id, ny, kk.min, kk.max) : ll.map((q, n) => (n === jj ? { ...q, strek: ny } : q))) }
     })
     setValdStrek(i)
   }, [vald, snitt])
@@ -1311,8 +1312,8 @@ export function Studio() {
       if (j < 0 || !l[j].strek[i]) return cur
       const strek = l[j].strek.slice()
       strek[i] = s
-      l[j] = { ...l[j], strek }
-      return { ...cur, plan: skrivPlan(l) }
+      const kk = kroppRef.current
+      return { ...cur, plan: skrivPlan(kk ? medStrek(l, id, strek, kk.min, kk.max) : l.map((q, n) => (n === j ? { ...q, strek } : q))) }
     })
   }, [])
   const synStrek = useCallback((id: number, i: number, s: Strek) => {
@@ -1333,8 +1334,9 @@ export function Studio() {
       const l = lesPlan(cur.plan)
       const j = l.findIndex((q) => q.id === id)
       if (j < 0) return cur
-      l[j] = { ...l[j], strek: l[j].strek.filter((_, k) => k !== i) }
-      return { ...cur, plan: skrivPlan(l) }
+      const kk = kroppRef.current
+      const ny = l[j].strek.filter((_, k) => k !== i)
+      return { ...cur, plan: skrivPlan(kk ? medStrek(l, id, ny, kk.min, kk.max) : l.map((q, n) => (n === j ? { ...q, strek: ny } : q))) }
     })
   }, [vald, valdStrek])
   const askArk = useCallback((i: number) => send({ kind: "ark", id: ++reqId.current, params: naa.current, sheet: Math.max(0, i) }), [send])
@@ -1735,10 +1737,6 @@ export function Studio() {
 
   return (
     <main className="fixed inset-0 overflow-hidden" data-sov={sov ? "" : undefined} style={{ background: "var(--paper)" }}>
-      {/* fyrste gesten på objektet tek lina om gestane bort. Rommet vert
-          GØYMT og ikkje teke ned når plateflata står framme: lerretet held
-          på WebGL-samanhengen og synet sitt, og synskuben — som høyrer til
-          rommet — fylgjer med i gøymsla. */}
       <div className="absolute inset-0" style={{ visibility: view === "kontur" ? "hidden" : undefined }}>
         {mounted && (
           <Scene
@@ -1802,14 +1800,6 @@ export function Studio() {
         )}
       </div>
 
-      {/*
-        PLATEFLATA. «Kontur» var ei stripe med profilane ved sida av kvarandre
-        i lerretet — den same teikninga som platene alt syner, berre utan å
-        kunne røre ved henne. No ER konturen platene: same delane, i den
-        rekkjefylgja og på dei arka fila vert skoren på, der ein finger flyttar
-        dei. Rommet står att under henne med synet det hadde, so eit steg ut og
-        inn att ikkje nullstiller kameraet.
-      */}
       {mounted && view === "kontur" && (
         <section
           aria-label="plateflata"
@@ -1839,17 +1829,12 @@ export function Studio() {
         </div>
       )}
 
-      {/* kva fingrane gjer, i tal, so lenge dei er nede: øvst til VENSTRE i
-          det frie bandet — synskuben har det høgre hjørnet */}
       {gestTekst && (
         <div data-lesing="" className="pointer-events-none absolute flex justify-start" style={{ top: toppH + 10, left: 14 }} aria-hidden="true">
           <span className="tab text-[26px] leading-none tracking-[0.02em]" style={{ opacity: 0.5 }}>{gestTekst}</span>
         </div>
       )}
 
-      {/* Symmetri for neste snitt. På ei vald plate er dei same aksane
-          handlingar som speglar teikninga. Bandet tek berre fingrar på
-          orda og ligg under handtaka, klårt av synskuben. */}
       {mounted && !teikn && vald === null && rom && modus !== "bit" && (
         <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="symmetri">
           {(["x", "y", "z"] as const).map((ord, a) => (
@@ -1869,27 +1854,6 @@ export function Studio() {
         </div>
       )}
 
-      {/*
-        TOMMELSPALTA. Skjer står der høgre tommelen alt er: nedst til høgre,
-        over arket, 64 pikslar. Med eit plan valt er skissa gøymd — det er
-        ingenting å skjere — og då står den store plassen tom, so
-        reiskapane fell ned i han. Over han: skissebrytaren, og med eit plan
-        valt òg slett — og dei to streka, gods og hòl, som teiknar i profilen
-        hans. Er eit strek valt, er det streken slett tek. Ikon, aldri ord.
-        Prikken i hjørnet er motoren som reknar. På benken står spalta nedst
-        i lerretet, ved kolonna.
-
-        OG HO BER BERRE DET FANA KAN SYNE.
-
-        Ein reiskap er eit spørsmål og eit svar: du trykkjer, og noko
-        endrar seg framfor deg. Står svaret i eit bilete som ikkje er oppe,
-        er knappen berre eit spørsmål — og eit spørsmål utan svar er verre
-        enn ingen knapp. Difor: i rommet («flate» og «lag») står alle,
-        av di det er DER kroppen, plana og skissa er teikna. På plateflata
-        står dei to som ein knapp kan gjere åleine og arket syner med ein
-        gong — dubler og slett. I montasjen står steget, og ikkje anna: han
-        endrar ingenting i det heile.
-      */}
       {mounted && (
         <div
           className="tumme"
@@ -1904,18 +1868,6 @@ export function Studio() {
             if (same && !b.disabled) b.click()
           }}
         >
-          {/*
-            MONTASJEN HAR ÉIN KONTROLL, OG DET ER STEGET.
-
-            Fana er reiskapen no: du står i montasjen av di du valde han
-            øvst, og spalta ber det einaste som er att å gjere her.
-
-            TO GESTAR, OG BEGGE ER LÆRDE FRÅ FØR. Eit drag opp og ned tek
-            deg dit du vil sjå og let deg STÅ der, som bøyen og lupa: ein
-            animasjon du ikkje kan stoppe midt i er ein animasjon du må sjå
-            fire gonger. Og eit trykk spelar han om att frå golvet — «sjå det
-            ein gong til», utan at nokon må lære eit dobbelttrykk til.
-          */}
           {view === "montasje" && (
             <button
               type="button"
@@ -1961,13 +1913,7 @@ export function Studio() {
               {IcoMontasje}
             </button>
           )}
-          {/* RUTENETTET HØYRER ROMMET TIL. Han vert sett med TO FINGRAR PÅ
-              OBJEKTET, og på plateflata ligg objektet gøymt under arka — ein
-              brytar du kan slå på og ikkje bruke. */}
           {rom && (<>
-              {/* TEIKNE EI FLATE: dra ein firkant. Han står FØRST i
-                  reiskapane, av di han er den eine som lagar noko frå
-                  ingenting — resten endrar det som står. */}
               {rom && (
                 <button
                   type="button"
@@ -1981,10 +1927,6 @@ export function Studio() {
                   {IcoTeikn}
                 </button>
               )}
-          {/* RUTENETTET. Han stod i lina på arket, ved talet han endrar. Men
-              han er ein REISKAP og ikkje eit tal: to fingrar set kolonner og
-              rader, som skissa og kroppen gjer det, og reiskapane bur i denne
-              spalta. Difor øvst her, over dei andre. */}
           <button
             type="button"
             aria-pressed={modus === "rute"}
@@ -1997,30 +1939,6 @@ export function Studio() {
             {IcoRute}
           </button>
           </>)}
-          {/* Og reiskapane for PLANET står ikkje medan kroppsverktyet er ope.
-              Der er det bitane du held på med, og eit trykk på objektet vel
-              ein bit — men det vel planet under han òg, og då stod begge
-              setta i spalta samstundes: elleve knappar, klemte ned til 40
-              px kvar. Verktyet seier kva du arbeider med. */}
-          {/*
-            OG PÅ PLATA STÅR BERRE DEI SOM EIN KNAPP KAN GJERE ÅLEINE.
-
-            Ein del på plata ER eit plan, so eit trykk på han vel planet —
-            og då skal det gå an å ta planet bort, eller ta eitt til likt
-            det. Dei to er knappar og ikkje anna, og svaret på dei er
-            teikna rett framfor deg: ei rute mindre, eller ei rute meir.
-
-            Resten treng ROMMET. Hòlet legg ein ring du flyttar og dreg med
-            handtaka på snittet, forma frys profilen til punkt du dreg i,
-            bøyen er ein skrubbar med snittet som avlesing, fordel gjeld
-            eit drag på ei gruppe — og alle fire teiknar seg på lerretet,
-            som ligg gøymt under arka her. Ein reiskap du kan trykkje på og
-            ikkje sjå er ein reiskap som lyg.
-
-            OG I MONTASJEN STÅR INGEN AV DEI. Han ER ei lesing: han endrar
-            ingenting, og ei rad du trykte på i arket skal ikkje gje deg to
-            knappar som gjer det.
-          */}
           {vald !== null && modus !== "bit" && view !== "montasje" && (
             <>
               <button
@@ -2032,7 +1950,7 @@ export function Studio() {
               >
                 {IcoDupliser}
               </button>
-              {rom && valdGruppe === null && (
+              {rom && (
                 <button
                   type="button"
                   aria-label="skjer hòl"
@@ -2043,17 +1961,6 @@ export function Studio() {
                   {IcoHol}
                 </button>
               )}
-              {/* SNAPPET, SOM EIT ORD.
-                  Knappen er ikkje eit ikon: det han seier er eit TAL, og eit
-                  ikon for «45 grader» er ei teikning av eit tal. Eitt trykk
-                  tek deg eitt steg vidare i ringen — av, 15, 45, 90 — og
-                  ordet på knappen er alltid det som gjeld NO. Ein brytar som
-                  syner kva han vil gjere i staden for kva han gjer er ein
-                  brytar du må trykkje på for å lesa. */}
-              {/* og han høyrer ROMMET til, som dei andre reiskapane: på plata
-                  snappar delane til rutenettet på arket, og det er ein annan
-                  snapp med eit anna tal. To brytarar som såg like ut og
-                  styrte kvar sitt ville vore verre enn ein knapp for lite. */}
               {rom && (
               <button
                 type="button"
@@ -2067,10 +1974,6 @@ export function Studio() {
                 {SNAPP_NAMN[snappNo]}
               </button>
               )}
-              {/* FORMA: eitt trykk frys profilen til punkt du kan dra i, eit
-                  dobbelttrykk gjer dei fire til boksen kring forma, og eit
-                  trykk til slepper det heile. Merket seier om planet ber ei
-                  form no; kva det NESTE trykket gjer, seier tittelen. */}
               {rom && valdGruppe === null && (
                 <button
                   type="button"
@@ -2093,9 +1996,6 @@ export function Studio() {
                   nett
                 </button>
               )}
-              {/* FORDEL: kva rada gjer med det leiaren får. Saman, eller
-                  frå den eine enden til leiaren — ei dreiing vert ei vifte,
-                  eit skuv eit nytt mellomrom. Eit ord, av di det er eit ord. */}
               {rom && valdGruppe !== null && (
                 <button
                   type="button"
@@ -2109,16 +2009,6 @@ export function Studio() {
                   fordel
                 </button>
               )}
-              {/* BØYEN: TRYKK OG DRA, som lupa. Ein skyvar ville teke ei
-                  rad i arket for noko som gjeld eitt plan, og handtaka på
-                  snittet er alt tre. Draget er buelengd og ikkje pikslar:
-                  hundre pikslar er ein halv bøy same kva skjerm du held.
-
-                  OG EIT DOBBELTTRYKK RETTAR PLANET UT ATT. Ein skrubbar har
-                  ingen veg attende til null utan at du dreg deg dit og
-                  bommar på siste hundredelen; knappen er sin eigen veg ut,
-                  som forma er det. Eit trykk er eit trykk berre når det
-                  ikkje flytte seg — elles er det byrjinga på eit drag. */}
               {rom && valdStrek === null && valdGruppe === null && (
                 <button
                   type="button"
@@ -2168,9 +2058,6 @@ export function Studio() {
             </>
           )}
           {rom && (<>
-          {/* VERKTYET FOR KROPPEN: bitane står som boksar, trykk vel ein, og
-              to fingrar flyttar, vrir og gjer han større. Med ein bit valt
-              står han til å dublere eller ta bort. */}
           {modus === "bit" && valdBit !== null && (
             <>
               <button type="button" aria-label="dubler biten" title="ein bit til, lik denne" onClick={dupliserBit} className={TUMME_BTN}>
@@ -2193,11 +2080,6 @@ export function Studio() {
             {IcoBit}
           </button>
 
-          {/* SKJER, og ikkje anna. Med eit plan valt stod her eit merke som
-              sa «ferdig», og det var ein knapp for å slutte å gjere noko:
-              eit trykk utanfor planet, eit trykk på rada hans, escape —
-              alle tre slepper han frå før. So med eit plan valt står den
-              store knappen tom, og reiskapane hans fell ned i staden. */}
           {vald === null && (
             <button
               type="button"
@@ -2215,20 +2097,6 @@ export function Studio() {
         </div>
       )}
 
-      {/*
-        BLADREN, NEDST TIL VENSTRE — motsett veg av reiskapane.
-
-        Ti stolformer er éi line i menyen, og vegen til den neste gjekk
-        gjennom han: opne menyen, finn familien, trykk. To trykk med
-        kroppen dekt, kvar gong, for det som er EITT val — er denne
-        stolen den rette? Her er det eitt trykk, og menyen står ikkje i
-        vegen for å svare.
-
-        Han står berre når svaret finst: ein bit vald, og fleire utgåver i
-        familien hans. Og han går den same vegen som menyen — `leggBit`
-        med familien — so angre, lenkja og økta ser det same bytet dei
-        alltid har sett.
-      */}
       {mounted && rom && modus === "bit" && bla && (
         <div
           className="bla"

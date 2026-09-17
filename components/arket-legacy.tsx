@@ -140,9 +140,6 @@ function Plana({ p }: { p: ArketProps }) {
         const att = !!pl.gruppe && !utbretta.has(pl.gruppe) && !paa
         return (
           <Fragment key={pl.id}>
-          {/* GRUPPA SOM RAD: ho ligg saman, og trykket brettar henne ut og
-              vel alle plana i henne, med det siste som leiar. Plana hennar
-              står inndregne under henne. × tek heile gruppa. */}
           {hovud > 0 && (
             <li
               role="option"
@@ -174,11 +171,6 @@ function Plana({ p }: { p: ArketProps }) {
                 <span className="tab w-6 shrink-0" style={{ color: "var(--ink)" }}>{pl.id}</span>
                 {lagFarge(pl.farge) !== null && <span aria-hidden="true" className="block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: LAG_FARGAR[pl.farge as number] }} />}
                 <span className="min-w-0 flex-1 truncate">{kvaSlag(pl.n)}</span>
-                {/* KVAR PLANET STÅR, SOM EIT TAL: millimeter frå midten av kroppen,
-                    langs normalen. Det er inndata lese av — punktet og normalen
-                    planet ER — og ikkje eit mål frå kuttet. Pilene flyttar det
-                    éin om gongen, og talet fylgjer. Berre på benken: på
-                    telefonen er rada 390 pikslar, og ledda står der alt. */}
                 {p.benk && p.boks && (
                   <span className="tab dim shrink-0" title="millimeter frå midten av kroppen, langs normalen. pilene flyttar planet éin om gongen">
                     {fraaMidten(pl, p.boks)}
@@ -252,9 +244,6 @@ function Profilen({ p }: { p: ArketProps }) {
   const tak = +(MJUK_TAK * S).toFixed(1)
   return (
     <li role="group" aria-label="profil" data-profil="" className="px-1.5 pb-0.5 pt-1">
-      {/* INGEN ETIKETT I MARGEN: rada seier «mjuk» sjølv, og eit ord til
-          framfor henne er eit ord som berre tek plass — «profil» er seks
-          teikn i ein marg som er tre. */}
       <SliderRow
         k="mjuk"
         r={{ label: "mjuk", min: 0, max: tak, step: 0.5, unit: "mm" }}
@@ -295,10 +284,6 @@ function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
     <div className="py-1.5">
       {UTTAK.map((g) => (
         <div key={g.bolk} role="group" aria-label={g.bolk} data-bolk={g.bolk}>
-          {/* Ordet står på FYRSTE brikkerada og ikkje midt i bolken: ei rad
-              som bryt til to sender eit midtstilt ord ned mellom dei, og
-              då peikar det ikkje lenger på noko. Trettan pikslar er halve
-              brikkehøgda minus halve ordet. */}
           <div className="flex items-start gap-1.5 py-0.5">
             <span aria-hidden="true" className="dim mt-[13px] w-9 shrink-0 text-[9px] uppercase leading-none tracking-[0.12em]">{g.bolk}</span>
             <span className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -312,15 +297,11 @@ function Uttaka({ p, onGjort }: { p: ArketProps; onGjort?: () => void }) {
               })}
             </span>
           </div>
-          {/* ...og kva varselet ER, med ord. Ein farge åleine er eit spørsmål;
-              reiskapen svarar med det same ordet tavla brukar. Éin gong,
-              under den fyrste bolken, og ikkje ved kvar brikke. */}
           {varsel && g.bolk === UTTAK[0].bolk && (
             <p className="pb-0.5 pl-[42px] text-[10px]" style={{ color: "var(--warn)" }} data-uttakvarsel="">
               {harde.map((r) => r.label).join(", ")} — går ikkje i hop
             </p>
           )}
-          {/* svart er C00 i LightBurn og køyrer fyrst: difor graverer det */}
           {g.bolk === "plate" && (
             <span className="dim flex items-center gap-3 pb-0.5 pl-[42px] text-[10px] uppercase tracking-[0.14em]" title="svart graverer, blått kutt. fargen er rekkjefylgja">
               {[["#000000", "graver"], ["#0000ff", "kutt"]].map(([farge, ord]) => (
@@ -347,7 +328,6 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
     })
   return (
     <>
-      {/* materialet og tjukna på éi rad der det er plass, og på to der det ikkje er */}
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 py-2">
         {(Object.keys(MATERIALS) as Material[]).map((mk) => (
           <button
@@ -373,10 +353,6 @@ function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | nu
       {["arkB", "arkH"].map((k) => (
         <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(params, k, PARAM_RANGES[k].min)} benk={p.benk} onChange={setParam} onSkrubb={p.onSkrubb} />
       ))}
-      {/* BOLKANE BRETTAR SEG. Sju overskrifter og tjue skyvarar er meir enn
-          ein telefon syner på ein gong, og du arbeider i éin bolk om gongen.
-          Overskrifta er knappen: trykk henne, og skyvarane under henne fell
-          bort til du trykkjer att. */}
       {GROUPS.map((g) => {
         const keys = g.keys.filter((k) => !FRAMME.has(k))
         if (!keys.length) return null
@@ -456,7 +432,6 @@ export function Arket(p: ArketProps): JSX.Element {
 
   const linja = (
     <div className="flex items-center gap-1 px-2 py-2">
-      {/* tala fyrst: dei er det lina er til. Skjer og skissebrytaren står i tommelspalta. */}
       <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className="hit tab min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em]" aria-label="plan, delar, ark og tid">
         <Lina p={p} />
       </button>
@@ -472,10 +447,6 @@ export function Arket(p: ArketProps): JSX.Element {
   const midt = (
     <>
       <SliderRow k="storleik" r={PARAM_RANGES.storleik} value={num(p.params, "storleik", 150)} benk={benk} onChange={(k, v) => p.onChange({ ...p.params, [k]: v })} onSkrubb={p.onSkrubb} bi={p.metrics ? `${n0(p.metrics.envX)}×${n0(p.metrics.envY)}×${n0(p.metrics.envZ)}` : undefined} />
-      {/* BITEN SITT LAG. Same rada som planet sitt, av di det er den same
-          fargen: eit plan merkt likt høyrer til biten og vert skore inne i
-          han. Ho står her og ikkje i tommelspalta — spalta er ikon, og eit
-          lag er åtte og tjue fargar. */}
       {p.bitFarge !== null && (
         <ul className="pt-1">
           <Lagrad no={p.bitFarge} ord="bit" tittel=" · plan med same laget vert skore inne i denne biten" onFarge={p.onBitFarge} />

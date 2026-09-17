@@ -59,23 +59,10 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
       className="fixed inset-x-0 top-0 z-30 border-b"
       style={{ ...HAIR, background: "var(--paper)", color: "var(--ink)", paddingTop: "env(safe-area-inset-top)", zIndex: meny ? 50 : undefined }}
     >
-      {/* FLEIRE PÅ EIN GONG. Den fyrste vert kroppen, som ei einsleg fil
-          alltid har vorte; resten går rett i lista under. Du hentar inn det
-          du har, og plukkar etterpå. */}
       <input ref={pick} type="file" multiple accept={[...FORMAT, ...BILETE].join(",")} className="hidden" onChange={(e) => { const f = [...(e.target.files ?? [])]; if (f.length) onFile(f); e.target.value = "" }} />
       <div className="flex h-11 items-center gap-1 px-2">
         <button type="button" onClick={onAngre} disabled={!kanAngre} aria-label="angre" title="angre siste endring (Z)" className={ICON_BTN}>{IcoAngre}</button>
         <button type="button" onClick={onGjerOm} disabled={!kanGjerOm} aria-label="gjer om" title="gjer om det du angra (⇧Z)" className={ICON_BTN}>{IcoGjerOm}</button>
-        {/* KROPPEN. Brikka seier kva han er laga av og opnar lista: fem
-            primitiv som vert lagde til det som alt står, og di eiga fil,
-            som byrjar på nytt. Bitane står i ei rad og går i kvarandre. */}
-        {/* OG BRIKKA VIK FØR LINA BRISTAR. Fire lesemåtar og eit langt
-            filnamn er breiare enn 390 px, og ein flexboks som ikkje kan
-            krympe skuvar lenkja ut av skjermen i staden. `min-w-0` seier at
-            denne — og berre denne — gjev etter: namnet er det einaste her
-            som har ei kortform som framleis tyder noko. `w-full` er halve
-            regelen: utan han krympa lappen og knappen inni heldt breidda si,
-            so namnet vart teikna oppå «flate». */}
         <span ref={boks} className="relative ml-1 min-w-0">
           <button
             type="button"
@@ -88,17 +75,6 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
           >
             {bitar > 1 ? `${kjelde} +${bitar - 1}` : kjelde}
           </button>
-          {/* OG HO RULLAR NÅR HO VERT LANG.
-                Lista var fem former og ei fil-line: ho fekk plass same kva.
-                No er ho òg biblioteket ditt, og tjue filer er lengre enn ein
-                telefon er høg — menyen rann ut nedanfor skjermen, og linene
-                du nett hadde henta inn var dei du ikkje kunne nå.
-
-                Taket er rekna frå der menyen STÅR og ikkje frå skjermhøgda:
-                han heng under topplina, so det er avstanden ned herifrå som
-                er plassen han har. Åtte pikslar att nedst, so kanten seier at
-                det er meir. `rull` rullar inni seg sjølv — sida bak står
-                stille, som ho gjer overalt elles i huset. */}
           {meny && (
             <span
               className="rull absolute left-0 top-[calc(100%+6px)] z-40 flex w-36 flex-col border"
@@ -118,8 +94,6 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
                   {id}
                 </button>
               ))}
-              {/* OG DET DU HAR HENTA INN FØR, under ein hårstrek: dei fem
-                  fyrste er forma reiskapen har med seg, desse er dine. */}
               {bibliotek.map((v) => (
                 <button
                   key={v.id}
@@ -155,16 +129,6 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
             </span>
           )}
         </span>
-        {/* DEI FIRE LESEMÅTANE, som ord. Den som gjeld står i fullt blekk og
-            dei andre dempa — same skalaen ikona bruker. Ringen og den fylte
-            pilla var flater midt i biletet, og dei sa ikkje eitt ord meir.
-            Montasjen er den fjerde: han var ein reiskap i tommelspalta, og
-            han endrar ingenting — han er ein måte å lesa det same objektet
-            på, som dei tre andre. */}
-        {/* OG DEI ER FANER, so hjelpemiddel les dei som faner. Fire
-            `aria-pressed`-knappar vert lesne som fire brytarar kvar for
-            seg — «av», «på» — og ikkje som «fane 2 av 4», som er det dei
-            ER. Det kostar ingenting og er sant. */}
         <span role="tablist" aria-label="lesemåte" className="mx-auto flex items-center">
           {VIEWS.map((v) => {
             const av = v.id === "montasje" && !montasjeOk
