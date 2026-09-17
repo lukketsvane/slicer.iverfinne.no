@@ -230,9 +230,9 @@ Kvar økt er eit budsjett. Reglane som held det:
   bytast i eitt kall; `Edit` for éi. Ikkje `Read` etter eiga skriving.
 - **Prøv smalt fyrst.** `pnpm sjekk` + den eine harnessen som dekkjer endringa;
   heile suiten éin gong før push, i bakgrunnen medan du skriv neste ting.
-- **Bilete berre når geometrien er spørsmålet.** Eit skjermbilete kostar meir
-  enn ein rapport; les tal frå `rapport.json` og sjå på biletet éin gong per
-  scenario, ikkje per køyring.
+- **Ingen minuttscenario i nettlesaren.** `pnpm minutt` er sletta: det kosta
+  meir tid og tokens enn det fann. Geometrien vert prøvd i `pnpm ledd`/`probe`
+  utan nettlesar; brukaren prøver flyten på telefonen.
 - **Push utan å spørje.** Bundle → `device_commit_files` → PowerShell-lina, i
   tre kall, utan tekst imellom. Sei éi line når det er oppe.
 - **Svar i éi setning.** Kva som er gjort, kva som står att. Ingen oppsummering
