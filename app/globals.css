@@ -474,8 +474,18 @@ input {
      knappen, so lufta mellom dei er berre luft — og med ni reiskapar i
      spalta er seks piksel per mellomrom fem og førti piksel som avgjer om
      stabelen når opp i synskuben eller ikkje. Under fire ville dei byrja
-     å sjå ut som éin lang knapp. */
+     å sjå ut som éin lang knapp.
+
+     OG DEI BRYT I EI SPALTE TIL. Elleve knappar er 620 px og det er 569 å
+     ta av mellom synskuben og arket: den siste fall under skjermkanten. No
+     legg dei seg i ei ny spalte til VENSTRE i staden — `wrap-reverse` — so
+     den fyrste spalta står under tommelen der ho alltid har stått, og den
+     nye veks innover mot objektet. Knappane krympar framleis ikkje. */
+  flex-wrap: wrap-reverse;
+  justify-content: flex-end;
+  align-content: flex-start;
   gap: 4px;
+  column-gap: 6px;
   pointer-events: none;
 }
 .tumme > * {
@@ -488,9 +498,7 @@ input {
      stygge, men dei er der og dei er 48 px. */
   flex: none;
 }
-.tumme > :first-child {
-  margin-top: auto;
-}
+
 .tumme .skjer {
   position: relative;
   display: grid;

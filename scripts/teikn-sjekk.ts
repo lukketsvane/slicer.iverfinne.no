@@ -391,6 +391,15 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert(andre.omriss!.length === dregen.omriss!.length && Math.abs(flate(andre.omriss!) - flate(dregen.omriss!)) < 1e-6, `kva veg du dreg avgjer ingen ting: ${andre.omriss!.length} pkt, ${flate(andre.omriss!).toFixed(5)}`)
   assert.equal(blyantPunkt(plate, [[2, 2], [2.2, 2.3]], 0.004, 0.05), plate, "ein strek som ikkje tek i omrisset rører det ikkje")
   assert.equal(blyantPunkt(plate, sag(-0.4, -0.4), 0.004, 0.05), plate, "og ein strek som byrjar og endar i same punktet heller ikkje")
+  const kant: Pt[] = Array.from({ length: 24 }, (_, i) => { const u = i / 23; return [0.4 * u, -0.4 + 0.4 * u] as Pt })
+  const hjorna = blyantPunkt(plate, kant, 0.004, 0.06)
+  assert(hjorna !== plate, "blyanten tek tak midt på ein kant, ikkje berre i eit hjørne")
+  assert([[-0.4, -0.4], [0.4, 0.4], [-0.4, 0.4]].every((h) => hjorna.omriss!.some((p) => p[0] === h[0] && p[1] === h[1])), `og hjørna han ikkje gjekk om står: ${JSON.stringify(hjorna.omriss)}`)
+  assert(!hjorna.omriss!.some((p) => p[0] === 0.4 && p[1] === -0.4), "medan hjørnet han skar av er borte")
+  assert(hjorna.omriss!.some((p) => Math.abs(p[0]) < 1e-6 && Math.abs(p[1] + 0.4) < 1e-6), "og festet midt på kanten vart eit punkt")
+  assert(flate(hjorna.omriss!) < flate(kvadrat), `og skråkanten tok flate: ${flate(hjorna.omriss!).toFixed(4)} mot ${flate(kvadrat).toFixed(4)}`)
+  console.log(`blyant midt på kant: ${kvadrat.length} → ${hjorna.omriss!.length} punkt, flata ${flate(hjorna.omriss!).toFixed(4)} mot ${flate(kvadrat).toFixed(4)}`)
+
   const tett: Plan = { ...plate, omriss: ring(40) }
   const mykje = blyantPunkt(tett, Array.from({ length: 200 }, (_, i) => { const t = i / 199; return [-0.4 + 0.8 * t, 0.02 * Math.sin(t * 40)] as Pt }), 1e-5, 0.08)
   assert(mykje.omriss!.length <= OMRISS_TAK, `og taket på punkt held: ${mykje.omriss!.length} av ${OMRISS_TAK}`)

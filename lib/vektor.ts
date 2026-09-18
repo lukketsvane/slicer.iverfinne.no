@@ -21,13 +21,26 @@ export function makker(o: readonly Pt[], i: number, tol = 2e-3): number | null {
   return best
 }
 
-const naerast = (o: readonly Pt[], p: Pt, tol: number): number | null => {
-  let best: number | null = null
+type Feste = { i: number; t: number; p: Pt }
+
+const paaRingen = (o: readonly Pt[], p: Pt, tol: number): Feste | null => {
+  const n = o.length
+  let best: Feste | null = null
   let bd = tol
-  o.forEach(([x, y], i) => {
-    const d = Math.hypot(x - p[0], y - p[1])
-    if (d <= bd) { bd = d; best = i }
-  })
+  for (let i = 0; i < n; i++) {
+    const a = o[i]
+    const b = o[(i + 1) % n]
+    const x = b[0] - a[0]
+    const y = b[1] - a[1]
+    const L = x * x + y * y
+    const t = L ? Math.max(0, Math.min(1, ((p[0] - a[0]) * x + (p[1] - a[1]) * y) / L)) : 0
+    const q: Pt = [a[0] + t * x, a[1] + t * y]
+    const d = Math.hypot(q[0] - p[0], q[1] - p[1])
+    if (d <= bd) {
+      bd = d
+      best = { i, t, p: q }
+    }
+  }
   return best
 }
 
@@ -57,29 +70,47 @@ export function blyantPunkt(q: Plan, bane: readonly Pt[], tol: number, feste: nu
   const n = o.length
   const fyrst = forenklaBane(bane, tol)
   if (fyrst.length < 2) return q
-  const a = naerast(o, fyrst[0], feste)
-  const b = naerast(o, fyrst[fyrst.length - 1], feste)
-  if (a === null || b === null || a === b) return q
+  const A = paaRingen(o, fyrst[0], feste)
+  const B = paaRingen(o, fyrst[fyrst.length - 1], feste)
+  if (!A || !B) return q
+  if (Math.hypot(A.p[0] - B.p[0], A.p[1] - B.p[1]) < feste / 4) return q
   const loype = (fraa: number, til: number) => {
     const ut: number[] = []
-    for (let i = (fraa + 1) % n; i !== til; i = (i + 1) % n) ut.push(i)
+    for (let i = (fraa + 1) % n; i !== (til + 1) % n; i = (i + 1) % n) ut.push(i)
     return ut
   }
-  const fram = loype(a, b)
-  const att = loype(b, a)
-  const skore = (fraa: number, idx: readonly number[], til: number) => tilBane(midtpunkt([o[fraa], ...idx.map((i) => o[i]), o[til]]), fyrst)
-  const byt = skore(b, att, a) < skore(a, fram, b)
+  const fram = loype(A.i, B.i)
+  const att = loype(B.i, A.i)
+  const skore = (a: Feste, idx: readonly number[], b: Feste) => tilBane(midtpunkt([a.p, ...idx.map((i) => o[i]), b.p]), fyrst)
+  const byt = skore(B, att, A) < skore(A, fram, B)
   const halde = byt ? fram : att
-  const [fyrste, siste] = byt ? [a, b] : [b, a]
-  const glatt = forenklaBane(byt ? [...bane].reverse() : bane, tol, Math.max(2, OMRISS_TAK - halde.length))
-  const gamle = [fyrste, ...halde, siste]
-  const ut = [...gamle.map((i) => o[i]), ...glatt.slice(1, -1)]
-  const omriss = ut.map(kp)
-  if (omriss.length < 3 || Math.abs(shoelace(omriss)) < 1e-9) return q
-  const fyrr = new Set(q.runde ?? [])
-  const rund = new Set(gamle.flatMap((i, k) => (fyrr.has(i) ? [k] : [])))
+  const [start, slutt] = byt ? [A, B] : [B, A]
+  const glatt = forenklaBane(byt ? [...bane].reverse() : bane, tol, Math.max(2, OMRISS_TAK - halde.length - 2))
+  const nye = glatt.slice(1, -1)
+
+  const pkt: Pt[] = [start.p, ...halde.map((i) => o[i]), slutt.p, ...nye]
+  const gml: number[] = [-1, ...halde, -1, ...nye.map(() => -1)]
+  const omriss: Pt[] = []
+  const kjelde: number[] = []
+  for (let k = 0; k < pkt.length; k++) {
+    const p = kp(pkt[k])
+    const sist = omriss[omriss.length - 1]
+    if (sist && Math.hypot(sist[0] - p[0], sist[1] - p[1]) < 1e-4) {
+      if (gml[k] >= 0) kjelde[kjelde.length - 1] = gml[k]
+      continue
+    }
+    omriss.push(p)
+    kjelde.push(gml[k])
+  }
+  if (omriss.length > 3 && Math.hypot(omriss[0][0] - omriss[omriss.length - 1][0], omriss[0][1] - omriss[omriss.length - 1][1]) < 1e-4) {
+    omriss.pop()
+    kjelde.pop()
+  }
+  if (omriss.length < 3 || omriss.length > OMRISS_TAK || Math.abs(shoelace(omriss)) < 1e-9) return q
+  const fyrre = new Set(q.runde ?? [])
+  const rund = new Set(kjelde.flatMap((i, k) => (i >= 0 && fyrre.has(i) ? [k] : [])))
   const mjuk = new Set(mjukePunkt(omriss))
-  for (let k = gamle.length; k < omriss.length; k++) if (mjuk.has(k)) rund.add(k)
+  for (let k = 0; k < omriss.length; k++) if (kjelde[k] < 0 && mjuk.has(k)) rund.add(k)
   const runde = [...rund].sort((x, y) => x - y)
   return { ...q, omriss, ...(runde.length ? { runde } : { runde: undefined }) }
 }

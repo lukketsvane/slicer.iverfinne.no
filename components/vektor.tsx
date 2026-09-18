@@ -137,7 +137,7 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
     if (d.slag === "punkt" || d.slag === "strek") return ferdig(utkast)
     const inni = (ring: readonly Pt[]) => ring.every((p) => inRing(linje, p))
     if (d.slag === "teikn" && verkty === "blyant") {
-      const ny = blyantPunkt(q, d.pkt, 1.25 / v.ppe, 16 / v.ppe)
+      const ny = blyantPunkt(q, d.pkt, 1.25 / v.ppe, 24 / v.ppe)
       if (ny !== q) {
         onEndre(ny)
         setVal(null)

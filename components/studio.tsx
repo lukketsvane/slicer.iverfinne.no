@@ -2001,41 +2001,7 @@ export function Studio() {
                 </button>
               )}
               {rom && harOmriss && (
-                <button
-                  type="button"
-                  data-flatt=""
-                  data-forenkl=""
-                  aria-label="2d-flata"
-                  title="trykk: planet flatt, med punkt, blyant og hòl. dra opp og ned: færre eller fleire punkt i omrisset, og talet står i lesinga"
-                  className={TUMME_BTN}
-                  style={{ touchAction: "none", cursor: "ns-resize" }}
-                  onPointerDown={(e) => {
-                    const o = vald === null ? undefined : plan.find((q) => q.id === vald)?.omriss
-                    if (!o?.length) return
-                    e.currentTarget.setPointerCapture(e.pointerId)
-                    forenkl.current = { y: e.clientY, o: o.map((p): Pt => [p[0], p[1]]), runde: plan.find((q) => q.id === vald)?.runde, tal: o.length }
-                    setSkrubbar(true)
-                  }}
-                  onPointerMove={(e) => {
-                    const k = forenkl.current
-                    if (!k || vald === null) return
-                    const tal = Math.max(3, Math.min(k.o.length, Math.round(k.o.length + (e.clientY - k.y) * FORENKL_STEG)))
-                    if (tal === k.tal) return
-                    k.tal = tal
-                    setForenklTal(tal)
-                    forenklaPlan(vald, tal, k)
-                  }}
-                  onPointerUp={(e) => {
-                    const k = forenkl.current
-                    forenkl.current = null
-                    setForenklTal(null)
-                    setSkrubbar(false)
-                    if (k && Math.abs(e.clientY - k.y) <= 6 && k.tal === k.o.length) setFlatt(true)
-                  }}
-                  onPointerCancel={() => { forenkl.current = null; setForenklTal(null); setSkrubbar(false) }}
-                >
-                  {IcoForenkl}
-                </button>
+                <button type="button" aria-label="2d-flata" title="planet flatt: dra punkt, legg til, rund, teikn om ein kant med blyanten eller skjer hòl" onClick={() => setFlatt(true)} className={ORD + " h-12 min-w-12"} data-flatt="">2d</button>
               )}
               {rom && (
                 <button type="button" aria-pressed={bunde} aria-label="bunde av nettet" title={bunde ? "profilen er bunden av nettet. trykk for å sleppe han" : "profilen er fri av nettet. trykk for å binde omrisset til kroppen"} onClick={vekslNett} disabled={!harOmriss && !snitt} className={ORD + " h-12 min-w-12"} data-nett="">
@@ -2089,6 +2055,37 @@ export function Studio() {
                   onPointerCancel={() => { boy.current = null; boyNed.current = null; setSkrubbar(false) }}
                 >
                   {IcoBoy}
+                </button>
+              )}
+              {rom && harOmriss && valdStrek === null && valdGruppe === null && (
+                <button
+                  type="button"
+                  data-forenkl=""
+                  aria-label="forenkle omrisset"
+                  title="dra opp og ned: færre eller fleire punkt i omrisset. talet står i lesinga, og ned kjem du aldri lenger enn du starta"
+                  className={TUMME_BTN}
+                  style={{ touchAction: "none", cursor: "ns-resize" }}
+                  onPointerDown={(e) => {
+                    const o = vald === null ? undefined : plan.find((q) => q.id === vald)?.omriss
+                    if (!o?.length) return
+                    e.currentTarget.setPointerCapture(e.pointerId)
+                    forenkl.current = { y: e.clientY, o: o.map((p): Pt => [p[0], p[1]]), runde: plan.find((q) => q.id === vald)?.runde, tal: o.length }
+                    setForenklTal(o.length)
+                    setSkrubbar(true)
+                  }}
+                  onPointerMove={(e) => {
+                    const k = forenkl.current
+                    if (!k || vald === null) return
+                    const tal = Math.max(3, Math.min(k.o.length, Math.round(k.o.length + (e.clientY - k.y) * FORENKL_STEG)))
+                    if (tal === k.tal) return
+                    k.tal = tal
+                    setForenklTal(tal)
+                    forenklaPlan(vald, tal, k)
+                  }}
+                  onPointerUp={() => { forenkl.current = null; setForenklTal(null); setSkrubbar(false) }}
+                  onPointerCancel={() => { forenkl.current = null; setForenklTal(null); setSkrubbar(false) }}
+                >
+                  {IcoForenkl}
                 </button>
               )}
               <button
