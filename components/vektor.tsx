@@ -26,6 +26,7 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
   const [utkast, setUtkast] = useState<Plan | null>(null)
   const q = utkast ?? plan
   const [verkty, setVerkty] = useState<Verkty>("punkt")
+  const [rute, setRute] = useState(true)
   const [spegl, setSpegl] = useState(() => !!plan.omriss && plan.omriss.every(([x, y]) => plan.omriss!.some(([a, b]) => Math.abs(a + x) < 2e-3 && Math.abs(b - y) < 2e-3)))
   const [val, setVal] = useState<Val>(null)
   const [drag, setDrag] = useState<Drag>(null)
@@ -173,6 +174,23 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
     return () => el.removeEventListener("wheel", hjul)
   })
 
+  const STIGE = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]
+  const stegMm = STIGE.find((m) => (m * v.ppe) / S >= 9) ?? STIGE[STIGE.length - 1]
+  const nett = useMemo(() => {
+    if (!rute) return null
+    const s = stegMm / S
+    const x0 = v.cx - px.w / 2 / v.ppe
+    const y0 = v.cy - px.h / 2 / v.ppe
+    const x1 = x0 + px.w / v.ppe
+    const y1 = y0 + px.h / v.ppe
+    const lin = (a: number, b: number) => {
+      const ut: number[] = []
+      for (let k = Math.ceil(a / s); k * s <= b && ut.length < 400; k++) ut.push(k)
+      return ut
+    }
+    return { s, x0, x1, y0, y1, kx: lin(x0, x1), ky: lin(y0, y1) }
+  }, [rute, stegMm, S, v.cx, v.cy, v.ppe, px.w, px.h])
+
   const xs = linje.map((p) => p[0]), ys = linje.map((p) => p[1])
   const mal = linje.length ? `${nn((Math.max(...xs) - Math.min(...xs)) * S, 0)} × ${nn((Math.max(...ys) - Math.min(...ys)) * S, 0)} mm` : "inga form"
   const vp = val?.slag === "punkt" && o[val.i] ? o[val.i] : null
@@ -190,8 +208,15 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
         <span>{mal}</span>
         {vp && <span>{nn(vp[0] * S, 1)}, {nn(vp[1] * S, 1)}</span>}
         <span>{o.length} punkt · {q.strek.length} hòl</span>
+        <button type="button" data-rutenett="" aria-pressed={rute} title={rute ? "rutenettet står på. trykk for å ta det bort" : "rutenettet er borte. trykk for å setje det på"} onClick={() => setRute((b) => !b)} style={{ opacity: rute ? 1 : 0.4 }}>{rute ? `rute ${stegMm} mm` : "rute av"}</button>
       </div>
       <svg ref={svg} className="min-h-0 flex-1" viewBox={vb} onPointerDown={ned} onPointerMove={rorsle} onPointerUp={opp} onPointerCancel={opp} onDoubleClick={() => setSyn(null)}>
+        {nett && (
+          <g pointerEvents="none" stroke="var(--ink)" vectorEffect="non-scaling-stroke">
+            {nett.kx.map((k) => <line key={`x${k}`} x1={k * nett.s} x2={k * nett.s} y1={-nett.y0} y2={-nett.y1} strokeWidth={r} opacity={k === 0 ? 0.42 : k % 5 ? 0.09 : 0.2} />)}
+            {nett.ky.map((k) => <line key={`y${k}`} x1={nett.x0} x2={nett.x1} y1={-k * nett.s} y2={-k * nett.s} strokeWidth={r} opacity={k === 0 ? 0.42 : k % 5 ? 0.09 : 0.2} />)}
+          </g>
+        )}
         <path d={[bane(linje), ...q.strek.filter((s) => s.slag === "hol").map((s) => bane(strekRing(s)))].join(" ")} fillRule="evenodd" fill="var(--ink)" fillOpacity={0.08} stroke="var(--ink)" strokeWidth={1.5 * r} />
         {q.strek.map((s, k) => (
           <path key={k} data-vstrek={k} d={bane(strekRing(s))} fill="transparent" stroke="var(--ink)" strokeWidth={(val?.slag === "strek" && val.k === k ? 3 : 1) * r} strokeDasharray={s.slag === "gods" ? `${4 * r} ${3 * r}` : undefined} />
@@ -215,7 +240,7 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
           ? <ellipse cx={(drag.a[0] + drag.b[0]) / 2} cy={-(drag.a[1] + drag.b[1]) / 2} rx={Math.abs(drag.b[0] - drag.a[0]) / 2} ry={Math.abs(drag.b[1] - drag.a[1]) / 2} fill="none" stroke="var(--ink)" strokeWidth={1.5 * r} />
           : <rect x={Math.min(drag.a[0], drag.b[0])} y={-Math.max(drag.a[1], drag.b[1])} width={Math.abs(drag.b[0] - drag.a[0])} height={Math.abs(drag.b[1] - drag.a[1])} fill="none" stroke="var(--ink)" strokeWidth={1.5 * r} />)}
       </svg>
-      <div className="flex min-h-[64px] items-center justify-end gap-4 px-4 pb-8">
+      <div className="rull-x flex min-h-[64px] items-center justify-end gap-2 overflow-x-auto overscroll-contain whitespace-nowrap px-3 pb-8">
         {val?.slag === "punkt" && (
           <>
             <button type="button" className={ORD} aria-pressed={rund.has(val.i)} onClick={() => onEndre(rundPunkt(q, val.i, spegl))}>rund</button>
@@ -227,15 +252,15 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
         )}
         {!val && (
           <>
-            <button type="button" className={ORD} title="del plata i to, kant i kant — dei får fingrar" onClick={() => { const d = delIto(q, nyId); if (d) { onDel(d); setSyn(null) } }}>del i to</button>
-            <button type="button" className={ORD} data-kneik="" title="knekk plata 90° om midtlina: ho vert eit L, og hjørnet får fingrar" onClick={() => { const d = boks && kneik(q, nyId, boks.min, boks.max, S, 90); if (d) { onDel(d); onLukk() } }}>kneik</button>
-            <span className="text-[11px] opacity-50">spiler</span>
+            <button type="button" className={ORD + " shrink-0"} title="del plata i to, kant i kant — dei får fingrar" onClick={() => { const d = delIto(q, nyId); if (d) { onDel(d); setSyn(null) } }}>del i to</button>
+            <button type="button" className={ORD + " shrink-0"} data-kneik="" title="knekk plata 90° om midtlina: ho vert eit L, og hjørnet får fingrar" onClick={() => { const d = boks && kneik(q, nyId, boks.min, boks.max, S, 90); if (d) { onDel(d); onLukk() } }}>kneik</button>
+            <span className="shrink-0 text-[11px] opacity-50">spiler</span>
             {[3, 4, 5, 6].map((n) => (
-              <button key={n} type="button" className={ORD + " w-8"} aria-label={`${n} spiler`} title={`${n} like breie spiler med ei tjukn luft imellom`} onClick={() => { const d = spiler(q, n, t / S, nyId, boks ? spileAkse(q, alle, boks.min, boks.max, S, t) : null); if (d) { onDel(d); setSyn(null) } }}>{n}</button>
+              <button key={n} type="button" className={ORD + " w-8 shrink-0"} aria-label={`${n} spiler`} title={`${n} like breie spiler med ei tjukn luft imellom`} onClick={() => { const d = spiler(q, n, t / S, nyId, boks ? spileAkse(q, alle, boks.min, boks.max, S, t) : null); if (d) { onDel(d); setSyn(null) } }}>{n}</button>
             ))}
           </>
         )}
-        {!val && <span className="text-[11px] opacity-50">{Math.abs(shoelace(linje)) > 0 ? `${nn((Math.abs(shoelace(linje)) * S * S) / 100, 0)} cm²` : ""}</span>}
+        {!val && <span className="shrink-0 text-[11px] opacity-50">{Math.abs(shoelace(linje)) > 0 ? `${nn((Math.abs(shoelace(linje)) * S * S) / 100, 0)} cm²` : ""}</span>}
       </div>
     </section>
   )

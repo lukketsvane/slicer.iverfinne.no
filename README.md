@@ -988,7 +988,11 @@ between the sides with curved mortises, and a seat with wedged tenons.
 frame, with millimetres on it — a vector editor for the outline and its
 holes. Drag a point (it snaps to whole millimetres, and to its neighbours'
 x or y within six pixels); tap the small dot in the middle of a segment for a
-new point on the curve; **rund** turns the selected point between corner and
+new point on the curve; the **grid** is on when the surface opens and its step
+stands in the reading — `rute 20 mm` — which is also the switch that takes it
+away; the step is picked so the lines never crowd closer than nine pixels, so
+a pinch subdivides it the way a drawing program does, every fifth line darker
+and the two axes darker still; **rund** turns the selected point between corner and
 arc, **slett punkt** takes it away (three is the floor). With **spegl** on —
 it starts on for an outline that is already symmetric — every edit happens to
 the point's mirror partner across the centre line too. **hòl** draws a
