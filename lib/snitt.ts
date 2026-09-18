@@ -305,7 +305,8 @@ function formLiner(former: readonly Form[], hjorne: readonly Pt[] = []): { x: nu
   return { x, y }
 }
 
-function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, omriss?: readonly Pt[], etter: readonly Form[] = [], hjorne: readonly Pt[] = [], nett = false) {
+type Grunn = { g: Float64Array | null; nt: number; nz: number }
+function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, omriss?: readonly Pt[], etter: readonly Form[] = [], hjorne: readonly Pt[] = [], nett = false, grunn?: Grunn) {
   const { t0, dt, z0, dz, rows, cols } = ru
   let { nt, nz } = ru
   const boksar = spor.map(boksAv)
@@ -316,7 +317,10 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
     nt = aksar.x.length - 1
     nz = aksar.y.length - 1
   }
-  let g = new Float64Array((nt + 1) * (nz + 1))
+  let g: Float64Array
+  if (grunn?.g && !aksar && grunn.nt === nt && grunn.nz === nz) g = grunn.g.slice()
+  else {
+  g = new Float64Array((nt + 1) * (nz + 1))
   for (let j = 0; j <= nz; j++) {
     const z = aksar ? aksar.y[j] : z0 + j * dz
     const row = rows[j]
@@ -341,6 +345,8 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
       }
       g[j * (nt + 1) + i] = v
     }
+  }
+  if (grunn && !aksar) { grunn.g = g.slice(); grunn.nt = nt; grunn.nz = nz }
   }
   if (mjuk > 0) sloer(g, nt + 1, nz + 1, Math.round(mjuk / dt), Math.round(mjuk / dz))
   let tett: { x: number[]; y: number[] } | null = aksar
@@ -513,6 +519,7 @@ type Raa = {
   tform: TappBoks[]
   hjorne: Pt[]
   utvida: boolean
+  grunn: Grunn
 }
 
 function kanonisk(d: Vec3): Vec3 {
@@ -560,7 +567,8 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     const ob = omriss ? bbox(omriss) : null
     const nett = !!(omriss && pl.nett)
     const ru = ruteAv(ob ? { bx0: ob.x0, bx1: ob.x1, by0: ob.y0, by1: ob.y1 } : sol, boygd ? 0 : d, step, former, nett ? sol : undefined)
-    let ringar = felt(ru, former, [], klipp, mjuk, omriss, [], [], nett).map((l) => l.pts as Pt[])
+    const grunn: Grunn = { g: null, nt: 0, nz: 0 }
+    let ringar = felt(ru, former, [], klipp, mjuk, omriss, [], [], nett, grunn).map((l) => l.pts as Pt[])
     if (pl.firkant && ringar.length) {
       let x0 = Infinity
       let y0 = Infinity
@@ -574,11 +582,12 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
         y1 = Math.max(y1, b.y1)
       }
       former.push({ gods: true, rund: false, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, hw: (x1 - x0) / 2, hh: (y1 - y0) / 2, c: 1, s: 0, bx0: x0, bx1: x1, by0: y0, by1: y1 })
-      ringar = felt(ru, former, [], klipp, mjuk, omriss, [], [], nett).map((l) => l.pts as Pt[])
+      grunn.g = null
+      ringar = felt(ru, former, [], klipp, mjuk, omriss, [], [], nett, grunn).map((l) => l.pts as Pt[])
     }
     const rund = new Set(pl.runde ?? [])
     const hjorne = omriss ? (pl.omriss ?? []).filter((_, i) => !rund.has(i)).map((q): Pt => [ou + q[0] * S, ov + q[1] * S]) : []
-    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], tapp: [], tform: [], hjorne, utvida: false, nullpkt: [ou, ov] as Pt, boygd, klipp, mjuk, omriss, nett }
+    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], tapp: [], tform: [], hjorne, utvida: false, nullpkt: [ou, ov] as Pt, boygd, klipp, mjuk, omriss, nett, grunn }
   })
 
   const minLap = Math.max(2, p.tjukn)
@@ -732,6 +741,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     if (!a.utvida || !a.omriss) continue
     const ob = bbox(a.omriss)
     a.ru = ruteAv({ bx0: ob.x0, bx1: ob.x1, by0: ob.y0, by1: ob.y1 }, a.boygd ? 0 : a.d, step, [...a.former, ...a.tform])
+    a.grunn.g = null
   }
 
   const tol = Math.max(Math.min(0.25, step / 8), p.forenkl)
@@ -740,7 +750,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
 
   const ribber: Ribbe[] = raa.map((a) => {
     a.spor.sort((u, v) => u.munn - v.munn)
-    const loops = felt(a.ru, a.former, a.spor, a.klipp, a.mjuk, a.omriss, a.tform, a.hjorne, a.nett)
+    const loops = felt(a.ru, a.former, a.spor, a.klipp, a.mjuk, a.omriss, a.tform, a.hjorne, a.nett, a.grunn)
     let outlines: Pt[][] = []
     let holes: Pt[][] = []
     for (const l of loops) {

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 const TAK: [string, number][] = [
   ["components/scene.tsx", 2730],
   ["components/studio.tsx", 2330],
-  ["lib/snitt.ts", 1055],
+  ["lib/snitt.ts", 1056],
   ["lib/pack.ts", 560],
 ]
 

@@ -5,6 +5,30 @@ export type Loop = {
   area: number
 }
 
+const bufrar = {
+  px: new Float64Array(0),
+  py: new Float64Array(0),
+  har: new Uint32Array(0),
+  next: new Int32Array(0),
+  nGen: new Uint32Array(0),
+  sett: new Uint32Array(0),
+}
+let tur = 0
+
+function skaff(N: number): number {
+  if (bufrar.px.length < N || tur > 0xfffffff0) {
+    const m = Math.max(N, bufrar.px.length * 2)
+    bufrar.px = new Float64Array(m)
+    bufrar.py = new Float64Array(m)
+    bufrar.har = new Uint32Array(m)
+    bufrar.next = new Int32Array(m)
+    bufrar.nGen = new Uint32Array(m)
+    bufrar.sett = new Uint32Array(m)
+    tur = 0
+  }
+  return ++tur
+}
+
 export function contour(
   g: Float64Array,
   x0: number,
@@ -19,32 +43,30 @@ export function contour(
   const at = (i: number, j: number) => g[j * W + i]
 
   const N = 2 * W * (ny + 1)
-  const px = new Float64Array(N)
-  const py = new Float64Array(N)
-  const har = new Uint8Array(N)
-  const next = new Int32Array(N).fill(-1)
+  const tur = skaff(N)
+  const { px, py, har, next, nGen, sett } = bufrar
 
   const hPt = (i: number, j: number) => {
     const k = 2 * (j * W + i)
-    if (!har[k]) {
+    if (har[k] !== tur) {
       const a = at(i, j)
       const b = at(i + 1, j)
       const t = a / (a - b)
       px[k] = aksar ? aksar.x[i] + t * (aksar.x[i + 1] - aksar.x[i]) : x0 + i * dx + t * dx
       py[k] = aksar ? aksar.y[j] : y0 + j * dy
-      har[k] = 1
+      har[k] = tur
     }
     return k
   }
   const vPt = (i: number, j: number) => {
     const k = 2 * (j * W + i) + 1
-    if (!har[k]) {
+    if (har[k] !== tur) {
       const a = at(i, j)
       const b = at(i, j + 1)
       const t = a / (a - b)
       px[k] = aksar ? aksar.x[i] : x0 + i * dx
       py[k] = aksar ? aksar.y[j] + t * (aksar.y[j + 1] - aksar.y[j]) : y0 + j * dy + t * dy
-      har[k] = 1
+      har[k] = tur
     }
     return k
   }
@@ -90,19 +112,21 @@ export function contour(
       }
     }
   }
-  for (let s = 0; s < segs.length; s += 2) next[segs[s]] = segs[s + 1]
+  for (let s = 0; s < segs.length; s += 2) {
+    next[segs[s]] = segs[s + 1]
+    nGen[segs[s]] = tur
+  }
 
-  const seen = new Uint8Array(N)
   const loops: Loop[] = []
   for (let s = 0; s < segs.length; s += 2) {
     const start = segs[s]
-    if (seen[start]) continue
+    if (sett[start] === tur) continue
     const poly: Pt2[] = []
     let k = start
-    while (k >= 0 && !seen[k]) {
-      seen[k] = 1
+    while (k >= 0 && sett[k] !== tur) {
+      sett[k] = tur
       poly.push([px[k], py[k]])
-      k = next[k]
+      k = nGen[k] === tur ? next[k] : -1
     }
     if (poly.length < 3) continue
     let a2 = 0
