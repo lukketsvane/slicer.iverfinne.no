@@ -1878,7 +1878,7 @@ async function mork(browser: Browser) {
 
 async function reglar(browser: Browser) {
   console.log("\n=== reglane utan ei rad")
-  const bag = { plan: "1@0.2,0.5,0.5/1,0,0;2@0.5,0.5,1/0.7071,0,0.7071;3@0.5,0.5,0.5/0,1,0", klaring: 0 }
+  const bag = { plan: "1@0.2,0.5,0.5/1,0,0;2@0.8,0.5,0.5/1,0,0;3@0.5,0.2,0.5/0,1,0;4@0.5,0.8,0.5/0,1,0;5@0.5,0.5,0.25/0,0,1", klaring: 0 }
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
   await bytArket(page)
   await page.waitForTimeout(400)
