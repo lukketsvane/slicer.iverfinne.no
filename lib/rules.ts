@@ -287,8 +287,10 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
     label: "kan monterast",
     hard: true,
     ok: brot.length === 0,
-    value: brot.length ? `${brot.length} står fast: ${brot.join(", ")}` : "éin veg inn for kvar",
-    why: "Ein del vert skuva inn langs spora sine, og ei plate kan berre gå éin veg. Delen har ledd mot to delar som alt ligg, langs liner som ikkje er parallelle. Byt rekkjefylgja, so han kjem inn før den eine av dei — eller vinkle planet om.",
+    value: brot.length
+      ? `${nn(brot.length)} står fast: ${brot.slice(0, 2).map((id) => { const par = s.montering.bunde[id]; return par ? `${id} mellom ${par[0]} og ${par[1]}` : String(id) }).join(", ")}${brot.length > 2 ? " …" : ""}`
+      : "éin veg inn for kvar",
+    why: "Ein del vert skuva inn langs spora sine, og eit spor går langs lina der dei to plana kryssar. Delen her har ledd mot to delar som alt ligg, langs liner som ikkje er parallelle, og han kan berre gå éin veg. Verdien seier kva for to han står mellom. Byt rekkjefylgja, so han kjem inn før den eine av dei; vinkle planet om, so dei to linene vert parallelle; eller flytt han ut av vegen til den eine. Med to familiar ribber som kryssar kvarandre vert det alltid éin som kjem sist, og han er bunden av båe — ei plate på tvers av eit rutenett går ikkje i hop med spor åleine.",
     fiks: raad ? (ordenFiks() ?? ordenRiv()) : undefined,
   })
 

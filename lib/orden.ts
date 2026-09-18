@@ -15,17 +15,24 @@ function les(orden: readonly number[], vegar: Vegar, boygde: ReadonlySet<number>
   const lagt = new Set<number>()
   const retning: Record<number, Vec3 | null> = {}
   const brot: number[] = []
+  const bunde: Record<number, [number, number]> = {}
   for (const id of orden) {
     let fyrst: Vec3 | null = null
+    let fyrstMot = -1
     for (const [mot, d] of vegar.get(id) ?? []) {
       if (!lagt.has(mot)) continue
-      if (!fyrst) fyrst = d
-      else if (dot(fyrst, d) < PAR && !boygde.has(id) && !brot.includes(id)) brot.push(id)
+      if (!fyrst) {
+        fyrst = d
+        fyrstMot = mot
+      } else if (dot(fyrst, d) < PAR && !boygde.has(id) && !brot.includes(id)) {
+        brot.push(id)
+        bunde[id] = [fyrstMot, mot]
+      }
     }
     retning[id] = fyrst
     lagt.add(id)
   }
-  return { orden: [...orden], retning, brot }
+  return { orden: [...orden], retning, brot, bunde }
 }
 
 function leit(liste: readonly number[], vegar: Vegar, boygde: ReadonlySet<number>): number[] {

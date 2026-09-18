@@ -61,6 +61,7 @@ export type Montering = {
   retning: Record<number, Vec3 | null>
   boygde: number[]
   brot: number[]
+  bunde: Record<number, [number, number]>
   klem: [number, number][]
 }
 
@@ -726,7 +727,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       }
     }
   }
-  const { orden, retning, brot } = monteringsorden(plan.map((q) => q.id), vegar, new Set(boygde))
+  const { orden, retning, brot, bunde } = monteringsorden(plan.map((q) => q.id), vegar, new Set(boygde))
   for (const a of raa) {
     if (!a.utvida || !a.omriss) continue
     const ob = bbox(a.omriss)
@@ -847,7 +848,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     kasta,
     slotW,
     minGap,
-    montering: { orden, retning, boygde, brot, klem },
+    montering: { orden, retning, boygde, brot, bunde, klem },
   }
 }
 
