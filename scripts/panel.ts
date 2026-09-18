@@ -2,6 +2,7 @@ import { chromium, type Browser, type Page } from "playwright"
 import { lesPlan, OMRISS_TAK, rutenett, skrivPlan, type Strek } from "../lib/plan"
 import type { Vec3 } from "../lib/core"
 import { FORMER } from "../lib/scene"
+import { UTTAK } from "../components/deler"
 import type { Params } from "../lib/params"
 
 const URL = process.env.URL ?? process.env.PANEL_URL ?? "http://127.0.0.1:3210"
@@ -1968,16 +1969,19 @@ async function uttaka(browser: Browser) {
   await vent(page, talPlan(6))
   const knapp = page.getByRole("button", { name: "eksport", exact: true })
   await knapp.click()
-  await page.waitForTimeout(250)
-  const boks = page.locator('[role="group"][aria-label="uttak"]')
-  sjekk("trykk på uttak opnar boksen", (await boks.count()) === 1 && (await knapp.getAttribute("aria-expanded")) === "true")
+  await roleg(page, 600)
+  const boks = page.locator("section[aria-label='uttak']")
+  const fana = page.getByRole("tab", { name: "sjekk", exact: true })
+  sjekk("trykk på uttak opnar sjekkfana med uttaka i", (await boks.count()) === 1 && (await boks.isVisible()) && (await fana.getAttribute("aria-selected")) === "true")
   const bolkar = await page.locator("[data-bolk]").evaluateAll((e) => e.map((q) => q.getAttribute("data-bolk")))
-  sjekk("og han står i tre bolkar", bolkar.join(" ") === "rom plate alt", bolkar.join(" "))
-  const namn = await boks.locator("button").evaluateAll((e) => e.map((q) => q.textContent?.trim() ?? ""))
-  sjekk("tolv brikker, med flat og 3mf mellom dei", namn.length === 12 && namn.includes("flat") && namn.includes("3mf"), namn.join(" "))
+  sjekk("og han står i tre bolkar, med plata fyrst", bolkar.join(" ") === "plate rom alt", bolkar.join(" "))
+  const brikker = UTTAK.reduce((n, g) => n + g.filer.length, 0)
+  const namn = await page.locator("[data-bolk] button").evaluateAll((e) => e.map((q) => q.textContent?.trim() ?? ""))
+  sjekk(`${brikker} brikker, med flat og 3mf mellom dei`, namn.length === brikker && namn.includes("flat") && namn.includes("3mf"), namn.join(" "))
   const daarlege = await page.evaluate(() => {
     const ut: string[] = []
-    for (const b of document.querySelectorAll('[role="group"][aria-label="uttak"] button')) {
+    for (const b of document.querySelectorAll("[data-bolk] button")) {
+      b.scrollIntoView({ block: "center" })
       const r = b.getBoundingClientRect()
       const ord = b.textContent?.trim() ?? "?"
       if (!r.width || !r.height) {
@@ -1990,9 +1994,9 @@ async function uttaka(browser: Browser) {
     return ut
   })
   sjekk("og KVAR brikke ligg øvst der ho står — ingen er klipt eller dekt", daarlege.length === 0, daarlege.join(" · "))
-  await page.mouse.click(195, 260)
-  await page.waitForTimeout(250)
-  sjekk("eit trykk utanfor lukkar boksen", (await boks.count()) === 0)
+  await page.keyboard.press("Escape")
+  await page.waitForTimeout(400)
+  sjekk("escape lukkar arket til lina att", (await boks.count()) === 0)
   sjekk("eit rutenett utan brot ber ikkje varselet", (await page.locator("[data-uttakvarsel]").count()) === 0)
   await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.5/0,1,0;3@0.5,0.5,0.5/0,0,1" })), { waitUntil: "networkidle" })
   await page.reload({ waitUntil: "networkidle" })
@@ -2002,7 +2006,7 @@ async function uttaka(browser: Browser) {
   await vent2(page, async () => (await page.locator("[data-uttakvarsel]").count()) > 0, 8000)
   const varseltekst = ((await page.locator("[data-uttakvarsel]").first().textContent()) ?? "").trim()
   sjekk("ein umogeleg montasje varslar på uttaket", /går ikkje i hop/.test(varseltekst), varseltekst)
-  const merkte = await page.locator("[role=group][aria-label=uttak] button[data-varsel]").count()
+  const merkte = await page.locator("[data-bolk] button[data-varsel]").count()
   sjekk("og brikkene ber merket", merkte > 0, `${merkte} brikker`)
 
   sjekk("ingen konsollfeil i uttaka", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))

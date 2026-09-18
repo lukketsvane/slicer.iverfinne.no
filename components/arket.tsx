@@ -364,7 +364,7 @@ function ExportTab({ p }: { p: ArketProps }) {
   return (
     <div className="px-3 pb-1 pt-2">
       {MOBIL_UTTAK.map((g) => (
-        <section key={g.bolk} className="border-b pb-1 last:border-b-0" style={HAIR}>
+        <section key={g.bolk} data-bolk={g.bolk} className="border-b pb-1 last:border-b-0" style={HAIR}>
           <div className="dim h-5 px-1 text-[9px] uppercase leading-none tracking-[0.18em]">{g.bolk}</div>
           <div className="flex min-h-9 flex-wrap items-center gap-1.5">
             {g.filer.map((x) => {
@@ -387,7 +387,7 @@ function ExportTab({ p }: { p: ArketProps }) {
           </div>
         </section>
       ))}
-      {harde.length > 0 && <p className="pt-1 text-[9px]" style={{ color: "var(--warn)" }}>{harde.map((r) => r.label).join(", ")} — går ikkje i hop</p>}
+      {harde.length > 0 && <p data-uttakvarsel="" className="pt-1 text-[9px]" style={{ color: "var(--warn)" }}>{harde.map((r) => r.label).join(", ")} — går ikkje i hop</p>}
       <div className="flex min-h-14 items-center gap-1.5">
         {([
           ["kuttliste", "kuttliste", "kvar del, med adresse, mål og plate"],
