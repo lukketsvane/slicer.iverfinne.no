@@ -2701,7 +2701,7 @@ async function forma(browser: Browser) {
   await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) >= 3)
 
   const forenkl = page.locator(".tumme [data-forenkl]")
-  sjekk("eit plan med omriss har forenklinga i spalta, på same knapp som 2d", (await forenkl.count()) === 1 && (await page.locator(".tumme [data-flatt][data-forenkl]").count()) === 1)
+  sjekk("eit plan med omriss har si eiga forenklingsknapp i spalta", (await forenkl.count()) === 1 && (await page.locator(".tumme [data-flatt]").count()) === 1)
   const fb = await forenkl.boundingBox()
   sjekk("og ho er ein reiskap som dei andre: minst 44 px, på skjermen", !!fb && Math.min(fb.width, fb.height) >= 44 && fb.y + fb.height <= 844, fb ? `${Math.round(fb.width)}×${Math.round(fb.height)} px, botnen ${Math.round(fb.y + fb.height)}` : "finst ikkje")
   const spalta = await page.evaluate(`(() =>  {
