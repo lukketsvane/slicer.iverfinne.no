@@ -5,6 +5,17 @@ import { spegelakse } from "./gruppe"
 
 export const teiknaFirkant = (a: Pt, b: Pt): Pt[] => [a, [b[0], a[1]], b, [a[0], b[1]]]
 
+export const teiknaRund = (a: Pt, b: Pt): Pt[] => {
+  const cx = (a[0] + b[0]) / 2
+  const cy = (a[1] + b[1]) / 2
+  const rx = (b[0] - a[0]) / 2
+  const ry = (b[1] - a[1]) / 2
+  return Array.from({ length: 8 }, (_, i): Pt => {
+    const v = (i * Math.PI) / 4
+    return [+(cx + rx * Math.cos(v)).toFixed(6), +(cy + ry * Math.sin(v)).toFixed(6)]
+  })
+}
+
 export function teikneNormal(n: Vec3): Vec3 {
   const akse = n.findIndex((v) => Math.abs(v) > Math.cos(Math.PI / 60))
   return akse < 0 ? n : n.map((v, i) => i === akse ? Math.sign(v) : 0) as Vec3
@@ -430,7 +441,7 @@ export function midtPaa(punkt: readonly Pt[], tol: number, vassrett: boolean, sn
   return dx || dy ? punkt.map((p): Pt => [+(p[0] + dx).toFixed(6), +(p[1] + dy).toFixed(6)]) : [...punkt]
 }
 
-export function rettOpp(punkt: readonly Pt[], slag: "firkant" | "kontur", tol: number, vassrett: boolean, snappa: readonly [boolean, boolean] = [false, false]): Pt[] {
+export function rettOpp(punkt: readonly Pt[], slag: "firkant" | "kontur" | "rund", tol: number, vassrett: boolean, snappa: readonly [boolean, boolean] = [false, false]): Pt[] {
   const s = slag === "kontur" ? symmetrisk(punkt) ?? punkt : punkt
   return midtPaa(s, tol, vassrett, snappa)
 }

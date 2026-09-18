@@ -56,7 +56,7 @@ async function hovud() {
   }
   const trykk = async (e: Locator) => { await e.first().tap(); await pause(150) }
   const knapp = (namn: string) => side.getByRole("button", { name: namn.startsWith("/") ? new RegExp(namn.slice(1, -1)) : namn, exact: !namn.startsWith("/") })
-  const verkty = async (slag: "firkant" | "kontur") => {
+  const verkty = async (slag: "firkant" | "kontur" | "rund") => {
     const k = side.locator("[data-teiknknapp]")
     if ((await k.getAttribute("data-teiknknapp")) !== "klar") await trykk(k)
     await trykk(side.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: slag, exact: true }))
@@ -81,7 +81,8 @@ async function hovud() {
         case "trykk": await trykk(knapp(resten.join(" "))); await ferdig(); break
         case "fane": await trykk(side.getByRole("tab", { name: resten.join(" "), exact: true })); break
         case "kontur": { const n = talPlan(); await verkty("kontur"); await drag(cdp, [...p, p[0]].flatMap((q, i, a) => (i ? linje(a[i - 1], q, 5).slice(1) : [q])), 900); await ventPlan(n + 1); break }
-        case "firkant": { const n = talPlan(); await verkty("firkant"); await drag(cdp, linje(p[0], p[1]), 500); await ventPlan(n + 1); break }
+        case "firkant":
+        case "rund": { const n = talPlan(); await verkty(kva); await drag(cdp, linje(p[0], p[1]), 500); await ventPlan(n + 1); break }
         case "dra": await drag(cdp, linje(p[0], p[1]), 400); await pause(300); break
         case "to": await toFingrar(cdp, [p[0], p[1]], [p[2], p[3]]); await pause(300); await ferdig(); break
         case "grep": {

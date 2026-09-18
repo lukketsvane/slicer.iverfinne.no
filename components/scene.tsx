@@ -1352,11 +1352,11 @@ function Teikninga({ f, S, fri, slag, svg, arb, plan, onLukk }: {
   f: Ramma
   S: number
   fri: ReturnType<typeof fritt>
-  slag: "firkant" | "kontur"
+  slag: "firkant" | "kontur" | "rund"
   svg: SVGSVGElement | null
   arb: MutableRefObject<string | null>
   plan: readonly Plan[]
-  onLukk: (o: Vec3, n: Vec3, omriss: Pt[]) => void
+  onLukk: (o: Vec3, n: Vec3, omriss: Pt[], rund: boolean) => void
 }): null {
   const camera = useThree((q) => q.camera)
   const gl = useThree((q) => q.gl)
@@ -1392,7 +1392,7 @@ function Teikninga({ f, S, fri, slag, svg, arb, plan, onLukk }: {
         return [((v.x + 1) / 2) * size.width, ((1 - v.y) / 2) * size.height]
       })
     },
-    onLukk: (omriss, slag, tol, snappa) => { const r = frose.current; if (r) onLukk(r.o, r.n, rettOpp(omriss, slag, plan.length ? tol * 32 : Infinity, Math.abs(r.n[2]) > 0.999, snappa)) },
+    onLukk: (omriss, slag, tol, snappa) => { const r = frose.current; if (r) onLukk(r.o, r.n, rettOpp(omriss, slag, plan.length ? tol * 32 : Infinity, Math.abs(r.n[2]) > 0.999, snappa), slag === "rund") },
   })
   return null
 }
@@ -2318,8 +2318,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   onValdStrek: (i: number | null) => void
   snappSteg: number
   teikn: boolean
-  teiknSlag: "firkant" | "kontur"
-  onTeiknLukk: (o: Vec3, n: Vec3, omriss: Pt[]) => void
+  teiknSlag: "firkant" | "kontur" | "rund"
+  onTeiknLukk: (o: Vec3, n: Vec3, omriss: Pt[], rund: boolean) => void
   onPunkt: (id: number, i: number, q: Pt) => void
   onSlaaSaman: (id: number, i: number, mot: number) => void
   onLeggPunkt: (id: number, i: number, q: Pt) => void
