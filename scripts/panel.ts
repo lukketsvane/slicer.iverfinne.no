@@ -2682,7 +2682,7 @@ async function forma(browser: Browser) {
   await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) >= 3)
 
   const forenkl = page.locator(".tumme [data-forenkl]")
-  sjekk("eit plan med omriss har forenklinga i spalta", (await forenkl.count()) === 1)
+  sjekk("eit plan med omriss har forenklinga i spalta, på same knapp som 2d", (await forenkl.count()) === 1 && (await page.locator(".tumme [data-flatt][data-forenkl]").count()) === 1)
   const fb = await forenkl.boundingBox()
   sjekk("og ho er ein reiskap som dei andre: minst 44 px, på skjermen", !!fb && Math.min(fb.width, fb.height) >= 44 && fb.y + fb.height <= 844, fb ? `${Math.round(fb.width)}×${Math.round(fb.height)} px, botnen ${Math.round(fb.y + fb.height)}` : "finst ikkje")
   const spalta = await page.evaluate(`(() =>  {
@@ -2694,9 +2694,9 @@ async function forma(browser: Browser) {
       if (r.top < 0 || r.bottom > innerHeight + 0.5 || r.left < 0 || r.right > innerWidth + 0.5) ute.push(namn)
       if (Math.min(r.width, r.height) < 44) smaa.push(namn + " " + Math.round(Math.min(r.width, r.height)))
     }
-    return { ute: ute, smaa: smaa, n: alle.length, topp: Math.round(alle.length ? alle[0].getBoundingClientRect().top : 0) }
-  })()`) as { ute: string[]; smaa: string[]; n: number; topp: number }
-  sjekk("og heile spalta står framleis på skjermen med henne i", spalta.ute.length === 0 && spalta.n >= 11, `${spalta.n} knappar frå ${spalta.topp} px${spalta.ute.length ? " · " + spalta.ute.slice(0, 3).join(" · ") : ""}`)
+    return { ute: ute, smaa: smaa, n: alle.length, topp: Math.round(alle.length ? alle[0].getBoundingClientRect().top : 0), namn: alle.map(function (e) { var r = e.getBoundingClientRect(); return (e.getAttribute("aria-label") || e.tagName) + "@" + Math.round(r.top) + "-" + Math.round(r.bottom) }) }
+  })()`) as { ute: string[]; smaa: string[]; n: number; topp: number; namn: string[] }
+  sjekk("og heile spalta står framleis på skjermen med henne i", spalta.ute.length === 0 && spalta.n >= 11, `${spalta.n} knappar frå ${spalta.topp} px${spalta.ute.length ? " · ute: " + spalta.ute.slice(0, 3).join(" · ") : ""}`)
   sjekk("og ingen av dei er klemt under 44 px", spalta.smaa.length === 0, spalta.smaa.slice(0, 3).join(" · "))
   if (fb) {
     const foer = om(3)
