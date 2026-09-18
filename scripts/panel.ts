@@ -47,6 +47,10 @@ const vent = async (page: Page, f: (p: Params) => boolean, ms = 10000) => {
   await roleg(page, 200)
 }
 const talPlan = (n: number) => (p: Params) => lesPlan(p.plan).length === n
+const blur = async (page: Page) => {
+  await page.evaluate(`(document.activeElement && document.activeElement.blur && document.activeElement.blur(), 1)`)
+  await page.waitForTimeout(150)
+}
 const utbrett = async (page: Page) => {
   const rader = page.locator("[role=listbox][aria-label='plan'] [data-gruppe] button[aria-expanded='false']")
   for (let vakt = 0; vakt < 8 && (await rader.count()) > 0; vakt++) {
@@ -1354,7 +1358,7 @@ async function benk(browser: Browser) {
   }
   await vent(page, (p) => p.storleik !== s0b)
   sjekk("dra i talet set storleiken", hash(page).storleik > s0b, `${s0b} → ${hash(page).storleik}`)
-  sjekk("og talet er ikkje eit tekstfelt", (await page.locator("input[aria-label='storleik, tal']").count()) === 0)
+  sjekk("og draget opna ikkje skrivefeltet", (await page.locator("input[aria-label='storleik, skriv']").count()) === 0)
   sjekk("og plana står der dei stod", plana(page).length === n0 && plana(page).every((q, i) => JSON.stringify(q) === JSON.stringify(plana(page)[i])))
   await page.keyboard.press("z")
   await vent(page, (p) => p.storleik === s0b)
@@ -1383,6 +1387,7 @@ async function benk(browser: Browser) {
   await vent(page, (p) => p.arkH !== h0)
   sjekk("etter ein pause er hakket hennar, og skift er ti steg", hash(page).arkH < h0 - (b0 - b1) * 5, `${h0} → ${hash(page).arkH} mm`)
 
+  await blur(page)
   await page.keyboard.press("k")
   await page.waitForTimeout(300)
   sjekk("K tek verktyet for kroppen", (await page.locator("[data-bitverkty][aria-pressed='true']").count()) === 1)
@@ -1415,15 +1420,16 @@ async function benk(browser: Browser) {
   await page.keyboard.press("r")
 
   const tjukn = page.locator("[aria-label='tjukn, tal']")
-  await tjukn.dblclick()
+  const talet = page.locator("[aria-label='tjukn, skriv tal']")
+  await talet.click()
   const felt2 = page.locator("input[aria-label='tjukn, skriv']")
-  sjekk("dobbeltklikk på talet opnar eit felt", (await felt2.count()) === 1)
+  sjekk("eit trykk på talet opnar eit felt", (await felt2.count()) === 1)
   await felt2.fill("4,5")
   await page.keyboard.press("Enter")
   await vent(page, (p) => p.tjukn === 4.5)
   sjekk("enter set talet, med komma", hash(page).tjukn === 4.5, String(hash(page).tjukn))
   sjekk("og feltet er borte att", (await page.locator("input[aria-label='tjukn, skriv']").count()) === 0)
-  await tjukn.dblclick()
+  await talet.click()
   await page.locator("input[aria-label='tjukn, skriv']").fill("9")
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
@@ -1432,13 +1438,22 @@ async function benk(browser: Browser) {
   await page.keyboard.press("Shift+ArrowRight")
   await vent(page, (p) => p.tjukn !== 4.5)
   sjekk("skift+pil stegar ti", hash(page).tjukn === 5, String(hash(page).tjukn))
+  await blur(page)
   await page.keyboard.press("z")
   await page.keyboard.press("z")
   await vent(page, (p) => p.tjukn !== 4.5 && Math.abs(p.tjukn - 4.5) < 3)
 
+  await page.locator("[aria-label='storleik, skriv tal']").click()
+  await page.locator("input[aria-label='storleik, skriv']").fill(String(s0b))
+  await page.keyboard.press("Enter")
+  await vent(page, (p) => p.storleik === s0b)
+  await blur(page)
+  sjekk("storleiken er sett attende før millimeterprøva", hash(page).storleik === s0b, `${hash(page).storleik} mm`)
+  const foerL = plana(page).length
   await page.keyboard.press("l")
-  await vent(page, talPlan(n0 + 1))
-  const ida = plana(page)[n0].id
+  await vent(page, talPlan(foerL + 1))
+  sjekk("L skjer eitt plan til etter angrekjeda", plana(page).length === foerL + 1, `${foerL} → ${plana(page).length} plan`)
+  const ida = plana(page)[foerL].id
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").last().locator("button").first().click()
   await page.waitForTimeout(300)
   const rad = page.locator("[role=listbox][aria-label='plan'] [role=option][aria-selected='true']")
