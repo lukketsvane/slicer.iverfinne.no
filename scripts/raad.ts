@@ -7,7 +7,7 @@ import { meshToStl } from "../lib/export-stl"
 import { parseMesh } from "../lib/io"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
-import { lesPlan, rutenett, skrivPlan } from "../lib/plan"
+import { lesPlan, rutenett, skrivPlan, type Plan } from "../lib/plan"
 import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
@@ -161,6 +161,13 @@ prov("så vidt for stort", "plate", {
   const r = finn(p, "plate")
   const etter = r?.fiks ? String(r.fiks.set.fest) : "?"
   ok("og det tredje festet står", etter.includes("3:") && !etter.includes("2:"), etter)
+}
+
+{
+  const same = (id: number, ux: number): Plan => ({ id, o: [0.5, 0.5, 0.5], n: [0, 0, 1], bog: 0, strek: [], omriss: [[ux, 0.2], [ux + 0.3, 0.2], [ux + 0.3, -0.2], [ux, -0.2]] })
+  const sida = { ...DEFAULT_PARAMS, storleik: 450, tjukn: 12, plan: skrivPlan([same(1, -0.45), same(2, -0.1), same(3, 0.25)]) } as Params
+  const r = finn(sida, "opning")
+  ok("tre plater i SAME plan er ikkje for tett", !!r?.ok, r?.value ?? "fann ikkje regelen")
 }
 
 {

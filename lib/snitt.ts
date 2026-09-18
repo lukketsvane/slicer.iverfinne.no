@@ -461,6 +461,7 @@ export function lukene(flater: readonly Flate[], tjukn: number) {
     const dv = dot(d, A.r.v)
     if (bu0 + du > au1 || bu1 + du < au0 || bv0 + dv > av1 || bv1 + dv < av0) return Infinity
     const g0 = Math.abs(dot(A.r.n, A.r.o) - dot(A.r.n, B.r.o))
+    if (g0 < 0.5 && !A.r.k && !B.r.k) return Infinity
     if (!A.r.k && !B.r.k) return g0 - tjukn
     if (g0 - sagitta[i] - sagitta[j] - tjukn >= grense) return Infinity
     return midtAvstand(i, j) - tjukn
