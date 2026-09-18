@@ -4,7 +4,7 @@ import { fitRoom } from "./pack"
 import { makeBygg, nestGap, type Bygg } from "./bygg"
 import { makeKropp } from "./kropp"
 import { DETAIL, lukene, type Snitt } from "./snitt"
-import { dot, lesPlan, skrivPlan } from "./plan"
+import { bogRadius, dot, lesPlan, skrivPlan } from "./plan"
 import { bogMin as bogMinAv, rilleMal } from "./rille"
 import { PARAM_RANGES, SNITTVEGAR, lesFest, skrivFest, type Params } from "./params"
 
@@ -415,7 +415,7 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
 
   const bogMin = bogMinAv(String(p.material), p.tjukn)
   const boygde = lesPlan(p.plan).filter((q) => q.bog)
-  const strammast = boygde.reduce((m, q) => Math.min(m, p.storleik / Math.abs(q.bog)), Infinity)
+  const strammast = boygde.reduce((m, q) => Math.min(m, bogRadius(q.bog, p.storleik)), Infinity)
   const mal = rilleMal(strammast, p.tjukn, String(p.material))
   const kanRilla = mal.steg > 3 * p.snitt
   const stram = boygde.length > 0 && strammast < bogMin

@@ -32,6 +32,7 @@ export type Plan = {
 
 export const BOG_TAK = 4
 export const MJUK_TAK = 0.02
+export const bogRadius = (bog: number, storleik: number) => storleik / Math.abs(bog)
 
 export const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 export const cross = (a: Vec3, b: Vec3): Vec3 => [
