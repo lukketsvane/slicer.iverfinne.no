@@ -5,7 +5,7 @@ import { inRing, nn, shoelace, type Pt, type Vec3 } from "@/lib/core"
 import { omrissLine, omrissMidt, type Plan } from "@/lib/plan"
 import { teiknaKontur, tettMjukt } from "@/lib/teikning"
 import { konturStrek } from "@/lib/bilete"
-import { delIto, spileAkse, spiler, flyttPunkt, flyttStrek, leggPunkt, leggStrek, blyantPunkt, rundPunkt, strekRing, takPunkt, takStrek } from "@/lib/vektor"
+import { delIto, kneik, spileAkse, spiler, flyttPunkt, flyttStrek, leggPunkt, leggStrek, blyantPunkt, rundPunkt, strekRing, takPunkt, takStrek } from "@/lib/vektor"
 import { ORD } from "./deler"
 
 type Verkty = "punkt" | "blyant" | "hol" | "firkant" | "sirkel"
@@ -228,6 +228,7 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
         {!val && (
           <>
             <button type="button" className={ORD} title="del plata i to, kant i kant — dei får fingrar" onClick={() => { const d = delIto(q, nyId); if (d) { onDel(d); setSyn(null) } }}>del i to</button>
+            <button type="button" className={ORD} data-kneik="" title="knekk plata 90° om midtlina: ho vert eit L, og hjørnet får fingrar" onClick={() => { const d = boks && kneik(q, nyId, boks.min, boks.max, S, 90); if (d) { onDel(d); onLukk() } }}>kneik</button>
             <span className="text-[11px] opacity-50">spiler</span>
             {[3, 4, 5, 6].map((n) => (
               <button key={n} type="button" className={ORD + " w-8"} aria-label={`${n} spiler`} title={`${n} like breie spiler med ei tjukn luft imellom`} onClick={() => { const d = spiler(q, n, t / S, nyId, boks ? spileAkse(q, alle, boks.min, boks.max, S, t) : null); if (d) { onDel(d); setSyn(null) } }}>{n}</button>

@@ -2,10 +2,10 @@ import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
 import { lesPlan, OMRISS_TAK, skrivPlan, ut, omrissLine } from "../lib/plan"
 import { forenklaRing, haldt, landing, lukkTeikning, mellom, midtPaa, ogSysken, teiknaHalv, teiknaRund, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
-import { ramme, type Plan } from "../lib/plan"
+import { ramme, type Plan, type Ramme } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import { bileteForm, skalerForm } from "../lib/bilete"
-import { blyantPunkt, delIto, spileAkse, spiler, flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "../lib/vektor"
+import { blyantPunkt, delIto, kneik, spileAkse, spiler, flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "../lib/vektor"
 import type { Vec3 } from "../lib/core"
 
 assert.deepEqual(teikneNormal([0, -0.02, Math.sqrt(1 - 0.02 ** 2)]), [0, 0, 1], "toppsynet lagar eit eksakt vassrett sete")
@@ -404,4 +404,32 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   const mykje = blyantPunkt(tett, Array.from({ length: 200 }, (_, i) => { const t = i / 199; return [-0.4 + 0.8 * t, 0.02 * Math.sin(t * 40)] as Pt }), 1e-5, 0.08)
   assert(mykje.omriss!.length <= OMRISS_TAK, `og taket på punkt held: ${mykje.omriss!.length} av ${OMRISS_TAK}`)
   console.log(`blyant: kanten under streken vart ${dregen.omriss!.length} punkt, ${(dregen.runde ?? []).length} av dei runde, og tettaste draget stogga på ${mykje.omriss!.length}`)
+}
+
+{
+  const min: Vec3 = [-150, -150, 0]
+  const max: Vec3 = [150, 150, 300]
+  const S = 300
+  const flat: Plan = { id: 1, o: [0.5, 0.5, 0.5], n: [0, 0, 1], bog: 0, strek: [], omriss: [[-0.4, -0.2], [0.4, -0.2], [0.4, 0.2], [-0.4, 0.2]] }
+  const par = kneik(flat, 7, min, max, S, 90)
+  assert(par, "kneiken deler plata i to")
+  const [A, B] = par!
+  assert.deepEqual(A.id, 1, "fyrste halvdelen held namnet")
+  assert.equal(B.id, 7, "og den bretta tek det nye")
+  const vink = (Math.acos(Math.max(-1, Math.min(1, A.n[0] * B.n[0] + A.n[1] * B.n[1] + A.n[2] * B.n[2]))) * 180) / Math.PI
+  assert(Math.abs(vink - 90) < 1e-6, `og dei står 90° på kvarandre: ${vink.toFixed(4)}°`)
+  const rA = ramme(A, min, max)
+  const rB = ramme(B, min, max)
+  const iRommet = (p: Plan, r: Ramme) => p.omriss!.map((q) => ut(r, [q[0] * S, q[1] * S] as Pt))
+  const ha = iRommet(A, rA)
+  const hb = iRommet(B, rB)
+  let naer = Infinity
+  for (const a of ha) for (const b of hb) naer = Math.min(naer, Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]))
+  assert(naer < 1e-6, `og dei møtest kant i kant: ${naer.toFixed(6)} mm`)
+  const mal = (h: Vec3[], i: number) => Math.max(...h.map((p) => p[i])) - Math.min(...h.map((p) => p[i]))
+  assert(Math.abs(mal(ha, 2)) < 1e-6 && Math.abs(mal(hb, 0)) < 1e-6, "den eine ligg flatt og den andre står loddrett")
+  assert(Math.abs(mal(ha, 0) - 120) < 1e-6 && Math.abs(mal(hb, 2) - 120) < 1e-6, `og kvar halvdel er 120 mm: ${mal(ha, 0).toFixed(1)} og ${mal(hb, 2).toFixed(1)}`)
+  assert.equal(kneik({ ...flat, bog: 0.5 }, 7, min, max, S, 90), null, "ei bøygd plate kneikar ikkje")
+  assert.equal(kneik({ ...flat, omriss: undefined }, 7, min, max, S, 90), null, "og eit plan utan omriss heller ikkje")
+  console.log(`kneik: 240 × 120 flatt vart ${mal(ha, 0).toFixed(0)} liggjande og ${mal(hb, 2).toFixed(0)} ståande, 90,00° og kant i kant`)
 }

@@ -1,5 +1,5 @@
 import { shoelace, type Pt, type Vec3 } from "./core"
-import { OMRISS_TAK, STREK_TAK, omrissLine, omrissMidt, ramme, ut as utAv, type Plan, type Ramme, type Strek } from "./plan"
+import { OMRISS_TAK, STREK_TAK, add3, broek, inn, omrissLine, omrissMidt, ramme, sub3, ut as utAv, vriOm, type Plan, type Ramme, type Strek } from "./plan"
 import { forenklaBane, fraaKant, mjukePunkt, teiknaKontur } from "./teikning"
 
 const klem = (v: number) => Math.max(-2, Math.min(2, +v.toFixed(4)))
@@ -209,6 +209,45 @@ function klippRing(ring: readonly Pt[], a: 0 | 1, c: number, snu: boolean): Pt[]
     }
   }
   return ut
+}
+
+const deleLine = (tett: readonly Pt[]): { a: 0 | 1; c: number } => {
+  const xs = tett.map((p) => p[0])
+  const ys = tett.map((p) => p[1])
+  const a: 0 | 1 = Math.max(...xs) - Math.min(...xs) >= Math.max(...ys) - Math.min(...ys) ? 0 : 1
+  const v = a ? ys : xs
+  return { a, c: (Math.max(...v) + Math.min(...v)) / 2 }
+}
+
+export function kneik(q: Plan, nyId: number, min: Vec3, max: Vec3, S: number, grad = 90, tol = 5e-4): [Plan, Plan] | null {
+  if (!q.omriss || q.bog || !(S > 0)) return null
+  const tett = omrissLine(q.omriss, q.runde)
+  const { a, c } = deleLine(tett)
+  const halv = (snu: boolean) => teiknaKontur(klippRing(tett, a, c, snu), tol)
+  const A = halv(false)
+  const B = halv(true)
+  if (!A || !B) return null
+  const r = ramme(q, min, max)
+  const D = a === 0 ? r.v : r.u
+  const P0 = utAv(r, a === 0 ? [c * S, 0] : [0, c * S])
+  const ang = (grad * Math.PI) / 180
+  const n2 = vriOm(r.n, D, ang)
+  const q2: Plan = { ...q, id: nyId, o: broek(P0, min, max), n: n2 }
+  const r2 = ramme(q2, min, max)
+  const bretta = B.map((p): Pt => {
+    const P = add3(P0, vriOm(sub3(utAv(r, [p[0] * S, p[1] * S]), P0), D, ang))
+    const l = inn(r2, P)
+    return kp([l[0] / S, l[1] / S])
+  })
+  if (Math.abs(shoelace(bretta)) < 1e-9) return null
+  const med = (o: Pt[]): Pt[] => o.map(kp)
+  const rA = med(A)
+  const rundA = mjukePunkt(rA)
+  const rundB = mjukePunkt(bretta)
+  return [
+    { ...q, omriss: rA, runde: rundA.length ? rundA : undefined, strek: [] },
+    { ...q2, omriss: bretta, runde: rundB.length ? rundB : undefined, strek: [] },
+  ]
 }
 
 export function delIto(q: Plan, nyId: number, tol = 5e-4): [Plan, Plan] | null {
