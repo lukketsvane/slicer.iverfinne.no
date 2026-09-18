@@ -1050,6 +1050,12 @@ stays.
   the rectangle, and what it leaves is eight points on the ellipse, every one
   of them an arc point — so the curve runs through them and every one is
   still a handle you can drag. A round table top, a round seat, an oval plate.
+- **A bent plate is a cylinder all the way to its edges.** The flat faces were
+  subdivided along the curve but the side walls were not, so each edge ran as
+  a straight chord through the solid and cut up to 38 mm inside the cylinder
+  at full bend — the plate read as a sail with a crease. The walls now follow
+  the same subdivision, and every edge midpoint sits within 0.05 mm of the
+  cylinder.
 - **Plates in the same plane are not "too tight".** Slats in a split seat,
   four quarter-shelves around crossing sides — they lie in one plane, and the
   gap rule used to read the distance between their planes as zero and call it

@@ -225,7 +225,7 @@ function GroupsTab({ p }: { p: ArketProps }) {
   }
 
   return (
-    <div className="px-3 pb-1 pt-1">
+    <div className="px-3 pb-1 pt-1" role="listbox" aria-label="plan">
       {rader.length ? rader.map((rad) => {
         if (rad.kind === "gruppe") {
           const paa = p.valdGruppe === rad.id

@@ -154,6 +154,17 @@ export function ribSolid(s: Soup, r: Pick<Ribbe, "r" | "outlines" | "holes">, t:
   const boygd = !!r.r.k
   const nBack: Vec3 = [-r.r.n[0], -r.r.n[1], -r.r.n[2]]
   const lim = boygd ? Math.sqrt(8 * Math.abs(1 / r.r.k) * 0.05) : Infinity
+  const kant = (a: Pt, b: Pt, lo: number, hi: number) => {
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1])
+    const n = boygd && L > lim ? Math.min(64, Math.ceil(L / lim)) : 1
+    const p = (j: number): Pt => [a[0] + ((b[0] - a[0]) * j) / n, a[1] + ((b[1] - a[1]) * j) / n]
+    for (let i = 0; i < n; i++) {
+      const q0 = p(i)
+      const q1 = p(i + 1)
+      tri(s, put(q0, lo), put(q1, lo), put(q1, hi))
+      tri(s, put(q0, lo), put(q1, hi), put(q0, hi))
+    }
+  }
   const flate = (a: Pt, b: Pt, c: Pt, off: number, n: Vec3 | undefined, djup: number) => {
     const lang =
       djup < 5 &&
@@ -188,8 +199,7 @@ export function ribSolid(s: Soup, r: Pick<Ribbe, "r" | "outlines" | "holes">, t:
         for (let i = 0; i < ring.length; i++) {
           const a = utover ? ring[i] : ring[(i + 1) % ring.length]
           const b = utover ? ring[(i + 1) % ring.length] : ring[i]
-          tri(s, put(a, lag), put(b, lag), put(b, hogg))
-          tri(s, put(a, lag), put(b, hogg), put(a, hogg))
+          kant(a, b, lag, hogg)
         }
       }
       for (const f of lommer) {
@@ -206,12 +216,7 @@ export function ribSolid(s: Soup, r: Pick<Ribbe, "r" | "outlines" | "holes">, t:
     }
     s.k = 1
     for (const ring of [o, ...mine]) {
-      for (let i = 0; i < ring.length; i++) {
-        const a = ring[i]
-        const b = ring[(i + 1) % ring.length]
-        tri(s, put(a, -h), put(b, -h), put(b, h))
-        tri(s, put(a, -h), put(b, h), put(a, h))
-      }
+      for (let i = 0; i < ring.length; i++) kant(ring[i], ring[(i + 1) % ring.length], -h, h)
     }
   }
 }
