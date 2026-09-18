@@ -560,6 +560,10 @@ async function telefon(browser: Browser) {
       sjekk("storleikshandtaket endrar BREIDDA og ikkje staden", Math.abs((na?.w ?? 0) - (strek0?.w ?? 0)) > 0.01, `w ${strek0?.w} → ${na?.w} · x ${strek0?.x} → ${na?.x}`)
       await page.waitForTimeout(1400)
     }
+    await page.mouse.move(195, 430)
+    await page.waitForTimeout(320)
+    const vaken = await page.evaluate(`document.querySelector("main")?.hasAttribute("data-sov") ? "søv" : "vaken"`)
+    sjekk("chromet vaknar av ei rørsle før neste handtak", vaken === "vaken", String(vaken))
     const strek1 = plana(page)[0].strek[0]
     const mb = await page.locator("[data-handtak='strek-flytt']").boundingBox()
     const vb = await page.locator("[data-handtak='strek-vri']").boundingBox()
