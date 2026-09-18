@@ -146,6 +146,12 @@ export const IcoBoy = (
     <path d="M3 17c4.5-7 13.5-7 18 0" strokeWidth={2.4} />
   </svg>
 )
+export const IcoForenkl = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3,18 6,9 9,13 12,6 15,12 18,8 21,15" strokeWidth={1.2} opacity={0.45} />
+    <polyline points="3,18 12,6 21,15" strokeWidth={2.4} />
+  </svg>
+)
 export const IcoBit = ikon("M12 3 3 7.5v9L12 21l9-4.5v-9L12 3z|M3 7.5 12 12l9-4.5|M12 12v9", "h-5 w-5")
 export const IcoDupliser = ikon("M9 9h10v10H9z|M5 15V5h10", "h-5 w-5")
 export const IcoKopier = ikon("M9 9h10v10H9z|M5 15V5h10", "h-4 w-4")

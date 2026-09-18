@@ -1,6 +1,6 @@
 import { shoelace, type Pt, type Vec3 } from "./core"
 import { OMRISS_TAK, STREK_TAK, omrissLine, omrissMidt, ramme, ut as utAv, type Plan, type Ramme, type Strek } from "./plan"
-import { mjukePunkt, teiknaKontur } from "./teikning"
+import { forenklaBane, fraaKant, mjukePunkt, teiknaKontur } from "./teikning"
 
 const klem = (v: number) => Math.max(-2, Math.min(2, +v.toFixed(4)))
 const kp = (p: Pt): Pt => [klem(p[0]), klem(p[1])]
@@ -19,6 +19,69 @@ export function makker(o: readonly Pt[], i: number, tol = 2e-3): number | null {
     if (k !== i && d <= bd) { bd = d; best = k }
   })
   return best
+}
+
+const naerast = (o: readonly Pt[], p: Pt, tol: number): number | null => {
+  let best: number | null = null
+  let bd = tol
+  o.forEach(([x, y], i) => {
+    const d = Math.hypot(x - p[0], y - p[1])
+    if (d <= bd) { bd = d; best = i }
+  })
+  return best
+}
+
+const tilBane = (p: Pt, b: readonly Pt[]): number => {
+  let m = Infinity
+  for (let i = 0; i + 1 < b.length; i++) m = Math.min(m, fraaKant(p, b[i], b[i + 1]))
+  return m
+}
+
+const midtpunkt = (pkt: readonly Pt[]): Pt => {
+  const bit = pkt.slice(1).map((p, i) => Math.hypot(p[0] - pkt[i][0], p[1] - pkt[i][1]))
+  const halv = bit.reduce((s, v) => s + v, 0) / 2
+  let gaatt = 0
+  for (let i = 0; i < bit.length; i++) {
+    if (gaatt + bit[i] >= halv) {
+      const t = bit[i] ? (halv - gaatt) / bit[i] : 0
+      return [pkt[i][0] + (pkt[i + 1][0] - pkt[i][0]) * t, pkt[i][1] + (pkt[i + 1][1] - pkt[i][1]) * t]
+    }
+    gaatt += bit[i]
+  }
+  return pkt[pkt.length - 1]
+}
+
+export function blyantPunkt(q: Plan, bane: readonly Pt[], tol: number, feste: number): Plan {
+  const o = q.omriss
+  if (!o || o.length < 3) return q
+  const n = o.length
+  const fyrst = forenklaBane(bane, tol)
+  if (fyrst.length < 2) return q
+  const a = naerast(o, fyrst[0], feste)
+  const b = naerast(o, fyrst[fyrst.length - 1], feste)
+  if (a === null || b === null || a === b) return q
+  const loype = (fraa: number, til: number) => {
+    const ut: number[] = []
+    for (let i = (fraa + 1) % n; i !== til; i = (i + 1) % n) ut.push(i)
+    return ut
+  }
+  const fram = loype(a, b)
+  const att = loype(b, a)
+  const skore = (fraa: number, idx: readonly number[], til: number) => tilBane(midtpunkt([o[fraa], ...idx.map((i) => o[i]), o[til]]), fyrst)
+  const byt = skore(b, att, a) < skore(a, fram, b)
+  const halde = byt ? fram : att
+  const [fyrste, siste] = byt ? [a, b] : [b, a]
+  const glatt = forenklaBane(byt ? [...bane].reverse() : bane, tol, Math.max(2, OMRISS_TAK - halde.length))
+  const gamle = [fyrste, ...halde, siste]
+  const ut = [...gamle.map((i) => o[i]), ...glatt.slice(1, -1)]
+  const omriss = ut.map(kp)
+  if (omriss.length < 3 || Math.abs(shoelace(omriss)) < 1e-9) return q
+  const fyrr = new Set(q.runde ?? [])
+  const rund = new Set(gamle.flatMap((i, k) => (fyrr.has(i) ? [k] : [])))
+  const mjuk = new Set(mjukePunkt(omriss))
+  for (let k = gamle.length; k < omriss.length; k++) if (mjuk.has(k)) rund.add(k)
+  const runde = [...rund].sort((x, y) => x - y)
+  return { ...q, omriss, ...(runde.length ? { runde } : { runde: undefined }) }
 }
 
 export function flyttPunkt(q: Plan, i: number, p: Pt, spegl = false): Plan {

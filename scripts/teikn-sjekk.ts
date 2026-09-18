@@ -1,11 +1,11 @@
 import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
 import { lesPlan, OMRISS_TAK, skrivPlan, ut, omrissLine } from "../lib/plan"
-import { haldt, landing, lukkTeikning, mellom, midtPaa, ogSysken, teiknaHalv, teiknaRund, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
+import { forenklaRing, haldt, landing, lukkTeikning, mellom, midtPaa, ogSysken, teiknaHalv, teiknaRund, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import { bileteForm, skalerForm } from "../lib/bilete"
-import { delIto, spileAkse, spiler, flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "../lib/vektor"
+import { blyantPunkt, delIto, spileAkse, spiler, flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "../lib/vektor"
 import type { Vec3 } from "../lib/core"
 
 assert.deepEqual(teikneNormal([0, -0.02, Math.sqrt(1 - 0.02 ** 2)]), [0, 0, 1], "toppsynet lagar eit eksakt vassrett sete")
@@ -362,4 +362,37 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert(langs.every((p) => Math.abs(Math.max(...p.omriss!.map((q) => q[1])) * S - 156) < 0.05 && Math.abs(Math.min(...p.omriss!.map((q) => q[1])) * S + 156) < 0.05), "kvar spile når frå side til side")
   assert(langs.every((p) => Math.abs(breidd(p) * S - (260 - 4 * t) / 5) < 0.1), `fem spiler på 42,4 langs x: ${langs.map((p) => (breidd(p) * S).toFixed(1))}`)
   console.log("spiler: fem like breie med tolv millimeter luft, namna i rekkje, og frå side til side når setet står mellom")
+}
+
+{
+  const ring = (n: number, r = 0.4): Pt[] => Array.from({ length: n }, (_, i) => [+(r * Math.cos((2 * Math.PI * i) / n)).toFixed(6), +(r * Math.sin((2 * Math.PI * i) / n)).toFixed(6)] as Pt)
+  const flate = (o: readonly Pt[]) => Math.abs(shoelace(o.slice()))
+  const o24 = ring(24)
+
+  const til8 = forenklaRing(o24, [3, 9], 8)
+  assert(til8?.omriss.length === 8, `forenklinga gjev nett so mange punkt du ber om: ${til8?.omriss.length} av 8`)
+  assert(Math.abs(flate(til8!.omriss) - flate(o24)) / flate(o24) < 0.1, `og ho held forma: ${flate(til8!.omriss).toFixed(4)} mot ${flate(o24).toFixed(4)}`)
+  assert(til8!.omriss.every((p) => o24.some((q) => q[0] === p[0] && q[1] === p[1])), "og kvart punkt ho held stod der frå før")
+  assert((til8!.runde ?? []).every((k) => [3, 9].some((i) => o24[i][0] === til8!.omriss[k][0] && o24[i][1] === til8!.omriss[k][1])), `dei runde punkta fylgjer med, med nye nummer: ${JSON.stringify(til8!.runde)}`)
+  assert.equal(forenklaRing(o24, undefined, 40), null, "fleire punkt enn omrisset har er ingen ting å gjere")
+  assert.equal(forenklaRing(o24, undefined, 1)?.omriss.length, 3, "og under tre kjem ho aldri")
+  assert.equal(forenklaRing(til8!.omriss, til8!.runde, 8), null, "å be om det same ein gong til gjer ingen ting")
+  console.log(`forenkling: 24 punkt til 8, flata ${flate(til8!.omriss).toFixed(4)} mot ${flate(o24).toFixed(4)}, runde ${JSON.stringify(til8!.runde)}`)
+
+  const kvadrat: Pt[] = [[-0.4, -0.4], [0.4, -0.4], [0.4, 0.4], [-0.4, 0.4]]
+  const plate: Plan = { id: 1, o: [0.5, 0.5, 0.5], n: [0, 0, 1], bog: 0, omriss: kvadrat, strek: [] }
+  const sag = (fraa: number, til: number): Pt[] => Array.from({ length: 30 }, (_, i) => { const t = i / 29; return [fraa + (til - fraa) * t, -0.4 - 0.25 * Math.sin(Math.PI * t)] as Pt })
+
+  const dregen = blyantPunkt(plate, sag(-0.4, 0.4), 0.004, 0.05)
+  assert(dregen.omriss!.length > 4 && flate(dregen.omriss!) > flate(kvadrat), `blyanten byter ut kanten du dreg langs: ${dregen.omriss!.length} pkt, ${flate(dregen.omriss!).toFixed(4)} mot ${flate(kvadrat).toFixed(4)}`)
+  assert([1, 2, 3].every((i) => dregen.omriss!.some((p) => p[0] === kvadrat[i][0] && p[1] === kvadrat[i][1])), "og dei tre andre hjørna står urørde")
+  assert((dregen.runde ?? []).length === dregen.omriss!.length - 4 && !(dregen.runde ?? []).some((k) => k < 4), `dei nye punkta er runde, dei gamle hjørna skarpe: ${JSON.stringify(dregen.runde)}`)
+  const andre = blyantPunkt(plate, sag(0.4, -0.4), 0.004, 0.05)
+  assert(andre.omriss!.length === dregen.omriss!.length && Math.abs(flate(andre.omriss!) - flate(dregen.omriss!)) < 1e-6, `kva veg du dreg avgjer ingen ting: ${andre.omriss!.length} pkt, ${flate(andre.omriss!).toFixed(5)}`)
+  assert.equal(blyantPunkt(plate, [[2, 2], [2.2, 2.3]], 0.004, 0.05), plate, "ein strek som ikkje tek i omrisset rører det ikkje")
+  assert.equal(blyantPunkt(plate, sag(-0.4, -0.4), 0.004, 0.05), plate, "og ein strek som byrjar og endar i same punktet heller ikkje")
+  const tett: Plan = { ...plate, omriss: ring(40) }
+  const mykje = blyantPunkt(tett, Array.from({ length: 200 }, (_, i) => { const t = i / 199; return [-0.4 + 0.8 * t, 0.02 * Math.sin(t * 40)] as Pt }), 1e-5, 0.08)
+  assert(mykje.omriss!.length <= OMRISS_TAK, `og taket på punkt held: ${mykje.omriss!.length} av ${OMRISS_TAK}`)
+  console.log(`blyant: kanten under streken vart ${dregen.omriss!.length} punkt, ${(dregen.runde ?? []).length} av dei runde, og tettaste draget stogga på ${mykje.omriss!.length}`)
 }

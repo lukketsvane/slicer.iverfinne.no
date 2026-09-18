@@ -809,7 +809,7 @@ async function telefon(browser: Browser) {
   await roleg(page, 900)
   const sida = await kamera()
   const smaa = sida.map((c) => Math.abs(c)).sort((a, b) => a - b)
-  sjekk("men synskuben snur han til den sida du trykte", smaa[0] < 0.01 && smaa[1] < 0.01 && smaa[2] > 1, sida.map((c) => c.toFixed(2)).join(", "))
+  sjekk("men synskuben snur han til den sida du trykte", smaa[2] > 1 && smaa[1] < 0.01 * smaa[2], sida.map((c) => c.toFixed(2)).join(", "))
   await page.locator("[data-heim]").click()
   await roleg(page, 700)
   const rammaLaast = await kamera()
@@ -2658,6 +2658,72 @@ async function forma(browser: Browser) {
     "og eit einslegt trykk slepper henne",
     !lesPlan(hash(page).plan).find((q) => q.id === 3)?.omriss && (await page.locator("[data-punkt]").count()) === 0 && (await form.getAttribute("aria-pressed")) === "false",
   )
+
+  await page.waitForTimeout(DOBBELT + 80)
+  await form.click()
+  await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) >= 3)
+
+  const forenkl = page.locator(".tumme [data-forenkl]")
+  sjekk("eit plan med omriss har forenklinga i spalta", (await forenkl.count()) === 1)
+  const fb = await forenkl.boundingBox()
+  sjekk("og ho er ein reiskap som dei andre: minst 44 px, på skjermen", !!fb && Math.min(fb.width, fb.height) >= 44 && fb.y + fb.height <= 844, fb ? `${Math.round(fb.width)}×${Math.round(fb.height)} px, botnen ${Math.round(fb.y + fb.height)}` : "finst ikkje")
+  const spalta = await page.evaluate(`(() =>  {
+    var alle = Array.from(document.querySelectorAll(".tumme > *"))
+    var ute = [], smaa = []
+    for (var i = 0; i < alle.length; i++) {
+      var r = alle[i].getBoundingClientRect()
+      var namn = alle[i].getAttribute("aria-label") || alle[i].tagName
+      if (r.top < 0 || r.bottom > innerHeight + 0.5 || r.left < 0 || r.right > innerWidth + 0.5) ute.push(namn)
+      if (Math.min(r.width, r.height) < 44) smaa.push(namn + " " + Math.round(Math.min(r.width, r.height)))
+    }
+    return { ute: ute, smaa: smaa, n: alle.length, topp: Math.round(alle.length ? alle[0].getBoundingClientRect().top : 0) }
+  })()`) as { ute: string[]; smaa: string[]; n: number; topp: number }
+  sjekk("og heile spalta står framleis på skjermen med henne i", spalta.ute.length === 0 && spalta.n >= 11, `${spalta.n} knappar frå ${spalta.topp} px${spalta.ute.length ? " · " + spalta.ute.slice(0, 3).join(" · ") : ""}`)
+  sjekk("og ingen av dei er klemt under 44 px", spalta.smaa.length === 0, spalta.smaa.slice(0, 3).join(" · "))
+  if (fb) {
+    const foer = om(3)
+    const cx = fb.x + fb.width / 2
+    const cy = fb.y + fb.height / 2
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    await page.mouse.move(cx, cy - 90, { steps: 12 })
+    await page.mouse.up()
+    await vent(page, (p) => (lesPlan(p.plan).find((q) => q.id === 3)?.omriss?.length ?? 0) < foer.length)
+    const etter = om(3)
+    sjekk("eit drag opp tek punkt bort", etter.length < foer.length && etter.length >= 3, `${foer.length} → ${etter.length} punkt`)
+    sjekk("og dei som står att stod der frå før", etter.every((q) => foer.some((p) => p[0] === q[0] && p[1] === q[1])))
+    sjekk("og kvart av dei er framleis eit handtak", (await page.locator("[data-punkt]").count()) === etter.length, `${await page.locator("[data-punkt]").count()} handtak av ${etter.length}`)
+  }
+
+  await page.locator("[data-flatt]").click()
+  await page.waitForTimeout(700)
+  const flata = page.locator("section[aria-label='2d-flata']")
+  const blyant = flata.getByRole("button", { name: "blyant", exact: true })
+  sjekk("2d-flata har ein blyant", (await flata.count()) === 1 && (await blyant.count()) === 1)
+  const vpunkt = async (i: number) => {
+    const b = await page.locator(`[data-vpunkt='${i}']`).first().boundingBox()
+    return b ? ([b.x + b.width / 2, b.y + b.height / 2] as const) : null
+  }
+  const v0 = await vpunkt(0)
+  const v2 = await vpunkt(2)
+  if (v0 && v2) {
+    const foer = om(3)
+    await blyant.click()
+    await page.waitForTimeout(200)
+    await page.mouse.move(v0[0], v0[1])
+    await page.mouse.down()
+    await page.mouse.move((v0[0] + v2[0]) / 2 + 40, (v0[1] + v2[1]) / 2 + 40, { steps: 10 })
+    await page.mouse.move(v2[0], v2[1], { steps: 10 })
+    await page.mouse.up()
+    await vent(page, (p) => JSON.stringify(lesPlan(p.plan).find((q) => q.id === 3)?.omriss) !== JSON.stringify(foer))
+    const etter = om(3)
+    sjekk("blyanten teiknar om biten han går langs", etter.length !== foer.length || JSON.stringify(etter) !== JSON.stringify(foer), `${foer.length} → ${etter.length} punkt`)
+    sjekk("og dei to punkta han byrja og slutta i står", [foer[0], foer[2]].every((p) => etter.some((q) => q[0] === p[0] && q[1] === p[1])), `${JSON.stringify(foer[0])} og ${JSON.stringify(foer[2])}`)
+    sjekk("og minst eitt punkt utanfor biten står med dei", etter.some((q) => [foer[1], foer[3]].some((p) => p && p[0] === q[0] && p[1] === q[1])))
+    sjekk("og taket på punkt held", etter.length <= OMRISS_TAK, `${etter.length} av ${OMRISS_TAK}`)
+  }
+  await flata.getByRole("button", { name: "ferdig", exact: true }).click()
+  await page.waitForTimeout(400)
 
   sjekk("ingen konsollfeil på forma", konsoll.length === 0, konsoll.slice(0, 2).join(" · "))
   await page.close()

@@ -826,6 +826,18 @@ eighteen handles that do not sit on top of one another. Past that you are
 tracing, not shaping. Links written before this still carry the old `f:1`
 mark and still get the live box.
 
+**`forenkl` in the thumb column is that count as a drag.** A traced outline
+comes back at the ceiling and most of those points are the hand, not the
+shape. Hold the icon and pull up: the outline drops a point every twelve
+pixels, and the number stands in the reading at the top left while the thumb
+is down. It is the same distance-to-the-chord measure the contour was drawn
+with, run to a count instead of to a tolerance, so every point it keeps is a
+point that was already there and the corners go last. Pulling back down
+returns detail, but only as far as the outline stood when the drag began: the
+stroke it was simplified from is kept nowhere, so further back is undo's job,
+and the whole drag is one step of it. The handle only stands there for a plane
+that carries an outline, because there is nothing to simplify otherwise.
+
 **`mjuk` rounds the edge**, in the sheet under the plane list: a mesh is
 triangles and the triangles show up in the profile, so the field is blurred
 before the contour is drawn — a straight side is untouched, corners round
@@ -979,7 +991,18 @@ arc, **slett punkt** takes it away (three is the floor). With **spegl** on —
 it starts on for an outline that is already symmetric — every edit happens to
 the point's mirror partner across the centre line too. **hòl** draws a
 contour inside the outline, **firkant** and **sirkel** drag a box; a hole is
-dragged to move it and **slett hòl** removes it. Two fingers pan and zoom,
+dragged to move it and **slett hòl** removes it. **blyant** draws over the
+outline: start the stroke on one of its points, end on another, and the piece
+of outline you drew along is replaced by what you drew. Which of the two
+pieces between those points goes is decided by the geometry and not by the
+direction — the one whose middle lies nearer the stroke — so the same curve
+drawn backwards gives the same plate. The stroke is thinned with the
+contour's own measure, the two points you began and ended on stay exactly
+where they were, and the new points between them come back as arcs where the
+stroke curves and corners where it does not. It is the one tool here that
+reshapes instead of adding, and it is what the flat surface is worth opening
+for after a freehand contour: the contour tool gives the whole ring in one
+stroke, this gives one edge of it. Two fingers pan and zoom,
 and the view holds still while a finger is down. A drag is one change: the
 draft lives on the flat surface and goes to the parameters when the finger
 lifts.
