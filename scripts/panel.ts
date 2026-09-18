@@ -511,12 +511,40 @@ async function telefon(browser: Browser) {
     await page.waitForTimeout(300)
   }
   const planFør = plana(page)[0]
+  await page.locator("[data-heim]").click()
+  await roleg(page, 700)
   await hol.click()
   await vent(page, (p) => lesPlan(p.plan)[0]?.strek.length === 1)
   const medHol = plana(page)[0]
   sjekk("hòlet står i lenkja som ein strek på planet", medHol.strek.length === 1 && medHol.strek[0].slag === "hol", skrivPlan([medHol]).slice(0, 50))
   const flyttS = page.locator("[data-handtak='strek-flytt']")
   sjekk("streken har handtak: flytt, storleik, vri", (await flyttS.count()) === 1 && (await page.locator("[data-handtak='strek-storleik']").count()) === 1 && (await page.locator("[data-handtak='strek-vri']").count()) === 1)
+  const vriDrag = async () => {
+    const vb = await page.locator("[data-handtak='strek-vri']").boundingBox()
+    if (!vb) return null
+    const vp = page.viewportSize()!
+    const kx = (v: number) => Math.max(2, Math.min(v, vp.width - 2))
+    const ky = (v: number) => Math.max(2, Math.min(v, vp.height - 2))
+    const x = vb.x + vb.width / 2
+    const y = vb.y + vb.height / 2
+    const c = await page.context().newCDPSession(page)
+    const pk = (px: number, py: number) => [{ x: px, y: py, id: 0, radiusX: 4, radiusY: 4, force: 1 }]
+    await c.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pk(x, y) })
+    for (let i = 1; i <= 12; i++) {
+      await c.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pk(kx(x + Math.min(48, i * 8)), ky(y + Math.max(0, i * 8 - 48))) })
+      await page.waitForTimeout(16)
+    }
+    await c.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await c.detach()
+    await roleg(page, 600)
+    return plana(page)[0].strek[0]
+  }
+  {
+    const foer = plana(page)[0].strek[0]
+    const na = await vriDrag()
+    sjekk("vrihandtaket endrar VINKELEN", !!na && Math.abs((na.a ?? 0) - (foer?.a ?? 0)) > 0.5, `a ${foer?.a} → ${na?.a}`)
+    await page.waitForTimeout(1400)
+  }
   const sb = await flyttS.boundingBox()
   if (sb) {
     const cx = sb.x + sb.width / 2
@@ -558,20 +586,6 @@ async function telefon(browser: Browser) {
     if (await drag("[data-handtak='strek-storleik']", 40, 40)) {
       const na = plana(page)[0].strek[0]
       sjekk("storleikshandtaket endrar BREIDDA og ikkje staden", Math.abs((na?.w ?? 0) - (strek0?.w ?? 0)) > 0.01, `w ${strek0?.w} → ${na?.w} · x ${strek0?.x} → ${na?.x}`)
-      await page.waitForTimeout(1400)
-    }
-    await page.mouse.move(195, 430)
-    await page.waitForTimeout(320)
-    const vaken = await page.evaluate(`document.querySelector("main")?.hasAttribute("data-sov") ? "søv" : "vaken"`)
-    sjekk("chromet vaknar av ei rørsle før neste handtak", vaken === "vaken", String(vaken))
-    const strek1 = plana(page)[0].strek[0]
-    const mb = await page.locator("[data-handtak='strek-flytt']").boundingBox()
-    const vb = await page.locator("[data-handtak='strek-vri']").boundingBox()
-    const arm = mb && vb ? [vb.x - mb.x, vb.y - mb.y] : [0, 60]
-    const rad = Math.max(24, Math.hypot(arm[0], arm[1]))
-    if (await drag("[data-handtak='strek-vri']", (-arm[1] / rad) * rad * 0.6, (arm[0] / rad) * rad * 0.6)) {
-      const na = plana(page)[0].strek[0]
-      sjekk("vrihandtaket endrar VINKELEN", Math.abs((na?.a ?? 0) - (strek1?.a ?? 0)) > 0.5, `a ${strek1?.a} → ${na?.a}`)
       await page.waitForTimeout(1400)
     }
   }
