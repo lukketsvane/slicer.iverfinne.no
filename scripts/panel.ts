@@ -2045,7 +2045,7 @@ async function handtaka(browser: Browser) {
   sjekk("den valde delen har eitt handtak per ledd", n > 0, `${n} handtak`)
   if (n > 0) {
     const spor = handtak.first()
-    const bane = await spor.locator("line").boundingBox()
+    const bane = await spor.locator("polyline").boundingBox()
     const prikk = await spor.locator("circle").last().boundingBox()
     if (bane && prikk) {
       const cx = prikk.x + prikk.width / 2
