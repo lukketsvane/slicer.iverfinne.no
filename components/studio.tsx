@@ -1989,10 +1989,10 @@ export function Studio() {
                 </button>
               )}
               {rom && harOmriss && (
-                <button type="button" aria-label="2d-flata" title="planet flatt: dra punkt, legg til, rund, teikn hòl" onClick={() => setFlatt(true)} className={ORD} data-flatt="">2d</button>
+                <button type="button" aria-label="2d-flata" title="planet flatt: dra punkt, legg til, rund, teikn hòl" onClick={() => setFlatt(true)} className={ORD + " h-12 min-w-12"} data-flatt="">2d</button>
               )}
               {rom && (
-                <button type="button" aria-pressed={bunde} aria-label="bunde av nettet" title={bunde ? "profilen er bunden av nettet. trykk for å sleppe han" : "profilen er fri av nettet. trykk for å binde omrisset til kroppen"} onClick={vekslNett} disabled={!harOmriss && !snitt} className={ORD} data-nett="">
+                <button type="button" aria-pressed={bunde} aria-label="bunde av nettet" title={bunde ? "profilen er bunden av nettet. trykk for å sleppe han" : "profilen er fri av nettet. trykk for å binde omrisset til kroppen"} onClick={vekslNett} disabled={!harOmriss && !snitt} className={ORD + " h-12 min-w-12"} data-nett="">
                   nett
                 </button>
               )}
@@ -2003,7 +2003,7 @@ export function Studio() {
                   aria-label="fordel"
                   title={fordel ? "fordelt: den eine enden står, leiaren tek alt, rada tek sin del. trykk for saman" : "saman: heile gruppa fylgjer leiaren. trykk for fordelt — vifte og mellomrom"}
                   onClick={() => setFordel((f) => !f)}
-                  className={ORD}
+                  className={ORD + " h-12 min-w-12"}
                   data-fordel=""
                 >
                   fordel
@@ -2107,7 +2107,7 @@ export function Studio() {
             aria-label="bla"
             title={`bla til den neste utgåva av ${bla} (B): same plassen, same storleiken, ei anna form`}
             onClick={() => leggBit(bla)}
-            className={ORD}
+            className={ORD + " h-12 min-w-12"}
             data-bla=""
           >
             bla

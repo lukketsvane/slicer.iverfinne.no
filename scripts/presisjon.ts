@@ -4,7 +4,8 @@ import type { Pt, Vec3 } from "../lib/core"
 import { apply } from "../lib/pack"
 import { sheetSvg } from "../lib/export-svg"
 import { DEFAULT_PARAMS } from "../lib/params"
-import { rutenett, skrivPlan } from "../lib/plan"
+import { ramme, rutenett, skrivPlan } from "../lib/plan"
+import { newSoup, ribSolid } from "../lib/mesh"
 import { buildSnitt, DETAIL, sporPunkt, stykkeLangs } from "../lib/snitt"
 
 function breidd(ringar: Pt[][], punkt: Pt, retning: Pt): number {
@@ -63,5 +64,41 @@ for (const kerf of [0, 0.2, 0.5]) {
   if (!ok) brot++
   console.log(`${ok ? "ok" : "FEIL"} nesta SVG, kerf ${kerf} mm: ${maalte} slissar, avvik ${verst.toFixed(6)} mm`)
 }
+{
+  const min: Vec3 = [-225, -225, 0]
+  const max: Vec3 = [225, 225, 450]
+  const S = 450
+  const t = 12
+  for (const bog of [0.3, 0.7, 0.999]) {
+    const r = ramme({ o: [0.5, 0.5, 0.5], n: [0, -1, 0], bog }, min, max)
+    const o: Pt[] = ([[-0.42, 0.42], [0.42, 0.42], [0.42, -0.42], [-0.42, -0.42]] as Pt[]).map(([x, y]): Pt => [x * S, y * S])
+    const s2 = newSoup()
+    ribSolid(s2, { r, outlines: [o], holes: [] }, t)
+    const R = Math.abs(1 / r.k)
+    const sentrum: Vec3 = [r.o[0] + r.n[0] * (1 / r.k), r.o[1] + r.n[1] * (1 / r.k), r.o[2] + r.n[2] * (1 / r.k)]
+    const radius = (q: Vec3) => {
+      const d: Vec3 = [q[0] - sentrum[0], q[1] - sentrum[1], q[2] - sentrum[2]]
+      const langs = d[0] * r.v[0] + d[1] * r.v[1] + d[2] * r.v[2]
+      return Math.hypot(d[0] - langs * r.v[0], d[1] - langs * r.v[1], d[2] - langs * r.v[2])
+    }
+    const pkt = (i: number): Vec3 => [s2.pos[3 * i], s2.pos[3 * i + 1], s2.pos[3 * i + 2]]
+    let verst = 0
+    for (let i = 0; i + 2 < s2.pos.length / 3; i += 3) {
+      const a = pkt(i)
+      const b = pkt(i + 1)
+      const c = pkt(i + 2)
+      for (const [x, y] of [[a, b], [b, c], [c, a]] as [Vec3, Vec3][]) {
+        if (Math.abs(radius(x) - radius(y)) > 0.01) continue
+        const m: Vec3 = [(x[0] + y[0]) / 2, (x[1] + y[1]) / 2, (x[2] + y[2]) / 2]
+        const rm = radius(m)
+        verst = Math.max(verst, Math.min(Math.abs(rm - (R - t / 2)), Math.abs(rm - (R + t / 2))))
+      }
+    }
+    const ok = verst < 0.2
+    if (!ok) brot++
+    console.log(`${ok ? "ok" : "FEIL"} bøygd mesh, bog ${bog}: R ${R.toFixed(0)} mm, verste kant ${verst.toFixed(3)} mm frå sylinderen`)
+  }
+}
+
 console.log(`${samla.toFixed(0)} ms geometri for tolv konstruksjonar; ${brot} feil`)
 process.exit(brot ? 1 : 0)
