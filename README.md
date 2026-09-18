@@ -1061,7 +1061,9 @@ stays.
   points and mirrored into a closed, exactly symmetric outline. An X-shaped
   leg, an hourglass waist, a wave — half the finger travel, and symmetry you
   cannot draw by hand. Cross the centre line and the waist pinches to
-  nothing, which is what a pinched waist means.
+  nothing, which is what a pinched waist means. The whole mirrored ring is
+  drawn while your finger moves, so you watch the shape close as you trace
+  it, and the measurement reads the full width, not the half you drew.
 - **The shape follows the group too.** Reshape one wall of a ×4 box and all
   four take the same outline; release the shape and all four release it.
   Form, 2d and nett used to vanish while a group was selected, so the only
