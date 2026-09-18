@@ -1352,7 +1352,7 @@ function Teikninga({ f, S, fri, slag, svg, arb, plan, onLukk }: {
   f: Ramma
   S: number
   fri: ReturnType<typeof fritt>
-  slag: "firkant" | "kontur" | "rund"
+  slag: "firkant" | "kontur" | "rund" | "halv"
   svg: SVGSVGElement | null
   arb: MutableRefObject<string | null>
   plan: readonly Plan[]
@@ -2318,7 +2318,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   onValdStrek: (i: number | null) => void
   snappSteg: number
   teikn: boolean
-  teiknSlag: "firkant" | "kontur" | "rund"
+  teiknSlag: "firkant" | "kontur" | "rund" | "halv"
   onTeiknLukk: (o: Vec3, n: Vec3, omriss: Pt[], rund: boolean) => void
   onPunkt: (id: number, i: number, q: Pt) => void
   onSlaaSaman: (id: number, i: number, mot: number) => void

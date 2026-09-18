@@ -799,14 +799,14 @@ export function Studio() {
     setBlink(id)
   }, [speil])
   const [teikn, setTeikn] = useState(false)
-  const [teiknSlag, setTeiknSlag] = useState<"firkant" | "kontur" | "rund">("firkant")
+  const [teiknSlag, setTeiknSlag] = useState<"firkant" | "kontur" | "rund" | "halv">("firkant")
   const vekslTeikn = useCallback(() => {
     if (!teikn) {
       setValdBit(null)
       setValdStrek(null)
       setValdPunkt(null)
       setModus("form")
-      setMelding(teiknSlag === "kontur" ? "teikn konturen · slepp for å lukke" : teiknSlag === "rund" ? "teikn: dra ei rund plate" : "teikn: dra ein firkant")
+      setMelding(teiknSlag === "kontur" ? "teikn konturen · slepp for å lukke" : teiknSlag === "halv" ? "teikn den eine sida · den andre vert spegla" : teiknSlag === "rund" ? "teikn: dra ei rund plate" : "teikn: dra ein firkant")
     }
     setTeikn((t) => !t)
   }, [teikn, teiknSlag])
@@ -1815,7 +1815,7 @@ export function Studio() {
       <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} onTomArbeidsflate={tomArbeidsflate} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
       {mounted && teikn && rom && (
         <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="teiknemåte">
-          {(["firkant", "rund", "kontur"] as const).map((slag) => (
+          {(["firkant", "rund", "halv", "kontur"] as const).map((slag) => (
             <button key={slag} type="button" className={ORD + " min-w-16"} aria-pressed={teiknSlag === slag} onClick={() => setTeiknSlag(slag)}>{slag}</button>
           ))}
         </div>

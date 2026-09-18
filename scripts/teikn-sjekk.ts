@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
 import { lesPlan, OMRISS_TAK, skrivPlan, ut, omrissLine } from "../lib/plan"
-import { haldt, landing, lukkTeikning, mellom, midtPaa, ogSysken, teiknaRund, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
+import { haldt, landing, lukkTeikning, mellom, midtPaa, ogSysken, teiknaHalv, teiknaRund, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import { bileteForm, skalerForm } from "../lib/bilete"
@@ -134,6 +134,17 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
     assert(av < 0.01, `kurva gjennom dei held seg innanfor ein prosent av ellipsen, ikkje ${av}`)
     assert(line.length > 24, `og ho vert teikna som ei kurve, ikkje ${line.length} punkt`)
     console.log(`rund plate: åtte punkt på ellipsen, kurva ${line.length} punkt, verste avvik ${(100 * av).toFixed(2)} %`)
+    const drag: Pt[] = [[0.35, 0.45], [0.28, 0.2], [0.14, 0.02], [0.14, -0.08], [0.27, -0.3], [0.39, -0.5]]
+    const h = teiknaHalv(drag, 0.02)
+    assert(h && h.length >= 6 && h.length <= OMRISS_TAK, `halvdraget vert ein lukka ring, ikkje ${h?.length}`)
+    if (h) {
+      const par = h.filter((q) => h.some((r) => Math.abs(r[0] + q[0]) < 1e-9 && Math.abs(r[1] - q[1]) < 1e-9))
+      assert.equal(par.length, h.length, "og kvart punkt har spegelpartnaren sin")
+      assert(Math.abs(h.reduce((a, q) => a + q[0], 0)) < 1e-9, "so ringen er symmetrisk om midtlina")
+    }
+    const vrangt = teiknaHalv([[0.2, 0.1], [0.2, 0.1]], 0.02)
+    assert.equal(vrangt, null, "og eit drag som ikkje går nokon stad vert ingenting")
+    console.log(`halv: ${h?.length} punkt, spegla om midtlina, og eit tomt drag vert null`)
   }
   }
 
