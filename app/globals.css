@@ -143,12 +143,17 @@ input {
 
 /* Den faktiske skyvaren: ein tydeleg bane og ein stor nok tommel for fingeren.
    Nettlesaren eig sjølve peikinga, so trykk, drag og tastatur gjer det same. */
+/* Ein tommel er 44 px, og det gjeld skyvarane òg: sporet er to piksel og
+   knotten atten, men flata du tek i er heile rada. `.hit` hjelper ikkje her
+   — ein `::after` på eit erstatta element teiknar ikkje, og ville ikkje ha
+   sendt fingeren vidare til inputen om han gjorde det. */
 .slider {
-  height: 24px;
+  height: 44px;
   min-width: 0;
   cursor: ew-resize;
   touch-action: pan-y;
-  accent-color: var(--ink);
+  appearance: none;
+  background: transparent;
 }
 .slider::-webkit-slider-runnable-track {
   height: 2px;
