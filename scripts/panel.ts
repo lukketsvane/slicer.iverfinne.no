@@ -54,9 +54,25 @@ const utbrett = async (page: Page) => {
   }
 }
 
+const bytArket = async (page: Page) => {
+  const att = page.getByRole("button", { name: "lat att kontrollane" })
+  if (await att.count()) await att.first().click()
+  else await page.locator(HOVUDLINA).click()
+}
+
+const opneArket = async (page: Page, fane: "plan" | "materiale" | "kutt" | "sjekk") => {
+  const opne = page.getByRole("button", { name: "opne kontrollane" })
+  if (await opne.count()) {
+    await opne.first().click()
+    await page.waitForTimeout(400)
+  }
+  await page.getByRole("tab", { name: fane, exact: true }).click()
+  await page.waitForTimeout(300)
+}
+
 const midt = async (page: Page) => {
   if ((await page.locator("[role=listbox][aria-label='plan']").count()) === 0) {
-    await page.locator(HOVUDLINA).click()
+    await bytArket(page)
     await page.waitForTimeout(400)
   }
 }
@@ -164,21 +180,20 @@ async function telefon(browser: Browser) {
   const snitt = page.locator("[data-skisse='snitt']")
   await snitt.first().waitFor({ timeout: 15000 }).catch(() => undefined)
   sjekk("skissa syner snittet gjennom kroppen før du skjer", (await snitt.count()) >= 1)
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await page.waitForTimeout(500)
   sjekk("eit trykk på lina opnar midten, med planlista", (await liste.count()) === 1)
-  await page.getByRole("button", { name: "alle kontrollane" }).click()
-  await page.waitForTimeout(500)
-  const felt = await page.locator("[aria-label$=', tal'][role=slider]").count()
-  sjekk("«alle kontrollane» syner skyvarane", felt >= 12, `${felt} dragskiver`)
-  const bolk = page.locator("[data-bolk='kutt']")
-  await bolk.click()
+  await opneArket(page, "kutt")
+  const skyv = () => page.locator("input[type=range][aria-label$=', tal']").count()
+  const felt = await skyv()
+  sjekk("kuttfana syner skyvarane", felt >= 4, `${felt} dragskiver`)
+  await page.getByRole("tab", { name: "materiale", exact: true }).click()
   await page.waitForTimeout(300)
-  const felt2 = await page.locator("[aria-label$=', tal'][role=slider]").count()
-  sjekk("eit trykk på overskrifta brettar bolken saman", felt2 < felt && (await bolk.getAttribute("aria-expanded")) === "false", `${felt} → ${felt2} dragskiver`)
-  await bolk.click()
+  const felt2 = await skyv()
+  sjekk("materialfana byter dei ut med sine eigne", felt2 > 0 && felt2 !== felt, `${felt} → ${felt2} dragskiver`)
+  await page.getByRole("tab", { name: "plan", exact: true }).click()
   await page.waitForTimeout(300)
-  sjekk("og eit trykk til brettar han ut att", (await page.locator("[aria-label$=', tal'][role=slider]").count()) === felt)
+  sjekk("og planfana gjev planlista att", (await liste.count()) === 1, `${await skyv()} dragskiver`)
   await page.keyboard.press("Escape")
   await page.waitForTimeout(400)
   sjekk("esc stengjer arket til lina", (await liste.count()) === 0)
@@ -385,7 +400,7 @@ async function telefon(browser: Browser) {
   const fyrst = plana(page)[0]
   await liste.locator("[role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(300)
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await page.waitForTimeout(400)
   const før = plana(page)
   await toFingrar(page, (t) => [[150 + 90 * t, 330], [150 + 90 * t, 430]])
@@ -546,7 +561,11 @@ async function telefon(browser: Browser) {
       await page.waitForTimeout(1400)
     }
     const strek1 = plana(page)[0].strek[0]
-    if (await drag("[data-handtak='strek-vri']", 0, 180)) {
+    const mb = await page.locator("[data-handtak='strek-flytt']").boundingBox()
+    const vb = await page.locator("[data-handtak='strek-vri']").boundingBox()
+    const arm = mb && vb ? [vb.x - mb.x, vb.y - mb.y] : [0, 60]
+    const rad = Math.max(24, Math.hypot(arm[0], arm[1]))
+    if (await drag("[data-handtak='strek-vri']", (-arm[1] / rad) * rad * 0.6, (arm[0] / rad) * rad * 0.6)) {
       const na = plana(page)[0].strek[0]
       sjekk("vrihandtaket endrar VINKELEN", Math.abs((na?.a ?? 0) - (strek1?.a ?? 0)) > 0.5, `a ${strek1?.a} → ${na?.a}`)
       await page.waitForTimeout(1400)
@@ -635,10 +654,7 @@ async function telefon(browser: Browser) {
 
   const alt = async () => {
     await midt(page)
-    if ((await page.getByRole("button", { name: "kuttliste", exact: true }).count()) === 0) {
-      await page.getByRole("button", { name: "alle kontrollane" }).click()
-      await page.waitForTimeout(400)
-    }
+    if ((await page.getByRole("button", { name: "kuttliste", exact: true }).count()) === 0) await opneArket(page, "sjekk")
   }
   await alt()
   sjekk("arket er ope med alt", (await page.getByRole("button", { name: "kuttliste", exact: true }).count()) === 1)
@@ -791,11 +807,15 @@ async function telefon(browser: Browser) {
   sjekk("ein finger snur ikkje synet medan han er låst", (await kamera()).join() === laastFraa.join(), `${laastFraa.map((c) => c.toFixed(2)).join(", ")} → ${(await kamera()).map((c) => c.toFixed(2)).join(", ")}`)
   await page.touchscreen.tap(kx, ky)
   await roleg(page, 900)
-  sjekk("og synskuben snur han ikkje heller", (await kamera()).join() === laastFraa.join(), (await kamera()).map((c) => c.toFixed(2)).join(", "))
+  const sida = await kamera()
+  const smaa = sida.map((c) => Math.abs(c)).sort((a, b) => a - b)
+  sjekk("men synskuben snur han til den sida du trykte", smaa[0] < 0.01 && smaa[1] < 0.01 && smaa[2] > 1, sida.map((c) => c.toFixed(2)).join(", "))
   await page.locator("[data-heim]").click()
   await roleg(page, 700)
   const rammaLaast = await kamera()
-  sjekk("innramminga rammar inn utan å snu", Math.abs(rammaLaast[0] - laastFraa[0]) < 0.01 && Math.abs(rammaLaast[1] - laastFraa[1]) < 0.01, rammaLaast.map((c) => c.toFixed(2)).join(", "))
+  const einn = (a: number[]) => { const L = Math.hypot(a[0], a[1], a[2]) || 1; return a.map((c) => c / L) }
+  const [e0, e1] = [einn(sida), einn(rammaLaast)]
+  sjekk("innramminga rammar inn utan å snu", Math.hypot(e1[0] - e0[0], e1[1] - e0[1], e1[2] - e0[2]) < 0.01, rammaLaast.map((c) => c.toFixed(2)).join(", "))
   await laas.click()
   await page.waitForTimeout(250)
   await page.mouse.move(195, 420)
@@ -803,7 +823,7 @@ async function telefon(browser: Browser) {
   await page.mouse.move(310, 330, { steps: 12 })
   await page.mouse.up()
   await roleg(page, 500)
-  sjekk("og eit trykk til slepper han: fingeren snur att", (await kamera()).join() !== laastFraa.join(), (await kamera()).map((c) => c.toFixed(2)).join(", "))
+  sjekk("og eit trykk til slepper han: fingeren snur att", (await kamera()).join() !== rammaLaast.join(), (await kamera()).map((c) => c.toFixed(2)).join(", "))
   await page.locator("[data-heim]").click()
   await roleg(page, 700)
   await page.touchscreen.tap(195, 380)
@@ -840,7 +860,7 @@ async function telefon(browser: Browser) {
   await kjelde.click()
   await page.waitForTimeout(250)
   const meny2 = page.locator("[data-meny]")
-  sjekk("og opnar lista med familiane og fila", (await meny2.count()) === 1 && (await meny2.getByRole("button").count()) === FORMER.length + 1, `${FORMER.join(" ")} + fil`)
+  sjekk("og opnar lista med tom flate, familiane og fila", (await meny2.count()) === 1 && (await meny2.getByRole("button").count()) === FORMER.length + 2, `tom + ${FORMER.join(" ")} + fil · ${await meny2.getByRole("button").count()} knappar`)
   sjekk("og ingen utgåve står i henne", (await meny2.getByRole("button", { name: /-\d\d$/ }).count()) === 0)
   {
     const klipp = { x: 40, y: 200, width: 310, height: 380 }
@@ -1136,7 +1156,7 @@ async function kroppen(browser: Browser) {
     await page.locator("[data-lag='bit'] [aria-label='ikkje noko lag']").click()
     await vent(page, (p) => !/\/c:3/.test(String(p.scene ?? "")))
     sjekk("ringen tek merket av att", !/c:/.test(bitScene()), bitScene().slice(0, 60))
-    await page.locator(HOVUDLINA).click()
+    await bytArket(page)
     await page.waitForTimeout(400)
   }
 
@@ -1223,7 +1243,7 @@ async function kamera(browser: Browser) {
   })
   await roleg(page, 1500)
 
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await roleg(page, 500)
   await page.locator("[role=tab][aria-label='grupper']").click()
   await roleg(page, 500)
@@ -1710,11 +1730,10 @@ async function flyt(browser: Browser) {
     w: document.documentElement.scrollWidth - window.innerWidth,
   }))
   const r0 = await rull()
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await page.waitForTimeout(400)
   const r1 = await rull()
-  await page.getByRole("button", { name: "alle kontrollane" }).click()
-  await page.waitForTimeout(400)
+  await opneArket(page, "kutt")
   const r2 = await rull()
   sjekk("dokumentet rullar aldri", [r0, r1, r2].every((r) => r.h <= 0 && r.w <= 0), JSON.stringify([r0, r1, r2]))
   const utanfor = await page.evaluate(() => {
@@ -1731,7 +1750,7 @@ async function flyt(browser: Browser) {
   sjekk("arket og alt i det ligg innanfor skjermen", utanfor.length === 0, utanfor.join(" · "))
   await page.keyboard.press("Escape")
   await page.waitForTimeout(300)
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await page.waitForTimeout(400)
   sjekk("midten er storleik og planlista, ingen reglar", (await page.locator("[aria-label='kontrollar'] button[aria-label^='fiks ']").count()) === 0 && (await page.locator("[role=listbox][aria-label='plan']").count()) === 1)
 
@@ -1843,9 +1862,9 @@ async function reglar(browser: Browser) {
   console.log("\n=== reglane utan ei rad")
   const bag = { plan: "1@0.2,0.5,0.5/1,0,0;2@0.5,0.5,1/0.7071,0,0.7071;3@0.5,0.5,0.5/0,1,0", klaring: 0 }
   const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify(bag)), browser, 390, 844)
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await page.waitForTimeout(400)
-  await page.getByRole("button", { name: "alle kontrollane" }).click()
+  await opneArket(page, "sjekk")
   await roleg(page, 600)
   const tavla = page.locator("[aria-label='kontrollar'] dl").first()
   const tekst = (await tavla.innerText()).replace(/\s+/g, " ")
@@ -1874,9 +1893,9 @@ async function reglar(browser: Browser) {
     await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify(to)), { waitUntil: "networkidle" })
     await page.reload({ waitUntil: "networkidle" })
     await roleg(page, 900)
-    await page.locator(HOVUDLINA).click()
+    await bytArket(page)
     await page.waitForTimeout(400)
-    await page.getByRole("button", { name: "alle kontrollane" }).click()
+    await opneArket(page, "sjekk")
     await roleg(page, 700)
     const knapp = page.locator("[data-fiksalle]")
     await vent2(page, async () => (await knapp.count()) > 0, 8000)
@@ -2151,12 +2170,12 @@ async function skaletOgSovnen(browser: Browser) {
   await doed("synskuben", ".synskube button")
 
   await page.mouse.move(190, 700)
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await page.waitForTimeout(500)
   await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await page.waitForTimeout(400)
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await roleg(page, 600)
   await page.waitForTimeout(3200)
   const valt = await gjennomsikt()
@@ -2246,7 +2265,7 @@ async function boyen(browser: Browser) {
     if (await opne.count()) await opne.first().click()
     await roleg(page, 900)
     const tekst = (await page.locator("[aria-label='kontrollar']").innerText()).replace(/\s+/g, " ")
-    sjekk("bøyeradien står i tavla", /bøyeradius/.test(tekst), (tekst.match(/bøyeradius[^·]{0,44}/) ?? [""])[0])
+    sjekk("bøyeradien står i tavla", /bøyeradius/i.test(tekst), (tekst.match(/[Bb][Øø]YERADIUS[^·]{0,44}/i) ?? [""])[0])
     const b2 = await knapp.boundingBox()
     if (b2) {
       const tx = b2.x + b2.width / 2
@@ -2337,7 +2356,7 @@ async function snappet(browser: Browser) {
   await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan='3'] button").first().click()
   await roleg(page, 600)
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await roleg(page, 400)
   const form = page.locator("[data-form]")
   await page.waitForTimeout(DOBBELT + 80)
@@ -2427,7 +2446,7 @@ async function forma(browser: Browser) {
   await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan='3'] button").first().click()
   await roleg(page, 600)
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await roleg(page, 400)
   const form = page.locator("[data-form]")
   const synlege = async (vel: string) => {
@@ -2704,7 +2723,7 @@ async function montasjen(browser: Browser) {
     sjekk("og han går heile vegen opp att", (await lesing()).startsWith("steg 2/2"), await lesing())
   }
 
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await roleg(page, 600)
   const rader = page.locator("[aria-label='steget'] [data-steg-del]")
   const planrader = page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]")
@@ -2712,7 +2731,7 @@ async function montasjen(browser: Browser) {
   sjekk("arket ber stega og ikkje plana", (await rader.count()) > 0 && (await planrader.count()) === 0, `${await rader.count()} stegrader · ${await planrader.count()} planrader`)
   const fyrste = ((await rader.first().innerText()) ?? "").replace(/\s+/g, " ").trim()
   sjekk("og kvar rad ber adressa, vegen inn og plata", /^\S+ (ned|opp|frå sida|ligg) ark \d+$/.test(fyrste), fyrste)
-  await page.locator(HOVUDLINA).click()
+  await bytArket(page)
   await roleg(page, 500)
 
   {

@@ -6,7 +6,7 @@ import {
   type Material, type Metric, type Rule,
 } from "@/lib/core"
 import { GROUPS, KILAR, PARAM_RANGES } from "@/lib/params"
-import { MJUK_TAK, type Plan } from "@/lib/plan"
+import { MJUK_TAK, bogRadius, type Plan } from "@/lib/plan"
 import {
   CHIP, HAIR, ICON_BTN, IcoReset, IcoUttak, UTTAK,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
@@ -118,7 +118,7 @@ function FormTab({ p }: { p: ArketProps }) {
 
 function LayerRow({ no, ord, onFarge }: { no: number; ord: string; onFarge: (n: number) => void }) {
   return (
-    <div role="group" aria-label={`lag ${ord}`} className="flex h-9 items-center gap-1">
+    <div role="group" aria-label={`lag ${ord}`} data-lag={ord} className="flex h-9 items-center gap-1">
       <span className="dim w-8 shrink-0 text-[9px] uppercase tracking-[0.12em]">{ord}</span>
       <span className="rull-x flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overscroll-contain">
         <button type="button" aria-label="ikkje noko lag" aria-pressed={no === 0} onClick={() => onFarge(0)} className="hit flex h-7 w-7 shrink-0 items-center justify-center">
@@ -200,16 +200,6 @@ function GroupsTab({ p }: { p: ArketProps }) {
     return out
   }, [p.plan, p.vald, utbretta])
 
-  const leiar = p.plan.find((q) => q.id === p.vald)
-  const detaljar: { ord: string; node: ReactNode }[] = []
-  if (p.valdGruppe !== null) detaljar.push({ ord: "virr", node: <VirrRow p={p} /> })
-  if (p.vald !== null) {
-    detaljar.push({ ord: "profil", node: <ProfileRow p={p} /> })
-    detaljar.push({ ord: "lag", node: <LayerRow no={lagFarge(leiar?.farge) ?? 0} ord="lag" onFarge={p.onFarge} /> })
-  } else if (p.bitFarge !== null) {
-    detaljar.push({ ord: "bit", node: <LayerRow no={p.bitFarge} ord="bit" onFarge={p.onBitFarge} /> })
-  }
-
   if (p.view === "montasje") return <AssemblyRows p={p} />
 
   const brett = (g: number) => {
@@ -255,12 +245,39 @@ function GroupsTab({ p }: { p: ArketProps }) {
           </div>
         )
       }) : <p className="dim h-9 px-1.5 py-2 text-[11px]">ingen plan</p>}
+    </div>
+  )
+}
 
-      {detaljar.length > 0 && (
-        <div className="border-t pt-0.5" style={HAIR}>
-          {detaljar.map((d) => <div key={d.ord}>{d.node}</div>)}
-        </div>
-      )}
+function BogRad({ p, pl }: { p: ArketProps; pl: Plan }) {
+  const r = p.rules.find((q) => q.id === "bog")
+  const brote = !!r && !r.ok
+  return (
+    <div className="flex h-5 items-baseline gap-3 text-[10px]">
+      <span className="dim w-20 shrink-0 uppercase tracking-[0.12em]">bøyeradius</span>
+      <span className="tab min-w-0 flex-1 truncate text-right" style={{ color: brote ? "var(--warn)" : "var(--ink)" }}>
+        {brote && r ? r.value : `${n0(bogRadius(pl.bog, num(p.params, "storleik", 150)))} mm`}
+      </span>
+    </div>
+  )
+}
+
+function ValdRader({ p }: { p: ArketProps }) {
+  if (p.view === "montasje") return null
+  const leiar = p.plan.find((q) => q.id === p.vald)
+  const rader: { ord: string; node: ReactNode }[] = []
+  if (p.valdGruppe !== null) rader.push({ ord: "virr", node: <VirrRow p={p} /> })
+  if (p.vald !== null) {
+    if (leiar?.bog) rader.push({ ord: "bog", node: <BogRad p={p} pl={leiar} /> })
+    rader.push({ ord: "profil", node: <ProfileRow p={p} /> })
+    rader.push({ ord: "lag", node: <LayerRow no={lagFarge(leiar?.farge) ?? 0} ord="lag" onFarge={p.onFarge} /> })
+  } else if (p.bitFarge !== null) {
+    rader.push({ ord: "bit", node: <LayerRow no={p.bitFarge} ord="bit" onFarge={p.onBitFarge} /> })
+  }
+  if (!rader.length) return null
+  return (
+    <div aria-label="det valde" className="shrink-0 border-t px-3 pb-0.5 pt-0.5" style={HAIR}>
+      {rader.map((d) => <div key={d.ord}>{d.node}</div>)}
     </div>
   )
 }
@@ -504,6 +521,7 @@ function MobileArket(p: ArketProps) {
             <div key={fane} ref={rull} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {content}
             </div>
+            {fane === "grupper" && <ValdRader p={p} />}
           </>
         )}
       </section>

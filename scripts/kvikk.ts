@@ -114,7 +114,10 @@ async function hovud() {
           await ferdig()
           const pr = params(side)
           const bygg = makeBygg(pr, DETAIL.mid)
-          for (const q of lesPlan(pr.plan)) console.log(`  plan ${q.id} o ${q.o.map((v) => v.toFixed(3)).join(",")} n ${q.n.join(",")}${q.bog ? ` bog ${q.bog}` : ""}${q.omriss ? ` omriss ${q.omriss.length}` : ""}`)
+          for (const q of lesPlan(pr.plan)) {
+            console.log(`  plan ${q.id} o ${q.o.map((v) => v.toFixed(3)).join(",")} n ${q.n.join(",")}${q.bog ? ` bog ${q.bog}` : ""}${q.mjuk ? ` mjuk ${q.mjuk}` : ""}${q.omriss ? ` omriss ${q.omriss.length}` : ""}`)
+            for (const k of q.strek) console.log(`    strek ${k.slag} ${k.form} ${k.x.toFixed(3)},${k.y.toFixed(3)} ${k.w.toFixed(3)}×${k.h.toFixed(3)} ${k.a}°`)
+          }
           for (const d of bygg.dl.delar) {
             const b = d.outline.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[2], p[0]), Math.max(a[3], p[1])], [Infinity, Infinity, -Infinity, -Infinity])
             console.log(`  ${d.adr}: ${(b[2] - b[0]).toFixed(0)} × ${(b[3] - b[1]).toFixed(0)} mm · ${d.outline.length} pkt · ${d.holes.length} hòl${d.holes.map((h) => { const c = h.reduce((a, q) => [Math.min(a[0], q[0]), Math.min(a[1], q[1]), Math.max(a[2], q[0]), Math.max(a[3], q[1])], [Infinity, Infinity, -Infinity, -Infinity]); return ` [${(c[2] - c[0]).toFixed(0)}×${(c[3] - c[1]).toFixed(0)}]` }).join("")}`)
