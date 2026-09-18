@@ -52,7 +52,7 @@ export function teikneNormal(n: Vec3): Vec3 {
 }
 
 const avstand = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1])
-const fraaKant = (p: Pt, a: Pt, b: Pt) => {
+export const fraaKant = (p: Pt, a: Pt, b: Pt) => {
   const x = b[0] - a[0], y = b[1] - a[1]
   const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * x + (p[1] - a[1]) * y) / (x * x + y * y || 1)))
   return avstand(p, [a[0] + t * x, a[1] + t * y])
@@ -87,6 +87,55 @@ export function teiknaKontur(punkt: readonly Pt[], tol: number): Pt[] | null {
   const omriss = storsteLokke(hald.map((i) => ring[i]))
   if (omriss.length < 3 || Math.abs(shoelace(omriss)) < tol * tol * 32) return null
   return omriss
+}
+
+export function forenklaRing(o: readonly Pt[], runde: readonly number[] | undefined, tal: number): { omriss: Pt[]; runde?: number[] } | null {
+  const n = o.length
+  const mal = Math.max(3, Math.min(n, Math.round(tal)))
+  if (n < 4 || mal >= n) return null
+  let fjern = 1
+  for (let i = 2; i < n; i++) if (avstand(o[0], o[i]) > avstand(o[0], o[fjern])) fjern = i
+  const hald = [0, fjern]
+  while (hald.length < mal) {
+    let feil = -1
+    let neste = -1
+    for (let k = 0; k < hald.length; k++) {
+      const a = hald[k]
+      const b = k + 1 < hald.length ? hald[k + 1] : n
+      for (let i = a + 1; i < b; i++) {
+        const d = fraaKant(o[i], o[a], o[b % n])
+        if (d > feil) { feil = d; neste = i }
+      }
+    }
+    if (neste < 0) break
+    hald.push(neste)
+    hald.sort((a, b) => a - b)
+  }
+  const omriss = hald.map((i) => o[i])
+  if (omriss.length < 3 || Math.abs(shoelace(omriss)) < 1e-9) return null
+  const rund = new Set(runde ?? [])
+  const nye = hald.flatMap((i, k) => (rund.has(i) ? [k] : []))
+  return { omriss, ...(nye.length ? { runde: nye } : {}) }
+}
+
+export function forenklaBane(punkt: readonly Pt[], tol: number, tak = OMRISS_TAK): Pt[] {
+  const raa = punkt.filter((p, i) => !i || avstand(p, punkt[i - 1]) > 1e-9)
+  if (raa.length < 3) return raa.slice()
+  const hald = [0, raa.length - 1]
+  for (;;) {
+    let feil = -1
+    let neste = -1
+    for (let k = 0; k + 1 < hald.length; k++) {
+      for (let i = hald[k] + 1; i < hald[k + 1]; i++) {
+        const d = fraaKant(raa[i], raa[hald[k]], raa[hald[k + 1]])
+        if (d > feil) { feil = d; neste = i }
+      }
+    }
+    if (neste < 0 || feil <= tol || hald.length >= tak) break
+    hald.push(neste)
+    hald.sort((a, b) => a - b)
+  }
+  return hald.map((i) => raa[i])
 }
 
 function kryssPkt(a: Pt, b: Pt, c: Pt, d: Pt): Pt | null {

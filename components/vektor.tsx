@@ -5,10 +5,10 @@ import { inRing, nn, shoelace, type Pt, type Vec3 } from "@/lib/core"
 import { omrissLine, omrissMidt, type Plan } from "@/lib/plan"
 import { teiknaKontur, tettMjukt } from "@/lib/teikning"
 import { konturStrek } from "@/lib/bilete"
-import { delIto, spileAkse, spiler, flyttPunkt, flyttStrek, leggPunkt, leggStrek, rundPunkt, strekRing, takPunkt, takStrek } from "@/lib/vektor"
+import { delIto, spileAkse, spiler, flyttPunkt, flyttStrek, leggPunkt, leggStrek, blyantPunkt, rundPunkt, strekRing, takPunkt, takStrek } from "@/lib/vektor"
 import { ORD } from "./deler"
 
-type Verkty = "punkt" | "hol" | "firkant" | "sirkel"
+type Verkty = "punkt" | "blyant" | "hol" | "firkant" | "sirkel"
 type Syn = { cx: number; cy: number; ppe: number }
 type Val = { slag: "punkt"; i: number } | { slag: "strek"; k: number } | null
 type Drag =
@@ -102,7 +102,7 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
       const s = q.strek[+si]
       setVal({ slag: "strek", k: +si })
       setDrag({ slag: "strek", id: e.pointerId, k: +si, fra: p, x0: s.x, y0: s.y })
-    } else if (verkty === "hol") setDrag({ slag: "teikn", id: e.pointerId, pkt: [p] })
+    } else if (verkty === "hol" || verkty === "blyant") setDrag({ slag: "teikn", id: e.pointerId, pkt: [p] })
     else if (verkty !== "punkt") setDrag({ slag: "boks", id: e.pointerId, a: p, b: p })
     else {
       setVal(null)
@@ -136,7 +136,13 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
     setDrag(null)
     if (d.slag === "punkt" || d.slag === "strek") return ferdig(utkast)
     const inni = (ring: readonly Pt[]) => ring.every((p) => inRing(linje, p))
-    if (d.slag === "teikn") {
+    if (d.slag === "teikn" && verkty === "blyant") {
+      const ny = blyantPunkt(q, d.pkt, 1.25 / v.ppe, 16 / v.ppe)
+      if (ny !== q) {
+        onEndre(ny)
+        setVal(null)
+      }
+    } else if (d.slag === "teikn") {
       const k = teiknaKontur(d.pkt, 1.25 / v.ppe)
       if (k && inni(k)) {
         onEndre(leggStrek(q, konturStrek(tettMjukt(k))))
@@ -174,8 +180,8 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
   return (
     <section aria-label="2d-flata" className="absolute inset-0 z-30 flex flex-col" style={{ background: "var(--paper)", touchAction: "none" }}>
       <div className="flex items-center justify-between gap-1 px-3" style={{ paddingTop: topp + 6 }} role="group" aria-label="vektorverkty">
-        {(["punkt", "hol", "firkant", "sirkel"] as const).map((k) => (
-          <button key={k} type="button" className={ORD} aria-pressed={verkty === k} onClick={() => setVerkty(k)}>{k === "hol" ? "hòl" : k}</button>
+        {(["punkt", "blyant", "hol", "firkant", "sirkel"] as const).map((k) => (
+          <button key={k} type="button" className={ORD} aria-pressed={verkty === k} title={k === "blyant" ? "teikn over ein bit av omrisset: streken byter ut den biten du dreg langs" : undefined} onClick={() => setVerkty(k)}>{k === "hol" ? "hòl" : k}</button>
         ))}
         <button type="button" className={ORD} aria-pressed={spegl} onClick={() => setSpegl((s) => !s)}>spegl</button>
         <button type="button" className={ORD} onClick={onLukk}>ferdig</button>

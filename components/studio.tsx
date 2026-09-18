@@ -7,7 +7,7 @@ import { alleNett, gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett 
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_ROM, PLAN_TAK, broek, dot, iGruppa, lesPlan, nyGruppe, nyId, omrissLine, ramme as planRamme, formPunkt, FORM_SLAG, rutenett, sameSnitt, skilRute, skuvKopi, slaaSaman, spegla, speglingar, skrivPlan, sub3, type FormSlag, type Plan, type Strek } from "@/lib/plan"
-import { lukkTeikning, medStrek, mjukePunkt, ogSysken } from "@/lib/teikning"
+import { forenklaRing, lukkTeikning, medStrek, mjukePunkt, ogSysken } from "@/lib/teikning"
 import { medGruppa, nesteSteg, rundt } from "@/lib/gruppe"
 import { simplify, type Pt2 } from "@/lib/contour"
 import { speglPar, speglPlan } from "@/lib/spegl"
@@ -20,7 +20,7 @@ import type { Montasje } from "@/lib/montasje"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
 import { Arket, KOL, type Steg } from "./arket"
 import { Meny, type MenyStad } from "./meny"
-import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett, IcoTeikn } from "./deler"
+import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForenkl, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett, IcoTeikn } from "./deler"
 import { Plater } from "./plater"
 import { BileteInn, lesBilete } from "./bilete"
 import { Vektor } from "./vektor"
@@ -54,6 +54,7 @@ const stoy = (id: number): number => {
 const RUTE_STEG = 44
 const klemBit = (v: number) => Math.min(BIT_MAX, Math.max(BIT_MIN, v))
 const BOY_STEG = 0.005
+const FORENKL_STEG = 0.08
 const MONT_STEG_PX = 160
 const SOV_MS = 2000
 const kroppKey = (p: ParamBag) => [p.kjelde, p.scene, p.storleik, p.rotX, p.rotY, p.rotZ, p.glatt, p.trekant].join("|")
@@ -183,6 +184,8 @@ export function Studio() {
   const [virr, setVirr] = useState(0)
   const [speil, setSpeil] = useState(0)
   const [gest, setGest] = useState<GestKva>(null)
+  const [forenklTal, setForenklTal] = useState<number | null>(null)
+  const forenkl = useRef<{ y: number; o: Pt[]; runde?: number[]; tal: number } | null>(null)
   const [snitt, setSnitt] = useState<SkisseSyn | null>(null)
   const [blink, setBlink] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
@@ -1156,6 +1159,14 @@ export function Studio() {
       }
     })
   }, [])
+  const forenklaPlan = useCallback((id: number, tal: number, kjelde: { o: Pt[]; runde?: number[] }) => {
+    setParams((cur) => {
+      const l = lesPlan(cur.plan)
+      const ny = forenklaRing(kjelde.o, kjelde.runde, tal)
+      const med = l.map((p) => (p.id === id ? { ...p, omriss: ny ? ny.omriss : kjelde.o, runde: ny ? ny.runde : kjelde.runde } : p))
+      return { ...cur, plan: skrivPlan(ogSysken(l, med, id)) }
+    })
+  }, [])
   const boyPlan = useCallback((id: number, d: number) => {
     setParams((cur) => {
       const l = lesPlan(cur.plan)
@@ -1732,6 +1743,7 @@ export function Studio() {
     : `steg ${montSteg}/${mont.steg} · ${mont.delar.filter((d) => d.steg === montSteg - 1).length}`
   const gestTekst =
     view === "montasje" && mont ? montLes
+    : forenklTal !== null ? `${forenklTal} punkt`
     : gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
     : gest
 
@@ -1989,7 +2001,7 @@ export function Studio() {
                 </button>
               )}
               {rom && harOmriss && (
-                <button type="button" aria-label="2d-flata" title="planet flatt: dra punkt, legg til, rund, teikn hòl" onClick={() => setFlatt(true)} className={ORD + " h-12 min-w-12"} data-flatt="">2d</button>
+                <button type="button" aria-label="2d-flata" title="planet flatt: dra punkt, legg til, rund, teikn om ein kant med blyanten eller skjer hòl" onClick={() => setFlatt(true)} className={ORD + " h-12 min-w-12"} data-flatt="">2d</button>
               )}
               {rom && (
                 <button type="button" aria-pressed={bunde} aria-label="bunde av nettet" title={bunde ? "profilen er bunden av nettet. trykk for å sleppe han" : "profilen er fri av nettet. trykk for å binde omrisset til kroppen"} onClick={vekslNett} disabled={!harOmriss && !snitt} className={ORD + " h-12 min-w-12"} data-nett="">
@@ -2043,6 +2055,37 @@ export function Studio() {
                   onPointerCancel={() => { boy.current = null; boyNed.current = null; setSkrubbar(false) }}
                 >
                   {IcoBoy}
+                </button>
+              )}
+              {rom && harOmriss && valdStrek === null && valdGruppe === null && (
+                <button
+                  type="button"
+                  data-forenkl=""
+                  aria-label="forenkle omrisset"
+                  title="dra opp og ned: færre eller fleire punkt i omrisset. talet står i lesinga, og ned kjem du aldri lenger enn du starta"
+                  className={TUMME_BTN}
+                  style={{ touchAction: "none", cursor: "ns-resize" }}
+                  onPointerDown={(e) => {
+                    const o = vald === null ? undefined : plan.find((q) => q.id === vald)?.omriss
+                    if (!o?.length) return
+                    e.currentTarget.setPointerCapture(e.pointerId)
+                    forenkl.current = { y: e.clientY, o: o.map((p): Pt => [p[0], p[1]]), runde: plan.find((q) => q.id === vald)?.runde, tal: o.length }
+                    setForenklTal(o.length)
+                    setSkrubbar(true)
+                  }}
+                  onPointerMove={(e) => {
+                    const k = forenkl.current
+                    if (!k || vald === null) return
+                    const tal = Math.max(3, Math.min(k.o.length, Math.round(k.o.length + (e.clientY - k.y) * FORENKL_STEG)))
+                    if (tal === k.tal) return
+                    k.tal = tal
+                    setForenklTal(tal)
+                    forenklaPlan(vald, tal, k)
+                  }}
+                  onPointerUp={() => { forenkl.current = null; setForenklTal(null); setSkrubbar(false) }}
+                  onPointerCancel={() => { forenkl.current = null; setForenklTal(null); setSkrubbar(false) }}
+                >
+                  {IcoForenkl}
                 </button>
               )}
               <button
