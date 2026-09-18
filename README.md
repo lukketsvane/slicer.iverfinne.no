@@ -1011,7 +1011,8 @@ lifts.
 
 With nothing selected the bar offers **del i to** — the plate split down the
 middle into two plates edge to edge, which the engine joins with fingers
-(see **Tenons**) — and **spiler 3 4 5 6**: the plate cut into that many
+(see **Tenons**) — **kneik**, the same split with one half folded 90° about
+the line so the plate turns a corner and stands as an L, and **spiler 3 4 5 6**: the plate cut into that many
 equal slats with a thickness of air between them. The slats run the way the
 plate reaches other plates: a seat between two sides reaches them along one
 axis, and each slat runs from side to side with its own tenons at both ends;
