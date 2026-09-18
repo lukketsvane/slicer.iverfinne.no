@@ -826,11 +826,15 @@ eighteen handles that do not sit on top of one another. Past that you are
 tracing, not shaping. Links written before this still carry the old `f:1`
 mark and still get the live box.
 
-**`forenkl` in the thumb column is that count as a drag.** A traced outline
-comes back at the ceiling and most of those points are the hand, not the
-shape. Hold the icon and pull up: the outline drops a point every twelve
-pixels, and the number stands in the reading at the top left while the thumb
-is down. It is the same distance-to-the-chord measure the contour was drawn
+**The `2d` button is that count as a drag.** A traced outline comes back at
+the ceiling and most of those points are the hand, not the shape. Tap the icon
+and the plane opens flat; hold it and pull up, and the outline drops a point
+every twelve pixels, with the number in the reading at the top left while the
+thumb is down. It shares that button rather than taking one of its own because
+the column is full: eleven tools at 48 px is what fits between the view cube
+and the sheet on the one device, and a twelfth falls off the bottom. Tap and
+drag on one button is the same pair the bend handle already carries, and both
+gestures here are about the same thing — the points of this outline. It is the same distance-to-the-chord measure the contour was drawn
 with, run to a count instead of to a tolerance, so every point it keeps is a
 point that was already there and the corners go last. Pulling back down
 returns detail, but only as far as the outline stood when the drag began: the
