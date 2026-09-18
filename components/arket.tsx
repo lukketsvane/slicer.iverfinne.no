@@ -171,9 +171,9 @@ function AssemblyRows({ p }: { p: ArketProps }) {
   const rows = (p.mont?.delar ?? []).filter((d) => d.steg === p.montSteg - 1)
   const veg: Record<string, string> = { ned: "ned", opp: "opp", side: "frå sida", ligg: "ligg", boygd: "bøygd inn" }
   return (
-    <div className="px-3 pb-1 pt-1">
+    <div className="px-3 pb-1 pt-1" aria-label="steget">
       {rows.length ? rows.map((d) => (
-        <div key={d.adr} className="flex h-9 items-center gap-2 rounded-lg px-1.5 text-[11px]">
+        <div key={d.adr} data-steg-del={d.adr} className="flex h-9 items-center gap-2 rounded-lg px-1.5 text-[11px]">
           <span className="tab w-8 shrink-0">{d.adr}</span>
           <span className="min-w-0 flex-1 truncate">{veg[d.veg] ?? d.veg}</span>
           <span className="tab dim shrink-0">ark {d.ark}</span>
