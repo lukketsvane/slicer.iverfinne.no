@@ -40,7 +40,11 @@ export function useTeikning(q: Teikning) {
       if (maal) maal.textContent = melding.current
       return
     }
-    const om = d.slag === "firkant" ? teiknaFirkant(d.a, d.b) : d.slag === "rund" ? teiknaRund(d.a, d.b) : [...d.punkt, d.b]
+    const om =
+      d.slag === "firkant" ? teiknaFirkant(d.a, d.b)
+      : d.slag === "rund" ? teiknaRund(d.a, d.b)
+      : d.slag === "halv" ? (teiknaHalv([...d.punkt, d.b], d.tol) ?? [...d.punkt, d.b])
+      : [...d.punkt, d.b]
     const px = paaSkjermen(om)
     bane.setAttribute("points", px.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" "))
     if (maal) {
