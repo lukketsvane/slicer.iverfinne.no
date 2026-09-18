@@ -1050,6 +1050,12 @@ stays.
   the rectangle, and what it leaves is eight points on the ellipse, every one
   of them an arc point — so the curve runs through them and every one is
   still a handle you can drag. A round table top, a round seat, an oval plate.
+- **Plates in the same plane are not "too tight".** Slats in a split seat,
+  four quarter-shelves around crossing sides — they lie in one plane, and the
+  gap rule used to read the distance between their planes as zero and call it
+  twelve millimetres of overlap. Two plates in the same plane are the same
+  surface; whether they collide is a question about their outlines, not
+  about the distance between them, so the rule now skips the pair.
 - **`halv` draws one side and mirrors the other.** Trace the silhouette down
   one side of the centre line and release: the curve is simplified to a dozen
   points and mirrored into a closed, exactly symmetric outline. An X-shaped
