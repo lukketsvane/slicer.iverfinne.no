@@ -4,10 +4,10 @@ import { useFrame } from "@react-three/fiber"
 import { useEffect, useMemo, useRef, type MutableRefObject } from "react"
 import type { Pt } from "@/lib/core"
 import type { fritt } from "@/lib/ramme"
-import { snappaKontur, teiknaFirkant, teiknaKontur, teiknaRund } from "@/lib/teikning"
+import { snappaKontur, teiknaFirkant, teiknaHalv, teiknaKontur, teiknaRund } from "@/lib/teikning"
 
 type Teikning = {
-  slag: "firkant" | "kontur" | "rund"
+  slag: "firkant" | "kontur" | "rund" | "halv"
   svg: SVGSVGElement | null
   lerret: HTMLCanvasElement
   arb: MutableRefObject<string | null>
@@ -19,7 +19,7 @@ type Teikning = {
   onStart: () => void
   paaFlata: (x: number, y: number) => Pt | null
   paaSkjermen: (punkt: Pt[]) => Pt[]
-  onLukk: (omriss: Pt[], slag: "firkant" | "kontur" | "rund", tol: number, snappa: readonly [boolean, boolean]) => void
+  onLukk: (omriss: Pt[], slag: "firkant" | "kontur" | "rund" | "halv", tol: number, snappa: readonly [boolean, boolean]) => void
   snapp?: (q: Pt, tol: number) => Pt
 }
 
@@ -96,7 +96,7 @@ export function useTeikning(q: Teikning) {
         const b = naa.current.snapp?.(raa, d.tol * 8) ?? raa
         d.b = b
         const siste = d.punkt[d.punkt.length - 1]
-        if (d.slag === "kontur" && Math.hypot(b[0] - siste[0], b[1] - siste[1]) >= d.tol) { d.punkt.push(b); d.raa.push(raa) }
+        if (d.slag !== "firkant" && d.slag !== "rund" && Math.hypot(b[0] - siste[0], b[1] - siste[1]) >= d.tol) { d.punkt.push(b); d.raa.push(raa) }
       }
       invalidate()
     }
@@ -109,12 +109,13 @@ export function useTeikning(q: Teikning) {
       const b = raa && (naa.current.snapp?.(raa, d.tol * 8) ?? raa)
       slepp()
       if (!b) return
-      if (d.slag !== "kontur" && (Math.abs(e.clientX - d.x) < 12 || Math.abs(e.clientY - d.y) < 12)) return
+      if ((d.slag === "firkant" || d.slag === "rund") && (Math.abs(e.clientX - d.x) < 12 || Math.abs(e.clientY - d.y) < 12)) return
       const raaAlle = [...d.raa, raa]
-      const snappaAlle = d.slag === "kontur" ? snappaKontur(raaAlle, [...d.punkt, b], d.tol) : [d.a, b]
-      const raaHjorne = d.slag === "kontur" ? raaAlle : [d.raa[0], raa]
+      const fleire = d.slag === "kontur" || d.slag === "halv"
+      const snappaAlle = fleire ? snappaKontur(raaAlle, [...d.punkt, b], d.tol) : [d.a, b]
+      const raaHjorne = fleire ? raaAlle : [d.raa[0], raa]
       const flytta = (k: 0 | 1) => snappaAlle.some((q, i) => Math.abs(q[k] - raaHjorne[i][k]) > 1e-9)
-      const omriss = d.slag === "firkant" ? teiknaFirkant(d.a, b) : d.slag === "rund" ? teiknaRund(d.a, b) : teiknaKontur(snappaAlle, d.tol)
+      const omriss = d.slag === "firkant" ? teiknaFirkant(d.a, b) : d.slag === "rund" ? teiknaRund(d.a, b) : d.slag === "halv" ? teiknaHalv(snappaAlle, d.tol) : teiknaKontur(snappaAlle, d.tol)
       if (omriss) naa.current.onLukk(omriss, d.slag, d.tol, [flytta(0), flytta(1)])
       else melding.current = "teikn ein tydeleg kontur"
     }

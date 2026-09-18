@@ -1046,10 +1046,16 @@ stays.
   that plate: from above a chair side is a line, but the front of its back
   leg is a point on it, and a seat drawn to it ends there. An axis the snap
   has set, the centring leaves alone.
-- **Three ways to draw: firkant, rund, kontur.** `rund` is one drag like the
-  rectangle, and what it leaves is eight points on the ellipse, every one of
-  them an arc point — so the curve runs through them and every one is still
-  a handle you can drag. A round table top, a round seat, an oval plate.
+- **Four ways to draw: firkant, rund, halv, kontur.** `rund` is one drag like
+  the rectangle, and what it leaves is eight points on the ellipse, every one
+  of them an arc point — so the curve runs through them and every one is
+  still a handle you can drag. A round table top, a round seat, an oval plate.
+- **`halv` draws one side and mirrors the other.** Trace the silhouette down
+  one side of the centre line and release: the curve is simplified to a dozen
+  points and mirrored into a closed, exactly symmetric outline. An X-shaped
+  leg, an hourglass waist, a wave — half the finger travel, and symmetry you
+  cannot draw by hand. Cross the centre line and the waist pinches to
+  nothing, which is what a pinched waist means.
 - **The shape follows the group too.** Reshape one wall of a ×4 box and all
   four take the same outline; release the shape and all four release it.
   Form, 2d and nett used to vanish while a group was selected, so the only

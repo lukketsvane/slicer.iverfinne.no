@@ -16,6 +16,36 @@ export const teiknaRund = (a: Pt, b: Pt): Pt[] => {
   })
 }
 
+export function teiknaHalv(punkt: readonly Pt[], tol: number): Pt[] | null {
+  if (!Number.isFinite(tol) || tol <= 0 || punkt.some((p) => !p.every(Number.isFinite))) return null
+  const raa = punkt.filter((p, i) => !i || avstand(p, punkt[i - 1]) > 1e-7)
+  if (raa.length < 3) return null
+  const side = Math.sign(raa.reduce((a, p) => a + p[0], 0)) || 1
+  const halv = raa.map((p): Pt => [side * Math.max(0, side * p[0]), p[1]])
+  const tett: Pt[] = []
+  for (const p of halv) if (!tett.length || avstand(p, tett[tett.length - 1]) > tol) tett.push(p)
+  if (tett.length < 2) return null
+  const hald = [0, tett.length - 1]
+  for (;;) {
+    let feil = -1
+    let neste = -1
+    for (let k = 0; k + 1 < hald.length; k++) {
+      for (let i = hald[k] + 1; i < hald[k + 1]; i++) {
+        const d = fraaKant(tett[i], tett[hald[k]], tett[hald[k + 1]])
+        if (d > feil) { feil = d; neste = i }
+      }
+    }
+    if (neste < 0 || feil <= tol || hald.length >= OMRISS_TAK / 2) break
+    hald.push(neste)
+    hald.sort((a, b) => a - b)
+  }
+  const glatt = hald.map((i) => tett[i])
+  const spegla = glatt.map((p): Pt => [-p[0], p[1]]).reverse()
+  const ring = [...glatt, ...spegla.filter((p, i) => (i === 0 ? Math.abs(p[0]) > tol : i === spegla.length - 1 ? Math.abs(p[0]) > tol : true))]
+  if (ring.length < 3 || Math.abs(shoelace(ring)) < tol * tol * 32) return null
+  return ring.slice(0, OMRISS_TAK)
+}
+
 export function teikneNormal(n: Vec3): Vec3 {
   const akse = n.findIndex((v) => Math.abs(v) > Math.cos(Math.PI / 60))
   return akse < 0 ? n : n.map((v, i) => i === akse ? Math.sign(v) : 0) as Vec3
@@ -441,7 +471,7 @@ export function midtPaa(punkt: readonly Pt[], tol: number, vassrett: boolean, sn
   return dx || dy ? punkt.map((p): Pt => [+(p[0] + dx).toFixed(6), +(p[1] + dy).toFixed(6)]) : [...punkt]
 }
 
-export function rettOpp(punkt: readonly Pt[], slag: "firkant" | "kontur" | "rund", tol: number, vassrett: boolean, snappa: readonly [boolean, boolean] = [false, false]): Pt[] {
+export function rettOpp(punkt: readonly Pt[], slag: "firkant" | "kontur" | "rund" | "halv", tol: number, vassrett: boolean, snappa: readonly [boolean, boolean] = [false, false]): Pt[] {
   const s = slag === "kontur" ? symmetrisk(punkt) ?? punkt : punkt
   return midtPaa(s, tol, vassrett, snappa)
 }
