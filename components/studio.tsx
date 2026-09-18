@@ -799,14 +799,14 @@ export function Studio() {
     setBlink(id)
   }, [speil])
   const [teikn, setTeikn] = useState(false)
-  const [teiknSlag, setTeiknSlag] = useState<"firkant" | "kontur">("firkant")
+  const [teiknSlag, setTeiknSlag] = useState<"firkant" | "kontur" | "rund">("firkant")
   const vekslTeikn = useCallback(() => {
     if (!teikn) {
       setValdBit(null)
       setValdStrek(null)
       setValdPunkt(null)
       setModus("form")
-      setMelding(teiknSlag === "kontur" ? "teikn konturen · slepp for å lukke" : "teikn: dra ein firkant")
+      setMelding(teiknSlag === "kontur" ? "teikn konturen · slepp for å lukke" : teiknSlag === "rund" ? "teikn: dra ei rund plate" : "teikn: dra ein firkant")
     }
     setTeikn((t) => !t)
   }, [teikn, teiknSlag])
@@ -837,7 +837,7 @@ export function Studio() {
     setSteg("line")
     setTeikn(true)
   }, [])
-  const teiknLukk = useCallback((po: Vec3, pn: Vec3, punkt: Pt[]) => {
+  const teiknLukk = useCallback((po: Vec3, pn: Vec3, punkt: Pt[], rund = false) => {
     setTeikn(false)
     const k = kroppRef.current
     if (!k) return
@@ -860,7 +860,7 @@ export function Studio() {
     setParams((cur) => {
       const l = lesPlan(cur.plan)
       if (l.length >= PLAN_TAK) return cur
-      const runde = mjukePunkt(form)
+      const runde = rund ? form.map((_, i) => i) : mjukePunkt(form)
       return { ...cur, plan: skrivPlan([...l, { id: nyId(l), o, n: pn, bog: 0, strek: [], omriss: form, ...(runde.length ? { runde } : {}) }]) }
     })
     setVald(id)
@@ -1815,7 +1815,7 @@ export function Studio() {
       <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} onTomArbeidsflate={tomArbeidsflate} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
       {mounted && teikn && rom && (
         <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="teiknemåte">
-          {(["firkant", "kontur"] as const).map((slag) => (
+          {(["firkant", "rund", "kontur"] as const).map((slag) => (
             <button key={slag} type="button" className={ORD + " min-w-16"} aria-pressed={teiknSlag === slag} onClick={() => setTeiknSlag(slag)}>{slag}</button>
           ))}
         </div>

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
-import { lesPlan, OMRISS_TAK, skrivPlan, ut } from "../lib/plan"
-import { haldt, landing, lukkTeikning, mellom, midtPaa, ogSysken, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
+import { lesPlan, OMRISS_TAK, skrivPlan, ut, omrissLine } from "../lib/plan"
+import { haldt, landing, lukkTeikning, mellom, midtPaa, ogSysken, teiknaRund, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
 import { ramme, type Plan } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
 import { bileteForm, skalerForm } from "../lib/bilete"
@@ -124,6 +124,17 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
     const ulikForm = ogSysken(ulik, ulik.map((q) => (q.id === 1 ? { ...q, omriss: ny } : q)), 1)
     assert.equal(ulikForm[1].omriss?.[0][0], -0.2, "ein medlem med eit anna omriss står")
     console.log("gruppehòl og gruppeform: éin vegg formar alle fire, og berre dei som er same plata")
+  {
+    const r = teiknaRund([-0.4, -0.3], [0.4, 0.3])
+    assert.equal(r.length, 8, "ei rund plate er åtte punkt")
+    const feil = r.map(([x, y]) => Math.abs(Math.hypot(x / 0.4, y / 0.3) - 1)).reduce((a, b) => Math.max(a, b))
+    assert(feil < 1e-6, `og alle åtte ligg på ellipsen, ikkje ${feil}`)
+    const line = omrissLine(r, r.map((_, i) => i))
+    const av = line.map(([x, y]) => Math.abs(Math.hypot(x / 0.4, y / 0.3) - 1)).reduce((a, b) => Math.max(a, b))
+    assert(av < 0.01, `kurva gjennom dei held seg innanfor ein prosent av ellipsen, ikkje ${av}`)
+    assert(line.length > 24, `og ho vert teikna som ei kurve, ikkje ${line.length} punkt`)
+    console.log(`rund plate: åtte punkt på ellipsen, kurva ${line.length} punkt, verste avvik ${(100 * av).toFixed(2)} %`)
+  }
   }
 
   console.log("landing og snapp: setet på 438 mm, staget i midtplanet, foten i golvet, setet ved bakfoten, ryggen i bakfoten")
