@@ -2759,6 +2759,23 @@ async function forma(browser: Browser) {
     sjekk("og minst eitt punkt utanfor biten står med dei", etter.some((q) => [foer[1], foer[3]].some((p) => p && p[0] === q[0] && p[1] === q[1])))
     sjekk("og taket på punkt held", etter.length <= OMRISS_TAK, `${etter.length} av ${OMRISS_TAK}`)
   }
+  const rutor = flata.locator("g[pointer-events='none'] line")
+  const rutknapp = page.locator("[data-rutenett]")
+  const steg = async () => ((await rutknapp.textContent()) ?? "").trim()
+  sjekk("2d-flata kjem med rutenettet på", (await rutknapp.getAttribute("aria-pressed")) === "true" && (await rutor.count()) > 4, `${await rutor.count()} liner · ${await steg()}`)
+  sjekk("og steget står i millimeter", /^rute \d+ mm$/.test(await steg()), await steg())
+  await rutknapp.click()
+  await page.waitForTimeout(300)
+  sjekk("eit trykk tek det bort", (await rutor.count()) === 0 && (await steg()) === "rute av")
+  await rutknapp.click()
+  await page.waitForTimeout(300)
+  const grovt = await steg()
+  sjekk("og eit til set det attende", (await rutor.count()) > 4, `${await rutor.count()} liner · ${grovt}`)
+  await toFingrar(page, (t) => [[150 - 90 * t, 600], [240 + 90 * t, 600]])
+  await page.waitForTimeout(400)
+  const fint = await steg()
+  const tal = (s: string) => Number(s.replace(/\D+/g, "")) || 0
+  sjekk("og eit knip deler det opp, som i eit teikneprogram", tal(fint) < tal(grovt), `${grovt} → ${fint}`)
   await flata.getByRole("button", { name: "ferdig", exact: true }).click()
   await page.waitForTimeout(400)
 
