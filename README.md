@@ -186,8 +186,10 @@ the third page (**passform**) sets the measured thickness and clearance exactly;
 the thickness shortcuts now include 9, 12, 15, 18 and 24 mm.
 
 **With a part selected** (tap it in the object), the handles and the two-finger
-drag edit *that* plane instead of the sketch: move it along its normal, re-angle
-it. Tap empty space to deselect; the row's `slett` removes the plane.
+drag edit *that* plane instead of the sketch: the centre handle moves it in its
+own plane, the normal handle pushes it along its normal, the rotation handle
+re-angles it, and two fingers still push it along the normal. Tap empty space
+to deselect; the row's `slett` removes the plane.
 
 **Planes made in one action are a group.** A grid is two groups (across and
 along), a whirl is one, a mirrored cut is one, and duplicating a group makes

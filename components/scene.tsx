@@ -5,7 +5,7 @@ import { GizmoHelper, GizmoViewcube, Html, OrbitControls, useGizmoContext } from
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type MutableRefObject, type ReactElement, type ReactNode } from "react"
 import * as THREE from "three"
 import { LAG_FARGAR, MATERIALS, inRing, lagFarge, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
-import { akser, broek, dot, inn, OMRISS_TAK, omrissLine, omrissMidt, ramme as planRamme, snappPunkt, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
+import { akser, broek, dot, inn, OMRISS_TAK, omrissLine, omrissMidt, PLAN_ROM, ramme as planRamme, snappPunkt, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
 import type { Montasje } from "@/lib/montasje"
 import { FOV_FLAT, FOV_NAER, GROUND_Y, MAX_DIST, MIN_DIST, NAER_LUFT, SKODDE_FJERN, SKODDE_NAER, fovSkala, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
@@ -604,6 +604,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       boks && {
         flytt: boks.querySelector<HTMLElement>('[data-handtak="flytt"]'),
         vri: boks.querySelector<HTMLElement>('[data-handtak="vri"]'),
+        normal: boks.querySelector<HTMLElement>('[data-handtak="normal"]'),
         arm: boks.querySelector<HTMLElement>("[data-arm]"),
         flyttarm: boks.querySelector<HTMLElement>("[data-flyttarm]"),
         merke: boks.querySelector<HTMLElement>("[data-merke]"),
@@ -689,7 +690,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       h.style.left = `${x - 24}px`
       h.style.top = `${y - 24}px`
     }
-    const { flytt, vri, arm, flyttarm, merke, ord, sFlytt, sStor, sVri } = delar
+    const { flytt, vri, normal, arm, flyttarm, merke, ord, sFlytt, sStor, sVri } = delar
     if (flyttarm) flyttarm.hidden = true
     const sv = naa.current.snittVerd
     if (!sv) {
@@ -712,10 +713,25 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
     const inne = c.x > -40 && c.x < size.width + 40 && c.y > -40 && c.y < size.height + 40
     boks.style.visibility = inne ? "visible" : "hidden"
     boks.dataset.slag = synleg ? "skisse" : "plan"
+    let nPx: { x: number; y: number } | null = null
+    if (normal && rValt) {
+      const { right, up } = aksar()
+      const nv = nTilVerd(rValt.n)
+      const ns = new THREE.Vector2(nv.dot(right), -nv.dot(up))
+      if (ns.length() > 0.05) {
+        ns.setLength(56)
+        if (Math.hypot(ns.x, c.y + ns.y - vy) < 44) ns.negate()
+        nPx = { x: c.x + ns.x, y: c.y + ns.y }
+        sett(normal, nPx.x, nPx.y)
+        ;(normal.firstElementChild as HTMLElement).style.rotate = `${Math.atan2(ns.y, ns.x) + Math.PI / 4}rad`
+      }
+      normal.style.visibility = nPx ? "" : "hidden"
+    }
     let flyttPx = c
     if (valt && naa.current.valdStrek === null && snitt) {
       const opptekne = [
         { x: c.x, y: vy },
+        ...(nPx ? [nPx] : []),
         ...(snitt.spor ?? []).map((q) => skjerm(tilVerd(f, ut(snitt.r, q.botn)))),
         ...(valt.omriss && rValt ? valt.omriss.map((p) => skjerm(tilVerd(f, ut(rValt, [p[0] * storleik, p[1] * storleik])))) : []),
       ]
@@ -791,10 +807,10 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
   useEffect(() => {
     const el = gl.domElement
     const pts = new Map<number, { x: number; y: number }>()
-    type Gest = "none" | "sam" | "lys" | "hFlytt" | "hVri" | "musFlytt" | "musVri" | "musRute"
+    type Gest = "none" | "sam" | "lys" | "hFlytt" | "hNormal" | "hVri" | "musFlytt" | "musVri" | "musRute"
     let mode: Gest = "none"
     let musRute = { x: 0, y: 0, id: -1 }
-    const handtakGaar = () => sideDra.current || !!arb.current || mode === "hFlytt" || mode === "hVri"
+    const handtakGaar = () => sideDra.current || !!arb.current || mode === "hFlytt" || mode === "hNormal" || mode === "hVri"
     let svelgKlikk = false
     let sam = { x0: 0, y0: 0, d0: 1, sistA: 0, vri: 0, akt: { pan: false, vri: false, klyp: false }, sagt: null as GestKva }
     const bitStil = () => naa.current.modus === "bit" && naa.current.valdBit !== null
@@ -836,7 +852,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       }
       return { id, x0, y0, a0: 0, senter: { ...senterPx.current }, pose: { ...pose.current }, pl }
     }
-    const bruk = (t: Tak, dx: number, dy: number, ang: number) => {
+    const bruk = (t: Tak, dx: number, dy: number, ang: number, langs: "n" | "plan" = "n") => {
       const { f, onPlan, fri } = naa.current
       if (!f) return
       const sn = { vri: false, pos: false }
@@ -857,7 +873,12 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
           }
         }
         const o = t.pl.o.clone()
-        if (dx || dy) {
+        if ((dx || dy) && langs === "plan") {
+          const P = new THREE.Plane().setFromNormalAndCoplanarPoint(n, o)
+          const a = new THREE.Ray(camera.position.clone(), straale(t.x0, t.y0)).intersectPlane(P, new THREE.Vector3())
+          const b = new THREE.Ray(camera.position.clone(), straale(t.x0 + dx, t.y0 + dy)).intersectPlane(P, new THREE.Vector3())
+          if (a && b && broek(fraaVerd(f, o.clone().add(b).sub(a)), f.min, f.max).every((c) => c >= -PLAN_ROM && c <= 1 + PLAN_ROM)) o.add(b).sub(a)
+        } else if (dx || dy) {
           const k = pxPer(Math.max(0.1, o.clone().sub(camera.position).dot(fwd)))
           const ns = new THREE.Vector2(n.dot(right) * k, -n.dot(up) * k)
           if (ns.length() > 0.05 * k) {
@@ -1038,9 +1059,9 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
         else flytt(tak, dx, dy)
         return
       }
-      if (mode === "hFlytt" || mode === "hVri") {
+      if (mode === "hFlytt" || mode === "hNormal" || mode === "hVri") {
         if (!tak || e.pointerId !== tak.id) return
-        if (mode === "hFlytt") flytt(tak, e.clientX - tak.x0, e.clientY - tak.y0)
+        if (mode !== "hVri") bruk(tak, e.clientX - tak.x0, e.clientY - tak.y0, 0, mode === "hFlytt" && tak.pl ? "plan" : "n")
         else vri(tak, vinkel(Math.atan2(e.clientY - tak.senter.y, e.clientX - tak.senter.x), tak.a0))
         return
       }
@@ -1101,7 +1122,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       }
       if (mode === "musRute") return sleppHandtak()
       if (mode === "musFlytt" || mode === "musVri") return slepp()
-      if ((mode === "hFlytt" || mode === "hVri") && tak && e.pointerId === tak.id) return sleppHandtak()
+      if ((mode === "hFlytt" || mode === "hNormal" || mode === "hVri") && tak && e.pointerId === tak.id) return sleppHandtak()
       if (attheld && e.pointerId === attheld.id) attheld = null
       if (!pts.delete(e.pointerId)) return
       if (pts.size === 0) {
@@ -1124,7 +1145,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       if (slag === "vri") {
         t.a0 = Math.atan2(e.clientY - t.senter.y, e.clientX - t.senter.x)
         mode = "hVri"
-      } else mode = "hFlytt"
+      } else mode = slag === "normal" ? "hNormal" : "hFlytt"
       tak = t
       try {
         h.setPointerCapture(e.pointerId)
@@ -1139,7 +1160,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       if (e.target === el) e.stopImmediatePropagation()
     }
 
-    const taTouchen = (e: TouchEvent) => { if (e.touches.length >= 2) e.preventDefault() }
+    const taTouchen = (e: TouchEvent) => { if (e.touches.length >= 2 && e.cancelable) e.preventDefault() }
     el.addEventListener("touchstart", taTouchen, { passive: false })
     el.addEventListener("touchmove", taTouchen, { passive: false })
     el.addEventListener("pointerdown", ned, { capture: true })
@@ -2591,6 +2612,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <span data-flyttarm="" aria-hidden="true" hidden style={{ height: 1, background: "var(--snitt)", opacity: 0.45, transformOrigin: "0 0" }} />
         <button type="button" data-handtak="flytt" aria-label="flytt snittet" title="dra: flytt snittet over kroppen">{IkonFlytt}</button>
         <button type="button" data-handtak="vri" aria-label="vri snittet" title="dra: vri snittet">{IkonVri}</button>
+        <button type="button" data-handtak="normal" aria-label="skuv snittet" title="dra: skuv snittet langs normalen">{IkonStor}</button>
         <button type="button" data-handtak="strek-flytt" aria-label="flytt streken" title="dra: flytt streken i planet">{IkonFlytt}</button>
         <button type="button" data-handtak="strek-storleik" aria-label="storleiken på streken" title="dra: breidd og høgd. ein rund strek snappar til sirkel når måla er nære">{IkonStor}</button>
         <button type="button" data-handtak="strek-vri" aria-label="vri streken" title="dra: vri streken. snappar til 0° og 90°">{IkonVri}</button>

@@ -1598,7 +1598,7 @@ export function Studio() {
   }, [mounted, toppH])
   useEffect(() => {
     const stogg = (e: Event) => e.preventDefault()
-    const fleire = (e: TouchEvent) => { if (e.touches.length > 1) e.preventDefault() }
+    const fleire = (e: TouchEvent) => { if (e.touches.length > 1 && e.cancelable) e.preventDefault() }
     document.addEventListener("gesturestart", stogg, { passive: false })
     document.addEventListener("gesturechange", stogg, { passive: false })
     document.addEventListener("touchmove", fleire, { passive: false })

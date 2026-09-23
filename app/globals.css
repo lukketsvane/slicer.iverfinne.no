@@ -284,6 +284,7 @@ input {
   background: var(--snitt);
 }
 .handtak [data-handtak="vri"] > svg,
+.handtak [data-handtak="normal"] > svg,
 .handtak [data-handtak="strek-storleik"] > svg,
 .handtak [data-handtak="strek-vri"] > svg {
   width: 18px;
@@ -295,6 +296,7 @@ input {
 }
 .handtak[data-strek] [data-handtak="flytt"],
 .handtak[data-strek] [data-handtak="vri"],
+.handtak[data-strek] [data-handtak="normal"],
 .handtak[data-strek] [data-arm] {
   visibility: hidden;
 }
@@ -303,8 +305,12 @@ input {
   visibility: hidden;
 }
 .handtak[data-tom] [data-handtak="vri"],
+.handtak[data-tom] [data-handtak="normal"],
 .handtak[data-tom] [data-arm],
 .handtak[data-tom] [data-merke] {
+  visibility: hidden;
+}
+.handtak[data-slag="skisse"] [data-handtak="normal"] {
   visibility: hidden;
 }
 .handtak[data-tom] [data-handtak="flytt"] {

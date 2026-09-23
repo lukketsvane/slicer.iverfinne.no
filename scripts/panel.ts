@@ -1268,7 +1268,7 @@ async function kamera(browser: Browser) {
 
   await bytArket(page)
   await roleg(page, 500)
-  await page.locator("[role=tab][aria-label='grupper']").click()
+  await page.locator("[role=tab][aria-label='plan']").click()
   await roleg(page, 500)
   const rad = page.locator("[role=option][data-plan]").first()
   sjekk("planlista står i skuffa", (await page.locator("[role=option][data-plan]").count()) >= 2, `${await page.locator("[role=option][data-plan]").count()} rader`)
@@ -2093,7 +2093,7 @@ async function handtaka(browser: Browser) {
   sjekk("ingen prikkar i rommet utan eit plan valt", (await prikk.count()) === 0)
   await midt(page)
   await utbrett(page)
-  await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
+  await page.locator("[role=option][data-plan='1'] button").first().click()
   await roleg(page, 900)
   const nr = await prikk.count()
   sjekk("det valde planet har ein prikk per ledd i rommet", nr > 0, `${nr} prikkar`)
@@ -2112,6 +2112,41 @@ async function handtaka(browser: Browser) {
     sjekk("eit drag i rommet skriv den same delinga", /^\d+-\d+-\d+:[\d.]+$/.test(d3), d3)
     sjekk("og synet stod stille medan du drog", (await kamera()) === kFyrr, `${kFyrr} → ${await kamera()}`)
   }
+
+  await page.getByRole("button", { name: "lat att kontrollane" }).click()
+  await roleg(page, 500)
+  const slag = (await page.locator(".handtak").getAttribute("data-slag")) ?? "?"
+  sjekk("planet står valt med handtaka framme", slag === "plan", slag)
+  const dra = async (h: string, dx: number, dy: number) => {
+    const b = await page.locator(`[data-handtak='${h}']`).boundingBox()
+    if (!b) return null
+    const foer = plana(page).find((q) => q.id === 1)!.o
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(b.x + b.width / 2 + dx, b.y + b.height / 2 + dy, { steps: 12 })
+    await page.mouse.up()
+    await vent(page, (p) => {
+      const q = lesPlan(p.plan).find((r) => r.id === 1)
+      return !!q && q.o.some((c, i) => Math.abs(c - foer[i]) > 1e-4)
+    })
+    const etter = plana(page).find((q) => q.id === 1)!.o
+    return etter.map((c, i) => c - foer[i])
+  }
+  const tal = (d: number[] | null) => (d ? d.map((c) => c.toFixed(3)).join(",") : "ikkje funne")
+  const dS = await dra("flytt", 0, 40)
+  sjekk("senterhandtaket dreg planet i planet: ingenting langs normalen", !!dS && Math.abs(dS[0]) < 0.005 && Math.hypot(dS[1], dS[2]) > 0.02, tal(dS))
+  const normalH = page.locator("[data-handtak='normal']")
+  sjekk("eit valt plan har eit normalhandtak", (await normalH.count()) === 1 && (await normalH.isVisible()))
+  const nb = await normalH.boundingBox()
+  const arm = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec((await page.locator("[data-arm]").getAttribute("style")) ?? "")
+  let dN: number[] | null = null
+  if (nb && arm) {
+    const ux = nb.x + nb.width / 2 - Number(arm[1])
+    const uy = nb.y + nb.height / 2 - Number(arm[2])
+    const L = Math.hypot(ux, uy) || 1
+    dN = await dra("normal", (40 * ux) / L, (40 * uy) / L)
+  }
+  sjekk("normalhandtaket skuvar berre langs normalen", !!dN && Math.abs(dN[0]) > 0.02 && Math.hypot(dN[1], dN[2]) < 0.005, tal(dN))
 
   sjekk("ingen konsollfeil på handtaka", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
   await page.close()
