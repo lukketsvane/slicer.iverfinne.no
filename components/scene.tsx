@@ -365,7 +365,7 @@ type Tak = {
   a0: number
   senter: { x: number; y: number }
   pose: { px: number; py: number; phi: number }
-  pl: { id: number; o: THREE.Vector3; n: THREE.Vector3 } | null
+  pl: { id: number; o: THREE.Vector3; n: THREE.Vector3; sist?: THREE.Vector3 } | null
 }
 
 const SNAPP_VRI = (5 * Math.PI) / 180
@@ -877,7 +877,8 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
           const P = new THREE.Plane().setFromNormalAndCoplanarPoint(n, o)
           const a = new THREE.Ray(camera.position.clone(), straale(t.x0, t.y0)).intersectPlane(P, new THREE.Vector3())
           const b = new THREE.Ray(camera.position.clone(), straale(t.x0 + dx, t.y0 + dy)).intersectPlane(P, new THREE.Vector3())
-          if (a && b && broek(fraaVerd(f, o.clone().add(b).sub(a)), f.min, f.max).every((c) => c >= -PLAN_ROM && c <= 1 + PLAN_ROM)) o.add(b).sub(a)
+          if (a && b && broek(fraaVerd(f, o.clone().add(b).sub(a)), f.min, f.max).every((c) => c >= -PLAN_ROM && c <= 1 + PLAN_ROM)) t.pl.sist = o.add(b).sub(a).clone()
+          else if (t.pl.sist) o.copy(t.pl.sist)
         } else if (dx || dy) {
           const k = pxPer(Math.max(0.1, o.clone().sub(camera.position).dot(fwd)))
           const ns = new THREE.Vector2(n.dot(right) * k, -n.dot(up) * k)
@@ -1061,7 +1062,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       }
       if (mode === "hFlytt" || mode === "hNormal" || mode === "hVri") {
         if (!tak || e.pointerId !== tak.id) return
-        if (mode !== "hVri") bruk(tak, e.clientX - tak.x0, e.clientY - tak.y0, 0, mode === "hFlytt" && tak.pl ? "plan" : "n")
+        if (mode !== "hVri") bruk(tak, e.clientX - tak.x0, e.clientY - tak.y0, 0, mode === "hFlytt" && tak.pl && (naa.current.valt?.omriss?.length || naa.current.valt?.bog) ? "plan" : "n")
         else vri(tak, vinkel(Math.atan2(e.clientY - tak.senter.y, e.clientX - tak.senter.x), tak.a0))
         return
       }

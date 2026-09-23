@@ -2117,6 +2117,9 @@ async function handtaka(browser: Browser) {
   await roleg(page, 500)
   const slag = (await page.locator(".handtak").getAttribute("data-slag")) ?? "?"
   sjekk("planet står valt med handtaka framme", slag === "plan", slag)
+  await page.getByRole("button", { name: "form", exact: true }).click()
+  await vent(page, (p) => !!lesPlan(p.plan).find((q) => q.id === 1)?.omriss?.length)
+  sjekk("forma er fryst til punkt før planet vert flytt", !!plana(page).find((q) => q.id === 1)?.omriss?.length)
   const dra = async (h: string, dx: number, dy: number) => {
     const b = await page.locator(`[data-handtak='${h}']`).boundingBox()
     if (!b) return null
