@@ -5,7 +5,7 @@ import { DETAIL, jointsIn, sporPunkt, stykkeLangs, tappIn, type Snitt, type Ribb
 import { DEFAULT_PARAMS, leddNokkel, type Params } from "../lib/params"
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
-import { ein2, lesPlan, rutenett, skrivPlan, ut, type Strek } from "../lib/plan"
+import { ein2, lesPlan, rutenett, skrivPlan, ut, type Plan, type Strek } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 const bogNett = (nx: number, ny: number, bog: number) =>
@@ -592,6 +592,38 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
       brot++
       console.log(`FEIL  ${namn.padEnd(26)} ${baae} punkt gods i båe halvdelane, ${halve} av ${tal} tappar til midtplanet, ${skoytt ? "skøytt" : "ikkje skøytt"}`)
     } else console.log(`  ok   ${namn.padEnd(26)} ${String(tal).padStart(4)} tappar frå kvar halvdel, alle til midtplanet, ingen gods i båe`)
+  }
+}
+
+{
+  const halv = (x0: number, x1: number, y0: number, y1: number): [number, number][] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+  const saker: [string, number, [number, number], number[]][] = [
+    ["delt sete, ulike halvdelar", 456, [-100, 175], [1, 2, 5, 3, 4]],
+    ["delt sete, ulike, ribbe under", 438, [-100, 175], [1, 2, 5, 3, 4]],
+    ["delt sete, ribba mellom halvdelane", 456, [-175, 175], [1, 2, 3, 5, 4]],
+    ["delt sete, ribba mellom, ribbe under", 438, [-175, 175], [1, 2, 3, 5, 4]],
+  ]
+  for (const [namn, topp, [bx0, bx1], orden] of saker) {
+    const plater: Record<number, Plan> = {
+      1: plate(1, [0.5, (225 - 150) / S, 0.5], [0, 1, 0], [[-150, -225], [150, -225], [150, 213], [-150, 213]]),
+      2: plate(2, [0.5, (225 + 150) / S, 0.5], [0, 1, 0], [[-150, -225], [150, -225], [150, 213], [-150, 213]]),
+      5: plate(5, [0.5, 0.5, 0.5], [0, 1, 0], [[-175, -225], [175, -225], [175, topp - 225], [-175, topp - 225]]),
+      3: plate(3, [0.5, 0.5, 444 / S], [0, 0, 1], halv(-175, 175, -175, 0)),
+      4: plate(4, [0.5, 0.5, 444 / S], [0, 0, 1], halv(bx0, bx1, 0, 175)),
+    }
+    const { s: g } = makeBygg({ ...MOBEL, plan: skrivPlan(orden.map((id) => plater[id])) }, DETAIL.mid)
+    const A = g.ribber.find((r) => r.plan.id === 3)!, B = g.ribber.find((r) => r.plan.id === 4)!, R = g.ribber.find((r) => r.plan.id === 5)!
+    let kollisjon = 0, tomt = 0
+    const i = (x: number, y: number, z: number) => +gods(A, [x, y]) + +gods(B, [x, y]) + +gods(R, [-x, z])
+    for (let x = -172; x <= 172; x += 1) for (const y of [-5.5, -3, -0.5, 0.5, 3, 5.5]) for (const z of [439.5, 441, 444, 447, 448.5]) {
+      if (i(x, y, z) > 1) kollisjon++
+      const skal = y < 0 || (x > bx0 + 1 && x < bx1 - 1)
+      if (skal && i(x, y, z) === 0 && i(x - 0.6, y, z) === 0 && i(x + 0.6, y, z) === 0) tomt++
+    }
+    if (kollisjon || tomt || g.montering.klem.length) {
+      brot++
+      console.log(`FEIL  ${namn.padEnd(34)} ${kollisjon} punkt i to plater, ${tomt} tomme, ${g.montering.klem.length} klemde par`)
+    } else console.log(`  ok   ${namn.padEnd(34)} leddvolumet er fylt av éi plate i kvart punkt`)
   }
 }
 

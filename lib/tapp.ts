@@ -141,16 +141,23 @@ export function stikkUt(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, 
   return sluttar(k, T, M, lT, lM, k.tjukn / (2 * sin), (k.slotW + k.tjukn * cos) / sin).filter((q) => q.u > 0).flatMap((q) => q.strekk)
 }
 
-const motplate = (k: Ktx, T: TappFlate, lT: Line, s: number, tb2: number, strekk: readonly Span[], andre: readonly TappFlate[]): boolean => {
-  if (T.boygd || lT.k) return false
+const motplate = (k: Ktx, T: TappFlate, lT: Line, s: number, tb2: number, strekk: readonly Span[], andre: readonly TappFlate[]): Span[] => {
+  if (T.boygd || lT.k) return []
   const off = -s * (tb2 + fangAv(k))
   const p0: Pt = [lT.p[0] - lT.d[1] * off, lT.p[1] + lT.d[0] * off]
   const p3 = ut(T.r, p0), q3 = ut(T.r, [p0[0] + lT.d[0], p0[1] + lT.d[1]])
-  return andre.some((C) => {
-    if (C === T || C.boygd || Math.abs(dot(C.r.n, T.r.n)) < 0.99999 || Math.abs(dot(sub3(C.r.o, T.r.o), T.r.n)) > 0.01) return false
+  const alle = andre.flatMap((C) => {
+    if (C === T || C.boygd || Math.abs(dot(C.r.n, T.r.n)) < 0.99999 || Math.abs(dot(sub3(C.r.o, T.r.o), T.r.n)) > 0.01) return []
     const pC = inn(C.r, p3)
-    return felles(stykkeLangs(C.ringar, pC, ein2(inn(C.r, q3), pC)), strekk as Span[]).length > 0
-  })
+    return felles(stykkeLangs(C.ringar, pC, ein2(inn(C.r, q3), pC)), strekk as Span[])
+  }).sort((a, b) => a[0] - b[0])
+  const saman: Span[] = []
+  for (const [a, b] of alle) {
+    const sist = saman[saman.length - 1]
+    if (sist && a <= sist[1]) sist[1] = Math.max(sist[1], b)
+    else saman.push([a, b])
+  }
+  return saman
 }
 
 export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, sin: number, cos: number, nr: number, fredt: readonly Span[] = [], andre: readonly TappFlate[] = []) {
@@ -164,9 +171,8 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
     const { s } = svar
     const strekk = fredt.length ? utan(svar.strekk, fredt as Span[]).filter(([lo, hi]) => hi - lo >= tappMin) : svar.strekk
     if (!strekk.length) continue
-    const delt = motplate(k, T, lT, s, tb2, strekk, andre)
-    const u = delt ? 0 : kileU(k, svar.u)
-    const dj = delt ? 0 : tb2 + u
+    const dekt = motplate(k, T, lT, s, tb2, strekk, andre)
+    const kile = kileU(k, svar.u)
     let tal = 0
     const inn2: Pt = [s * lT.d[1], -s * lT.d[0]]
     const a = T.boygd ? T.r.k * lT.p[0] : 0
@@ -175,13 +181,17 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
     const rom = tb2 + fang
     rettKant(T, lT, s, tb2, rom, strekk)
     const retta = T.omriss ? [T.omriss] : T.ringar
-    for (const [c0, c1] of strekk) {
+    const bitar = [...utan(strekk, dekt).map((q) => [q, false] as const), ...felles(strekk as Span[], dekt).map((q) => [q, true] as const)].sort((a, b) => a[0][0] - b[0][0])
+    for (const [[c0, c1], delt] of bitar) {
+      const u = delt ? 0 : kile
+      const dj = delt ? 0 : tb2 + u
       T.tform.push(...boksar(lT, c0, c1, s * tb2, -s * (tb2 + (u ? utMax : fang) + 1), false))
       const naer = s * (tb2 + 0.01)
       for (const [g0, g1] of utan([[c0, c1]], stykkeLangs(retta, [lT.p[0] - lT.d[1] * naer, lT.p[1] + lT.d[0] * naer], lT.d))) {
         if (g1 - g0 > rom) T.tform.push(...boksar(lT, g0, g1, s * (tb2 + fang + 0.5), s * tb2, true))
       }
       const L = c1 - c0
+      if (L < tappMin) continue
       const n = Math.max(1, Math.round(L / 150))
       const celle = L / n
       const marg = Math.max(k.tjukn + k.klaring, 0.15 * celle)
@@ -258,21 +268,27 @@ export function fingrar(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, 
   rettKant(B, lB, b.s, tb2, rom, strekk)
   const retn = (T: TappFlate, l: Line, s: number): Vec3 => add3(mul3(T.r.u, s * l.d[1]), mul3(T.r.v, -s * l.d[0]))
   const innA = retn(A, lA, a.s), innB = retn(B, lB, b.s)
-  const dA = motplate(k, A, lA, a.s, tb2, strekk, andre) ? 0 : tb2, dB = motplate(k, B, lB, b.s, tb2, strekk, andre) ? 0 : tb2
+  const dkA = motplate(k, A, lA, a.s, tb2, strekk, andre), dkB = motplate(k, B, lB, b.s, tb2, strekk, andre)
+  const oddeA = !(dkB.length && !dkA.length)
+  const rot = dkA.length && !dkB.length ? b.sp : dkB.length && !dkA.length ? a.sp : null
+  const dj = (dk: Span[], f0: number, f1: number) => (dk.some(([x, y]) => x <= (f0 + f1) / 2 && (f0 + f1) / 2 <= y) ? 0 : tb2)
   let tal = 0
   for (const [c0, c1] of strekk) {
     A.tform.push(boks(lA, c0, c1, a.s * tb2, -a.s * (tb2 + fang + 1), false))
     B.tform.push(boks(lB, c0, c1, b.s * tb2, -b.s * (tb2 + fang + 1), false))
-    const L = c1 - c0
+    const [g0, g1] = rot?.find(([x, y]) => x <= c0 + 1e-6 && y >= c1 - 1e-6) ?? [c0, c1]
+    const L = g1 - g0
     const n = Math.max(3, 2 * Math.round((L / (6 * k.tjukn) - 1) / 2) + 1)
     const f = L / n
     for (let i = 0; i < n; i++) {
-      const [T, l, s, inn, dj] = i % 2 ? [A, lA, a.s, innA, dA] as const : [B, lB, b.s, innB, dB] as const
-      const f0 = c0 + i * f + (i ? k.klaring / 2 : 0)
-      const f1 = c0 + (i + 1) * f - (i < n - 1 ? k.klaring / 2 : 0)
-      T.tform.push(boks(l, f0, f1, s * (tb2 + 0.5), -s * dj, true))
+      const tilA = (i % 2 === 1) === oddeA
+      const [T, l, s, inn, dk] = tilA ? [A, lA, a.s, innA, dkA] as const : [B, lB, b.s, innB, dkB] as const
+      const f0 = Math.max(c0, g0 + i * f + (i ? k.klaring / 2 : 0))
+      const f1 = Math.min(c1, g0 + (i + 1) * f - (i < n - 1 ? k.klaring / 2 : 0))
+      if (f1 - f0 < 0.5) continue
+      T.tform.push(boks(l, f0, f1, s * (tb2 + 0.5), -s * dj(dk, f0, f1), true))
       const mot = T === A ? B : A
-      T.tapp.push({ mot: mot.plan.id, slag: "tapp", midt: sporPunkt(l, (f0 + f1) / 2, 0), hjorne: hjorne(l, f0, f1, s * tb2, -s * dj), inn, nokkel: `f${A.plan.id}-${B.plan.id}-${nr + tal}` })
+      T.tapp.push({ mot: mot.plan.id, slag: "tapp", midt: sporPunkt(l, (f0 + f1) / 2, 0), hjorne: hjorne(l, f0, f1, s * tb2, -s * dj(dk, f0, f1)), inn, nokkel: `f${A.plan.id}-${B.plan.id}-${nr + tal}` })
       tal++
     }
   }
