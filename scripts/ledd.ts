@@ -568,6 +568,33 @@ sjekkTapp("krakk, 3 mm modell", { ...MOBEL, tjukn: 3, plan: krakk({ setaZ: 439.5
   }
 }
 
+{
+  const sider: [number, number][] = [[-150, -225], [150, -225], [150, 213], [-150, 213]]
+  const halv = (y0: number, y1: number): [number, number][] => [[-175, y0], [175, y0], [175, y1], [-175, y1]]
+  for (const [namn, topp, venta] of [["delt sete på midtribbe", 456, 8], ["delt sete, ribbe til undersida", 438, 14]] as const) {
+    const plan = skrivPlan([
+      plate(1, [0.5, (225 - 150) / S, 0.5], [0, 1, 0], sider),
+      plate(2, [0.5, (225 + 150) / S, 0.5], [0, 1, 0], sider),
+      plate(5, [0.5, 0.5, 0.5], [0, 1, 0], [[-175, -225], [175, -225], [175, topp - 225], [-175, topp - 225]]),
+      plate(3, [0.5, 0.5, 444 / S], [0, 0, 1], halv(-175, 0)),
+      plate(4, [0.5, 0.5, 444 / S], [0, 0, 1], halv(0, 175)),
+    ])
+    sjekkTapp(namn, { ...MOBEL, plan }, { tappar: venta, brot: 0 })
+    const { s: g } = makeBygg({ ...MOBEL, plan }, DETAIL.mid)
+    const A = g.ribber.find((r) => r.plan.id === 3)!, B = g.ribber.find((r) => r.plan.id === 4)!
+    const skoytt = g.ribber.some((r) => r.tapp.some((q) => q.nokkel.startsWith("s")))
+    let baae = 0, halve = 0
+    for (let x = -174; x <= 174; x += 1) for (const y of [-5.5, -3, -0.5, 0.5, 3, 5.5]) if (gods(A, [x, y]) && gods(B, [x, y])) baae++
+    const iRibba = (R: Rib) => R.tapp.filter((q) => q.mot === 5 && q.slag === "tapp")
+    for (const q of iRibba(A)) if (gods(A, [q.midt[0], -0.5]) && !gods(A, [q.midt[0], 0.5]) && gods(B, [q.midt[0], 0.5]) && !gods(B, [q.midt[0], -0.5])) halve++
+    const tal = iRibba(A).length
+    if (baae || skoytt || !tal || halve !== tal || iRibba(B).length !== tal) {
+      brot++
+      console.log(`FEIL  ${namn.padEnd(26)} ${baae} punkt gods i båe halvdelane, ${halve} av ${tal} tappar til midtplanet, ${skoytt ? "skøytt" : "ikkje skøytt"}`)
+    } else console.log(`  ok   ${namn.padEnd(26)} ${String(tal).padStart(4)} tappar frå kvar halvdel, alle til midtplanet, ingen gods i båe`)
+  }
+}
+
 if (avvistIAlt === 0) {
   brot++
   console.log("FEIL  avviste                   ingen av sakene avviste eit einaste møte — er teljaren kopla frå?")

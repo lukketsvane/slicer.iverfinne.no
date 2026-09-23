@@ -683,7 +683,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       let treff = 0
       const c = dot(A.r.n, B.r.n)
       if (!A.boygd && !B.boygd && Math.abs(c) > 0.99999 && Math.abs(dot(sub3(A.r.o, B.r.o), A.r.n)) < 0.01) {
-        const sk = skoyt(tappKtx, A, B, c < 0, tappar)
+        const sk = skoyt(tappKtx, A, B, c < 0, tappar, raa)
         if (sk) {
           tappar += sk.tal
           ledd += sk.tal
@@ -700,7 +700,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       const lB = moteInn(B.r, x)
       const tekne: Span[] = []
       {
-        const m = moteLedd(tappKtx, A, B, lA, lB, x.sin, tappar)
+        const m = moteLedd(tappKtx, A, B, lA, lB, x.sin, tappar, raa)
         tappar += m.tal
         ledd += m.tal
         for (const [del, mot, d] of m.vegar) veg(vegar, del, mot, d)

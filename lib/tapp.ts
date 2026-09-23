@@ -1,6 +1,6 @@
 import { inRing, type Pt, type Vec3 } from "./core"
 import type { Span } from "./mesh/solid"
-import { add3, ein2, mul3, type Plan, type Ramme } from "./plan"
+import { add3, dot, ein2, inn, kryss, moteInn, mul3, sub3, ut, type Plan, type Ramme } from "./plan"
 import { felles, sporInn, sporPunkt, stykkeLangs, utan, type Line } from "./stykke"
 
 export type Tapp = {
@@ -45,7 +45,8 @@ export type TappFlate = {
 
 type Ktx = { tjukn: number; klaring: number; slotW: number; kilar?: boolean }
 
-export const tappIn = (tapp: readonly Tapp[], outline: Pt[]): Tapp[] => tapp.filter((q) => inRing(outline, q.midt))
+export const tappIn = (tapp: readonly Tapp[], outline: Pt[]): Tapp[] =>
+  tapp.filter((q) => inRing(outline, q.boge ? q.midt : [q.hjorne.reduce((a, h) => a + h[0], 0) / q.hjorne.length, q.hjorne.reduce((a, h) => a + h[1], 0) / q.hjorne.length]))
 
 const fangAv = (k: Ktx) => Math.max(1.5, 0.5 * k.tjukn)
 const tappMinAv = (k: Ktx) => Math.max(6, 3 * k.tjukn)
@@ -140,7 +141,19 @@ export function stikkUt(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, 
   return sluttar(k, T, M, lT, lM, k.tjukn / (2 * sin), (k.slotW + k.tjukn * cos) / sin).filter((q) => q.u > 0).flatMap((q) => q.strekk)
 }
 
-export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, sin: number, cos: number, nr: number, fredt: readonly Span[] = []) {
+const motplate = (k: Ktx, T: TappFlate, lT: Line, s: number, tb2: number, strekk: readonly Span[], andre: readonly TappFlate[]): boolean => {
+  if (T.boygd || lT.k) return false
+  const off = -s * (tb2 + fangAv(k))
+  const p0: Pt = [lT.p[0] - lT.d[1] * off, lT.p[1] + lT.d[0] * off]
+  const p3 = ut(T.r, p0), q3 = ut(T.r, [p0[0] + lT.d[0], p0[1] + lT.d[1]])
+  return andre.some((C) => {
+    if (C === T || C.boygd || Math.abs(dot(C.r.n, T.r.n)) < 0.99999 || Math.abs(dot(sub3(C.r.o, T.r.o), T.r.n)) > 0.01) return false
+    const pC = inn(C.r, p3)
+    return felles(stykkeLangs(C.ringar, pC, ein2(inn(C.r, q3), pC)), strekk as Span[]).length > 0
+  })
+}
+
+export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, sin: number, cos: number, nr: number, fredt: readonly Span[] = [], andre: readonly TappFlate[] = []) {
   const fang = fangAv(k)
   const tb2 = k.tjukn / (2 * sin)
   const wM = (k.slotW + k.tjukn * cos) / sin
@@ -149,9 +162,11 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
   const tappMin = tappMinAv(k)
   for (const svar of sluttar(k, T, M, lT, lM, tb2, wM)) {
     const { s } = svar
-    const u = kileU(k, svar.u)
     const strekk = fredt.length ? utan(svar.strekk, fredt as Span[]).filter(([lo, hi]) => hi - lo >= tappMin) : svar.strekk
     if (!strekk.length) continue
+    const delt = motplate(k, T, lT, s, tb2, strekk, andre)
+    const u = delt ? 0 : kileU(k, svar.u)
+    const dj = delt ? 0 : tb2 + u
     let tal = 0
     const inn2: Pt = [s * lT.d[1], -s * lT.d[0]]
     const a = T.boygd ? T.r.k * lT.p[0] : 0
@@ -173,7 +188,7 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
       for (let i = 0; i < n; i++) {
         const a0 = c0 + i * celle + marg
         const a1 = c0 + (i + 1) * celle - marg
-        T.tform.push(...boksar(lT, a0, a1, s * (tb2 + 0.5), -s * (tb2 + u), true))
+        T.tform.push(...boksar(lT, a0, a1, s * (tb2 + 0.5), -s * dj, true))
         M.tform.push(...boksar(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2, false))
         const nokkel = `t${T.plan.id}-${M.plan.id}-${nr + tal}`
         const kw = kileBreidd(k, u)
@@ -181,7 +196,7 @@ export function tappa(k: Ktx, T: TappFlate, M: TappFlate, lT: Line, lM: Line, si
           const m = (a0 + a1) / 2, hb = (k.tjukn + k.klaring) / 2
           T.tform.push(...boksar(lT, m - hb, m + hb, -s * (tb2 - KILE_EPS), -s * (tb2 - KILE_EPS + kw), false))
         }
-        T.tapp.push({ mot: M.plan.id, slag: "tapp", midt: sporPunkt(lT, (a0 + a1) / 2, 0), hjorne: hjorne(lT, a0, a1, s * tb2, -s * (tb2 + u)), inn, nokkel, ...bogeAv(lT, a0, a1, s * tb2, -s * (tb2 + u)), ...(kw ? { kile: { w: kw } } : {}) })
+        T.tapp.push({ mot: M.plan.id, slag: "tapp", midt: sporPunkt(lT, (a0 + a1) / 2, 0), hjorne: hjorne(lT, a0, a1, s * tb2, -s * dj), inn, nokkel, ...bogeAv(lT, a0, a1, s * tb2, -s * dj), ...(kw ? { kile: { w: kw } } : {}) })
         M.tapp.push({ mot: T.plan.id, slag: "slisse", midt: sporPunkt(lM, (a0 + a1) / 2, 0), hjorne: hjorne(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2), inn, nokkel, ...bogeAv(lM, a0 - k.klaring / 2, a1 + k.klaring / 2, -wM / 2, wM / 2) })
         tal++
       }
@@ -223,7 +238,7 @@ export function slisseGods(tapp: readonly Tapp[], skorne: readonly Pt[][]): numb
   return minst
 }
 
-export function fingrar(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, sin: number, nr: number, fredt: readonly Span[] = []) {
+export function fingrar(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, sin: number, nr: number, fredt: readonly Span[] = [], andre: readonly TappFlate[] = []) {
   if (!A.omriss || !B.omriss || lA.k || lB.k) return null
   const fang = fangAv(k)
   const tb2 = k.tjukn / (2 * sin)
@@ -243,6 +258,7 @@ export function fingrar(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, 
   rettKant(B, lB, b.s, tb2, rom, strekk)
   const retn = (T: TappFlate, l: Line, s: number): Vec3 => add3(mul3(T.r.u, s * l.d[1]), mul3(T.r.v, -s * l.d[0]))
   const innA = retn(A, lA, a.s), innB = retn(B, lB, b.s)
+  const dA = motplate(k, A, lA, a.s, tb2, strekk, andre) ? 0 : tb2, dB = motplate(k, B, lB, b.s, tb2, strekk, andre) ? 0 : tb2
   let tal = 0
   for (const [c0, c1] of strekk) {
     A.tform.push(boks(lA, c0, c1, a.s * tb2, -a.s * (tb2 + fang + 1), false))
@@ -251,12 +267,12 @@ export function fingrar(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, 
     const n = Math.max(3, 2 * Math.round((L / (6 * k.tjukn) - 1) / 2) + 1)
     const f = L / n
     for (let i = 0; i < n; i++) {
-      const [T, l, s, inn] = i % 2 ? [A, lA, a.s, innA] as const : [B, lB, b.s, innB] as const
+      const [T, l, s, inn, dj] = i % 2 ? [A, lA, a.s, innA, dA] as const : [B, lB, b.s, innB, dB] as const
       const f0 = c0 + i * f + (i ? k.klaring / 2 : 0)
       const f1 = c0 + (i + 1) * f - (i < n - 1 ? k.klaring / 2 : 0)
-      T.tform.push(boks(l, f0, f1, s * (tb2 + 0.5), -s * tb2, true))
+      T.tform.push(boks(l, f0, f1, s * (tb2 + 0.5), -s * dj, true))
       const mot = T === A ? B : A
-      T.tapp.push({ mot: mot.plan.id, slag: "tapp", midt: sporPunkt(l, (f0 + f1) / 2, 0), hjorne: hjorne(l, f0, f1, s * tb2, -s * tb2), inn, nokkel: `f${A.plan.id}-${B.plan.id}-${nr + tal}` })
+      T.tapp.push({ mot: mot.plan.id, slag: "tapp", midt: sporPunkt(l, (f0 + f1) / 2, 0), hjorne: hjorne(l, f0, f1, s * tb2, -s * dj), inn, nokkel: `f${A.plan.id}-${B.plan.id}-${nr + tal}` })
       tal++
     }
   }
@@ -297,18 +313,18 @@ export function gjennomgang(k: Ktx, P: TappFlate, G: TappFlate, lP: Line, lG: Li
   return { strekk: ut, tal, inn }
 }
 
-export function moteLedd(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, sin: number, nr: number) {
+export function moteLedd(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line, sin: number, nr: number, andre: readonly TappFlate[] = []) {
   const cos = Math.sqrt(Math.max(0, 1 - sin * sin))
   const tekne: Span[] = []
   const vegar: [number, number, Vec3][] = []
   let tal = 0
   const pil = (del: TappFlate, mot: TappFlate, d: Vec3) => vegar.push([del.plan.id, mot.plan.id, d], [mot.plan.id, del.plan.id, mul3(d, -1)])
-  for (const t of tappa(k, A, B, lA, lB, sin, cos, nr + tal, stikkUt(k, B, A, lB, lA, sin, cos))) {
+  for (const t of tappa(k, A, B, lA, lB, sin, cos, nr + tal, stikkUt(k, B, A, lB, lA, sin, cos), andre)) {
     tal += t.tal
     pil(A, B, t.inn)
     tekne.push(...t.strekk)
   }
-  for (const t of tappa(k, B, A, lB, lA, sin, cos, nr + tal, tekne)) {
+  for (const t of tappa(k, B, A, lB, lA, sin, cos, nr + tal, tekne, andre)) {
     tal += t.tal
     pil(B, A, t.inn)
     tekne.push(...t.strekk)
@@ -320,7 +336,7 @@ export function moteLedd(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line,
     pil(G, P, gj.inn)
     tekne.push(...gj.strekk)
   }
-  const fi = fingrar(k, A, B, lA, lB, sin, nr + tal, tekne)
+  const fi = fingrar(k, A, B, lA, lB, sin, nr + tal, tekne, andre)
   if (fi) {
     tal += fi.tal
     vegar.push([A.plan.id, B.plan.id, fi.innA], [B.plan.id, A.plan.id, fi.innB])
@@ -329,7 +345,23 @@ export function moteLedd(k: Ktx, A: TappFlate, B: TappFlate, lA: Line, lB: Line,
   return { tal, vegar, tekne }
 }
 
-export function skoyt(k: Ktx, A: TappFlate, B: TappFlate, snudd: boolean, nr: number) {
+const ribbaUnder = (k: Ktx, A: TappFlate, l: Line, andre: readonly TappFlate[]): Span[] => {
+  const dekt: Span[] = []
+  for (const C of andre) {
+    if (C === A || C.boygd) continue
+    const x = kryss(A.r, C.r)
+    if (!x) continue
+    const lc = moteInn(A.r, x)
+    const rom = k.tjukn / (2 * x.sin) + fangAv(k)
+    const sg = lc.d[0] * l.d[0] + lc.d[1] * l.d[1]
+    const dx = lc.p[0] - l.p[0], dy = lc.p[1] - l.p[1]
+    if (Math.abs(sg) < 0.99999 || Math.abs(dx * l.d[1] - dy * l.d[0]) > rom) continue
+    const o = dx * l.d[0] + dy * l.d[1], lC = moteInn(C.r, x)
+    for (const off of [-rom, rom]) for (const [t0, t1] of langsAv(C, lC, off)) dekt.push(sg > 0 ? [o + t0, o + t1] : [o - t1, o - t0])
+  }
+  return dekt
+}
+export function skoyt(k: Ktx, A: TappFlate, B: TappFlate, snudd: boolean, nr: number, andre: readonly TappFlate[] = []) {
   if (!A.omriss || !B.omriss || A.boygd || B.boygd) return null
   const band = fangAv(k) + 0.5
   const iB = (l: Line): Line => (snudd ? { p: [-l.p[0], l.p[1]], d: [-l.d[0], l.d[1]], k: 0 } : l)
@@ -343,7 +375,7 @@ export function skoyt(k: Ktx, A: TappFlate, B: TappFlate, snudd: boolean, nr: nu
     if (L < 3 * k.tjukn) continue
     const l: Line = { p: a, d: [(b[0] - a[0]) / L, (b[1] - a[1]) / L], k: 0 }
     const lb = iB(l)
-    const kant: Span[] = [[0, L]]
+    const kant = utan([[0, L]], ribbaUnder(k, A, l, andre))
     for (const s of [1, -1]) {
       const aInn = langsAv(A, l, s * band), aUt = langsAv(A, l, -s * band)
       const bInn = langsAv(B, lb, -s * sB * band), bUt = langsAv(B, lb, s * sB * band)
