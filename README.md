@@ -1120,7 +1120,11 @@ stays.
   and centred; one drawn crooked on purpose stays crooked. Where the finger
   went round — short segments turning less than 50° — the points become
   arc points and the outline runs smoothly through them; a corner stays a
-  corner. A hole has no arc flags, so its curve is filled in with points.
+  corner. A hole has no arc flags, so its curve is filled in with points —
+  and the fill follows the curve's deviation from its chords, not a fixed
+  count per segment, so a small oval gets the points it needs and a gentle
+  arc gets few; a hole is small by nature, so only the turn decides what
+  is round, and the tip of an oval between two curves is on the curve.
 - **A plate on the mirror is a pair.** Mirroring a plate that stands on the
   mirror plane splits it into two, a group that moves mirrored, set in from
   the edges of whatever it crosses by two and a half thicknesses — and it

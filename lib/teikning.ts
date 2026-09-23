@@ -1,5 +1,5 @@
 import { inRing, shoelace, type Pt, type Vec3 } from "./core"
-import { add3, bogeVed, broek, dot, kryss, mul3, omrissLine, OMRISS_TAK, ramme, STREK_TAK, sub3, ut, type Plan, type Ramme, type Strek } from "./plan"
+import { add3, bogeVed, broek, dot, kryss, mul3, omrissLine, HOL_TAK, OMRISS_TAK, ramme, STREK_TAK, sub3, ut, type Plan, type Ramme, type Strek } from "./plan"
 import { speglPlan } from "./spegl"
 import { spegelakse } from "./gruppe"
 
@@ -419,11 +419,11 @@ export function holAv(punkt: readonly Pt[], flate: Ramme, q: Plan, min: Vec3, ma
   }
 }
 
-export function mjukePunkt(o: readonly Pt[]): number[] {
+export function mjukePunkt(o: readonly Pt[], kortBroek = 0.3, snuGrad = 50): number[] {
   const n = o.length
   if (n < 5) return []
   const xs = o.map((p) => p[0]), ys = o.map((p) => p[1])
-  const kort = 0.3 * Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
+  const kort = kortBroek * Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
   const ut: number[] = []
   for (let i = 0; i < n; i++) {
     const a = o[(i - 1 + n) % n], b = o[i], c = o[(i + 1) % n]
@@ -431,22 +431,34 @@ export function mjukePunkt(o: readonly Pt[]): number[] {
     const lu = Math.hypot(...u), lv = Math.hypot(...v)
     if (!lu || !lv || lu > kort || lv > kort) continue
     const snu = Math.acos(Math.max(-1, Math.min(1, (u[0] * v[0] + u[1] * v[1]) / (lu * lv))))
-    if (snu < (50 * Math.PI) / 180) ut.push(i)
+    if (snu < (snuGrad * Math.PI) / 180) ut.push(i)
   }
   return ut
 }
 
-export function tettMjukt(o: readonly Pt[], tak = OMRISS_TAK): Pt[] {
-  const rund = new Set(mjukePunkt(o))
+export function tettMjukt(o: readonly Pt[], tak = HOL_TAK): Pt[] {
   const n = o.length
-  const boge = [...Array(n).keys()].filter((i) => rund.has(i) || rund.has((i + 1) % n))
-  if (!boge.length || n >= tak) return o.slice()
-  const ekstra = Math.floor((tak - n) / boge.length)
-  if (!ekstra) return o.slice()
+  const kurve = new Set(mjukePunkt(o, Infinity))
+  const rund = new Set(kurve)
+  for (const i of mjukePunkt(o, Infinity, 90)) if (kurve.has((i - 1 + n) % n) && kurve.has((i + 1) % n)) rund.add(i)
+  if (!rund.size || n >= tak) return o.slice()
+  const xs = o.map((p) => p[0]), ys = o.map((p) => p[1])
+  const tol = 0.002 * Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
   const ut: Pt[] = []
+  let att = tak - n
+  const del = (i: number, t0: number, t1: number, p0: Pt, p1: Pt, djup: number) => {
+    if (att <= 0 || djup >= 4) return
+    const tm = (t0 + t1) / 2
+    const m = bogeVed(o, rund, i, tm)
+    if (Math.hypot(m[0] - (p0[0] + p1[0]) / 2, m[1] - (p0[1] + p1[1]) / 2) <= tol) return
+    del(i, t0, tm, p0, m, djup + 1)
+    if (att-- > 0) ut.push(m)
+    del(i, tm, t1, m, p1, djup + 1)
+  }
   for (let i = 0; i < n; i++) {
     ut.push(o[i])
-    if (boge.includes(i)) for (let k = 1; k <= ekstra; k++) ut.push(bogeVed(o, rund, i, k / (ekstra + 1)))
+    const j = (i + 1) % n
+    if (rund.has(i) || rund.has(j)) del(i, 0, 1, o[i], o[j], 0)
   }
   return ut
 }

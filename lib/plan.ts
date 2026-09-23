@@ -3,6 +3,7 @@ import { lagFarge, shoelace, type Pt, type Vec3 } from "./core"
 export const PLAN_TAK = 64
 export const STREK_TAK = 24
 export const OMRISS_TAK = 48
+export const HOL_TAK = 4 * OMRISS_TAK
 
 export type Strek = {
   slag: "gods" | "hol"
@@ -277,7 +278,7 @@ const lesStrek = (s: string): Strek | null => {
   const slag = m[1] === "+" ? "gods" : "hol"
   const v = m[3].split(",").map(Number)
   const kontur = m[2] === "k"
-  if (kontur ? v.length < 11 || v.length % 2 === 0 || v.length > 5 + 2 * OMRISS_TAK : v.length !== 5) return null
+  if (kontur ? v.length < 11 || v.length % 2 === 0 || v.length > 5 + 2 * HOL_TAK : v.length !== 5) return null
   if (!v.every(Number.isFinite)) return null
   const [x, y, w, h, a] = v
   if (Math.abs(x) > 2 || Math.abs(y) > 2 || w <= 0 || h <= 0 || w > 2 || h > 2) return null

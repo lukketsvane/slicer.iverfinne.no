@@ -9,11 +9,19 @@ import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
 import { lesPlan, rutenett, skrivPlan, type Strek } from "../lib/plan"
 import { placedRings } from "../lib/nest"
+import { teiknaKontur, tettMjukt } from "../lib/teikning"
+import { konturStrek } from "../lib/bilete"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 const medFarge = (plan: string, id: number, farge: number) =>
   skrivPlan(lesPlan(plan).map((p) => (p.id === id ? { ...p, farge } : p)))
 const medStrek = (plan: string, id: number, st: Strek) =>
   skrivPlan(lesPlan(plan).map((q) => (q.id === id ? { ...q, strek: [...q.strek, st] } : q)))
+const vindauge = (plan: string, id: number, w: number, h: number) => {
+  const ell: Pt[] = Array.from({ length: 200 }, (_, i): Pt => [(w / 300) * Math.cos((i * 2 * Math.PI) / 200), -0.2 + (h / 300) * Math.sin((i * 2 * Math.PI) / 200)])
+  const k = teiknaKontur(ell, 1.25 / 340)
+  if (!k) throw new Error(`vindauget på ${w} × ${h} vart ikkje ein kontur`)
+  return medStrek(plan, id, konturStrek(tettMjukt(k)))
+}
 
 const GRUNN = { ...DEFAULT_PARAMS, plan: nett(6, 6) }
 
@@ -240,6 +248,8 @@ const saker: [string, Params][] = [
     ...GRUNN,
     plan: medStrek(nett(4, 4), 2, { slag: "hol", form: "rekt", x: -0.05, y: -0.05, w: 0.3, h: 0.1, a: 20 }),
   }],
+  ["kube, vindauge 12 × 8", { ...GRUNN, plan: vindauge(nett(4, 4), 2, 12, 8) }],
+  ["kube, vindauge 24 × 15", { ...GRUNN, plan: vindauge(nett(4, 4), 2, 24, 15) }],
   ["kube, to plan merkte", { ...GRUNN, plan: medFarge(medFarge(nett(4, 4), 2, 3), 5, 5) }],
   ["kube, x-familien rilla", {
     ...GRUNN,
@@ -589,6 +599,38 @@ if (!(sumIFila > sumNominell + 1)) {
     })
     if (verst > 0.01) feil(namn, `steget stemmer ikkje med det som står gravert — ${kvar}`)
     else console.log(`  ok   ${(namn + " · steget").padEnd(24)} ${felt.map((f) => f.length).join("+")} rader over fem felt, verste avvik ${verst.toFixed(4)} mm`)
+  }
+}
+
+{
+  const namn = "vindauge"
+  for (const [w, h] of [[12, 8], [24, 15]]) {
+    const p: Params = { ...GRUNN, plan: vindauge(nett(4, 4), 2, w, h) }
+    const { ns } = makeBygg(p, DETAIL.mid)
+    const kerf = kerfOf(p)
+    let funne: Pt[] | null = null
+    for (let i = 0; i < ns.sheets.length && !funne; i++) {
+      const svg = sheetSvg(ns, i, kerf)
+      const baner = [...svg.matchAll(/<path d="(M[^"]+Z)"([^>]*)>/g)].filter((m) => !GRAV_FARGE.test(m[2])).map((m) => pathPts(m[1]))
+      const v = baner.reduce((m, b) => (Math.abs(shoelace(b)) > Math.abs(m) ? shoelace(b) : m), 0)
+      funne = baner.find((b) => {
+        const bb = boks(b)
+        return shoelace(b) * v < 0 && Math.abs(bb[2] - bb[0] - (w - kerf)) < 1 && Math.abs(bb[3] - bb[1] - (h - kerf)) < 1
+      }) ?? null
+    }
+    if (!funne) {
+      feil(namn, `hòlet på ${w} × ${h} finst ikkje i fila`)
+      continue
+    }
+    const bb = boks(funne)
+    const rx = (bb[2] - bb[0]) / 2, ry = (bb[3] - bb[1]) / 2, cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2
+    let verst = 0
+    for (const q of funne) {
+      const u = (q[0] - cx) / rx, v = (q[1] - cy) / ry, r = Math.hypot(u, v)
+      verst = Math.max(verst, Math.hypot(q[0] - cx - (u / r) * rx, q[1] - cy - (v / r) * ry))
+    }
+    if (funne.length < 16 || verst >= 0.2) feil(namn, `${w} × ${h}: ${funne.length} punkt i fila, ${verst.toFixed(3)} mm frå ellipsen`)
+    else console.log(`  ok   ${(namn + ` · ${w} × ${h}`).padEnd(24)} ${funne.length} punkt i fila, verste avvik frå ellipsen ${verst.toFixed(3)} mm`)
   }
 }
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { inRing, shoelace, type Pt } from "../lib/core"
-import { lesPlan, OMRISS_TAK, skrivPlan, ut, omrissLine } from "../lib/plan"
+import { HOL_TAK, lesPlan, OMRISS_TAK, skrivPlan, ut, omrissLine } from "../lib/plan"
 import { forenklaRing, haldt, landing, lukkTeikning, mellom, midtPaa, ogSysken, teiknaHalv, teiknaRund, mjukePunkt, snapp, snappaKontur, snappliner, symmetrisk, teiknaFirkant, teiknaKontur, teikneNormal, tettMjukt, type Snappline } from "../lib/teikning"
 import { ramme, type Plan, type Ramme } from "../lib/plan"
 import { nesteSteg, rundt } from "../lib/gruppe"
@@ -203,7 +203,7 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert.deepEqual(mjukePunkt([[0, 0], [100, 0], [100, 100], [0, 100]]), [], "ein firkant har ingen boge")
   const oval: Pt[] = Array.from({ length: 9 }, (_, i): Pt => [0.05 * Math.cos((i * 2 * Math.PI) / 9), 0.08 * Math.sin((i * 2 * Math.PI) / 9)])
   const tett = tettMjukt(oval)
-  assert(tett.length > 9 && tett.length <= OMRISS_TAK, `eit ovalt hòl vert tetta: ${tett.length}`)
+  assert(tett.length > 9 && tett.length <= HOL_TAK, `eit ovalt hòl vert tetta: ${tett.length}`)
   const para: Pt[] = [[0, 0], [0.1, 0], [0.12, 0.1], [0.02, 0.1]]
   assert.deepEqual(tettMjukt(para), para, "parallellogrammet står")
   console.log(`mjukt og skarpt: ${m.length} runde punkt i bogen, ovalen ${tett.length} punkt`)
