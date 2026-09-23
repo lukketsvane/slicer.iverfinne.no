@@ -26,7 +26,7 @@ It opens on **3 mm MDF on a 600 × 400 mm bed** — the common "6040" CO2
 laser — with a cube and **no cuts**: the body sits there as a shell and the
 first thing you do is cut it. Want a grid, switch on **rutenett** and set the
 columns and rows with two fingers. Change the thickness to the sheet
-in your hand and the bed to your machine; the link carries both.
+in your hand and the bed to your machine; the project keeps both.
 
 **It is a laser tool.** No cutter diameter and no dogbones, because a beam has
 no radius.
@@ -93,7 +93,7 @@ The iPhone 16e, saved to the home screen, is the target device — the only one:
 one thumb, a 390-point screen, the object visible while you work. The page
 itself never zooms, scrolls or lets you select anything; every gesture belongs
 to the object. A slim bar at the top carries the body you are working on
-(tap it for a primitive or another file), the four views, undo and the link.
+(tap it for a primitive, another file or the project), the four views, undo and share.
 A sheet at the bottom has three heights: one line (the live count, the grid
 tool, export), the middle (size and the plane list), everything (material and thickness, the
 sliders, the table with the rules and their fixes, the tools). The tools
@@ -205,7 +205,7 @@ turns as one; on, the far end stays, the plane you hold takes all of it and
 the ones between take their share, so turning the last rib fans the row along
 a curve and pushing it re-spaces the row evenly. Select another group and the first stays open, and a
 plane you tap on its own lets the group go. The group
-is a tag on each plane in the link (`g:1`), never a thing of its own: each
+is a tag on each plane in the plane string (`g:1`), never a thing of its own: each
 plane is still its own point and normal, and a plane you move alone stays in
 its group.
 
@@ -213,7 +213,7 @@ its group.
 groups: the section headings under `alle kontrollane` — form, nett, delar and
 the rest — fold their sliders away, and a plane that gave several parts folds
 its rows behind its heading in the cut list. It is a way to see, not a
-setting: nothing about it is written to the link, and a reload has everything
+setting: nothing about it is written to the project, and a reload has everything
 open again.
 
 **A plane can carry a layer.** Under a selected plane the list shows
@@ -398,8 +398,8 @@ that order is the whole bug: a two-finger touch dispatched as one event
 never had it.
 
 The size of a piece used to be one number. It is three now, one per axis, and
-three equal ones are written as the single number they used to be — so a link
-from last year opens the same object, and a link with a plain cube in it does
+three equal ones are written as the single number they used to be — so a project
+from last year opens the same object, and a project with a plain cube in it does
 not grow for something nobody touched. The dots are DOM, like the sketch
 handles and for the same reason: a 44-pixel target you can hit with a thumb
 and a name a screen reader can say. The scene only works out *where* they go,
@@ -529,8 +529,8 @@ not.
 **The shell has a switch.** In the parts view the body you started from is
 drawn transparent around the ribs, so you can see how much of the shape they
 catch. It is also what stands between you and the slots. The button under the
-reframe icon takes it away and puts it back; the link carries it, so a view you
-share is the view you sent. It changes no geometry and is not in the undo list.
+reframe icon takes it away and puts it back; the project keeps it, so you come
+back to the view you left. It changes no geometry and is not in the undo list.
 
 Keys: `L` cut, `O` freeze the profile, `R` grid tool, `V` vortex, `M` montage,
 `B` corner or
@@ -540,41 +540,44 @@ held — an outline point, else a stroke, else the plane,
 room's, like the buttons: on the plate and in the montage they do nothing,
 because there is nothing there to see them do it.
 
-**Three ways to keep an afternoon's work, and you press none of them.** The
-link carries every setting — planes included — and no mesh. **LAGRE** gives a
-project file carrying both. And the browser remembers by itself, in IndexedDB:
-the settings on every change, the meshes as they come in, one per source under
-the name its bytes give it — the same names the scene string and the project
-archive use. The unlocked sketch is disposable and is not kept; it costs one
-gesture to make again.
+**The browser keeps projects, and you press nothing to keep them.** Every
+change is written to the open project in IndexedDB as it happens — settings,
+view, shell — and once more as the app goes to the background, because iOS kills
+a home-screen app without asking. Opening the app opens the project you left. A
+project has a name and sits in a list in the drawer: open one, start a new one,
+duplicate, rename, delete (see [Projects](#projects)). The unlocked sketch is
+disposable and is not kept; it costs one gesture to make again.
 
-**The link and the session are two halves of one thing, not two doors.** The
-link holds the settings and the session holds the meshes, and reopening reads
-both: the settings from wherever they came, then every mesh they name, looked
-up by id. They used to be an either-or, and since the app writes a link into
-the address bar itself, a reload always took the link door — so the file you
-dragged in sat in the database and was never asked for, and you came back to
-your ribs on a cube. Opening a project file has the same ending now: its
-meshes go into the session as they are read, so the reload after it keeps
-them too.
+**The link carries nothing any more.** It used to carry every setting, written
+into the address bar by the app itself, beside a session that held the meshes —
+two truths about one afternoon, and a reload always believed the link: the file
+you had dragged in sat in the database and was never asked for, and you came
+back to your ribs on a cube. An old `#p=` link now just opens the app; the hash
+is wiped, not read. **LAGRE** is the exchange format — one project file with the
+settings and every mesh — and the share button shares exactly that file,
+through the share sheet on the phone and as a download where there is none.
+Opening a project file makes it a new project, named after the file.
 
-A link from someone else cannot pull meshes out of your database. It has to
-name the exact ids you have, and a name is the file's own bytes. When it names
-one you do not have, the body falls back to the cube as it always has — and the
-line *says* a mesh was missing, rather than letting you believe the cube is
-what somebody built. What the body no longer points at is dropped, so the
-database holds what is on screen and not the six files you tried before it.
+**Meshes are stored once, per source, not per project.** Each lives under the
+name its bytes give it — the same name the scene string and the project archive
+use — so two projects built on one scan share one copy, and settings pasted
+from someone else cannot pull a mesh out of your database: they have to name the
+exact id you have. When they name one you do not have, the body falls back to the
+cube and the line *says* a mesh was missing, rather than letting you believe the cube
+is what somebody built. A mesh is kept as long as any project names it; only
+past the space ceiling do the largest unnamed ones go.
 
 **The home-screen app opens without a connection.** After one complete online
 visit, the page, code, geometry worker, fonts and all built-in shapes are kept
 as one version on the phone. A new version takes over at the two moments
 nothing can be lost: when the app opens, before the first touch, and when it
-comes back from the background — the session was written as it left. It
+comes back from the background — the project was written as it left. It
 never reloads a drawing under your finger. (It used to wait until the app was
 closed, and a home-screen app on iOS is almost never closed, only suspended,
 so new versions never arrived.) Imported meshes stay in IndexedDB.
 The first visit still needs a connection, and clearing website data removes
-the offline copy and the saved session.
+the offline copy and every project with it — the browser's copy is the only
+one until you press **LAGRE** or share.
 
 The last view and shell setting are remembered too. A small synchronous receipt
 holds the latest settings until IndexedDB commits them, including when iOS
@@ -590,15 +593,15 @@ is for. Ten stools and four sheep say it in one look. They live as glTF under
 `public/form` and are fetched when you touch one — 5.8 MB of textured model
 reduced to about 285 kB of geometry by `scripts/former.ts`, decimated to 25k
 triangles, which is under the 40k the build cuts to anyway. Their names are
-stable, so a link that carries `stolform-03` finds the same shape tomorrow —
-the only source a link can carry, because it is the only one that exists on
+stable, so a project that names `stolform-03` finds the same shape tomorrow —
+the only source that needs no bytes in the file, because it is the only one on
 the server rather than in somebody's downloads folder.
 
 **The menu lists the family, not the version.** Ten stools were ten lines
 covering the object, and you had to choose between ten things you had not
 seen. One line says `stolform` and gives you the first; if it is not the one
 you wanted, the same line takes you to the next. A version id (`sau-03`) only
-ever means which file to fetch — it is what the scene string and the link
+ever means which file to fetch — it is what the scene string and the project
 carry, and `lib/scene.ts` is where a family turns into one.
 
 **And `bla`, bottom left, is that in one tap.** Through the menu it is two
@@ -607,7 +610,7 @@ the right stool? With a piece selected in the body tool, `bla` stands
 opposite the tools, under the other thumb, and takes it to the next version
 where it stands: same spot, same size, same turn. It is only there when the
 family has more than one version — a cube has no next — and it goes in the
-same way the menu does, so undo, the link and the session see the swap they
+same way the menu does, so undo and the project see the swap they
 have always seen.
 
 **A layer is the bond between a piece and its planes.** Two figures that
@@ -622,7 +625,7 @@ belongs to what.
 
 Several pieces can carry one layer — then the planes on it are cut to all of
 them. A layer no piece carries clips nothing, and an unmarked plane cuts the
-whole body: that is what every link written before this still does, and what
+whole body: that is what every project made before this still does, and what
 the layer has always meant on its own — a colour in the cut file.
 
 The cube stays, and it is the only one made in code: it is the default object
@@ -667,9 +670,8 @@ A plane is a **name, a point and a normal**, in the body's own space. The
 point is stored as fractions of the box around the body, so resizing keeps a
 plane where it is *on the body*. The normal is a unit vector — two angles would
 have a pole. The whole list is one string in the parameter bag, so undo, the
-link, the project file and the browser's memory all carry it with no extra
-code, and a hostile link cannot push anything but a valid plane into the
-geometry.
+project and the project file all carry it with no extra code, and a hostile
+file cannot push anything but a valid plane into the geometry.
 
 **Symmetry is three switches at the top centre**, one per axis. They change
 what **skjer** does: one press locks the plane you are aiming *and its mirrors*
@@ -682,7 +684,7 @@ and not a copy: move one, re-angle one, mark one, delete one, and
 the others do not care. That is deliberate — a symmetry that persisted would
 have to share a name between two parts, and the name is what is engraved on the
 plate. So the switches are an aid to *placing* cuts, and then they are done. For
-the same reason they are not in the link: they say what the next cut will be,
+the same reason they are not in the project: they say what the next cut will be,
 not what the body is.
 
 **Names belong to the part, not to its position.** A plane is numbered when it
@@ -791,7 +793,7 @@ with every point an arc went from 2013 ms to 728 ms, and `pnpm tak` now holds
 arcs to under twice the cost of none. An outline with no arcs is, segment for segment, exactly the polygon it
 was before this existed: a corner is its own neighbour, which makes the stretch
 between two corners come out a straight line from the same arithmetic, with no
-second path through it. That is also why an old link opens the same shape.
+second path through it. That is also why an old project opens the same shape.
 
 **Put a finger on a point and you are holding it** — the same motion that
 starts a drag, so selecting costs no extra press. The one you hold reads in
@@ -822,10 +824,10 @@ outline is let go: the profile is the mesh again.
 
 The points live in the plane's own frame as fractions of the size, in `p:` in
 the plane string — and which of them are arcs in `r:`, as positions — so undo,
-the link, the project file and the session carry them with no extra code. There are at most 24 of them: a handle is 44 pixels
+the project and the project file carry them with no extra code. There are at most 24 of them: a handle is 44 pixels
 and a profile filling 300 of them has a perimeter of about 800, which is
 eighteen handles that do not sit on top of one another. Past that you are
-tracing, not shaping. Links written before this still carry the old `f:1`
+tracing, not shaping. Projects written before this still carry the old `f:1`
 mark and still get the live box.
 
 **`forenkl` in the thumb column is that count as a drag.** A traced outline
@@ -858,7 +860,7 @@ in it along its own normal. The kick is a hash of the plane's *name*, not a
 throw of the dice, so dragging back returns the row to where it stood
 (measured: 0.03 mm of 150), and the kicks are centred on zero so the row does
 not drift sideways while it wobbles. It is written into the points, like
-everything else the hand does: what the link carries is where the planes are.
+everything else the hand does: what the project keeps is where the planes are.
 
 **Every kept plane is editable, down to its outline.** Nudge and re-angle with
 two fingers or the handles. Select a part and the thumb column offers **skjer
@@ -870,7 +872,7 @@ changes underneath a stroke, **the stroke stays**: it is what you did, and the
 tool does not throw work away unasked. It may drift out of true, and then you see it in the profile and
 remove it yourself.
 
-**Up to 64 planes.** Beyond that a link is trying something.
+**Up to 64 planes.** Beyond that a file is trying something.
 
 ## Tenons
 
@@ -942,6 +944,16 @@ running out to the other's outside face. The end fingers belong to the
 later plate, so where three plates meet (a seat flush on a box) the seat
 owns all four corner cubes and no side claims one. Each plate goes in along
 its own normal.
+
+**A split seat on a rib is not a finger joint.** When two halves of a seat
+meet over a rib, along the rib's own mid-plane, the rib carries both edges:
+no fingers between the halves there, and each half's tenons stop at the
+rib's mid-plane, so the two share one mortise from either side. Only the
+stretch the other half actually covers is stopped short; where one half is
+alone over the rib its tenon runs through and takes its wedge. With the rib
+ending under the seat the corner fingers are laid out from the rib, and the
+split plate always takes the odd ones, so both halves see the same rhythm
+whatever order the planes are listed in.
 
 **A rail goes through.** Where one plate is narrow along the meeting line —
 a rail's cross-section — and the other has material well past it on both
@@ -1016,8 +1028,8 @@ draft lives on the flat surface and goes to the parameters when the finger
 lifts.
 
 With nothing selected the bar offers **del i to** — the plate split down the
-middle into two plates edge to edge, which the engine joins with fingers
-(see **Tenons**) — **kneik**, the same split with one half folded 90° about
+middle into two plates edge to edge, which the engine joins with fingers —
+or, when the split lies on a rib's mid-plane, with the rib (see **Tenons**) — **kneik**, the same split with one half folded 90° about
 the line so the plate turns a corner and stands as an L, and **spiler 3 4 5 6**: the plate cut into that many
 equal slats with a thickness of air between them. The slats run the way the
 plate reaches other plates: a seat between two sides reaches them along one
@@ -1271,6 +1283,26 @@ them, and a deep search that measured the body and walked a front. It answered
 a question nobody had asked — the two numbers were never the hard part, and a
 ranking is not a decision. The tool that sets them is.
 
+## Projects
+
+The work is kept as **projects** in the browser: a name, the parameter bag, the
+view and the shell switch, written as you go. The list is the first tab in the
+drawer — `prosjekt`, beside the cut list and the settings, and the first line of
+the body menu — newest first, with when each was last changed. Tap one to open
+it; `nytt`, `dupliser`, `slett` and `namn` sit below. Delete takes two presses,
+the first asking `sikker?` for three seconds, because it is the one action here
+nothing undoes. Switching writes the project you leave before it reads the next,
+and the undo history does not follow you across: another project is not an edit.
+
+Why projects and not the link: a link that carries state is a second copy of
+the truth, it cannot carry a mesh, and since the app rewrote it on every change,
+a reload always trusted it over the database. Why not only the project file: a
+file is something you have to remember to make. So the browser remembers, and
+the file is what leaves it — **LAGRE** writes it, the share button shares it,
+and opening one makes a new project of it. The name is a text field with a
+caret, like the number field and the paste field in the settings: the drawer
+sits over the object, so the keyboard hides nothing you are looking at.
+
 ## Output
 
 | | |
@@ -1287,7 +1319,7 @@ ranking is not a decision. The tool that sets them is.
 | **PRØVE** | fit-test coupon: seven slots, each 0.05 mm wider than the last |
 | **BØYEPRØVE** | score-test coupon: five fields, each scored at a different row spacing, the spacing engraved under it |
 | **ALT** | the whole job in one download, plus the cut list as CSV and the assembly order as text |
-| **LAGRE** | a project file — settings and mesh together |
+| **LAGRE** | a project file — settings and every mesh together; the share button shares the same file |
 
 **The twelve files stand in three rows, not one heap** — `rom`, `plate`, `alt`,
 with the word in the margin where the slider groups keep theirs. A row says what
@@ -1483,7 +1515,7 @@ Every number the tool prints is read off the geometry. So is every check:
 pnpm sjekk   # tsc --noEmit
 pnpm probe   # engine without a browser: parts, joints, cut length, files
 pnpm rekkje  # reads the cut files back: engrave, inner cuts, outline, in order
-pnpm vrient  # meshes that aren't meshes, hostile plane strings, a hostile URL
+pnpm vrient  # meshes that aren't meshes, hostile plane strings, a hostile parameter bag
 pnpm ledd    # every joint the panel counted, found again in the cut profiles — grids, oblique planes, bent ribs with floors
 pnpm raad    # breaks each rule, presses the fix it offers, checks it worked
 pnpm glb     # writes GLB files with known geometry and reads them back
@@ -1596,10 +1628,10 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   sharing disabled so it can verify a downloaded file. It is a three-plate
   study, not a completed reference chair. Physical assembly and real iPhone
   timing remain separate work.
-- **Tenons are through-tenons, flush with the far face.** No blind mortises
-  (a laser does not pocket), no wedges and no corner finger joints yet: two
-  plates that *both* stop at each other get nothing, and the loose-part rule
-  says so.
+- **Tenons run through, or stop at a rib's mid-plane.** No blind mortises
+  otherwise (a laser does not pocket). Two plates that *both* stop at each
+  other get corner fingers only when both carry an outline and the line is
+  straight; otherwise they get nothing, and the loose-part rule says so.
 
 ## Credit
 

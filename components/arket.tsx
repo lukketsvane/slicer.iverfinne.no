@@ -390,6 +390,7 @@ function ExportTab({ p }: { p: ArketProps }) {
       {harde.length > 0 && <p data-uttakvarsel="" className="pt-1 text-[9px]" style={{ color: "var(--warn)" }}>{harde.map((r) => r.label).join(", ")} — går ikkje i hop</p>}
       <div className="flex min-h-14 items-center gap-1.5">
         {([
+          ["prosjekt", "prosjekt", "det du arbeider med: opne, nytt, namn"],
           ["kuttliste", "kuttliste", "kvar del, med adresse, mål og plate"],
           ["oppsett", "oppsett", "alle innstillingane som tekst"],
         ] as const).map(([id, ord, hint]) => (

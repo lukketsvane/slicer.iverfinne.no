@@ -9,16 +9,21 @@ import type { Pt } from "../lib/core"
 const URL = process.env.URL ?? process.env.PANEL_URL ?? "http://127.0.0.1:3210"
 const UT = resolve(process.env.REDIGERING_UT ?? "bilete/redigering")
 const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe"
-const param = (side: Page): Params => ({ ...DEFAULT_PARAMS, ...JSON.parse(decodeURIComponent(side.url().split("#p=")[1] ?? "%7B%7D")) })
-const plana = (side: Page) => lesPlan(param(side).plan)
+const param = async (side: Page) => ({ ...DEFAULT_PARAMS, ...await side.evaluate(() => window.slicer?.posen() ?? {}) }) as Params
+const plana = async (side: Page) => lesPlan((await param(side)).plan)
 const knapp = (side: Page, namn: string) => side.getByRole("button", { name: namn, exact: true })
 const roleg = async (side: Page, ms = 550) => {
   await side.locator('[aria-label="kontrollar"][aria-busy="false"]').waitFor({ timeout: 45000 })
   await side.waitForTimeout(ms)
 }
+const setPose = async (side: Page, pose: Record<string, unknown>) => {
+  await side.waitForFunction(() => !!window.slicer)
+  await side.evaluate((o) => new Promise((ok) => { window.slicer!.set(o); requestAnimationFrame(() => requestAnimationFrame(ok)) }), pose)
+  await roleg(side)
+}
 const vent = async (side: Page, vil: (p: Params) => boolean, kvifor: string) => {
   const frist = performance.now() + 15000
-  while (!vil(param(side))) {
+  while (!vil(await param(side))) {
     assert(performance.now() < frist, kvifor)
     await side.waitForTimeout(70)
   }
@@ -43,7 +48,7 @@ async function tom(side: Page) {
   await trykk(side.locator("[data-kjelde]"))
   await trykk(knapp(side, "tom arbeidsflate"))
   await roleg(side)
-  sjekk("tom arbeidsflate har ingen plan og er klar til teikning", plana(side).length === 0 && await side.locator("[data-teiknknapp]").getAttribute("aria-pressed") === "true")
+  sjekk("tom arbeidsflate har ingen plan og er klar til teikning", (await plana(side)).length === 0 && await side.locator("[data-teiknknapp]").getAttribute("aria-pressed") === "true")
 }
 
 async function teikning(side: Page, cdp: CDPSession) {
@@ -60,24 +65,24 @@ async function teikning(side: Page, cdp: CDPSession) {
   await bilete(side, "tom-kontur")
   await dra(side, cdp, [[100, 295], [224, 295], [253, 355], [238, 491], [191, 491], [181, 455], [132, 449], [113, 486], [76, 486], [89, 360], [100, 295]], 1200)
   await vent(side, (p) => lesPlan(p.plan).length === 1, "konturdraget laga ikkje ei plate")
-  const kontur = plana(side)[0]
+  const kontur = (await plana(side))[0]
   sjekk("frihandkonturen har redigerbare punkt innanfor taket", (kontur.omriss?.length ?? 0) > 4 && (kontur.omriss?.length ?? Infinity) <= OMRISS_TAK && await side.locator("button[data-punkt]").count() === kontur.omriss?.length)
   sjekk("synskuben vel arbeidsplanet medan reiskapen er armert", kontur.n[0] === 0 && Math.abs(kontur.n[1]) === 1 && kontur.n[2] === 0)
   await trykk(knapp(side, "skjer hòl"))
   await vent(side, (p) => lesPlan(p.plan)[0]?.strek.length === 1, "hòlet kom ikkje i prosjektet")
   sjekk("omrisspunkta konkurrerer ikkje med det valde hòlet", await side.locator("button[data-punkt],button[data-midt]").count() === 0)
-  const hol = plana(side)[0].strek[0]
+  const hol = (await plana(side))[0].strek[0]
   const holtak = await side.locator('[data-handtak="strek-storleik"]').boundingBox()
   assert(holtak, "hòlet manglar storleikshandtak")
   const h: Pt = [holtak.x + holtak.width / 2, holtak.y + holtak.height / 2]
   await dra(side, cdp, line(h, [h[0] + 18, h[1] + 22]))
   await vent(side, (p) => lesPlan(p.plan)[0].strek[0].w !== hol.w || lesPlan(p.plan)[0].strek[0].h !== hol.h, "storleikshandtaket endra ikkje hòlet")
-  assert.deepEqual(plana(side)[0].omriss, kontur.omriss, "hòldraget endrar ikkje omrisspunkta")
-  const original = plana(side)[0]
+  assert.deepEqual((await plana(side))[0].omriss, kontur.omriss, "hòldraget endrar ikkje omrisspunkta")
+  const original = (await plana(side))[0]
   sjekk("hòlet er valt før dublering", await side.locator('[data-handtak="strek-storleik"]').isVisible())
   await trykk(knapp(side, "dubler planet"))
   await vent(side, (p) => lesPlan(p.plan).length === 2, "dublering laga ikkje ein kopi")
-  const [foer, kopi] = plana(side)
+  const [foer, kopi] = await plana(side)
   assert.deepEqual(foer, original, "originalen vert ikkje endra av dublering")
   for (const felt of ["omriss", "runde", "strek", "bog", "n"] as const) assert.deepEqual(kopi[felt], original[felt], `kopien held ${felt} nøyaktig`)
   sjekk("kopien har eige namn", kopi.id !== original.id)
@@ -89,7 +94,7 @@ async function teikning(side: Page, cdp: CDPSession) {
   const a: Pt = [tak.x + tak.width / 2, tak.y + tak.height / 2]
   await dra(side, cdp, line(a, [a[0] + 30, a[1]]))
   await vent(side, (p) => JSON.stringify(lesPlan(p.plan)[1].o) !== JSON.stringify(kopi.o), "kopien flytta seg ikkje med handtaket")
-  assert.deepEqual(plana(side)[0], original, "eit drag i kopien flyttar ikkje originalen")
+  assert.deepEqual((await plana(side))[0], original, "eit drag i kopien flyttar ikkje originalen")
   await bilete(side, "kontur-hol-kopi")
 }
 
@@ -104,12 +109,12 @@ async function materiale(side: Page, cdp: CDPSession) {
   await vent(side, (p) => p.tjukn === 18, "18 mm-valet verka ikkje")
   await trykk(knapp(side, "12"))
   await vent(side, (p) => p.tjukn === 12, "12 mm-valet verka ikkje")
-  sjekk("12 og 18 mm er tilgjengelege med fingeren", param(side).tjukn === 12)
+  sjekk("12 og 18 mm er tilgjengelege med fingeren", (await param(side)).tjukn === 12)
   const foer = await side.evaluate(() => ({ skala: visualViewport?.scale ?? 1, breidd: innerWidth, x: scrollX, y: scrollY }))
   for (const [namn, verdi, felt] of [["klaring", "0,2", "klaring"], ["tjukn", "11,85", "tjukn"], ["klaring", "0,1", "klaring"]] as const) {
-    const foerVerdi = param(side)[felt]
+    const foerVerdi = (await param(side))[felt]
     await knapp(side, `${namn}, skriv tal`).tap()
-    assert.equal(param(side)[felt], foerVerdi, "å opne talet endra verdien")
+    assert.equal((await param(side))[felt], foerVerdi, "å opne talet endra verdien")
     const inn = side.getByRole("textbox", { name: `${namn}, skriv`, exact: true })
     await inn.waitFor()
     sjekk(`${namn} opnar med eitt trykk utan lite iOS-felt`, await inn.evaluate((el) => parseFloat(getComputedStyle(el).fontSize) >= 16))
@@ -119,7 +124,7 @@ async function materiale(side: Page, cdp: CDPSession) {
   }
   const etter = await side.evaluate(() => ({ skala: visualViewport?.scale ?? 1, breidd: innerWidth, x: scrollX, y: scrollY }))
   assert.deepEqual(etter, foer, "talinnlegging zoomar eller flyttar ikkje sida")
-  sjekk("målt tjukn 11,85 og klaring 0,1 står i prosjektet", param(side).tjukn === 11.85 && param(side).klaring === 0.1)
+  sjekk("målt tjukn 11,85 og klaring 0,1 står i prosjektet", (await param(side)).tjukn === 11.85 && (await param(side)).klaring === 0.1)
   await bilete(side, "passform-11-85")
 }
 
@@ -133,11 +138,11 @@ async function spegling(side: Page) {
   await trykk(knapp(side, "opne kontrollane"))
   await trykk(side.locator('[data-plan="7"] button').first())
   await trykk(knapp(side, "lat att kontrollane"))
-  const original = plana(side)[0]
+  const original = (await plana(side))[0]
   await trykk(knapp(side, "spegl planet om x"))
   await vent(side, (p) => p.plan !== skrivPlan([original]), "spegling i same plan endra ingenting")
-  const vend = plana(side)[0]
-  sjekk("spegling i same plan held identiteten", plana(side).length === 1 && vend.id === original.id)
+  const vend = (await plana(side))[0]
+  sjekk("spegling i same plan held identiteten", (await plana(side)).length === 1 && vend.id === original.id)
   assert.deepEqual(vend.omriss, original.omriss!.map(([x, y]) => [-x || 0, y]), "konturen vert spegla rundt x i rommet")
   assert.deepEqual(vend.runde, original.runde, "bogepunkta følgjer konturen")
   assert.equal(vend.strek[0].x, -original.strek[0].x, "hòlet vert spegla med konturen")
@@ -150,14 +155,14 @@ async function spegling(side: Page) {
   await vent(side, (p) => p.plan === skrivPlan([vend]), "gjer om gjenoppretta ikkje speglinga")
   await trykk(knapp(side, "spegl planet om y"))
   await vent(side, (p) => lesPlan(p.plan).length === 2, "spegling utanfor midten laga ikkje ein kopi")
-  const ny = plana(side)[1]
+  const ny = (await plana(side))[1]
   sjekk("spegling utanfor midten lagar eige plan", ny.id !== vend.id && Math.abs(ny.o[1] + vend.o[1] - 1) < 1e-8)
-  assert.deepEqual(plana(side)[0], vend, "originalen står etter spegelkopiering")
+  assert.deepEqual((await plana(side))[0], vend, "originalen står etter spegelkopiering")
   await trykk(knapp(side, "angre"))
   await vent(side, (p) => lesPlan(p.plan).length === 1, "angre tok ikkje bort spegelkopien")
   await trykk(knapp(side, "gjer om"))
   await vent(side, (p) => lesPlan(p.plan).length === 2, "gjer om fekk ikkje spegelkopien attende")
-  assert.deepEqual(plana(side)[1], ny, "gjer om held kopien nøyaktig")
+  assert.deepEqual((await plana(side))[1], ny, "gjer om held kopien nøyaktig")
   await bilete(side, "spegelkopi")
 }
 
@@ -185,11 +190,11 @@ async function ledd(side: Page, cdp: CDPSession) {
   }))
   const b = await grep.boundingBox()
   assert(b, "flyttgrepet manglar")
-  const foer = param(side)
+  const foer = await param(side)
   const a: Pt = [b.x + b.width / 2, b.y + b.height / 2]
   await dra(side, cdp, line(a, [a[0] + 28, a[1] + 12]))
   await vent(side, (p) => p.plan !== foer.plan, "grepet flytta ikkje planet")
-  assert.equal(param(side).deling, foer.deling, "eit drag i flyttgrepet endrar ikkje ledd-delinga")
+  assert.equal((await param(side)).deling, foer.deling, "eit drag i flyttgrepet endrar ikkje ledd-delinga")
   await bilete(side, "flytt-klart-av-ledd")
 }
 
@@ -214,9 +219,9 @@ async function main() {
       console.log(`\n=== ${namn} · 390×844`)
       try {
         const plan = namn === "spegling" ? [SPEGL] : namn === "ledd" ? rutenett(1, 1).map((p) => ({ ...p, gruppe: undefined })) : null
-        const lenkje = plan ? `${URL}#p=${encodeURIComponent(JSON.stringify({ plan: skrivPlan(plan), storleik: 200, tjukn: 3, view: "lag", skal: false }))}` : URL
-        await side.goto(lenkje, { waitUntil: "networkidle" })
+        await side.goto(URL, { waitUntil: "networkidle" })
         await roleg(side)
+        if (plan) await setPose(side, { plan: skrivPlan(plan), storleik: 200, tjukn: 3, view: "lag", skal: false })
         const cdp = await okt.newCDPSession(side)
         await prov(side, cdp)
         assert.deepEqual(konsoll, [], "ingen kodefeil i nettlesaren")

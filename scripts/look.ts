@@ -22,6 +22,11 @@ const ferdig = (page: Page) =>
     undefined,
     { timeout: 45000 },
   )
+const setPose = async (page: Page, pose: Record<string, unknown>) => {
+  await page.waitForFunction(() => !!window.slicer)
+  await page.evaluate((o) => new Promise((ok) => { window.slicer!.set(o); requestAnimationFrame(() => requestAnimationFrame(ok)) }), pose)
+  await ferdig(page)
+}
 const lina = async (page: Page) => (await page.locator(HOVUDLINA).innerText()).replace(/\s+/g, " ").trim()
 const planTal = (s: string) => Number(/(\d+) plan/.exec(s)?.[1] ?? NaN)
 const talLina = async (page: Page, ms = 8000) => {
@@ -189,11 +194,11 @@ async function flate(namn: string, w: number, h: number) {
   await ferdig(page)
   await page.waitForTimeout(1500)
   const kropp = (await page.locator("button[data-kjelde]").innerText()).trim()
-  const scena = () => decodeURIComponent(page.url().split("#p=")[1] ?? "").match(/"scene":"([^"]*)"/)?.[1] ?? ""
-  console.log(`  kroppen: ${kropp} — ${scena()}`)
+  const scena = () => page.evaluate(() => String(window.slicer?.posen().scene ?? ""))
+  const scene4 = await scena()
+  console.log(`  kroppen: ${kropp} — ${scene4}`)
   if (!/\+1$/.test(kropp)) brot(`${namn}: ei form til gav «${kropp}»`)
   const før4 = kropp
-  const scene4 = scena()
   const attKropp = async (kva: string) => {
     await ferdig(page)
     await page
@@ -202,26 +207,23 @@ async function flate(namn: string, w: number, h: number) {
     await ferdig(page)
     await page.waitForTimeout(600)
     const att = (await page.locator("button[data-kjelde]").innerText()).trim()
-    console.log(`  ${kva.padEnd(8)} ${att} — ${scena()}`)
-    if (att !== før4 || scena() !== scene4) {
-      brot(`${namn}: ${kva} kom attende som «${att}» (${scena()}) og ikkje «${før4}» (${scene4})`)
+    const sc = await scena()
+    console.log(`  ${kva.padEnd(8)} ${att} — ${sc}`)
+    if (att !== før4 || sc !== scene4) {
+      brot(`${namn}: ${kva} kom attende som «${att}» (${sc}) og ikkje «${før4}» (${scene4})`)
     }
   }
   await page.reload({ waitUntil: "networkidle" })
-  await attKropp("med lenkje")
-  await page.evaluate(() => { window.location.hash = "" })
-  await page.reload({ waitUntil: "networkidle" })
-  await attKropp("utan")
+  await attKropp("omlasta")
 
   {
-    const framand = "#p=" + encodeURIComponent(JSON.stringify({ kjelde: "fikkjemitt", storleik: 150 }))
-    await page.goto(URL + framand, { waitUntil: "networkidle" })
-    await page.reload({ waitUntil: "networkidle" })
-    await ferdig(page)
-    await page.waitForTimeout(2500)
+    await setPose(page, { kjelde: "fikkjemitt", scene: "", storleik: 150 })
+    await page
+      .waitForFunction((sel) => /fann ikkje nettet/.test(document.querySelector(sel)?.textContent ?? ""), HOVUDLINA, { timeout: 8000 })
+      .catch(() => undefined)
     const l = await lina(page)
     console.log(`  framand: ${(await page.locator("button[data-kjelde]").innerText()).trim()} — ${l}`)
-    if (!/fann ikkje nettet/.test(l)) brot(`${namn}: ei lenkje til eit nett du ikkje har sa «${l}»`)
+    if (!/fann ikkje nettet/.test(l)) brot(`${namn}: ein pose med eit nett du ikkje har sa «${l}»`)
   }
 
   {
@@ -266,10 +268,7 @@ async function flate(namn: string, w: number, h: number) {
     if (planTal(att) !== 1 || /^kube$/.test(kj)) brot(`${namn}: prosjektet overlevde ikkje ei omlasting — «${kj}», «${att}»`)
   }
 
-  const brote = "#p=" + encodeURIComponent(JSON.stringify({ storleik: 1100, plan: skrivPlan(rutenett(3, 3)), arkB: 400, arkH: 300 }))
-  await page.goto(URL + brote, { waitUntil: "networkidle" })
-  await page.reload({ waitUntil: "networkidle" })
-  await ferdig(page)
+  await setPose(page, { kjelde: "kube", scene: "", storleik: 1100, plan: skrivPlan(rutenett(3, 3)), arkB: 400, arkH: 300 })
   await page.waitForTimeout(800)
   if (!benk) {
     await page.locator(HOVUDLINA).click()

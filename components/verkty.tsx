@@ -3,13 +3,99 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from "react"
 import { kuttCsv, nn, type Kutt, type ParamBag } from "@/lib/core"
 import { ALLE_KEYS, PARAM_RANGES } from "@/lib/params"
-import { CHIP, HAIR, ICON_BTN, IcoKopier, IcoLimInn, chipStyle } from "./deler"
+import { alleProsjekt, dupliserProsjekt, nyttProsjekt, opneProsjekt, slettProsjekt, type Prosjekt } from "@/lib/lagring"
+import { CHIP, HAIR, ICON_BTN, ORD, IcoKopier, IcoLimInn, chipStyle } from "./deler"
 
-export type VerktyId = "kuttliste" | "oppsett"
+export type VerktyId = "prosjekt" | "kuttliste" | "oppsett"
 export const VERKTY: { id: VerktyId; ord: string }[] = [
+  { id: "prosjekt", ord: "prosjekt" },
   { id: "kuttliste", ord: "kuttliste" },
   { id: "oppsett", ord: "oppsett" },
 ]
+
+const MND = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"]
+function naar(t: number): string {
+  const d = new Date(t)
+  const dag = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const skil = Math.round((dag(new Date()) - dag(d)) / 864e5)
+  if (skil === 0) return `i dag ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+  return skil === 1 ? "i går" : `${d.getDate()}. ${MND[d.getMonth()]}`
+}
+
+function Prosjekta({ gjeldande, onByt, onNamn }: {
+  gjeldande: { id: string; namn: string }
+  onByt: (til: () => Promise<Prosjekt | null>) => void
+  onNamn: (namn: string) => void
+}) {
+  const [liste, setListe] = useState<Prosjekt[]>([])
+  useEffect(() => { void alleProsjekt().then(setListe) }, [gjeldande.id, gjeldande.namn])
+  const [redig, setRedig] = useState(false)
+  const avbrot = useRef(false)
+  const [sikker, setSikker] = useState(false)
+  useEffect(() => {
+    if (!sikker) return
+    const t = window.setTimeout(() => setSikker(false), 3000)
+    return () => window.clearTimeout(t)
+  }, [sikker])
+  const ord = ORD + " px-1.5 uppercase tracking-[0.1em]"
+  return (
+    <>
+      <ul className="min-h-0 flex-1 overflow-auto overscroll-contain text-[12px]" aria-label="prosjekta">
+        {liste.map((p) => {
+          const her = p.id === gjeldande.id
+          return (
+            <li key={p.id} className="border-b" style={HAIR}>
+              {her && redig ? (
+                <input
+                  type="text"
+                  autoFocus
+                  defaultValue={gjeldande.namn}
+                  maxLength={60}
+                  aria-label="namnet på prosjektet"
+                  className="w-full bg-transparent px-3 py-2 text-[16px] outline-none"
+                  onFocus={(e) => e.currentTarget.select()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") avbrot.current = true
+                    if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur()
+                  }}
+                  onBlur={(e) => {
+                    const v = e.currentTarget.value.trim()
+                    if (!avbrot.current && v && v !== gjeldande.namn) onNamn(v)
+                    avbrot.current = false
+                    setRedig(false)
+                  }}
+                />
+              ) : (
+                <button type="button" aria-current={her} data-prosjekt={p.id} className={"hit flex w-full items-baseline gap-3 px-3 py-2.5 text-left" + (her ? "" : " dim")} onClick={() => { if (!her) onByt(() => opneProsjekt(p.id)) }}>
+                  <span className="min-w-0 flex-1 truncate">{her ? gjeldande.namn : p.namn}</span>
+                  <span className="mono tab shrink-0 text-[10px]">{naar(p.endra)}</span>
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      <div className="flex items-center gap-1 border-t px-3 py-1 text-[10px]" style={HAIR}>
+        <span className="dim tab mr-auto">{liste.length} prosjekt</span>
+        <button type="button" className={ord} title="eit tomt prosjekt" onClick={() => onByt(() => nyttProsjekt())}>nytt</button>
+        <button type="button" className={ord} title="det opne ein gong til, som eit nytt prosjekt" onClick={() => onByt(() => dupliserProsjekt(gjeldande.id))}>dupliser</button>
+        <button
+          type="button"
+          className={ord}
+          title="dette prosjektet bort — to trykk"
+          style={sikker ? { color: "var(--warn)" } : undefined}
+          onClick={() => {
+            setSikker(!sikker)
+            if (sikker) onByt(() => slettProsjekt(gjeldande.id))
+          }}
+        >
+          {sikker ? "sikker?" : "slett"}
+        </button>
+        <button type="button" className={ord} title="gje det opne prosjektet eit namn" disabled={redig} onClick={() => setRedig(true)}>namn</button>
+      </div>
+    </>
+  )
+}
 
 type Kolonne = { id: string; ord: string; tal?: boolean; les: (k: Kutt) => string; smal?: boolean }
 const KOLONNAR: Kolonne[] = [
@@ -175,6 +261,9 @@ export function Skuff(props: {
   onPeik: (adr: string | null) => void
   onChange: (p: ParamBag) => void
   onBytt: (id: VerktyId) => void
+  prosjekt: { id: string; namn: string }
+  onByt: (til: () => Promise<Prosjekt | null>) => void
+  onNamn: (namn: string) => void
   onClose: () => void
   onOrd: (s: string) => void
 }): JSX.Element | null {
@@ -190,6 +279,7 @@ export function Skuff(props: {
         </span>
         <button type="button" className="hit dim shrink-0 px-1.5" onClick={props.onClose} aria-label="lat att verktyet" title="lat att (esc)">lat att</button>
       </div>
+      {open === "prosjekt" && <Prosjekta gjeldande={props.prosjekt} onByt={props.onByt} onNamn={props.onNamn} />}
       {open === "kuttliste" && <Kuttliste liste={props.liste} peikt={props.peikt} onPeik={props.onPeik} onOrd={props.onOrd} />}
       {open === "oppsett" && <Oppsett params={props.params} clamp={props.clamp} onChange={props.onChange} />}
     </section>

@@ -722,7 +722,14 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
         ns.setLength(56)
         if (Math.hypot(ns.x, c.y + ns.y - vy) < 44) ns.negate()
         nPx = { x: c.x + ns.x, y: c.y + ns.y }
-        sett(normal, nPx.x, nPx.y)
+        const punkt = valt?.omriss ? valt.omriss.map((p) => skjerm(tilVerd(f, ut(rValt, [p[0] * storleik, p[1] * storleik])))) : []
+        const fritt = (p: { x: number; y: number }) => !punkt.some((q) => Math.abs(q.x - p.x) < 44 && Math.abs(q.y - p.y) < 44)
+        if (!fritt(nPx)) {
+          ns.negate()
+          nPx = { x: c.x + ns.x, y: c.y + ns.y }
+          if (!fritt(nPx) || Math.hypot(ns.x, c.y + ns.y - vy) < 44) nPx = null
+        }
+        if (nPx) sett(normal, nPx.x, nPx.y)
         ;(normal.firstElementChild as HTMLElement).style.rotate = `${Math.atan2(ns.y, ns.x) + Math.PI / 4}rad`
       }
       normal.style.visibility = nPx ? "" : "hidden"
@@ -875,8 +882,8 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
         const o = t.pl.o.clone()
         if ((dx || dy) && langs === "plan") {
           const P = new THREE.Plane().setFromNormalAndCoplanarPoint(n, o)
-          const a = new THREE.Ray(camera.position.clone(), straale(t.x0, t.y0)).intersectPlane(P, new THREE.Vector3())
-          const b = new THREE.Ray(camera.position.clone(), straale(t.x0 + dx, t.y0 + dy)).intersectPlane(P, new THREE.Vector3())
+          const a = new THREE.Ray(camera.position.clone(), straale(t.senter.x, t.senter.y)).intersectPlane(P, new THREE.Vector3())
+          const b = new THREE.Ray(camera.position.clone(), straale(t.senter.x + dx, t.senter.y + dy)).intersectPlane(P, new THREE.Vector3())
           if (a && b && broek(fraaVerd(f, o.clone().add(b).sub(a)), f.min, f.max).every((c) => c >= -PLAN_ROM && c <= 1 + PLAN_ROM)) t.pl.sist = o.add(b).sub(a).clone()
           else if (t.pl.sist) o.copy(t.pl.sist)
         } else if (dx || dy) {

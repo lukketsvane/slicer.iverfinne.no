@@ -7,6 +7,7 @@ import { measure } from "../lib/metrics"
 import { checkRules } from "../lib/rules"
 import { makeBygg } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
+import { posen, spegl } from "./pose"
 
 type Punkt = [number, number]
 const ADR = process.env.URL ?? "http://127.0.0.1:3210"
@@ -15,8 +16,7 @@ const pt = (s: string): Punkt => s.split(",").map(Number) as Punkt
 const linje = (a: Punkt, b: Punkt, n = 14): Punkt[] => Array.from({ length: n }, (_, i) => [a[0] + ((b[0] - a[0]) * i) / (n - 1), a[1] + ((b[1] - a[1]) * i) / (n - 1)])
 
 function params(side: Page): Params {
-  const h = new globalThis.URL(side.url()).hash.split("#p=")[1]
-  return { ...DEFAULT_PARAMS, ...(h ? JSON.parse(decodeURIComponent(h)) : {}) }
+  return { ...DEFAULT_PARAMS, ...posen(side) }
 }
 async function drag(cdp: CDPSession, punkt: Punkt[], tid = 500) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: punkt[0][0], y: punkt[0][1] }] })
@@ -44,6 +44,7 @@ async function hovud() {
   const nettlesar = await chromium.launch({ executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium", args: ["--disable-features=WebShare"] })
   const oekt = await nettlesar.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 })
   const side = await oekt.newPage()
+  await spegl(side)
   side.setDefaultTimeout(8000)
   const cdp = await oekt.newCDPSession(side)
   const konsoll: string[] = []
@@ -51,8 +52,8 @@ async function hovud() {
   side.on("console", (m) => { if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) konsoll.push(m.text()) })
   const ferdig = async () => {
     await side.locator('[aria-label="kontrollar"][aria-busy="false"]').waitFor()
-    let sist = side.url()
-    for (let i = 0, ro = 0; i < 50 && ro < 4; i++) { await pause(100); const no = side.url(); ro = no === sist ? ro + 1 : 0; sist = no }
+    let sist = JSON.stringify(posen(side))
+    for (let i = 0, ro = 0; i < 50 && ro < 4; i++) { await pause(100); const no = JSON.stringify(posen(side)); ro = no === sist ? ro + 1 : 0; sist = no }
   }
   const trykk = async (e: Locator) => { await e.first().tap(); await pause(150) }
   const knapp = (namn: string) => side.getByRole("button", { name: namn.startsWith("/") ? new RegExp(namn.slice(1, -1)) : namn, exact: !namn.startsWith("/") })
@@ -64,7 +65,7 @@ async function hovud() {
   const kube: Record<string, Punkt> = { topp: [351, 61], framme: [352, 82], hogre: [372, 88] }
   const talPlan = () => lesPlan(params(side).plan).length
   const ventPlan = async (minst: number) => {
-    await side.waitForFunction((n) => { const h = location.hash.split("#p=")[1]; const pl = h ? JSON.parse(decodeURIComponent(h)).plan ?? "" : ""; return (pl ? pl.split(";").length : 0) >= n }, minst, { timeout: 8000 }).catch(() => undefined)
+    await side.waitForFunction((n) => { const pl = String(window.slicer?.posen().plan ?? ""); return (pl ? pl.split(";").length : 0) >= n }, minst, { timeout: 8000 }).catch(() => undefined)
     await ferdig()
   }
   const t0 = performance.now()

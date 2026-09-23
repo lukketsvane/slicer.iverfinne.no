@@ -1,4 +1,5 @@
 import { chromium, type Browser, type Page } from "playwright"
+import { gaa, posen, settPose, spegl } from "./pose"
 import { lesPlan, OMRISS_TAK, rutenett, skrivPlan, type Strek } from "../lib/plan"
 import type { Vec3 } from "../lib/core"
 import { FORMER } from "../lib/scene"
@@ -21,10 +22,7 @@ const ferdig = (page: Page) =>
     undefined,
     { timeout: 45000 },
   )
-const hash = (page: Page): Params => {
-  const h = page.url().split("#p=")[1]
-  return h ? (JSON.parse(decodeURIComponent(h)) as Params) : ({} as Params)
-}
+const hash = (page: Page): Params => posen(page)
 const plana = (page: Page) => lesPlan(hash(page).plan)
 const lina = async (page: Page) => (await page.locator(HOVUDLINA).innerText()).replace(/\s+/g, " ").trim()
 const roleg = async (page: Page, ms = 500) => {
@@ -84,6 +82,7 @@ const midt = async (page: Page) => {
 
 async function opne(url: string, browser: Browser, w: number, h: number, o?: { sov?: boolean }) {
   const page = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: w < 1180 })
+  await spegl(page)
   if (!o?.sov) {
     await page.addInitScript(`setInterval(function () {
       window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }))
@@ -94,7 +93,7 @@ async function opne(url: string, browser: Browser, w: number, h: number, o?: { s
     if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) konsoll.push(m.text())
   })
   page.on("pageerror", (e) => konsoll.push(String(e)))
-  await page.goto(url, { waitUntil: "networkidle" })
+  await gaa(page, url, { waitUntil: "networkidle" })
   await roleg(page, 800)
   return { page, konsoll }
 }
@@ -883,7 +882,7 @@ async function telefon(browser: Browser) {
   await kjelde.click()
   await page.waitForTimeout(250)
   const meny2 = page.locator("[data-meny]")
-  sjekk("og opnar lista med tom flate, familiane og fila", (await meny2.count()) === 1 && (await meny2.getByRole("button").count()) === FORMER.length + 2, `tom + ${FORMER.join(" ")} + fil · ${await meny2.getByRole("button").count()} knappar`)
+  sjekk("og opnar lista med prosjektet, tom flate, familiane og fila", (await meny2.count()) === 1 && (await meny2.getByRole("button").count()) === FORMER.length + 3, `prosjekt + tom + ${FORMER.join(" ")} + fil · ${await meny2.getByRole("button").count()} knappar`)
   sjekk("og ingen utgåve står i henne", (await meny2.getByRole("button", { name: /-\d\d$/ }).count()) === 0)
   {
     const klipp = { x: 40, y: 200, width: 310, height: 380 }
@@ -994,7 +993,8 @@ async function skrivebordet(browser: Browser) {
   await roleg(page, 900)
   sjekk("eit trykk i lista legg nettet i kroppen", String(hash(page).scene ?? "").split(";").filter(Boolean).length > bitFoer, String(hash(page).scene ?? "").slice(0, 50))
 
-  await page.evaluate("location.hash = '#p=' + encodeURIComponent(JSON.stringify({ plan: '1@0.2,0.5,0.5/1,0,0;2@0.4,0.5,0.5/1,0,0;3@0.6,0.5,0.5/1,0,0;4@0.8,0.5,0.5/1,0,0' }))")
+  await settPose(page, { plan: "1@0.2,0.5,0.5/1,0,0;2@0.4,0.5,0.5/1,0,0;3@0.6,0.5,0.5/1,0,0;4@0.8,0.5,0.5/1,0,0" })
+  await page.waitForTimeout(400)
   await page.reload({ waitUntil: "load" })
   await ferdig(page)
   await roleg(page, 1500)
@@ -1260,10 +1260,9 @@ async function teikninga(browser: Browser) {
 async function kamera(browser: Browser) {
   console.log("\n=== kameraet under to fingrar")
   const { page, konsoll } = await opne(URL, browser, 390, 844)
-  await page.evaluate(() => {
-    location.hash = "p=" + encodeURIComponent(JSON.stringify({ kjelde: "kube", storleik: 300, plan: "1@0.3,0.5,0.5/1,0,0;2@0.7,0.5,0.5/1,0,0;3@0.5,0.5,0.5/0,1,0" }))
-    location.reload()
-  })
+  await settPose(page, { kjelde: "kube", storleik: 300, plan: "1@0.3,0.5,0.5/1,0,0;2@0.7,0.5,0.5/1,0,0;3@0.5,0.5,0.5/0,1,0" })
+  await page.waitForTimeout(400)
+  await page.reload()
   await roleg(page, 1500)
 
   await bytArket(page)
@@ -1630,7 +1629,7 @@ async function grupper(browser: Browser) {
   await vent(page, talPlan(0))
   sjekk("× på gruppa tek alle plana", plana(page).length === 0)
 
-  await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })))
+  await gaa(page, URL + "#p=" + encodeURIComponent(JSON.stringify({ plan, storleik: 150 })))
   await page.reload({ waitUntil: "networkidle" })
   await roleg(page, 800)
   await page.getByRole("button", { name: "gruppe 1", exact: true }).click()
@@ -1656,13 +1655,12 @@ async function grupper(browser: Browser) {
   await vent(page, (p) => lesPlan(p.plan).every((q) => !q.farge))
   sjekk("og ringen tek merket bort att", plana(page).every((q) => !q.farge))
 
-  await page.goto(
-    URL + "#p=" + encodeURIComponent(JSON.stringify({
-      scene: "kube@-90,0,0/1/0;kube@90,0,0/1/0",
-      plan: skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] }]),
-      storleik: 150,
-    })),
-  )
+  await settPose(page, {
+    scene: "kube@-90,0,0/1/0;kube@90,0,0/1/0",
+    plan: skrivPlan([{ id: 1, o: [0.5, 0.5, 0.5] as Vec3, n: [0, 0, 1] as Vec3, bog: 0, strek: [] }]),
+    storleik: 150,
+  })
+  await page.waitForTimeout(400)
   await page.reload({ waitUntil: "networkidle" })
   await roleg(page, 800)
   await page.getByRole("button", { name: "kuttliste", exact: true }).click()
@@ -1693,6 +1691,7 @@ async function flyt(browser: Browser) {
     userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
   })
   const page = await ctx.newPage()
+  await spegl(page)
   const konsoll: string[] = []
   page.on("console", (m) => {
     if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) konsoll.push(m.text())
@@ -1924,7 +1923,7 @@ async function reglar(browser: Browser) {
   }
   {
     const to = { plan: skrivPlan(rutenett(3, 3)), storleik: 1200, arkB: 300, arkH: 200, tjukn: 1, snitt: 6 }
-    await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify(to)), { waitUntil: "networkidle" })
+    await gaa(page, URL + "#p=" + encodeURIComponent(JSON.stringify(to)), { waitUntil: "networkidle" })
     await page.reload({ waitUntil: "networkidle" })
     await roleg(page, 900)
     await bytArket(page)
@@ -2013,7 +2012,7 @@ async function uttaka(browser: Browser) {
   await page.waitForTimeout(400)
   sjekk("escape lukkar arket til lina att", (await boks.count()) === 0)
   sjekk("eit rutenett utan brot ber ikkje varselet", (await page.locator("[data-uttakvarsel]").count()) === 0)
-  await page.goto(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.5/0,1,0;3@0.5,0.5,0.5/0,0,1" })), { waitUntil: "networkidle" })
+  await gaa(page, URL + "#p=" + encodeURIComponent(JSON.stringify({ plan: "1@0.5,0.5,0.5/1,0,0;2@0.5,0.5,0.5/0,1,0;3@0.5,0.5,0.5/0,0,1" })), { waitUntil: "networkidle" })
   await page.reload({ waitUntil: "networkidle" })
   await roleg(page, 900)
   await page.getByRole("button", { name: "eksport", exact: true }).click()
@@ -2117,9 +2116,6 @@ async function handtaka(browser: Browser) {
   await roleg(page, 500)
   const slag = (await page.locator(".handtak").getAttribute("data-slag")) ?? "?"
   sjekk("planet står valt med handtaka framme", slag === "plan", slag)
-  await page.getByRole("button", { name: "form", exact: true }).click()
-  await vent(page, (p) => !!lesPlan(p.plan).find((q) => q.id === 1)?.omriss?.length)
-  sjekk("forma er fryst til punkt før planet vert flytt", !!plana(page).find((q) => q.id === 1)?.omriss?.length)
   const dra = async (h: string, dx: number, dy: number) => {
     const b = await page.locator(`[data-handtak='${h}']`).boundingBox()
     if (!b) return null
@@ -2136,8 +2132,6 @@ async function handtaka(browser: Browser) {
     return etter.map((c, i) => c - foer[i])
   }
   const tal = (d: number[] | null) => (d ? d.map((c) => c.toFixed(3)).join(",") : "ikkje funne")
-  const dS = await dra("flytt", 0, 40)
-  sjekk("senterhandtaket dreg planet i planet: ingenting langs normalen", !!dS && Math.abs(dS[0]) < 0.005 && Math.hypot(dS[1], dS[2]) > 0.02, tal(dS))
   const normalH = page.locator("[data-handtak='normal']")
   sjekk("eit valt plan har eit normalhandtak", (await normalH.count()) === 1 && (await normalH.isVisible()))
   const nb = await normalH.boundingBox()
@@ -2150,6 +2144,11 @@ async function handtaka(browser: Browser) {
     dN = await dra("normal", (40 * ux) / L, (40 * uy) / L)
   }
   sjekk("normalhandtaket skuvar berre langs normalen", !!dN && Math.abs(dN[0]) > 0.02 && Math.hypot(dN[1], dN[2]) < 0.005, tal(dN))
+  await page.getByRole("button", { name: "form", exact: true }).click()
+  await vent(page, (p) => !!lesPlan(p.plan).find((q) => q.id === 1)?.omriss?.length)
+  sjekk("forma er fryst til punkt før planet vert flytt", !!plana(page).find((q) => q.id === 1)?.omriss?.length)
+  const dS = await dra("flytt", 0, 40)
+  sjekk("senterhandtaket dreg planet i planet: ingenting langs normalen", !!dS && Math.abs(dS[0]) < 0.005 && Math.hypot(dS[1], dS[2]) > 0.02, tal(dS))
 
   sjekk("ingen konsollfeil på handtaka", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
   await page.close()
@@ -2220,8 +2219,8 @@ async function skaletOgSovnen(browser: Browser) {
       var r = indexedDB.deleteDatabase("slicer")
       r.onsuccess = r.onerror = r.onblocked = function () { res(null) }
     })`)
-    await page.goto(adressa, { waitUntil: "networkidle" })
     await page.reload({ waitUntil: "networkidle" })
+    await gaa(page, adressa, { waitUntil: "networkidle" })
     await roleg(page, 800)
     await page.mouse.move(190, 700)
     await roleg(page, 300)
@@ -2260,8 +2259,8 @@ async function skaletOgSovnen(browser: Browser) {
     var r = indexedDB.deleteDatabase("slicer")
     r.onsuccess = r.onerror = r.onblocked = function () { res(null) }
   })`)
-  await page.goto(adressa, { waitUntil: "networkidle" })
   await page.reload({ waitUntil: "networkidle" })
+  await gaa(page, adressa, { waitUntil: "networkidle" })
   await roleg(page, 800)
   await page.getByRole("tab", { name: "montasje", exact: true }).click()
   await vent2(page, async () => (await page.locator("[data-lesing] .tab").first().count()) > 0, 10000)
@@ -3000,10 +2999,11 @@ async function heimskjermen(browser: Browser) {
   await page.context().setOffline(true)
   await page.goto(URL, { waitUntil: "networkidle" })
   await roleg(page, 700)
-  sjekk("prosjektet kjem att utan nett og utan lenkje", hash(page).storleik === 187 && hash(page).plan === foer.plan)
+  sjekk("prosjektet kjem att utan nett", hash(page).storleik === 187 && hash(page).plan === foer.plan)
   sjekk("og same arbeidsflate er open", await page.getByRole("tab", { name: "kontur", exact: true }).getAttribute("aria-selected") === "true")
 
-  await page.addInitScript((params) => localStorage.setItem("slicer-okt-vakt", JSON.stringify({ params: { ...params, storleik: 213 }, view: "lag", skal: false })), foer)
+  const pr = await page.evaluate(() => window.slicer!.prosjekt())
+  await page.addInitScript(([params, pr]) => localStorage.setItem("slicer-okt-vakt", JSON.stringify({ ...pr, params: { ...params, storleik: 213 }, view: "lag", skal: false, oppretta: 0, endra: Date.now() + 60000 })), [foer, pr] as const)
   await page.addInitScript(() => {
     const opne = indexedDB.open.bind(indexedDB)
     indexedDB.open = (...args: Parameters<IDBFactory["open"]>) => {

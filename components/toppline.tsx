@@ -7,7 +7,7 @@ export const BILETE = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"] as cons
 import { FORMER } from "@/lib/scene"
 import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./deler"
 
-export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, hopHint, onFile, bibliotek, onLeggLagra, onLegg, onTom, onTomArbeidsflate, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, onHogd }: {
+export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, hopHint, onFile, bibliotek, onLeggLagra, onLegg, onTom, onTomArbeidsflate, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, prosjektNamn, onProsjekt, onHogd }: {
   benk: boolean
   kjelde: string
   bitar: number
@@ -27,6 +27,8 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
   onGjerOm: () => void
   kanGjerOm: boolean
   onShare: () => void
+  prosjektNamn: string
+  onProsjekt: () => void
   onHogd: (px: number) => void
 }): JSX.Element {
   const pick = useRef<HTMLInputElement | null>(null)
@@ -81,6 +83,7 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
               style={{ ...HAIR, background: "var(--paper)", maxHeight: "calc(100dvh - 100% - 6px - env(safe-area-inset-top) - 8px)" }}
               data-meny=""
             >
+              <button type="button" onClick={() => { onProsjekt(); setMeny(false) }} title="det du arbeider med: opne, nytt, namn" className="hit border-b px-3 py-3 text-left text-[11px] leading-none" style={HAIR} data-prosjektrad=""><span className="block truncate">prosjekt · {prosjektNamn}</span></button>
               <button type="button" onClick={() => { onTomArbeidsflate(); setMeny(false) }} className="hit border-b px-3 py-3 text-left text-[11px] leading-none" style={HAIR}>tom arbeidsflate</button>
               {FORMER.map((id) => (
                 <button
@@ -137,7 +140,7 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
             )
           })}
         </span>
-        <button type="button" onClick={onShare} aria-label="del" title="lenkja ber innstillingane, ikkje nettet" className={ICON_BTN}>{IcoShare}</button>
+        <button type="button" onClick={onShare} aria-label="del" title="del prosjektfila: innstillingane og nettet" className={ICON_BTN}>{IcoShare}</button>
         {benk && <a href="https://iverfinne.no" target="_blank" rel="noopener noreferrer" className="pl-2 text-[11px] tracking-wide opacity-60 hover:opacity-100">iverfinne.no</a>}
       </div>
     </header>

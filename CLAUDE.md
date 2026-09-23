@@ -149,7 +149,7 @@ pnpm vekt     # taket på dei fire store filene: veks ei av dei, er det ei avgje
 pnpm build    # webpack (never Turbopack), then guards that the worker bundled
 pnpm probe    # engine without a browser: parts, joints, cut length, files
 pnpm rekkje   # reads the cut files back: engrave, inner cuts, outline, in order
-pnpm vrient   # meshes that aren't meshes, sliders at both ends, a hostile URL
+pnpm vrient   # meshes that aren't meshes, sliders at both ends, a hostile parameter bag
 pnpm ledd     # every joint the panel counted, found again in the cut profiles — grids, oblique planes, bent ribs with floors, tenons
 pnpm raad     # breaks each rule, presses the fix it offers, checks it worked
 pnpm glb      # writes GLB files with known geometry and reads them back
@@ -190,7 +190,8 @@ target. Every control sits under one thumb, the primary action bottom-right.
 The page never zooms (`maximum-scale=1`, `user-scalable=no`, `gesturestart`
 prevented), never scrolls (html and body fixed, overscroll none, containers
 contain), and lets nothing be selected or long-press-called-out (`user-select:
-none` everywhere; the only caret is a focused number field; the settings text
+none` everywhere; the only carets are a focused number field and a project's
+name being typed; the settings text
 is read-only with copy and paste buttons). A button is an icon or a word,
 never both, and it is flat: no shadow, glow, gradient, blur, pulse, scale or
 transition on a control — no ring and no filled pill either; a state is ink

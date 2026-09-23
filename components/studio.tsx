@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { bbox, shoelace, type ArkSyn, type ExportKind, type DetailKey, type ParamBag, type Pt, type Rom, type Vec3, type View } from "@/lib/core"
-import { erPrimitiv, KUBE } from "@/lib/sources"
-import { alleNett, gløymGamaltNett, hent, hentNett, lagre, lagreNett, ryddNett } from "@/lib/lagring"
+import { KUBE } from "@/lib/sources"
+import { alleNett, hentGjeldande, hentNett, idarI, lagreNett, lagreProsjekt, nyttProsjekt, ryddNett, type Prosjekt } from "@/lib/lagring"
 import { unzip, zip } from "@/lib/zip"
 import { MOTOR } from "@/lib/motor"
 import { BOG_TAK, MJUK_TAK, OMRISS_TAK, PLAN_ROM, PLAN_TAK, broek, dot, iGruppa, lesPlan, nyGruppe, nyId, omrissLine, ramme as planRamme, formPunkt, FORM_SLAG, rutenett, sameSnitt, skilRute, skuvKopi, slaaSaman, spegla, speglingar, skrivPlan, sub3, type FormSlag, type Plan, type Strek } from "@/lib/plan"
@@ -27,6 +27,8 @@ import { Vektor } from "./vektor"
 import { skalerForm, type BileteForm, type Maske } from "@/lib/bilete"
 import { Skuff, type VerktyId } from "./verkty"
 import { Toppline } from "./toppline"
+
+declare global { interface Window { slicer?: { posen: () => Record<string, unknown>; set: (o: Record<string, unknown>) => void; prosjekt: () => { id: string; namn: string } } } }
 
 const storleikAv = (p: ParamBag) => (typeof p.storleik === "number" && p.storleik > 0 ? p.storleik : 150)
 const OMRISS_ROM = 4
@@ -61,16 +63,16 @@ const kroppKey = (p: ParamBag) => [p.kjelde, p.scene, p.storleik, p.rotX, p.rotY
 const stamme = (label: string) =>
   ("slicer-" + label).replace(/\.[a-z0-9]+$/i, "").replace(/[^\w.-]+/g, "-").replace(/-+/g, "-").toLowerCase().slice(0, 48)
 
-async function lastNed(blob: Blob, namn: string) {
+async function lastNed(blob: Blob, namn: string, del = false): Promise<"delt" | "lasta ned" | null> {
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean }
-  if (matchMedia("(pointer: coarse)").matches && typeof nav.share === "function" && typeof nav.canShare === "function") {
+  if ((del || matchMedia("(pointer: coarse)").matches) && typeof nav.share === "function" && typeof nav.canShare === "function") {
     const fil = new File([blob], namn, { type: blob.type })
     if (nav.canShare({ files: [fil] })) {
       try {
         await nav.share({ files: [fil] })
-        return
+        return "delt"
       } catch (e) {
-        if (e instanceof DOMException && e.name === "AbortError") return
+        if (e instanceof DOMException && e.name === "AbortError") return null
       }
     }
   }
@@ -80,6 +82,7 @@ async function lastNed(blob: Blob, namn: string) {
   a.download = namn
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 4000)
+  return "lasta ned"
 }
 
 async function tilPng(svg: string, w: number, h: number): Promise<Uint8Array> {
@@ -190,6 +193,8 @@ export function Studio() {
   const [blink, setBlink] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
   const [namn, setNamn] = useState<Record<string, string>>({})
+  const namnRef = useRef(namn)
+  namnRef.current = namn
   const benk = useMedia("(pointer: fine) and (min-width: 1180px)")
   const vindu = useVindu()
 
@@ -199,7 +204,9 @@ export function Studio() {
   const naa = useRef(params)
   naa.current = params
   const bytar = useRef(new Map<number, { namn: string; buf: ArrayBuffer }>())
-  const gamaltNett = useRef(false)
+  const prosjekt = useRef<Prosjekt | null>(null)
+  const [pSyn, setPSyn] = useState({ id: "", namn: "" })
+  const bytRef = useRef<(til: () => Promise<Prosjekt | null>, hent?: boolean) => void>(() => {})
   const bytSvar = useRef(new Map<number, number>())
   const arkVent = useRef(new Map<number, (r: ArkRes) => void>())
   const skisse = useRef<Skisse | null>(null)
@@ -257,60 +264,41 @@ export function Studio() {
     if (k) spørSkisse({ id: 0, o: broek(s.o, k.min, k.max), n: s.n, bog: 0, strek: [] })
   }, [spørSkisse])
 
+  const hentInn = useCallback((obj: Record<string, unknown>) => {
+    const idar = idarI(obj).filter((id) => !(id in namnRef.current))
+    if (!idar.length) return
+    setHentar(true)
+    void hentNett(idar).then((funne) => {
+      for (const v of funne) {
+        const id = ++reqId.current
+        formSvar.current.add(id)
+        setNamn((m) => ({ ...m, [v.id]: v.label }))
+        send({ kind: "import", id, name: v.label, buf: v.bytes, som: v.id, etikett: v.label }, [v.bytes])
+      }
+      setHentar(false)
+      if (funne.length < idar.length) setMelding(funne.length ? "eitt nett mangla" : "fann ikkje nettet")
+    })
+  }, [send])
+
+  const lesInn = useCallback((p: Prosjekt, hent = true) => {
+    prosjekt.current = p
+    setPSyn({ id: p.id, namn: p.namn })
+    setParams(MOTOR.clamp(p.params, { ...MOTOR.defaults }))
+    if (VIEWS.some((q) => q.id === p.view)) setView(p.view!)
+    if (typeof p.skal === "boolean") setSkal(p.skal)
+    if (hent) hentInn(p.params)
+    fortid.current = []
+    framtid.current = []
+    stodd.current = null
+    setKanAngre(false)
+    setKanGjerOm(false)
+  }, [hentInn])
   useEffect(() => {
     let her = true
-    const hentInn = (obj: Record<string, unknown>) => {
-      const kj = typeof obj.kjelde === "string" ? obj.kjelde : KUBE
-      const idar = [...new Set([kj, ...lesScene(obj.scene).map((b) => b.id)])].filter((id) => !erPrimitiv(id) && !erFilform(id))
-      if (!idar.length) return
-      setHentar(true)
-      void hentNett(idar).then((funne) => {
-        for (const v of funne) {
-          const id = ++reqId.current
-          formSvar.current.add(id)
-          setNamn((m) => ({ ...m, [v.id]: v.label }))
-          send({ kind: "import", id, name: v.label, buf: v.bytes, som: v.id, etikett: v.label }, [v.bytes])
-        }
-        if (funne.length === idar.length) return setHentar(false)
-        void hent().then((g) => {
-          if (!g?.nett) {
-            setHentar(false)
-            setMelding(funne.length ? "eitt nett mangla" : "fann ikkje nettet")
-            return
-          }
-          const id = ++reqId.current
-          formSvar.current.add(id)
-          gamaltNett.current = true
-          bytar.current.set(id, { namn: g.filnamn ?? "nett.stl", buf: g.nett.slice(0) })
-          send({ kind: "import", id, name: g.filnamn ?? "nett.stl", buf: g.nett, som: idar.find((q) => !funne.some((f) => f.id === q)), etikett: g.filnamn ?? "nett" }, [g.nett])
-        })
-      })
-    }
-    const les = async () => {
-      try {
-        const h = window.location.hash.slice(1)
-        if (!h.startsWith("p=")) {
-          const v = await hent()
-          if (!her || !v) return
-          setParams((q) => MOTOR.clamp(v.params, q))
-          if (VIEWS.some((q) => q.id === v.view)) setView(v.view!)
-          if (typeof v.skal === "boolean") setSkal(v.skal)
-          hentInn(v.params)
-          return
-        }
-        const obj = JSON.parse(decodeURIComponent(h.slice(2))) as Record<string, unknown>
-        setParams((p) => MOTOR.clamp(obj, p))
-        if (VIEWS.some((v) => v.id === obj.view)) setView(obj.view as View)
-        if (typeof obj.skal === "boolean") setSkal(obj.skal)
-        hentInn(obj)
-      } catch {
-      } finally {
-        if (her) setMounted(true)
-      }
-    }
-    void les()
+    if (window.location.hash) window.history.replaceState(null, "", window.location.pathname + window.location.search)
+    void hentGjeldande().then((p) => { if (her) lesInn(p) }).finally(() => { if (her) setMounted(true) })
     return () => { her = false }
-  }, [send])
+  }, [lesInn])
 
   useEffect(() => {
     const w = new Worker(new URL("../lib/worker.ts", import.meta.url), { type: "module" })
@@ -355,13 +343,12 @@ export function Studio() {
         return
       }
       if (r.kind === "prosjekt") {
-        setRammInn((n) => n + 1)
         setHentar(false)
         setFeil(null)
         if (r.src) setNamn((m) => ({ ...m, [r.src!.id]: r.src!.label }))
         const kj = r.src ? r.src.id : KUBE
-        setParams((p) => MOTOR.clamp({ ...r.params, kjelde: kj }, { ...p, kjelde: kj }))
-        setVald(null)
+        const fil = bytar.current.get(r.id)?.namn.replace(/\.[a-z0-9]+$/i, "")
+        bytRef.current(() => nyttProsjekt(fil, { params: MOTOR.clamp({ ...r.params, kjelde: kj }, { ...MOTOR.defaults, kjelde: kj }) }), false)
         setMelding(r.src ? "prosjekt ope" : "oppsett sett")
         const bs = bytar.current.get(r.id)
         bytar.current.delete(r.id)
@@ -423,10 +410,6 @@ export function Studio() {
             else lesBibliotek()
           })
         }
-        if (gamaltNett.current) {
-          gamaltNett.current = false
-          void gløymGamaltNett()
-        }
         if (formSvar.current.delete(r.id)) {
           setFormTal((n) => n + 1)
           setHentar(false)
@@ -474,7 +457,10 @@ export function Studio() {
         setBusy(false)
         return
       }
-      void lastNed(r.text ? new Blob([r.text], { type: r.mime }) : new Blob([r.data as ArrayBuffer], { type: r.mime }), r.name)
+      const del = r.id === delId.current
+      void lastNed(r.text ? new Blob([r.text], { type: r.mime }) : new Blob([r.data as ArrayBuffer], { type: r.mime }), r.name, del).then((ut) => {
+        if (del && ut && !r.merknad) setMelding("prosjektfila " + ut)
+      })
       if (r.merknad) setMelding(r.merknad)
       setBusy(false)
     }
@@ -528,22 +514,16 @@ export function Studio() {
     }
   }, [params.kjelde, bitar, mounted, send])
 
-  useEffect(() => {
-    if (!mounted) return
-    const t = window.setTimeout(() => {
-      window.history.replaceState(null, "", "#p=" + encodeURIComponent(JSON.stringify({ ...params, view, skal })))
-    }, 500)
-    return () => window.clearTimeout(t)
-  }, [params, view, skal, mounted])
   const skrivOkta = useCallback(() => {
-    void lagre(naa.current as Record<string, number | string>, { view, skal })
+    const p = prosjekt.current
+    if (!p) return
+    if (JSON.stringify([naa.current, view, skal]) === JSON.stringify([p.params, p.view, p.skal])) return
+    prosjekt.current = { ...p, params: naa.current as Record<string, number | string>, view, skal, endra: Date.now() }
+    void lagreProsjekt(prosjekt.current)
   }, [view, skal])
   useEffect(() => {
     if (!mounted) return
-    const t = window.setTimeout(() => {
-      const idar = [String(params.kjelde ?? ""), ...bitar.map((b) => b.id)].filter((id) => id && !erPrimitiv(id) && !erFilform(id))
-      void ryddNett(idar)
-    }, 1500)
+    const t = window.setTimeout(() => void ryddNett(idarI(naa.current)), 1500)
     return () => window.clearTimeout(t)
   }, [params.kjelde, bitar, mounted])
   useEffect(() => {
@@ -621,6 +601,35 @@ export function Studio() {
   const endre = useCallback((p: ParamBag) => {
     setParams(p)
   }, [])
+
+  const bytProsjekt = useCallback((til: () => Promise<Prosjekt | null>, hent = true) => {
+    const g = prosjekt.current
+    skrivOkta()
+    prosjekt.current = null
+    void til().then((p) => {
+      if (!p) return void (prosjekt.current = g)
+      lesInn(p, hent); setVald(null); setRammInn((n) => n + 1)
+    })
+  }, [skrivOkta, lesInn])
+  bytRef.current = bytProsjekt
+  const gjeNamn = useCallback((namn: string) => {
+    const p = prosjekt.current
+    if (!p) return
+    setPSyn({ id: p.id, namn })
+    void lagreProsjekt((prosjekt.current = { ...p, namn, endra: Date.now() }))
+  }, [])
+  useEffect(() => {
+    if (!mounted) return
+    window.slicer = {
+      posen: () => ({ ...naa.current, view, skal }),
+      set: (o) => {
+        setParams((p) => MOTOR.clamp(o, p)); hentInn(o)
+        if (VIEWS.some((q) => q.id === o.view)) setView(o.view as View)
+        if (typeof o.skal === "boolean") setSkal(o.skal)
+      },
+      prosjekt: () => ({ id: pSyn.id, namn: pSyn.namn }),
+    }
+  }, [mounted, view, skal, pSyn, hentInn])
 
   const leggBit = useCallback((val: string) => {
     const byt = bitRef.current
@@ -1434,11 +1443,11 @@ export function Studio() {
     setBusy(true)
     send({ kind: "export", id: ++reqId.current, params: naa.current, what })
   }, [pngAvArk, send])
+  const delId = useRef(0)
   const share = useCallback(() => {
-    const url = window.location.href
-    if (navigator.share) return void navigator.share({ url })
-    void navigator.clipboard?.writeText(url).then(() => setMelding("lenkje kopiert")).catch(() => setMelding("ikkje kopiert"))
-  }, [])
+    setBusy(true)
+    send({ kind: "export", id: (delId.current = ++reqId.current), params: naa.current, what: "prosjekt" })
+  }, [send])
   const leggEtter = useRef<string | null>(null)
   const [bilete, setBilete] = useState<{ maske: Maske; url: string } | null>(null)
   const teikneplan = useRef<(() => { o: Vec3; n: Vec3 }) | null>(null)
@@ -1824,7 +1833,7 @@ export function Studio() {
 
       {flattPlan && <Vektor plan={flattPlan} S={typeof params.storleik === "number" ? params.storleik : 150} t={typeof params.tjukn === "number" ? params.tjukn : 3} nyId={nyId(plan)} alle={plan} boks={kropp ? { min: kropp.min, max: kropp.max } : null} topp={toppH} onEndre={(q) => setParams((cur) => ({ ...cur, plan: skrivPlan(lesPlan(cur.plan).map((p) => (p.id === q.id ? q : p))) }))} onDel={([a, ...fleire]) => setParams((cur) => ({ ...cur, plan: skrivPlan([...lesPlan(cur.plan).map((p) => (p.id === a.id ? a : p)), ...fleire]) }))} onLukk={() => setFlatt(false)} />}
       {bilete && <BileteInn maske={bilete.maske} url={bilete.url} onLegg={leggBilete} onAvbryt={() => setBilete(null)} />}
-      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} onTomArbeidsflate={tomArbeidsflate} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} onHogd={setToppH} />
+      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} onTomArbeidsflate={tomArbeidsflate} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} prosjektNamn={pSyn.namn} onProsjekt={() => { setVerkty("prosjekt"); if (!benk) setSteg("line") }} onHogd={setToppH} />
       {mounted && teikn && rom && (
         <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="teiknemåte">
           {(["firkant", "rund", "halv", "kontur"] as const).map((slag) => (
@@ -2174,6 +2183,9 @@ export function Studio() {
         onPeik={velDel}
         onChange={endre}
         onBytt={opneVerkty}
+        prosjekt={pSyn}
+        onByt={bytProsjekt}
+        onNamn={gjeNamn}
         onClose={() => setVerkty(null)}
         onOrd={(t) => void navigator.clipboard?.writeText(t).then(() => setMelding("kopiert")).catch(() => setMelding("ikkje kopiert"))}
       />

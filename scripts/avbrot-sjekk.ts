@@ -30,7 +30,7 @@ async function prov() {
     await side.locator('[data-teikn="dreg"]').waitFor()
   }
   const tal = async () => {
-    const plan = await side.evaluate(() => JSON.parse(decodeURIComponent(location.hash.split("#p=")[1] ?? "%7B%7D")).plan ?? "")
+    const plan = await side.evaluate(() => String(window.slicer?.posen().plan ?? ""))
     return lesPlan(plan).length
   }
   const klar = async (namn: string) => {
@@ -80,8 +80,8 @@ async function prov() {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [punkt(230, 480)] })
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
     await side.waitForFunction(() => {
-      const p = JSON.parse(decodeURIComponent(location.hash.split("#p=")[1] ?? "%7B%7D"))
-      return !!p.plan && p.plan.split(";").length === 1
+      const plan = String(window.slicer?.posen().plan ?? "")
+      return !!plan && plan.split(";").length === 1
     })
     assert.equal(await tal(), 1, "nytt drag etter avbrot lagar nøyaktig éi plate")
     sjekkar.push("berre startfingeren fullfører", "nytt drag verkar etter avbrot")
