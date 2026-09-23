@@ -433,3 +433,23 @@ console.log(`teikning: sirkel ${mjuk.length} punkt, Sigd ${side.length} punkt fr
   assert.equal(kneik({ ...flat, omriss: undefined }, 7, min, max, S, 90), null, "og eit plan utan omriss heller ikkje")
   console.log(`kneik: 240 × 120 flatt vart ${mal(ha, 0).toFixed(0)} liggjande og ${mal(hb, 2).toFixed(0)} ståande, 90,00° og kant i kant`)
 }
+
+{
+  const tol = (1.25 / 340) * 150
+  const tilKant = (p: Pt, a: Pt, b: Pt) => { const dx = b[0] - a[0], dy = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1))); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy) }
+  const tilRing = (p: Pt, r: readonly Pt[]) => Math.min(...r.map((a, i) => tilKant(p, a, r[(i + 1) % r.length])))
+  const avvik = (r: readonly Pt[], sann: readonly Pt[]) => Math.max(...sann.map((p) => tilRing(p, r)), ...r.map((p) => tilRing(p, sann)))
+  const rundRekt = (w: number, h: number, r: number): Pt[] => [[w / 2 - r, h / 2 - r], [-w / 2 + r, h / 2 - r], [-w / 2 + r, -h / 2 + r], [w / 2 - r, -h / 2 + r]].flatMap(([cx, cy], k) => Array.from({ length: 51 }, (_, i): Pt => { const v = (k + i / 50) * (Math.PI / 2); return [cx + r * Math.cos(v), cy + r * Math.sin(v)] }))
+  const ellipse = (w: number, h: number): Pt[] => Array.from({ length: 400 }, (_, i): Pt => [(w / 2) * Math.cos((2 * Math.PI * i) / 400), (h / 2) * Math.sin((2 * Math.PI * i) / 400)])
+  const linse = (w: number, h: number): Pt[] => { const R = (w * w + h * h) / (4 * w), v0 = Math.asin(h / 2 / R); return [0, Math.PI].flatMap((s) => Array.from({ length: 101 }, (_, i): Pt => { const v = s - v0 + (2 * v0 * i) / 100; return [R * Math.cos(v) + (s ? R - w / 2 : w / 2 - R), R * Math.sin(v)] })) }
+  const finger = (s: readonly Pt[]) => s.flatMap((a, i) => { const b = s[(i + 1) % s.length]; return Array.from({ length: 10 }, (_, k): Pt => [a[0] + ((b[0] - a[0]) * k) / 10, a[1] + ((b[1] - a[1]) * k) / 10]) })
+  const ut: string[] = []
+  for (const [namn, sann, tak] of [["oval 12 × 8", ellipse(12, 8), 0.1], ["oval 24 × 15", ellipse(24, 15), 0.1], ["stadion 90 × 30", rundRekt(90, 30, 15), 0.35], ["80 × 30 r4", rundRekt(80, 30, 4), 0.35], ["120 × 40 r4", rundRekt(120, 40, 4), 0.35], ["linse 30 × 52", linse(30, 52), 0.3]] as [string, Pt[], number][]) {
+    const k = teiknaKontur(finger(sann), tol)
+    assert(k, `${namn} vert ein kontur`)
+    const d = avvik(tettMjukt(k), sann)
+    assert(d <= tak, `hòlet ${namn} ligg innan ${tak} mm av forma etter tettinga: ${d.toFixed(2)} mm`)
+    ut.push(`${namn} ${d.toFixed(2)}`)
+  }
+  console.log(`hòl tetta: ${ut.join(" · ")} mm`)
+}

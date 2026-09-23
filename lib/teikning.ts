@@ -438,9 +438,19 @@ export function mjukePunkt(o: readonly Pt[], kortBroek = 0.3, snuGrad = 50): num
 
 export function tettMjukt(o: readonly Pt[], tak = HOL_TAK): Pt[] {
   const n = o.length
-  const kurve = new Set(mjukePunkt(o, Infinity))
+  const snu: number[] = [], jamn: boolean[] = []
+  for (let i = 0; i < n; i++) {
+    const a = o[(i - 1 + n) % n], b = o[i], c = o[(i + 1) % n]
+    const lu = Math.hypot(b[0] - a[0], b[1] - a[1]), lv = Math.hypot(c[0] - b[0], c[1] - b[1])
+    snu.push(lu && lv ? Math.acos(Math.max(-1, Math.min(1, ((b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1])) / (lu * lv)))) : Math.PI)
+    jamn.push(lu > 0 && lv > 0 && Math.max(lu, lv) <= 2.5 * Math.min(lu, lv))
+  }
+  const kurve = new Set(mjukePunkt(o, Infinity).filter((i) => jamn[i]))
   const rund = new Set(kurve)
-  for (const i of mjukePunkt(o, Infinity, 90)) if (kurve.has((i - 1 + n) % n) && kurve.has((i + 1) % n)) rund.add(i)
+  for (const i of mjukePunkt(o, Infinity, 90)) {
+    const a = (i - 1 + n) % n, b = (i + 1) % n
+    if (kurve.has(a) && kurve.has(b) && snu[i] <= 2.5 * Math.max(snu[a], snu[b])) rund.add(i)
+  }
   if (!rund.size || n >= tak) return o.slice()
   const xs = o.map((p) => p[0]), ys = o.map((p) => p[1])
   const tol = 0.002 * Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
