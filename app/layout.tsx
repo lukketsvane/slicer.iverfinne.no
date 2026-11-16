@@ -13,7 +13,7 @@ const inter = Inter({
 
 const TITLE = "slicerman"
 const NOTE =
-  "Snitt eit 3D-nett til flate delar for laser og CNC. Dra inn ei STL, sett tjukna, få DXF og kuttark. Ingen dyr programvare."
+  "Slice a 3D mesh into flat parts for laser and CNC. Drop an STL, set thickness, get DXF and cut sheets. No expensive software."
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://slicer.iverfinne.no"),
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     url: "https://slicer.iverfinne.no",
     siteName: TITLE,
     type: "website",
-    locale: "nn_NO",
+    locale: "en_US",
   },
   twitter: { card: "summary_large_image", title: TITLE, description: NOTE },
   applicationName: TITLE,
@@ -47,7 +47,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="nn" className={inter.variable}>
+    <html lang="en" className={inter.variable}>
       <body className="overflow-hidden antialiased">
         {children}
         <Heimskjerm />

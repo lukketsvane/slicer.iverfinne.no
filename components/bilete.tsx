@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react"
 import { bileteForm, type BileteForm, type BileteVal, type Maske } from "@/lib/bilete"
 import { omrissLine } from "@/lib/plan"
+import { mt, useMaal } from "@/lib/i18n"
 import { ORD } from "./deler"
 
 const SIDE = 220
@@ -28,6 +29,7 @@ export async function lesBilete(fil: Blob): Promise<{ maske: Maske; url: string 
 const bane = (p: readonly [number, number][]) => `M${p.map(([x, y]) => `${x.toFixed(4)},${(-y).toFixed(4)}`).join("L")}Z`
 
 export function BileteInn({ maske, url, onLegg, onAvbryt }: { maske: Maske; url: string; onLegg: (f: BileteForm) => void; onAvbryt: () => void }) {
+  const maal = useMaal()
   const [val, setVal] = useState<BileteVal>({ terskel: 0.5, mjuk: 1, snu: false })
   const drag = useRef<{ id: number; x: number; y: number; v: BileteVal } | null>(null)
   const form = useMemo(() => bileteForm(maske, val), [maske, val])
@@ -35,7 +37,7 @@ export function BileteInn({ maske, url, onLegg, onAvbryt }: { maske: Maske; url:
   const bw = maske.w * s, bh = maske.h * s
   return (
     <section
-      aria-label="bilete"
+      aria-label={mt(maal, "image", "bilete")}
       className="absolute inset-0 z-30 flex flex-col"
       style={{ background: "var(--paper)", touchAction: "none" }}
       onPointerDown={(e) => {
@@ -52,9 +54,9 @@ export function BileteInn({ maske, url, onLegg, onAvbryt }: { maske: Maske; url:
       onPointerCancel={() => { drag.current = null }}
     >
       <div className="tab flex justify-center gap-6 pt-16 text-[11px] tracking-[0.04em]" data-lesing="">
-        <span>terskel {Math.round(val.terskel * 100)}</span>
-        <span>mjuk {Math.round(val.mjuk)}</span>
-        <span>{form ? `${form.omriss.length} punkt · ${form.hol.length} hòl` : "inga form"}</span>
+        <span>{mt(maal, "threshold", "terskel")} {Math.round(val.terskel * 100)}</span>
+        <span>{mt(maal, "smooth", "mjuk")} {Math.round(val.mjuk)}</span>
+        <span>{form ? `${form.omriss.length} ${mt(maal, "points", "punkt")} · ${form.hol.length} ${mt(maal, "holes", "hòl")}` : mt(maal, "no shape", "inga form")}</span>
       </div>
       <svg className="min-h-0 flex-1" viewBox={`${-bw / 2 - 0.03} ${-bh / 2 - 0.03} ${bw + 0.06} ${bh + 0.06}`} aria-hidden="true">
         <image href={url} x={-bw / 2} y={-bh / 2} width={bw} height={bh} opacity={0.25} style={{ imageRendering: "pixelated" }} />
@@ -70,9 +72,9 @@ export function BileteInn({ maske, url, onLegg, onAvbryt }: { maske: Maske; url:
         )}
       </svg>
       <div className="flex items-center justify-between gap-4 px-4 pb-10">
-        <button type="button" className={ORD} onClick={onAvbryt}>avbryt</button>
-        <button type="button" className={ORD} aria-pressed={val.snu} onClick={() => setVal((v) => ({ ...v, snu: !v.snu }))}>snu</button>
-        <button type="button" className={ORD + " min-w-16"} disabled={!form} onClick={() => form && onLegg(form)}>legg inn</button>
+        <button type="button" className={ORD} onClick={onAvbryt}>{mt(maal, "cancel", "avbryt")}</button>
+        <button type="button" className={ORD} aria-pressed={val.snu} onClick={() => setVal((v) => ({ ...v, snu: !v.snu }))}>{mt(maal, "rotate", "snu")}</button>
+        <button type="button" className={ORD + " min-w-16"} disabled={!form} onClick={() => form && onLegg(form)}>{mt(maal, "insert", "legg inn")}</button>
       </div>
     </section>
   )

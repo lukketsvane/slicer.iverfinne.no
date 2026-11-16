@@ -6,8 +6,8 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "slicerman",
     short_name: "slicerman",
     description:
-      "Snitt eit 3D-nett til flate delar for laser og CNC. Dra inn ei STL, sett tjukna, få DXF og kuttark.",
-    lang: "nn",
+      "Slice a 3D mesh into flat parts for laser and CNC. Drop an STL, set thickness, get DXF and cut sheets. No expensive software.",
+    lang: "en",
     start_url: "/",
     scope: "/",
     display: "standalone",
