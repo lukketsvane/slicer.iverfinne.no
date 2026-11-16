@@ -1,0 +1,248 @@
+# AGENTS.md
+
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+## 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+---
+
+# slicerman — project specifics
+
+## Language
+
+The interface, every identifier and every code comment is **Norwegian nynorsk**.
+Commit messages are nynorsk too. `README.md` is English, and stays English.
+Do not translate code to English, and do not rename a nynorsk symbol because an
+English one would read better to you.
+
+## The contract
+
+`lib/core.ts` is what everything else reads from: what a parameter is, what a
+metric is, what a rule is, and the geometry the slicing, the measuring and the
+cut files all share. It knows nothing about planes, cube or STL. A change that
+teaches it about one of those is in the wrong file. `lib/plan.ts` is what a
+cutting plane is — a name, a point, a normal, a bend, and (when the hand has
+taken the shape over) an outline of 2D points in the plane's own frame, with
+a flag on the points that are arcs rather than corners — all encoded as the
+`plan` string in the parameter bag, and it knows nothing about meshes. An arc
+is not a new geometry: the curve is worked out from the point's neighbours and
+turned back into points (`omrissLine`) before anything geometric sees it, so
+everything below still gets the polygon it always got. A bent plane is a cylinder, not a plane: developable, so the part is
+still cut flat, and the radius is limited by what the material takes. A bent
+plane carries joints in two cases, and they are each other's opposite: a flat
+plane ALONG its cylinder axis meets it in a generator line, straight in space
+and straight unrolled (`kryssBoygd`), and a flat plane PERPENDICULAR to the
+axis — a floor — meets it in a circle of exactly the cylinder radius
+(`kryssRing`), straight in the unrolled pattern and an arc in the floor. So a
+slot line carries a curvature, and mouth, bottom and exit are ARC LENGTH: it
+is the one place in the house where a slot is not straight. A plane SLANTED to
+the axis, and two bent surfaces, meet in a curve that is neither, and that
+finder is not written; the hard rule counts ribs WITHOUT SLOTS, not bent
+planes. And a bent part is not pushed into place, it is BENT into place — so
+joints along lines that cross are not a break for it.
+
+`lib/tapp.ts` is the other meeting: a DRAWN edge that stops at another
+plate. The plate with material just inside the other's near face and none
+past its far face gets tenons; the plate with material on both sides gets
+mortises. Outline points in that band are moved onto the near face before
+anything is cut, the rest is clipped there, and tenons, mortises and the clip
+go into the field after it is refined, on grid lines of their own, so their
+corners are exact. A tenon is an arrow and a slot is a line: the assembly
+order reads the sign of one and not the other. Mesh-derived ribs never get
+tenons.
+
+`lib/montasje.ts` is the way from the plate to the object: one mesh per part in
+its own flat frame plus two rigid matrices — where it lies on the plate, where
+it stands in the body — and the engine's own assembly order grouped into steps.
+It computes no order of its own; that would be a second truth about assembly,
+and `montering.txt` is already in the box. The engine's order comes from
+`lib/orden.ts`: the list if it goes together, otherwise another order read
+off the same joint directions. The list decides which way slots open; the
+order only decides who comes second.
+
+Read `README.md` and `REBUILD.md` before changing behaviour. The decisions in
+them are decisions, not accidents — the phone is the tool, a sketched plane is
+invisible until locked, a locked plane stays where you put it, the view is a
+decision and never a consequence of the geometry, names belong to
+the part and never get reused, it is a laser tool with no cutter diameter,
+colour is the operation and carries the order, kerf is taken exactly once,
+slots are cut in the field and not in the polygon, a plane that carries an
+outline takes its profile from that outline and not from the body, an outline
+curve goes through its points and never has control arms, a face is drawn as
+ONE dragged rectangle and shaped afterwards with the handles it already has,
+the view flattens to
+2° when you look straight down an axis and never gets a second camera, the
+montage never computes an assembly order of its own — it groups the engine's —
+two fingers belong to the object and never move the camera — zoom is the
+magnifier, and in the body tool the pinch is the piece — a lone finger does
+not turn the view until it has travelled the twelve pixels that make it a
+drag, because a hand lands its two fingers one after the other and the first
+one alone is the orbit's gesture — and there are two colours and no more.
+
+## Verify with the harnesses, not by eye
+
+Every number this tool prints is read off the geometry. So is every check:
+
+```bash
+pnpm sjekk    # tsc --noEmit
+pnpm vekt     # taket på dei fire store filene: veks ei av dei, er det ei avgjerd
+pnpm build    # webpack (never Turbopack), then guards that the worker bundled
+pnpm probe    # engine without a browser: parts, joints, cut length, files
+pnpm rekkje   # reads the cut files back: engrave, inner cuts, outline, in order
+pnpm vrient   # meshes that aren't meshes, sliders at both ends, a hostile URL
+pnpm ledd     # every joint the panel counted, found again in the cut profiles — grids, oblique planes, bent ribs with floors, tenons
+pnpm raad     # breaks each rule, presses the fix it offers, checks it worked
+pnpm glb      # writes GLB files with known geometry and reads them back
+npx tsx scripts/former.ts <namn>=<fil>   # a heavy model becomes a built-in form
+pnpm pakk     # redraws every sheet and counts cells — catches overlaps
+pnpm hand     # the plane list as a string: hostile input, one edit leaves the rest, names never reused
+pnpm tak      # the plane ceiling: what 64 planes cost, and that slicing stays linear in them
+pnpm tung     # a million triangles in, and how long that takes
+pnpm ark      # cut sheets as images
+pnpm look     # screenshots of the page, and any console errors
+pnpm panel    # the controls in a real browser: both surfaces, gestures, keys
+pnpm panel montasjen  # the montage: it plays, it stops, and a finger can hold it mid-way
+pnpm panel boyen   # ONE section of it — the full run is 3.5 minutes, one part is seconds
+pnpm kvikk "tom; kontur 135,310 255,310 280,506 110,506; spegl y; syn topp; firkant 110,320 280,490; les"
+                   # a tool or a gesture on the phone surface, ONE line back: plan · delar · ledd · reglar · konsoll · s
+```
+
+The headless ones (`probe` through `tak`) are fast and must stay green. Point
+`pnpm look` and `pnpm panel` at `next start` on port 3210 (`URL=...`), never at
+the dev server: they drive a real browser for minutes, and HMR reloading the
+page underneath produces failures that look exactly like real ones.
+
+`pnpm panel` is 3.5 minutes and `telefon` is half of it, so while you are
+iterating run the one section you touched — `pnpm panel boyen sider` — and the
+whole thing once before pushing. Each section prints what it cost; those are
+the numbers to argue from. The sections are deliberately serial: several checks
+measure TIME (a number within five seconds, a cut within two, the chrome dozing
+after two), and a tap through CDP reads as a long press when the main thread is
+behind, so parallel pages would break those on busyness rather than on code.
+
+Changing geometry, exports or rules without running the harness that covers it
+is the one thing this project has no way to catch later.
+
+## The one device
+
+The iPhone 16e, saved to the home screen and opened standalone, is the only
+target. Every control sits under one thumb, the primary action bottom-right.
+The page never zooms (`maximum-scale=1`, `user-scalable=no`, `gesturestart`
+prevented), never scrolls (html and body fixed, overscroll none, containers
+contain), and lets nothing be selected or long-press-called-out (`user-select:
+none` everywhere; the only caret is a focused number field; the settings text
+is read-only with copy and paste buttons). A button is an icon or a word,
+never both, and it is flat: no shadow, glow, gradient, blur, pulse, scale or
+transition on a control — no ring and no filled pill either; a state is ink
+against dimmed ink, and disabled is opacity. The interface speaks in words and
+numbers, not sentences; only a rule's «why» gets one short sentence.
+
+The one animation in the house is the **doze**: two seconds without a finger
+and everything that is not the object fades out — top line, thumb column,
+sheet, handles, view cube, sketch — and any movement brings it back. It is
+one fade over the whole chrome, not an effect on a control, and while it is
+gone the interface takes no touches. `pnpm panel` checks all of it; a change
+that breaks one of these is wrong even if it looks fine on a laptop.
+
+## Two traps
+
+- **Turbopack ships the worker as raw TypeScript** into `static/media`. The
+  worker then dies silently and the page just sits there. `pnpm build` forces
+  webpack and fails if it happens anyway.
+- **The main thread only draws.** All geometry belongs in `lib/worker.ts` and
+  what it calls. A metric computed in a component is a metric that will drift
+  from the cut file. The one thing the main thread computes is the sketch
+  plane itself — a point and a normal from the camera — because that is the
+  input, not a result.
+
+## Tokenbudsjettet (lest av agenten, ikkje av folk)
+
+Kvar økt er eit budsjett. Reglane som held det:
+
+- **Skriv kode, ikkje resonnement.** Avgjerder tek du i hovudet; det som står i
+  loggen er diffen, éin kommando, éi line om utfallet. Ingen «eg skal no …».
+- **Éin kommando, mange steg.** Bygg, omstart, prøve og lesing av rapporten er
+  éi bash-line med `&&`; aldri fire kall der eitt held. Skriv output gjennom
+  `tail`/`grep`/`node -e` so berre svaret kjem attende — aldri heile JSON-en,
+  aldri heile loggen.
+- **Ingen kommentarar i koden.** Kjelda er kode. Kvifra høyrer heime i
+  `README.md`, `REBUILD.md` og `PLAN.md`; ei line som seier kva koden gjer
+  er ei line som lyg fyrste gong koden endrar seg. Skriv du ein kommentar,
+  har du skrive feil kode eller feil fil.
+- **Les smalt.** `Grep -n` fyrst, `Read` med `offset`/`limit` på treffet; aldri
+  heile fila for å finne ei line. Store filer (`studio.tsx`, `scene.tsx`,
+  `snitt.tsx`) vert ALDRI lesne heilt.
+- **Rediger med `python3 - <<EOF` og `assert old in s`** når fleire stader skal
+  bytast i eitt kall; `Edit` for éi. Ikkje `Read` etter eiga skriving.
+- **Prøv smalt fyrst.** `pnpm sjekk` + den eine harnessen som dekkjer endringa;
+  heile suiten éin gong før push, i bakgrunnen medan du skriv neste ting.
+- **Ingen scenario i nettlesaren.** `pnpm minutt` er sletta: det kosta meir
+  tid og tokens enn det fann, og det same gjeld kvart nytt skript av same
+  slag. Geometrien vert prøvd i `pnpm ledd`/`probe` utan nettlesar. Eit
+  verkty eller ein gest vert prøvd med `pnpm kvikk "…"`: ordbok i
+  `scripts/kvikk.ts`, éi line ut, `bilete` berre når du må sjå. Aldri eit
+  skjermbilete per steg, aldri ei rapportfil.
+- **Push utan å spørje.** Bundle → `device_commit_files` → PowerShell-lina, i
+  tre kall, utan tekst imellom. Sei éi line når det er oppe.
+- **Svar i éi setning.** Kva som er gjort, kva som står att. Ingen oppsummering
+  av stega — brukaren såg dei.
