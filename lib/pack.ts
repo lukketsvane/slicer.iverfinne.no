@@ -116,6 +116,7 @@ type Board = {
   top: Int32Array
   solidH: Int32Array
   used: number
+  free: number
   nei: Set<string>
 }
 
@@ -129,6 +130,7 @@ const board = (w: number, h: number): Board => {
     top: new Int32Array(w),
     solidH: new Int32Array(w),
     used: 0,
+    free: w * h,
     nei: new Set(),
   }
 }
@@ -187,6 +189,7 @@ function stamp(b: Board, m: Mask, px: number, py: number) {
       }
     }
   }
+  b.free -= m.cells
   if (py + m.h > b.used) b.used = py + m.h
 }
 
@@ -241,10 +244,9 @@ const STRATEGIAR: readonly Strategi[] = [
   { fro: 0, poeng: "topp", lang: true },
   { fro: 0, poeng: "brei" },
   { fro: 1, poeng: "topp" },
-  { fro: 2, poeng: "topp" },
 ]
 
-const BUDSJETT = 12_000_000
+const BUDSJETT = 2_400_000
 let arbeid = 0
 
 function stoy(fro: number): () => number {
@@ -306,7 +308,11 @@ export function pack(
     for (let r = 0; r < 4; r++) {
       const m = f.masks[r]
       if (m.w > b.w || m.h > b.h) continue
+      if (s.poeng === "topp" && best && m.h * b.w >= best.sc) continue
+      if (s.poeng === "brei" && best && m.w * b.h >= best.sc) continue
       for (let px = 0; px + m.w <= b.w; px += step) {
+        if (s.poeng === "topp" && best && m.h * b.w + px >= best.sc) break
+        if (s.poeng === "brei" && best && (px + m.w) * b.h >= best.sc) break
         const py = lowest(b, m, px, step)
         if (py < 0) continue
         const sc = s.poeng === "brei" ? (px + m.w) * b.h + py : (s.poeng === "topp" ? py + m.h : py) * b.w + px
@@ -367,7 +373,7 @@ export function pack(
       if (staar.has(i)) continue
       let put: { s: number; rot: 0 | 1 | 2 | 3; px: number; py: number } | null = null
       for (let n = 0; n < boards.length && !put; n++) {
-        if (boards[n].nei.has(key)) continue
+        if (boards[n].free < f.cells || boards[n].nei.has(key)) continue
         const best = seek(boards[n], f, s)
         if (best) put = { s: n, rot: best.rot, px: best.px, py: best.py }
         else boards[n].nei.add(key)
@@ -466,7 +472,7 @@ function affine(
 
 export function anchor(rings: Ring[], res = 2): { p: Pt; room: number; wide: number; tall: number } {
   const bb = bbox(rings[0])
-  const r0 = Math.max(0.5, Math.min(res, Math.min(bb.x1 - bb.x0, bb.y1 - bb.y0) / 20))
+  const r0 = Math.max(0.75, Math.min(res, Math.min(bb.x1 - bb.x0, bb.y1 - bb.y0) / 12))
   const w = Math.max(1, Math.ceil((bb.x1 - bb.x0) / r0) + 1)
   const h = Math.max(1, Math.ceil((bb.y1 - bb.y0) / r0) + 1)
   const mid: Pt = [(bb.x1 - bb.x0) / 2, (bb.y1 - bb.y0) / 2]
