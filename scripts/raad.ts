@@ -1,7 +1,7 @@
 import type { ParamBag } from "../lib/core"
 import { measure, RADER } from "../lib/metrics"
 import { checkRules, fiksAlt } from "../lib/rules"
-import { DEFAULT_PARAMS, type Params } from "../lib/params"
+import { DEFAULT_PARAMS, PARAM_RANGES, type Params } from "../lib/params"
 import { MOTOR } from "../lib/motor"
 import { meshToStl } from "../lib/export-stl"
 import { parseMesh } from "../lib/io"
@@ -123,17 +123,18 @@ function prov(namn: string, id: string, p: Params, runder = 1) {
 
 console.log("rådet rettar det det seier:")
 
+const STOR_MAKS = PARAM_RANGES.storleik.max
 prov("for stort til plata", "plate", {
   ...DEFAULT_PARAMS,
   kjelde: "kule",
-  storleik: 1200,
+  storleik: STOR_MAKS,
   plan: nett(3, 3),
-  arkB: 600,
-  arkH: 400,
+  arkB: 400,
+  arkH: 300,
 })
 prov("for stort på ei lita plate òg", "plate", {
   ...DEFAULT_PARAMS,
-  storleik: 900,
+  storleik: Math.min(STOR_MAKS, 550),
   plan: nett(4, 4),
   arkB: 300,
   arkH: 200,
@@ -262,7 +263,7 @@ prov("godset er tynt", "gods", {
 }
 
 {
-  const p: Params = { ...DEFAULT_PARAMS, kjelde: "tynnring", storleik: 900, arkB: 450, arkH: 100, plan: nett(2, 2) }
+  const p: Params = { ...DEFAULT_PARAMS, kjelde: "tynnring", storleik: Math.min(STOR_MAKS, 580), arkB: 280, arkH: 60, plan: nett(2, 2) }
   const r = finn(p, "utnytting")
   const m = measure(p)
   ok("to ark og under ein tredel utnytta seier frå", !!r && !r.ok, `${m.sheets} ark · ${r?.value}`)
@@ -372,10 +373,25 @@ const boygd = (bog: number): Params =>
 {
   const harde = (q: Params) => reglane(q).filter((r) => r.hard && !r.ok)
   const saker2: [string, Params][] = [
-    ["for stor for plata", { ...DEFAULT_PARAMS, storleik: 1200, plan: nett(3, 3), arkB: 300, arkH: 200 } as Params],
+    ["for stor for plata", { ...DEFAULT_PARAMS, storleik: STOR_MAKS, plan: nett(3, 3), arkB: 300, arkH: 200 } as Params],
     ["snittet et opp sporet", { ...DEFAULT_PARAMS, tjukn: 1, snitt: 6, plan: nett(4, 4) } as Params],
     ["for stram bøy", boygd(1.5)],
     ["alt i orden frå før", { ...DEFAULT_PARAMS, plan: nett(4, 4) } as Params],
+    [
+      "fleire brot samstundes",
+      {
+        ...DEFAULT_PARAMS,
+        kjelde: "kule",
+        storleik: STOR_MAKS,
+        tjukn: 2,
+        snitt: 3,
+        klaring: 0,
+        trekant: 0.5,
+        arkB: 300,
+        arkH: 200,
+        plan: nett(3, 3),
+      } as Params,
+    ],
   ]
   for (const [namn, p] of saker2) {
     const foer = harde(p)
@@ -402,7 +418,7 @@ const boygd = (bog: number): Params =>
     { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 100, tjukn: 10, plan: nett(10, 10), ledd: 0.8 },
     { ...DEFAULT_PARAMS, kjelde: "torus", storleik: 120, tjukn: 8, plan: nett(8, 8), ledd: 0.2 },
     { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 200, plan: nett(13, 2), lause: 0 },
-    { ...DEFAULT_PARAMS, storleik: 1200, plan: nett(3, 3), arkB: 300, arkH: 200 },
+    { ...DEFAULT_PARAMS, storleik: STOR_MAKS, plan: nett(3, 3), arkB: 300, arkH: 200 },
     { ...DEFAULT_PARAMS, tjukn: 1, snitt: 6 },
     { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 60, plan: nett(30, 30), },
     boygd(1.5),
@@ -422,7 +438,7 @@ const boygd = (bog: number): Params =>
 
 {
   const kantar: Params[] = [
-    { ...DEFAULT_PARAMS, storleik: 1200, plan: nett(3, 3), arkB: 300, arkH: 200 },
+    { ...DEFAULT_PARAMS, storleik: STOR_MAKS, plan: nett(3, 3), arkB: 300, arkH: 200 },
     { ...DEFAULT_PARAMS, kjelde: "kule", storleik: 60, plan: nett(30, 30), },
     { ...DEFAULT_PARAMS, tjukn: 1, snitt: 6 },
   ]
@@ -444,6 +460,30 @@ const boygd = (bog: number): Params =>
     }
   }
   ok("rådet står innanfor skyvarane", alleLovlege, sett.join("; "))
+}
+
+{
+  const k = kula(50, 24)
+  const blanda = new Float32Array(k.pos.length)
+  for (let i = 0; i < k.pos.length; i += 9) {
+    if ((i / 9) % 2 === 0) {
+      for (let c = 0; c < 3; c++) {
+        blanda[i + c] = k.pos[i + c]
+        blanda[i + 3 + c] = k.pos[i + 6 + c]
+        blanda[i + 6 + c] = k.pos[i + 3 + c]
+      }
+    } else {
+      blanda.set(k.pos.subarray(i, i + 9), i)
+    }
+  }
+  put("blanda-kule", "blanda-kule", makeSoup(blanda))
+  const fasit = measure({ ...GRUNN, kjelde: "kule", plan: nett(5, 5) })
+  const retta = measure({ ...GRUNN, kjelde: "blanda-kule", plan: nett(5, 5) })
+  ok(
+    "blanda trekantretning vert automatisk retta likt fasiten",
+    retta.parts === fasit.parts && retta.joints === fasit.joints && Math.abs(retta.plyArea - fasit.plyArea) / Math.max(1, fasit.plyArea) < 0.02,
+    `${retta.parts}/${retta.joints} vs ${fasit.parts}/${fasit.joints}`,
+  )
 }
 
 {

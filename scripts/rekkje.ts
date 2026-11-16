@@ -372,7 +372,13 @@ function toSkrivarar(namn: string, svg: Steg[], dxf: Steg[]) {
   const kutt = (q: Steg[]) =>
     q
       .filter((r) => !r.grav)
-      .sort((a, b) => a.bb[0] - b.bb[0] || a.bb[1] - b.bb[1] || a.areal - b.areal)
+      .sort((a, b) =>
+        Math.abs(a.bb[0] - b.bb[0]) > 0.02
+          ? a.bb[0] - b.bb[0]
+          : Math.abs(a.bb[1] - b.bb[1]) > 0.02
+            ? a.bb[1] - b.bb[1]
+            : a.areal - b.areal,
+      )
   const a = kutt(svg)
   const b = kutt(dxf)
   if (a.length !== b.length) return feil(namn, `${a.length} kuttbaner i svg, ${b.length} i dxf`)
@@ -615,7 +621,12 @@ if (!(sumIFila > sumNominell + 1)) {
       const v = baner.reduce((m, b) => (Math.abs(shoelace(b)) > Math.abs(m) ? shoelace(b) : m), 0)
       funne = baner.find((b) => {
         const bb = boks(b)
-        return shoelace(b) * v < 0 && Math.abs(bb[2] - bb[0] - (w - kerf)) < 1 && Math.abs(bb[3] - bb[1] - (h - kerf)) < 1
+        const bw = bb[2] - bb[0]
+        const bh = bb[3] - bb[1]
+        const match =
+          (Math.abs(bw - (w - kerf)) < 1 && Math.abs(bh - (h - kerf)) < 1) ||
+          (Math.abs(bw - (h - kerf)) < 1 && Math.abs(bh - (w - kerf)) < 1)
+        return shoelace(b) * v < 0 && match
       }) ?? null
     }
     if (!funne) {

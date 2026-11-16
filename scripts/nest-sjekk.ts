@@ -5,6 +5,7 @@ import { makeBygg, nestGap } from "../lib/bygg"
 import { DETAIL } from "../lib/snitt"
 import { placedRings } from "../lib/nest"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
+import { lesPlan, rutenett, skrivPlan } from "../lib/plan"
 
 const punktTilLine = (p: Pt, a: Pt, b: Pt) => {
   const vx = b[0] - a[0]
@@ -33,7 +34,6 @@ const ringAvstand = (A: readonly Pt[], B: readonly Pt[]) => {
 }
 import { makeSoup } from "../lib/soup"
 import { put } from "../lib/sources"
-import { rutenett, skrivPlan } from "../lib/plan"
 const nett = (nx: number, ny: number) => skrivPlan(rutenett(nx, ny))
 
 const GRUNN = { ...DEFAULT_PARAMS, plan: nett(6, 6) }
@@ -128,6 +128,16 @@ function pakkarenSjolv() {
         `${out.slots.length} lagde på ${out.sheets} plater · ` +
         `${ute} utanfor${ute ? ` (verst ${verst.toFixed(1)} mm)` : ""}`,
     )
+  }
+
+  {
+    const bogeRing: Pt[] = [[0, 0], [200, 0], [200, 180], [160, 180], [160, 40], [40, 40], [40, 180], [0, 180]]
+    const liten: Pt[] = rekt(0, 0, 80, 40)
+    const pieces = [{ key: "boge", rings: [bogeRing] }, { key: "inn1", rings: [liten] }, { key: "inn2", rings: [liten] }]
+    const out = pack(pieces, 240, 210, 5)
+    const ok = out.sheets === 1 && out.slots.length === 3 && out.spilt.length === 0
+    if (!ok) brot++
+    console.log(`${ok ? "  ok " : "FEIL"}  ${"pakkar inni boge/holrom".padEnd(26)} ${out.slots.length} lagde på ${out.sheets} plate`)
   }
 }
 
@@ -312,6 +322,31 @@ sjekk("same objekt, smalt snitt", {
 sjekk("same objekt, breitt snitt", {
   ...GRUNN, kjelde: "kule", storleik: 420, plan: nett(8, 8), snitt: 6,
   arkB: 800, arkH: 600,
+})
+sjekk("bøygde ribber + golv", {
+  ...DEFAULT_PARAMS,
+  kjelde: "kule",
+  storleik: 320,
+  tjukn: 3,
+  arkB: 600,
+  arkH: 400,
+  plan: skrivPlan([
+    ...lesPlan(nett(4, 0)).map((q, i) => ({ ...q, bog: i % 2 ? -0.9 : 0.9 })),
+    { id: 91, o: [0.5, 0.5, 0.35], n: [0, 0, 1], bog: 0, strek: [] },
+    { id: 92, o: [0.5, 0.5, 0.65], n: [0, 0, 1], bog: 0, strek: [] },
+  ]),
+})
+sjekk("stram sylinder-skjøt", {
+  ...DEFAULT_PARAMS,
+  kjelde: "kule",
+  storleik: 240,
+  tjukn: 3,
+  arkB: 800,
+  arkH: 600,
+  plan: skrivPlan([
+    ...lesPlan(nett(2, 0)).map((q) => ({ ...q, bog: 3.2 })),
+    { id: 91, o: [0.5, 0.5, 0.5], n: [0, 0, 1], bog: 0, strek: [] },
+  ]),
 })
 
 pakkarenSjolv()

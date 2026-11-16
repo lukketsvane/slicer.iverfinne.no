@@ -745,7 +745,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
           for (let i = n; i >= 0; i--) ring.push(sporPunkt(q, -lang + (2 * lang * i) / n, -h))
           return ring
         }),
-        ...a.tapp.map((q): Pt[] => {
+        ...a.tapp.filter((q) => q.hjorne.length >= 2).map((q): Pt[] => {
           const tb = bbox(q.hjorne)
           return [[tb.x0 - h, tb.y0 - h], [tb.x1 + h, tb.y0 - h], [tb.x1 + h, tb.y1 + h], [tb.x0 - h, tb.y1 + h]]
         }),
