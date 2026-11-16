@@ -5,8 +5,8 @@ import { rull, vend, type BitBoks, type Kropp } from "./kropp"
 import { add3, akser, cross, dot, ein2, inn, kryss as kryssAv, kryssBoygd, kryssRing, len3, lesPlan, moteInn, mul3, norm3, omrissLine, skrivPlan, sub3, ut, type Mote, type Plan, type Ramme, type Strek } from "./plan"
 import { lesDeling, leddNokkel, snittKey, type Params } from "./params"
 import { bogMin, rilla } from "./rille"
-import { forenklaSpor, sporAksar, sporRute } from "./sporfelt"
-import { felles, iGods, sporInn, sporPunkt, stykkeLangs, utan, type Line } from "./stykke"
+import { boksAv, forenklaSpor, klemTreff, rutenettSpor, sporAksar, sporRute } from "./sporfelt"
+import { felles, iGods, sporPunkt, stykkeLangs, utan, type Line } from "./stykke"
 import { kilar, moteLedd, skoyt, tappIn, slisseGods, type Boks as TappBoks, type Tapp } from "./tapp"
 import { monteringsorden, veg, type Vegar } from "./orden"
 
@@ -149,8 +149,8 @@ function ruteAv(kjelde: Solid | Kasse, d: number, step: number, former: readonly
   t1 += PAD
   z0 -= PAD
   z1 += PAD
-  const nt = Math.max(24, Math.min(520, Math.ceil((t1 - t0) / step)))
-  const nz = Math.max(24, Math.min(520, Math.ceil((z1 - z0) / step)))
+  const nt = Math.max(24, Math.min(1280, Math.ceil((t1 - t0) / step)))
+  const nz = Math.max(24, Math.min(1280, Math.ceil((z1 - z0) / step)))
   const dt = (t1 - t0) / nt
   const dz = (z1 - z0) / nz
   const rows: Span[][] = new Array(nz + 1)
@@ -222,21 +222,6 @@ function omrissDist(kant: readonly Kant[], x: number, y: number): number {
   }
   const d = Math.sqrt(d2)
   return inne ? d : -d
-}
-
-type Boks = { px: number; py: number; dx: number; dy: number; k: number; lo: number; hi: number; half: number }
-
-function boksAv(q: Spor): Boks {
-  return {
-    px: q.p[0],
-    py: q.p[1],
-    dx: q.d[0],
-    dy: q.d[1],
-    k: q.k,
-    lo: Math.min(q.botn, q.ut),
-    hi: Math.max(q.botn, q.ut),
-    half: q.w / 2,
-  }
 }
 
 export type Klipp = { r: Ramme; boksar: readonly { min: Vec3; max: Vec3 }[] }
@@ -369,35 +354,7 @@ function felt(ru: Rute, former: Form[], spor: Spor[], klipp?: Klipp, mjuk = 0, o
       }
     }
   }
-  if (boksar.length) {
-    for (let j = 0; j <= nz; j++) {
-      const z = tett ? tett.y[j] : z0 + j * dz
-      for (let i = 0; i <= nt; i++) {
-        const k = j * (nt + 1) + i
-        let v = g[k]
-        if (v <= 0) continue
-        const t = tett ? tett.x[i] : t0 + i * dt
-        for (const b of boksar) {
-          let a: number
-          let c: number
-          if (b.k) {
-            const q = sporInn(b.px, b.py, b.dx, b.dy, b.k, t, z)
-            a = q[0]
-            c = q[1]
-          } else {
-            const rx = t - b.px
-            const ry = z - b.py
-            a = rx * b.dx + ry * b.dy
-            c = -rx * b.dy + ry * b.dx
-          }
-          const d = Math.max(Math.abs(c) - b.half, b.lo - a, a - b.hi)
-          if (d < v) v = d
-          if (v <= 0) break
-        }
-        g[k] = v
-      }
-    }
-  }
+  if (boksar.length) rutenettSpor(g, nt, nz, t0, dt, z0, dz, tett, boksar)
   return contour(g, t0, dt, nt, z0, dz, nz, tett ?? undefined)
 }
 
@@ -751,6 +708,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
   const ribber: Ribbe[] = raa.map((a) => {
     a.spor.sort((u, v) => u.munn - v.munn)
     const loops = felt(a.ru, a.former, a.spor, a.klipp, a.mjuk, a.omriss, a.tform, a.hjorne, a.nett, a.grunn)
+    a.grunn.g = null
     let outlines: Pt[][] = []
     let holes: Pt[][] = []
     for (const l of loops) {
@@ -779,13 +737,19 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       const b = bbox(outlines.flat())
       const lang = 2 * Math.hypot(Math.max(Math.abs(b.x0), Math.abs(b.x1)), Math.max(Math.abs(b.y0), Math.abs(b.y1)))
       const h = 3 * p.tjukn
-      const sperr = a.spor.map((q) => {
-        const ring: Pt[] = []
-        const n = q.k ? 16 : 1
-        for (let i = 0; i <= n; i++) ring.push(sporPunkt(q, -lang + (2 * lang * i) / n, h))
-        for (let i = n; i >= 0; i--) ring.push(sporPunkt(q, -lang + (2 * lang * i) / n, -h))
-        return ring
-      })
+      const sperr = [
+        ...a.spor.map((q) => {
+          const ring: Pt[] = []
+          const n = q.k ? 16 : 1
+          for (let i = 0; i <= n; i++) ring.push(sporPunkt(q, -lang + (2 * lang * i) / n, h))
+          for (let i = n; i >= 0; i--) ring.push(sporPunkt(q, -lang + (2 * lang * i) / n, -h))
+          return ring
+        }),
+        ...a.tapp.map((q): Pt[] => {
+          const tb = bbox(q.hjorne)
+          return [[tb.x0 - h, tb.y0 - h], [tb.x1 + h, tb.y0 - h], [tb.x1 + h, tb.y1 + h], [tb.x0 - h, tb.y1 + h]]
+        }),
+      ]
       for (const o of outlines) {
         rille.push(
           ...rilla({ omriss: o, hol: holesOf(o), sperr, k: a.r.k, tjukn: p.tjukn, material: p.material }),
@@ -805,7 +769,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     for (const l of rille) cut += Math.hypot(l[1][0] - l[0][0], l[1][1] - l[0][1])
     let narrow = Infinity
     for (const q of a.spor) {
-      for (const [lo, hi] of stykkeLangs(a.ringar, q.p, q.d)) {
+      for (const [lo, hi] of stykkeLangs(a.ringar, q.p, q.d, q.k)) {
         if (q.botn < lo || q.botn > hi) continue
         narrow = Math.min(narrow, q.munn > q.botn ? q.botn - lo : hi - q.botn)
         break
@@ -831,18 +795,32 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
   const minGap = lukene(raa, p.tjukn).minste(span)
 
   const klem: [number, number][] = []
+  const klemData = ribber.map((r) => {
+    const rg = [...r.outlines, ...r.holes]
+    return { rg, b: rg.length ? bbox(rg.flat()) : null }
+  })
   for (let i = 0; i < ribber.length; i++) {
+    const dA0 = klemData[i]
+    if (!dA0.b) continue
     for (let j = i + 1; j < ribber.length; j++) {
+      const dB0 = klemData[j]
+      if (!dB0.b) continue
       const A = ribber[i]
       const B = ribber[j]
       if (A.r.k || B.r.k) continue
       const kr = kryssAv(A.r, B.r)
       if (!kr) continue
       const pA = inn(A.r, kr.p)
+      const dA = ein2(inn(A.r, add3(kr.p, kr.d)), pA)
+      const sA = klemTreff(pA, dA, dA0.b)
+      if (!sA) continue
       const pB = inn(B.r, kr.p)
-      const a = stykkeLangs([...A.outlines, ...A.holes], pA, ein2(inn(A.r, add3(kr.p, kr.d)), pA))
+      const dB = ein2(inn(B.r, add3(kr.p, kr.d)), pB)
+      const sB = klemTreff(pB, dB, dB0.b)
+      if (!sB || Math.min(sA[1], sB[1]) - Math.max(sA[0], sB[0]) <= KLEM_MIN) continue
+      const a = stykkeLangs(dA0.rg, pA, dA)
       if (!a.length) continue
-      const b = stykkeLangs([...B.outlines, ...B.holes], pB, ein2(inn(B.r, add3(kr.p, kr.d)), pB))
+      const b = stykkeLangs(dB0.rg, pB, dB)
       if (!b.length) continue
       if (felles(a, b).some(([lo, hi]) => hi - lo > KLEM_MIN)) klem.push([A.plan.id, B.plan.id])
     }

@@ -3,14 +3,13 @@ import { measure } from "./metrics"
 import { fitRoom } from "./pack"
 import { makeBygg, nestGap, type Bygg } from "./bygg"
 import { makeKropp } from "./kropp"
-import { DETAIL, lukene, type Snitt } from "./snitt"
+import { buildSnitt, DETAIL, lukene, type Snitt } from "./snitt"
 import { bogRadius, dot, lesPlan, skrivPlan } from "./plan"
 import { bogMin as bogMinAv, rilleMal } from "./rille"
 import { PARAM_RANGES, SNITTVEGAR, lesFest, skrivFest, type Params } from "./params"
 
 const mm1 = (v: number) => nn(v, 1) + " mm"
 const mm2 = (v: number) => nn(v, 2) + " mm"
-const snapp = (v: number, steg: number) => Math.round(v / steg) * steg
 
 const NETT_MINST = 500
 
@@ -96,36 +95,61 @@ const posen = (q: Params) =>
     .join("|")
 
 export function fiksAlt(p: Params): { p: Params; runder: number; fiksa: string[]; att: string[] } {
-  const harde = (q: Params) => checkRules(q, measure(q), undefined, false).filter((r) => r.hard && !r.ok).length
+  const evaluer = (q: Params) => {
+    const bygg = makeBygg(q, DETAIL.mid)
+    const m = measure(q, bygg)
+    const rs = checkRules(q, m, bygg, true)
+    let hard = 0
+    let soft = 0
+    for (const r of rs) {
+      if (r.ok) continue
+      if (r.hard) hard++
+      else soft++
+    }
+    return { rs, hard, soft }
+  }
   let naa = p
-  let brot = harde(naa)
+  let tilstand = evaluer(naa)
+  const sett = new Set<string>([posen(naa)])
   const fiksa: string[] = []
-  for (let runde = 0; runde < 12; runde++) {
-    const r = checkRules(naa, measure(naa))
-    const vonde = r.filter((q) => !q.ok && q.fiks && !q.fiks.riv)
+  for (let runde = 0; runde < 16; runde++) {
+    const vonde = tilstand.rs
+      .filter((q) => !q.ok && q.fiks && !q.fiks.riv)
+      .sort((a, b) => Number(b.hard) - Number(a.hard))
     if (!vonde.length) break
-    let tok = false
+    let bestQ: (typeof vonde)[number] | null = null
+    let bestP: Params | null = null
+    let bestTilstand: ReturnType<typeof evaluer> | null = null
     for (const q of vonde) {
       const prov = { ...naa, ...q.fiks!.set } as Params
-      if (posen(prov) === posen(naa)) continue
-      const etter = harde(prov)
-      if (etter > brot) continue
-      naa = prov
-      brot = etter
-      fiksa.push(q.id)
-      tok = true
-      break
+      const k = posen(prov)
+      if (sett.has(k)) continue
+      const etter = evaluer(prov)
+      if (etter.hard > tilstand.hard) continue
+      if (etter.hard === tilstand.hard && etter.soft >= tilstand.soft && !q.hard) continue
+      if (
+        !bestTilstand ||
+        etter.hard < bestTilstand.hard ||
+        (etter.hard === bestTilstand.hard && etter.soft < bestTilstand.soft)
+      ) {
+        bestQ = q
+        bestP = prov
+        bestTilstand = etter
+        if (etter.hard === 0 && etter.soft === 0) break
+      }
     }
-    if (!tok) break
+    if (!bestP || !bestTilstand || !bestQ) break
+    naa = bestP
+    tilstand = bestTilstand
+    sett.add(posen(naa))
+    fiksa.push(bestQ.id)
   }
-  const att = checkRules(naa, measure(naa), undefined, false)
-    .filter((q) => !q.ok && q.hard)
-    .map((q) => q.label)
+  const att = tilstand.rs.filter((q) => !q.ok && q.hard).map((q) => q.label)
   return { p: naa, runder: fiksa.length, fiksa, att }
 }
 
 export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rule[] {
-  const { s, dl, ns } = bygg ?? makeBygg(p, DETAIL.mid)
+  const { k, s, dl, ns } = bygg ?? makeBygg(p, DETAIL.mid)
   const out: Rule[] = []
   const add = (r: Rule) => {
     if (!raad) delete r.fiks
@@ -133,10 +157,13 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
   }
 
   const plateFiks = (): Fiks | undefined => {
-    if (ns.spilt === 0 && ns.kross > 0) {
-      const f = lesFest(p.fest)
+    const f = lesFest(p.fest)
+    if (ns.kross > 0) {
       for (const sh of ns.sheets) for (const q of sh.placed) if (q.slot.kross) f.delete(q.part.adr)
-      return { ord: "slepp dei", set: { fest: skrivFest(f) } }
+    }
+    const slepp: Record<string, string | number> = ns.kross > 0 ? { fest: skrivFest(f) } : {}
+    if (ns.spilt === 0 && ns.kross > 0) {
+      return { ord: "slepp dei", set: slepp }
     }
     if (ns.spilt === 0) return undefined
     const { w: romB, h: romH } = fitRoom(p.arkB, p.arkH, nestGap(p))
@@ -152,10 +179,10 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
       lang = Math.max(lang, Math.max(w, h))
       kort = Math.max(kort, Math.min(w, h))
     }
-    if (verst >= 1) return undefined
-    if (lesPlan(p.plan).some((q) => q.omriss)) {
+    const voksArk = () => {
       const opp = (v: number) => Math.ceil(v / 50) * 50
-      let B = Math.max(p.arkB, opp(lang)), H = Math.max(p.arkH, opp(kort))
+      let B = Math.max(p.arkB, opp(lang))
+      let H = Math.max(p.arkH, opp(kort))
       for (let i = 0; i < 20; i++) {
         const rom = fitRoom(B, H, nestGap(p))
         if (rom.w >= lang && rom.h >= kort) break
@@ -164,18 +191,24 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
       }
       B = Math.min(B, PARAM_RANGES.arkB.max)
       H = Math.min(H, PARAM_RANGES.arkH.max)
-      return B > p.arkB || H > p.arkH ? { ord: `prøv ${nn(B)} × ${nn(H)}`, set: { arkB: B, arkH: H } } : undefined
+      return B > p.arkB || H > p.arkH ? { ord: `prøv ${nn(B)} × ${nn(H)}`, set: { ...slepp, arkB: B, arkH: H } } : undefined
     }
-    const ny = Math.max(40, snapp(p.storleik * verst * 0.98, 5))
-    return ny < p.storleik ? { ord: `prøv ${nn(ny)} mm`, set: { storleik: ny } } : undefined
+    if (lesPlan(p.plan).some((q) => q.omriss)) return voksArk()
+    const effVerst = verst < 1 ? verst : 0.96
+    const raa = Math.min(PARAM_RANGES.storleik.max, p.storleik * effVerst * 0.98)
+    const ny = Math.max(PARAM_RANGES.storleik.min, Math.floor(raa / 5) * 5)
+    if (ny < p.storleik && lang * (ny / Math.max(1, p.storleik)) <= Math.max(romB, romH)) {
+      return { ord: `prøv ${nn(ny)} mm`, set: { ...slepp, storleik: ny } }
+    }
+    return voksArk() ?? (ny < p.storleik ? { ord: `prøv ${nn(ny)} mm`, set: { ...slepp, storleik: ny } } : undefined)
   }
 
   const nettFiks = (): Fiks | undefined => {
     if (m.tris >= NETT_MINST || m.tris >= m.srcTris) return undefined
-    for (const t of [1, 2, 5]) {
-      if (t <= p.trekant) continue
-      const k = makeKropp({ ...p, trekant: t })
-      if (k.soup.tris >= NETT_MINST || k.soup.tris >= k.srcTris) {
+    for (const t of [1, 2, 5, 10, 20, 40]) {
+      if (t <= p.trekant || t > PARAM_RANGES.trekant.max) continue
+      const k2 = makeKropp({ ...p, trekant: t })
+      if (k2.soup.tris >= NETT_MINST || k2.soup.tris >= k2.srcTris) {
         return { ord: `prøv ${nn(t)} k`, set: { trekant: t } }
       }
     }
@@ -184,21 +217,34 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
 
   const snittFiks = (): Fiks | undefined => {
     if (p.snitt < m.slotW) return undefined
-    const ny = Math.max(0.05, snapp(m.slotW * 0.5, 0.05))
-    return ny < p.snitt ? { ord: `prøv ${mm2(ny)}`, set: { snitt: ny } } : undefined
+    const ny = Math.max(PARAM_RANGES.snitt.min, +(Math.floor((m.slotW * 0.5) / 0.05) * 0.05).toFixed(2))
+    return ny < p.snitt && ny < m.slotW ? { ord: `prøv ${mm2(ny)}`, set: { snitt: ny } } : undefined
   }
 
   const godsFiks = (): Fiks | undefined => {
-    if (m.narrow >= minGods || Math.abs(p.ledd - 0.5) <= 0.01) return undefined
-    const { s: s2 } = makeBygg({ ...p, ledd: 0.5 }, DETAIL.mid)
-    if (!s2.ledd || s2.ledd < s.ledd) return undefined
-    return narrowOf(s2) >= minGods ? { ord: "del i midten", set: { ledd: 0.5 } } : undefined
+    if (m.narrow >= minGods) return undefined
+    let bestL: number | null = null
+    let bestN = m.narrow
+    for (const l of [0.5, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7, 0.25, 0.75, 0.2, 0.8]) {
+      if (l < PARAM_RANGES.ledd.min || l > PARAM_RANGES.ledd.max || Math.abs(l - p.ledd) < 0.02) continue
+      const s2 = buildSnitt(k, { ...p, ledd: l }, DETAIL.mid)
+      if (!s2.ledd || s2.ledd < s.ledd) continue
+      const nw = narrowOf(s2)
+      if (nw >= minGods) {
+        return { ord: Math.abs(l - 0.5) < 0.01 ? "del i midten" : `del ${nn(l * 100)} %`, set: { ledd: l } }
+      }
+      if (nw > bestN + 0.3) {
+        bestN = nw
+        bestL = l
+      }
+    }
+    return bestL !== null ? { ord: `del ${nn(bestL * 100)} %`, set: { ledd: bestL } } : undefined
   }
 
   const bogKurveFiks = (idar: readonly number[]): Fiks | undefined => {
     const ny = skrivPlan(lesPlan(p.plan).map((q) => (idar.includes(q.id) ? { ...q, bog: 0 } : q)))
     if (ny === p.plan) return undefined
-    const etter = makeBygg({ ...p, plan: ny }, DETAIL.mid).s
+    const etter = buildSnitt(k, { ...p, plan: ny }, DETAIL.mid)
     if (etter.kurva.length || etter.ledd <= s.ledd) return undefined
     return {
       ord: idar.length === 1 ? "rett ut det eine" : `rett ut dei ${nn(idar.length)}`,
@@ -208,18 +254,32 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
   }
 
   const ordenFiks = (): Fiks | undefined => {
-    if (!s.montering.brot.length) return undefined
-    const orden = ordna(s)
-    if (!orden) return undefined
-    const plan = lesPlan(p.plan)
-    const ny = skrivPlan(orden.map((id) => plan.find((q) => q.id === id)!).filter(Boolean))
-    if (ny === p.plan) return undefined
     const foer = s.montering.brot.length
-    const etter = makeBygg({ ...p, plan: ny }, DETAIL.mid).s.montering.brot.length
-    if (etter < foer) {
-      return { ord: etter ? `byt rekkjefylgje: ${foer} → ${etter} fast` : "byt rekkjefylgje", set: { plan: ny } }
+    if (!foer) return undefined
+    const plan = lesPlan(p.plan)
+    const provOrden = (ids: readonly number[]) => {
+      const ny = skrivPlan(ids.map((id) => plan.find((q) => q.id === id)!).filter(Boolean))
+      if (ny === p.plan) return null
+      const etter = buildSnitt(k, { ...p, plan: ny }, DETAIL.mid).montering.brot.length
+      return etter < foer ? { ny, etter } : null
     }
-    return undefined
+    let best: { ny: string; etter: number } | null = null
+    const ord = ordna(s)
+    if (ord) best = provOrden(ord)
+    if (!best || best.etter > 0) {
+      for (const bid of s.montering.brot.slice(0, 3)) {
+        for (const mot of s.montering.bunde[bid] ?? []) {
+          const ids = plan.map((q) => q.id).filter((id) => id !== bid)
+          const idx = ids.indexOf(mot)
+          if (idx < 0) continue
+          ids.splice(idx, 0, bid)
+          const cand = provOrden(ids)
+          if (cand && (!best || cand.etter < best.etter)) best = cand
+        }
+      }
+    }
+    if (!best) return undefined
+    return { ord: best.etter ? `byt rekkjefylgje: ${foer} → ${best.etter} fast` : "byt rekkjefylgje", set: { plan: best.ny } }
   }
 
   const ordenRiv = (): Fiks | undefined => {
@@ -444,7 +504,7 @@ export function checkRules(p: Params, m: Metrics, bygg?: Bygg, raad = true): Rul
               plan: skrivPlan(
                 lesPlan(p.plan).map((q) =>
                   q.bog && p.storleik / Math.abs(q.bog) < bogMin
-                    ? { ...q, bog: +(Math.sign(q.bog) * (p.storleik / bogMin)).toFixed(4) }
+                    ? { ...q, bog: +(Math.sign(q.bog) * (Math.floor((p.storleik / bogMin) * 10000) / 10000)).toFixed(4) }
                     : q,
                 ),
               ),

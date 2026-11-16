@@ -35,43 +35,60 @@ function bucketFor(s: Soup, axis: 0 | 1 | 2): Bucket {
 
   const cnt = new Uint32Array(nu * nv + 1)
   const lo = new Int32Array(n * 4)
+  const nu1 = nu - 1
+  const nv1 = nv - 1
   for (let t = 0; t < n; t++) {
     const o = t * 9
-    let au = Infinity
-    let bu = -Infinity
-    let av = Infinity
-    let bv = -Infinity
-    for (let k = 0; k < 3; k++) {
-      const q = o + k * 3
-      const x = P[q + u]
-      const y = P[q + v]
-      if (x < au) au = x
-      if (x > bu) bu = x
-      if (y < av) av = y
-      if (y > bv) bv = y
-    }
-    const i0 = Math.max(0, Math.min(nu - 1, Math.floor((au - u0) * inv)))
-    const i1 = Math.max(0, Math.min(nu - 1, Math.floor((bu - u0) * inv)))
-    const j0 = Math.max(0, Math.min(nv - 1, Math.floor((av - v0) * inv)))
-    const j1 = Math.max(0, Math.min(nv - 1, Math.floor((bv - v0) * inv)))
-    lo[t * 4] = i0
-    lo[t * 4 + 1] = i1
-    lo[t * 4 + 2] = j0
-    lo[t * 4 + 3] = j1
-    for (let j = j0; j <= j1; j++) {
-      for (let i = i0; i <= i1; i++) cnt[j * nu + i + 1]++
+    const x0 = P[o + u]
+    const y0 = P[o + v]
+    const x1 = P[o + 3 + u]
+    const y1 = P[o + 3 + v]
+    const x2 = P[o + 6 + u]
+    const y2 = P[o + 6 + v]
+    const au = x0 < x1 ? (x0 < x2 ? x0 : x2) : x1 < x2 ? x1 : x2
+    const bu = x0 > x1 ? (x0 > x2 ? x0 : x2) : x1 > x2 ? x1 : x2
+    const av = y0 < y1 ? (y0 < y2 ? y0 : y2) : y1 < y2 ? y1 : y2
+    const bv = y0 > y1 ? (y0 > y2 ? y0 : y2) : y1 > y2 ? y1 : y2
+    let i0 = Math.floor((au - u0) * inv)
+    let i1 = Math.floor((bu - u0) * inv)
+    let j0 = Math.floor((av - v0) * inv)
+    let j1 = Math.floor((bv - v0) * inv)
+    if (i0 < 0) i0 = 0
+    else if (i0 > nu1) i0 = nu1
+    if (i1 < 0) i1 = 0
+    else if (i1 > nu1) i1 = nu1
+    if (j0 < 0) j0 = 0
+    else if (j0 > nv1) j0 = nv1
+    if (j1 < 0) j1 = 0
+    else if (j1 > nv1) j1 = nv1
+    const q = t * 4
+    lo[q] = i0
+    lo[q + 1] = i1
+    lo[q + 2] = j0
+    lo[q + 3] = j1
+    if (i0 === i1 && j0 === j1) cnt[j0 * nu + i0 + 1]++
+    else {
+      for (let j = j0; j <= j1; j++) {
+        const base = j * nu + 1
+        for (let i = i0; i <= i1; i++) cnt[base + i]++
+      }
     }
   }
   for (let i = 0; i < nu * nv; i++) cnt[i + 1] += cnt[i]
   const items = new Uint32Array(cnt[nu * nv])
   const fill = cnt.slice(0, nu * nv)
   for (let t = 0; t < n; t++) {
-    const i0 = lo[t * 4]
-    const i1 = lo[t * 4 + 1]
-    const j0 = lo[t * 4 + 2]
-    const j1 = lo[t * 4 + 3]
-    for (let j = j0; j <= j1; j++) {
-      for (let i = i0; i <= i1; i++) items[fill[j * nu + i]++] = t
+    const q = t * 4
+    const i0 = lo[q]
+    const i1 = lo[q + 1]
+    const j0 = lo[q + 2]
+    const j1 = lo[q + 3]
+    if (i0 === i1 && j0 === j1) items[fill[j0 * nu + i0]++] = t
+    else {
+      for (let j = j0; j <= j1; j++) {
+        const base = j * nu
+        for (let i = i0; i <= i1; i++) items[fill[base + i]++] = t
+      }
     }
   }
   return { nu, nv, u0, v0, inv, start: cnt, items }
@@ -101,6 +118,8 @@ const skrapePlass = (n: number) => {
   sOrd = new Int32Array(m)
 }
 
+const TOM: Span[] = []
+
 export function makeSolid(soup: Soup): Solid {
   const buckets: (Bucket | null)[] = [null, null, null]
   const P = soup.pos
@@ -116,10 +135,10 @@ export function makeSolid(soup: Soup): Solid {
     const vv = vq + E2
     const i = Math.floor((uu - bk.u0) * bk.inv)
     const j = Math.floor((vv - bk.v0) * bk.inv)
-    if (i < 0 || j < 0 || i >= bk.nu || j >= bk.nv) return []
+    if (i < 0 || j < 0 || i >= bk.nu || j >= bk.nv) return TOM
     const s0 = bk.start[j * bk.nu + i]
     const s1 = bk.start[j * bk.nu + i + 1]
-    if (s1 <= s0) return []
+    if (s1 - s0 < 2) return TOM
 
     skrapePlass(s1 - s0)
     const hit = sHit
@@ -148,7 +167,7 @@ export function makeSolid(soup: Soup): Solid {
       dir[nh] = d < 0 ? 1 : -1
       nh++
     }
-    if (!nh) return []
+    if (nh < 2) return TOM
 
     const ord = sOrd
     for (let k = 0; k < nh; k++) {
@@ -169,7 +188,7 @@ export function makeSolid(soup: Soup): Solid {
       if (was <= 0 && depth > 0) open = hit[k]
       else if (was > 0 && depth <= 0 && hit[k] - open > 1e-6) out.push([open, hit[k]])
     }
-    return out
+    return out.length ? out : TOM
   }
 
   const runsZ = (x: number, y: number) => runs(2, x, y)

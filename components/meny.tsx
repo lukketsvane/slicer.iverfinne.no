@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useRef, type ReactElement } from "react"
+import { useMaal, mt } from "@/lib/i18n"
 import { HAIR } from "./deler"
 
 export type MenyLine = {
@@ -10,7 +11,20 @@ export type MenyLine = {
 
 export type MenyStad = { x: number; y: number; liner: MenyLine[] }
 
+function omsetMenyOrd(maal: "en" | "nn", ord: string): string {
+  switch (ord) {
+    case "dubler": return mt(maal, "duplicate", "dubler")
+    case "slepp forma": return mt(maal, "release outline", "slepp forma")
+    case "omriss": return mt(maal, "outline", "omriss")
+    case "hol": return mt(maal, "hole", "hol")
+    case "gods": return mt(maal, "solid", "gods")
+    case "slett": return mt(maal, "delete", "slett")
+    default: return ord
+  }
+}
+
 export function Meny({ stad, onLukk }: { stad: MenyStad | null; onLukk: () => void }): ReactElement | null {
+  const maal = useMaal()
   const boks = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!stad) return
@@ -66,7 +80,7 @@ export function Meny({ stad, onLukk }: { stad: MenyStad | null; onLukk: () => vo
             onLukk()
           }}
         >
-          <span className="min-w-0 flex-1 truncate">{l.ord}</span>
+          <span className="min-w-0 flex-1 truncate">{omsetMenyOrd(maal, l.ord)}</span>
           {l.tast && <span className="tab dim shrink-0 text-[10px]">{l.tast}</span>}
         </button>
       ))}

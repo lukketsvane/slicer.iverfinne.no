@@ -4,53 +4,16 @@ export type Ring = Pt[]
 export type Piece = { key: string; rings: Ring[] }
 
 export type Fest = { sheet: number; rot: 0 | 1 | 2 | 3; x: number; y: number }
+export type Slot = { piece: number; sheet: number; rot: 0 | 1 | 2 | 3; m: [number, number, number, number, number, number]; sx: number; sy: number; kross?: boolean }
+export type Packing = { slots: Slot[]; sheets: number; used: number[]; spilt: number[]; kross: number }
 
-export type Slot = {
-  piece: number
-  sheet: number
-  rot: 0 | 1 | 2 | 3
-  m: [number, number, number, number, number, number]
-  sx: number
-  sy: number
-  kross?: boolean
-}
+export const apply = (m: Slot["m"], p: Pt): Pt => [m[0] * p[0] + m[1] * p[1] + m[2], m[3] * p[0] + m[4] * p[1] + m[5]]
+export const placeRings = (rings: Ring[], s: Slot): Ring[] => rings.map((r) => r.map((p) => apply(s.m, p)))
 
-export type Packing = {
-  slots: Slot[]
-  sheets: number
-  used: number[]
-  spilt: number[]
-  kross: number
-}
-
-export const apply = (m: Slot["m"], p: Pt): Pt => [
-  m[0] * p[0] + m[1] * p[1] + m[2],
-  m[3] * p[0] + m[4] * p[1] + m[5],
-]
-
-export const placeRings = (rings: Ring[], s: Slot): Ring[] =>
-  rings.map((r) => r.map((p) => apply(s.m, p)))
-
-type Mask = {
-  w: number
-  h: number
-  span: Int32Array
-  start: Int32Array
-  bot: Int32Array
-  cells: number
-}
-
+type Mask = { w: number; h: number; span: Int32Array; start: Int32Array; bot: Int32Array; cells: number }
 type Raw = { w: number; h: number; a: Uint8Array }
 
-function rasterise(
-  rings: Ring[],
-  ox: number,
-  oy: number,
-  res: number,
-  w: number,
-  h: number,
-  heil = false,
-): Raw {
+function rasterise(rings: Ring[], ox: number, oy: number, res: number, w: number, h: number, heil = false): Raw {
   const a = new Uint8Array(w * h)
   const xs: number[] = []
   for (let j = 0; j < h; j++) {
@@ -111,18 +74,8 @@ function turn(r: Raw, rot: 0 | 1 | 2 | 3): Raw {
   for (let j = 0; j < r.h; j++) {
     for (let i = 0; i < r.w; i++) {
       if (!r.a[j * r.w + i]) continue
-      let ii: number
-      let jj: number
-      if (rot === 1) {
-        ii = r.h - 1 - j
-        jj = i
-      } else if (rot === 2) {
-        ii = r.w - 1 - i
-        jj = r.h - 1 - j
-      } else {
-        ii = j
-        jj = r.w - 1 - i
-      }
+      const ii = rot === 1 ? r.h - 1 - j : rot === 2 ? r.w - 1 - i : j
+      const jj = rot === 1 ? i : rot === 2 ? r.h - 1 - j : r.w - 1 - i
       a[jj * w + ii] = 1
     }
   }
@@ -161,6 +114,7 @@ type Board = {
   words: number
   bits: Uint32Array
   top: Int32Array
+  solidH: Int32Array
   used: number
   nei: Set<string>
 }
@@ -173,6 +127,7 @@ const board = (w: number, h: number): Board => {
     words,
     bits: new Uint32Array(words * h),
     top: new Int32Array(w),
+    solidH: new Int32Array(w),
     used: 0,
     nei: new Set(),
   }
@@ -220,34 +175,40 @@ function fits(b: Board, m: Mask, px: number, py: number): boolean {
 
 function stamp(b: Board, m: Mask, px: number, py: number) {
   for (let r = 0; r < m.h; r++) {
-    const base = (py + r) * b.words
+    const y = py + r
+    const base = y * b.words
     for (let s = m.start[r]; s < m.start[r + 1]; s += 2) {
       const a = px + m.span[s]
       const c = px + m.span[s + 1]
       setBits(b.bits, base, a, c)
-      for (let i = a; i < c; i++) if (py + r + 1 > b.top[i]) b.top[i] = py + r + 1
+      for (let i = a; i < c; i++) {
+        if (y + 1 > b.top[i]) b.top[i] = y + 1
+        if (y <= b.solidH[i] && y + 1 > b.solidH[i]) b.solidH[i] = y + 1
+      }
     }
   }
   if (py + m.h > b.used) b.used = py + m.h
 }
 
 function lowest(b: Board, m: Mask, px: number, step: number): number {
-  const hopp = Math.max(1, m.w >> 3)
-  for (let c = 0; c < m.w; c += hopp) {
-    if (m.bot[c] >= 0 && b.top[px + c] - m.bot[c] + m.h > b.h) return -1
-  }
+  let minPy = 0
   let ySky = 0
   arbeid += m.w
   for (let c = 0; c < m.w; c++) {
-    if (m.bot[c] < 0) continue
-    const t = b.top[px + c] - m.bot[c]
+    const mb = m.bot[c]
+    if (mb < 0) continue
+    const ts = b.solidH[px + c] - mb
+    if (ts > minPy) minPy = ts
+    const t = b.top[px + c] - mb
     if (t > ySky) ySky = t
   }
-  if (ySky + m.h > b.h) return -1
-  for (let py = 0; py < ySky; py += step) {
+  if (minPy + m.h > b.h) return -1
+  const cap = Math.min(ySky, b.h - m.h + 1)
+  const hop = ySky - minPy <= 24 ? 1 : Math.max(1, step >> 1)
+  for (let py = minPy; py < cap; py += hop) {
     if (fits(b, m, px, py)) return py
   }
-  return ySky
+  return ySky + m.h <= b.h ? ySky : -1
 }
 
 function rutenettet(sheetW: number, sheetH: number, gap: number) {
@@ -268,16 +229,17 @@ export function fitRoom(
   }
 }
 
-type Poeng = "botn" | "topp"
+type Poeng = "botn" | "topp" | "brei"
 type Strategi = {
   fro: number
   poeng: Poeng
-  bryt?: boolean
+  lang?: boolean
 }
 
 const STRATEGIAR: readonly Strategi[] = [
-  { fro: 0, poeng: "botn", bryt: true },
   { fro: 0, poeng: "topp" },
+  { fro: 0, poeng: "topp", lang: true },
+  { fro: 0, poeng: "brei" },
   { fro: 1, poeng: "topp" },
   { fro: 2, poeng: "topp" },
 ]
@@ -331,9 +293,10 @@ export function pack(
   }
   const alle = pieces.map((p, i) => ({ i, key: p.key, f: formOf(p) }))
 
-  const ordna = (fro: number) => {
-    if (!fro) return [...alle].sort((a, b) => b.f.cells - a.f.cells || a.i - b.i)
-    const rnd = stoy(fro)
+  const ordna = (s: Strategi) => {
+    if (!s.fro && !s.lang) return [...alle].sort((a, b) => b.f.cells - a.f.cells || a.i - b.i)
+    if (s.lang) return [...alle].sort((a, b) => Math.max(b.f.Wm, b.f.Hm) - Math.max(a.f.Wm, a.f.Hm) || b.f.cells - a.f.cells || a.i - b.i)
+    const rnd = stoy(s.fro)
     const vekt = alle.map((q) => ({ q, v: q.f.cells * (1 + 0.35 * rnd()) }))
     return vekt.sort((a, b) => b.v - a.v || a.q.i - b.q.i).map((z) => z.q)
   }
@@ -346,11 +309,10 @@ export function pack(
       for (let px = 0; px + m.w <= b.w; px += step) {
         const py = lowest(b, m, px, step)
         if (py < 0) continue
-        const sc = (s.poeng === "topp" ? py + m.h : py) * b.w + px
+        const sc = s.poeng === "brei" ? (px + m.w) * b.h + py : (s.poeng === "topp" ? py + m.h : py) * b.w + px
         if (!best || sc < best.sc) best = { rot: r as 0 | 1 | 2 | 3, px, py, sc }
         if (py === 0) break
       }
-      if (s.bryt && best && best.py === 0) break
     }
     return best
   }
@@ -358,7 +320,7 @@ export function pack(
   type Passasje = { slots: Slot[]; boards: Board[]; spilt: number[]; kross: number }
 
   const legg = (s: Strategi): Passasje => {
-    const order = ordna(s.fro)
+    const order = ordna(s)
     const slots: Slot[] = []
     const spilt: number[] = []
     const boards: Board[] = []
@@ -456,7 +418,10 @@ export function pack(
   const betre = (a: Passasje, b: Passasje) => {
     if (a.boards.length !== b.boards.length) return a.boards.length < b.boards.length
     const sist = (q: Passasje) => (q.boards.length ? q.boards[q.boards.length - 1].used : 0)
-    return sist(a) < sist(b)
+    const sa = sist(a)
+    const sb = sist(b)
+    if (sa !== sb) return sa < sb
+    return a.boards.reduce((s, q) => s + q.used, 0) < b.boards.reduce((s, q) => s + q.used, 0)
   }
 
   arbeid = 0
@@ -499,13 +464,14 @@ function affine(
   }
 }
 
-export function anchor(rings: Ring[], res = 2): { p: Pt; room: number; wide: number } {
+export function anchor(rings: Ring[], res = 2): { p: Pt; room: number; wide: number; tall: number } {
   const bb = bbox(rings[0])
-  const w = Math.max(1, Math.ceil((bb.x1 - bb.x0) / res) + 1)
-  const h = Math.max(1, Math.ceil((bb.y1 - bb.y0) / res) + 1)
+  const r0 = Math.max(0.5, Math.min(res, Math.min(bb.x1 - bb.x0, bb.y1 - bb.y0) / 20))
+  const w = Math.max(1, Math.ceil((bb.x1 - bb.x0) / r0) + 1)
+  const h = Math.max(1, Math.ceil((bb.y1 - bb.y0) / r0) + 1)
   const mid: Pt = [(bb.x1 - bb.x0) / 2, (bb.y1 - bb.y0) / 2]
-  if (w * h > 4e6) return { p: mid, room: 0, wide: 0 }
-  const arr = rasterise(rings, bb.x0, bb.y0, res, w, h, true).a
+  if (w * h > 4e6) return { p: mid, room: 0, wide: 0, tall: 0 }
+  const arr = rasterise(rings, bb.x0, bb.y0, r0, w, h, true).a
   const dp = new Int32Array(w * h)
   let best = 0
   let bi = 0
@@ -513,41 +479,38 @@ export function anchor(rings: Ring[], res = 2): { p: Pt; room: number; wide: num
   for (let j = 0; j < h; j++) {
     for (let i = 0; i < w; i++) {
       if (!arr[j * w + i]) continue
-      const v =
-        i === 0 || j === 0
-          ? 1
-          : Math.min(dp[(j - 1) * w + i], dp[j * w + i - 1], dp[(j - 1) * w + i - 1]) + 1
+      const v = i === 0 || j === 0 ? 1 : Math.min(dp[(j - 1) * w + i], dp[j * w + i - 1], dp[(j - 1) * w + i - 1]) + 1
       dp[j * w + i] = v
-      if (v > best) {
-        best = v
-        bi = i
-        bj = j
-      }
+      if (v > best) { best = v; bi = i; bj = j }
     }
   }
-  if (best === 0) return { p: mid, room: 0, wide: 0 }
+  if (best === 0) return { p: mid, room: 0, wide: 0, tall: 0 }
   const ci = Math.round(bi - best / 2 + 0.5)
   const cj = Math.round(bj - best / 2 + 0.5)
-
-  const rom = Math.max(0, best - 1) * res
-
+  const rom = Math.max(0, best - 1) * r0
   const halvBest = Math.floor(Math.max(0, best - 1) / 2)
-  let halv = Infinity
+  let halvX = Infinity
   for (let j = Math.max(0, cj - halvBest); j <= Math.min(h - 1, cj + halvBest); j++) {
-    if (!arr[j * w + ci]) {
-      halv = 0
-      break
-    }
+    if (!arr[j * w + ci]) { halvX = 0; break }
     let a = ci
     let b = ci
     while (a > 0 && arr[j * w + a - 1]) a--
     while (b < w - 1 && arr[j * w + b + 1]) b++
-    halv = Math.min(halv, ci - a, b - ci)
+    halvX = Math.min(halvX, ci - a, b - ci)
   }
-
+  let halvY = Infinity
+  for (let i = Math.max(0, ci - halvBest); i <= Math.min(w - 1, ci + halvBest); i++) {
+    if (!arr[cj * w + i]) { halvY = 0; break }
+    let a = cj
+    let b = cj
+    while (a > 0 && arr[(a - 1) * w + i]) a--
+    while (b < h - 1 && arr[(b + 1) * w + i]) b++
+    halvY = Math.min(halvY, cj - a, b - cj)
+  }
   return {
-    p: [(ci + 0.5) * res, (cj + 0.5) * res],
+    p: [(ci + 0.5) * r0, (cj + 0.5) * r0],
     room: rom,
-    wide: 2 * (Number.isFinite(halv) ? halv : 0) * res,
+    wide: 2 * (Number.isFinite(halvX) ? halvX : 0) * r0,
+    tall: 2 * (Number.isFinite(halvY) ? halvY : 0) * r0,
   }
 }

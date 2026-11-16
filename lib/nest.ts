@@ -63,7 +63,7 @@ export function nest(
       },
       paa,
       a.room,
-      snudd ? a.room : a.wide,
+      snudd ? a.tall : a.wide,
     )
     sheets[slot.sheet].placed.push({
       part,

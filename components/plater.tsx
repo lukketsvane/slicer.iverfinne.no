@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type JSX } from "react"
 import { LAG_FARGAR, lagFarge, nn, type ArkSyn, type Delplass, type ParamBag } from "@/lib/core"
 import { DELING_MAX, DELING_MIN, lesDeling, lesFest, skrivDeling, skrivFest } from "@/lib/params"
+import { mt, useMaal, type Maal } from "@/lib/i18n"
 import { CHIP, chipStyle } from "./deler"
 
 const HAIR = { borderColor: "var(--rule)" }
@@ -50,11 +51,12 @@ function sporPaa(v: Delplass["spor"][number], u: number): [number, number] {
   return [band[i][0] + (band[i + 1][0] - band[i][0]) * f, band[i][1] + (band[i + 1][1] - band[i][1]) * f]
 }
 
-function Sporende({ v, ppm, t, ned }: {
+function Sporende({ v, ppm, t, ned, maal }: {
   v: Delplass["spor"][number]
   ppm: number
   t: number | null
   ned: (e: React.PointerEvent, v: Delplass["spor"][number]) => void
+  maal: Maal
 }) {
   const band = v.boge ?? [v.lo, v.hi]
   const [bx, by] = t === null ? v.botn : sporPaa(v, t)
@@ -68,7 +70,7 @@ function Sporende({ v, ppm, t, ned }: {
       <polyline points={strek} fill="none" strokeWidth={1} vectorEffect="non-scaling-stroke" style={{ stroke: "var(--ink)", opacity: 0.3 }} />
       <circle cx={bx} cy={by} r={12 / ppm} style={{ fill: "transparent" }} />
       <circle cx={bx} cy={by} r={r} strokeWidth={2} vectorEffect="non-scaling-stroke" style={{ fill: "var(--paper)", stroke: "var(--ink)" }} />
-      <title>{`ledd ${v.nokkel} · ${nn(djup, 0)} mm djupt`}</title>
+      <title>{mt(maal, `joint ${v.nokkel} · ${nn(djup, 0)} mm deep`, `ledd ${v.nokkel} · ${nn(djup, 0)} mm djupt`)}</title>
     </g>
   )
 }
@@ -100,6 +102,7 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
   peikt: string | null
   onPeik: (adr: string | null) => void
 }) {
+  const maal = useMaal()
   const festa = lesFest(params.fest)
   const skriv = (m: Map<string, Plass>) => onChange({ ...params, fest: skrivFest(m) })
   const plassAv = (adr: string) => festa.get(adr) ?? ark?.plasser.find((d) => d.adr === adr)?.plass
@@ -277,7 +280,7 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     return [p.x, p.y]
   }
 
-  if (!ark || !ark.tal) return <p className="dim p-4 text-[11px]">ingen plater</p>
+  if (!ark || !ark.tal) return <p className="dim p-4 text-[11px]">{mt(maal, "no sheets", "ingen plater")}</p>
   const { arkB, arkH } = ark
   const heile = (r: DOMRect): Syn => {
     const ppm = Math.min(r.width / arkB, r.height / arkH)
@@ -363,11 +366,11 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
       const v = vald?.spor.find((q) => q.nokkel === sporDra.nokkel)
       if (v) {
         const [bx, by] = sporPaa(v, sporDra.t)
-        return { tekst: `ledd ${v.nokkel} · ${nn(Math.hypot(bx - v.munn[0], by - v.munn[1]), 0)} mm`, dim: false }
+        return { tekst: `${mt(maal, "joint", "ledd")} ${v.nokkel} · ${nn(Math.hypot(bx - v.munn[0], by - v.munn[1]), 0)} mm`, dim: false }
       }
     }
     if (vald) return { tekst: `${vald.adr} · ${nn(vald.boks.w, 0)} × ${nn(vald.boks.h, 0)} mm`, dim: true }
-    return { tekst: `${ark.delar} delar · ${nn(ark.util * 100, 0)} %${faste > 0 ? ` · ${faste} faste` : ""}`, dim: true }
+    return { tekst: `${ark.delar} ${mt(maal, "parts", "delar")} · ${nn(ark.util * 100, 0)} %${faste > 0 ? ` · ${faste} ${mt(maal, "pinned", "faste")}` : ""}`, dim: true }
   })()
 
   const sleppFinger = (e: React.PointerEvent) => {
@@ -379,15 +382,15 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
     <>
       <div data-arkband="" className="flex flex-wrap items-center gap-1.5 border-b px-3 py-2" style={HAIR}>
         {Array.from({ length: ark.tal }, (_, i) => (
-          <button key={i} type="button" className={CHIP_B + " mono min-h-[26px] px-2.5"} style={chipStyle(i === ark.i)} onClick={() => onArk(i)} title={`plate ${i + 1} av ${ark.tal}`}>{i + 1}</button>
+          <button key={i} type="button" className={CHIP_B + " mono min-h-[26px] px-2.5"} style={chipStyle(i === ark.i)} onClick={() => onArk(i)} title={mt(maal, `sheet ${i + 1} of ${ark.tal}`, `plate ${i + 1} av ${ark.tal}`)}>{i + 1}</button>
         ))}
         <span className={`mono ml-auto min-w-0 truncate text-[10px]${lesing.dim ? " dim" : ""}`} data-arklesing="">{lesing.tekst}</span>
         {festa.size > 0 && (
-          <button type="button" className={CHIP_B + " uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onChange({ ...params, fest: "" })} title="slepp alle festa delar: pakkinga legg dei der ho vil att">slepp</button>
+          <button type="button" className={CHIP_B + " uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onChange({ ...params, fest: "" })} title={mt(maal, "unpin all parts: packing places them freely again", "slepp alle festa delar: pakkinga legg dei der ho vil att")}>{mt(maal, "unpin", "slepp")}</button>
         )}
-        {kryss > 0 && <span className="mono text-[10px]" style={{ color: "var(--warn)" }}>{kryss} overlapp</span>}
+        {kryss > 0 && <span className="mono text-[10px]" style={{ color: "var(--warn)" }}>{kryss} {mt(maal, "overlap", "overlapp")}</span>}
         {delingar.size > 0 && (
-          <button type="button" className={CHIP_B + " uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onChange({ ...params, deling: "" })} title="alle ledd like djupe att: skyvaren styrer dei igjen">jamt</button>
+          <button type="button" className={CHIP_B + " uppercase tracking-[0.1em]"} style={chipStyle(false)} onClick={() => onChange({ ...params, deling: "" })} title={mt(maal, "all joints equal depth again: slider controls them together", "alle ledd like djupe att: skyvaren styrer dei igjen")}>{mt(maal, "even", "jamt")}</button>
         )}
       </div>
       <div className="min-h-0 flex-1 p-3">
@@ -396,7 +399,7 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
           viewBox={syn ? `${syn.x} ${syn.y} ${syn.w} ${syn.h}` : `0 0 ${arkB} ${arkH}`}
           className="h-full w-full"
           role="img"
-          aria-label={`plate ${ark.i + 1} av ${ark.tal}, ${ark.delar} delar`}
+          aria-label={mt(maal, `sheet ${ark.i + 1} of ${ark.tal}, ${ark.delar} parts`, `plate ${ark.i + 1} av ${ark.tal}, ${ark.delar} delar`)}
           onPointerLeave={(e) => { if (e.pointerType === "mouse") onPeik(null) }}
           style={{ touchAction: "none" }}
           onPointerDown={(e) => {
@@ -565,8 +568,8 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
                   {d.inn.map((h, j) => <path key={j} d={h} strokeWidth={paa || q ? 2 : 1} vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: strek }} />)}
                   {syn && d.rille && <path d={d.rille} vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: strek }} />}
                   {syn && d.merke && <path d={d.merke} data-merke="" vectorEffect="non-scaling-stroke" style={{ fill: "none", stroke: "var(--ink)", opacity: 0.55 }} />}
-                  <title>{d.adr}{fast ? " · fast" : ""}{d.kross ? " · ligg i ein annan" : ""}</title>
-                  {paa && ppm > 0 && d.spor.map((v) => <Sporende key={v.nokkel} v={v} ppm={ppm} t={sporDra?.nokkel === v.nokkel ? sporDra.t : null} ned={taSpor} />)}
+                  <title>{d.adr}{fast ? ` · ${mt(maal, "pinned", "fast")}` : ""}{d.kross ? ` · ${mt(maal, "overlaps another", "ligg i ein annan")}` : ""}</title>
+                  {paa && ppm > 0 && d.spor.map((v) => <Sporende key={v.nokkel} v={v} ppm={ppm} t={sporDra?.nokkel === v.nokkel ? sporDra.t : null} ned={taSpor} maal={maal} />)}
                 </g>
               )
             })}
@@ -576,13 +579,13 @@ export function Plater({ ark, params, onChange, onArk, peikt, onPeik }: {
       {meny && (
         <>
           <div className="fixed inset-0 z-30" onPointerDown={() => setMeny(null)} aria-hidden="true" />
-          <div ref={menyRef} className="fixed z-40 flex max-w-[calc(100vw-24px)] flex-wrap items-center gap-1.5 rounded-3xl border px-1.5 py-1.5" role="dialog" aria-label={`del ${meny.adr}`} style={{ left: Math.max(12, meny.x - 150), top: Math.max(12, meny.y - 64), background: "var(--paper)", borderColor: "var(--rule)" }}>
+          <div ref={menyRef} className="fixed z-40 flex max-w-[calc(100vw-24px)] flex-wrap items-center gap-1.5 rounded-3xl border px-1.5 py-1.5" role="dialog" aria-label={`${mt(maal, "part", "del")} ${meny.adr}`} style={{ left: Math.max(12, meny.x - 150), top: Math.max(12, meny.y - 64), background: "var(--paper)", borderColor: "var(--rule)" }}>
             <span className="tab px-1.5 text-[11px]">{meny.adr}</span>
             {[
-              { ord: festa.has(meny.adr) ? "slepp" : "fest", paa: festa.has(meny.adr), gjer: () => vipFest(meny.adr), att: true },
-              { ord: "snu", paa: false, gjer: () => snuDel(meny.adr), att: false },
-              ...((plassAv(meny.adr)?.sheet ?? 0) > 0 ? [{ ord: "førre", tit: "til plata før", paa: false, gjer: () => bytPlate(meny.adr, -1), att: true }] : []),
-              { ord: "neste", tit: "til neste plate — forbi den siste er ei ny", paa: false, gjer: () => bytPlate(meny.adr, 1), att: true },
+              { ord: festa.has(meny.adr) ? mt(maal, "unpin", "slepp") : mt(maal, "pin", "fest"), paa: festa.has(meny.adr), gjer: () => vipFest(meny.adr), att: true },
+              { ord: mt(maal, "rotate", "snu"), paa: false, gjer: () => snuDel(meny.adr), att: false },
+              ...((plassAv(meny.adr)?.sheet ?? 0) > 0 ? [{ ord: mt(maal, "prev", "førre"), tit: mt(maal, "to previous sheet", "til plata før"), paa: false, gjer: () => bytPlate(meny.adr, -1), att: true }] : []),
+              { ord: mt(maal, "next", "neste"), tit: mt(maal, "to next sheet — past the last creates a new one", "til neste plate — forbi den siste er ei ny"), paa: false, gjer: () => bytPlate(meny.adr, 1), att: true },
             ].map((v) => (
               <button key={v.ord} type="button" className={CHIP} style={chipStyle(v.paa)} title={"tit" in v ? v.tit : undefined} onClick={() => { v.gjer(); if (v.att) setMeny(null) }}>{v.ord}</button>
             ))}

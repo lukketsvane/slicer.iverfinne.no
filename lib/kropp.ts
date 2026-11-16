@@ -3,6 +3,7 @@ import {
   flip,
   makeSoup,
   openEdges,
+  orienter,
   plassering,
   shade,
   signedVolume,
@@ -57,9 +58,9 @@ function kjeldenett(id: string, tak: number, glatt: number): Kjeldenett {
   const ut = KJELDE_HUGS([id, generasjon(), tak, glatt].join("|"), () => {
     bom = true
     const src = source(id)
-    let net = weld(src)
-    if (signedVolume(net) < 0) net = flip(net)
+    let net = orienter(weld(src))
     net = decimate(net, tak)
+    if (signedVolume(net) < 0) net = flip(net)
     net = taubin(net, glatt)
     return { net, tris: src.tris, opne: openEdges(net) }
   })
@@ -242,35 +243,66 @@ export function rull(k: Kropp, r: Ramme): Solid {
   const hit = per.get(key)
   if (hit) return hit
   const P = k.soup.pos
-  const lim = Math.sqrt(8 * Math.abs(1 / r.k) * RULL_TOL)
+  const R = 1 / r.k
+  const absR = Math.abs(R)
+  const lim = Math.sqrt(8 * absR * RULL_TOL)
+  const half = Math.PI * absR
+  const circ = 2 * half
   const ut: number[] = []
+  const rad = (p: Vec3) => {
+    const dx = p[0] - r.o[0]
+    const dy = p[1] - r.o[1]
+    const dz = p[2] - r.o[2]
+    const a = dx * r.u[0] + dy * r.u[1] + dz * r.u[2]
+    const b = dx * r.n[0] + dy * r.n[1] + dz * r.n[2]
+    return Math.hypot(a, R - b)
+  }
   const flat = (p: Vec3): Vec3 => {
     const q = inn(r, p)
     return [q[0], q[1], avFlata(r, p)]
   }
-  const del = (a: Vec3, b: Vec3, c: Vec3, djup: number) => {
-    const lang =
-      djup < 6 &&
-      Math.max(
-        Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]),
-        Math.hypot(c[0] - b[0], c[1] - b[1], c[2] - b[2]),
-        Math.hypot(a[0] - c[0], a[1] - c[1], a[2] - c[2]),
-      ) > lim
-    if (!lang) {
-      ut.push(...flat(a), ...flat(b), ...flat(c))
+  const leggTri = (fa: Vec3, fb: Vec3, fc: Vec3) => {
+    let ub = fb[0]
+    let uc = fc[0]
+    if (ub - fa[0] > half) ub -= circ
+    else if (ub - fa[0] < -half) ub += circ
+    if (uc - fa[0] > half) uc -= circ
+    else if (uc - fa[0] < -half) uc += circ
+    ut.push(fa[0], fa[1], fa[2], ub, fb[1], fb[2], uc, fc[1], fc[2])
+    const lo = Math.min(fa[0], ub, uc)
+    const hi = Math.max(fa[0], ub, uc)
+    if (hi > half) ut.push(fa[0] - circ, fa[1], fa[2], ub - circ, fb[1], fb[2], uc - circ, fc[1], fc[2])
+    if (lo < -half) ut.push(fa[0] + circ, fa[1], fa[2], ub + circ, fb[1], fb[2], uc + circ, fc[1], fc[2])
+  }
+  const del = (a: Vec3, b: Vec3, c: Vec3, ra: number, rb: number, rc: number, djup: number) => {
+    const maxR = Math.max(ra, rb, rc)
+    if (maxR < absR - 1e-3) return
+    const maxL = Math.max(
+      Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]),
+      Math.hypot(c[0] - b[0], c[1] - b[1], c[2] - b[2]),
+      Math.hypot(a[0] - c[0], a[1] - c[1], a[2] - c[2]),
+    )
+    if (Math.min(ra, rb, rc) - maxL * 0.6 > absR + 1e-3) return
+    if (djup >= 7 || maxL <= lim) {
+      leggTri(flat(a), flat(b), flat(c))
       return
     }
-    const m = (x: Vec3, y: Vec3): Vec3 => [(x[0] + y[0]) / 2, (x[1] + y[1]) / 2, (x[2] + y[2]) / 2]
-    const ab = m(a, b)
-    const bc = m(b, c)
-    const ca = m(c, a)
-    del(a, ab, ca, djup + 1)
-    del(ab, b, bc, djup + 1)
-    del(ca, bc, c, djup + 1)
-    del(ab, bc, ca, djup + 1)
+    const ab: Vec3 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]
+    const bc: Vec3 = [(b[0] + c[0]) / 2, (b[1] + c[1]) / 2, (b[2] + c[2]) / 2]
+    const ca: Vec3 = [(c[0] + a[0]) / 2, (c[1] + a[1]) / 2, (c[2] + a[2]) / 2]
+    const rab = rad(ab)
+    const rbc = rad(bc)
+    const rca = rad(ca)
+    del(a, ab, ca, ra, rab, rca, djup + 1)
+    del(ab, b, bc, rab, rb, rbc, djup + 1)
+    del(ca, bc, c, rca, rbc, rc, djup + 1)
+    del(ab, bc, ca, rab, rbc, rca, djup + 1)
   }
   for (let i = 0; i < P.length; i += 9) {
-    del([P[i], P[i + 1], P[i + 2]], [P[i + 3], P[i + 4], P[i + 5]], [P[i + 6], P[i + 7], P[i + 8]], 0)
+    const a: Vec3 = [P[i], P[i + 1], P[i + 2]]
+    const b: Vec3 = [P[i + 3], P[i + 4], P[i + 5]]
+    const c: Vec3 = [P[i + 6], P[i + 7], P[i + 8]]
+    del(a, b, c, rad(a), rad(b), rad(c), 0)
   }
   const sol = makeSolid(makeSoup(new Float32Array(ut)))
   per.set(key, sol)

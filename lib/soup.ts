@@ -38,30 +38,76 @@ export const diag = (s: { min: Vec3; max: Vec3 }) =>
   Math.hypot(s.max[0] - s.min[0], s.max[1] - s.min[1], s.max[2] - s.min[2]) || 1
 
 export function weld(s: Soup, eps = 0): Indexed {
-  const e = eps > 0 ? eps : diag(s) * 1e-4
-  const inv = 1 / e
+  const n = s.tris * 3
+  if (!n) return { verts: new Float32Array(0), idx: new Uint32Array(0) }
+  const d = diag(s)
+  const e = eps > 0 ? eps : d * 1e-4
   const M = 131072
+  const inv = Math.min(1 / e, (M - 2) / Math.max(s.max[0] - s.min[0], s.max[1] - s.min[1], s.max[2] - s.min[2], 1e-12))
   const bx = s.min[0]
   const by = s.min[1]
   const bz = s.min[2]
-  const q = (v: number, o: number) => {
-    const k = Math.round((v - o) * inv)
-    return k < 0 ? 0 : k >= M ? M - 1 : k
+  let cap = 32
+  const startCap = Math.max(32, Math.ceil(n * 0.75))
+  while (cap < startCap) cap <<= 1
+  let mask = cap - 1
+  let htKeys = new Float64Array(cap)
+  let htVals = new Int32Array(cap).fill(-1)
+  const hash = (key: number, msk: number) => {
+    const hi = (key / 4294967296) | 0
+    const lo = key >>> 0
+    return (Math.imul(lo ^ hi, 0x9e3779b1) ^ (lo >>> 16)) & msk
   }
-  const map = new Map<number, number>()
   const verts: number[] = []
-  const idx = new Uint32Array(s.tris * 3)
+  const idx = new Uint32Array(n)
   const P = s.pos
-  for (let i = 0; i < s.tris * 3; i++) {
+  let used = 0
+  for (let i = 0; i < n; i++) {
     const o = i * 3
     const x = P[o]
     const y = P[o + 1]
     const z = P[o + 2]
-    const key = (q(x, bx) * M + q(y, by)) * M + q(z, bz)
-    let v = map.get(key)
-    if (v === undefined) {
-      v = verts.length / 3
-      map.set(key, v)
+    let kx = Math.round((x - bx) * inv)
+    let ky = Math.round((y - by) * inv)
+    let kz = Math.round((z - bz) * inv)
+    if (kx < 0) kx = 0
+    else if (kx >= M) kx = M - 1
+    if (ky < 0) ky = 0
+    else if (ky >= M) ky = M - 1
+    if (kz < 0) kz = 0
+    else if (kz >= M) kz = M - 1
+    const key = (kx * M + ky) * M + kz
+    let slot = hash(key, mask)
+    let v = htVals[slot]
+    while (v !== -1 && htKeys[slot] !== key) {
+      slot = (slot + 1) & mask
+      v = htVals[slot]
+    }
+    if (v === -1) {
+      v = used++
+      if (used * 10 > cap * 6) {
+        const nCap = cap << 1
+        const nMask = nCap - 1
+        const nKeys = new Float64Array(nCap)
+        const nVals = new Int32Array(nCap).fill(-1)
+        for (let k = 0; k < cap; k++) {
+          const val = htVals[k]
+          if (val === -1) continue
+          const ek = htKeys[k]
+          let s2 = hash(ek, nMask)
+          while (nVals[s2] !== -1) s2 = (s2 + 1) & nMask
+          nKeys[s2] = ek
+          nVals[s2] = val
+        }
+        cap = nCap
+        mask = nMask
+        htKeys = nKeys
+        htVals = nVals
+        slot = hash(key, mask)
+        while (htVals[slot] !== -1) slot = (slot + 1) & mask
+      }
+      htKeys[slot] = key
+      htVals[slot] = v
       verts.push(x, y, z)
     }
     idx[i] = v
@@ -198,26 +244,164 @@ export function flip(m: Indexed): Indexed {
   return { verts: m.verts, idx }
 }
 
-export function openEdges(m: Indexed): number {
-  const seen = new Map<number, number>()
-  const n = m.verts.length / 3
-  const key = (a: number, b: number) => (a < b ? a * n + b : b * n + a)
-  for (let t = 0; t < m.idx.length; t += 3) {
-    const a = m.idx[t]
-    const b = m.idx[t + 1]
-    const c = m.idx[t + 2]
+export function orienter(m: Indexed): Indexed {
+  const nf = m.idx.length / 3
+  const nv = m.verts.length / 3
+  if (!nf || !nv) return m
+  const I = m.idx
+  const V = m.verts
+  let cap = 32
+  const est = Math.max(32, nf * 3)
+  while (cap < est * 2) cap <<= 1
+  const mask = cap - 1
+  const eKey = new Float64Array(cap)
+  const eCnt = new Uint8Array(cap)
+  const eT0 = new Uint32Array(cap)
+  const eK0 = new Uint8Array(cap)
+  const eD0 = new Int8Array(cap)
+  const eT1 = new Uint32Array(cap)
+  const eK1 = new Uint8Array(cap)
+  const nbTri = new Int32Array(nf * 3).fill(-1)
+  const nbSame = new Uint8Array(nf * 3)
+  for (let t = 0; t < nf; t++) {
+    const a = I[t * 3]
+    const b = I[t * 3 + 1]
+    const c = I[t * 3 + 2]
     if (a === b || b === c || c === a) continue
-    for (const [u, v] of [
-      [a, b],
-      [b, c],
-      [c, a],
-    ]) {
-      const k = key(u, v)
-      seen.set(k, (seen.get(k) ?? 0) + 1)
+    for (let k = 0; k < 3; k++) {
+      const u = k === 0 ? a : k === 1 ? b : c
+      const v = k === 0 ? b : k === 1 ? c : a
+      const dir = u < v ? 1 : -1
+      const key = u < v ? u * nv + v : v * nv + u
+      const hi = (key / 4294967296) | 0
+      const lo = key >>> 0
+      let slot = (Math.imul(lo ^ hi, 0x9e3779b1) ^ (lo >>> 16)) & mask
+      while (eCnt[slot] && eKey[slot] !== key) slot = (slot + 1) & mask
+      const cnt = eCnt[slot]
+      if (cnt === 0) {
+        eKey[slot] = key
+        eCnt[slot] = 1
+        eT0[slot] = t
+        eK0[slot] = k
+        eD0[slot] = dir
+      } else if (cnt === 1) {
+        eCnt[slot] = 2
+        const t0 = eT0[slot]
+        const k0 = eK0[slot]
+        eT1[slot] = t
+        eK1[slot] = k
+        const same = eD0[slot] === dir ? 1 : 0
+        nbTri[t * 3 + k] = t0
+        nbSame[t * 3 + k] = same
+        nbTri[t0 * 3 + k0] = t
+        nbSame[t0 * 3 + k0] = same
+      } else if (cnt === 2) {
+        eCnt[slot] = 3
+        nbTri[eT0[slot] * 3 + eK0[slot]] = -1
+        nbTri[eT1[slot] * 3 + eK1[slot]] = -1
+      }
+    }
+  }
+  const sett = new Uint8Array(nf)
+  const flipF = new Uint8Array(nf)
+  const queue = new Int32Array(nf)
+  for (let root = 0; root < nf; root++) {
+    if (sett[root]) continue
+    const ra = I[root * 3]
+    const rb = I[root * 3 + 1]
+    const rc = I[root * 3 + 2]
+    if (ra === rb || rb === rc || rc === ra) {
+      sett[root] = 1
+      continue
+    }
+    let head = 0
+    let tail = 0
+    queue[tail++] = root
+    sett[root] = 1
+    while (head < tail) {
+      const t = queue[head++]
+      const f = flipF[t]
+      for (let k = 0; k < 3; k++) {
+        const nb = nbTri[t * 3 + k]
+        if (nb < 0 || sett[nb]) continue
+        sett[nb] = 1
+        flipF[nb] = f ^ nbSame[t * 3 + k]
+        queue[tail++] = nb
+      }
+    }
+    const o = ra * 3
+    const ox = V[o]
+    const oy = V[o + 1]
+    const oz = V[o + 2]
+    let vol = 0
+    for (let i = 0; i < tail; i++) {
+      const t = queue[i]
+      const ia = I[t * 3] * 3
+      const ib = I[t * 3 + (flipF[t] ? 2 : 1)] * 3
+      const ic = I[t * 3 + (flipF[t] ? 1 : 2)] * 3
+      const ax = V[ia] - ox
+      const ay = V[ia + 1] - oy
+      const az = V[ia + 2] - oz
+      const bx = V[ib] - ox
+      const by = V[ib + 1] - oy
+      const bz = V[ib + 2] - oz
+      const cx2 = V[ic] - ox
+      const cy2 = V[ic + 1] - oy
+      const cz2 = V[ic + 2] - oz
+      vol += (ax * (by * cz2 - bz * cy2) - ay * (bx * cz2 - bz * cx2) + az * (bx * cy2 - by * cx2)) / 6
+    }
+    if (vol < -1e-12) {
+      for (let i = 0; i < tail; i++) flipF[queue[i]] ^= 1
+    }
+  }
+  let any = false
+  for (let t = 0; t < nf; t++) {
+    if (flipF[t]) {
+      any = true
+      break
+    }
+  }
+  if (!any) return m
+  const idx = Uint32Array.from(I)
+  for (let t = 0; t < nf; t++) {
+    if (!flipF[t]) continue
+    const q = idx[t * 3 + 1]
+    idx[t * 3 + 1] = idx[t * 3 + 2]
+    idx[t * 3 + 2] = q
+  }
+  return { verts: m.verts, idx }
+}
+
+export function openEdges(m: Indexed): number {
+  const n = m.verts.length / 3
+  const nf = m.idx.length / 3
+  if (!nf || !n) return 0
+  let cap = 32
+  const est = Math.max(32, nf * 3)
+  while (cap < est * 2) cap <<= 1
+  const mask = cap - 1
+  const eKey = new Float64Array(cap)
+  const eCnt = new Uint16Array(cap)
+  const I = m.idx
+  for (let t = 0; t < nf; t++) {
+    const a = I[t * 3]
+    const b = I[t * 3 + 1]
+    const c = I[t * 3 + 2]
+    if (a === b || b === c || c === a) continue
+    for (let k = 0; k < 3; k++) {
+      const u = k === 0 ? a : k === 1 ? b : c
+      const v = k === 0 ? b : k === 1 ? c : a
+      const key = u < v ? u * n + v : v * n + u
+      const hi = (key / 4294967296) | 0
+      const lo = key >>> 0
+      let slot = (Math.imul(lo ^ hi, 0x9e3779b1) ^ (lo >>> 16)) & mask
+      while (eCnt[slot] && eKey[slot] !== key) slot = (slot + 1) & mask
+      eKey[slot] = key
+      eCnt[slot]++
     }
   }
   let open = 0
-  for (const v of seen.values()) if (v !== 2) open++
+  for (let i = 0; i < cap; i++) if (eCnt[i] && eCnt[i] !== 2) open++
   return open
 }
 

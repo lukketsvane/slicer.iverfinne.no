@@ -6,6 +6,7 @@ import { omrissLine, omrissMidt, type Plan } from "@/lib/plan"
 import { teiknaKontur, tettMjukt } from "@/lib/teikning"
 import { konturStrek } from "@/lib/bilete"
 import { delIto, kneik, spileAkse, spiler, flyttPunkt, flyttStrek, leggPunkt, leggStrek, blyantPunkt, rundPunkt, strekRing, takPunkt, takStrek } from "@/lib/vektor"
+import { mt, useMaal } from "@/lib/i18n"
 import { ORD } from "./deler"
 
 type Verkty = "punkt" | "blyant" | "hol" | "firkant" | "sirkel"
@@ -23,6 +24,7 @@ const bane = (p: readonly Pt[]) => (p.length ? `M${p.map(([x, y]) => `${x.toFixe
 const RUTE_MM = 1
 
 export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onLukk }: { plan: Plan; S: number; t: number; nyId: number; /** høgda på topplina: verktya står under henne, ikkje bak henne */ topp: number; /** dei andre plana og kroppen: spilene går den vegen plata når dei — sjå `spileAkse` */ alle: readonly Plan[]; boks: { min: Vec3; max: Vec3 } | null; onEndre: (q: Plan) => void; onDel: (fleire: Plan[]) => void; onLukk: () => void }) {
+  const maal = useMaal()
   const [utkast, setUtkast] = useState<Plan | null>(null)
   const q = utkast ?? plan
   const [verkty, setVerkty] = useState<Verkty>("punkt")
@@ -192,23 +194,32 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
   }, [rute, stegMm, S, v.cx, v.cy, v.ppe, px.w, px.h])
 
   const xs = linje.map((p) => p[0]), ys = linje.map((p) => p[1])
-  const mal = linje.length ? `${nn((Math.max(...xs) - Math.min(...xs)) * S, 0)} × ${nn((Math.max(...ys) - Math.min(...ys)) * S, 0)} mm` : "inga form"
+  const mal = linje.length ? `${nn((Math.max(...xs) - Math.min(...xs)) * S, 0)} × ${nn((Math.max(...ys) - Math.min(...ys)) * S, 0)} mm` : mt(maal, "no shape", "inga form")
   const vp = val?.slag === "punkt" && o[val.i] ? o[val.i] : null
   const rund = new Set(q.runde ?? [])
+
+  const verktyNamn = (k: Verkty) => {
+    if (k === "punkt") return mt(maal, "point", "punkt")
+    if (k === "blyant") return mt(maal, "pencil", "blyant")
+    if (k === "hol") return mt(maal, "hole", "hòl")
+    if (k === "firkant") return mt(maal, "rect", "firkant")
+    return mt(maal, "circle", "sirkel")
+  }
+
   return (
-    <section aria-label="2d-flata" className="absolute inset-0 z-30 flex flex-col" style={{ background: "var(--paper)", touchAction: "none" }}>
-      <div className="flex items-center justify-between gap-1 px-3" style={{ paddingTop: topp + 6 }} role="group" aria-label="vektorverkty">
+    <section aria-label={mt(maal, "2d canvas", "2d-flata")} className="absolute inset-0 z-30 flex flex-col" style={{ background: "var(--paper)", touchAction: "none" }}>
+      <div className="flex items-center justify-between gap-1 px-3" style={{ paddingTop: topp + 6 }} role="group" aria-label={mt(maal, "vector tools", "vektorverkty")}>
         {(["punkt", "blyant", "hol", "firkant", "sirkel"] as const).map((k) => (
-          <button key={k} type="button" className={ORD} aria-pressed={verkty === k} title={k === "blyant" ? "teikn over ein bit av omrisset: streken byter ut den biten du dreg langs" : undefined} onClick={() => setVerkty(k)}>{k === "hol" ? "hòl" : k}</button>
+          <button key={k} type="button" className={ORD} aria-pressed={verkty === k} title={k === "blyant" ? mt(maal, "draw over part of the outline: replaces the segment you trace along", "teikn over ein bit av omrisset: streken byter ut den biten du dreg langs") : undefined} onClick={() => setVerkty(k)}>{verktyNamn(k)}</button>
         ))}
-        <button type="button" className={ORD} aria-pressed={spegl} onClick={() => setSpegl((s) => !s)}>spegl</button>
-        <button type="button" className={ORD} onClick={onLukk}>ferdig</button>
+        <button type="button" className={ORD} aria-pressed={spegl} onClick={() => setSpegl((s) => !s)}>{mt(maal, "mirror", "spegl")}</button>
+        <button type="button" className={ORD} onClick={onLukk}>{mt(maal, "done", "ferdig")}</button>
       </div>
       <div className="tab flex justify-center gap-4 text-[11px] tracking-[0.04em]" data-lesing="">
         <span>{mal}</span>
         {vp && <span>{nn(vp[0] * S, 1)}, {nn(vp[1] * S, 1)}</span>}
-        <span>{o.length} punkt · {q.strek.length} hòl</span>
-        <button type="button" data-rutenett="" aria-pressed={rute} title={rute ? "rutenettet står på. trykk for å ta det bort" : "rutenettet er borte. trykk for å setje det på"} onClick={() => setRute((b) => !b)} style={{ opacity: rute ? 1 : 0.4 }}>{rute ? `rute ${stegMm} mm` : "rute av"}</button>
+        <span>{o.length} {mt(maal, "points", "punkt")} · {q.strek.length} {mt(maal, "holes", "hòl")}</span>
+        <button type="button" data-rutenett="" aria-pressed={rute} title={rute ? mt(maal, "grid is on. tap to hide", "rutenettet står på. trykk for å ta det bort") : mt(maal, "grid is off. tap to show", "rutenettet er borte. trykk for å setje det på")} onClick={() => setRute((b) => !b)} style={{ opacity: rute ? 1 : 0.4 }}>{rute ? `${mt(maal, "grid", "rute")} ${stegMm} mm` : mt(maal, "grid off", "rute av")}</button>
       </div>
       <svg ref={svg} className="min-h-0 flex-1" viewBox={vb} onPointerDown={ned} onPointerMove={rorsle} onPointerUp={opp} onPointerCancel={opp} onDoubleClick={() => setSyn(null)}>
         {nett && (
@@ -243,20 +254,20 @@ export function Vektor({ plan, S, t, nyId, alle, boks, topp, onEndre, onDel, onL
       <div className="rull-x flex min-h-[64px] items-center justify-end gap-2 overflow-x-auto overscroll-contain whitespace-nowrap px-3 pb-8">
         {val?.slag === "punkt" && (
           <>
-            <button type="button" className={ORD} aria-pressed={rund.has(val.i)} onClick={() => onEndre(rundPunkt(q, val.i, spegl))}>rund</button>
-            <button type="button" className={ORD} disabled={o.length <= 3} onClick={() => { onEndre(takPunkt(q, val.i, spegl)); setVal(null) }}>slett punkt</button>
+            <button type="button" className={ORD} aria-pressed={rund.has(val.i)} onClick={() => onEndre(rundPunkt(q, val.i, spegl))}>{mt(maal, "arc", "rund")}</button>
+            <button type="button" className={ORD} disabled={o.length <= 3} onClick={() => { onEndre(takPunkt(q, val.i, spegl)); setVal(null) }}>{mt(maal, "delete point", "slett punkt")}</button>
           </>
         )}
         {val?.slag === "strek" && (
-          <button type="button" className={ORD} onClick={() => { onEndre(takStrek(q, val.k)); setVal(null) }}>slett hòl</button>
+          <button type="button" className={ORD} onClick={() => { onEndre(takStrek(q, val.k)); setVal(null) }}>{mt(maal, "delete hole", "slett hòl")}</button>
         )}
         {!val && (
           <>
-            <button type="button" className={ORD + " shrink-0"} title="del plata i to, kant i kant — dei får fingrar" onClick={() => { const d = delIto(q, nyId); if (d) { onDel(d); setSyn(null) } }}>del i to</button>
-            <button type="button" className={ORD + " shrink-0"} data-kneik="" title="knekk plata 90° om midtlina: ho vert eit L, og hjørnet får fingrar" onClick={() => { const d = boks && kneik(q, nyId, boks.min, boks.max, S, 90); if (d) { onDel(d); onLukk() } }}>kneik</button>
-            <span className="shrink-0 text-[11px] opacity-50">spiler</span>
+            <button type="button" className={ORD + " shrink-0"} title={mt(maal, "split sheet in two, edge to edge — with finger joints", "del plata i to, kant i kant — dei får fingrar")} onClick={() => { const d = delIto(q, nyId); if (d) { onDel(d); setSyn(null) } }}>{mt(maal, "split", "del i to")}</button>
+            <button type="button" className={ORD + " shrink-0"} data-kneik="" title={mt(maal, "bend sheet 90° along centerline: becomes an L with finger joints", "knekk plata 90° om midtlina: ho vert eit L, og hjørnet får fingrar")} onClick={() => { const d = boks && kneik(q, nyId, boks.min, boks.max, S, 90); if (d) { onDel(d); onLukk() } }}>{mt(maal, "bend", "kneik")}</button>
+            <span className="shrink-0 text-[11px] opacity-50">{mt(maal, "slats", "spiler")}</span>
             {[3, 4, 5, 6].map((n) => (
-              <button key={n} type="button" className={ORD + " w-8 shrink-0"} aria-label={`${n} spiler`} title={`${n} like breie spiler med ei tjukn luft imellom`} onClick={() => { const d = spiler(q, n, t / S, nyId, boks ? spileAkse(q, alle, boks.min, boks.max, S, t) : null); if (d) { onDel(d); setSyn(null) } }}>{n}</button>
+              <button key={n} type="button" className={ORD + " w-8 shrink-0"} aria-label={`${n} ${mt(maal, "slats", "spiler")}`} title={`${n} ${mt(maal, "equal-width slats separated by one thickness", "like breie spiler med ei tjukn luft imellom")}`} onClick={() => { const d = spiler(q, n, t / S, nyId, boks ? spileAkse(q, alle, boks.min, boks.max, S, t) : null); if (d) { onDel(d); setSyn(null) } }}>{n}</button>
             ))}
           </>
         )}
