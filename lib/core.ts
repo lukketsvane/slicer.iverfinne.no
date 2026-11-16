@@ -2,12 +2,13 @@
 export type Pt = [number, number]
 export type Vec3 = [number, number, number]
 
-export type Material = "bjork" | "finer" | "mdf" | "akryl" | "papp"
+export type Material = "graa" | "bjork" | "finer" | "mdf" | "akryl" | "papp"
 
 export const MATERIALS: Record<
   Material,
   { label: string; rho: number; hex: string }
 > = {
+  graa: { label: "grå", rho: 700, hex: "#9ca3af" },
   bjork: { label: "bjørk", rho: 670, hex: "#dbb589" },
   finer: { label: "kryssfinér", rho: 680, hex: "#e9dcc0" },
   mdf: { label: "mdf", rho: 750, hex: "#c9a889" },

@@ -18,7 +18,8 @@ import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
 import type { Montasje } from "@/lib/montasje"
 import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene"
-import { Arket, KOL, type Steg } from "./arket"
+import { Arket, KOL, type GizmoModus, type Steg } from "./arket"
+import { useMaal, mt, omsetVerdi } from "@/lib/i18n"
 import { Meny, type MenyStad } from "./meny"
 import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForenkl, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett, IcoTeikn } from "./deler"
 import { Plater } from "./plater"
@@ -131,6 +132,8 @@ type Port = { inFlight: boolean; pending: Req | null; shown: number }
 const INGEN: readonly number[] = []
 const [MOBEL_STORLEIK, MOBEL_TJUKN, MOBEL_ARK] = [450, 12, [1200, 600] as const]
 export function Studio() {
+  const maal = useMaal()
+  const [gizmoModus, setGizmoModus] = useState<GizmoModus | null>(null)
   const [params, setParams] = useState<ParamBag>(() => ({ ...MOTOR.defaults }))
   const [view, setView] = useState<View>("lag")
   const viewRef = useRef<View>("lag")
@@ -171,6 +174,7 @@ export function Studio() {
   useEffect(() => setMontVald(null), [mont])
   const montT = useRef(0)
   const montSpel = useRef(false)
+  const [montSpelPaa, setMontSpelPaa] = useState(false)
   const [montSteg, setMontSteg] = useState(1)
   const montDra = useRef<number | null>(null)
   const montNed = useRef<{ id: number; y: number } | null>(null)
@@ -395,6 +399,7 @@ export function Studio() {
         void id
         montT.current = 0
         montSpel.current = true
+        setMontSpelPaa(true)
         setMontSteg(1)
         setMont(m)
         return
@@ -1671,9 +1676,9 @@ export function Studio() {
       if (t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName))) return
       if (e.altKey) return
       const k = e.key.toLowerCase()
-      if ((e.metaKey || e.ctrlKey) && k === "z") {
+      if ((e.metaKey || e.ctrlKey) && (k === "z" || k === "y")) {
         e.preventDefault()
-        return e.shiftKey ? gjerOm() : angre()
+        return k === "y" || e.shiftKey ? gjerOm() : angre()
       }
       if (e.metaKey || e.ctrlKey) return
       if (k === " ") {
@@ -1689,9 +1694,13 @@ export function Studio() {
         if (valdPunkt !== null && vald !== null) taPunkt(vald, valdPunkt)
         else if (valdStrek !== null) slettStrek()
         else if (vald !== null) slett(vald)
+        else if (modus === "bit" && valdBit !== null) slettBit()
       } else if (k === "z") (e.shiftKey ? gjerOm : angre)()
-      else if (k === "r" && rom) vekslRute()
-      else if (k === "k" && rom) vekslBit()
+      else if (k === "g" && rom) setGizmoModus((m) => (m === "translate" ? null : "translate"))
+      else if (k === "r" && rom) {
+        if (gizmoModus !== null) setGizmoModus((m) => (m === "rotate" ? null : "rotate"))
+        else vekslRute()
+      } else if (k === "k" && rom) vekslBit()
       else if (k === "m") vekslMontasje()
       else if (k === "b" && valdPunkt !== null && vald !== null) vriPunkt(vald, valdPunkt)
       else if (k === "b" && bla) leggBit(bla)
@@ -1699,11 +1708,15 @@ export function Studio() {
       else if (k === "2") setView("lag")
       else if (k === "3") setView("kontur")
       else if (k === "4") { if (gaarIHop.current) setView("montasje") }
-      else if (k === "f") document.querySelector<HTMLButtonElement>("[data-heim]")?.click()
-      else if (k === "s" && rom) vekslSnapp()
-      else if (k === "t" && rom) vekslTeikn()
-      else if (k === "d" && vald !== null && rom) dupliserPlan(vald)
-      else if (k === "h" && vald !== null && rom) leggStrek("hol")
+      else if (k === "f" || k === "home") document.querySelector<HTMLButtonElement>("[data-heim]")?.click()
+      else if (k === "s" && rom) {
+        if (gizmoModus !== null) setGizmoModus((m) => (m === "scale" ? null : "scale"))
+        else vekslSnapp()
+      } else if (k === "t" && rom) vekslTeikn()
+      else if (k === "d" && rom) {
+        if (vald !== null) dupliserPlan(vald)
+        else if (modus === "bit" && valdBit !== null) dupliserBit()
+      } else if (k === "h" && vald !== null && rom) leggStrek("hol")
       else if (k === "o" && vald !== null && rom) formTrykk()
       else if (k.startsWith("arrow") && vald !== null && valdPunkt !== null && rom && t?.getAttribute("role") !== "slider") {
         const mm = e.shiftKey ? 10 : 1
@@ -1718,6 +1731,7 @@ export function Studio() {
         velPlan(plan[(i + (e.shiftKey ? plan.length - 1 : 1)) % plan.length].id)
       } else if (k === "escape") {
         if (teikn) setTeikn(false)
+        else if (gizmoModus !== null) setGizmoModus(null)
         else if (verkty) setVerkty(null)
         else if (valdPunkt !== null) setValdPunkt(null)
         else if (valdStrek !== null) setValdStrek(null)
@@ -1729,7 +1743,7 @@ export function Studio() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [angre, gjerOm, laas, slett, slettStrek, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslMontasje, rom, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view, vekslSnapp, vekslTeikn, teikn])
+  }, [angre, gjerOm, laas, slett, slettStrek, slettBit, dupliserBit, modus, valdBit, gizmoModus, vald, valdGruppe, valdPunkt, valdStrek, vekslRute, vekslMontasje, rom, verkty, velPlan, vekslBit, bla, leggBit, dupliserPlan, leggStrek, formTrykk, stegPlan, stegPunkt, taPunkt, vriPunkt, plan, view, vekslSnapp, vekslTeikn, teikn])
 
   const skuffH = benk ? Math.round(vindu.h * 0.46) : 0
   const rute: Rute = useMemo(
@@ -1747,13 +1761,16 @@ export function Studio() {
   const flattPlan = flatt && harOmriss ? plan.find((q) => q.id === vald) : undefined
   const vekslNett = () => (harOmriss ? setParams((cur) => ({ ...cur, plan: skrivPlan(lesPlan(cur.plan).map((q) => (q.id === vald ? { ...q, nett: q.nett ? undefined : true } : q))) })) : formTrykk())
   const montLes =
-    !mont?.delar.length ? "ingen delar"
-    : montVald ? `${montVald} · steg ${(mont.delar.find((d) => d.adr === montVald)?.steg ?? 0) + 1}`
-    : `steg ${montSteg}/${mont.steg} · ${mont.delar.filter((d) => d.steg === montSteg - 1).length}`
+    !mont?.delar.length ? mt(maal, "no parts", "ingen delar")
+    : montVald ? `${montVald} · ${mt(maal, "step", "steg")} ${(mont.delar.find((d) => d.adr === montVald)?.steg ?? 0) + 1}`
+    : `${mt(maal, "step", "steg")} ${montSteg}/${mont.steg} · ${mont.delar.filter((d) => d.steg === montSteg - 1).length}`
   const gestTekst =
     view === "montasje" && mont ? montLes
-    : forenklTal !== null ? `${forenklTal} punkt`
-    : gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : "rutenett")
+    : forenklTal !== null ? `${forenklTal} ${mt(maal, "points", "punkt")}`
+    : gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : mt(maal, "grid", "rutenett"))
+    : gest === "snitt" ? mt(maal, "slice", "snitt")
+    : gest === "lys" ? mt(maal, "light", "lys")
+    : gest === "strek" ? mt(maal, "cutout", "strek")
     : gest
 
   return (
@@ -1780,6 +1797,7 @@ export function Studio() {
             blink={blink}
             skisse={skisse}
             storleik={typeof params.storleik === "number" ? params.storleik : 150}
+            rot={[Number(params.rotX ?? 0), Number(params.rotY ?? 0), Number(params.rotZ ?? 0)]}
             valdStrek={valdStrek}
             onVald={velPlan}
             onDeling={setjDeling}
@@ -1817,6 +1835,9 @@ export function Studio() {
             synTil={synTil}
             onRute={dragRute}
             benk={benk}
+            gizmoModus={gizmoModus}
+            onSettRot={(rx, ry, rz) => setParams((cur) => MOTOR.clamp({ ...cur, rotX: rx, rotY: ry, rotZ: rz }, cur))}
+            onSettStorleik={(s) => setParams((cur) => MOTOR.clamp({ ...cur, storleik: s }, cur))}
           />
         )}
       </div>
@@ -1833,38 +1854,40 @@ export function Studio() {
 
       {flattPlan && <Vektor plan={flattPlan} S={typeof params.storleik === "number" ? params.storleik : 150} t={typeof params.tjukn === "number" ? params.tjukn : 3} nyId={nyId(plan)} alle={plan} boks={kropp ? { min: kropp.min, max: kropp.max } : null} topp={toppH} onEndre={(q) => setParams((cur) => ({ ...cur, plan: skrivPlan(lesPlan(cur.plan).map((p) => (p.id === q.id ? q : p))) }))} onDel={([a, ...fleire]) => setParams((cur) => ({ ...cur, plan: skrivPlan([...lesPlan(cur.plan).map((p) => (p.id === a.id ? a : p)), ...fleire]) }))} onLukk={() => setFlatt(false)} />}
       {bilete && <BileteInn maske={bilete.maske} url={bilete.url} onLegg={leggBilete} onAvbryt={() => setBilete(null)} />}
-      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} onTomArbeidsflate={tomArbeidsflate} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — går ikkje i hop"} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} prosjektNamn={pSyn.namn} onProsjekt={() => { setVerkty("prosjekt"); if (!benk) setSteg("line") }} onHogd={setToppH} />
+      <Toppline benk={benk} kjelde={kjeldeNamn} bitar={bitar.length} byt={valdBit !== null ? familien(bitar[valdBit]?.id ?? "") : ""} onLegg={leggBit} onTom={tomScene} onTomArbeidsflate={tomArbeidsflate} view={view} onView={setView} montasjeOk={hopBrot.length === 0} hopHint={hopBrot.map((r) => r.label).join(" · ") + " — " + mt(maal, "cannot assemble", "går ikkje i hop")} onFile={(f) => void takeFile(f)} bibliotek={bibliotek} onLeggLagra={leggLagra} onAngre={angre} kanAngre={kanAngre} onGjerOm={gjerOm} kanGjerOm={kanGjerOm} onShare={share} prosjektNamn={pSyn.namn} onProsjekt={() => { setVerkty("prosjekt"); if (!benk) setSteg("line") }} onHogd={setToppH} />
       {mounted && teikn && rom && (
         <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="teiknemåte">
           {(["firkant", "rund", "halv", "kontur"] as const).map((slag) => (
-            <button key={slag} type="button" className={ORD + " min-w-16"} aria-pressed={teiknSlag === slag} onClick={() => setTeiknSlag(slag)}>{slag}</button>
+            <button key={slag} type="button" className={ORD + " min-w-16"} aria-pressed={teiknSlag === slag} onClick={() => setTeiknSlag(slag)}>
+              {mt(maal, slag === "firkant" ? "rect" : slag === "rund" ? "round" : slag === "halv" ? "arch" : "free", slag)}
+            </button>
           ))}
         </div>
       )}
       {mounted && !teikn && vald !== null && valdGruppe === null && rom && modus !== "bit" && (
         <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 84 }} role="group" aria-label="spegl planet">
           {(["x", "y", "z"] as const).map((akse, i) => (
-            <button key={akse} type="button" className={ORD + " min-w-12"} aria-label={`spegl planet om ${akse}`} title={`spegelkopi om ${akse}; i same plan vert forma snudd`} onClick={() => speglValt(i)}>spegl {akse}</button>
+            <button key={akse} type="button" className={ORD + " min-w-12"} aria-label={`spegl planet om ${akse}`} title={mt(maal, `mirror copy across ${akse}; in same plane flips shape`, `spegelkopi om ${akse}; i same plan vert forma snudd`)} onClick={() => speglValt(i)}>{mt(maal, `mirror ${akse}`, `spegl ${akse}`)}</button>
           ))}
-          {[2, 3, 4].map((N) => <button key={N} type="button" className={ORD + " min-w-12"} aria-label={`${N} rundt`} title={`${N} plan kring midtaksen, som ei gruppe`} onClick={() => rundtValt(N)}>×{N}</button>)}
+          {[2, 3, 4].map((N) => <button key={N} type="button" className={ORD + " min-w-12"} aria-label={`${N} rundt`} title={mt(maal, `${N} planes around center axis as a group`, `${N} plan kring midtaksen, som ei gruppe`)} onClick={() => rundtValt(N)}>×{N}</button>)}
         </div>
       )}
 
       {gestTekst && (
         <div data-lesing="" className="pointer-events-none absolute flex justify-start" style={{ top: toppH + 10, left: 14 }} aria-hidden="true">
-          <span className="tab text-[26px] leading-none tracking-[0.02em]" style={{ opacity: 0.5 }}>{gestTekst}</span>
+          <span className="tab text-[15px] leading-none tracking-[0.02em]" style={{ opacity: 0.5 }}>{gestTekst}</span>
         </div>
       )}
 
       {mounted && !teikn && vald === null && rom && modus !== "bit" && (
-        <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label="symmetri">
+        <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 0 }} role="group" aria-label={mt(maal, "symmetry", "symmetri")}>
           {(["x", "y", "z"] as const).map((ord, a) => (
             <button
               key={ord}
               type="button"
-              aria-label={`speil ${ord}`}
+              aria-label={mt(maal, `mirror ${ord}`, `speil ${ord}`)}
               aria-pressed={(speil & (1 << a)) !== 0}
-              title={`speil snittet om ${ord}-planet gjennom midten: skjer låser båe`}
+              title={mt(maal, `mirror slice across center ${ord} plane: cut locks both`, `speil snittet om ${ord}-planet gjennom midten: skjer låser båe`)}
               onClick={() => setSpeil((q) => q ^ (1 << a))}
               className={ORD + " w-11 shrink-0"}
               data-speil={ord}
@@ -1893,8 +1916,8 @@ export function Studio() {
             <button
               type="button"
               data-montasje=""
-              aria-label="steget"
-              title={`montasjen: steg ${montSteg} av ${mont?.steg ?? 1}. dra opp og ned for å stå midt i han; trykk for å sjå han om att`}
+              aria-label={mt(maal, "step", "steget")}
+              title={mt(maal, `assembly: step ${montSteg} of ${mont?.steg ?? 1}. drag up/down to scrub; tap to replay`, `montasjen: steg ${montSteg} av ${mont?.steg ?? 1}. dra opp og ned for å stå midt i han; trykk for å sjå han om att`)}
               className={TUMME_BTN}
               style={{ touchAction: "none", cursor: "ns-resize" }}
               onPointerDown={(e) => {
@@ -1903,6 +1926,7 @@ export function Studio() {
                 e.currentTarget.setPointerCapture(e.pointerId)
                 montDra.current = e.clientY
                 montSpel.current = false
+                setMontSpelPaa(false)
                 setSkrubbar(true)
               }}
               onPointerMove={(e) => {
@@ -1921,6 +1945,7 @@ export function Studio() {
                 if (Math.abs(e.clientY - ned.y) > 6) return
                 montT.current = 0
                 montSpel.current = true
+                setMontSpelPaa(true)
                 setMontSteg(1)
                 montVakn.current?.()
               }}
@@ -1939,8 +1964,8 @@ export function Studio() {
                 <button
                   type="button"
                   aria-pressed={!!teikn}
-                  aria-label="teikn ei flate"
-                  title={teikn ? "teikn (T): vel firkant eller kontur; slepp for å lukke, escape avbryt" : "teikn ei flate (T): firkant eller fri kontur. Punkta er handtak etterpå"}
+                  aria-label={mt(maal, "draw face", "teikn ei flate")}
+                  title={teikn ? mt(maal, "draw (T): pick rect or outline; release to close, escape cancels", "teikn (T): vel firkant eller kontur; slepp for å lukke, escape avbryt") : mt(maal, "draw a face (T): rect or freehand outline with editable vertices", "teikn ei flate (T): firkant eller fri kontur. Punkta er handtak etterpå")}
                   onClick={vekslTeikn}
                   className={TUMME_BTN}
                   data-teiknknapp={teikn ? "klar" : ""}
@@ -1951,8 +1976,8 @@ export function Studio() {
           <button
             type="button"
             aria-pressed={modus === "rute"}
-            aria-label="rutenett"
-            title={modus === "rute" ? "rutenettet (R): to fingrar — vassrett er kolonner, loddrett er rader. trykk for å gå ut" : "rutenettet (R): to fingrar set kolonner og rader"}
+            aria-label={mt(maal, "grid", "rutenett")}
+            title={modus === "rute" ? mt(maal, "grid tool (R): drag horizontally for X planes, vertically for Y. tap to exit", "rutenettet (R): to fingrar — vassrett er kolonner, loddrett er rader. trykk for å gå ut") : mt(maal, "grid tool (R): set columns and rows by dragging", "rutenettet (R): to fingrar set kolonner og rader")}
             onClick={vekslRute}
             className={TUMME_BTN}
             data-ruteverkty=""
@@ -1964,8 +1989,8 @@ export function Studio() {
             <>
               <button
                 type="button"
-                aria-label={valdGruppe !== null ? "dubler gruppa" : "dubler planet"}
-                title={valdGruppe !== null ? "ei gruppe til, lik denne, kvart plan skuva eit hakk langs normalen sin (D)" : "eitt plan til, likt dette, skuva eit hakk langs normalen (D)"}
+                aria-label={valdGruppe !== null ? mt(maal, "duplicate group", "dubler gruppa") : mt(maal, "duplicate plane", "dubler planet")}
+                title={valdGruppe !== null ? mt(maal, "duplicate group offset along each normal (D)", "ei gruppe til, lik denne, kvart plan skuva eit hakk langs normalen sin (D)") : mt(maal, "duplicate plane offset along normal (D)", "eitt plan til, likt dette, skuva eit hakk langs normalen (D)")}
                 onClick={() => dupliserPlan(vald)}
                 className={TUMME_BTN}
               >
@@ -1974,8 +1999,8 @@ export function Studio() {
               {rom && (
                 <button
                   type="button"
-                  aria-label="skjer hòl"
-                  title="skjer eit hòl: ein ring midt i snittet. flytt, vri og dra han større (H)"
+                  aria-label={mt(maal, "cut hole", "skjer hòl")}
+                  title={mt(maal, "cut hole (H): add an interior ring to drag, resize, and rotate", "skjer eit hòl: ein ring midt i snittet. flytt, vri og dra han større (H)")}
                   onClick={() => leggStrek("hol")}
                   className={TUMME_BTN}
                 >
@@ -1986,13 +2011,13 @@ export function Studio() {
               <button
                 type="button"
                 aria-label={`snapp ${SNAPP_NAMN[snappNo]}`}
-                title="kva vinklar snappet kjenner: av, 15°, 45°, 90°. gjeld både punkta i eit omriss og vridinga av eit plan (S)"
+                title={mt(maal, "snap angles: off, 15°, 45°, 90° (S)", "kva vinklar snappet kjenner: av, 15°, 45°, 90°. gjeld både punkta i eit omriss og vridinga av eit plan (S)")}
                 onClick={vekslSnapp}
                 className={TUMME_BTN + " tab text-[11px] leading-none"}
                 data-snapp={SNAPPSTEG[snappNo]}
                 style={snappNo === 0 ? { opacity: 0.35 } : undefined}
               >
-                {SNAPP_NAMN[snappNo]}
+                {omsetVerdi(maal, SNAPP_NAMN[snappNo])}
               </button>
               )}
               {rom && (
@@ -2000,7 +2025,7 @@ export function Studio() {
                   type="button"
                   aria-pressed={harOmriss}
                   aria-label="form"
-                  title={harOmriss ? "forma (O): dra punkta i profilen. dobbelttrykk for boksen kring dei, eitt trykk slepper forma" : "forma (O): frys profilen til punkt du kan dra i. dobbelttrykk for boksen kring han"}
+                  title={harOmriss ? mt(maal, "shape (O): drag profile points. double-tap for bounding box, single-tap to release", "forma (O): dra punkta i profilen. dobbelttrykk for boksen kring dei, eitt trykk slepper forma") : mt(maal, "shape (O): freeze profile into draggable points", "forma (O): frys profilen til punkt du kan dra i. dobbelttrykk for boksen kring han")}
                   disabled={!harOmriss && !snitt}
                   onClick={formTrykk}
                   className={TUMME_BTN}
@@ -2010,11 +2035,11 @@ export function Studio() {
                 </button>
               )}
               {rom && harOmriss && (
-                <button type="button" aria-label="2d-flata" title="planet flatt: dra punkt, legg til, rund, teikn om ein kant med blyanten eller skjer hòl" onClick={() => setFlatt(true)} className={ORD + " h-12 min-w-12"} data-flatt="">2d</button>
+                <button type="button" aria-label="2d-flata" title={mt(maal, "2D editor: drag points, round corners, draw edges, or cut holes", "planet flatt: dra punkt, legg til, rund, teikn om ein kant med blyanten eller skjer hòl")} onClick={() => setFlatt(true)} className={ORD + " h-12 min-w-12"} data-flatt="">2d</button>
               )}
               {rom && (
-                <button type="button" aria-pressed={bunde} aria-label="bunde av nettet" title={bunde ? "profilen er bunden av nettet. trykk for å sleppe han" : "profilen er fri av nettet. trykk for å binde omrisset til kroppen"} onClick={vekslNett} disabled={!harOmriss && !snitt} className={ORD + " h-12 min-w-12"} data-nett="">
-                  nett
+                <button type="button" aria-pressed={bunde} aria-label="bunde av nettet" title={bunde ? mt(maal, "profile is clipped to mesh. tap to release", "profilen er bunden av nettet. trykk for å sleppe han") : mt(maal, "profile is free of mesh. tap to clip to body", "profilen er fri av nettet. trykk for å binde omrisset til kroppen")} onClick={vekslNett} disabled={!harOmriss && !snitt} className={ORD + " h-12 min-w-12"} data-nett="">
+                  {mt(maal, "mesh", "nett")}
                 </button>
               )}
               {rom && valdGruppe !== null && (
@@ -2022,20 +2047,20 @@ export function Studio() {
                   type="button"
                   aria-pressed={fordel}
                   aria-label="fordel"
-                  title={fordel ? "fordelt: den eine enden står, leiaren tek alt, rada tek sin del. trykk for saman" : "saman: heile gruppa fylgjer leiaren. trykk for fordelt — vifte og mellomrom"}
+                  title={fordel ? mt(maal, "spread: one end anchored, group fans/spaces evenly. tap for together", "fordelt: den eine enden står, leiaren tek alt, rada tek sin del. trykk for saman") : mt(maal, "together: whole group follows leader. tap for spread", "saman: heile gruppa fylgjer leiaren. trykk for fordelt — vifte og mellomrom")}
                   onClick={() => setFordel((f) => !f)}
                   className={ORD + " h-12 min-w-12"}
                   data-fordel=""
                 >
-                  fordel
+                  {mt(maal, "spread", "fordel")}
                 </button>
               )}
               {rom && valdStrek === null && valdGruppe === null && (
                 <button
                   type="button"
                   data-boy=""
-                  aria-label="bøy planet"
-                  title="dra opp og ned: bøy planet. materialet set grensa, og regelen seier kvar ho går. dobbelttrykk rettar han ut att"
+                  aria-label={mt(maal, "bend plane", "bøy planet")}
+                  title={mt(maal, "drag up/down: curve plane (double-tap resets flat)", "dra opp og ned: bøy planet. materialet set grensa, og regelen seier kvar ho går. dobbelttrykk rettar han ut att")}
                   className={TUMME_BTN}
                   style={{ touchAction: "none", cursor: "ns-resize" }}
                   onPointerDown={(e) => {
@@ -2070,8 +2095,8 @@ export function Studio() {
                 <button
                   type="button"
                   data-forenkl=""
-                  aria-label="forenkle omrisset"
-                  title="dra opp og ned: færre eller fleire punkt i omrisset. talet står i lesinga, og ned kjem du aldri lenger enn du starta"
+                  aria-label={mt(maal, "simplify outline", "forenkle omrisset")}
+                  title={mt(maal, "drag up/down: reduce or restore outline vertex count", "dra opp og ned: færre eller fleire punkt i omrisset. talet står i lesinga, og ned kjem du aldri lenger enn du starta")}
                   className={TUMME_BTN}
                   style={{ touchAction: "none", cursor: "ns-resize" }}
                   onPointerDown={(e) => {
@@ -2099,8 +2124,8 @@ export function Studio() {
               )}
               <button
                 type="button"
-                aria-label={valdStrek !== null ? "slett strek" : valdGruppe !== null ? "slett gruppa" : "slett"}
-                title={valdStrek !== null ? "ta streken bort (⌫)" : valdGruppe !== null ? "ta heile gruppa bort (⌫)" : "ta det valde planet bort (⌫)"}
+                aria-label={valdStrek !== null ? mt(maal, "delete cutout", "slett strek") : valdGruppe !== null ? mt(maal, "delete group", "slett gruppa") : mt(maal, "delete", "slett")}
+                title={valdStrek !== null ? mt(maal, "remove cutout (⌫)", "ta streken bort (⌫)") : valdGruppe !== null ? mt(maal, "remove group (⌫)", "ta heile gruppa bort (⌫)") : mt(maal, "remove selected plane (⌫)", "ta det valde planet bort (⌫)")}
                 onClick={valdStrek !== null ? slettStrek : () => slett(vald)}
                 className={TUMME_BTN}
                 style={{ color: "var(--warn)" }}
@@ -2112,10 +2137,10 @@ export function Studio() {
           {rom && (<>
           {modus === "bit" && valdBit !== null && (
             <>
-              <button type="button" aria-label="dubler biten" title="ein bit til, lik denne" onClick={dupliserBit} className={TUMME_BTN}>
+              <button type="button" aria-label={mt(maal, "duplicate part", "dubler biten")} title={mt(maal, "duplicate selected part (D)", "ein bit til, lik denne")} onClick={dupliserBit} className={TUMME_BTN}>
                 {IcoDupliser}
               </button>
-              <button type="button" aria-label="ta biten bort" title="ta den valde biten ut av kroppen" onClick={slettBit} className={TUMME_BTN} style={{ color: "var(--warn)" }}>
+              <button type="button" aria-label={mt(maal, "remove part", "ta biten bort")} title={mt(maal, "remove selected part (⌫)", "ta den valde biten ut av kroppen")} onClick={slettBit} className={TUMME_BTN} style={{ color: "var(--warn)" }}>
                 {IcoSlett}
               </button>
             </>
@@ -2123,8 +2148,8 @@ export function Studio() {
           <button
             type="button"
             aria-pressed={modus === "bit"}
-            aria-label="kroppen"
-            title={modus === "bit" ? "verktyet for kroppen (K): trykk ein bit, to fingrar flyttar, vrir og skalerer han. trykk for å gå ut" : "verktyet for kroppen (K): flytt, vri og skaler bitane han er sett saman av"}
+            aria-label={mt(maal, "body tool", "kroppen")}
+            title={modus === "bit" ? mt(maal, "body tool (K): tap a part to move, rotate, or resize. tap to exit", "verktyet for kroppen (K): trykk ein bit, to fingrar flyttar, vrir og skalerer han. trykk for å gå ut") : mt(maal, "body tool (K): arrange, rotate, and resize primitive parts", "verktyet for kroppen (K): flytt, vri og skaler bitane han er sett saman av")}
             onClick={vekslBit}
             className={TUMME_BTN}
             data-bitverkty=""
@@ -2137,8 +2162,8 @@ export function Studio() {
               type="button"
               onClick={laas}
               disabled={!harSnitt}
-              aria-label="skjer"
-              title="skjer: skissa vert ein del (L)"
+              aria-label={mt(maal, "slice", "skjer")}
+              title={mt(maal, "cut: lock sketch into a part (L)", "skjer: skissa vert ein del (L)")}
               className="skjer ikon"
             >
               {IcoSkjer}
@@ -2157,19 +2182,19 @@ export function Studio() {
           <button
             type="button"
             aria-label="bla"
-            title={`bla til den neste utgåva av ${bla} (B): same plassen, same storleiken, ei anna form`}
+            title={mt(maal, `cycle to next ${bla} variant (B)`, `bla til den neste utgåva av ${bla} (B): same plassen, same storleiken, ei anna form`)}
             onClick={() => leggBit(bla)}
             className={ORD + " h-12 min-w-12"}
             data-bla=""
           >
-            bla
+            {mt(maal, "next", "bla")}
           </button>
         </div>
       )}
 
       {drag && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center" style={{ background: "color-mix(in srgb, var(--paper) 82%, transparent)" }}>
-          <div className="rounded-2xl border border-dashed px-6 py-4 text-[11px] uppercase tracking-[0.2em]" style={{ borderColor: "var(--ink)" }}>slepp fila</div>
+          <div className="rounded-2xl border border-dashed px-6 py-4 text-[11px] uppercase tracking-[0.2em]" style={{ borderColor: "var(--ink)" }}>{mt(maal, "drop file", "slepp fila")}</div>
         </div>
       )}
 
@@ -2232,6 +2257,25 @@ export function Studio() {
         verkty={verkty}
         onVerkty={opneVerkty}
         onHogd={setArkH}
+        gizmo={gizmoModus}
+        onGizmo={setGizmoModus}
+        onDupliser={dupliserPlan}
+        onForm={formTrykk}
+        montSpel={montSpelPaa}
+        onMontVeksl={() => {
+          const ny = !montSpel.current
+          if (ny && mont && montT.current >= mont.steg) montT.current = 0
+          montSpel.current = ny
+          setMontSpelPaa(ny)
+          montVakn.current?.()
+        }}
+        onMontHopp={(st) => {
+          montSpel.current = false
+          setMontSpelPaa(false)
+          montT.current = Math.max(0, st - 0.001)
+          setMontSteg(st)
+          montVakn.current?.()
+        }}
       />
       <Meny stad={meny} onLukk={() => setMeny(null)} />
     </main>

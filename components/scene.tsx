@@ -1,10 +1,11 @@
 "use client"
 
-import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
-import { GizmoHelper, GizmoViewcube, Html, OrbitControls, useGizmoContext } from "@react-three/drei"
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type MutableRefObject, type ReactElement, type ReactNode } from "react"
+import { Canvas, useFrame, useThree } from "@react-three/fiber"
+import { GizmoHelper, OrbitControls } from "@react-three/drei"
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react"
 import * as THREE from "three"
 import { LAG_FARGAR, MATERIALS, inRing, lagFarge, shoelace, type Kutt, type Material, type Pt, type Rom, type Vec3 } from "@/lib/core"
+import { useMaal, mt } from "@/lib/i18n"
 import { akser, broek, dot, inn, OMRISS_TAK, omrissLine, omrissMidt, PLAN_ROM, ramme as planRamme, snappPunkt, ut, type Plan, type Ramme, type Strek } from "@/lib/plan"
 import type { Montasje } from "@/lib/montasje"
 import { FOV_FLAT, FOV_NAER, GROUND_Y, MAX_DIST, MIN_DIST, NAER_LUFT, SKODDE_FJERN, SKODDE_NAER, fovSkala, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
@@ -12,7 +13,9 @@ import type { SkisseSyn } from "@/lib/snitt"
 import { DELING_MAX, DELING_MIN } from "@/lib/params"
 import type { BitBoks } from "@/lib/kropp"
 import type { BuildRes } from "@/lib/worker"
+import type { GizmoModus } from "./arket-legacy"
 import { DOBBELT_MS } from "./deler"
+import { ModernKube, RomGizmo } from "./gizmo"
 import { useTeikning } from "./teikning"
 import { rettOpp, snapp, snappliner, teikneNormal, type Snappline } from "@/lib/teikning"
 
@@ -303,17 +306,6 @@ function iStrek(s: Strek, S: number, q: Pt, tol: number): boolean {
 
 export type Sikt = { n: number; dir: Vec3 | null }
 
-function Kuben({ laast, ...rest }: { laast: boolean } & ComponentProps<typeof GizmoViewcube>) {
-  const { tweenCamera } = useGizmoContext()
-  const trykk = (e: ThreeEvent<MouseEvent>) => {
-    e.stopPropagation()
-    if (e.object.position.lengthSq() > 1e-6 || !e.face) return null
-    tweenCamera(e.face.normal)
-    return null
-  }
-  return <GizmoViewcube {...rest} onClick={laast ? trykk : undefined} />
-}
-
 function FitCamera({ fit, rute, sikt, laast }: { fit: Fit | null; rute: Rute; sikt: Sikt; laast: boolean }) {
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
@@ -335,20 +327,24 @@ function FitCamera({ fit, rute, sikt, laast }: { fit: Fit | null; rute: Rute; si
       s.r = 0
     }
     const flytta = s.rute !== nokkel
-    if (!flytta && s.r && Math.abs(fit.r - s.r) / s.r < 0.1) return
+    const berreRute = !heim && s.r > 0 && Math.abs(fit.r - s.r) / s.r < 0.1
+    if (!flytta && berreRute) return
+    const h = sikt.dir ?? HEIM
+    const dir = heim && !laast ? new THREE.Vector3(...h) : camera.position.clone().sub(controls.target)
+    if (dir.lengthSq() < 1e-6) dir.set(...h)
     s.r = fit.r
     s.rute = nokkel
     roOrbit(controls)
     const persp = camera as THREE.PerspectiveCamera
-    const r = ramme(fit, { rute, fovDeg: persp.fov ?? 30 })
+    const r = ramme(fit, { rute, fovDeg: FOV_NAER })
     persp.aspect = r.fri.w / r.fri.h
     persp.setViewOffset(r.fri.w, r.fri.h, -r.fri.L, -r.fri.T, size.width, size.height)
-    controls.target.set(0, r.y, 0)
-    const h = sikt.dir ?? HEIM
-    const dir = heim && !laast ? new THREE.Vector3(...h) : camera.position.clone().sub(controls.target)
-    if (dir.lengthSq() < 1e-6) dir.set(...h)
-    camera.position.copy(controls.target).add(dir.setLength(r.dist))
-    controls.update?.()
+    persp.updateProjectionMatrix()
+    if (!berreRute) {
+      controls.target.set(0, r.y, 0)
+      camera.position.copy(controls.target).add(dir.setLength(r.dist))
+      controls.update?.()
+    }
     invalidate()
   }, [fit, nokkel, rute, sikt, laast, controls, camera, invalidate, size])
   return null
@@ -397,6 +393,7 @@ function Streket({ f, r, valt, valdStrek, S, boks, arb, snapp, setLive, onSynStr
     const slepp = () => {
       stakRef.current = null
       arb.current = null
+      roOrbit(controls)
       if (controls) controls.enabled = true
     }
     const ned = (e: PointerEvent) => {
@@ -618,6 +615,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
   const senterPx = useRef({ x: 0, y: 0 })
   const kamSist = useRef({ x: NaN, y: NaN, z: NaN, d: NaN, fov: NaN })
   const sist = useRef<{ o: THREE.Vector3; n: THREE.Vector3 } | null>(null)
+  const maal = useMaal()
   const skrive = useRef("")
 
   const aksar = () => {
@@ -636,8 +634,8 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
     return { x: ((p.x + 1) / 2) * size.width, y: ((1 - p.y) / 2) * size.height }
   }
 
-  const naa = useRef({ f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute })
-  naa.current = { f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }
+  const naa = useRef({ f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute, maal })
+  naa.current = { f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute, maal }
 
   useFrame(() => {
     const g = gruppe.current
@@ -796,9 +794,11 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       merke.style.transform = `translate(${c.x + 30}px, ${c.y - 10}px)`
       merke.dataset.skisse = "snitt"
       const l = naa.current.lapp
+      const m = naa.current.maal
       const ordStrek = (q: Strek) =>
-        `${q.slag === "gods" ? "gods" : "hòl"} ${Math.round(q.w * S)}×${Math.round(q.h * S)} mm${q.a ? ` · ${Math.round(q.a)}°` : ""}`
-      const tekst = s ? ordStrek(s) : `${synleg ? "" : `${valt!.id} · `}${l ? l.ord : synleg ? "skisse" : ""}`
+        `${q.slag === "gods" ? mt(m, "solid", "gods") : mt(m, "hole", "hòl")} ${Math.round(q.w * S)}×${Math.round(q.h * S)} mm${q.a ? ` · ${Math.round(q.a)}°` : ""}`
+      const lOrd = l ? (m === "nn" ? l.ord : l.ord.replace(" ledd · ", " joints · ")) : ""
+      const tekst = s ? ordStrek(s) : `${synleg ? "" : `${valt!.id} · `}${l ? lOrd : synleg ? mt(m, "sketch", "skisse") : ""}`
       if (ord && tekst !== skrive.current) {
         skrive.current = tekst
         ord.textContent = tekst
@@ -829,10 +829,9 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
 
     const restore = (til: { pos: THREE.Vector3; target: THREE.Vector3 } | null = snap) => {
       if (!til || !controls) return
-      roOrbit(controls)
       camera.position.copy(til.pos)
       controls.target.copy(til.target)
-      controls.update?.()
+      roOrbit(controls)
       invalidate()
     }
     const her = () => (controls ? { pos: camera.position.clone(), target: controls.target.clone() } : null)
@@ -859,21 +858,22 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       }
       return { id, x0, y0, a0: 0, senter: { ...senterPx.current }, pose: { ...pose.current }, pl }
     }
-    const bruk = (t: Tak, dx: number, dy: number, ang: number, langs: "n" | "plan" = "n") => {
+    const bruk = (t: Tak, dx: number, dy: number, ang: number, langs: "n" | "plan" = "n", shift = false) => {
       const { f, onPlan, fri } = naa.current
       if (!f) return
       const sn = { vri: false, pos: false }
+      const aktivSteg = shift ? Math.max(15, naa.current.snappSteg) : naa.current.snappSteg
       if (t.pl) {
         const { right, up, fwd } = aksar()
         const n = t.pl.n.clone()
         if (ang) {
           n.applyAxisAngle(fwd, ang)
           const ns = new THREE.Vector2(n.dot(right), -n.dot(up))
-          const steg = (naa.current.snappSteg * Math.PI) / 180
+          const steg = (aktivSteg * Math.PI) / 180
           if (steg && ns.length() > 0.05) {
             const a = Math.atan2(ns.y, ns.x)
             const q = Math.round(a / steg) * steg
-            if (Math.abs(a - q) < SNAPP_VRI) {
+            if (shift || Math.abs(a - q) < SNAPP_VRI) {
               n.applyAxisAngle(fwd, q - a)
               sn.vri = true
             }
@@ -902,10 +902,10 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       } else {
         const p = pose.current
         let phi = t.pose.phi - ang
-        const stegP = (naa.current.snappSteg * Math.PI) / 180
+        const stegP = (aktivSteg * Math.PI) / 180
         if (ang && stegP) {
           const q = Math.round(phi / stegP) * stegP
-          if (Math.abs(phi - q) < SNAPP_VRI) {
+          if (shift || Math.abs(phi - q) < SNAPP_VRI) {
             phi = q
             sn.vri = true
           }
@@ -960,6 +960,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       naa.current.onGest(null)
     }
     const sleppHandtak = () => {
+      roOrbit(controls)
       if (controls) controls.enabled = true
       slepp()
     }
@@ -1069,8 +1070,8 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       }
       if (mode === "hFlytt" || mode === "hNormal" || mode === "hVri") {
         if (!tak || e.pointerId !== tak.id) return
-        if (mode !== "hVri") bruk(tak, e.clientX - tak.x0, e.clientY - tak.y0, 0, mode === "hFlytt" && tak.pl && (naa.current.valt?.omriss?.length || naa.current.valt?.bog) ? "plan" : "n")
-        else vri(tak, vinkel(Math.atan2(e.clientY - tak.senter.y, e.clientX - tak.senter.x), tak.a0))
+        if (mode !== "hVri") bruk(tak, e.clientX - tak.x0, e.clientY - tak.y0, 0, mode === "hFlytt" && tak.pl && (naa.current.valt?.omriss?.length || naa.current.valt?.bog) ? "plan" : "n", e.shiftKey)
+        else bruk(tak, 0, 0, vinkel(Math.atan2(e.clientY - tak.senter.y, e.clientX - tak.senter.x), tak.a0), "n", e.shiftKey)
         return
       }
       if (!pts.has(e.pointerId)) return
@@ -1131,11 +1132,15 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       if (mode === "musRute") return sleppHandtak()
       if (mode === "musFlytt" || mode === "musVri") return slepp()
       if ((mode === "hFlytt" || mode === "hNormal" || mode === "hVri") && tak && e.pointerId === tak.id) return sleppHandtak()
-      if (attheld && e.pointerId === attheld.id) attheld = null
+      if (attheld && e.pointerId === attheld.id) {
+        restore(snap)
+        attheld = null
+      }
       if (!pts.delete(e.pointerId)) return
       if (pts.size === 0) {
         slepp()
         snap = null
+        roOrbit(controls)
         if (controls) controls.enabled = true
       } else if (pts.size < 2 && mode !== "lys") slepp()
     }
@@ -1320,6 +1325,7 @@ function Spora({ f, snitt, boks, onDeling }: {
     const opp = () => {
       if (!dra) return
       dra = null
+      roOrbit(controls)
       if (controls) controls.enabled = true
     }
     boks.addEventListener("pointerdown", ned)
@@ -1574,6 +1580,7 @@ function Omrisset({ f, r, omriss, runde, S, fri, boks, snappSteg, onPunkt, onLeg
       avlys()
       const d = dra
       dra = null
+      roOrbit(controls)
       if (controls) controls.enabled = true
       for (const q of boks.querySelectorAll<HTMLElement>("[data-punkt][data-snapp]")) delete q.dataset.snapp
       if (d.snapp?.slag === "punkt" && d.snapp.mot !== undefined) naa.current.onSlaaSaman(d.i, d.snapp.mot)
@@ -2107,6 +2114,7 @@ function Sidehandtak({ f, boks, boks3, dra, onSide, onGest }: {
       if (!tak.current) return
       tak.current = null
       dra.current = false
+      roOrbit(controls)
       if (controls) controls.enabled = true
       naa.current.onGest(null)
     }
@@ -2161,7 +2169,6 @@ function Sidehandtak({ f, boks, boks3, dra, onSide, onGest }: {
   return null
 }
 
-const SIDEORD = ["høgre", "venstre", "topp", "botn", "framme", "bak"]
 const KUBE_SKALA = 0.75
 const KUBE_HOVER = "#dcdcdc"
 
@@ -2323,7 +2330,7 @@ const IkonStor = (
   </svg>
 )
 
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, teiknSlag, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, synTil, benk, gruppe, teikneplan }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, rot, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, teiknSlag, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, synTil, benk, gruppe, teikneplan, gizmoModus, onSettRot, onSettStorleik }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -2340,6 +2347,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   blink: number | null
   skisse: MutableRefObject<Skisse | null>
   storleik: number
+  rot?: Vec3
   valdStrek: number | null
   valdBit: number | null
   onVald: (id: number | null) => void
@@ -2380,7 +2388,11 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   teikneplan?: MutableRefObject<(() => { o: Vec3; n: Vec3 }) | null>
   benk: boolean
   gruppe: readonly number[]
+  gizmoModus?: GizmoModus | null
+  onSettRot?: (rx: number, ry: number, rz: number) => void
+  onSettStorleik?: (s: number) => void
 }) {
+  const maal = useMaal()
   const bitar = useMemo(() => kropp?.bitar ?? [], [kropp])
   const [sikt, setSikt] = useState<Sikt>({ n: 0, dir: null })
   const fRaa = useMemo(() => ramma(kropp ?? lag, mont?.boks), [kropp, lag, mont])
@@ -2435,6 +2447,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.NeutralToneMapping }}
         camera={{ position: [2.4, 2.1, 6.4], fov: 30 }}
         className="touch-none"
+        onContextMenu={(e) => e.preventDefault()}
         onPointerMissed={() => onVald(null)}
       >
         <color attach="background" args={[bg]} />
@@ -2506,15 +2519,13 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <GizmoHelper alignment="top-right" margin={[rute.hogre + 38, rute.topp + 38]}>
           <Sovnen sov={sov}>
             <group scale={KUBE_SKALA}>
-              <Kuben
+              <ModernKube
                 laast={laast}
-                faces={SIDEORD}
-                color={tema.paper}
-                textColor={tema.ink}
-                strokeColor={tema.ink}
+                paper={tema.paper}
+                ink={tema.ink}
                 hoverColor={KUBE_HOVER}
-                opacity={0.92}
-                font="26px Inter, ui-sans-serif, system-ui, sans-serif"
+                opacity={0.94}
+                font="24px Inter, ui-sans-serif, system-ui, sans-serif"
               />
             </group>
           </Sovnen>
@@ -2525,9 +2536,10 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <Streket f={teikn ? null : f} r={rValt} valt={valt} valdStrek={valdStrek} S={storleik} boks={boks} arb={arb} snapp={snapp} setLive={setLive} onSynStrek={onSynStrek} onStrek={onStrek} />
         <Zoom onGest={onGest} />
         <Handa f={teikn ? null : f} fri={fri} sov={sov} modus={modus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} arb={arb} snapp={snapp} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
+        <RomGizmo f={f} modus={gizmoModus ?? null} valt={valt} snappSteg={snappSteg} rot={rot} storleik={storleik} onPlan={onPlan} onSettRot={onSettRot} onSettStorleik={onSettStorleik} />
         <OrbitControls
           target={[0, 0.35, 0]}
-          enablePan={benk}
+          enablePan
           mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN }}
           enableRotate={!laast}
           screenSpacePanning
@@ -2544,14 +2556,14 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         />
       </Canvas>
       <div className="synskube" style={{ right: rute.hogre + 16, top: rute.topp + 72 }}>
-        <button type="button" data-laas="" aria-pressed={laast} aria-label="lås synet" title={laast ? "synsvinkelen er låst: berre dei seks sidene på synskuben snur. trykk for å sleppe han" : "lås synsvinkelen: éin finger og heimknappen snur han ikkje meir, synskuben berre til dei seks sidene"} onClick={() => setLaast((v) => !v)}>
+        <button type="button" data-laas="" aria-pressed={laast} aria-label={mt(maal, "lock view", "lås synet")} title={laast ? mt(maal, "view angle is locked: only the six view cube faces rotate. tap to unlock", "synsvinkelen er låst: berre dei seks sidene på synskuben snur. trykk for å sleppe han") : mt(maal, "lock view angle: single finger and home button will not rotate", "lås synsvinkelen: éin finger og heimknappen snur han ikkje meir, synskuben berre til dei seks sidene")} onClick={() => setLaast((v) => !v)}>
           {IkonLaas(!laast)}
         </button>
-        <button type="button" data-heim="" aria-label="ramm inn" title="ramm inn objektet på nytt (F)" onClick={heim}>
+        <button type="button" data-heim="" aria-label={mt(maal, "frame object", "ramm inn")} title={mt(maal, "frame object again (F)", "ramm inn objektet på nytt (F)")} onClick={heim}>
           {IkonHeim}
         </button>
         {view === "lag" && !montasje && (
-          <button type="button" data-skal="" aria-pressed={skal} aria-label="skalet" title={skal ? "skalet: kroppen slik han var. trykk for å sjå berre delane" : "skalet er av: berre delane står. trykk for å sjå kroppen kring dei"} onClick={onSkal}>
+          <button type="button" data-skal="" aria-pressed={skal} aria-label={mt(maal, "shell", "skalet")} title={skal ? mt(maal, "shell: the body as it was. tap to show parts only", "skalet: kroppen slik han var. trykk for å sjå berre delane") : mt(maal, "shell is off: only parts shown. tap to show the body around them", "skalet er av: berre delane står. trykk for å sjå kroppen kring dei")} onClick={onSkal}>
             {IkonSkal}
           </button>
         )}
@@ -2559,7 +2571,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
           type="button"
           data-lupe=""
           aria-label="zoom"
-          title="dra opp og ned: nærare og lenger unna"
+          title={mt(maal, "drag up and down: zoom in and out", "dra opp og ned: nærare og lenger unna")}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId)
             lupe.current = e.clientY
@@ -2579,7 +2591,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
       <div ref={setSporBoks} className="spor">
         {vald !== null && !montasje && !teikn &&
           (snitt?.spor ?? []).map((q) => (
-            <button key={q.nokkel} type="button" data-spor={q.nokkel} aria-label={`ledd ${q.nokkel}`} title={`dra: kor djupt ledd ${q.nokkel} går`}>
+            <button key={q.nokkel} type="button" data-spor={q.nokkel} aria-label={`${mt(maal, "joint", "ledd")} ${q.nokkel}`} title={mt(maal, `drag: joint ${q.nokkel} depth`, `dra: kor djupt ledd ${q.nokkel} går`)}>
               <span aria-hidden="true" />
             </button>
           ))}
@@ -2592,12 +2604,12 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
       )}
       <div ref={setPunktBoks} className="punkt">
         {(montasje || teikn || valdStrek !== null ? [] : valt?.omriss ?? []).map((_, i) => (
-          <button key={`m${i}`} type="button" data-midt={i} hidden aria-label={`legg til eit punkt mellom ${i + 1} og ${((i + 1) % (valt?.omriss?.length ?? 1)) + 1}`} title="dra: eit punkt til, midt på kanten">
+          <button key={`m${i}`} type="button" data-midt={i} hidden aria-label={mt(maal, `add vertex between ${i + 1} and ${((i + 1) % (valt?.omriss?.length ?? 1)) + 1}`, `legg til eit punkt mellom ${i + 1} og ${((i + 1) % (valt?.omriss?.length ?? 1)) + 1}`)} title={mt(maal, "drag: add vertex on edge", "dra: eit punkt til, midt på kanten")}>
             <span aria-hidden="true" />
           </button>
         ))}
         {(montasje || teikn || valdStrek !== null ? [] : valt?.omriss ?? []).map((_, i) => (
-          <button key={`p${i}`} type="button" data-punkt={i} data-rund={valt?.runde?.includes(i) ? "" : undefined} data-vald={i === valdPunkt ? "" : undefined} aria-current={i === valdPunkt} aria-label={`punkt ${i + 1} i omrisset${valt?.runde?.includes(i) ? ", boge" : ""}`} title="dra: flytt punktet — skift låser aksen. dobbelttrykk: hjørne eller boge. pilene flyttar det ein millimeter, ti med skift; ⌫ eller eit langt trykk tek det bort">
+          <button key={`p${i}`} type="button" data-punkt={i} data-rund={valt?.runde?.includes(i) ? "" : undefined} data-vald={i === valdPunkt ? "" : undefined} aria-current={i === valdPunkt} aria-label={mt(maal, `vertex ${i + 1} in outline${valt?.runde?.includes(i) ? ", arc" : ""}`, `punkt ${i + 1} i omrisset${valt?.runde?.includes(i) ? ", boge" : ""}`)} title={mt(maal, "drag: move vertex · shift locks axis · double-tap: corner or arc · arrows nudge 1 mm (shift 10 mm) · delete or hold removes", "dra: flytt punktet — skift låser aksen. dobbelttrykk: hjørne eller boge. pilene flyttar det ein millimeter, ti med skift; ⌫ eller eit langt trykk tek det bort")}>
             <span aria-hidden="true" />
           </button>
         ))}
@@ -2608,8 +2620,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
             key={k}
             type="button"
             data-side={k}
-            aria-label={`storleik ${"xyz"[sd.i]}${sd.teikn > 0 ? "+" : "−"}`}
-            title={`dra: ${"xyz"[sd.i]}-sida av biten`}
+            aria-label={mt(maal, `size ${"xyz"[sd.i]}${sd.teikn > 0 ? "+" : "−"}`, `storleik ${"xyz"[sd.i]}${sd.teikn > 0 ? "+" : "−"}`)}
+            title={mt(maal, `drag: ${"xyz"[sd.i]} face size`, `dra: ${"xyz"[sd.i]}-sida av biten`)}
           >
             <span aria-hidden="true" />
           </button>
@@ -2618,14 +2630,14 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
       <div ref={setBoks} className="handtak" data-slag="skisse" style={{ visibility: "hidden" }}>
         <span data-arm="" aria-hidden="true" />
         <span data-flyttarm="" aria-hidden="true" hidden style={{ height: 1, background: "var(--snitt)", opacity: 0.45, transformOrigin: "0 0" }} />
-        <button type="button" data-handtak="flytt" aria-label="flytt snittet" title="dra: flytt snittet over kroppen">{IkonFlytt}</button>
-        <button type="button" data-handtak="vri" aria-label="vri snittet" title="dra: vri snittet">{IkonVri}</button>
-        <button type="button" data-handtak="normal" aria-label="skuv snittet" title="dra: skuv snittet langs normalen">{IkonStor}</button>
-        <button type="button" data-handtak="strek-flytt" aria-label="flytt streken" title="dra: flytt streken i planet">{IkonFlytt}</button>
-        <button type="button" data-handtak="strek-storleik" aria-label="storleiken på streken" title="dra: breidd og høgd. ein rund strek snappar til sirkel når måla er nære">{IkonStor}</button>
-        <button type="button" data-handtak="strek-vri" aria-label="vri streken" title="dra: vri streken. snappar til 0° og 90°">{IkonVri}</button>
+        <button type="button" data-handtak="flytt" aria-label={mt(maal, "move plane", "flytt snittet")} title={mt(maal, "drag: move plane along body", "dra: flytt snittet over kroppen")}>{IkonFlytt}</button>
+        <button type="button" data-handtak="vri" aria-label={mt(maal, "rotate plane", "vri snittet")} title={mt(maal, "drag: rotate plane", "dra: vri snittet")}>{IkonVri}</button>
+        <button type="button" data-handtak="normal" aria-label={mt(maal, "push plane", "skuv snittet")} title={mt(maal, "drag: slide plane along normal", "dra: skuv snittet langs normalen")}>{IkonStor}</button>
+        <button type="button" data-handtak="strek-flytt" aria-label={mt(maal, "move cutout", "flytt streken")} title={mt(maal, "drag: move cutout in plane", "dra: flytt streken i planet")}>{IkonFlytt}</button>
+        <button type="button" data-handtak="strek-storleik" aria-label={mt(maal, "resize cutout", "storleiken på streken")} title={mt(maal, "drag: width and height · round snaps to circle", "dra: breidd og høgd. ein rund strek snappar til sirkel når måla er nære")}>{IkonStor}</button>
+        <button type="button" data-handtak="strek-vri" aria-label={mt(maal, "rotate cutout", "vri streken")} title={mt(maal, "drag: rotate cutout · snaps to 0° and 90°", "dra: vri streken. snappar til 0° og 90°")}>{IkonVri}</button>
         <span data-merke="" aria-hidden="true">
-          <span data-ord="">skisse</span>
+          <span data-ord="">{mt(maal, "sketch", "skisse")}</span>
           <span data-tikk="" />
         </span>
       </div>

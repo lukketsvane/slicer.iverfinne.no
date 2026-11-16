@@ -1,5 +1,5 @@
 import { chromium, type CDPSession, type Locator, type Page } from "playwright"
-import { mkdirSync } from "node:fs"
+import { existsSync, mkdirSync } from "node:fs"
 import { performance } from "node:perf_hooks"
 import { DEFAULT_PARAMS, type Params } from "../lib/params"
 import { lesPlan } from "../lib/plan"
@@ -41,7 +41,8 @@ async function toFingrar(cdp: CDPSession, fraa: [Punkt, Punkt], til: [Punkt, Pun
 
 async function hovud() {
   const ord = (process.argv.slice(2).join(" ") || "tom; les").split(";").map((s) => s.trim()).filter(Boolean)
-  const nettlesar = await chromium.launch({ executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium", args: ["--disable-features=WebShare"] })
+  const exe = process.env.PW_CHROMIUM ?? (existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined)
+  const nettlesar = await chromium.launch({ ...(exe ? { executablePath: exe } : {}), args: ["--disable-features=WebShare"] })
   const oekt = await nettlesar.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 })
   const side = await oekt.newPage()
   await spegl(side)

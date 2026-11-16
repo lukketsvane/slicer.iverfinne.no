@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { feltTal, lesTal, nn, snap, type ExportKind, type Metrics, type ParamBag, type Range, type Rule, type View } from "@/lib/core"
+import { useMaal, mt, omsetMetrikk, omsetParam, omsetRegel, omsetVerdi, type Maal } from "@/lib/i18n"
 import { RADER } from "@/lib/metrics"
 
 export const VIEWS: readonly { id: View; label: string; hint: string }[] = [
@@ -42,11 +43,11 @@ export const UTTAK: readonly { bolk: string; filer: readonly { id: ExportKind; l
   },
 ]
 
-export function stengd(x: ExportKind, m: Metrics | null): string {
+export function stengd(x: ExportKind, m: Metrics | null, maal: Maal = "nn"): string {
   if (x === "prove" || x === "bogprove" || x === "prosjekt" || !m) return ""
-  if (m.parts === 0) return "ville vorte ei tom fil: ingen delar"
+  if (m.parts === 0) return mt(maal, "would produce an empty file: no parts", "ville vorte ei tom fil: ingen delar")
   if ((x === "ark" || x === "png" || x === "dxf" || x === "alt" || x === "flat" || x === "3mf") && m.sheets === 0) {
-    return "ville vorte ei tom fil: ingen del fekk plass på plata"
+    return mt(maal, "would produce an empty file: no part fit on the sheet", "ville vorte ei tom fil: ingen del fekk plass på plata")
   }
   return ""
 }
@@ -72,13 +73,15 @@ export function chipStyle(active: boolean): CSSProperties {
 }
 
 export function Fiksen({ rule, params, onChange }: { rule: Rule; params: ParamBag; onChange: (p: ParamBag) => void }) {
-  if (rule.ok || !rule.fiks) return null
-  const f = rule.fiks
+  const maal = useMaal()
+  const r = omsetRegel(maal, rule)
+  if (r.ok || !r.fiks) return null
+  const f = r.fiks
   return (
     <button
       type="button"
-      aria-label={`fiks ${rule.label}: ${f.ord}`}
-      title="set dette og rekn om att"
+      aria-label={mt(maal, `fix ${r.label}: ${f.ord}`, `fiks ${rule.label}: ${rule.fiks?.ord ?? f.ord}`)}
+      title={mt(maal, "apply this and recompute", "set dette og rekn om att")}
       onClick={() => onChange({ ...params, ...f.set })}
       className="hit shrink-0 rounded-full border px-2 py-[2px] text-[10px] leading-[14px] tracking-[0.04em]"
       style={{ borderColor: "currentColor", opacity: 0.85 }}
@@ -165,21 +168,22 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
   onChange: (p: ParamBag) => void
   onFiksAlle: () => void
 }) {
+  const maal = useMaal()
   const trygge = rules.filter((r) => !r.ok && r.fiks && !r.fiks.riv)
   const eig = new Map<string, Rule>()
   for (const r of rules) if (r.rad) eig.set(r.rad, r)
   const fiksKnapp = trygge.length ? (
     <button
       type="button"
-      aria-label={`fiks alt: ${trygge.length} råd`}
-      title="trykk alle råda som ikkje riv arbeid, eitt etter eitt, til det ikkje er fleire. eitt steg i angre"
+      aria-label={mt(maal, `fix all: ${trygge.length} suggestions`, `fiks alt: ${trygge.length} råd`)}
+      title={mt(maal, "apply all non-destructive fixes in one undo step", "trykk alle råda som ikkje riv arbeid, eitt etter eitt, til det ikkje er fleire. eitt steg i angre")}
       disabled={busy}
       onClick={onFiksAlle}
       className="hit shrink-0 rounded-full border px-2 py-[2px] text-[10px] leading-[14px] tracking-[0.04em]"
       style={{ borderColor: "currentColor", opacity: busy ? 0.3 : 0.85 }}
       data-fiksalle=""
     >
-      fiks alt · {trygge.length}
+      {mt(maal, "fix all", "fiks alt")} · {trygge.length}
     </button>
   ) : null
   const rader = metrics ? metrics.list : RADER.map((r) => ({ ...r, text: DASH }))
@@ -190,7 +194,9 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
       style={{ opacity: busy ? 0.5 : 1 }}
     >
       {rader.map((q) => {
-        const r = eig.get(q.id)
+        const mRad = omsetMetrikk(maal, q)
+        const rRaw = eig.get(q.id)
+        const r = rRaw ? omsetRegel(maal, rRaw) : undefined
         const brote = !!r && !r.ok
         return (
           <div
@@ -198,26 +204,29 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
             title={r?.why}
             className={"flex items-baseline justify-between gap-2 py-[2px] leading-4" + (brote ? " col-span-2" : "")}
           >
-            <dt className="dim shrink-0 truncate">{q.label}</dt>
+            <dt className="dim shrink-0 truncate">{mRad.label}</dt>
             <dd className="tab flex min-w-0 items-baseline justify-end gap-1.5 text-right" style={{ color: brote && r.hard ? "var(--warn)" : undefined }}>
               <span className="truncate" style={{ textDecoration: brote && !r.hard ? "underline dotted" : undefined, textUnderlineOffset: 3 }}>
-                {brote ? r.value : q.text}
+                {brote ? r.value : mRad.text}
                 {!brote && q.unit && <span className="dim pl-1">{q.unit}</span>}
               </span>
-              {r && <Fiksen rule={r} params={params} onChange={onChange} />}
+              {rRaw && <Fiksen rule={rRaw} params={params} onChange={onChange} />}
             </dd>
           </div>
         )
       })}
-      {utanRad.map((r) => (
-        <div key={r.id} title={r.why} className="col-span-2 flex items-baseline justify-between gap-2 py-[2px] leading-4">
-          <dt className="dim shrink-0 truncate">{r.label}</dt>
-          <dd className="tab flex min-w-0 items-baseline justify-end gap-1.5 text-right" style={{ color: r.hard ? "var(--warn)" : undefined }}>
-            <span className="truncate" style={{ textDecoration: r.hard ? undefined : "underline dotted", textUnderlineOffset: 3 }}>{r.value}</span>
-            <Fiksen rule={r} params={params} onChange={onChange} />
-          </dd>
-        </div>
-      ))}
+      {utanRad.map((rRaw) => {
+        const r = omsetRegel(maal, rRaw)
+        return (
+          <div key={r.id} title={r.why} className="col-span-2 flex items-baseline justify-between gap-2 py-[2px] leading-4">
+            <dt className="dim shrink-0 truncate">{r.label}</dt>
+            <dd className="tab flex min-w-0 items-baseline justify-end gap-1.5 text-right" style={{ color: r.hard ? "var(--warn)" : undefined }}>
+              <span className="truncate" style={{ textDecoration: r.hard ? undefined : "underline dotted", textUnderlineOffset: 3 }}>{r.value}</span>
+              <Fiksen rule={rRaw} params={params} onChange={onChange} />
+            </dd>
+          </div>
+        )
+      })}
       {fiksKnapp && (
         <div className="col-span-2 flex items-baseline justify-end py-[2px] leading-4">{fiksKnapp}</div>
       )}
@@ -236,10 +245,13 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
   onChange: (k: string, v: number) => void
   onSkrubb?: (aktiv: boolean) => void
 }) {
-  const shown = r.names ? (r.names[Math.round(value)] ?? String(value)) : feltTal(value, r.step).replace(".", ",")
+  const maal = useMaal()
+  const label = omsetParam(maal, k, r.label)
+  const rawShown = r.names ? (r.names[Math.round(value)] ?? String(value)) : feltTal(value, r.step).replace(".", ",")
+  const shown = r.names ? omsetVerdi(maal, rawShown) : (maal === "en" ? rawShown.replace(",", ".") : rawShown)
   const [skriv, setSkriv] = useState<string | null>(null)
   const kanSkrive = !r.names
-  const opneFelt = () => setSkriv(feltTal(value, r.step).replace(".", ","))
+  const opneFelt = () => setSkriv(feltTal(value, r.step).replace(".", maal === "en" ? "." : ","))
   const sendt = useRef(false)
   const send = (s: string) => {
     if (sendt.current) return
@@ -279,6 +291,31 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
     el.addEventListener("wheel", paa, { passive: false })
     return () => el.removeEventListener("wheel", paa)
   }, [onChange])
+  if (r.names) {
+    const val = Math.round(value)
+    return (
+      <div ref={rad} className="flex min-h-[40px] items-center justify-between gap-2">
+        <span className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]" style={{ color: "var(--ink)" }}>
+          {label}
+        </span>
+        <div role="group" aria-label={label} className="flex flex-wrap items-center justify-end gap-1">
+          {r.names.map((namn, i) => (
+            <button
+              key={namn}
+              type="button"
+              aria-pressed={val === i}
+              aria-label={`${label} ${omsetVerdi(maal, namn)}`}
+              onClick={() => onChange(k, i)}
+              className={CHIP + " tab min-h-[30px] px-2.5 text-[10px]"}
+              style={chipStyle(val === i)}
+            >
+              {omsetVerdi(maal, namn)}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
   return (
     <div
       ref={rad}
@@ -286,7 +323,7 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
       onDoubleClick={() => { if (benk && kanSkrive && skriv === null) { sendt.current = false; opneFelt() } }}
     >
       <span className="w-20 shrink-0 text-left text-[10px] uppercase leading-[1.2] tracking-[0.12em]" style={{ color: "var(--ink)" }}>
-        {r.label}
+        {label}
         {bi && <span className="dim tab block pt-px text-[9px] normal-case tracking-[0.02em]">{bi}</span>}
       </span>
       <input
@@ -295,9 +332,9 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
         max={r.max}
         step={r.step}
         value={value}
-        aria-label={`${r.label}, tal`}
+        aria-label={mt(maal, `${label}, value`, `${r.label}, tal`)}
         aria-valuetext={`${shown}${r.unit ? " " + r.unit : ""}`}
-        title={`${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra i sporet${kanSkrive ? " · trykk på talet: skriv" : ""}`}
+        title={mt(maal, `${label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · drag track${kanSkrive ? " · tap number to type" : ""}`, `${r.label}: ${r.min}–${r.max}${r.unit ? " " + r.unit : ""} · dra i sporet${kanSkrive ? " · trykk på talet: skriv" : ""}`)}
         className="slider min-w-0 flex-1"
         onChange={(e) => onChange(k, Number(e.currentTarget.value))}
         onPointerDown={() => onSkrubb?.(true)}
@@ -319,7 +356,7 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
       <span className="tab flex w-[68px] shrink-0 items-baseline justify-end text-[11px]" style={{ color: "var(--ink)" }}>
         {skriv !== null ? (
           <input
-            aria-label={`${r.label}, skriv`}
+            aria-label={mt(maal, `${label}, input`, `${r.label}, skriv`)}
             className="tab w-full min-w-0 border-0 border-b bg-transparent p-0 text-right text-[11px] outline-none"
             style={{ color: "var(--ink)", borderColor: "var(--ink)", fontSize: benk ? 11 : 16 }}
             inputMode="decimal"
@@ -341,8 +378,8 @@ export function SliderRow({ k, r, value, bi, benk, onChange, onSkrubb }: {
         ) : kanSkrive ? (
           <button
             type="button"
-            aria-label={`${r.label}, skriv tal`}
-            title={`skriv ${r.label}${r.unit ? " i " + r.unit : ""}`}
+            aria-label={mt(maal, `${label}, type number`, `${r.label}, skriv tal`)}
+            title={mt(maal, `type ${label}${r.unit ? " in " + r.unit : ""}`, `skriv ${r.label}${r.unit ? " i " + r.unit : ""}`)}
             className="hit min-h-[44px] min-w-0 flex-1 truncate text-right"
             onClick={() => { sendt.current = false; opneFelt() }}
           >
