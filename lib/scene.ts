@@ -6,6 +6,7 @@ export const FAMILIAR: readonly { namn: string; tal: number }[] = [
   { namn: "stolform", tal: 10 },
   { namn: "sau", tal: 4 },
   { namn: "dyr", tal: 5 },
+  { namn: "skulptur", tal: 9 },
 ]
 const utgaave = (namn: string, n: number) => `${namn}-${String(n).padStart(2, "0")}`
 export const FILFORMER: readonly string[] = FAMILIAR.filter((f) => f.tal > 1).flatMap((f) =>
