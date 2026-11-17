@@ -90,7 +90,7 @@ export function SnarUttak({
         title={mt(maal, `tap: download ${defLabel.toUpperCase()} · hold & slide: choose format`, `trykk: last ned ${defLabel.toUpperCase()} · hald og dra: vel format`)}
         className={
           kompakt
-            ? "hit tab flex h-7 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] uppercase tracking-[0.08em]"
+            ? "hit tab flex h-12 shrink-0 items-center gap-1 rounded-full border px-2 text-[10px] uppercase tracking-[0.08em]"
             : CHIP + " flex items-center gap-1.5 uppercase tracking-[0.1em]"
         }
         style={{

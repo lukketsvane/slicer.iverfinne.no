@@ -559,7 +559,7 @@ function MobileArket(p: ArketProps) {
           type="button"
           aria-label={open ? mt(maal, "close controls", "lat att kontrollane") : mt(maal, "open controls", "opne kontrollane")}
           aria-expanded={open}
-          className="hit w-full shrink-0 pb-1"
+          className={open ? "hit w-full shrink-0 pb-1" : "hit absolute inset-x-0 top-0 z-10 h-4"}
           style={{ touchAction: "none" }}
           onPointerDown={(e) => { if (e.pointerType !== "mouse") drag.current = { y: e.clientY, id: e.pointerId } }}
           onPointerMove={(e) => {
@@ -578,7 +578,7 @@ function MobileArket(p: ArketProps) {
         </button>
 
         {!open && (
-          <div className="flex h-10 shrink-0 items-center gap-1 px-2">
+          <div className="flex h-12 shrink-0 items-center gap-1 px-2" data-dokk-kollapsa="">
             <button
               type="button"
               aria-label={mt(maal, "planes, parts, sheets and time", "plan, delar, ark og tid")}
@@ -594,7 +594,7 @@ function MobileArket(p: ArketProps) {
                   type="button"
                   onClick={() => { setFane("grupper"); p.onSteg("midt") }}
                   title={mt(maal, "inspect selected plane", "sjå det valde planet")}
-                  className="hit tab flex h-9 shrink-0 items-center px-1 text-[11px]"
+                  className="hit tab flex h-12 shrink-0 items-center px-1 text-[11px]"
                   style={{ color: "var(--ink)" }}
                 >
                   P{p.vald}
@@ -607,7 +607,7 @@ function MobileArket(p: ArketProps) {
                     aria-label={mt(maal, "gizmo tool", "gizmoverkty")}
                     title={mt(maal, "toggle gizmo tool", "slå gizmoverktyet av eller på")}
                     onClick={() => p.onGizmo?.(p.gizmo === null ? "translate" : null)}
-                    className="hit flex h-9 w-9 shrink-0 items-center justify-center"
+                    className="hit flex h-12 w-12 shrink-0 items-center justify-center"
                     style={{ color: p.gizmo !== null ? "var(--ink)" : "var(--rule)" }}
                   >
                     {IcoGizmo}
@@ -619,7 +619,7 @@ function MobileArket(p: ArketProps) {
                     aria-label={mt(maal, "edit shape outline", "form omriss")}
                     title={mt(maal, "freeze or toggle editable outline (O)", "frys eller slepp omrisset (O)")}
                     onClick={p.onForm}
-                    className="hit flex h-9 w-9 shrink-0 items-center justify-center"
+                    className="hit flex h-12 w-12 shrink-0 items-center justify-center"
                   >
                     {IcoForm}
                   </button>
@@ -630,7 +630,7 @@ function MobileArket(p: ArketProps) {
                     aria-label={mt(maal, "duplicate plane", "dubler planet")}
                     title={mt(maal, "duplicate selected plane (D)", "dubler det valde planet (D)")}
                     onClick={() => p.onDupliser?.(p.vald!)}
-                    className="hit flex h-9 w-9 shrink-0 items-center justify-center"
+                    className="hit flex h-12 w-12 shrink-0 items-center justify-center"
                   >
                     {IcoDupliser}
                   </button>
@@ -640,7 +640,7 @@ function MobileArket(p: ArketProps) {
                   aria-label={mt(maal, "delete plane", "slett planet")}
                   title={mt(maal, "delete selected plane (⌫)", "slett det valde planet (⌫)")}
                   onClick={() => p.onSlett(p.vald!)}
-                  className="hit flex h-9 w-9 shrink-0 items-center justify-center"
+                  className="hit flex h-12 w-12 shrink-0 items-center justify-center"
                   style={{ ...HAIR, color: "var(--warn)" }}
                 >
                   {IcoSlett}
@@ -654,7 +654,7 @@ function MobileArket(p: ArketProps) {
                     aria-label={mt(maal, "previous assembly step", "førre steg")}
                     disabled={p.montSteg <= 1}
                     onClick={() => p.onMontHopp?.(Math.max(1, p.montSteg - 1))}
-                    className="hit flex h-9 w-9 items-center justify-center text-[18px] disabled:opacity-30"
+                    className="hit flex h-12 w-12 items-center justify-center text-[18px] disabled:opacity-30"
                   >
                     ‹
                   </button>
@@ -665,7 +665,7 @@ function MobileArket(p: ArketProps) {
                     aria-pressed={!!p.montSpel}
                     aria-label={p.montSpel ? mt(maal, "pause assembly", "stans montasje") : mt(maal, "play assembly", "spel montasje")}
                     onClick={p.onMontVeksl}
-                    className="hit flex h-9 items-center gap-1 px-1 text-[10px]"
+                    className="hit flex h-12 items-center gap-1 px-1 text-[10px]"
                     style={{ color: p.montSpel ? "var(--ink)" : "var(--rule)" }}
                   >
                     <span>{p.montSpel ? "❚❚" : "▶"}</span>
@@ -678,7 +678,7 @@ function MobileArket(p: ArketProps) {
                     aria-label={mt(maal, "next assembly step", "neste steg")}
                     disabled={p.montSteg >= p.mont.steg}
                     onClick={() => p.onMontHopp?.(Math.min(p.mont!.steg, p.montSteg + 1))}
-                    className="hit flex h-9 w-9 items-center justify-center text-[18px] disabled:opacity-30"
+                    className="hit flex h-12 w-12 items-center justify-center text-[18px] disabled:opacity-30"
                   >
                     ›
                   </button>
@@ -692,7 +692,7 @@ function MobileArket(p: ArketProps) {
                     disabled={p.busy}
                     onClick={p.onFiksAlle}
                     title={mt(maal, "apply all safe fixes", "trykk alle trygge råd")}
-                    className="hit flex h-9 w-9 shrink-0 items-center justify-center text-[10px]"
+                    className="hit flex h-12 w-12 shrink-0 items-center justify-center text-[10px]"
                     style={{ color: "var(--warn)" }}
                   >
                     {mt(maal, "fix", "fiks")} · {trygge.length}
@@ -706,7 +706,7 @@ function MobileArket(p: ArketProps) {
                     aria-label={mt(maal, "gizmo tool", "gizmoverkty")}
                     title={mt(maal, "toggle gizmo tool", "slå gizmoverktyet av eller på")}
                     onClick={() => p.onGizmo?.(p.gizmo === null ? "translate" : null)}
-                    className="hit hidden h-9 w-9 shrink-0 items-center justify-center min-[380px]:flex"
+                    className="hit hidden h-12 w-12 shrink-0 items-center justify-center min-[380px]:flex"
                     style={{ color: p.gizmo !== null ? "var(--ink)" : "var(--rule)" }}
                   >
                     {IcoGizmo}
@@ -718,7 +718,7 @@ function MobileArket(p: ArketProps) {
                   onClick={sykleMat}
                   aria-label={`${mt(maal, "material", "materiale")}: ${omsetMat(maal, naaMat, MATERIALS[naaMat].label)}`}
                   title={mt(maal, `material: ${omsetMat(maal, naaMat, MATERIALS[naaMat].label)} (tap to cycle)`, `materiale: ${MATERIALS[naaMat].label} (trykk for neste)`)}
-                  className="hit flex h-7 w-7 shrink-0 items-center justify-center"
+                  className="hit flex h-12 w-12 shrink-0 items-center justify-center"
                 >
                   <span aria-hidden="true" className="block h-4 w-4 rounded-full border" style={{ backgroundColor: MATERIALS[naaMat].hex, borderColor: "var(--ink)" }} />
                 </button>
@@ -728,16 +728,16 @@ function MobileArket(p: ArketProps) {
                   onClick={sykleTjukn}
                   aria-label={mt(maal, `thickness ${tjukn(naaTjukn)} mm`, `tjukn ${tjukn(naaTjukn)} mm`)}
                   title={mt(maal, "tap to cycle sheet thickness", "trykk for neste platetjukn")}
-                  className="hit flex h-9 w-9 shrink-0 items-center justify-center"
+                  className="hit flex h-12 w-12 shrink-0 items-center justify-center"
                 >
                   <span className="tab text-[10px]" aria-hidden="true">{tjukn(naaTjukn)}</span>
                 </button>
               </div>
             )}
 
-            {gjenta && <button type="button" aria-label={mt(maal, "repeat move", "gjenta flyttinga")} title={gjenta.grunn ?? mt(maal, "new plate with same offset as last copy", "ny plate med same flytting som førre kopi")} disabled={!gjenta.gjer} onClick={gjenta.gjer} className="hit h-9 min-w-14 shrink-0 px-1 text-[10px] uppercase tracking-[0.08em]">{mt(maal, "repeat", "gjenta")}</button>}
+            {gjenta && <button type="button" aria-label={mt(maal, "repeat move", "gjenta flyttinga")} title={gjenta.grunn ?? mt(maal, "new plate with same offset as last copy", "ny plate med same flytting som førre kopi")} disabled={!gjenta.gjer} onClick={gjenta.gjer} className="hit h-12 min-w-14 shrink-0 px-1 text-[10px] uppercase tracking-[0.08em]">{mt(maal, "repeat", "gjenta")}</button>}
             <SnarUttak view={p.view} metrics={p.metrics} rules={p.rules} busy={p.busy} onExport={p.onExport} kompakt />
-            <button type="button" aria-label={mt(maal, "export", "eksport")} title={mt(maal, "exports", "uttak")} onClick={() => { setVisAlleUttak(true); setTilUttak(true); setOpenFane("status") }} className={ICON_BTN}>
+            <button type="button" aria-label={mt(maal, "export", "eksport")} title={mt(maal, "exports", "uttak")} onClick={() => { setVisAlleUttak(true); setTilUttak(true); setOpenFane("status") }} className={ICON_BTN + " h-12 w-12"}>
               {IcoUttak}
             </button>
           </div>
