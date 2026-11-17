@@ -2,7 +2,7 @@ import { chromium, type Browser, type Page } from "playwright"
 import { gaa, posen, settPose, spegl } from "./pose"
 import { lesPlan, OMRISS_TAK, rutenett, skrivPlan, type Strek } from "../lib/plan"
 import type { Vec3 } from "../lib/core"
-import { FORMER } from "../lib/scene"
+import { FILFORMER, FORMER } from "../lib/scene"
 import { UTTAK } from "../components/deler"
 import type { Params } from "../lib/params"
 
@@ -3011,7 +3011,7 @@ async function heimskjermen(browser: Browser) {
     return filer.map((r) => new globalThis.URL(r.url).pathname)
   })
   sjekk("båe målføra er lagra for nettlaus opning", mellomlager.includes("/") && mellomlager.includes("/nn"))
-  sjekk("arbeidar, skrift og alle former er på telefonen", mellomlager.some((p) => p.endsWith(".js")) && mellomlager.some((p) => p.endsWith(".woff2")) && mellomlager.filter((p) => p.endsWith(".glb")).length === 19, `${mellomlager.length} filer`)
+  sjekk("arbeidar, skrift og alle former er på telefonen", mellomlager.some((p) => p.endsWith(".js")) && mellomlager.some((p) => p.endsWith(".woff2")) && mellomlager.filter((p) => p.endsWith(".glb")).length === FILFORMER.length, `${mellomlager.length} filer`)
   await page.getByRole("tab", { name: "kontur", exact: true }).click()
   await roleg(page, 700)
   const foer = hash(page)
