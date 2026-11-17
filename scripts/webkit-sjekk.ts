@@ -39,7 +39,7 @@ async function prov() {
     await knapp("skjer hòl").tap()
     await vent(async () => lesPlan((await params()).plan)[0]?.strek.length === 1, "hòlet manglar")
     assert.equal(await side.locator("button[data-punkt]").count(), 0, "omrisshandtak dekkjer hòlhandtak")
-    await knapp("dubler planet").tap()
+    await knapp("dubler planet").first().tap()
     await vent(async () => lesPlan((await params()).plan).length === 2, "kopien manglar")
     const par = lesPlan((await params()).plan)
     await side.waitForTimeout(500) // bokfør kopien før neste diskrete handling
