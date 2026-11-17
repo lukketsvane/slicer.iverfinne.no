@@ -152,7 +152,7 @@ pnpm rekkje   # reads the cut files back: engrave, inner cuts, outline, in order
 pnpm vrient   # meshes that aren't meshes, sliders at both ends, a hostile URL
 pnpm ledd     # every joint the panel counted, found again in the cut profiles — grids, oblique planes, bent ribs with floors, tenons
 pnpm raad     # breaks each rule, presses the fix it offers, checks it worked
-pnpm finn     # auto: every form gets ONE set of slices, it breaks no hard rule, a cube is two planes and an animal is more
+pnpm finn     # auto: every built-in form but the lamp gets ONE set of slices that holds — alone, and with a drawn face kept
 pnpm glb      # writes GLB files with known geometry and reads them back
 npx tsx scripts/former.ts <namn>=<fil>   # a heavy model becomes a built-in form
 pnpm pakk     # redraws every sheet and counts cells — catches overlaps

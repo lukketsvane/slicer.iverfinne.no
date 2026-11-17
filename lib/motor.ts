@@ -3,10 +3,10 @@ import type { BuildOut, DetailKey, ExportKind, ExportOut, Group, ArkSyn, Kutt, M
 import { erPrimitiv, label as srcLabel, raw as srcRaw } from "./sources"
 import { makeKropp, scenaAv } from "./kropp"
 import { erFilform, lesScene } from "./scene"
-import { buildSnitt, DETAIL, skisseSyn, sporBoge, sporPunkt, type SkisseSyn, type Snitt, type Spor } from "./snitt"
+import { buildDelar, buildSnitt, DETAIL, skisseSyn, sporBoge, sporPunkt, type SkisseSyn, type Snitt, type Spor } from "./snitt"
 import type { Plan } from "./plan"
-import { lesPlan, nyGruppe, nyId, skrivPlan } from "./plan"
-import { FINN_BYGG, finnSett, settPlan } from "./finn"
+import { lesPlan, nyGruppe, nyId, PLAN_TAK, skrivPlan } from "./plan"
+import { FINN_BYGG, finnSett, settBrot, settPlan, vurder } from "./finn"
 import { flatDelar, flateMesh, lagDelar, lagMesh, type DelMesh } from "./mesh"
 import { measure } from "./metrics"
 import { checkRules, fiksAlt } from "./rules"
@@ -36,7 +36,7 @@ export type EngineDef = {
   build(p: ParamBag, detail: DetailKey, view: Rom): BuildOut
   measure(p: ParamBag): Metrics
   fiksAlt(p: ParamBag): { p: ParamBag; fiksa: string[]; att: string[] }
-  finn(p: ParamBag): { p: ParamBag; plan: number; proevde: number }
+  finn(p: ParamBag): { p: ParamBag; plan: number; proevde: number; fraa: string }
   rules(p: ParamBag, m: Metrics): Rule[]
   exportFile(p: ParamBag, what: ExportKind): ExportOut
   liste(p: ParamBag): Kutt[]
@@ -46,7 +46,6 @@ export type EngineDef = {
 }
 
 const asP = (p: ParamBag) => p as unknown as Params
-const SETTREGLAR = new Set(["grip", "delar", "orden", "klem", "lause", "gods"])
 
 export const kerfOf = (p: Params) => (p.snittveg ? 0 : p.snitt)
 
@@ -173,38 +172,50 @@ export const MOTOR: EngineDef = {
   },
   finn(bag) {
     const p = asP(bag)
+    const fraa = String(bag.plan ?? "")
     const alle = lesPlan(p.plan)
     const teikna = alle.filter((q) => q.omriss?.length || q.firkant)
     const att = new Set(teikna.map((q) => q.id))
     const fest = skrivFest(new Map([...lesFest(p.fest)].filter(([adr]) => att.has(parseInt(adr, 10)))))
     const k = makeKropp(p)
     const f = finnSett(k, p)
-    let best: { nye: Plan[]; brot: number } | null = null
+    const id0 = nyId(alle)
     const stengde = new Set<string>()
     let bygde = 0
-    for (const s of f.rekkje) {
-      const par = (x: number, y: number) => `${s.d}/${s.vinkel}/${x}/${y}`
-      if (s.a.some((x) => s.b.some((y) => stengde.has(par(x, y))))) continue
+    const ko = [...f.rekkje]
+    let best: { plan: string; tal: number; skaar: number } | null = null
+    for (let i = 0; i < ko.length; i++) {
+      const s = ko[i]
+      const tal = s.a.length + s.b.length
+      if (best && s.skaar <= best.skaar) continue
+      if (teikna.length + tal > PLAN_TAK || id0 + tal > 99999 || teikna.some((q) => Math.abs(q.n[s.d]) > 0.01)) continue
+      const kvar = (id: number) => (id < id0 ? "" : id - id0 < s.a.length ? `a${s.a[id - id0]}` : `b${s.b[id - id0 - s.a.length]}`)
+      const namn = (ledd: readonly string[]) => `${s.d}/${s.vinkel}/${[...ledd].sort().join("/")}`
+      if (s.a.some((x) => stengde.has(namn([`a${x}`])) || s.b.some((y) => stengde.has(namn([`a${x}`, `b${y}`])))) || s.b.some((y) => stengde.has(namn([`b${y}`])))) continue
       if (bygde++ >= FINN_BYGG) break
-      const nye = settPlan(k, s, nyId(alle), nyGruppe(alle))
-      const q: Params = { ...p, plan: skrivPlan(nye), fest }
-      const bygg = makeBygg(q, DETAIL.mid)
-      const brot = checkRules(q, measure(q, bygg), bygg, false).filter((r) => !r.ok && r.hard && SETTREGLAR.has(r.id)).length
-      if (!best || brot < best.brot) best = { nye, brot }
-      if (!brot) break
-      const steng = (i: number, j: number) => {
-        const [x, y] = [i - nye[0].id, j - nye[0].id].sort((u, v) => u - v)
-        if (x >= 0 && x < s.a.length && y >= s.a.length) stengde.add(par(s.a[x], s.b[y - s.a.length]))
+      const nye = settPlan(k, s, id0, nyGruppe(alle))
+      const q: Params = { ...p, plan: skrivPlan([...teikna, ...nye]), fest }
+      const snitt = buildSnitt(k, q, DETAIL.mid)
+      const brot = settBrot(snitt, buildDelar(snitt, q), nye, Math.max(2, q.tjukn))
+      const ny = (id: number) => id >= id0
+      const par = brot.par.filter((l) => l.some(ny))
+      const plan = [...brot.tome, ...brot.svake.filter((l) => l.some(ny)).map((l) => l[0])].filter(ny)
+      if (!par.length && !plan.length && !brot.fast.some((l) => l.some(ny)) && !brot.laust) {
+        best = { plan: q.plan, tal, skaar: s.skaar }
+        if (i === 0) break
+        continue
       }
-      for (const [i, j] of bygg.s.montering.klem) steng(i, j)
-      for (const r of bygg.s.ribber) {
-        if (r.narrow >= Math.max(2, q.tjukn) || !r.spor.length) continue
-        const tynn = r.spor.reduce((u, v) => (Math.min(v.botn - v.lo, v.hi - v.botn) < Math.min(u.botn - u.lo, u.hi - u.botn) ? v : u))
-        steng(r.plan.id, tynn.mot)
+      const bort = new Set(plan.map(kvar))
+      for (const l of par) {
+        const ledd = l.map(kvar).filter(Boolean)
+        stengde.add(namn(ledd))
+        bort.add(ledd.find((v) => v[0] === (s.a.length >= s.b.length ? "a" : "b")) ?? ledd[0])
       }
+      for (const id of plan) stengde.add(namn([kvar(id)]))
+      const att = { ...s, a: s.a.filter((x) => !bort.has(`a${x}`)), b: s.b.filter((y) => !bort.has(`b${y}`)) }
+      if (att.a.length && att.b.length && att.a.length + att.b.length < tal) ko.splice(i + 1, 0, vurder(k, p, s.d, s.vinkel, att.a, att.b))
     }
-    if (!best || best.brot) return { p: bag, plan: 0, proevde: f.proevde }
-    return { p: { ...bag, plan: skrivPlan([...teikna, ...best.nye]), fest }, plan: best.nye.length, proevde: f.proevde }
+    return best ? { p: { ...bag, plan: best.plan, fest }, plan: best.tal, proevde: f.proevde, fraa } : { p: bag, plan: 0, proevde: f.proevde, fraa }
   },
   rules: (bag, m) => checkRules(asP(bag), m),
 

@@ -396,7 +396,7 @@ export function Studio() {
 
       if (r.kind === "finn") {
         setBusy(false)
-        const gjeld = r.plan > 0 && kroppKey(naa.current) === kroppKey(r.params)
+        const gjeld = r.plan > 0 && kroppKey(naa.current) === kroppKey(r.params) && String(naa.current.plan ?? "") === r.fraa
         if (gjeld) { setVald(null); setParams((cur) => ({ ...cur, plan: r.params.plan, fest: r.params.fest })) }
         setMelding(gjeld ? `${r.plan} plan · ${r.proevde} prøvde` : "ingenting å skjere")
         return
@@ -2002,7 +2002,7 @@ export function Studio() {
           >
             {IcoRute}
           </button>
-          {vald === null && <button type="button" aria-label="auto" title={mt(maal, "auto: tries a few hundred sets of slices and keeps the fewest that say the form", "auto: prøver nokre hundre sett med snitt og held det minste som seier forma")} disabled={busy} onClick={finn} className={ORD + " h-12 min-w-12"} data-auto="">auto</button>}
+          {vald === null && <button type="button" aria-label="auto" title={mt(maal, "auto: tries up to a few hundred sets of slices and keeps the fewest that say the form", "auto: prøver opp til nokre hundre sett med snitt og held det minste som seier forma")} disabled={busy} onClick={finn} className={ORD + " h-12 min-w-12"} data-auto="">auto</button>}
           </>)}
           {vald !== null && modus !== "bit" && view !== "montasje" && (
             <>

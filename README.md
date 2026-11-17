@@ -1299,11 +1299,11 @@ ranking is not a decision. The tool that sets them is.
 
 ## Auto
 
-**auto** is one word in the thumb column and one press: it tries a few hundred
-sets of slices against the body and leaves the one that says the most with the
-fewest. It is the search that was taken out above, back as what it should have
-been — it hands over a set, not a ranking. It is in the column when nothing is
-selected, because it is about the body and not about a plane.
+**auto** is one word in the thumb column and one press: it tries up to a few
+hundred sets of slices against the body and leaves the one that says the most
+with the fewest. It is the search that was taken out above, back as what it
+should have been — it hands over a set, not a ranking. It is in the column when
+nothing is selected, because it is about the body and not about a plane.
 
 **A set is two families of flat planes that share one slot direction.** That is
 the only kind that always goes together with slots alone; a third direction is
@@ -1330,34 +1330,49 @@ hundredths more with three more planes loses.
 
 **Only what holds is counted.** Each frame samples the body into 64 × 64 columns
 of 32 cells along the slot direction. A crossing is a joint only where the
-engine would cut one — long enough along the slot, and with a shoulder on both
-sides in both plates. A pair that crosses in material without that is a clamp,
-and such a pair is never in the same set. An island no joint reaches is left out
-of the measure, the same way `lause` leaves it out of the file.
+engine would cut one — long enough along the slot for the split `ledd` asks for,
+and with a shoulder beside each plate's own half of it. A pair that crosses in
+material without that is a clamp, and such a pair is never in the same set. A
+section too small to be a part is not a candidate. And only one assembly is
+measured: the one that grows from the largest crossing, through joints and
+across each section. An island no joint of that assembly reaches says nothing,
+the same way `lause` leaves it out of the file.
 
-**Then it is built for real.** The sets are built at the resolution the rules
-are read at, best first, until one breaks none of the hard rules a set can
-answer for: that the planes grip, that there are parts, that it can be put
-together, that nothing clamps, that no part is loose, that there is material in
-the joint. The sheet and the kerf are the plate's business and are not asked. A
-set that fails closes the pair of planes that failed for every set after it. Six
-builds at most; if none holds, nothing is changed and the line says there was
-nothing to cut. The search itself is a few hundredths of a second on a laptop
-and the builds are the rest, a few tenths together.
+**Then it is built for real, together with what you drew.** The sets are built
+at the resolution the rules are read at, best first. A set holds when nothing
+clamps, every joint has material in it, every new plane becomes a part, every
+part is held by a joint into the one assembly, and nothing is stuck. That last
+but one is not the same as having a slot: where a rib meets another in two
+stretches, the slot for the lower one is cleared right out through the upper,
+and the piece that sat there has a slot and nothing in it. A break names its
+planes; that pair or plane is closed for every set after, and the same set is
+tried once more without them. If the best set holds, that is the answer;
+otherwise it is the best of those that held within six builds, and if none did,
+nothing is changed and the line says there was nothing to cut. The sheet, the
+kerf and the loose islands are the plate's and the `lause` setting's business
+and are not asked. The search itself is a few hundredths of a second on a
+laptop and the builds are the rest, a few tenths together.
 
 **It takes the slices of the body and leaves what you drew.** Every plane that
 takes its profile from the body is replaced, the ones cut by hand too; a plane
-that carries an outline stays, with its pin on the sheet. The new ones are
-numbered after the highest number there has been, so no name is reused, and
-the whole press is one step in undo.
+that carries an outline stays, with its pin on the sheet. A set whose slots a
+drawn face stands across is not tried, since that face would be the third
+direction. The new planes are numbered after the highest number there has been,
+so no name is reused, a set that would pass the ceiling of 64 is passed over,
+and the whole press is one step in undo. If the list changed while the search
+ran, the answer is dropped.
 
-**It does not tilt.** Every plane is upright in its frame, so a chair with
-splayed legs keeps its seat and loses the legs no upright plane can hold, and a
-body that stands askew in the workshop should be turned straight first.
+**It tilts only by the 45° of a turned frame.** Any other slant is not searched,
+so a chair with splayed legs keeps its seat and loses the legs no searched plane
+can hold. A body too thin for the plate — the lamp among the built-in forms at
+150 mm — gets nothing.
 
-`pnpm finn` holds it: every built-in form gets one set, the set breaks no hard
-rule, the string is the same every time, a cube is two planes and an animal is
-more, a bigger set was not worth its price and a smaller one said less.
+`pnpm finn` holds it: every built-in form but the lamp gets one set, every plane
+of it is a part with a joint, the string is the same every time, a cube is two
+planes, three forms have the count the score gives them and no other, a bigger
+set was not worth its price and a smaller one said less, a drawn floor stays and
+the set goes together with it, and a box standing 45° askew gets its planes
+along itself.
 
 ## Projects
 
@@ -1476,10 +1491,11 @@ the rules that judge something the table does not show: whether the parts can be
 in any order at all, and the two sliders. Those appear only when they break.
 
 Most broken rules carry their own way out: the rule that knows fifteen parts are
-too big also knows *how much*, so it offers `prøv 290 mm` and sets it — unless
+too big also knows *how much*, so its `fiks` sets 290 mm — unless
 the parts were drawn by hand: a stool drawn at 450 mm is 450 mm, so there the
-advice is a larger sheet, `prøv 600 × 450`, the smallest in whole fifties that
-takes the worst part. **Some
+advice is a larger sheet, 600 × 450, the smallest in whole fifties that
+takes the worst part. The button on the line is the one word `fiks`; what it
+will set is in its label, for a screen reader and for a pointer that rests on it. **Some
 carry none, on purpose.** «Planes grip» and «parts exist» used to offer a 6×6
 grid — one press and your plane list was replaced by a generated one. That is
 not advice, it is a different drawing; now that the grid tool sets the two
@@ -1631,7 +1647,7 @@ pnpm rekkje  # reads the cut files back: engrave, inner cuts, outline, in order
 pnpm vrient  # meshes that aren't meshes, hostile plane strings, a hostile parameter bag
 pnpm ledd    # every joint the panel counted, found again in the cut profiles — grids, oblique planes, bent ribs with floors
 pnpm raad    # breaks each rule, presses the fix it offers, checks it worked
-pnpm finn    # auto: every form gets one set of slices, it breaks no hard rule, a cube is two planes
+pnpm finn    # auto: every built-in form but the lamp gets one set of slices that holds, a cube is two planes
 pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps
 pnpm hand    # the plane list as a string: one edit leaves the rest, names never reused, pins hold
@@ -1734,6 +1750,7 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   breaks, and stopping when nothing changes. It is one step in undo. It skips
   any fix that destroys work — "remove the ones that are stuck" keeps its own
   button, because a tap that deletes forty planes should be a tap you meant.
+  That button reads `fiks` like the others; only its label says it removes.
 - The order check asks whether each part can be pushed in along its own slots,
   given the parts already placed. It does not sweep the part along that path to
   see whether it collides with something else on the way; a set that passes can

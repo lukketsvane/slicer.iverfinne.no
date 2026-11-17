@@ -1,7 +1,8 @@
-import type { Vec3 } from "./core"
+import { MIN_AREA, type Vec3 } from "./core"
 import type { Kropp } from "./kropp"
 import type { Params } from "./params"
 import { broek, type Plan } from "./plan"
+import { stykkeLangs, type DelListe, type Snitt } from "./snitt"
 
 const FINN_N = 64
 export const FINN_TAK = 6
@@ -64,16 +65,16 @@ function rommet(k: Kropp, d: 0 | 1 | 2, vinkel: number): Rom {
     const al = -ra + ((i + 0.5) * 2 * ra) / N
     for (let j = 0; j < N; j++) {
       const be = -rb + ((j + 0.5) * 2 * rb) / N
-      let bits = 0
+      let bitar = 0
       for (const [lo, hi] of k.solid.runs(d, mp + al * c - be * s, mq + al * s + be * c)) {
         let k0 = Math.max(0, Math.ceil((lo - d0) / hd - 0.5))
         let k1 = Math.min(BITAR - 1, Math.floor((hi - d0) / hd - 0.5))
         if (k1 < k0) k0 = k1 = Math.max(0, Math.min(BITAR - 1, Math.floor(((lo + hi) / 2 - d0) / hd)))
-        bits |= k1 - k0 === BITAR - 1 ? -1 : ((1 << (k1 - k0 + 1)) - 1) << k0
+        bitar |= k1 - k0 === BITAR - 1 ? -1 : ((1 << (k1 - k0 + 1)) - 1) << k0
       }
-      T[i * N + j] = bits
-      U[j * N + i] = bits
-      if (bits) syn[2]++
+      T[i * N + j] = bitar
+      U[j * N + i] = bitar
+      if (bitar) syn[2]++
     }
   }
   for (let x = 0; x < N; x++) {
@@ -95,7 +96,7 @@ function mota(r: Rom, p: Params) {
   const N = FINN_N
   const gods = Math.max(2, p.tjukn)
   const skulder = (p.tjukn + p.klaring) / 2 + Math.min(6, Math.max(2, p.tjukn / 2))
-  const lengd = Math.ceil((2 * gods) / r.hd) + 1
+  const lengd = Math.ceil(gods / Math.min(p.ledd, 1 - p.ledd) / r.hd) + 1
   const sa = Math.ceil((skulder * N) / (2 * r.ra)) + 1
   const sb = Math.ceil((skulder * N) / (2 * r.rb)) + 1
   for (let i = 0; i < N; i++) {
@@ -109,10 +110,10 @@ function mota(r: Rom, p: Params) {
         while (hi + 1 < BITAR && (t >>> (hi + 1)) & 1) hi++
         const n = hi - lo + 1
         if (n < lengd) god = false
-        for (const kv of [lo + Math.floor(n / 4), hi - Math.floor(n / 4)]) {
-          for (let e = 1; e <= sa && god; e++) god = i - e >= 0 && i + e < N && !!((r.T[(i - e) * N + j] >>> kv) & (r.T[(i + e) * N + j] >>> kv) & 1)
-          for (let e = 1; e <= sb && god; e++) god = j - e >= 0 && j + e < N && !!((r.T[i * N + j - e] >>> kv) & (r.T[i * N + j + e] >>> kv) & 1)
-        }
+        const nede = lo + Math.floor((n * p.ledd) / 2)
+        const oppe = Math.min(hi, lo + Math.floor((n * (1 + p.ledd)) / 2))
+        for (let e = 1; e <= sa && god; e++) god = i - e >= 0 && i + e < N && !!((r.T[(i - e) * N + j] >>> nede) & (r.T[(i + e) * N + j] >>> nede) & 1)
+        for (let e = 1; e <= sb && god; e++) god = j - e >= 0 && j + e < N && !!((r.T[i * N + j - e] >>> oppe) & (r.T[i * N + j + e] >>> oppe) & 1)
         lo = hi + 1
       }
       r.mote[i * N + j] = god ? 1 : 2
@@ -122,7 +123,7 @@ function mota(r: Rom, p: Params) {
 
 type Side = { F: Int32Array; C: Float64Array; areal: Int32Array; sum: number; skugge: Int32Array; syn: number; kan: number[]; luft: number }
 
-function sida(F: Int32Array, luft: number): Side {
+function sida(F: Int32Array, luft: number, celle: number): Side {
   const N = FINN_N
   const areal = new Int32Array(N)
   const skugge = new Int32Array(N)
@@ -145,7 +146,7 @@ function sida(F: Int32Array, luft: number): Side {
   }
   const stor = Math.max(...areal) * 0.04
   const kan: number[] = []
-  for (let x = 0; x < N; x++) if (areal[x] > stor) kan.push(x)
+  for (let x = 0; x < N; x++) if (areal[x] > stor && areal[x] * celle >= MIN_AREA) kan.push(x)
   return { F, C, areal, sum, skugge, syn: skugge.reduce((a, b) => a + tel(b), 0), kan, luft }
 }
 
@@ -189,11 +190,17 @@ const naerast = (pos: readonly number[]): Int32Array => {
   return ut
 }
 
-function feste(F: Int32Array, x: number, kryss: readonly number[]): Int32Array {
+const strekk = (v: number, s: number) => {
+  for (;;) {
+    const w = (v | (v << 1) | (v >>> 1)) & s
+    if (w === v) return v
+    v = w
+  }
+}
+
+function fyll(F: Int32Array, x: number, f: Int32Array): boolean {
   const N = FINN_N
-  const f = new Int32Array(N)
-  for (const y of kryss) f[y] = F[x * N + y]
-  if (!kryss.length) return f
+  let noko = false
   for (let endra = true; endra; ) {
     endra = false
     for (let runde = 0; runde < 2; runde++) {
@@ -201,25 +208,48 @@ function feste(F: Int32Array, x: number, kryss: readonly number[]): Int32Array {
         const y = runde ? N - 1 - q : q
         const s = F[x * N + y]
         if (!s) continue
-        let v = (f[y] | (y > 0 ? f[y - 1] : 0) | (y < N - 1 ? f[y + 1] : 0)) & s
-        for (;;) {
-          const w = (v | (v << 1) | (v >>> 1)) & s
-          if (w === v) break
-          v = w
-        }
-        if (v !== f[y]) { f[y] = v; endra = true }
+        const v = strekk((f[y] | (y > 0 ? f[y - 1] : 0) | (y < N - 1 ? f[y + 1] : 0)) & s, s)
+        if (v !== f[y]) { f[y] = v; endra = true; noko = true }
       }
     }
   }
-  return f
+  return noko
+}
+
+function hopen(r: Rom, a: readonly number[], b: readonly number[]): [Int32Array[], Int32Array[]] {
+  const N = FINN_N
+  const ja = a.map(() => new Int32Array(N))
+  const jb = b.map(() => new Int32Array(N))
+  const stor = (F: Int32Array, x: number) => { let v = 0; for (let y = 0; y < N; y++) v += tel(F[x * N + y]); return v }
+  const sa = a.map((x) => stor(r.T, x))
+  const sb = b.map((y) => stor(r.U, y))
+  let best = -1
+  let fraa: [number, number] | null = null
+  a.forEach((x, i) => b.forEach((y, j) => {
+    if (r.mote[x * N + y] === 1 && sa[i] + sb[j] > best) { best = sa[i] + sb[j]; fraa = [i, j] }
+  }))
+  if (!fraa) return [ja, jb]
+  ja[fraa[0]][b[fraa[1]]] = r.T[a[fraa[0]] * N + b[fraa[1]]]
+  for (let endra = true; endra; ) {
+    endra = false
+    a.forEach((x, i) => { if (fyll(r.T, x, ja[i])) endra = true })
+    b.forEach((y, j) => { if (fyll(r.U, y, jb[j])) endra = true })
+    a.forEach((x, i) => b.forEach((y, j) => {
+      if (r.mote[x * N + y] !== 1) return
+      const line = r.T[x * N + y]
+      const naadd = strekk((ja[i][y] | jb[j][x]) & line, line)
+      if (naadd & ~ja[i][y]) { ja[i][y] |= naadd; endra = true }
+      if (naadd & ~jb[j][x]) { jb[j][x] |= naadd; endra = true }
+    }))
+  }
+  return [ja, jb]
 }
 
 function treffet(r: Rom, a: readonly number[], b: readonly number[]): { volum: number; syn: number; treff: number } {
   const N = FINN_N
   const na = naerast(a)
   const nb = naerast(b)
-  const ja = a.map((x) => feste(r.T, x, b.filter((y) => r.mote[x * N + y] === 1)))
-  const jb = b.map((y) => feste(r.U, y, a.filter((x) => r.mote[x * N + y] === 1)))
+  const [ja, jb] = hopen(r, a, b)
   const ra = new Int32Array(N)
   const rb = new Int32Array(N)
   const kant = new Uint8Array(N * N)
@@ -259,15 +289,38 @@ function treffet(r: Rom, a: readonly number[], b: readonly number[]): { volum: n
   return { volum, syn, treff: (volum + syn) / 2 }
 }
 
+function heng(a: readonly number[], b: readonly number[], ledd: (x: number, y: number) => boolean): boolean {
+  const na = new Set([a[0]])
+  const nb = new Set<number>()
+  for (let veks = true; veks; ) {
+    veks = false
+    for (const y of b) if (!nb.has(y) && a.some((x) => na.has(x) && ledd(x, y))) { nb.add(y); veks = true }
+    for (const x of a) if (!na.has(x) && b.some((y) => nb.has(y) && ledd(x, y))) { na.add(x); veks = true }
+  }
+  return na.size === a.length && nb.size === b.length
+}
+
 export function settPlan(k: Kropp, s: Sett, fraa = 1, gFraa = 1): Plan[] {
   const { min, max } = k.solid
-  const { ea, eb, ra, rb } = aksar(k, s.d, s.vinkel)
-  const midt: Vec3 = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2]
+  const { pa, qa, ea, eb, ra, rb } = aksar(k, s.d, s.vinkel)
   const eitt = (e: Vec3, rad: number, x: number, id: number, gruppe: number): Plan => {
-    const al = -rad + ((x + 0.5) * 2 * rad) / FINN_N
-    return { id, o: broek([midt[0] + e[0] * al, midt[1] + e[1] * al, midt[2] + e[2] * al], min, max), n: [+e[0].toFixed(4), +e[1].toFixed(4), +e[2].toFixed(4)], bog: 0, strek: [], gruppe }
+    const langs = Math.abs(e[pa]) * (max[pa] - min[pa]) >= Math.abs(e[qa]) * (max[qa] - min[qa]) ? pa : qa
+    const o: Vec3 = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2]
+    o[langs] += (-rad + ((x + 0.5) * 2 * rad) / FINN_N) / e[langs]
+    return { id, o: broek(o, min, max), n: [+e[0].toFixed(4), +e[1].toFixed(4), +e[2].toFixed(4)], bog: 0, strek: [], gruppe }
   }
   return [...s.a.map((x, i) => eitt(ea, ra, x, fraa + i, gFraa)), ...s.b.map((y, i) => eitt(eb, rb, y, fraa + s.a.length + i, gFraa + 1))]
+}
+
+function prisa(r: Rom, d: 0 | 1 | 2, vinkel: number, a: number[], b: number[]): Sett {
+  const t = treffet(r, a, b)
+  return { d, vinkel, a, b, ...t, skaar: t.treff - FINN_PRIS * (a.length + b.length) - (vinkel ? SKRAA : 0) }
+}
+
+export function vurder(k: Kropp, p: Params, d: 0 | 1 | 2, vinkel: number, a: number[], b: number[]): Sett {
+  const r = rommet(k, d, vinkel)
+  mota(r, p)
+  return prisa(r, d, vinkel, a, b)
 }
 
 export function finnSett(k: Kropp, p: Params): { rekkje: Sett[]; proevde: number } {
@@ -281,8 +334,8 @@ export function finnSett(k: Kropp, p: Params): { rekkje: Sett[]; proevde: number
       mota(r, p)
       const m = [(x: number, y: number) => r.mote[x * N + y], (y: number, x: number) => r.mote[x * N + y]]
       const sider = [
-        sida(r.T, Math.max(2, Math.ceil(((p.tjukn + 6) * N) / (2 * r.ra)))),
-        sida(r.U, Math.max(2, Math.ceil(((p.tjukn + 6) * N) / (2 * r.rb)))),
+        sida(r.T, Math.max(2, Math.ceil(((p.tjukn + 6) * N) / (2 * r.ra))), ((2 * r.rb) / N) * r.hd),
+        sida(r.U, Math.max(2, Math.ceil(((p.tjukn + 6) * N) / (2 * r.rb))), ((2 * r.ra) / N) * r.hd),
       ]
       const sett = new Set<string>()
       for (const fyrst of [0, 1]) {
@@ -291,17 +344,17 @@ export function finnSett(k: Kropp, p: Params): { rekkje: Sett[]; proevde: number
         const em = m[fyrst]
         for (const e0 of veks(e, e.kan.filter((x) => t.kan.some((y) => em(x, y) === 1)))) {
           for (const t0 of veks(t, t.kan.filter((y) => !e0.some((x) => em(x, y) === 2) && e0.some((x) => em(x, y) === 1)))) {
-            proevde++
             const eigne = e0.filter((x) => t0.some((y) => em(x, y) === 1))
             const andre = t0.filter((y) => eigne.some((x) => em(x, y) === 1))
             if (!eigne.length || !andre.length) continue
             const a = fyrst ? andre : eigne
             const b = fyrst ? eigne : andre
+            if (!heng(a, b, (x, y) => r.mote[x * N + y] === 1)) continue
             const nokkel = `${a.join(",")}|${b.join(",")}`
             if (sett.has(nokkel)) continue
             sett.add(nokkel)
-            const t3 = treffet(r, a, b)
-            rekkje.push({ d, vinkel, a, b, ...t3, skaar: t3.treff - FINN_PRIS * (a.length + b.length) - (vinkel ? SKRAA : 0) })
+            proevde++
+            rekkje.push(prisa(r, d, vinkel, a, b))
           }
         }
       }
@@ -309,4 +362,42 @@ export function finnSett(k: Kropp, p: Params): { rekkje: Sett[]; proevde: number
   }
   rekkje.sort((x, y) => y.skaar - x.skaar || x.a.length + x.b.length - y.a.length - y.b.length)
   return { rekkje, proevde }
+}
+
+export type Brot = { par: [number, number][]; tome: number[]; svake: number[][]; fast: number[][]; laust: boolean }
+
+export function settBrot(s: Snitt, dl: DelListe, nye: readonly Plan[], gods: number): Brot {
+  const par: [number, number][] = [...s.montering.klem]
+  const svake: number[][] = []
+  for (const r of s.ribber) {
+    if (r.narrow >= gods || !(r.spor.length || r.tapp.some((q) => q.slag === "slisse"))) continue
+    const tynne = r.spor.filter((v) => {
+      const st = stykkeLangs(r.raa, v.p, v.d, v.k).find(([lo, hi]) => v.botn >= lo && v.botn <= hi)
+      return !!st && (v.munn > v.botn ? v.botn - st[0] : st[1] - v.botn) < gods
+    })
+    if (tynne.length) for (const v of tynne) par.push([r.plan.id, v.mot])
+    else svake.push([r.plan.id, ...r.spor.map((v) => v.mot), ...r.tapp.map((q) => q.mot)])
+  }
+  const flokk = new Map<string, number>()
+  const far = dl.delar.map((_, i) => i)
+  const rot = (i: number): number => (far[i] === i ? i : (far[i] = rot(far[i])))
+  dl.delar.forEach((d, i) => {
+    for (const v of d.spor) {
+      const j = flokk.get(v.nokkel)
+      if (j === undefined) flokk.set(v.nokkel, i)
+      else far[rot(i)] = rot(j)
+    }
+  })
+  const vekt = new Map<number, number>()
+  dl.delar.forEach((d, i) => vekt.set(rot(i), (vekt.get(rot(i)) ?? 0) + d.area))
+  const hovud = [...vekt].reduce((u, v) => (v[1] > u[1] ? v : u), [-1, 0])[0]
+  const inne = new Set(dl.delar.filter((_, i) => rot(i) === hovud).map((d) => d.plan))
+  const ute = new Set(dl.delar.filter((_, i) => rot(i) !== hovud).map((d) => d.plan))
+  return {
+    par,
+    tome: nye.filter((q) => !inne.has(q.id) || ute.has(q.id)).map((q) => q.id),
+    svake,
+    fast: s.montering.brot.map((id) => [id, ...(s.montering.bunde[id] ?? [])]),
+    laust: s.ledd === 0 || dl.delar.length === 0,
+  }
 }
