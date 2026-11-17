@@ -1322,11 +1322,14 @@ and such a pair is never in the same set. An island no joint reaches is left out
 of the measure, the same way `lause` leaves it out of the file.
 
 **Then it is built for real.** The sets are built at the resolution the rules
-are read at, best first, until one breaks no hard rule — the size of the sheet
-aside, which is the plate's business and not the body's. A set that fails closes
-the pair of planes that failed for every set after it. Six builds at most; the
-search itself is a few hundredths of a second on a laptop and the builds are the
-rest, a few tenths together.
+are read at, best first, until one breaks none of the hard rules a set can
+answer for: that the planes grip, that there are parts, that it can be put
+together, that nothing clamps, that no part is loose, that there is material in
+the joint. The sheet and the kerf are the plate's business and are not asked. A
+set that fails closes the pair of planes that failed for every set after it. Six
+builds at most; if none holds, nothing is changed and the line says there was
+nothing to cut. The search itself is a few hundredths of a second on a laptop
+and the builds are the rest, a few tenths together.
 
 **It takes the slices of the body and leaves what you drew.** Every plane that
 takes its profile from the body is replaced, the ones cut by hand too; a plane

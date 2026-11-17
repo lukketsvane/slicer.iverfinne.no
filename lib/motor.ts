@@ -46,6 +46,7 @@ export type EngineDef = {
 }
 
 const asP = (p: ParamBag) => p as unknown as Params
+const SETTREGLAR = new Set(["grip", "delar", "orden", "klem", "lause", "gods"])
 
 export const kerfOf = (p: Params) => (p.snittveg ? 0 : p.snitt)
 
@@ -178,7 +179,7 @@ export const MOTOR: EngineDef = {
     const fest = skrivFest(new Map([...lesFest(p.fest)].filter(([adr]) => att.has(parseInt(adr, 10)))))
     const k = makeKropp(p)
     const f = finnSett(k, p)
-    let best: { q: Params; plan: number; brot: number } | null = null
+    let best: { nye: Plan[]; brot: number } | null = null
     const stengde = new Set<string>()
     let bygde = 0
     for (const s of f.rekkje) {
@@ -186,10 +187,10 @@ export const MOTOR: EngineDef = {
       if (s.a.some((x) => s.b.some((y) => stengde.has(par(x, y))))) continue
       if (bygde++ >= FINN_BYGG) break
       const nye = settPlan(k, s, nyId(alle), nyGruppe(alle))
-      const q: Params = { ...p, plan: skrivPlan([...teikna, ...nye]), fest }
+      const q: Params = { ...p, plan: skrivPlan(nye), fest }
       const bygg = makeBygg(q, DETAIL.mid)
-      const brot = checkRules(q, measure(q, bygg), bygg, false).filter((r) => !r.ok && r.hard && r.id !== "plate").length
-      if (!best || brot < best.brot) best = { q, plan: nye.length, brot }
+      const brot = checkRules(q, measure(q, bygg), bygg, false).filter((r) => !r.ok && r.hard && SETTREGLAR.has(r.id)).length
+      if (!best || brot < best.brot) best = { nye, brot }
       if (!brot) break
       const steng = (i: number, j: number) => {
         const [x, y] = [i - nye[0].id, j - nye[0].id].sort((u, v) => u - v)
@@ -202,7 +203,8 @@ export const MOTOR: EngineDef = {
         steng(r.plan.id, tynn.mot)
       }
     }
-    return best ? { p: best.q as unknown as ParamBag, plan: best.plan, proevde: f.proevde } : { p: bag, plan: 0, proevde: f.proevde }
+    if (!best || best.brot) return { p: bag, plan: 0, proevde: f.proevde }
+    return { p: { ...bag, plan: skrivPlan([...teikna, ...best.nye]), fest }, plan: best.nye.length, proevde: f.proevde }
   },
   rules: (bag, m) => checkRules(asP(bag), m),
 

@@ -21,14 +21,16 @@ const sjekk = (namn: string, ok: boolean, sagt = "") => {
 }
 
 const bag = (o: Partial<Params>) => ({ ...DEFAULT_PARAMS, scene: "", plan: "", fest: "", ...o }) as unknown as ParamBag
+const SETTREGLAR = ["grip", "delar", "orden", "klem", "lause", "gods"]
 const harde = (b: ParamBag) => {
   const p = b as unknown as Params
   const bygg = makeBygg(p, DETAIL.mid)
-  return { bygg, brot: checkRules(p, measure(p, bygg), bygg, false).filter((r) => !r.ok && r.hard && r.id !== "plate") }
+  return { bygg, brot: checkRules(p, measure(p, bygg), bygg, false).filter((r) => !r.ok && r.hard && SETTREGLAR.includes(r.id)) }
 }
 
-const FORMER = ["dyr-01", "dyr-02", "dyr-03", "dyr-05", "sau-01", "sau-03", "stolform-03", "stolform-07", "stolform-09"]
-for (const id of FORMER) {
+const FORMER = ["dyr-01", "dyr-02", "dyr-03", "dyr-05", "sau-01", "sau-03", "stolform-03", "stolform-07", "stolform-09", "skulptur-01", "skulptur-07"]
+const TYNNE = ["skulptur-06"]
+for (const id of [...FORMER, ...TYNNE]) {
   const b = readFileSync(`public/form/${id}.glb`)
   put(id, id, parseMesh(`${id}.glb`, b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer))
 }
@@ -100,11 +102,12 @@ console.log("\n=== vrange kroppar ===")
   }
   put("plate", "plate", boks(200, 120, 3))
   put("pinne", "pinne", boks(4, 4, 300))
-  for (const id of ["plate", "pinne"]) {
+  for (const id of ["plate", "pinne", ...TYNNE]) {
     let ut: ReturnType<typeof MOTOR.finn> | null = null
     let kast = ""
-    try { ut = MOTOR.finn(bag({ kjelde: id })) } catch (e) { kast = String(e).slice(0, 80) }
-    sjekk(`${id}: ingen kræsj, og ingen plan som ikkje held`, !!ut && (ut.plan === 0 || harde(ut.p).brot.length === 0), kast || `${ut?.plan} plan`)
+    const inn = bag({ kjelde: id, plan: "1@0.5,0.5,0.5/1,0,0" })
+    try { ut = MOTOR.finn(inn) } catch (e) { kast = String(e).slice(0, 80) }
+    sjekk(`${id}: eit sett som held, eller ingenting`, !!ut && (ut.plan === 0 ? ut.p.plan === inn.plan : harde(ut.p).brot.length === 0), kast || `${ut?.plan} plan`)
   }
 }
 
