@@ -104,27 +104,20 @@ function FormTab({ p, maal }: { p: ArketProps; maal: Maal }) {
       />
       <div className="flex h-8 items-center justify-between border-t pt-1" style={HAIR}>
         {p.onGizmo ? (
-          <div className="flex items-center gap-1">
-            {([
-              ["translate", mt(maal, "move (G)", "flytt (G)")],
-              ["rotate", mt(maal, "rotate (R)", "vri (R)")],
-              ["scale", mt(maal, "scale (S)", "skaler (S)")],
-            ] as const).map(([m, lbl]) => (
-              <button
-                key={m}
-                type="button"
-                data-gizmo={m}
-                aria-pressed={p.gizmo === m}
-                onClick={() => p.onGizmo?.(p.gizmo === m ? null : m)}
-                className={CHIP + " min-h-[26px] px-2 text-[10px]"}
-                style={chipStyle(p.gizmo === m)}
-              >
-                {lbl}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            data-gizmo="tool"
+            aria-pressed={p.gizmo !== null}
+            aria-label={mt(maal, "gizmo tool", "gizmoverkty")}
+            title={mt(maal, "toggle gizmo tool", "slå gizmoverktyet av eller på")}
+            onClick={() => p.onGizmo?.(p.gizmo === null ? "translate" : null)}
+            className="hit flex h-9 w-9 items-center justify-center"
+            style={{ color: p.gizmo !== null ? "var(--ink)" : "var(--rule)" }}
+          >
+            {IcoGizmo}
+          </button>
         ) : <span />}
-        <button type="button" onClick={p.onReset} aria-label={mt(maal, "reset to defaults", "attende til standarden")} title={mt(maal, "reset parameters to defaults (keeps your mesh)", "attende til standarden. nettet ditt står")} className={CHIP + " flex h-7 w-9 items-center justify-center px-0"} style={chipStyle(false)}>
+        <button type="button" onClick={p.onReset} aria-label={mt(maal, "reset to defaults", "attende til standarden")} title={mt(maal, "reset parameters to defaults (keeps your mesh)", "attende til standarden. nettet ditt står")} className="hit flex h-9 w-9 items-center justify-center">
           {IcoReset}
         </button>
       </div>
@@ -592,7 +585,7 @@ function MobileArket(p: ArketProps) {
               onClick={() => { setFane("grupper"); p.onSteg("midt") }}
               className={harValdPlan ? "hit tab hidden min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em] min-[460px]:block" : "hit tab min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em]"}
             >
-              <Summary p={p} maal={maal} />
+              <span className="sr-only"><Summary p={p} maal={maal} /></span>
             </button>
 
             {harValdPlan ? (
