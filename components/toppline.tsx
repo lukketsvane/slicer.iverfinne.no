@@ -6,7 +6,7 @@ import { FORMAT } from "@/lib/io"
 export const BILETE = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"] as const
 import { FORMER } from "@/lib/scene"
 import { useMaal, mt } from "@/lib/i18n"
-import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoNett, IcoShare, VIEWS } from "./deler"
+import { HAIR, ICON_BTN, ORD, IcoAngre, IcoGjerOm, IcoShare, VIEWS } from "./deler"
 
 export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, hopHint, onFile, bibliotek, onLeggLagra, onLegg, onTom, onTomArbeidsflate, onAngre, kanAngre, onGjerOm, kanGjerOm, onShare, prosjektNamn, onProsjekt, onHogd }: {
   benk: boolean
@@ -146,7 +146,7 @@ export function Toppline({ benk, kjelde, bitar, byt, view, onView, montasjeOk, h
               : v.id === "kontur" ? mt(maal, "flat cut profiles (3)", v.hint)
               : mt(maal, "the body rises from its sheets, one set of ribs at a time (4)", v.hint)
             return (
-              <button key={v.id} type="button" role="tab" title={av ? hopHint : hint} aria-label={label} aria-selected={view === v.id} disabled={av} data-fane={v.id} onClick={() => onView(v.id)} className={ORD + " flex items-center justify-center"} style={av ? { opacity: 0.25 } : undefined}>{v.id === "flate" ? IcoNett : label}</button>
+              <button key={v.id} type="button" role="tab" title={av ? hopHint : hint} aria-label={label} aria-selected={view === v.id} disabled={av} data-fane={v.id} onClick={() => onView(v.id)} className={ORD} style={av ? { opacity: 0.25 } : undefined}>{label}</button>
             )
           })}
         </span>
