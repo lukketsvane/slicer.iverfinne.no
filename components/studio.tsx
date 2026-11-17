@@ -21,7 +21,7 @@ import { Scene, snittMidt, type GestKva, type Modus, type Skisse } from "./scene
 import { Arket, KOL, type GizmoModus, type Steg } from "./arket"
 import { useMaal, mt, omsetVerdi } from "@/lib/i18n"
 import { Meny, type MenyStad } from "./meny"
-import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForenkl, IcoForm, IcoHol, IcoMontasje, IcoRute, IcoSkjer, IcoSlett, IcoTeikn } from "./deler"
+import { CHIP, chipStyle, DOBBELT_MS, HAIR, ORD, VIEWS, IcoBit, IcoBoy, IcoDupliser, IcoForenkl, IcoForm, IcoHol, IcoMontasje, IcoNett, IcoRute, IcoSkjer, IcoSlett, IcoTeikn } from "./deler"
 import { Plater } from "./plater"
 import { BileteInn, lesBilete } from "./bilete"
 import { Vektor } from "./vektor"
@@ -2038,8 +2038,17 @@ export function Studio() {
                 <button type="button" aria-label="2d-flata" title={mt(maal, "2D editor: drag points, round corners, draw edges, or cut holes", "planet flatt: dra punkt, legg til, rund, teikn om ein kant med blyanten eller skjer hòl")} onClick={() => setFlatt(true)} className={ORD + " h-12 min-w-12"} data-flatt="">2d</button>
               )}
               {rom && (
-                <button type="button" aria-pressed={bunde} aria-label="bunde av nettet" title={bunde ? mt(maal, "profile is clipped to mesh. tap to release", "profilen er bunden av nettet. trykk for å sleppe han") : mt(maal, "profile is free of mesh. tap to clip to body", "profilen er fri av nettet. trykk for å binde omrisset til kroppen")} onClick={vekslNett} disabled={!harOmriss && !snitt} className={ORD + " h-12 min-w-12"} data-nett="">
-                  {mt(maal, "mesh", "nett")}
+                <button
+                  type="button"
+                  aria-pressed={bunde}
+                  aria-label="bunde av nettet"
+                  title={bunde ? mt(maal, "profile is clipped to mesh. tap to release", "profilen er bunden av nettet. trykk for å sleppe han") : mt(maal, "profile is free of mesh. tap to clip to body", "profilen er fri av nettet. trykk for å binde omrisset til kroppen")}
+                  onClick={vekslNett}
+                  disabled={!harOmriss && !snitt}
+                  className={TUMME_BTN}
+                  data-nett=""
+                >
+                  {IcoNett}
                 </button>
               )}
               {rom && valdGruppe !== null && (

@@ -535,11 +535,12 @@ function Zoom({ onGest }: { onGest: (kva: GestKva) => void }): null {
 
 type SnittVerd = { midt: THREE.Vector3; punkt: THREE.Vector3[] }
 
-function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, arb, snapp, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
+function Handa({ f, fri, sov, modus, gizmoModus, montasje, sideDra, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, arb, snapp, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
   f: Ramma | null
   fri: ReturnType<typeof fritt>
   sov: boolean
   modus: Modus
+  gizmoModus: GizmoModus | null | undefined
   snappSteg: number
   arb: MutableRefObject<string | null>
   snapp: MutableRefObject<{ vri: boolean; pos: boolean }>
@@ -1003,6 +1004,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
 
     const ned = (e: PointerEvent) => {
       svelgKlikk = false
+      if (gizmoModus) return
       if (handtakGaar()) return e.stopImmediatePropagation()
       tapDown = pts.size === 0 && e.isPrimary ? { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId } : { x: 0, y: 0, t: 0, id: -1 }
       if (e.pointerType !== "touch") {
@@ -1131,7 +1133,13 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       }
       if (mode === "musRute") return sleppHandtak()
       if (mode === "musFlytt" || mode === "musVri") return slepp()
-      if ((mode === "hFlytt" || mode === "hNormal" || mode === "hVri") && tak && e.pointerId === tak.id) return sleppHandtak()
+      if ((mode === "hFlytt" || mode === "hNormal" || mode === "hVri") && tak && e.pointerId === tak.id) {
+        pts.delete(e.pointerId)
+        snap = null
+        attheld = null
+        sleppHandtak()
+        return
+      }
       if (attheld && e.pointerId === attheld.id) {
         restore(snap)
         attheld = null
@@ -1190,7 +1198,7 @@ function Handa({ f, fri, sov, modus, montasje, sideDra, vald, plan, snitt, skiss
       for (const [n, h] of vindu) window.removeEventListener(n, h as EventListener)
       if (controls) controls.enabled = true
     }
-  }, [gl, controls, camera, invalidate, boks, sideDra])
+  }, [gl, controls, camera, invalidate, boks, sideDra, gizmoModus])
 
   return (
     <group ref={gruppe} visible={false}>
@@ -2535,7 +2543,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <Demping onSein={setSein} />
         <Streket f={teikn ? null : f} r={rValt} valt={valt} valdStrek={valdStrek} S={storleik} boks={boks} arb={arb} snapp={snapp} setLive={setLive} onSynStrek={onSynStrek} onStrek={onStrek} />
         <Zoom onGest={onGest} />
-        <Handa f={teikn ? null : f} fri={fri} sov={sov} modus={modus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} arb={arb} snapp={snapp} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
+        <Handa f={teikn ? null : f} fri={fri} sov={sov} modus={modus} gizmoModus={gizmoModus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} arb={arb} snapp={snapp} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
         <RomGizmo f={f} modus={gizmoModus ?? null} valt={valt} snappSteg={snappSteg} rot={rot} storleik={storleik} onPlan={onPlan} onSettRot={onSettRot} onSettStorleik={onSettStorleik} />
         <OrbitControls
           target={[0, 0.35, 0]}
