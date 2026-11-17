@@ -123,6 +123,8 @@ console.log("\n=== det som står frå før ===")
   sjekk("resten av posen er urørt", Object.keys(inn).every((n) => n === "plan" || n === "fest" || inn[n] === ut.p[n]))
   sjekk("settet går i hop MED flata: ingen ny normal på tvers av henne", nye.every((q) => Math.abs(q.n[0]) < 0.01 || Math.abs(q.n[1]) < 0.01) && held(ut.p), kvifor(ut.p) || nye.map((q) => q.n.join(",")).join(" | "))
   sjekk("og svaret seier kva liste det vart rekna frå", ut.fraa === inn.plan)
+  const stor = MOTOR.finn(bag({ kjelde: "dyr-01", plan: skrivPlan([{ ...golv, omriss: [[-0.7, -0.7], [0.7, -0.7], [0.7, 0.7], [-0.7, 0.7]] }]) }))
+  sjekk("ei flate større enn settet stansar det ikkje", stor.plan >= 2, `${stor.plan} nye`)
 
   const mange = Array.from({ length: 62 }, (_, i): Plan => ({ ...golv, id: i + 1, o: [0.5, 0.5, 0.2 + i * 0.005] }))
   const fullt = MOTOR.finn(bag({ kjelde: "dyr-01", plan: skrivPlan(mange) }))

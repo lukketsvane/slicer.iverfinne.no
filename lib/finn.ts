@@ -389,7 +389,7 @@ export function settBrot(s: Snitt, dl: DelListe, nye: readonly Plan[], gods: num
     }
   })
   const vekt = new Map<number, number>()
-  dl.delar.forEach((d, i) => vekt.set(rot(i), (vekt.get(rot(i)) ?? 0) + d.area))
+  dl.delar.forEach((d, i) => vekt.set(rot(i), (vekt.get(rot(i)) ?? 0) + (nye.some((q) => q.id === d.plan) ? d.area : 0)))
   const hovud = [...vekt].reduce((u, v) => (v[1] > u[1] ? v : u), [-1, 0])[0]
   const inne = new Set(dl.delar.filter((_, i) => rot(i) === hovud).map((d) => d.plan))
   const ute = new Set(dl.delar.filter((_, i) => rot(i) !== hovud).map((d) => d.plan))
