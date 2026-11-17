@@ -24,6 +24,13 @@ const ringAvstand = (A: readonly Pt[], B: readonly Pt[]) => {
       const b1 = B[(j + 1) % B.length]
       const a0 = A[i]
       const a1 = A[(i + 1) % A.length]
+      const ax = a1[0] - a0[0], ay = a1[1] - a0[1], bx = b1[0] - b0[0], by = b1[1] - b0[1]
+      const den = ax * by - ay * bx
+      if (den) {
+        const rx = b0[0] - a0[0], ry = b0[1] - a0[1]
+        const t = (rx * by - ry * bx) / den, v = (rx * ay - ry * ax) / den
+        if (t >= 0 && t <= 1 && v >= 0 && v <= 1) return 0
+      }
       const u = punktTilLine(a0, b0, b1)
       if (u < d) d = u
       const v = punktTilLine(b0, a0, a1)
@@ -138,6 +145,36 @@ function pakkarenSjolv() {
     const ok = out.sheets === 1 && out.slots.length === 3 && out.spilt.length === 0
     if (!ok) brot++
     console.log(`${ok ? "  ok " : "FEIL"}  ${"pakkar inni boge/holrom".padEnd(26)} ${out.slots.length} lagde på ${out.sheets} plate`)
+  }
+
+  for (const [namn, ringar] of [
+    ["papirtynne striper", Array.from({ length: 8 }, () => rekt(0, 0, 100, 0.2))],
+    ["spisse trekantar", Array.from({ length: 8 }, () => [[0, 0], [120, 0.15], [2, 0.3]] as Pt[])],
+    ["same nøkkel, ulike former", [rekt(0, 0, 20, 20), rekt(0, 0, 220, 100), rekt(-50, -30, 80, 50)]],
+    ["smale, skrå striper", Array.from({ length: 8 }, (_, i) => rekt(0, 0, 120, 0.2).map(([x, y]): Pt => {
+      const a = i * 0.31
+      return [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)]
+    }))],
+  ] as [string, Pt[][]][]) {
+    const pieces = ringar.map((ring) => ({ key: "same", rings: [ring] }))
+    const out = pack(pieces, 600, 400, 4)
+    let minst = Infinity, utanfor = 0
+    const lagde = out.slots.map((q) => ({ ark: q.sheet, ring: pieces[q.piece].rings[0].map((p) => apply(q.m, p)) }))
+    for (let i = 0; i < lagde.length; i++) {
+      const a = lagde[i], b = bbox(a.ring)
+      if (b.x0 < 0 || b.y0 < 0 || b.x1 > 600 || b.y1 > 400) utanfor++
+      for (const c of lagde.slice(i + 1)) if (a.ark === c.ark) minst = Math.min(minst, ringAvstand(a.ring, c.ring))
+    }
+    const ok = out.spilt.length === 0 && out.slots.length === pieces.length && utanfor === 0 && minst >= 4 - 1e-8
+    if (!ok) brot++
+    console.log(`${ok ? "  ok " : "FEIL"}  ${namn.padEnd(26)} ${out.slots.length} delar · næraste ${minst.toFixed(3)} mm · ${utanfor} utanfor`)
+  }
+  {
+    const stripe = { key: "tynn", rings: [rekt(0, 0, 100, 0.2)] }
+    const out = pack([stripe, stripe], 600, 400, 4, new Map([0, 1].map((i) => [i, { sheet: 0, rot: 0 as const, x: 10, y: 10 }])))
+    const ok = out.kross === 1 && out.slots.filter((q) => q.kross).length === 1
+    if (!ok) brot++
+    console.log(`${ok ? "  ok " : "FEIL"}  festa, tynne delar varslar overlapp`)
   }
 }
 

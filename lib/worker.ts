@@ -150,6 +150,7 @@ self.onmessage = (e: MessageEvent<Req>) => {
     newest = req.id
     const out = build(req)
     post(out.res, out.transfer)
+    if (req.detail === "lav") return
     setTimeout(() => {
       if (newest !== req.id) return
       try {

@@ -1,3 +1,4 @@
+import { Earcut } from "three/src/extras/Earcut.js"
 import { bbox, inRing, type Pt, type Vec3 } from "./core"
 import { merkeFlater, type Flate } from "./merke"
 import { anchor } from "./pack"
@@ -59,87 +60,47 @@ export function boxOf(positions: Float32Array) {
   return { tris: positions.length / 9, min, max }
 }
 
-function earClip(poly: Pt[]): [Pt, Pt, Pt][] {
-  const n = poly.length
-  if (n < 3) return []
-  let area = 0
-  for (let i = 0; i < n; i++) {
-    const a = poly[i]
-    const b = poly[(i + 1) % n]
-    area += a[0] * b[1] - b[0] * a[1]
-  }
-  const idx = Array.from({ length: n }, (_, i) => i)
-  if (area < 0) idx.reverse()
-  const cross = (o: Pt, a: Pt, b: Pt) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
-  const same = (u: Pt, v: Pt) => u[0] === v[0] && u[1] === v[1]
-  const inside = (a: Pt, b: Pt, c: Pt, p: Pt) =>
-    !same(p, a) && !same(p, b) && !same(p, c) && cross(a, b, p) > 0 && cross(b, c, p) > 0 && cross(c, a, p) > 0
-  const out: [Pt, Pt, Pt][] = []
-  let guard = idx.length * idx.length + 16
-  while (idx.length > 3 && guard-- > 0) {
-    let cut = false
-    for (let i = 0; i < idx.length; i++) {
-      const ia = idx[(i + idx.length - 1) % idx.length]
-      const ib = idx[i]
-      const ic = idx[(i + 1) % idx.length]
-      const a = poly[ia]
-      const b = poly[ib]
-      const c = poly[ic]
-      const cc = cross(a, b, c)
-      if (cc === 0) {
-        if (!same(a, b) && !same(b, c)) out.push([a, b, c])
-        idx.splice(i, 1)
-        cut = true
-        break
-      }
-      if (cc < 0) continue
-      let bad = false
-      for (const j of idx) {
-        if (j === ia || j === ib || j === ic) continue
-        if (inside(a, b, c, poly[j])) {
-          bad = true
-          break
-        }
-      }
-      if (bad) continue
-      out.push([a, b, c])
-      idx.splice(i, 1)
-      cut = true
-      break
-    }
-    if (!cut) break
-  }
-  if (idx.length === 3) out.push([poly[idx[0]], poly[idx[1]], poly[idx[2]]])
-  return out
+function reinRing(ring: Pt[]): Pt[] {
+  const ulik = ring.filter((p, i) => { const a = ring[(i + ring.length - 1) % ring.length]; return p[0] !== a[0] || p[1] !== a[1] })
+  return ulik.filter((p, i) => {
+    const a = ulik[(i + ulik.length - 1) % ulik.length], b = ulik[(i + 1) % ulik.length]
+    return (p[0] - a[0]) * (b[1] - p[1]) !== (p[1] - a[1]) * (b[0] - p[0])
+  })
 }
 
-export function bridge(outline: Pt[], holes: Pt[][]): Pt[] {
-  let poly = outline.slice()
-  for (const h of holes) {
-    let bi = 0
-    let hi = 0
-    let best = Infinity
-    for (let i = 0; i < poly.length; i++) {
-      for (let j = 0; j < h.length; j++) {
-        const d = Math.hypot(poly[i][0] - h[j][0], poly[i][1] - h[j][1])
-        if (d < best) {
-          best = d
-          bi = i
-          hi = j
-        }
+function paaU(a: Pt, b: Pt, u: number): Pt {
+  if (a[0] > b[0]) return paaU(b, a, u)
+  return [u, a[1] + ((u - a[0]) / (b[0] - a[0])) * (b[1] - a[1])]
+}
+
+function trianguler(omriss: Pt[], hol: Pt[][], steg: number): [Pt, Pt, Pt][] {
+  const punkt = omriss.slice()
+  const start: number[] = []
+  for (const h of hol) { start.push(punkt.length); punkt.push(...h) }
+  const indeks = Earcut.triangulate(punkt.flat(), start)
+  const ut: [Pt, Pt, Pt][] = []
+  const klipp = (ring: Pt[], lo: number, hi: number) => {
+    const ny: Pt[] = []
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length]
+      if (a[0] >= lo && a[0] <= hi) ny.push(a)
+      for (const u of a[0] < b[0] ? [lo, hi] : [hi, lo]) {
+        if ((a[0] < u && b[0] > u) || (a[0] > u && b[0] < u)) ny.push(paaU(a, b, u))
       }
     }
-    const ring = h.slice(hi).concat(h.slice(0, hi))
-    let a2 = 0
-    for (let i = 0; i < ring.length; i++) {
-      const a = ring[i]
-      const b = ring[(i + 1) % ring.length]
-      a2 += a[0] * b[1] - b[0] * a[1]
-    }
-    const r = a2 > 0 ? ring.slice().reverse() : ring
-    poly = poly.slice(0, bi + 1).concat(r, [r[0]], poly.slice(bi))
+    return ny
   }
-  return poly
+  for (let i = 0; i < indeks.length; i += 3) {
+    const a = punkt[indeks[i]], b = punkt[indeks[i + 1]], c = punkt[indeks[i + 2]]
+    if (!Number.isFinite(steg)) { ut.push([a, b, c]); continue }
+    const lo = Math.floor(Math.min(a[0], b[0], c[0]) / steg)
+    const hi = Math.ceil(Math.max(a[0], b[0], c[0]) / steg)
+    for (let j = lo; j < hi; j++) {
+      const ring = klipp([a, b, c], j * steg, (j + 1) * steg)
+      for (let k = 1; k + 1 < ring.length; k++) ut.push([ring[0], ring[k], ring[k + 1]])
+    }
+  }
+  return ut
 }
 
 export function flateMesh(k: Kropp) {
@@ -153,45 +114,34 @@ export function ribSolid(s: Soup, r: Pick<Ribbe, "r" | "outlines" | "holes">, t:
   const put = (q: Pt, off: number): Vec3 => ut(r.r, q, off)
   const boygd = !!r.r.k
   const nBack: Vec3 = [-r.r.n[0], -r.r.n[1], -r.r.n[2]]
-  const lim = boygd ? Math.sqrt(8 * Math.abs(1 / r.r.k) * 0.05) : Infinity
+  const radius = boygd ? Math.abs(1 / r.r.k) + h : Infinity
+  const steg = boygd ? 4 * Math.asin(Math.sqrt(Math.min(1, 0.05 / (2 * radius)))) / Math.abs(r.r.k) : Infinity
   const kant = (a: Pt, b: Pt, lo: number, hi: number) => {
-    const L = Math.hypot(b[0] - a[0], b[1] - a[1])
-    const n = boygd && L > lim ? Math.min(64, Math.ceil(L / lim)) : 1
-    const p = (j: number): Pt => [a[0] + ((b[0] - a[0]) * j) / n, a[1] + ((b[1] - a[1]) * j) / n]
-    for (let i = 0; i < n; i++) {
-      const q0 = p(i)
-      const q1 = p(i + 1)
+    const punkt = [a]
+    if (boygd) {
+      const u0 = Math.min(a[0], b[0]), u1 = Math.max(a[0], b[0])
+      for (let j = Math.floor(u0 / steg) + 1; j * steg < u1; j++) punkt.push(paaU(a, b, j * steg))
+      if (a[0] > b[0]) punkt.splice(1, punkt.length - 1, ...punkt.slice(1).reverse())
+    }
+    punkt.push(b)
+    for (let i = 0; i + 1 < punkt.length; i++) {
+      const q0 = punkt[i], q1 = punkt[i + 1]
       tri(s, put(q0, lo), put(q1, lo), put(q1, hi))
       tri(s, put(q0, lo), put(q1, hi), put(q0, hi))
     }
   }
-  const flate = (a: Pt, b: Pt, c: Pt, off: number, n: Vec3 | undefined, djup: number) => {
-    const lang =
-      djup < 5 &&
-      Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), Math.hypot(c[0] - b[0], c[1] - b[1]), Math.hypot(a[0] - c[0], a[1] - c[1])) > lim
-    if (!lang) {
-      tri(s, put(a, off), put(b, off), put(c, off), n)
-      return
-    }
-    const m = (x: Pt, y: Pt): Pt => [(x[0] + y[0]) / 2, (x[1] + y[1]) / 2]
-    const ab = m(a, b)
-    const bc = m(b, c)
-    const ca = m(c, a)
-    flate(a, ab, ca, off, n, djup + 1)
-    flate(ab, b, bc, off, n, djup + 1)
-    flate(ca, bc, c, off, n, djup + 1)
-    flate(ab, bc, ca, off, n, djup + 1)
-  }
+  const flate = (a: Pt, b: Pt, c: Pt, off: number, n?: Vec3) => tri(s, put(a, off), put(b, off), put(c, off), n)
+  const hol = r.holes.map(reinRing)
   for (let oi = 0; oi < r.outlines.length; oi++) {
-    const o = r.outlines[oi]
+    const o = reinRing(r.outlines[oi])
     s.d = del0 < 0 ? -1 : del0 + oi
-    const mine = r.holes.filter((hole) => inRing(o, hole[0]))
-    const merged = mine.length ? bridge(o, mine) : o
+    const mine = hol.filter((hole) => hole.length >= 3 && inRing(o, hole[0]))
+    const bak = trianguler(o, mine, steg)
     s.k = 0
-    for (const [a, b, c] of earClip(merged)) flate(c, b, a, -h, boygd ? undefined : nBack, 0)
-    const lommer = merke ? merke.flater.filter((f) => inRing(o, f.ytre[0])) : []
-    const framme = lommer.length ? bridge(o, [...mine, ...lommer.map((f) => f.ytre)]) : merged
-    for (const [a, b, c] of earClip(framme)) flate(a, b, c, h, boygd ? undefined : r.r.n, 0)
+    for (const [a, b, c] of bak) flate(c, b, a, -h, boygd ? undefined : nBack)
+    const lommer = merke ? merke.flater.filter((f) => inRing(o, f.ytre[0])).map((f) => ({ ytre: reinRing(f.ytre), indre: f.indre.map(reinRing) })) : []
+    const framme = lommer.length ? trianguler(o, [...mine, ...lommer.map((f) => f.ytre)], steg) : bak
+    for (const [a, b, c] of framme) flate(a, b, c, h, boygd ? undefined : r.r.n)
     if (merke && lommer.length) {
       const botn = h - merke.djup
       const vegg = (ring: Pt[], lag: number, hogg: number, utover: boolean) => {
@@ -204,13 +154,12 @@ export function ribSolid(s: Soup, r: Pick<Ribbe, "r" | "outlines" | "holes">, t:
       }
       for (const f of lommer) {
         s.k = 0
-        const golv = f.indre.length ? bridge(f.ytre, f.indre.map((q) => q.slice().reverse())) : f.ytre
-        for (const [a, b, c] of earClip(golv)) flate(a, b, c, botn, boygd ? undefined : r.r.n, 0)
+        for (const [a, b, c] of trianguler(f.ytre, f.indre, steg)) flate(a, b, c, botn, boygd ? undefined : r.r.n)
         vegg(f.ytre, botn, h, false)
         for (const q of f.indre) {
           vegg(q, botn, h, true)
           s.k = 0
-          for (const [a, b, c] of earClip(q)) flate(a, b, c, h, boygd ? undefined : r.r.n, 0)
+          for (const [a, b, c] of trianguler(q, [], steg)) flate(a, b, c, h, boygd ? undefined : r.r.n)
         }
       }
     }

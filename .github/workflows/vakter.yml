@@ -50,6 +50,7 @@ jobs:
       - run: pnpm hand
       - run: pnpm teikn
       - run: pnpm presisjon
+      - run: pnpm nett
       - run: pnpm enkel
       - run: pnpm pakk
       - run: pnpm tak

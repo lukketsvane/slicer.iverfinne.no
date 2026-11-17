@@ -98,14 +98,14 @@ export function contour(
         case 12: segs.push(L(), R()); break
         case 9: segs.push(B(), T()); break
         case 5: {
-          const mid = (at(i, j) + at(i + 1, j) + at(i + 1, j + 1) + at(i, j + 1)) / 4
-          if (mid > 0) { segs.push(B(), R()); segs.push(T(), L()) }
+          const sadel = at(i, j) * at(i + 1, j + 1) - at(i + 1, j) * at(i, j + 1)
+          if (sadel > 0) { segs.push(B(), R()); segs.push(T(), L()) }
           else { segs.push(B(), L()); segs.push(T(), R()) }
           break
         }
         case 10: {
-          const mid = (at(i, j) + at(i + 1, j) + at(i + 1, j + 1) + at(i, j + 1)) / 4
-          if (mid > 0) { segs.push(L(), B()); segs.push(R(), T()) }
+          const sadel = at(i, j) * at(i + 1, j + 1) - at(i + 1, j) * at(i, j + 1)
+          if (sadel < 0) { segs.push(L(), B()); segs.push(R(), T()) }
           else { segs.push(R(), B()); segs.push(L(), T()) }
           break
         }

@@ -41,6 +41,21 @@ function rasterise(rings: Ring[], ox: number, oy: number, res: number, w: number
       for (let i = i0; i <= i1; i++) a[j * w + i] = 1
     }
   }
+  if (!heil) for (const ring of rings) for (let i = 0; i < ring.length; i++) {
+    const p = ring[i], q = ring[(i + 1) % ring.length]
+    const ax = (p[0] - ox) / res, ay = (p[1] - oy) / res
+    const bx = (q[0] - ox) / res, by = (q[1] - oy) / res
+    const j0 = Math.max(0, Math.floor(Math.min(ay, by)))
+    const j1 = Math.min(h - 1, Math.floor(Math.max(ay, by)))
+    for (let j = j0; j <= j1; j++) {
+      const t0 = ay === by ? 0 : Math.max(0, Math.min(1, (j - ay) / (by - ay)))
+      const t1 = ay === by ? 1 : Math.max(0, Math.min(1, (j + 1 - ay) / (by - ay)))
+      const x0 = ax + (bx - ax) * t0, x1 = ax + (bx - ax) * t1
+      const i0 = Math.max(0, Math.floor(Math.min(x0, x1)))
+      const i1 = Math.min(w - 1, Math.floor(Math.max(x0, x1)))
+      a.fill(1, j * w + i0, j * w + i1 + 1)
+    }
+  }
   return { w, h, a }
 }
 
@@ -217,7 +232,7 @@ function lowest(b: Board, m: Mask, px: number, step: number): number {
 function rutenettet(sheetW: number, sheetH: number, gap: number) {
   let res = Math.min(6, Math.max(gap / 3, Math.max(sheetW, sheetH) / 620, 1))
   if (res > gap / 3 && res < gap) res = gap
-  return { res, k: Math.max(1, Math.ceil((gap / res + 1) / 2)) }
+  return { res, k: Math.max(1, Math.ceil(gap / (2 * res))) }
 }
 
 export function fitRoom(
@@ -272,17 +287,19 @@ export function pack(
   const SW = Math.floor(sheetW / res)
   const SH = Math.floor(sheetH / res)
 
-  type Form = { masks: Mask[]; ox: number; oy: number; Wm: number; Hm: number; cells: number }
+  type Form = { nokkel: string; masks: Mask[]; ox: number; oy: number; Wm: number; Hm: number; cells: number }
   const forms = new Map<string, Form>()
   const formOf = (p: Piece): Form => {
-    const hit = forms.get(p.key)
-    if (hit) return hit
     const bb = bbox(p.rings[0])
+    const nokkel = p.rings.map((r) => r.map(([x, y]) => `${x - bb.x0},${y - bb.y0}`).join(";")).join("|")
+    const hit = forms.get(nokkel)
+    if (hit) return hit
     const nw = Math.ceil((bb.x1 - bb.x0) / res) + 1
     const nh = Math.ceil((bb.y1 - bb.y0) / res) + 1
     const raw = dilate(rasterise(p.rings, bb.x0, bb.y0, res, nw, nh), k)
     const masks = ([0, 1, 2, 3] as const).map((r) => toMask(turn(raw, r)))
     const f: Form = {
+      nokkel,
       masks,
       ox: bb.x0 - k * res,
       oy: bb.y0 - k * res,
@@ -290,10 +307,10 @@ export function pack(
       Hm: raw.h * res,
       cells: masks[0].cells,
     }
-    forms.set(p.key, f)
+    forms.set(nokkel, f)
     return f
   }
-  const alle = pieces.map((p, i) => ({ i, key: p.key, f: formOf(p) }))
+  const alle = pieces.map((p, i) => { const f = formOf(p); return { i, key: f.nokkel, f } })
 
   const ordna = (s: Strategi) => {
     if (!s.fro && !s.lang) return [...alle].sort((a, b) => b.f.cells - a.f.cells || a.i - b.i)

@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto"
 import { readdir, readFile, writeFile } from "node:fs/promises"
 
-const side = await readFile(".next/server/app/index.html", "utf8")
+const sider = { "/": await readFile(".next/server/app/index.html", "utf8"), "/nn": await readFile(".next/server/app/nn.html", "utf8") }
 const kode = (await readdir(".next/static", { recursive: true }))
   .filter((p) => /\.(js|css|woff2?|ttf|wasm)$/.test(p))
   .map((p) => ({ url: "/_next/static/" + p, fil: ".next/static/" + p }))
@@ -13,8 +13,8 @@ const ikon = ["icon-192.png", "icon-512.png", "icon-maskable-512.png"]
   .map((p) => ({ url: "/" + p, fil: "public/" + p }))
 const filer = [...kode, ...former, ...ikon].sort((a, b) => a.url.localeCompare(b.url))
 if (!kode.length || !former.length) throw new Error("manglar kode eller former til nettlaus bruk")
-const hash = createHash("sha256").update(side).update(await readFile(new URL(import.meta.url)))
-let byte = Buffer.byteLength(side)
+const hash = createHash("sha256").update(JSON.stringify(sider)).update(await readFile(new URL(import.meta.url)))
+let byte = Object.values(sider).reduce((sum, side) => sum + Buffer.byteLength(side), 0)
 for (const f of filer) {
   const b = await readFile(f.fil)
   hash.update(f.url).update(b)
@@ -25,13 +25,13 @@ const ressursar = [...filer.map((f) => f.url), "/manifest.webmanifest", "/apple-
 const arbeidar = `// Laga av scripts/bygg-offline.mjs. Ikkje rediger byggjefila.
 const NAMN = ${JSON.stringify("slicer-verkstad-" + utgåve)}
 const FILER = ${JSON.stringify(ressursar)}
-const SIDE = ${JSON.stringify(side)}
+const SIDER = ${JSON.stringify(sider)}
 
 self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const lager = await caches.open(NAMN)
     await lager.addAll(FILER.map((p) => new Request(p, { cache: "reload" })))
-    await lager.put("/", new Response(SIDE, { headers: { "Content-Type": "text/html; charset=utf-8" } }))
+    for (const [sti, side] of Object.entries(SIDER)) await lager.put(sti, new Response(side, { headers: { "Content-Type": "text/html; charset=utf-8" } }))
     // Ikkje skipWaiting: ein open verkstad held si utgåve til han vert lukka.
   })())
 })
@@ -54,11 +54,11 @@ self.addEventListener("fetch", (e) => {
   const r = e.request
   const url = new URL(r.url)
   if (r.method !== "GET" || url.origin !== self.location.origin) return
-  const side = r.mode === "navigate" && url.pathname === "/"
+  const side = r.mode === "navigate" && Object.hasOwn(SIDER, url.pathname)
   if (!side && !FILER.includes(url.pathname)) return
   e.respondWith((async () => {
     const lager = await caches.open(NAMN)
-    const lagra = await lager.match(side ? "/" : url.pathname)
+    const lagra = await lager.match(url.pathname)
     return lagra || fetch(r)
   })())
 })

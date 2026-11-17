@@ -462,7 +462,6 @@ type Raa = {
   r: Ramme
   nullpkt: Pt
   d: number
-  sol: Solid
   ru: Rute
   former: Form[]
   ringar: Pt[][]
@@ -512,7 +511,6 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     const kurv = (pl.bog || 0) / Math.max(1e-6, s.max[0] - s.min[0], s.max[1] - s.min[1], s.max[2] - s.min[2])
     const r: Ramme = { o: mul3(pl.n, d), n: pl.n, u, v, k: kurv }
     const boygd = !!kurv
-    const sol = boygd ? rull(k, r) : vend(k, pl.n)
     const S = p.storleik
     const ou = dot(o, u)
     const ov = dot(o, v)
@@ -523,7 +521,8 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     const omriss = pl.omriss && pl.omriss.length >= 3 ? (omrissLine(pl.omriss, pl.runde).map((q) => [ou + q[0] * S, ov + q[1] * S]) as Pt[]) : undefined
     const ob = omriss ? bbox(omriss) : null
     const nett = !!(omriss && pl.nett)
-    const ru = ruteAv(ob ? { bx0: ob.x0, bx1: ob.x1, by0: ob.y0, by1: ob.y1 } : sol, boygd ? 0 : d, step, former, nett ? sol : undefined)
+    const sol = !ob || nett ? (boygd ? rull(k, r) : vend(k, pl.n)) : undefined
+    const ru = ruteAv(ob ? { bx0: ob.x0, bx1: ob.x1, by0: ob.y0, by1: ob.y1 } : sol!, boygd ? 0 : d, step, former, nett ? sol : undefined)
     const grunn: Grunn = { g: null, nt: 0, nz: 0 }
     let ringar = felt(ru, former, [], klipp, mjuk, omriss, [], [], nett, grunn).map((l) => l.pts as Pt[])
     if (pl.firkant && ringar.length) {
@@ -544,7 +543,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     }
     const rund = new Set(pl.runde ?? [])
     const hjorne = omriss ? (pl.omriss ?? []).filter((_, i) => !rund.has(i)).map((q): Pt => [ou + q[0] * S, ov + q[1] * S]) : []
-    return { plan: pl, r, d, sol, ru, former, ringar, spor: [], tapp: [], tform: [], hjorne, utvida: false, nullpkt: [ou, ov] as Pt, boygd, klipp, mjuk, omriss, nett, grunn }
+    return { plan: pl, r, d, ru, former, ringar, spor: [], tapp: [], tform: [], hjorne, utvida: false, nullpkt: [ou, ov] as Pt, boygd, klipp, mjuk, omriss, nett, grunn }
   })
 
   const minLap = Math.max(2, p.tjukn)
