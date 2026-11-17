@@ -1026,6 +1026,7 @@ function Handa({ f, fri, sov, modus, gizmoModus, montasje, sideDra, vald, plan, 
         naa.current.onGest("snitt")
         return
       }
+      if (pts.size === 0 && naa.current.valt) taKameraet(controls)
       if (e.pointerType === "touch" && pts.size === 0) attheld = { id: e.pointerId, x: e.clientX, y: e.clientY }
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pts.size === 1 && controls) snap = { pos: camera.position.clone(), target: controls.target.clone() }
