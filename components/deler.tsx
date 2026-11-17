@@ -83,10 +83,9 @@ export function Fiksen({ rule, params, onChange }: { rule: Rule; params: ParamBa
       aria-label={mt(maal, `fix ${r.label}: ${f.ord}`, `fiks ${rule.label}: ${rule.fiks?.ord ?? f.ord}`)}
       title={mt(maal, "apply this and recompute", "set dette og rekn om att")}
       onClick={() => onChange({ ...params, ...f.set })}
-      className="hit shrink-0 rounded-full border px-2 py-[2px] text-[10px] leading-[14px] tracking-[0.04em]"
-      style={{ borderColor: "currentColor", opacity: 0.85 }}
+      className="hit shrink-0 px-2 py-[2px] text-[10px] leading-[14px] tracking-[0.04em]"
     >
-      {f.ord}
+      {mt(maal, "fix", "fiks")}
     </button>
   )
 }
@@ -184,8 +183,7 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
       title={mt(maal, "apply all non-destructive fixes in one undo step", "trykk alle råda som ikkje riv arbeid, eitt etter eitt, til det ikkje er fleire. eitt steg i angre")}
       disabled={busy}
       onClick={onFiksAlle}
-      className="hit shrink-0 rounded-full border px-2 py-[2px] text-[10px] leading-[14px] tracking-[0.04em]"
-      style={{ borderColor: "currentColor", opacity: busy ? 0.3 : 0.85 }}
+      className="hit shrink-0 px-2 py-[2px] text-[10px] leading-[14px] tracking-[0.04em] disabled:opacity-30"
       data-fiksalle=""
     >
       {mt(maal, "fix all", "fiks alt")} · {trygge.length}

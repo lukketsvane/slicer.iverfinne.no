@@ -559,7 +559,7 @@ function MobileArket(p: ArketProps) {
           type="button"
           aria-label={open ? mt(maal, "close controls", "lat att kontrollane") : mt(maal, "open controls", "opne kontrollane")}
           aria-expanded={open}
-          className={open ? "hit w-full shrink-0 pb-1" : "hit absolute inset-x-0 top-0 z-10 h-4"}
+          className={open ? "hit h-4 w-full shrink-0" : "hit absolute inset-x-0 top-0 z-10 h-4"}
           style={{ touchAction: "none" }}
           onPointerDown={(e) => { if (e.pointerType !== "mouse") drag.current = { y: e.clientY, id: e.pointerId } }}
           onPointerMove={(e) => {
@@ -573,9 +573,7 @@ function MobileArket(p: ArketProps) {
             if (open) p.onSteg("line")
             else { setFane("grupper"); p.onSteg("midt") }
           }}
-        >
-          <span aria-hidden="true" className="mx-auto mt-2 block h-1 w-9 rounded-full" style={{ background: "color-mix(in srgb, var(--ink) 22%, transparent)" }} />
-        </button>
+        />
 
         {!open && (
           <div className="flex h-12 shrink-0 items-center gap-1 px-2" data-dokk-kollapsa="">
