@@ -15,7 +15,8 @@ export type ArkReq = { kind: "ark"; id: number; params: ParamBag; sheet: number 
 export type SkisseReq = { kind: "skisse"; id: number; params: ParamBag; plan: Plan }
 export type MontReq = { kind: "montasje"; id: number; params: ParamBag }
 export type FiksReq = { kind: "fiksalt"; id: number; params: ParamBag }
-export type Req = BuildReq | ExportReq | ImportReq | ArkReq | SkisseReq | MontReq | FiksReq
+export type FinnReq = { kind: "finn"; id: number; params: ParamBag }
+export type Req = BuildReq | ExportReq | ImportReq | ArkReq | SkisseReq | MontReq | FiksReq | FinnReq
 
 export type BuildRes = {
   kind: "build"
@@ -38,11 +39,13 @@ export type ProsjektRes = { kind: "prosjekt"; id: number; src: SourceInfo | null
 export type ArkRes = { kind: "ark"; id: number } & ArkSyn
 export type MontRes = { kind: "montasje"; id: number } & Montasje
 export type FiksRes = { kind: "fiksalt"; id: number; params: ParamBag; fiksa: string[]; att: string[] }
+export type FinnRes = { kind: "finn"; id: number; params: ParamBag; plan: number; proevde: number }
 export type SkisseRes = { kind: "skisse"; id: number } & SkisseSyn
 export type FeilRes = { kind: "feil"; id: number; kva: string; view?: Rom; kvifor?: string }
 export type Res =
   | BuildRes
   | FiksRes
+  | FinnRes
   | MaalRes
   | ExportRes
   | ArkRes
@@ -126,6 +129,12 @@ self.onmessage = (e: MessageEvent<Req>) => {
     if (req.kind === "fiksalt") {
       const ut = MOTOR.fiksAlt(req.params)
       post({ kind: "fiksalt", id: req.id, params: ut.p, fiksa: ut.fiksa, att: ut.att })
+      return
+    }
+
+    if (req.kind === "finn") {
+      const ut = MOTOR.finn(req.params)
+      post({ kind: "finn", id: req.id, params: ut.p, plan: ut.plan, proevde: ut.proevde })
       return
     }
 

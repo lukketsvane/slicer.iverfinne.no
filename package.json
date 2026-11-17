@@ -19,6 +19,7 @@
     "ledd": "tsx scripts/ledd.ts",
     "hand": "tsx scripts/hand.ts",
     "enkel": "tsx scripts/enkel.ts",
+    "finn": "tsx scripts/finn.ts",
     "raad": "tsx scripts/raad.ts",
     "ark": "tsx scripts/ark.ts",
     "glb": "tsx scripts/glb-sjekk.ts",

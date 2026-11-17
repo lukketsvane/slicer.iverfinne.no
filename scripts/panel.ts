@@ -3049,6 +3049,27 @@ async function heimskjermen(browser: Browser) {
   await page.close()
 }
 
+async function auto(browser: Browser) {
+  console.log("\n=== auto")
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan: skrivPlan(rutenett(3, 3)) })), browser, 390, 844)
+  await vent(page, talPlan(6))
+  const foer = hash(page).plan
+  const kn = page.locator(".tumme [data-auto]")
+  sjekk("auto står i tommelspalta, og er eit ord", (await kn.count()) === 1 && ((await kn.textContent()) ?? "").trim() === "auto")
+  const t0 = Date.now()
+  await kn.click()
+  await vent(page, (p) => p.plan !== foer)
+  const etter = plana(page)
+  sjekk("eitt trykk gjev eit anna sett", hash(page).plan !== foer && etter.length >= 2, `6 → ${etter.length} plan, ${Date.now() - t0} ms`)
+  sjekk("nummera held fram der dei gamle slutta", etter.every((q) => q.id > 6), etter.map((q) => q.id).join(","))
+  sjekk("og ingenting står valt", (await page.locator("[data-dokk-kontekst='plan']").count()) === 0)
+  await page.keyboard.press("z")
+  await vent(page, (p) => p.plan === foer)
+  sjekk("Z gjev dei gamle attende i eitt steg", hash(page).plan === foer, `${plana(page).length} plan`)
+  sjekk("ingen konsollfeil i auto", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await page.close()
+}
+
 const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["telefon", telefon],
   ["kroppen", kroppen],
@@ -3072,6 +3093,7 @@ const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["kamera", kamera],
   ["skrivebordet", skrivebordet],
   ["grupper", grupper],
+  ["auto", auto],
 ]
 
 const main = async () => {

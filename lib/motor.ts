@@ -5,7 +5,8 @@ import { makeKropp, scenaAv } from "./kropp"
 import { erFilform, lesScene } from "./scene"
 import { buildSnitt, DETAIL, skisseSyn, sporBoge, sporPunkt, type SkisseSyn, type Snitt, type Spor } from "./snitt"
 import type { Plan } from "./plan"
-import { lesPlan } from "./plan"
+import { lesPlan, nyGruppe, nyId, skrivPlan } from "./plan"
+import { FINN_BYGG, finnSett, settPlan } from "./finn"
 import { flatDelar, flateMesh, lagDelar, lagMesh, type DelMesh } from "./mesh"
 import { measure } from "./metrics"
 import { checkRules, fiksAlt } from "./rules"
@@ -21,7 +22,7 @@ import { meshToUsdz } from "./export-usdz"
 import { sheetDxf } from "./export-dxf"
 import { bane, bendCouponSvg, couponSvg, profileSvg, ring, sheetSvg } from "./export-svg"
 import { zip } from "./zip"
-import { DEFAULT_PARAMS, GROUPS, PARAM_KEYS, PARAM_RANGES, clampParams, type Params } from "./params"
+import { DEFAULT_PARAMS, GROUPS, PARAM_KEYS, PARAM_RANGES, clampParams, lesFest, skrivFest, type Params } from "./params"
 
 export type EngineDef = {
   id: string
@@ -35,6 +36,7 @@ export type EngineDef = {
   build(p: ParamBag, detail: DetailKey, view: Rom): BuildOut
   measure(p: ParamBag): Metrics
   fiksAlt(p: ParamBag): { p: ParamBag; fiksa: string[]; att: string[] }
+  finn(p: ParamBag): { p: ParamBag; plan: number; proevde: number }
   rules(p: ParamBag, m: Metrics): Rule[]
   exportFile(p: ParamBag, what: ExportKind): ExportOut
   liste(p: ParamBag): Kutt[]
@@ -167,6 +169,40 @@ export const MOTOR: EngineDef = {
   fiksAlt(bag) {
     const ut = fiksAlt(asP(bag))
     return { p: ut.p as unknown as ParamBag, fiksa: ut.fiksa, att: ut.att }
+  },
+  finn(bag) {
+    const p = asP(bag)
+    const alle = lesPlan(p.plan)
+    const teikna = alle.filter((q) => q.omriss?.length || q.firkant)
+    const att = new Set(teikna.map((q) => q.id))
+    const fest = skrivFest(new Map([...lesFest(p.fest)].filter(([adr]) => att.has(parseInt(adr, 10)))))
+    const k = makeKropp(p)
+    const f = finnSett(k, p)
+    let best: { q: Params; plan: number; brot: number } | null = null
+    const stengde = new Set<string>()
+    let bygde = 0
+    for (const s of f.rekkje) {
+      const par = (x: number, y: number) => `${s.d}/${s.vinkel}/${x}/${y}`
+      if (s.a.some((x) => s.b.some((y) => stengde.has(par(x, y))))) continue
+      if (bygde++ >= FINN_BYGG) break
+      const nye = settPlan(k, s, nyId(alle), nyGruppe(alle))
+      const q: Params = { ...p, plan: skrivPlan([...teikna, ...nye]), fest }
+      const bygg = makeBygg(q, DETAIL.mid)
+      const brot = checkRules(q, measure(q, bygg), bygg, false).filter((r) => !r.ok && r.hard && r.id !== "plate").length
+      if (!best || brot < best.brot) best = { q, plan: nye.length, brot }
+      if (!brot) break
+      const steng = (i: number, j: number) => {
+        const [x, y] = [i - nye[0].id, j - nye[0].id].sort((u, v) => u - v)
+        if (x >= 0 && x < s.a.length && y >= s.a.length) stengde.add(par(s.a[x], s.b[y - s.a.length]))
+      }
+      for (const [i, j] of bygg.s.montering.klem) steng(i, j)
+      for (const r of bygg.s.ribber) {
+        if (r.narrow >= Math.max(2, q.tjukn) || !r.spor.length) continue
+        const tynn = r.spor.reduce((u, v) => (Math.min(v.botn - v.lo, v.hi - v.botn) < Math.min(u.botn - u.lo, u.hi - u.botn) ? v : u))
+        steng(r.plan.id, tynn.mot)
+      }
+    }
+    return best ? { p: best.q as unknown as ParamBag, plan: best.plan, proevde: f.proevde } : { p: bag, plan: 0, proevde: f.proevde }
   },
   rules: (bag, m) => checkRules(asP(bag), m),
 

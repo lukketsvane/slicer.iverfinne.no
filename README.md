@@ -1283,6 +1283,65 @@ them, and a deep search that measured the body and walked a front. It answered
 a question nobody had asked — the two numbers were never the hard part, and a
 ranking is not a decision. The tool that sets them is.
 
+## Auto
+
+**auto** is one word in the thumb column and one press: it tries a few hundred
+sets of slices against the body and leaves the one that says the most with the
+fewest. It is the search that was taken out above, back as what it should have
+been — it hands over a set, not a ranking. It is in the column when nothing is
+selected, because it is about the body and not about a plane.
+
+**A set is two families of flat planes that share one slot direction.** That is
+the only kind that always goes together with slots alone; a third direction is
+stuck by construction. Six frames are tried — the slot along x, y or z, and each
+of those with the families turned 45° about it — and in each frame the families
+grow one plane at a time, first one family and then the other, up to six in
+each.
+
+**What "says the form" is, is two numbers, averaged.** *Volume*: let every slice
+stand in for the space out to its neighbours, each family for itself, and keep
+what the two families agree on; the measure is how much of that solid and the
+body overlap, over what they cover together. A cube is two planes by this
+number, because every section of it is the same section. *Silhouette*: seen
+along each of the frame's three axes, how much of the body's outline the ribs
+fill — face-on a rib fills its section, edge-on it is a line — weighed by the
+size of the view, with the view from above at half weight, because a thing that
+stands on a floor is looked at from its sides. Volume alone forgets legs, wings
+and ears: they are a tenth of the volume and half of the animal.
+
+**A slice has to pay for itself.** One hundredth of that score per plane, and
+three more for a frame that is turned, since an oblique set is harder to read
+and to cut. That price is all that "fewest" means: a bigger set that says two
+hundredths more with three more planes loses.
+
+**Only what holds is counted.** Each frame samples the body into 64 × 64 columns
+of 32 cells along the slot direction. A crossing is a joint only where the
+engine would cut one — long enough along the slot, and with a shoulder on both
+sides in both plates. A pair that crosses in material without that is a clamp,
+and such a pair is never in the same set. An island no joint reaches is left out
+of the measure, the same way `lause` leaves it out of the file.
+
+**Then it is built for real.** The sets are built at the resolution the rules
+are read at, best first, until one breaks no hard rule — the size of the sheet
+aside, which is the plate's business and not the body's. A set that fails closes
+the pair of planes that failed for every set after it. Six builds at most; the
+search itself is a few hundredths of a second on a laptop and the builds are the
+rest, a few tenths together.
+
+**It takes the slices of the body and leaves what you drew.** Every plane that
+takes its profile from the body is replaced, the ones cut by hand too; a plane
+that carries an outline stays, with its pin on the sheet. The new ones are
+numbered after the highest number there has been, so no name is reused, and
+the whole press is one step in undo.
+
+**It does not tilt.** Every plane is upright in its frame, so a chair with
+splayed legs keeps its seat and loses the legs no upright plane can hold, and a
+body that stands askew in the workshop should be turned straight first.
+
+`pnpm finn` holds it: every built-in form gets one set, the set breaks no hard
+rule, the string is the same every time, a cube is two planes and an animal is
+more, a bigger set was not worth its price and a smaller one said less.
+
 ## Projects
 
 The work is kept as **projects** in the browser: a name, the parameter bag, the
@@ -1555,6 +1614,7 @@ pnpm rekkje  # reads the cut files back: engrave, inner cuts, outline, in order
 pnpm vrient  # meshes that aren't meshes, hostile plane strings, a hostile parameter bag
 pnpm ledd    # every joint the panel counted, found again in the cut profiles — grids, oblique planes, bent ribs with floors
 pnpm raad    # breaks each rule, presses the fix it offers, checks it worked
+pnpm finn    # auto: every form gets one set of slices, it breaks no hard rule, a cube is two planes
 pnpm glb     # writes GLB files with known geometry and reads them back
 pnpm pakk    # redraws every sheet and counts cells — catches overlaps
 pnpm hand    # the plane list as a string: one edit leaves the rest, names never reused, pins hold

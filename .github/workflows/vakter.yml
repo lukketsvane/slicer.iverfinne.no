@@ -52,6 +52,7 @@ jobs:
       - run: pnpm presisjon
       - run: pnpm nett
       - run: pnpm enkel
+      - run: pnpm finn
       - run: pnpm pakk
       - run: pnpm tak
       - run: pnpm glb

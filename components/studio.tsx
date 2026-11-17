@@ -393,6 +393,14 @@ export function Studio() {
         return
       }
 
+      if (r.kind === "finn") {
+        setBusy(false)
+        const gjeld = r.plan > 0 && kroppKey(naa.current) === kroppKey(r.params)
+        if (gjeld) { setVald(null); setParams((cur) => ({ ...cur, plan: r.params.plan, fest: r.params.fest })) }
+        setMelding(gjeld ? `${r.plan} plan · ${r.proevde} prøvde` : "ingenting å skjere")
+        return
+      }
+
       if (r.kind === "montasje") {
         if (viewRef.current !== "montasje") return
         const { kind, id, ...m } = r
@@ -458,7 +466,7 @@ export function Studio() {
           return
         }
         bytar.current.delete(r.id)
-        setFeil(r.kva === "import" ? (r.kvifor ?? "ulesbar fil") : "uttak feila")
+        setFeil(r.kva === "import" ? (r.kvifor ?? "ulesbar fil") : r.kva === "finn" ? "auto feila" : "uttak feila")
         setHentar(false)
         setBusy(false)
         return
@@ -1395,6 +1403,7 @@ export function Studio() {
     setBusy(true)
     send({ kind: "fiksalt", id: ++reqId.current, params: naa.current })
   }, [send])
+  const finn = useCallback(() => { setBusy(true); send({ kind: "finn", id: ++reqId.current, params: naa.current }) }, [send])
   const montNokkel = view === "montasje" ? byggKey(params, 0) : ""
   useEffect(() => {
     if (!montNokkel) return setMont(null)
@@ -2010,6 +2019,7 @@ export function Studio() {
           >
             {IcoRute}
           </button>
+          {vald === null && <button type="button" aria-label="auto" title={mt(maal, "auto: tries a few hundred sets of slices and keeps the fewest that say the form", "auto: prøver nokre hundre sett med snitt og held det minste som seier forma")} disabled={busy} onClick={finn} className={ORD + " h-12 min-w-12"} data-auto="">auto</button>}
           </>)}
           {vald !== null && modus !== "bit" && view !== "montasje" && (
             <>
