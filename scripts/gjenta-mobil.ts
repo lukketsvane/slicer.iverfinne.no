@@ -56,7 +56,7 @@ async function hovud() {
         const start = performance.now()
         await trykk(s.locator("[data-kjelde]")); await trykk(knapp("tom arbeidsflate"))
         await trykk(knapp("opne kontrollane")); await trykk(s.getByRole("tab", { name: "plan", exact: true })); await tal("storleik", 450)
-        await trykk(s.getByRole("tab", { name: "materiale", exact: true })); await trykk(knapp("12")); await tal("breidd", 1500); await tal("høgd", 1500)
+        await trykk(s.getByRole("tab", { name: "materiale", exact: true })); await tal("tjukn", 12); await tal("breidd", 1500); await tal("høgd", 1500)
         await trykk(knapp("lat att kontrollane")); await klar(); await heim()
         await s.touchscreen.tap(344, 87); await pause(600)
         await trykk(s.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "kontur", exact: true }))
