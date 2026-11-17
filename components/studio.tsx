@@ -11,8 +11,8 @@ import { forenklaRing, lukkTeikning, medStrek, mjukePunkt, ogSysken } from "@/li
 import { medGruppa, nesteSteg, rundt } from "@/lib/gruppe"
 import { simplify, type Pt2 } from "@/lib/contour"
 import { speglPar, speglPlan } from "@/lib/spegl"
-import { byggKey, lesDeling, lesFest, skrivDeling, skrivFest, SNAPPSTEG, SNAPP_NAMN } from "@/lib/params"
-import { BIT_MAX, BIT_MIN, eiKjelde, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
+import { byggKey, lesDeling, lesFest, skrivDeling, skrivFest, SNAPPSTEG, SNAPP_NAMN, VRISTEG } from "@/lib/params"
+import { BIT_MAX, BIT_MIN, dregSide, eiKjelde, motVend, erFilform, familien, fyrsteForm, lesScene, nesteForm, skrivScene, SCENE_TAK, type Bit } from "@/lib/scene"
 import type { Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
 import type { ArkRes, BuildRes, MaalRes, Req, Res, SkisseReq } from "@/lib/worker"
@@ -181,6 +181,7 @@ export function Studio() {
   const montVakn = useRef<(() => void) | null>(null)
   const [busy, setBusy] = useState(true)
   const [feil, setFeil] = useState<string | null>(null)
+  const [vriTal, setVriTal] = useState<number | null>(null)
   const [melding, setMelding] = useState<string | null>(null)
   const [hentar, setHentar] = useState(false)
   const [drag, setDrag] = useState(false)
@@ -693,26 +694,6 @@ export function Studio() {
       return { ...cur, scene: skrivScene(ny.map((b, i) => ({ ...b, t: [+(i * steg - midt).toFixed(2), b.t[1], b.t[2]] as Vec3 }))) }
     })
   }, [])
-  const motVend = (d: Vec3, p: ParamBag): Vec3 => {
-    const rad = (k: string) => ((typeof p[k] === "number" ? (p[k] as number) : 0) * Math.PI) / 180
-    let [x, y, z] = d
-    let c = Math.cos(-rad("rotZ"))
-    let sn = Math.sin(-rad("rotZ"))
-    let t = x * c - y * sn
-    y = x * sn + y * c
-    x = t
-    c = Math.cos(-rad("rotY"))
-    sn = Math.sin(-rad("rotY"))
-    t = x * c + z * sn
-    z = -x * sn + z * c
-    x = t
-    c = Math.cos(-rad("rotX"))
-    sn = Math.sin(-rad("rotX"))
-    t = y * c - z * sn
-    z = y * sn + z * c
-    y = t
-    return [x, y, z]
-  }
   const skrivBit = useCallback((i: number, endra: Partial<Bit>) => {
     setParams((cur) => {
       const l = lesScene(String(cur.scene || "") || eiKjelde(String(cur.kjelde ?? KUBE)))
@@ -735,13 +716,13 @@ export function Studio() {
     if (!g || i === null || !Number.isFinite(faktor) || faktor <= 0) return
     skrivBit(i, { s: g.s.map((c) => klemBit(c * faktor)) as Vec3 })
   }, [skrivBit])
-  const sideBit = useCallback((akse: 0 | 1 | 2, faktor: number) => {
-    const g = grunn.current?.bit
+  const sideBit = useCallback((akse: 0 | 1 | 2, teikn: 1 | -1, faktor: number, breidd: number) => {
+    const g = grunn.current
     const i = bitRef.current
-    if (!g || i === null || !Number.isFinite(faktor) || faktor <= 0) return
-    const s2 = [...g.s] as Vec3
-    s2[akse] = klemBit(g.s[akse] * faktor)
-    skrivBit(i, { s: s2 })
+    if (!g?.bit || i === null || !Number.isFinite(faktor) || faktor <= 0) return
+    const ut: Vec3 = [0, 0, 0]
+    ut[akse] = teikn
+    skrivBit(i, dregSide(g.bit, motVend(ut, naa.current), faktor, breidd / g.k))
   }, [skrivBit])
   const fargBit = useCallback((farge: number) => {
     const i = bitRef.current
@@ -752,7 +733,8 @@ export function Studio() {
     const g = grunn.current?.bit
     const i = bitRef.current
     if (!g || i === null || !Number.isFinite(grader)) return
-    skrivBit(i, { rz: (((g.rz + grader) % 360) + 360) % 360 })
+    const r = g.rz + grader
+    skrivBit(i, { rz: (((Number(naa.current.snapp ?? 3) ? Math.round(r / VRISTEG) * VRISTEG : r) % 360) + 360) % 360 })
   }, [skrivBit])
   const dupliserBit = useCallback(() => {
     const i = bitRef.current
@@ -782,17 +764,17 @@ export function Studio() {
     setRammInn((n) => n + 1)
   }, [])
 
-  const grunn = useRef<{ bit: Bit | null } | null>(null)
+  const grunn = useRef<{ bit: Bit | null; k: number } | null>(null)
   const taGest = useCallback((kva: GestKva) => {
     const p = naa.current
     const i = bitRef.current
     const l = i === null ? [] : lesScene(String(p.scene || "") || eiKjelde(String(p.kjelde ?? KUBE)))
-    grunn.current = kva === null ? null : { bit: i === null ? null : (l[i] ?? null) }
+    grunn.current = kva === null ? null : { bit: i === null ? null : (l[i] ?? null), k: kroppRef.current?.skala || 1 }
     if (kva === "rute") {
       const r = skilRute(lesPlan(p.plan))
       rutGrunn.current = [r.nx, r.ny]
     }
-    if (kva === null) setRuteTal(null)
+    if (kva === null) { setRuteTal(null); setVriTal(null) }
     setGest(kva)
   }, [])
   const vekslRute = useCallback(() => {
@@ -1803,7 +1785,7 @@ export function Studio() {
     view === "montasje" && mont ? montLes
     : forenklTal !== null ? `${forenklTal} ${mt(maal, "points", "punkt")}`
     : gest === "rute" ? (ruteTal ? `${ruteTal[0]}×${ruteTal[1]}` : mt(maal, "grid", "rutenett"))
-    : gest === "snitt" ? mt(maal, "slice", "snitt")
+    : gest === "snitt" ? (vriTal === null ? mt(maal, "slice", "snitt") : `${vriTal}°`)
     : gest === "lys" ? mt(maal, "light", "lys")
     : gest === "strek" ? mt(maal, "cutout", "strek")
     : gest
@@ -1865,6 +1847,7 @@ export function Studio() {
             onBitFlytt={flyttBit}
             onBitSkala={skalerBit}
             onBitVri={vriBit}
+            onVriTal={setVriTal}
             onBitSide={sideBit}
             rammInn={rammInn}
             synTil={synTil}
@@ -1909,7 +1892,7 @@ export function Studio() {
       )}
 
       {gestTekst && (
-        <div data-lesing="" className="pointer-events-none absolute flex justify-start" style={{ top: toppH + 10, left: 14 }} aria-hidden="true">
+        <div data-lesing="" className="pointer-events-none absolute flex justify-start" style={{ top: toppH + (vald !== null && rom && !teikn && modus !== "bit" ? 54 : 10), left: 14 }} aria-hidden="true">
           <span className="tab text-[15px] leading-none tracking-[0.02em]" style={{ opacity: 0.5 }}>{gestTekst}</span>
         </div>
       )}
@@ -2047,7 +2030,7 @@ export function Studio() {
               <button
                 type="button"
                 aria-label={`snapp ${SNAPP_NAMN[snappNo]}`}
-                title={mt(maal, "snap angles: off, 15°, 45°, 90° (S)", "kva vinklar snappet kjenner: av, 15°, 45°, 90°. gjeld både punkta i eit omriss og vridinga av eit plan (S)")}
+                title={mt(maal, "snap (S): off, 15°, 45°, 90°. outline points catch those angles; while it is on a turn goes in 5° steps", "snappet (S): av, 15°, 45°, 90°. punkta i eit omriss tek dei vinklane; so lenge det står på går ei vriding i steg på 5°")}
                 onClick={vekslSnapp}
                 className={TUMME_BTN + " tab text-[11px] leading-none"}
                 data-snapp={SNAPPSTEG[snappNo]}

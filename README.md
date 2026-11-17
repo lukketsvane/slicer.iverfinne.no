@@ -191,6 +191,16 @@ own plane, the normal handle pushes it along its normal, the rotation handle
 re-angles it, and two fingers still push it along the normal. Tap empty space
 to deselect; the row's `slett` removes the plane.
 
+**A turn goes in steps.** While the snap is on — the word in the thumb column
+that reads `90°`, `45°` or `15°` — the rotation handle and the two-finger twist
+turn the plane in steps of 5°, and the reading under the top line says the angle
+while you turn: 0° is a plane seen as a level line, 90° one standing upright. It
+used to be free with a catch near the snap's own angles, so a turn landed on 90°
+or on whatever your thumb left it at, and 37.4° is not a number anyone meant.
+Look straight down an axis and the steps are steps against that axis; from an
+angle they are steps on the screen. With the snap `av` the turn is free. The
+turn rings step the same 5°, and so does the twist of a piece in the body tool.
+
 **Planes made in one action are a group.** A grid is two groups (across and
 along), a whirl is one, a mirrored cut is one, and duplicating a group makes
 another. The group has a row in the list above its planes, and *that
@@ -376,9 +386,13 @@ for it to die out.
 
 **Each side of a piece has a dot.** In the body tool, a selected piece shows
 six small dots, one on the middle of each face of its box. Drag one and that
-axis alone stretches — a cube becomes a plate, a cylinder an oval. The pinch
-still scales all three at once and keeps the proportions; the dot is for when
-you want a stool and not an inflated cube.
+face alone moves — a cube becomes a plate, a cylinder an oval — while the face
+opposite stays where it is. It used to stretch about the middle, so drawing one
+side out moved the other just as far the other way, and a seat set on four legs
+slid off them. The pinch still scales all three at
+once and keeps the proportions; the dot is for when you want a stool and not an
+inflated cube. A piece that is turned stretches along whichever of its own axes
+lies nearest the dot, since a box can only be stretched along itself.
 
 **A dot owns the finger, and the camera with it.** A dot is DOM over the
 canvas, so *its* finger never reaches the orbit — but the other hand's does.

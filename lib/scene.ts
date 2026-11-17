@@ -1,4 +1,4 @@
-import { lagFarge, type Vec3 } from "./core"
+import { lagFarge, type ParamBag, type Vec3 } from "./core"
 
 export const SCENE_TAK = 16
 export const FAMILIAR: readonly { namn: string; tal: number }[] = [
@@ -74,4 +74,35 @@ export function lesScene(s: unknown): Bit[] {
 
 export const reinScene = (s: unknown) => skrivScene(lesScene(s))
 
+export function dregSide(b: Bit, ut: Vec3, faktor: number, breidd: number): Pick<Bit, "s" | "t"> {
+  const a = (b.rz * Math.PI) / 180
+  const eigen = [ut[0] * Math.cos(a) + ut[1] * Math.sin(a), ut[1] * Math.cos(a) - ut[0] * Math.sin(a), ut[2]].map(Math.abs)
+  const j = eigen.indexOf(Math.max(...eigen))
+  const s = [...b.s] as Vec3
+  s[j] = Math.min(BIT_MAX, Math.max(BIT_MIN, b.s[j] * faktor))
+  const halv = ((s[j] / b.s[j] - 1) * breidd) / 2
+  return { s, t: [b.t[0] + ut[0] * halv, b.t[1] + ut[1] * halv, b.t[2] + ut[2] * halv - (j === 2 ? halv : 0)] }
+}
+
 export const eiKjelde = (id: string): string => skrivScene([{ id, t: [0, 0, 0], s: [1, 1, 1], rz: 0 }])
+
+export function motVend(d: Vec3, p: ParamBag): Vec3 {
+  const rad = (k: string) => ((typeof p[k] === "number" ? (p[k] as number) : 0) * Math.PI) / 180
+  let [x, y, z] = d
+  let c = Math.cos(-rad("rotZ"))
+  let sn = Math.sin(-rad("rotZ"))
+  let t = x * c - y * sn
+  y = x * sn + y * c
+  x = t
+  c = Math.cos(-rad("rotY"))
+  sn = Math.sin(-rad("rotY"))
+  t = x * c + z * sn
+  z = -x * sn + z * c
+  x = t
+  c = Math.cos(-rad("rotX"))
+  sn = Math.sin(-rad("rotX"))
+  t = y * c - z * sn
+  z = y * sn + z * c
+  y = t
+  return [x, y, z]
+}

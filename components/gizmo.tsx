@@ -7,6 +7,7 @@ import * as THREE from "three"
 import type { Vec3 } from "@/lib/core"
 import { useMaal, mt } from "@/lib/i18n"
 import { broek, PLAN_ROM, ramme as planRamme, type Plan } from "@/lib/plan"
+import { VRISTEG } from "@/lib/params"
 import { GROUND_Y } from "@/lib/ramme"
 import type { GizmoModus } from "./arket-legacy"
 
@@ -205,7 +206,7 @@ export function RomGizmo({
 
   if (!f || !modus || !ankret) return null
 
-  const aktivSteg = shift ? 15 : snappSteg > 0 ? snappSteg : 0
+  const aktivSteg = shift ? 15 : snappSteg > 0 ? VRISTEG : 0
   const rotSnap = aktivSteg ? (aktivSteg * Math.PI) / 180 : null
   const transSnap = shift ? 0.08 : null
   const scaleSnap = shift ? 0.1 : null

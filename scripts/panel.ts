@@ -1127,6 +1127,8 @@ async function kroppen(browser: Browser) {
       return d.length === 3 ? d : [d[0], d[0], d[0]]
     }
     const foer = tal3(andre())
+    const xAv = (q: string) => Number(/@(-?[\d.]+),/.exec(q)?.[1] ?? NaN)
+    const xFoer = xAv(andre())
     const kamera = async () => (await page.locator(".handtak").getAttribute("data-kamera")) ?? "?"
     const kamFoer = await kamera()
     const d = await page.locator('.sider [data-side="0"]').boundingBox()
@@ -1142,6 +1144,8 @@ async function kroppen(browser: Browser) {
       const etter = tal3(andre())
       const rort = etter.filter((c, i) => Math.abs(c - foer[i]) > 0.01).length
       sjekk("eit drag i prikken rører NØYAKTIG éin akse", rort === 1, `${foer.join(",")} → ${etter.join(",")}`)
+      const vekst = (etter[0] - foer[0]) * 100
+      sjekk("og berre den sida flyttar seg: midten fylgjer halve vegen", Math.abs(vekst) > 1 && Math.abs(xAv(andre()) - xFoer - vekst / 2) < 0.6, `breidda ${vekst.toFixed(1)}, midten ${(xAv(andre()) - xFoer).toFixed(1)}`)
       await roleg(page, 900)
       sjekk("og synet står stille medan du dreg", (await kamera()) === kamFoer, `${kamFoer} → ${await kamera()}`)
       {
@@ -3070,6 +3074,57 @@ async function auto(browser: Browser) {
   await page.close()
 }
 
+async function vriding(browser: Browser) {
+  console.log("\n=== vridinga går i steg")
+  const { page, konsoll } = await opne(URL + "#p=" + encodeURIComponent(JSON.stringify({ plan: "1@0.5,0.5,0.5/1,0,0" })), browser, 390, 844)
+  await vent(page, talPlan(1))
+  await opneArket(page, "plan")
+  await page.locator("[role=listbox] [data-plan='1'] button").first().click()
+  await bytArket(page)
+  await page.waitForTimeout(400)
+  await page.touchscreen.tap(352, 82)
+  await page.waitForTimeout(900)
+  const lesing = async () => ((await page.locator("[data-lesing] .tab").count()) ? ((await page.locator("[data-lesing] .tab").first().textContent()) ?? "").trim() : "")
+  const helling = () => {
+    const n = plana(page)[0]?.n ?? [1, 0, 0]
+    return (Math.atan2(n[2], Math.hypot(n[0], n[1])) * 180) / Math.PI
+  }
+  const dra = async (dx: number, dy: number) => {
+    const h = await page.locator('[data-handtak="vri"]').boundingBox()
+    if (!h) return ""
+    const x0 = h.x + h.width / 2
+    const y0 = h.y + h.height / 2
+    await page.mouse.move(x0, y0)
+    await page.mouse.down()
+    await page.mouse.move(x0 + dx, y0 + dy, { steps: 12 })
+    await page.waitForTimeout(150)
+    const midt = await lesing()
+    await page.mouse.up()
+    await roleg(page, 500)
+    return midt
+  }
+  const heile = (v: number) => Math.abs(v / 5 - Math.round(v / 5)) < 0.02
+  const steg: number[] = []
+  const lese: string[] = []
+  for (const [dx, dy] of [[23, 31], [47, 12], [-18, 55], [9, -64]]) {
+    lese.push(await dra(dx, dy))
+    steg.push(helling())
+  }
+  sjekk("fire vilkårlege drag landar alle på heile fem grader", steg.every(heile) && new Set(steg.map((v) => v.toFixed(1))).size > 1, steg.map((v) => `${v.toFixed(2)}°`).join(" "))
+  sjekk("og lina les vinkelen medan du dreg", lese.every((q) => /^\d+°$/.test(q)), lese.join(" "))
+  sjekk("og slepper han når fingeren slepper", (await lesing()) === "", await lesing())
+  await page.locator("button[data-snapp]").click()
+  await vent(page, (q) => Number(q.snapp) === 0)
+  const fri: number[] = []
+  for (const [dx, dy] of [[23, 31], [-37, 12], [14, 41]]) {
+    await dra(dx, dy)
+    fri.push(helling())
+  }
+  sjekk("med snappet av er vridinga fri", fri.some((v) => !heile(v)), fri.map((v) => `${v.toFixed(2)}°`).join(" "))
+  sjekk("ingen konsollfeil i vridinga", konsoll.length === 0, konsoll.join(" | ").slice(0, 160))
+  await page.close()
+}
+
 const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["telefon", telefon],
   ["kroppen", kroppen],
@@ -3094,6 +3149,7 @@ const DELAR: [string, (b: Browser) => Promise<void>][] = [
   ["skrivebordet", skrivebordet],
   ["grupper", grupper],
   ["auto", auto],
+  ["vriding", vriding],
 ]
 
 const main = async () => {

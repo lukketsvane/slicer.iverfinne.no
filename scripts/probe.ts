@@ -15,7 +15,7 @@ import { DETAIL, stykkeLangs } from "../lib/snitt"
 import { flatDelar, lagDelar, lagMesh, merkeFor } from "../lib/mesh"
 import { STABEL_LUFT } from "../lib/montasje"
 import { placedRings } from "../lib/nest"
-import { FILFORMER } from "../lib/scene"
+import { dregSide, FILFORMER, lesScene, motVend, skrivScene } from "../lib/scene"
 import { KUBE } from "../lib/sources"
 import { areal, merkeFlater } from "../lib/merke"
 import { checkRules } from "../lib/rules"
@@ -1020,6 +1020,41 @@ function tre(buf: ArrayBuffer): { grupper: { namn: string; barn: string[] }[]; l
   const b3 = MOTOR.exportFile(mp as unknown as ParamBag, "3mf").data as ArrayBuffer
   if (a3.byteLength >= b3.byteLength) bryt(`3mf med merke er ikkje større: ${a3.byteLength} → ${b3.byteLength} B`)
   else console.log(`  og valet står i fila: 3mf ${a3.byteLength} → ${b3.byteLength} B`)
+}
+
+{
+  console.log("\n=== ei side av ein bit, dregen ===")
+  let verst = 0
+  let tal = 0
+  for (const vend of [{}, { rotZ: 90 }, { rotX: 180 }, { rotY: 90, rotZ: 180 }]) {
+    const grunn = { ...DEFAULT_PARAMS, ...vend, kjelde: KUBE, plan: "" }
+    const boksar = (scene: string) => {
+      const [a, b] = makeKropp({ ...grunn, scene }).bitar
+      const eining = (a.max[0] - a.min[0]) / 100
+      return { min: b.min.map((c, i) => (c - a.min[i]) / eining), max: b.max.map((c, i) => (c - a.min[i]) / eining) }
+    }
+    for (const rz of [0, 90, 180]) {
+      const scene = `kube@-80,0,0/1/0;kube@70,10,20/0.6,0.4,0.5/${rz}`
+      const foer = boksar(scene)
+      for (const akse of [0, 1, 2] as const) {
+        for (const teikn of [1, -1] as const) {
+          const l = lesScene(scene)
+          const utover: Vec3 = [0, 0, 0]
+          utover[akse] = teikn
+          const breidd = foer.max[akse] - foer.min[akse]
+          l[1] = { ...l[1], ...dregSide(l[1], motVend(utover, grunn as unknown as ParamBag), 1.5, breidd) }
+          const etter = boksar(skrivScene(l))
+          for (let i = 0; i < 3; i++) {
+            const venta: [number, number] = i !== akse ? [0, 0] : teikn > 0 ? [0, breidd / 2] : [-breidd / 2, 0]
+            verst = Math.max(verst, Math.abs(etter.min[i] - foer.min[i] - venta[0]), Math.abs(etter.max[i] - foer.max[i] - venta[1]))
+          }
+          tal++
+        }
+      }
+    }
+  }
+  if (verst > 0.05) bryt(`ei dregen side flyttar meir enn seg sjølv: verste avvik ${verst.toFixed(3)} einingar over ${tal} drag`)
+  else console.log(`  ${tal} drag, kroppen vend fire vegar og biten tre: den dregne sida flyttar seg halve breidda, dei fem andre står (verste avvik ${verst.toFixed(3)} einingar)`)
 }
 
 console.log(brot ? `\n${brot} påstandar held ikkje` : "\nalle påstandar held")

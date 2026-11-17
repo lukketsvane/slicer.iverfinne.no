@@ -49,6 +49,7 @@ export const KILAR = ["av", "på"] as const
 
 export const SNAPPSTEG = [0, 15, 45, 90] as const
 export const SNAPP_NAMN = ["av", "15°", "45°", "90°"] as const
+export const VRISTEG = 5
 
 export const PARAM_RANGES: Record<string, Range> = {
   storleik: { min: 40, max: 600, step: 1, label: "storleik", unit: "mm" },

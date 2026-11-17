@@ -10,7 +10,7 @@ import { akser, broek, dot, inn, OMRISS_TAK, omrissLine, omrissMidt, PLAN_ROM, r
 import type { Montasje } from "@/lib/montasje"
 import { FOV_FLAT, FOV_NAER, GROUND_Y, MAX_DIST, MIN_DIST, NAER_LUFT, SKODDE_FJERN, SKODDE_NAER, fovSkala, fritt, ramme, type Fit, type Rute } from "@/lib/ramme"
 import type { SkisseSyn } from "@/lib/snitt"
-import { DELING_MAX, DELING_MIN } from "@/lib/params"
+import { DELING_MAX, DELING_MIN, VRISTEG } from "@/lib/params"
 import type { BitBoks } from "@/lib/kropp"
 import type { BuildRes } from "@/lib/worker"
 import type { GizmoModus } from "./arket-legacy"
@@ -364,7 +364,6 @@ type Tak = {
   pl: { id: number; o: THREE.Vector3; n: THREE.Vector3; sist?: THREE.Vector3 } | null
 }
 
-const SNAPP_VRI = (5 * Math.PI) / 180
 const SNAPP_PX = 4
 function Streket({ f, r, valt, valdStrek, S, boks, arb, snapp, setLive, onSynStrek, onStrek }: {
   f: Ramma | null
@@ -535,7 +534,7 @@ function Zoom({ onGest }: { onGest: (kva: GestKva) => void }): null {
 
 type SnittVerd = { midt: THREE.Vector3; punkt: THREE.Vector3[] }
 
-function Handa({ f, fri, sov, modus, gizmoModus, montasje, sideDra, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, arb, snapp, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute }: {
+function Handa({ f, fri, sov, modus, gizmoModus, montasje, sideDra, vald, plan, snitt, skisse, boks, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, arb, snapp, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onVriTal, onRute }: {
   f: Ramma | null
   fri: ReturnType<typeof fritt>
   sov: boolean
@@ -569,6 +568,7 @@ function Handa({ f, fri, sov, modus, gizmoModus, montasje, sideDra, vald, plan, 
   onBitFlytt: (dmm: Vec3) => void
   onBitSkala: (faktor: number) => void
   onBitVri: (grader: number) => void
+  onVriTal: (grader: number) => void
   onRute: (dx: number, dy: number) => void
 }) {
   const gl = useThree((s) => s.gl)
@@ -635,8 +635,8 @@ function Handa({ f, fri, sov, modus, gizmoModus, montasje, sideDra, vald, plan, 
     return { x: ((p.x + 1) / 2) * size.width, y: ((1 - p.y) / 2) * size.height }
   }
 
-  const naa = useRef({ f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute, maal })
-  naa.current = { f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onRute, maal }
+  const naa = useRef({ f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onVriTal, onRute, maal })
+  naa.current = { f, vald, valt, modus, montasje, fri, snittVerd, lapp, snitt, storleik, valdStrek, live, rValt, bitar, valdBit, snappSteg, setLive, onValdStrek, onStrek, onSynStrek, onPlan, onLys, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onVriTal, onRute, maal }
 
   useFrame(() => {
     const g = gruppe.current
@@ -863,7 +863,7 @@ function Handa({ f, fri, sov, modus, gizmoModus, montasje, sideDra, vald, plan, 
       const { f, onPlan, fri } = naa.current
       if (!f) return
       const sn = { vri: false, pos: false }
-      const aktivSteg = shift ? Math.max(15, naa.current.snappSteg) : naa.current.snappSteg
+      const aktivSteg = shift ? Math.max(15, naa.current.snappSteg) : naa.current.snappSteg ? VRISTEG : 0
       if (t.pl) {
         const { right, up, fwd } = aksar()
         const n = t.pl.n.clone()
@@ -871,13 +871,12 @@ function Handa({ f, fri, sov, modus, gizmoModus, montasje, sideDra, vald, plan, 
           n.applyAxisAngle(fwd, ang)
           const ns = new THREE.Vector2(n.dot(right), -n.dot(up))
           const steg = (aktivSteg * Math.PI) / 180
-          if (steg && ns.length() > 0.05) {
+          if (ns.length() > 0.05) {
             const a = Math.atan2(ns.y, ns.x)
-            const q = Math.round(a / steg) * steg
-            if (shift || Math.abs(a - q) < SNAPP_VRI) {
-              n.applyAxisAngle(fwd, q - a)
-              sn.vri = true
-            }
+            const q = steg ? Math.round(a / steg) * steg : a
+            n.applyAxisAngle(fwd, q - a)
+            sn.vri = steg > 0
+            naa.current.onVriTal((((Math.round((q * 180) / Math.PI) + 90) % 180) + 180) % 180)
           }
         }
         const o = t.pl.o.clone()
@@ -905,11 +904,8 @@ function Handa({ f, fri, sov, modus, gizmoModus, montasje, sideDra, vald, plan, 
         let phi = t.pose.phi - ang
         const stegP = (aktivSteg * Math.PI) / 180
         if (ang && stegP) {
-          const q = Math.round(phi / stegP) * stegP
-          if (shift || Math.abs(phi - q) < SNAPP_VRI) {
-            phi = q
-            sn.vri = true
-          }
+          phi = Math.round(phi / stegP) * stegP
+          sn.vri = true
         }
         p.phi = phi
         const k = dx * Math.sin(t.pose.phi) + dy * Math.cos(t.pose.phi)
@@ -2070,7 +2066,7 @@ function Sidehandtak({ f, boks, boks3, dra, onSide, onGest }: {
   boks: HTMLDivElement | null
   boks3: BitBoks | null
   dra: MutableRefObject<boolean>
-  onSide: (akse: 0 | 1 | 2, faktor: number) => void
+  onSide: (akse: 0 | 1 | 2, teikn: 1 | -1, faktor: number, breidd: number) => void
   onGest: (kva: GestKva) => void
 }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
@@ -2078,7 +2074,7 @@ function Sidehandtak({ f, boks, boks3, dra, onSide, onGest }: {
   const controls = useThree((s) => s.controls) as Orbit | null
   const naa = useRef({ f, boks3, size, onSide, onGest })
   naa.current = { f, boks3, size, onSide, onGest }
-  const tak = useRef<{ a: 0 | 1 | 2; ut: number; px: [number, number]; x0: number; y0: number } | null>(null)
+  const tak = useRef<{ a: 0 | 1 | 2; teikn: 1 | -1; ut: number; px: [number, number]; x0: number; y0: number } | null>(null)
   const knappar = useRef<(HTMLElement | null)[]>([])
   const punkt = useMemo<Vec3>(() => [0, 0, 0], [])
   const skrive = useRef<string[]>([])
@@ -2104,7 +2100,7 @@ function Sidehandtak({ f, boks, boks3, dra, onSide, onGest }: {
       const B = tilVerd(g, ein).project(camera)
       const r = naa.current.size
       const px: [number, number] = [((B.x - A.x) / 2) * r.width, (-(B.y - A.y) / 2) * r.height]
-      tak.current = { a: sd.i, ut: Math.max(1e-3, (b.max[sd.i] - b.min[sd.i]) / 2), px, x0: e.clientX, y0: e.clientY }
+      tak.current = { a: sd.i, teikn: sd.teikn, ut: Math.max(1e-3, b.max[sd.i] - b.min[sd.i]), px, x0: e.clientX, y0: e.clientY }
       el.setPointerCapture(e.pointerId)
       dra.current = true
       taKameraet(controls)
@@ -2116,7 +2112,7 @@ function Sidehandtak({ f, boks, boks3, dra, onSide, onGest }: {
       const L = t.px[0] * t.px[0] + t.px[1] * t.px[1]
       if (L < 1e-6) return
       const mm = ((e.clientX - t.x0) * t.px[0] + (e.clientY - t.y0) * t.px[1]) / L
-      naa.current.onSide(t.a, Math.max(0.02, (t.ut + mm) / t.ut))
+      naa.current.onSide(t.a, t.teikn, Math.max(0.02, (t.ut + mm) / t.ut), t.ut)
     }
     const opp = () => {
       if (!tak.current) return
@@ -2338,7 +2334,7 @@ const IkonStor = (
   </svg>
 )
 
-export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, rot, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, teiknSlag, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onBitSide, onRute, rammInn, synTil, benk, gruppe, teikneplan, gizmoModus, onSettRot, onSettStorleik }: {
+export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, modus, montasje, material, rute, liste, plan, vald, snitt, blink, skisse, storleik, rot, valdStrek, valdBit, onVald, onDeling, onValdStrek, snappSteg, teikn, teiknSlag, onTeiknLukk, onPunkt, onSlaaSaman, onLeggPunkt, onTaPunkt, onVriPunkt, valdPunkt, onValdPunkt, mont, montT, montSpel, montVakn, onMontSteg, montVald, onMontVald, onPlan, onStrek, onSynStrek, onGest, onSkisse, onValdBit, onBitFlytt, onBitSkala, onBitVri, onVriTal, onBitSide, onRute, rammInn, synTil, benk, gruppe, teikneplan, gizmoModus, onSettRot, onSettStorleik }: {
   kropp: BuildRes | null
   lag: BuildRes | null
   view: Rom
@@ -2389,7 +2385,8 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
   onBitFlytt: (dmm: Vec3) => void
   onBitSkala: (faktor: number) => void
   onBitVri: (grader: number) => void
-  onBitSide: (akse: 0 | 1 | 2, faktor: number) => void
+  onVriTal: (grader: number) => void
+  onBitSide: (akse: 0 | 1 | 2, teikn: 1 | -1, faktor: number, breidd: number) => void
   onRute: (dx: number, dy: number) => void
   rammInn: number
   synTil?: { n: number; dir: Vec3 } | null
@@ -2543,7 +2540,7 @@ export const Scene = memo(function Scene({ kropp, lag, view, skal, onSkal, sov, 
         <Demping onSein={setSein} />
         <Streket f={teikn ? null : f} r={rValt} valt={valt} valdStrek={valdStrek} S={storleik} boks={boks} arb={arb} snapp={snapp} setLive={setLive} onSynStrek={onSynStrek} onStrek={onStrek} />
         <Zoom onGest={onGest} />
-        <Handa f={teikn ? null : f} fri={fri} sov={sov} modus={modus} gizmoModus={gizmoModus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} arb={arb} snapp={snapp} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onRute={onRute} />
+        <Handa f={teikn ? null : f} fri={fri} sov={sov} modus={modus} gizmoModus={gizmoModus} montasje={montasje} sideDra={sideDra} vald={vald} plan={plan} snitt={snitt} skisse={skisse} boks={boks} storleik={storleik} valdStrek={valdStrek} live={live} rValt={rValt} bitar={bitar} valdBit={valdBit} snappSteg={snappSteg} arb={arb} snapp={snapp} setLive={setLive} onValdStrek={onValdStrek} onStrek={onStrek} onSynStrek={onSynStrek} onPlan={onPlan} onLys={flyttLys} onGest={onGest} onSkisse={onSkisse} onValdBit={onValdBit} onBitFlytt={onBitFlytt} onBitSkala={onBitSkala} onBitVri={onBitVri} onVriTal={onVriTal} onRute={onRute} />
         <RomGizmo f={f} modus={gizmoModus ?? null} valt={valt} snappSteg={snappSteg} rot={rot} storleik={storleik} onPlan={onPlan} onSettRot={onSettRot} onSettStorleik={onSettStorleik} />
         <OrbitControls
           target={[0, 0.35, 0]}
