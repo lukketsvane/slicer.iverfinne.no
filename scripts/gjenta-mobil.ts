@@ -56,20 +56,20 @@ async function hovud() {
         const start = performance.now()
         await trykk(s.locator("[data-kjelde]")); await trykk(knapp("tom arbeidsflate"))
         await trykk(knapp("opne kontrollane")); await trykk(s.getByRole("tab", { name: "plan", exact: true })); await tal("storleik", 450)
-        await trykk(s.getByRole("tab", { name: "materiale", exact: true })); await trykk(knapp("12")); await tal("breidd", 1500); await tal("høgd", 1500)
+        await trykk(s.getByRole("tab", { name: "materiale", exact: true })); await tal("tjukn", 12); await tal("breidd", 1500); await tal("høgd", 1500)
         await trykk(knapp("lat att kontrollane")); await klar(); await heim()
         await s.touchscreen.tap(344, 87); await pause(600)
         await trykk(s.getByRole("group", { name: "teiknemåte" }).getByRole("button", { name: "kontur", exact: true }))
         await dra(c, [[100, 305], [230, 305], [258, 490], [217, 490], [202, 456], [130, 456], [115, 490], [75, 490], [100, 305]], 1100)
         await vent(async () => (await plan(s)).length === 1)
         await trykk(knapp("skjer hòl")); await vent(async () => (await plan(s))[0].strek.length === 1)
-        await trykk(knapp("dubler planet")); await vent(async () => (await plan(s)).length === 2); await heim(); await flyttValt(15)
+        await trykk(knapp("dubler planet").first()); await vent(async () => (await plan(s)).length === 2); await heim(); await flyttValt(15)
         const par = (await plan(s)).slice(0, 2)
         assert.equal(await knapp("gjenta flyttinga").count(), 1, "gjentakinga skal finnast rett ved tommelen")
         assert(await knapp("gjenta flyttinga").evaluate((el) => { const r = el.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest("button") === el }))
         const startRekkje = performance.now()
         for (let n = 3; n <= 6; n++) {
-          await trykk(knapp(maate === "gjenta" ? "gjenta flyttinga" : "dubler planet"))
+          await trykk(knapp(maate === "gjenta" ? "gjenta flyttinga" : "dubler planet").first())
           await vent(async () => (await plan(s)).length === n)
         }
         const rekkjeSekund = (performance.now() - startRekkje) / 1000

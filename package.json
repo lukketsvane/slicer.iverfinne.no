@@ -26,6 +26,7 @@
     "redigering": "tsx scripts/redigering-sjekk.ts",
     "webkit": "tsx scripts/webkit-sjekk.ts",
     "presisjon": "tsx scripts/presisjon.ts",
+    "nett": "tsx scripts/nett-sjekk.ts",
     "kvikk": "tsx scripts/kvikk.ts"
   },
   "dependencies": {

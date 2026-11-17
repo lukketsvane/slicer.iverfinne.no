@@ -30,8 +30,18 @@ export function bounds(pos: Float32Array): { min: Vec3; max: Vec3 } {
 }
 
 export function makeSoup(pos: Float32Array): Soup {
+  let rein: Float32Array | null = null
+  let tal = 0
+  for (let i = 0; i + 8 < pos.length; i += 9) {
+    let gyldig = true
+    for (let k = 0; k < 9; k++) if (!Number.isFinite(pos[i + k])) { gyldig = false; break }
+    if (!gyldig) { rein ??= pos.slice(); continue }
+    if (rein) rein.copyWithin(tal, i, i + 9)
+    tal += 9
+  }
+  if (tal !== pos.length) pos = (rein ?? pos).slice(0, tal)
   const b = bounds(pos)
-  return { pos, tris: Math.floor(pos.length / 9), min: b.min, max: b.max }
+  return { pos, tris: tal / 9, min: b.min, max: b.max }
 }
 
 export const diag = (s: { min: Vec3; max: Vec3 }) =>
@@ -113,6 +123,45 @@ export function weld(s: Soup, eps = 0): Indexed {
     idx[i] = v
   }
   return { verts: new Float32Array(verts), idx }
+}
+
+export function reintNett(m: Indexed): Indexed {
+  const I = m.idx, V = m.verts
+  let storleik = 32
+  while (storleik < I.length) storleik *= 2
+  const tabell = new Uint32Array(storleik)
+  const ut = new Uint32Array(I.length)
+  let tal = 0
+  for (let t = 0; t < I.length; t += 3) {
+    let a = I[t], b = I[t + 1], c = I[t + 2]
+    if (a === b || b === c || c === a) continue
+    const ux = V[b * 3] - V[a * 3], uy = V[b * 3 + 1] - V[a * 3 + 1], uz = V[b * 3 + 2] - V[a * 3 + 2]
+    const vx = V[c * 3] - V[a * 3], vy = V[c * 3 + 1] - V[a * 3 + 1], vz = V[c * 3 + 2] - V[a * 3 + 2]
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx
+    if (!(nx * nx + ny * ny + nz * nz > 0)) continue
+    if (b < a && b < c) [a, b, c] = [b, c, a]
+    else if (c < a && c < b) [a, b, c] = [c, a, b]
+    let j = (Math.imul(a, 0x9e3779b1) ^ Math.imul(b, 0x85ebca6b) ^ Math.imul(c, 0xc2b2ae35)) & (storleik - 1)
+    while (tabell[j]) {
+      const k = tabell[j] - 1
+      if (ut[k] === a && ut[k + 1] === b && ut[k + 2] === c) break
+      j = (j + 1) & (storleik - 1)
+    }
+    if (tabell[j]) continue
+    tabell[j] = tal + 1
+    ut[tal++] = a; ut[tal++] = b; ut[tal++] = c
+  }
+  return tal === I.length ? m : { verts: V, idx: ut.slice(0, tal) }
+}
+
+const REPARERT = new WeakMap<Soup, Indexed>()
+
+export function reparer(s: Soup): Indexed {
+  const hit = REPARERT.get(s)
+  if (hit) return hit
+  const nett = orienter(reintNett(weld(s)))
+  REPARERT.set(s, nett)
+  return nett
 }
 
 export function shade(m: Indexed, creaseDeg = 40): { pos: Float32Array; nrm: Float32Array } {
@@ -252,7 +301,7 @@ export function orienter(m: Indexed): Indexed {
   const V = m.verts
   let cap = 32
   const est = Math.max(32, nf * 3)
-  while (cap < est * 2) cap <<= 1
+  while (cap < est / 0.8) cap <<= 1
   const mask = cap - 1
   const eKey = new Float64Array(cap)
   const eCnt = new Uint8Array(cap)
@@ -378,10 +427,10 @@ export function openEdges(m: Indexed): number {
   if (!nf || !n) return 0
   let cap = 32
   const est = Math.max(32, nf * 3)
-  while (cap < est * 2) cap <<= 1
+  while (cap < est / 0.8) cap <<= 1
   const mask = cap - 1
   const eKey = new Float64Array(cap)
-  const eCnt = new Uint16Array(cap)
+  const eCnt = new Uint8Array(cap)
   const I = m.idx
   for (let t = 0; t < nf; t++) {
     const a = I[t * 3]
@@ -397,7 +446,7 @@ export function openEdges(m: Indexed): number {
       let slot = (Math.imul(lo ^ hi, 0x9e3779b1) ^ (lo >>> 16)) & mask
       while (eCnt[slot] && eKey[slot] !== key) slot = (slot + 1) & mask
       eKey[slot] = key
-      eCnt[slot]++
+      if (eCnt[slot] < 3) eCnt[slot]++
     }
   }
   let open = 0

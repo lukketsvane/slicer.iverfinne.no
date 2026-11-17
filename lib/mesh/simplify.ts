@@ -63,8 +63,14 @@ export function cluster(m: Indexed, n: number): Indexed {
   return { verts, idx: new Uint32Array(out) }
 }
 
+const FORENKLA = new WeakMap<Indexed, Map<number, Indexed>>()
+
 export function decimate(m: Indexed, maxTris: number): Indexed {
   if (m.idx.length / 3 <= maxTris) return m
+  let per = FORENKLA.get(m)
+  if (!per) { per = new Map(); FORENKLA.set(m, per) }
+  const hit = per.get(maxTris)
+  if (hit) return hit
   let lo = 3
   let hi = 512
   let best = cluster(m, lo)
@@ -78,5 +84,7 @@ export function decimate(m: Indexed, maxTris: number): Indexed {
       hi = mid
     }
   }
+  per.set(maxTris, best)
+  if (per.size > 3) per.delete(per.keys().next().value as number)
   return best
 }

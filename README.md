@@ -1453,6 +1453,29 @@ part written 0.003 mm thick is a part you cannot see.
 triangle faces, sum rather than parity, because scans have overlapping shells
 and parity reads the overlap as a hole.
 
+**Repair belongs to the imported mesh, not to a slider.** Incomplete and
+non-finite triangles are discarded without changing the input buffer; zero-area
+and co-oriented duplicate faces are removed before winding repair. The repaired
+indexed mesh is cached by source identity, with up to three triangle budgets
+cached beneath it. Changing smoothing no longer welds, reorients and decimates a
+million triangles again. Replacing a source under the same name still replaces
+its geometry. Non-manifold edges remain defects, even when an edge is used more
+than 65,535 times; their counters saturate rather than wrap.
+
+**Bent solids are tessellated along the bend, not along their straight axis.**
+Faces and walls share the same unrolled-coordinate strip boundaries. Earcut,
+already included with Three.js, triangulates concave outlines and holes; there
+are no nearest-vertex hole bridges or recursive four-way face subdivisions.
+The angular step comes from a 0.05 mm maximum chord deviation at the *outermost*
+surface, including thickness. It does not increase with the length of a straight
+cylinder generator. The flat blank and its neutral-surface dimensions are
+unchanged. A drawn outline that is not bound to the body no longer transforms or
+unrolls that body just to ignore it.
+
+**Ambiguous marching-squares cells use the bilinear saddle**, rather than the
+average of the four corners. A narrow connection and two separate islands must
+not be exchanged merely because one corner has a large distance value.
+
 **Two resolutions decide how the parts look**, and they are not the same
 thing. `trekant` is the mesh budget — 40 000 triangles by default, which is
 what a scanned or modelled figure needs before it stops looking faceted. The
@@ -1474,6 +1497,20 @@ before the slots.
 
 **Nesting follows the outline, not the bounding box** — raster-based, no genetic
 pass, because the sheet count has to keep up with a gesture.
+The occupancy mask includes every cell crossed by a boundary, not just occupied
+cell centres. Thin strips and sharp tips cannot disappear between samples; holes
+remain available for other parts. Clearance is applied to this conservative
+mask, and identical part labels do not share a mask unless their actual
+translation-normalized geometry agrees. This can spend a little more sheet area
+than centre sampling, but a missing tip is not usable clearance.
+
+**A drag asks for a preview, not a cut file.** Geometry gestures and numeric
+scrubs request 120-cell previews, without starting full-resolution measurement
+and nesting behind each preview. Release requests the 220-cell result; exported
+files and final measurements keep their original resolutions. Stale measurements
+and outlines for a previously selected plane cannot replace newer state. Undo
+separates new pointer/key actions even when they arrive within the old 450 ms
+idle window, while all the updates within a drag remain one step.
 
 **Addresses are engraved as strokes, not text.** A `TEXT` entity is a question
 about fonts, and the answer is often no.
@@ -1529,6 +1566,7 @@ pnpm look    # screenshots of the page, and any console errors
 pnpm panel   # the controls in a real browser: both surfaces, gestures, keys
 pnpm teikn   # freehand input, concave outlines, axis snapping and persistence
 pnpm presisjon # actual slot widths and kerf read back from nested SVG
+pnpm nett    # repair, saddle topology, watertight bent meshes, chord error and meshing timings
 pnpm redigering # mobile drawing, material numbers, mirroring and undo
 pnpm webkit  # WebKit mobile layout and editing smoke test on PC, not physical iOS
 ```
@@ -1592,8 +1630,15 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   together, and a printer's tolerances are not a laser's.
 - A `.gltf` pointing at a separate `.bin` cannot reach it from a browser. Use
   `.glb`.
-- A globally inverted mesh is fixed automatically; *inconsistently* wound
-  triangles are a real defect and need repairing elsewhere.
+- Winding is repaired across manifold-connected faces, including inconsistently
+  oriented triangles. Repair does not fill missing surfaces, resolve
+  self-intersections or non-manifold topology, or infer which nested shells are
+  intentional cavities. Vertex-cluster decimation is still approximate and can
+  change topology; inspect the mesh rule and the cut profiles.
+- Bends remain cylindrical, developable surfaces. This is not arbitrary
+  double-curvature unfolding, nor a calibrated sheet-metal K-factor model.
+  Bent/bent and oblique-to-cylinder joints remain unsupported; the rules still
+  report them. Verify scored material with the bend coupon before fabrication.
 - Two planes closer than five degrees to parallel do not get a joint: the slot
   would be twelve plates wide.
 - Three planes that cross in material without sharing a line cannot be

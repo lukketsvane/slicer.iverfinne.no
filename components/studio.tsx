@@ -254,7 +254,7 @@ export function Studio() {
   }, [])
   const spørSkisse = useCallback((pl: Plan | null, p: ParamBag = naa.current) => {
     const port = skissePort.current
-    if ((pl?.id ?? null) !== (port.plan?.id ?? null)) setSnitt(null)
+    if ((pl?.id ?? null) !== (port.plan?.id ?? null)) { setSnitt(null); port.shown = reqId.current + 1 }
     port.plan = pl
     if (!pl) {
       port.pending = null
@@ -342,8 +342,9 @@ export function Studio() {
         return
       }
       if (r.kind === "maal") {
+        if (r.id < sisteBygg.current) return
         setTal(r)
-        if (r.id >= sisteBygg.current) setBusy(false)
+        setBusy(false)
         return
       }
       if (r.kind === "prosjekt") {
@@ -485,7 +486,7 @@ export function Studio() {
   }, [mounted, kropp, vald, plan, params, modus, rom, spørSkisse])
   const harSnitt = !!snitt?.ringar.length
 
-  const detail: DetailKey = "mid"
+  const detail: DetailKey = skrubbar || gest === "snitt" || gest === "strek" || gest === "rute" || gest === "side" ? "lav" : "mid"
   const kk = kroppKey(params)
   useEffect(() => {
     if (mounted) bygg("flate", "lav")
@@ -578,6 +579,31 @@ export function Studio() {
     }, 450)
     return () => window.clearTimeout(t)
   }, [params, mounted, gest, skrubbar])
+  useEffect(() => {
+    const peikar = new Set<number>()
+    const avslutt = () => {
+      if (stodd.current === null || stodd.current === naa.current) return
+      fortid.current.push(stodd.current)
+      if (fortid.current.length > ANGRE_DJUPN) fortid.current.shift()
+      stodd.current = naa.current
+    }
+    const ned = (e: PointerEvent) => { if (!peikar.size) avslutt(); peikar.add(e.pointerId) }
+    const opp = (e: PointerEvent) => { peikar.delete(e.pointerId) }
+    const tast = (e: KeyboardEvent) => { if (!e.repeat && !peikar.size) avslutt() }
+    const slepp = () => peikar.clear()
+    window.addEventListener("pointerdown", ned, true)
+    window.addEventListener("pointerup", opp, true)
+    window.addEventListener("pointercancel", opp, true)
+    window.addEventListener("keydown", tast, true)
+    window.addEventListener("blur", slepp)
+    return () => {
+      window.removeEventListener("pointerdown", ned, true)
+      window.removeEventListener("pointerup", opp, true)
+      window.removeEventListener("pointercancel", opp, true)
+      window.removeEventListener("keydown", tast, true)
+      window.removeEventListener("blur", slepp)
+    }
+  }, [])
   const angre = useCallback(() => {
     const no = naa.current
     const mal = stodd.current !== null && stodd.current !== no ? stodd.current : fortid.current.pop()

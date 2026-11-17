@@ -6,7 +6,7 @@ import { FORMER } from "../lib/scene"
 import { UTTAK } from "../components/deler"
 import type { Params } from "../lib/params"
 
-const URL = process.env.URL ?? process.env.PANEL_URL ?? "http://127.0.0.1:3210"
+const URL = process.env.URL ?? process.env.PANEL_URL ?? "http://127.0.0.1:3210/nn"
 const DOBBELT = 320
 const HOVUDLINA = "[aria-label='plan, delar, ark og tid']"
 
@@ -60,7 +60,11 @@ const utbrett = async (page: Page) => {
 const bytArket = async (page: Page) => {
   const att = page.getByRole("button", { name: "lat att kontrollane" })
   if (await att.count()) await att.first().click()
-  else await page.locator(HOVUDLINA).click()
+  else {
+    const opne = page.getByRole("button", { name: "opne kontrollane" })
+    if (await opne.count()) await opne.first().click()
+    else await page.locator(HOVUDLINA).click()
+  }
 }
 
 const opneArket = async (page: Page, fane: "plan" | "materiale" | "kutt" | "sjekk") => {
@@ -74,10 +78,7 @@ const opneArket = async (page: Page, fane: "plan" | "materiale" | "kutt" | "sjek
 }
 
 const midt = async (page: Page) => {
-  if ((await page.locator("[role=listbox][aria-label='plan']").count()) === 0) {
-    await bytArket(page)
-    await page.waitForTimeout(400)
-  }
+  if ((await page.locator("[role=listbox][aria-label='plan']").count()) === 0) await opneArket(page, "plan")
 }
 
 async function opne(url: string, browser: Browser, w: number, h: number, o?: { sov?: boolean }) {
@@ -2312,10 +2313,27 @@ async function boyen(browser: Browser) {
   await utbrett(page)
   await page.locator("[role=listbox][aria-label='plan'] [role=option][data-plan]").first().locator("button").first().click()
   await roleg(page, 600)
+  const forSlett = hash(page).plan
+  await page.getByRole("button", { name: "slett plan 3", exact: true }).click()
+  await page.getByRole("button", { name: "slett plan 2", exact: true }).click()
+  await page.keyboard.press("z")
+  await vent(page, talPlan(2))
+  sjekk("to raske slettingar er to steg i angre", plana(page).length === 2)
+  await page.keyboard.press("z")
+  await vent(page, talPlan(3))
+  sjekk("neste angre hentar berre den fyrste slettinga", hash(page).plan === forSlett)
   const knapp = page.locator("[data-boy]")
   sjekk("eit valt plan har ein bøyeknapp", (await knapp.count()) === 1)
   const b = await knapp.boundingBox()
   const bogAv = (i = 0) => lesPlan(hash(page).plan)[i]?.bog ?? 0
+  await page.evaluate(`(() => {
+    window.__byggdetalj = []
+    const send = Worker.prototype.postMessage
+    Worker.prototype.postMessage = function (q, ...resten) {
+      if (q.kind === "build" && q.view === "lag") window.__byggdetalj.push(q.detail)
+      return send.call(this, q, ...resten)
+    }
+  })()`)
   sjekk("og planet er flatt til nokon dreg i han", bogAv() === 0, String(bogAv()))
   if (b) {
     const cx = b.x + b.width / 2
@@ -2326,6 +2344,8 @@ async function boyen(browser: Browser) {
     await page.mouse.up()
     await vent(page, (p) => (lesPlan(p.plan)[0]?.bog ?? 0) > 0)
     const opp = bogAv()
+    const detaljar = await page.evaluate("window.__byggdetalj") as string[]
+    sjekk("draget er grovt, sleppet er presist", detaljar.includes("lav") && detaljar.at(-1) === "mid", detaljar.join(" → "))
     sjekk("eit drag opp bøyer planet", opp > 0.2, `bog ${opp}`)
     sjekk("og dei andre plana står flate", lesPlan(hash(page).plan).slice(1).every((q) => q.bog === 0))
     await page.mouse.move(cx, cy)
@@ -2334,9 +2354,7 @@ async function boyen(browser: Browser) {
     await page.mouse.up()
     await vent(page, (p) => (lesPlan(p.plan)[0]?.bog ?? 0) < 0)
     sjekk("og eit drag ned bøyer han andre vegen", bogAv() < 0, `bog ${bogAv()}`)
-    await midt(page)
-    const opne = page.getByRole("button", { name: /^(alle|opne) kontrollane$/ })
-    if (await opne.count()) await opne.first().click()
+    await opneArket(page, "plan")
     await roleg(page, 900)
     const tekst = (await page.locator("[aria-label='kontrollar']").innerText()).replace(/\s+/g, " ")
     sjekk("bøyeradien står i tavla", /bøyeradius/i.test(tekst), (tekst.match(/[Bb][Øø]YERADIUS[^·]{0,44}/i) ?? [""])[0])
@@ -2992,6 +3010,7 @@ async function heimskjermen(browser: Browser) {
     const filer = namn ? await (await caches.open(namn)).keys() : []
     return filer.map((r) => new globalThis.URL(r.url).pathname)
   })
+  sjekk("båe målføra er lagra for nettlaus opning", mellomlager.includes("/") && mellomlager.includes("/nn"))
   sjekk("arbeidar, skrift og alle former er på telefonen", mellomlager.some((p) => p.endsWith(".js")) && mellomlager.some((p) => p.endsWith(".woff2")) && mellomlager.filter((p) => p.endsWith(".glb")).length === 19, `${mellomlager.length} filer`)
   await page.getByRole("tab", { name: "kontur", exact: true }).click()
   await roleg(page, 700)

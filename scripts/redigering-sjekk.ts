@@ -80,7 +80,7 @@ async function teikning(side: Page, cdp: CDPSession) {
   assert.deepEqual((await plana(side))[0].omriss, kontur.omriss, "hòldraget endrar ikkje omrisspunkta")
   const original = (await plana(side))[0]
   sjekk("hòlet er valt før dublering", await side.locator('[data-handtak="strek-storleik"]').isVisible())
-  await trykk(knapp(side, "dubler planet"))
+  await trykk(knapp(side, "dubler planet").first())
   await vent(side, (p) => lesPlan(p.plan).length === 2, "dublering laga ikkje ein kopi")
   const [foer, kopi] = await plana(side)
   assert.deepEqual(foer, original, "originalen vert ikkje endra av dublering")
@@ -101,15 +101,18 @@ async function teikning(side: Page, cdp: CDPSession) {
 async function materiale(side: Page, cdp: CDPSession) {
   await trykk(knapp(side, "opne kontrollane"))
   await trykk(side.getByRole("tab", { name: "materiale", exact: true }))
-  const rad = knapp(side, "18").locator("..")
-  const b = await rad.boundingBox()
+  const preset = side.locator("[data-tjukn-knapp]")
+  const b = await preset.locator("..").boundingBox()
   assert(b, "tjuknrad manglar")
   await dra(side, cdp, line([Math.min(350, b.x + b.width - 16), b.y + b.height / 2], [70, b.y + b.height / 2]), 350)
-  await trykk(knapp(side, "18"))
-  await vent(side, (p) => p.tjukn === 18, "18 mm-valet verka ikkje")
-  await trykk(knapp(side, "12"))
+  await setPose(side, { tjukn: 9 })
+  await trykk(preset)
   await vent(side, (p) => p.tjukn === 12, "12 mm-valet verka ikkje")
-  sjekk("12 og 18 mm er tilgjengelege med fingeren", (await param(side)).tjukn === 12)
+  await trykk(preset)
+  await vent(side, (p) => p.tjukn === 15, "15 mm-valet verka ikkje")
+  await trykk(preset)
+  await vent(side, (p) => p.tjukn === 18, "18 mm-valet verka ikkje")
+  sjekk("12 og 18 mm er tilgjengelege med fingeren", (await param(side)).tjukn === 18)
   const foer = await side.evaluate(() => ({ skala: visualViewport?.scale ?? 1, breidd: innerWidth, x: scrollX, y: scrollY }))
   for (const [namn, verdi, felt] of [["klaring", "0,2", "klaring"], ["tjukn", "11,85", "tjukn"], ["klaring", "0,1", "klaring"]] as const) {
     const foerVerdi = (await param(side))[felt]

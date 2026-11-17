@@ -6,7 +6,7 @@ import { meshToStl } from "../lib/export-stl"
 import { glb } from "./glbfil"
 import { rutenett, skrivPlan } from "../lib/plan"
 
-const URL = process.env.URL ?? process.argv[2] ?? "http://127.0.0.1:3210"
+const URL = process.env.URL ?? process.argv[2] ?? "http://127.0.0.1:3210/nn"
 const HOVUDLINA = "[aria-label='plan, delar, ark og tid']"
 const UT = "bilete"
 
@@ -27,7 +27,20 @@ const setPose = async (page: Page, pose: Record<string, unknown>) => {
   await page.evaluate((o) => new Promise((ok) => { window.slicer!.set(o); requestAnimationFrame(() => requestAnimationFrame(ok)) }), pose)
   await ferdig(page)
 }
-const lina = async (page: Page) => (await page.locator(HOVUDLINA).innerText()).replace(/\s+/g, " ").trim()
+const lina = async (page: Page) => {
+  if (!await page.locator(HOVUDLINA).count()) await page.getByRole("button", { name: "lat att kontrollane", exact: true }).click()
+  return (await page.locator(HOVUDLINA).textContent() ?? "").replace(/\s+/g, " ").trim()
+}
+const opneFane = async (page: Page, namn: string) => {
+  const opne = page.getByRole("button", { name: "opne kontrollane", exact: true })
+  if (await opne.count()) await opne.click()
+  await page.getByRole("tab", { name: namn, exact: true }).click()
+}
+const opneUttak = async (page: Page, benk: boolean) => {
+  if (!benk) await page.getByRole("button", { name: "eksport", exact: true }).click()
+  const alle = page.getByRole("button", { name: benk ? /^uttak/ : /alle format/ })
+  if (await alle.count() && await alle.first().getAttribute("aria-expanded") === "false") await alle.first().click()
+}
 const planTal = (s: string) => Number(/(\d+) plan/.exec(s)?.[1] ?? NaN)
 const talLina = async (page: Page, ms = 8000) => {
   const t0 = Date.now()
@@ -84,7 +97,7 @@ function eggGlb(r: number, seg: number): Buffer {
 }
 
 async function flate(namn: string, w: number, h: number) {
-  const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined })
+  const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined, args: ["--disable-features=WebShare"] })
   const page = await browser.newPage({ viewport: { width: w, height: h }, acceptDownloads: true, hasTouch: w < 1180 })
   await page.addInitScript(`setInterval(function () {
     window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }))
@@ -116,7 +129,7 @@ async function flate(namn: string, w: number, h: number) {
   else console.log(`  skjer: ${før} → ${etter} plan`)
 
   if (!benk) {
-    await page.locator(HOVUDLINA).click()
+    await opneFane(page, "plan")
     await page.waitForTimeout(500)
   }
   const rader = await page.locator("[role=listbox][aria-label='plan'] [role=option]").count()
@@ -129,14 +142,19 @@ async function flate(namn: string, w: number, h: number) {
   if (planTal(await lina(page)) !== før) brot(`${namn}: slett tok ikkje planet bort`)
 
   for (const v of ["flate", "kontur", "montasje", "lag"]) {
-    await page.getByRole("tab", { name: v, exact: true }).click()
+    const tab = page.getByRole("tab", { name: v, exact: true })
+    if (await tab.isDisabled()) {
+      if (v !== "montasje") brot(`${namn}: ${v} er utilgjengeleg`)
+      continue
+    }
+    await tab.click()
     await ferdig(page)
     await page.waitForTimeout(1200)
     if (v !== "lag") await page.screenshot({ path: `${UT}/${namn}-3-${v}.png` })
   }
 
   if (!benk) {
-    await page.getByRole("button", { name: "alle kontrollane" }).click()
+    await opneUttak(page, benk)
     await page.waitForTimeout(500)
   }
   await page.screenshot({ path: `${UT}/${namn}-4-alt.png` })
@@ -144,7 +162,7 @@ async function flate(namn: string, w: number, h: number) {
   const importer = async (fil: string, data: Buffer) => {
     const sti = join(UT, fil)
     writeFileSync(sti, data)
-    await page.setInputFiles("input[type=file]", sti)
+    await page.setInputFiles('input[type=file][accept*=".stl"]', sti)
     await ferdig(page)
     await page.waitForTimeout(1500)
     const l = await talLina(page)
@@ -164,6 +182,7 @@ async function flate(namn: string, w: number, h: number) {
   if (planTal(l2) !== 1 || /\b0 delar/.test(l2)) brot(`${namn}: skjering på importert nett gav «${l2}»`)
   else console.log(`  skjer på egget: ${l2}`)
 
+  await opneUttak(page, benk)
   for (const [chip, vent] of [
     ["passprøve", /^passprove-.*\.svg$/],
     ["ark", /\.svg$|\.zip$/],
@@ -177,7 +196,7 @@ async function flate(namn: string, w: number, h: number) {
   ] as [string, RegExp][]) {
     const [dl] = await Promise.all([
       page.waitForEvent("download", { timeout: 30000 }),
-      page.getByRole("button", { name: chip, exact: true }).click(),
+      page.getByRole("button", { name: chip, exact: true }).first().click(),
     ])
     const fil = dl.suggestedFilename()
     const sti = join(UT, fil)
@@ -234,12 +253,7 @@ async function flate(namn: string, w: number, h: number) {
     await page.getByRole("button", { name: "skjer", exact: true }).click()
     await ferdig(page)
     await page.waitForTimeout(800)
-    if (!benk) {
-      await page.locator(HOVUDLINA).click()
-      await page.waitForTimeout(400)
-      await page.getByRole("button", { name: "alle kontrollane" }).click()
-      await page.waitForTimeout(500)
-    }
+    await opneUttak(page, benk)
     const [dl] = await Promise.all([
       page.waitForEvent("download", { timeout: 30000 }),
       page.getByRole("button", { name: "lagre", exact: true }).click(),
@@ -252,7 +266,7 @@ async function flate(namn: string, w: number, h: number) {
     await page.goto(URL, { waitUntil: "networkidle" })
     await ferdig(page)
     await page.waitForTimeout(1200)
-    await page.setInputFiles("input[type=file]", sti)
+    await page.setInputFiles('input[type=file][accept*=".stl"]', sti)
     await ferdig(page)
     await page.waitForTimeout(2500)
     const ope = await talLina(page)
@@ -270,12 +284,7 @@ async function flate(namn: string, w: number, h: number) {
 
   await setPose(page, { kjelde: "kube", scene: "", storleik: 1100, plan: skrivPlan(rutenett(3, 3)), arkB: 400, arkH: 300 })
   await page.waitForTimeout(800)
-  if (!benk) {
-    await page.locator(HOVUDLINA).click()
-    await page.waitForTimeout(500)
-    await page.getByRole("button", { name: "alle kontrollane" }).click()
-    await page.waitForTimeout(500)
-  }
+  if (!benk) await opneFane(page, "sjekk")
   const raad = page.locator("button[aria-label^='fiks ']")
   const n = await raad.count()
   await page.screenshot({ path: `${UT}/${namn}-6-blindgate.png` })

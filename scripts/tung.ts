@@ -74,4 +74,9 @@ for (const trekant of [8, 20, 60]) {
     MOTOR.measure({ ...base, rotX } as unknown as ParamBag)
     console.log(`  vend ${rotX}° → ${Date.now() - t} ms`)
   }
+  for (const glatt of [6, 8, 10]) {
+    const t = Date.now()
+    const m = MOTOR.measure({ ...base, glatt } as unknown as ParamBag)
+    console.log(`  glatt ${glatt} → ${Date.now() - t} ms · ${m.tris} trekantar, ${m.parts} delar, ${m.joints} ledd`)
+  }
 }

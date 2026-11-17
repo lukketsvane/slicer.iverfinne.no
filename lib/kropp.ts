@@ -3,11 +3,10 @@ import {
   flip,
   makeSoup,
   openEdges,
-  orienter,
+  reparer,
   plassering,
   shade,
   signedVolume,
-  weld,
   type Indexed,
   type Soup,
 } from "./soup"
@@ -58,7 +57,7 @@ function kjeldenett(id: string, tak: number, glatt: number): Kjeldenett {
   const ut = KJELDE_HUGS([id, generasjon(), tak, glatt].join("|"), () => {
     bom = true
     const src = source(id)
-    let net = orienter(weld(src))
+    let net = reparer(src)
     net = decimate(net, tak)
     if (signedVolume(net) < 0) net = flip(net)
     net = taubin(net, glatt)
