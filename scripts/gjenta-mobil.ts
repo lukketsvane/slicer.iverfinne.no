@@ -63,13 +63,13 @@ async function hovud() {
         await dra(c, [[100, 305], [230, 305], [258, 490], [217, 490], [202, 456], [130, 456], [115, 490], [75, 490], [100, 305]], 1100)
         await vent(async () => (await plan(s)).length === 1)
         await trykk(knapp("skjer hòl")); await vent(async () => (await plan(s))[0].strek.length === 1)
-        await trykk(knapp("dubler planet")); await vent(async () => (await plan(s)).length === 2); await heim(); await flyttValt(15)
+        await trykk(knapp("dubler planet").first()); await vent(async () => (await plan(s)).length === 2); await heim(); await flyttValt(15)
         const par = (await plan(s)).slice(0, 2)
         assert.equal(await knapp("gjenta flyttinga").count(), 1, "gjentakinga skal finnast rett ved tommelen")
         assert(await knapp("gjenta flyttinga").evaluate((el) => { const r = el.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest("button") === el }))
         const startRekkje = performance.now()
         for (let n = 3; n <= 6; n++) {
-          await trykk(knapp(maate === "gjenta" ? "gjenta flyttinga" : "dubler planet"))
+          await trykk(knapp(maate === "gjenta" ? "gjenta flyttinga" : "dubler planet").first())
           await vent(async () => (await plan(s)).length === n)
         }
         const rekkjeSekund = (performance.now() - startRekkje) / 1000
