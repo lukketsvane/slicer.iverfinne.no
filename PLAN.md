@@ -269,6 +269,11 @@ Det grove passet kjøpte eit dårlegare omriss til full pris, og buffernøkkelen
 har celletalet i seg, so dei to bygga delte ingenting. Eit andre bygg på same
 posen er derimot gratis.
 
+Eitt unnatak kom sidan: sporbotnane. Kvart botnhjørne har si eiga rutenettline
+i feltet, so botnen er rett ved kvart celletal og ikkje rettare ved fleire — og
+det arbeidet ligg i feltet, ikkje i trekantane: om lag ein tidel på snitt-tida i
+middel, opptil to femtedelar på eit rutenett med 64 plan.
+
 Eitt nivå i staden for to: **452 → 224 ms per parameterhakk, i kvar fane**, og
 det du ser fyrst er det laseren får. På ein telefon, tre til fem gonger
 tregare, er det halvsekundet eit heilt sekund.

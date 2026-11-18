@@ -1587,6 +1587,33 @@ as you locked.
 and the 3D view cannot drift apart. Hand-drawn strokes go into the same field,
 before the slots.
 
+**A slot bottom is square at 220 cells.** Marching squares joins the two edges
+of a cell with one straight line and cannot turn a corner inside it, so every
+slot bottom came out chamfered by about a cell — along the axes too — and the
+mating plate stopped that far short of the split: 0.7 mm on a 150 mm body, 1.4
+on 300, 3.5 on 600. Each bottom corner now has a grid line of its own in each
+direction, a thousandth of a millimetre inside the slot, and that thousandth is
+all the room the chamfer has left. The lines lie inside the cut on purpose: a
+line just outside it is a row of grid points with a thousandth of material
+under them, and a sliver thinner than a cell between a slot and a hole then
+comes out as a hair that joins two parts on the sheet. Each corner also has
+lines through a point a quarter of a cell out across the wall, level with the
+first, so the node a thousandth inside reads against material: with only the
+next ordinary node across the wall, a strip thinner than a cell beside the
+slot read as empty and was cut off at the bottom, and two slots opening from
+opposite sides with their bottoms on one line left a cell two thousandths
+high whose saddle was decided by rounding. The simplifier welds what is left
+of the chamfer to the corner itself, for every slot, so the kerf offset
+mitres one corner instead of crossing itself in a loop. `pnpm presisjon`
+reads the bottoms back from the nested SVG — along the axes, at 45°, radial
+and on an arc, at 150, 300 and 600 mm in 3 and 6 mm plate: every corner within
+0.01 mm of where it belongs, the plate within 0.02 mm of the split, and at a
+0.2 mm kerf no crossing within half a millimetre of a bottom corner and no
+point more than 0.01 mm past half the kerf. It also holds skulptur-01 in a
+6×6 grid at 600 mm to the same outlines at 220 and 320 cells, and `pnpm tak`
+does the same for its fan of 32. It costs about a tenth more slicing time in the median, up to two fifths
+on a 64-plane grid.
+
 **Nesting follows the outline, not the bounding box** — raster-based, no genetic
 pass, because the sheet count has to keep up with a gesture.
 The occupancy mask includes every cell crossed by a boundary, not just occupied
@@ -1658,7 +1685,7 @@ pnpm ark     # cut sheets as images
 pnpm look    # screenshots of the page, and any console errors
 pnpm panel   # the controls in a real browser: both surfaces, gestures, keys
 pnpm teikn   # freehand input, concave outlines, axis snapping and persistence
-pnpm presisjon # actual slot widths and kerf read back from nested SVG
+pnpm presisjon # actual slot widths, slot bottoms and kerf read back from nested SVG
 pnpm nett    # repair, saddle topology, watertight bent meshes, chord error and meshing timings
 pnpm redigering # mobile drawing, material numbers, mirroring and undo
 pnpm webkit  # WebKit mobile layout and editing smoke test on PC, not physical iOS
@@ -1760,9 +1787,16 @@ are the documentation. `REBUILD.md` is the brief this version was built to.
   would need a real search.
 - Kerf compensation offsets along the angle bisector; tighter corners than the
   kerf are approximate, erring safe.
-- Thin straight slots along profile axes receive extra field samples. The
-  precision regression covers 200–1000 mm constructions in 1, 3 and 12 mm
-  material; oblique and curved slots still use the existing field resolution.
+- Every slot has its two bottom corners on grid lines of their own, and thin
+  straight slots along profile axes receive extra field samples besides. The
+  precision regression covers slot widths on 200–1000 mm constructions in 1, 3
+  and 12 mm material, and slot bottoms on 150–600 mm in 3 and 6 mm. The *walls*
+  of oblique and curved slots still use the existing field resolution, and the
+  shallower the angle the worse: on a 600 mm body in 3 mm plate a slot 7–10°
+  off an axis has its wall up to half a millimetre into the slot from about
+  2 mm above the bottom, so the mating plate stops millimetres short of the
+  split, square bottom or not. A curved wall is simplified like the rest of
+  the outline.
 - The timed mobile flow is an automated Chromium run on a PC, with native
   sharing disabled so it can verify a downloaded file. It is a three-plate
   study, not a completed reference chair. Physical assembly and real iPhone

@@ -159,6 +159,11 @@ const vifte = (n: number, r: number, vidd: readonly [number, number], fraa = 1):
     t.bom === 0 && t.treff > 0,
     `${t.treff} treff · ${t.bom} bom på 32 ribber`,
   )
+  const delar = [DETAIL.mid, DETAIL.hog].map(d => {
+    const p = { ...GRUNN, plan: plan32 }
+    return buildSnitt(makeKropp(p), p, d).ribber.reduce((a, r) => a + r.outlines.length, 0)
+  })
+  ok(`vifta har like mange omriss ved ${DETAIL.mid} og ${DETAIL.hog} celler`, delar[0] === delar[1], delar.join(" · "))
 }
 
 {

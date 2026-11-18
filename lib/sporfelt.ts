@@ -146,16 +146,28 @@ export function forenklaSpor(poly: Pt[], tol: number, spor: readonly Spor[], bok
     }
     return -1
   }
+  const hjorne = spor.flatMap(s => [-1, 1].map(side => sporPunkt(s, s.botn, (side * s.w) / 2)))
+  const ved = (p: Pt) => hjorne.find(c => Math.abs(p[0] - c[0]) < 1e-2 && Math.abs(p[1] - c[1]) < 1e-2)
   const kant = poly.map((p, i) => vegg(p, poly[(i + 1) % poly.length]))
-  const fast = kant.flatMap((v, i) => v !== kant[(i + kant.length - 1) % kant.length] && (v >= 0 || kant[(i + kant.length - 1) % kant.length] >= 0) ? [i] : [])
+  const fast = kant.flatMap((v, i) => ved(poly[i]) || (v !== kant[(i + kant.length - 1) % kant.length] && (v >= 0 || kant[(i + kant.length - 1) % kant.length] >= 0)) ? [i] : [])
   if (!fast.length) return simplify(poly, tol)
   const ut: Pt[] = []
   for (let i = 0; i < fast.length; i++) {
     const a = fast[i]
     const b = fast[(i + 1) % fast.length]
     const bit = a < b ? poly.slice(a, b + 1) : [...poly.slice(a), ...poly.slice(0, b + 1)]
-    ut.push(...simplify(bit, tol, false).slice(0, -1))
+    const [a0, a1, a2] = bit
+    const ex = bit.length === 3 ? a2[0] - a0[0] : 0
+    const ey = bit.length === 3 ? a2[1] - a0[1] : 0
+    const t = Math.max(0, Math.min(1, ((a1[0] - a0[0]) * ex + (a1[1] - a0[1]) * ey) / (ex * ex + ey * ey || 1)))
+    const rett = bit.length === 3 && Math.hypot(a1[0] - a0[0] - ex * t, a1[1] - a0[1] - ey * t) <= tol
+    for (const p of (rett ? [a0, a2] : simplify(bit, tol, false)).slice(0, -1)) {
+      const q = ved(p) ?? p
+      const f = ut[ut.length - 1]
+      if (!f || f[0] !== q[0] || f[1] !== q[1]) ut.push([q[0], q[1]])
+    }
   }
+  if (ut.length > 1 && ut[0][0] === ut[ut.length - 1][0] && ut[0][1] === ut[ut.length - 1][1]) ut.pop()
   return ut
 }
 
@@ -164,6 +176,14 @@ export function sporAksar(x0: number, dx: number, nx: number, y0: number, dy: nu
   const yy: number[] = [...(liner?.y ?? [])]
   let skra = 0
   for (const s of spor) {
+    const fri = Math.min(dx, dy, s.w) / 4
+    for (const side of [-1, 1]) {
+      for (const v of [-1e-3, fri]) {
+        const c = sporPunkt(s, s.botn + Math.sign(s.ut - s.botn) * 1e-3, side * (s.w / 2 + v))
+        xx.push(c[0])
+        yy.push(c[1])
+      }
+    }
     const loddrett = !s.k && Math.abs(s.d[0]) < 1e-8
     const vassrett = !s.k && Math.abs(s.d[1]) < 1e-8
     if (!loddrett && !vassrett) {
