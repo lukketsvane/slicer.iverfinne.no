@@ -1650,6 +1650,39 @@ now keep 19 700 triangles of their 40 000 where the old path kept 13 100.
 `pnpm tak` counts the cache misses during a drag — the number is exact on every
 machine, where a millisecond threshold is not.
 
+## Headless design for agents
+
+Coding agents (Claude Code, Codex and others) design without the app: a small
+JSON spec in, one verdict line per mode out. Instructions for agents live in
+`.claude/skills/slicerman/SKILL.md`; depth in `scripts/lampe/LES.md`.
+
+```json
+{"namn":"kapsel","form":"skulptur-02","hogd":260,
+ "gitter":{"vinkel":0,"avstand":30,"tal":5,"tal2":7,"fjern":[1,5,25]},
+ "hol":[{"kule":[0,0,130],"r":40}],"lys":[[0,0,130]]}
+```
+
+```
+pnpm -s lampe scripts/lampe/eksempel/kapsel.json [--auto] [--full] [--bilete]
+kapsel  ALT OK  11 delar · 19 ledd · 2 ark · 0,31 kg · 119×192×259 mm · står 12 mm · skjerm 39 %
+```
+
+- The body is a built-in form or any mesh file, scaled to `mm` or `hogd`; two
+  families of plain plates (`gitter`) are sliced through it; `hol` cuts a
+  spherical cavity as a round hole in every plate; `modus` turns the whole lamp.
+- A broken rule prints the fix as JSON to merge into `gitter`
+  (`→ prøv: gitter {"fjern":[2,21]}`); `--auto` applies it round by round and
+  saves `<spek>.auto.json` only when every mode ends `ALT OK`.
+- `står` is how far the centre of mass sits inside the footprint (`VIPPAR`
+  when outside), `skjerm` the share of near-horizontal rays from the light that
+  a plate stops. Both are advice and never break the run.
+- `pnpm -s lampe --former` prints the proportions and section profile of every
+  built-in form.
+- `--full` writes the cut files (`produksjon/fin/`, 1200 cells), the project zip
+  the app opens, assembly order and cut list; `--bilete` renders a contact sheet.
+- Drawn plates, hardware checks and STEP export need a TypeScript concept:
+  `pnpm -s lampe:konsept <folder>`. Exit codes: 0 ok, 1 broken, 2 error.
+
 ## Develop
 
 ```bash

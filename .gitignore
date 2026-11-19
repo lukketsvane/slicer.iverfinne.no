@@ -9,3 +9,5 @@ next-env.d.ts
 bilete/
 public/verkstad-sw.js
 node_modules
+scripts/lampe/**/ut/
+scripts/lampe/**/*.auto.json

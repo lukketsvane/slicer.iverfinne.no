@@ -1,5 +1,13 @@
 # CLAUDE.md
 
+## Agentar
+
+Designoppgåver (lampe, møbel, objekt skore i plater): les `.claude/skills/slicerman/SKILL.md` (≈120 liner; i Claude Code skillen `slicerman`). Han er alt du treng.
+Éin kommando inn: `pnpm -s lampe <spek.json> [--auto] [--full] [--bilete]`. Éi line per modus med dommen (`ALT OK` / `BROT …`), ved brot éi `→ prøv: gitter {…}`-line, exit 0/1/2.
+Skriv ein JSON-spek, ikkje TS. Les ikkje README.md, REBUILD.md eller PLAN.md for å designe, og køyr ikkje GUI-en utan at brukaren vil sjå appen.
+Les berre lina; `rapport.txt` med `head -12` når lina ikkje er nok; `ark.png` éin gong per design. `--full` før noko vert skore.
+Desse reglane gjeld berre bruk av motoren. Kodeendringar i appen følgjer resten av denne fila.
+
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.

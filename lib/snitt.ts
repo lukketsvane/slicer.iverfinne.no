@@ -75,6 +75,7 @@ export type Snitt = {
   avvist: number
   kurva: number[]
   kasta: number
+  kastaPlan: number[]
   slotW: number
   minGap: number
   montering: Montering
@@ -703,6 +704,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
   const tol = Math.max(Math.min(0.25, step / 8), p.forenkl)
   const minHol = Math.PI * (p.hol / 2) ** 2
   let kasta = 0
+  const kastaPlan = new Set<number>()
 
   const ribber: Ribbe[] = raa.map((a) => {
     a.spor.sort((u, v) => u.munn - v.munn)
@@ -722,6 +724,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
       if (netto(o) < MIN_AREA) return false
       if (p.lause && (a.spor.length || a.tapp.length) && jointsIn(a.spor, o) + tappIn(a.tapp, o).length === 0) {
         kasta++
+        kastaPlan.add(a.plan.id)
         return false
       }
       return true
@@ -833,6 +836,7 @@ function buildSnittRaw(k: Kropp, p: Params, cells: number): Snitt {
     avvist,
     kurva,
     kasta,
+    kastaPlan: [...kastaPlan],
     slotW,
     minGap,
     montering: { orden, retning, boygde, brot, bunde, klem },

@@ -1,0 +1,9 @@
+{
+ "namn": "skjerm",
+ "form": "skulptur-11",
+ "mm": 320,
+ "gitter": {"vinkel":30,"avstand":28,"tal":10,"tal2":6,"fjern":[1,10,23],"fase":0.1},
+ "hol": [{"kule":[0,0,70],"r":28}],
+ "lys": [[0,0,70]],
+ "modus": {"arbeid":{},"kveld":{"drei":180}}
+}

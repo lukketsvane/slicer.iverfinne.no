@@ -1,0 +1,9 @@
+{
+ "namn": "kapsel",
+ "form": "skulptur-02",
+ "hogd": 260,
+ "gitter": {"vinkel":0,"avstand":30,"tal":5,"tal2":7,"fjern":[1,5,25],"fase":0.1},
+ "hol": [{"kule":[0,0,130],"r":40}],
+ "opal": [3],
+ "lys": [[0,0,130]]
+}

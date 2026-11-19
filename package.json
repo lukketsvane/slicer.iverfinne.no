@@ -28,7 +28,11 @@
     "webkit": "tsx scripts/webkit-sjekk.ts",
     "presisjon": "tsx scripts/presisjon.ts",
     "nett": "tsx scripts/nett-sjekk.ts",
-    "kvikk": "tsx scripts/kvikk.ts"
+    "kvikk": "tsx scripts/kvikk.ts",
+    "lampe": "tsx scripts/lampe/spek.ts",
+    "lampe:konsept": "tsx scripts/lampe/cli.ts",
+    "lampe:syn": "tsx scripts/lampe/syn.ts",
+    "lampe:nett": "tsx scripts/lampe/stlsjekk.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

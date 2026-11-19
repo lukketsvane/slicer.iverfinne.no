@@ -1,0 +1,10 @@
+{
+ "namn": "sopp",
+ "form": "skulptur-04",
+ "mm": 300,
+ "gitter": {"vinkel":45,"avstand":30,"tal":9,"fjern":[2,7,9,21,26,27,29],"fase":0.1},
+ "hol": [{"kule":[0,0,50],"r":32}],
+ "farge": "#3f4b42",
+ "lys": [[0,0,50]],
+ "modus": {"arbeid":{},"kveld":{"snu":true}}
+}
