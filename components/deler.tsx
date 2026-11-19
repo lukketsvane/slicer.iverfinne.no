@@ -63,13 +63,15 @@ export const DOBBELT_MS = 320
 export const ICON_BTN =
   "hit ikon relative flex h-9 w-9 shrink-0 items-center justify-center"
 export const CHIP =
-  "hit min-h-[36px] rounded-full border px-3 text-[11px] leading-none tracking-[0.04em] disabled:opacity-30"
+  "hit min-h-[28px] px-1.5 text-[11px] leading-none tracking-[0.04em] disabled:opacity-25"
 export const ORD =
   "hit ord min-h-[36px] text-[11px] leading-none tracking-[0.04em]"
 export function chipStyle(active: boolean): CSSProperties {
-  return active
-    ? { background: "var(--ink)", color: "var(--paper)", borderColor: "transparent" }
-    : { color: "var(--ink)", borderColor: "var(--rule)" }
+  return {
+    color: "var(--ink)",
+    opacity: active ? 1 : 0.42,
+    fontWeight: active ? 500 : 400,
+  }
 }
 
 export function Fiksen({ rule, params, onChange }: { rule: Rule; params: ParamBag; onChange: (p: ParamBag) => void }) {
@@ -208,7 +210,7 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
             className={"flex items-baseline justify-between gap-2 py-[2px] leading-4" + (brote ? " col-span-2" : "")}
           >
             <dt className="dim shrink-0 truncate">{mRad.label}</dt>
-            <dd className="tab flex min-w-0 items-baseline justify-end gap-1.5 text-right" style={{ color: brote && r.hard ? "var(--warn)" : undefined }}>
+            <dd className="tab flex min-w-0 items-baseline justify-end gap-1.5 text-right">
               <span className="truncate" style={{ textDecoration: brote && !r.hard ? "underline dotted" : undefined, textUnderlineOffset: 3 }}>
                 {brote ? r.value : mRad.text}
                 {!brote && q.unit && <span className="dim pl-1">{q.unit}</span>}
@@ -223,7 +225,7 @@ export function Tavla({ metrics, rules, busy, params, onChange, onFiksAlle }: {
         return (
           <div key={r.id} title={r.why} className="col-span-2 flex items-baseline justify-between gap-2 py-[2px] leading-4">
             <dt className="dim shrink-0 truncate">{r.label}</dt>
-            <dd className="tab flex min-w-0 items-baseline justify-end gap-1.5 text-right" style={{ color: r.hard ? "var(--warn)" : undefined }}>
+            <dd className="tab flex min-w-0 items-baseline justify-end gap-1.5 text-right">
               <span className="truncate" style={{ textDecoration: r.hard ? undefined : "underline dotted", textUnderlineOffset: 3 }}>{r.value}</span>
               <Fiksen rule={rRaw} params={params} onChange={onChange} />
             </dd>

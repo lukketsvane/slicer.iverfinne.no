@@ -133,6 +133,8 @@ const INGEN: readonly number[] = []
 const [MOBEL_STORLEIK, MOBEL_TJUKN, MOBEL_ARK] = [450, 12, [1200, 600] as const]
 export function Studio() {
   const maal = useMaal()
+  const maalRef = useRef(maal)
+  maalRef.current = maal
   const [gizmoModus, setGizmoModus] = useState<GizmoModus | null>(null)
   const [params, setParams] = useState<ParamBag>(() => ({ ...MOTOR.defaults }))
   const [view, setView] = useState<View>("lag")
@@ -281,7 +283,7 @@ export function Studio() {
         send({ kind: "import", id, name: v.label, buf: v.bytes, som: v.id, etikett: v.label }, [v.bytes])
       }
       setHentar(false)
-      if (funne.length < idar.length) setMelding(funne.length ? "eitt nett mangla" : "fann ikkje nettet")
+      if (funne.length < idar.length) setMelding(funne.length ? mt(maalRef.current, "one mesh missing", "eitt nett mangla") : mt(maalRef.current, "mesh not found", "fann ikkje nettet"))
     })
   }, [send])
 
@@ -355,7 +357,7 @@ export function Studio() {
         const kj = r.src ? r.src.id : KUBE
         const fil = bytar.current.get(r.id)?.namn.replace(/\.[a-z0-9]+$/i, "")
         bytRef.current(() => nyttProsjekt(fil, { params: MOTOR.clamp({ ...r.params, kjelde: kj }, { ...MOTOR.defaults, kjelde: kj }) }), false)
-        setMelding(r.src ? "prosjekt ope" : "oppsett sett")
+        setMelding(r.src ? mt(maalRef.current, "project opened", "prosjekt ope") : mt(maalRef.current, "settings applied", "oppsett sett"))
         const bs = bytar.current.get(r.id)
         bytar.current.delete(r.id)
         if (bs) {
@@ -386,11 +388,11 @@ export function Studio() {
       if (r.kind === "fiksalt") {
         setBusy(false)
         if (!r.fiksa.length) {
-          setMelding(r.att.length ? `ingen råd å trykkje — ${r.att.join(", ")} står att` : "ingenting å rette")
+          setMelding(r.att.length ? mt(maalRef.current, `no automatic fixes left`, `ingen råd å trykkje — ${r.att.join(", ")} står att`) : mt(maalRef.current, "nothing to fix", "ingenting å rette"))
           return
         }
         endre(r.params)
-        setMelding(r.att.length ? `${r.fiksa.length} retta — ${r.att.join(", ")} står att` : `${r.fiksa.length} retta`)
+        setMelding(r.att.length ? mt(maalRef.current, `${r.fiksa.length} fixed`, `${r.fiksa.length} retta — ${r.att.join(", ")} står att`) : mt(maalRef.current, `${r.fiksa.length} fixed`, `${r.fiksa.length} retta`))
         return
       }
 
@@ -398,7 +400,7 @@ export function Studio() {
         setBusy(false)
         const gjeld = r.plan > 0 && kroppKey(naa.current) === kroppKey(r.params) && String(naa.current.plan ?? "") === r.fraa
         if (gjeld) { setVald(null); setParams((cur) => ({ ...cur, plan: r.params.plan, fest: r.params.fest })) }
-        setMelding(gjeld ? `${r.plan} plan · ${r.proevde} prøvde` : "ingenting å skjere")
+        setMelding(gjeld ? mt(maalRef.current, `${r.plan} planes · ${r.proevde} tried`, `${r.plan} plan · ${r.proevde} prøvde`) : mt(maalRef.current, "nothing to slice", "ingenting å skjere"))
         return
       }
 
@@ -421,7 +423,7 @@ export function Studio() {
         bytar.current.delete(r.id)
         if (bs) {
           void lagreNett(r.src.id, r.src.label, bs.buf).then((ok) => {
-            if (!ok) setMelding("for stort å hugse — lagre prosjektfila")
+            if (!ok) setMelding(mt(maalRef.current, "too large to cache — save project file", "for stort å hugse — lagre prosjektfila"))
             else lesBibliotek()
           })
         }
@@ -467,14 +469,14 @@ export function Studio() {
           return
         }
         bytar.current.delete(r.id)
-        setFeil(r.kva === "import" ? (r.kvifor ?? "ulesbar fil") : r.kva === "finn" ? "auto feila" : "uttak feila")
+        setFeil(r.kva === "import" ? (r.kvifor ?? mt(maalRef.current, "unreadable file", "ulesbar fil")) : r.kva === "finn" ? mt(maalRef.current, "auto failed", "auto feila") : mt(maalRef.current, "export failed", "uttak feila"))
         setHentar(false)
         setBusy(false)
         return
       }
       const del = r.id === delId.current
       void lastNed(r.text ? new Blob([r.text], { type: r.mime }) : new Blob([r.data as ArrayBuffer], { type: r.mime }), r.name, del).then((ut) => {
-        if (del && ut && !r.merknad) setMelding("prosjektfila " + ut)
+        if (del && ut && !r.merknad) setMelding(mt(maalRef.current, "project saved: ", "prosjektfila ") + ut)
       })
       if (r.merknad) setMelding(r.merknad)
       setBusy(false)
@@ -674,7 +676,7 @@ export function Studio() {
   const leggBit = useCallback((val: string) => {
     const byt = bitRef.current
     if (byt === null && lesScene(String(naa.current.scene || "") || eiKjelde(String(naa.current.kjelde ?? KUBE))).length >= SCENE_TAK) {
-      setMelding(`taket er ${SCENE_TAK} bitar`)
+      setMelding(mt(maalRef.current, `max ${SCENE_TAK} parts`, `taket er ${SCENE_TAK} bitar`))
       return
     }
     setParams((cur) => {
@@ -805,12 +807,12 @@ export function Studio() {
     if (!s || !k) return
     const o = broek(s.o, k.min, k.max)
     if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) {
-      setMelding("for langt ute")
+      setMelding(mt(maalRef.current, "too far outside", "for langt ute"))
       return
     }
     const naaPlan = lesPlan(naa.current.plan)
     if (naaPlan.length >= PLAN_TAK) {
-      setMelding(`taket er ${PLAN_TAK} plan`)
+      setMelding(mt(maalRef.current, `max ${PLAN_TAK} planes`, `taket er ${PLAN_TAK} plan`))
       return
     }
     const nye: { o: Vec3; n: Vec3 }[] = []
@@ -820,7 +822,7 @@ export function Studio() {
       if (!nye.some((r) => sameSnitt(r, q))) nye.push(q)
     }
     const tek = nye.slice(0, PLAN_TAK - naaPlan.length)
-    if (tek.length < nye.length) setMelding(`taket er ${PLAN_TAK} plan`)
+    if (tek.length < nye.length) setMelding(mt(maalRef.current, `max ${PLAN_TAK} planes`, `taket er ${PLAN_TAK} plan`))
     const id = nyId(naaPlan)
     setParams((cur) => {
       const l = lesPlan(cur.plan)
@@ -839,7 +841,7 @@ export function Studio() {
       setValdStrek(null)
       setValdPunkt(null)
       setModus("form")
-      setMelding(teiknSlag === "kontur" ? "teikn konturen · slepp for å lukke" : teiknSlag === "halv" ? "teikn den eine sida · den andre vert spegla" : teiknSlag === "rund" ? "teikn: dra ei rund plate" : "teikn: dra ein firkant")
+      setMelding(teiknSlag === "kontur" ? mt(maalRef.current, "draw outline · release to close", "teikn konturen · slepp for å lukke") : teiknSlag === "halv" ? mt(maalRef.current, "draw one side · mirrored across center", "teikn den eine sida · den andre vert spegla") : teiknSlag === "rund" ? mt(maalRef.current, "drag a round face", "teikn: dra ei rund plate") : mt(maalRef.current, "drag a rectangle", "teikn: dra ein firkant"))
     }
     setTeikn((t) => !t)
   }, [teikn, teiknSlag])
@@ -887,8 +889,8 @@ export function Studio() {
       return
     }
     const { o, omriss: form = omriss } = svar
-    if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) return setMelding("for langt ute")
-    if (naaPlan.length >= PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+    if (o.some((c) => c < -PLAN_ROM || c > 1 + PLAN_ROM)) return setMelding(mt(maalRef.current, "too far outside", "for langt ute"))
+    if (naaPlan.length >= PLAN_TAK) return setMelding(mt(maalRef.current, `max ${PLAN_TAK} planes`, `taket er ${PLAN_TAK} plan`))
     const id = nyId(naaPlan)
     setParams((cur) => {
       const l = lesPlan(cur.plan)
@@ -908,17 +910,17 @@ export function Studio() {
     const l = lesPlan(naa.current.plan)
     const j = l.findIndex((q) => q.id === id)
     if (j < 0) return
-    if (l.length >= PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+    if (l.length >= PLAN_TAK) return setMelding(mt(maalRef.current, `max ${PLAN_TAK} planes`, `taket er ${PLAN_TAK} plan`))
     const t = typeof naa.current.tjukn === "number" ? naa.current.tjukn : 6
     const q = l[j]
     const g = gruppeNo.current.g
     const kjelde = g !== null && q.gruppe === g ? iGruppa(l, g) : [q]
-    if (l.length + kjelde.length > PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+    if (l.length + kjelde.length > PLAN_TAK) return setMelding(mt(maalRef.current, `max ${PLAN_TAK} planes`, `taket er ${PLAN_TAK} plan`))
     const kopiar: Plan[] = []
     const steg = kjelde.length === 1 && sisteKopi.current?.kopi === id ? nesteSteg(l, id, sisteKopi.current.kjelde) : null
     for (const p of kjelde) {
       const o = steg ?? skuvKopi(p, k.min, k.max, t)
-      if (!o) return setMelding("ikkje rom for kopi · flytt plata innover")
+      if (!o) return setMelding(mt(maalRef.current, "no room to copy · move plane inward", "ikkje rom for kopi · flytt plata innover"))
       kopiar.push({ ...p, o })
     }
     const nyG = kjelde.length > 1 ? nyGruppe(l) : 0
@@ -941,7 +943,7 @@ export function Studio() {
   const rundtValt = useCallback((N: number) => {
     const k = kroppRef.current, l = lesPlan(naa.current.plan), q = l.find((p) => p.id === valdRef.current)
     if (!k || !q) return
-    if (l.length + N - 1 > PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+    if (l.length + N - 1 > PLAN_TAK) return setMelding(mt(maalRef.current, `max ${PLAN_TAK} planes`, `taket er ${PLAN_TAK} plan`))
     const g = nyGruppe(l), rad = rundt(q, N, k.min, k.max, nyId(l), g, typeof naa.current.tjukn === "number" ? naa.current.tjukn : 3)
     setParams((cur) => ({ ...cur, plan: skrivPlan([...lesPlan(cur.plan).map((p) => (p.id === q.id ? rad[0] : p)), ...rad.slice(1)]) }))
     setValdGruppe(g)
@@ -956,7 +958,7 @@ export function Studio() {
     const S = typeof naa.current.storleik === "number" ? naa.current.storleik : 150
     const par = speglPar(q, akse, k.min, k.max, S, l, typeof naa.current.tjukn === "number" ? naa.current.tjukn : 3)
     if (par) {
-      if (l.length >= PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+      if (l.length >= PLAN_TAK) return setMelding(mt(maalRef.current, `max ${PLAN_TAK} planes`, `taket er ${PLAN_TAK} plan`))
       const { flytt, kopi } = par
       setParams((cur) => ({ ...cur, plan: skrivPlan([...lesPlan(cur.plan).map((p) => (p.id === q.id ? flytt : p)), kopi]) }))
       const g = flytt.gruppe ?? null
@@ -970,7 +972,7 @@ export function Studio() {
     const speglaPlan = speglPlan(q, akse, k.min, k.max)
     const a = planRamme(q, k.min, k.max), b = planRamme(speglaPlan, k.min, k.max)
     const samePlan = !q.bog && Math.abs(dot(a.n, b.n)) > 0.99999 && Math.abs(dot(sub3(b.o, a.o), a.n)) < 0.001
-    if (!samePlan && l.length >= PLAN_TAK) return setMelding(`taket er ${PLAN_TAK} plan`)
+    if (!samePlan && l.length >= PLAN_TAK) return setMelding(mt(maalRef.current, `max ${PLAN_TAK} planes`, `taket er ${PLAN_TAK} plan`))
     const ny = { ...speglaPlan, id: samePlan ? q.id : nyId(l), gruppe: undefined }
     setParams((cur) => ({ ...cur, plan: skrivPlan(samePlan ? l.map((p) => p.id === q.id ? ny : p) : [...l, ny]) }))
     setVald(ny.id)
@@ -1117,7 +1119,7 @@ export function Studio() {
     setParams((cur) => {
       const i = Math.min(SNAPPSTEG.length - 1, Math.max(0, Math.round(Number(cur.snapp ?? 3))))
       const ny = (i + 1) % SNAPPSTEG.length
-      setMelding(`snapp ${SNAPP_NAMN[ny]}`)
+      setMelding(`${mt(maalRef.current, "snap", "snapp")} ${omsetVerdi(maalRef.current, SNAPP_NAMN[ny])}`)
       return { ...cur, snapp: ny }
     })
   }, [])
@@ -1476,7 +1478,7 @@ export function Studio() {
   const leggBilete = useCallback((f: BileteForm) => {
     const pl = teikneplan.current?.()
     const l = lesPlan(naa.current.plan)
-    if (!pl || l.length >= PLAN_TAK) return setMelding(pl ? `taket er ${PLAN_TAK} plan` : "ingen flate")
+    if (!pl || l.length >= PLAN_TAK) return setMelding(pl ? mt(maalRef.current, `max ${PLAN_TAK} planes`, `taket er ${PLAN_TAK} plan`) : mt(maalRef.current, "no plane", "ingen flate"))
     const { omriss, runde, hol } = skalerForm(f, 0.8)
     const id = nyId(l)
     setParams((cur) => ({ ...cur, plan: skrivPlan([...lesPlan(cur.plan), { id, o: pl.o, n: pl.n, bog: 0, strek: hol, omriss, ...(runde.length ? { runde } : {}) }]) }))
@@ -1504,7 +1506,7 @@ export function Studio() {
         if (k > 0) formSvar.current.add(id)
         send({ kind: "import", id, name: f.name, buf }, [buf])
       } catch {
-        setFeil("ulesbar fil")
+        setFeil(mt(maalRef.current, "unreadable file", "ulesbar fil"))
         setHentar(false)
         setBusy(false)
       }
@@ -1523,7 +1525,7 @@ export function Studio() {
       const v = funne[0]
       if (!v) {
         setHentar(false)
-        return setMelding("fann ikkje nettet")
+        return setMelding(mt(maalRef.current, "mesh not found", "fann ikkje nettet"))
       }
       const rid = ++reqId.current
       formSvar.current.add(rid)
@@ -1883,11 +1885,11 @@ export function Studio() {
         </div>
       )}
       {mounted && !teikn && vald !== null && valdGruppe === null && rom && modus !== "bit" && (
-        <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 84 }} role="group" aria-label="spegl planet">
+        <div className="speil" style={{ top: toppH + 6, left: 0, right: benk ? KOL : 84 }} role="group" aria-label={mt(maal, "mirror plane", "spegl planet")}>
           {(["x", "y", "z"] as const).map((akse, i) => (
-            <button key={akse} type="button" className={ORD + " min-w-12"} aria-label={`spegl planet om ${akse}`} title={mt(maal, `mirror copy across ${akse}; in same plane flips shape`, `spegelkopi om ${akse}; i same plan vert forma snudd`)} onClick={() => speglValt(i)}>{mt(maal, `mirror ${akse}`, `spegl ${akse}`)}</button>
+            <button key={akse} type="button" className={ORD + " min-w-12"} aria-label={mt(maal, `mirror plane across ${akse}`, `spegl planet om ${akse}`)} title={mt(maal, `mirror copy across ${akse}; in same plane flips shape`, `spegelkopi om ${akse}; i same plan vert forma snudd`)} onClick={() => speglValt(i)}>{mt(maal, `mirror ${akse}`, `spegl ${akse}`)}</button>
           ))}
-          {[2, 3, 4].map((N) => <button key={N} type="button" className={ORD + " min-w-12"} aria-label={`${N} rundt`} title={mt(maal, `${N} planes around center axis as a group`, `${N} plan kring midtaksen, som ei gruppe`)} onClick={() => rundtValt(N)}>×{N}</button>)}
+          {[2, 3, 4].map((N) => <button key={N} type="button" className={ORD + " min-w-12"} aria-label={mt(maal, `${N} radial`, `${N} rundt`)} title={mt(maal, `${N} planes around center axis as a group`, `${N} plan kring midtaksen, som ei gruppe`)} onClick={() => rundtValt(N)}>×{N}</button>)}
         </div>
       )}
 
@@ -2054,13 +2056,13 @@ export function Studio() {
                 </button>
               )}
               {rom && harOmriss && (
-                <button type="button" aria-label="2d-flata" title={mt(maal, "2D editor: drag points, round corners, draw edges, or cut holes", "planet flatt: dra punkt, legg til, rund, teikn om ein kant med blyanten eller skjer hòl")} onClick={() => setFlatt(true)} className={ORD + " h-12 min-w-12"} data-flatt="">2d</button>
+                <button type="button" aria-label={mt(maal, "2D editor", "2d-flata")} title={mt(maal, "2D editor: drag points, round corners, draw edges, or cut holes", "planet flatt: dra punkt, legg til, rund, teikn om ein kant med blyanten eller skjer hòl")} onClick={() => setFlatt(true)} className={ORD + " h-12 min-w-12"} data-flatt="">2d</button>
               )}
               {rom && (
                 <button
                   type="button"
                   aria-pressed={bunde}
-                  aria-label="bunde av nettet"
+                  aria-label={mt(maal, "clipped to mesh", "bunde av nettet")}
                   title={bunde ? mt(maal, "profile is clipped to mesh. tap to release", "profilen er bunden av nettet. trykk for å sleppe han") : mt(maal, "profile is free of mesh. tap to clip to body", "profilen er fri av nettet. trykk for å binde omrisset til kroppen")}
                   onClick={vekslNett}
                   disabled={!harOmriss && !snitt}
@@ -2156,7 +2158,7 @@ export function Studio() {
                 title={valdStrek !== null ? mt(maal, "remove cutout (⌫)", "ta streken bort (⌫)") : valdGruppe !== null ? mt(maal, "remove group (⌫)", "ta heile gruppa bort (⌫)") : mt(maal, "remove selected plane (⌫)", "ta det valde planet bort (⌫)")}
                 onClick={valdStrek !== null ? slettStrek : () => slett(vald)}
                 className={TUMME_BTN}
-                style={{ color: "var(--warn)" }}
+                style={{ opacity: 0.65 }}
               >
                 {IcoSlett}
               </button>
@@ -2168,7 +2170,7 @@ export function Studio() {
               <button type="button" aria-label={mt(maal, "duplicate part", "dubler biten")} title={mt(maal, "duplicate selected part (D)", "ein bit til, lik denne")} onClick={dupliserBit} className={TUMME_BTN}>
                 {IcoDupliser}
               </button>
-              <button type="button" aria-label={mt(maal, "remove part", "ta biten bort")} title={mt(maal, "remove selected part (⌫)", "ta den valde biten ut av kroppen")} onClick={slettBit} className={TUMME_BTN} style={{ color: "var(--warn)" }}>
+              <button type="button" aria-label={mt(maal, "remove part", "ta biten bort")} title={mt(maal, "remove selected part (⌫)", "ta den valde biten ut av kroppen")} onClick={slettBit} className={TUMME_BTN} style={{ opacity: 0.65 }}>
                 {IcoSlett}
               </button>
             </>
@@ -2240,7 +2242,7 @@ export function Studio() {
         onByt={bytProsjekt}
         onNamn={gjeNamn}
         onClose={() => setVerkty(null)}
-        onOrd={(t) => void navigator.clipboard?.writeText(t).then(() => setMelding("kopiert")).catch(() => setMelding("ikkje kopiert"))}
+        onOrd={(t) => void navigator.clipboard?.writeText(t).then(() => setMelding(mt(maal, "copied", "kopiert"))).catch(() => setMelding(mt(maal, "copy failed", "ikkje kopiert")))}
       />
 
       <Arket

@@ -5,14 +5,14 @@ import {
   FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge,
   type Material, type Metric, type Rule,
 } from "@/lib/core"
-import { useMaal, mt, omsetBolk, omsetGruppe, omsetMat, omsetRegel, omsetVerdi, UTTAK_EN, type Maal } from "@/lib/i18n"
+import { useMaal, mt, omsetBolk, omsetMat, omsetRegel, omsetVerdi, UTTAK_EN, type Maal } from "@/lib/i18n"
 import { GROUPS, KILAR, PARAM_RANGES } from "@/lib/params"
 import { MJUK_TAK, bogRadius, type Plan } from "@/lib/plan"
 import {
   CHIP, HAIR, ICON_BTN, IcoDupliser, IcoForm, IcoGizmo, IcoReset, IcoSlett, IcoUttak, UTTAK,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
 } from "./deler"
-import { SnarUttak } from "./uttak"
+import { HoldVeljar, SnarUttak } from "./uttak"
 import {
   Arket as LegacyArket,
   KOL as LEGACY_KOL,
@@ -45,7 +45,6 @@ function Summary({ p, maal }: { p: ArketProps; maal: Maal }) {
   if (p.melding) return <span className="opacity-70">{p.melding}</span>
   if (p.hentar) return <span className="dim">{mt(maal, "reading …", "les …")}</span>
   if (!m) return <span className="dim">{mt(maal, "slicing …", "snittar …")}</span>
-  const raud = new Set(p.rules.filter((r) => !r.ok && r.hard && r.rad).map((r) => r.rad))
   const tal = [
     ["plan", `${p.plan.length} ${mt(maal, "planes", "plan")}`],
     ["delar", `${n0(m.parts)} ${mt(maal, "parts", "delar")}`],
@@ -57,7 +56,7 @@ function Summary({ p, maal }: { p: ArketProps; maal: Maal }) {
       {tal.map(([id, text], i) => (
         <span key={id} className={id === "tid" ? "hidden min-[430px]:inline" : undefined}>
           {i > 0 && <span className="px-0.5 opacity-30">·</span>}
-          <span style={raud.has(id) ? { color: "var(--warn)" } : { opacity: 0.62 }}>{text}</span>
+          <span style={{ opacity: 0.65 }}>{text}</span>
         </span>
       ))}
     </>
@@ -271,7 +270,7 @@ function BogRad({ p, pl, maal }: { p: ArketProps; pl: Plan; maal: Maal }) {
   return (
     <div className="flex h-5 items-baseline gap-3 text-[10px]">
       <span className="dim w-20 shrink-0 uppercase tracking-[0.12em]">{mt(maal, "bend radius", "bøyeradius")}</span>
-      <span className="tab min-w-0 flex-1 truncate text-right" style={{ color: brote ? "var(--warn)" : "var(--ink)" }}>
+      <span className="tab min-w-0 flex-1 truncate text-right" style={{ color: "var(--ink)" }}>
         {brote && r ? r.value : `${n0(bogRadius(pl.bog, num(p.params, "storleik", 150)))} mm`}
       </span>
     </div>
@@ -308,50 +307,89 @@ const ARK_MALER: readonly [string, number, number][] = [
 function MaterialTab({ p, maal }: { p: ArketProps; maal: Maal }) {
   const naaTjukn = num(p.params, "tjukn", TJUKNER[0])
   const naaKilar = Math.round(num(p.params, "kilar", 0))
-  const nesteTjukn = (dir: 1 | -1 = 1) => {
+  const matKeys = Object.keys(MATERIALS) as Material[]
+  const naaMat = (String(p.params.material) in MATERIALS ? String(p.params.material) : "graa") as Material
+  const matItems = matKeys.map((mk) => ({ id: mk, label: omsetMat(maal, mk, MATERIALS[mk].label), hex: MATERIALS[mk].hex }))
+  const tjuknItems = TJUKNER.map((t) => ({ id: String(t), label: `${tjukn(t)} mm` }))
+  const arkItems = ARK_MALER.map(([lbl, b, h]) => ({ id: `${b}x${h}`, label: lbl }))
+  const aktArk = ARK_MALER.find(([, b, h]) => p.params.arkB === b && p.params.arkH === h)
+  const nesteMat = () => p.onChange({ ...p.params, material: matKeys[(Math.max(0, matKeys.indexOf(naaMat)) + 1) % matKeys.length] })
+  const nesteTjukn = () => {
     const idx = TJUKNER.findIndex((t) => t >= naaTjukn)
-    const cur = idx < 0 ? 0 : idx
-    const nxt = TJUKNER[(cur + dir + TJUKNER.length) % TJUKNER.length]
-    p.onChange({ ...p.params, tjukn: nxt })
+    p.onChange({ ...p.params, tjukn: TJUKNER[((idx < 0 ? 0 : idx) + 1) % TJUKNER.length] })
+  }
+  const nesteArk = () => {
+    const idx = ARK_MALER.findIndex(([, b, h]) => p.params.arkB === b && p.params.arkH === h)
+    const [, b, h] = ARK_MALER[(idx + 1) % ARK_MALER.length]
+    p.onChange({ ...p.params, arkB: b, arkH: h })
   }
   return (
     <div className="px-3 pb-1 pt-1">
-      <div className="rull-x flex h-9 items-center gap-1 overflow-x-auto overscroll-contain">
-        {(Object.keys(MATERIALS) as Material[]).map((mk) => {
-          const lbl = omsetMat(maal, mk, MATERIALS[mk].label)
-          return (
-            <button key={mk} type="button" aria-pressed={p.params.material === mk} aria-label={`${mt(maal, "material", "materiale")}: ${lbl}`} title={lbl} onClick={() => p.onChange({ ...p.params, material: mk })} className="hit flex h-8 w-8 shrink-0 items-center justify-center">
-              <span aria-hidden="true" className="block h-5 w-5 rounded-full border-2" style={{ backgroundColor: MATERIALS[mk].hex, borderColor: p.params.material === mk ? "var(--ink)" : "var(--rule)" }} />
-            </button>
-          )
-        })}
-        <span className="ml-auto flex items-center gap-1">
-          <span className="dim mr-0.5 shrink-0 text-[9px] uppercase tracking-[0.12em]">{mt(maal, "preset", "standard")}</span>
-          <button
-            type="button"
-            data-tjukn-knapp=""
-            aria-label={mt(maal, `thickness ${tjukn(naaTjukn)} mm — tap to cycle`, `tjukn ${tjukn(naaTjukn)} mm — trykk for neste`)}
-            title={mt(maal, "tap: next standard thickness · shift+tap: previous", "trykk: neste standardtjukn · skift+trykk: førre")}
-            onClick={(e) => nesteTjukn(e.shiftKey ? -1 : 1)}
-            className={CHIP + " tab min-w-[60px] shrink-0 px-2.5"}
-            style={chipStyle(true)}
-          >
-            {tjukn(naaTjukn)} mm
-          </button>
-        </span>
+      <div className="flex h-9 items-center justify-between gap-2">
+        <HoldVeljar
+          items={matItems}
+          activeId={naaMat}
+          wrapAttr="data-material-knapp"
+          ariaLabel={`${mt(maal, "material", "materiale")}: ${omsetMat(maal, naaMat, MATERIALS[naaMat].label)}`}
+          title={mt(maal, "tap: next material · hold: all materials", "trykk: neste materiale · hald: alle")}
+          menuLabel={mt(maal, "material", "materiale")}
+          className="hit flex h-8 shrink-0 items-center gap-1.5 px-1 text-[11px]"
+          onTap={nesteMat}
+          onSelect={(id) => p.onChange({ ...p.params, material: id })}
+        >
+          {() => (
+            <>
+              <span aria-hidden="true" className="block h-4 w-4 rounded-full" style={{ backgroundColor: MATERIALS[naaMat].hex }} />
+              <span>{omsetMat(maal, naaMat, MATERIALS[naaMat].label)}</span>
+              <span aria-hidden="true" className="text-[8px] opacity-55">▾</span>
+            </>
+          )}
+        </HoldVeljar>
+        <HoldVeljar
+          items={arkItems}
+          activeId={aktArk ? `${aktArk[1]}x${aktArk[2]}` : `${p.params.arkB}x${p.params.arkH}`}
+          ariaLabel={`${mt(maal, "sheet", "ark")}: ${aktArk ? aktArk[0] : `${p.params.arkB}×${p.params.arkH}`}`}
+          title={mt(maal, "tap: next sheet preset · hold: all presets", "trykk: neste arkmal · hald: alle")}
+          menuLabel={mt(maal, "sheet", "ark")}
+          className="hit tab flex h-8 shrink-0 items-center gap-1 px-1.5 text-[11px]"
+          onTap={nesteArk}
+          onSelect={(id) => {
+            const hit = ARK_MALER.find(([, b, h]) => `${b}x${h}` === id)
+            if (hit) p.onChange({ ...p.params, arkB: hit[1], arkH: hit[2] })
+          }}
+        >
+          {() => (
+            <>
+              <span>{aktArk ? aktArk[0] : `${n0(num(p.params, "arkB", 600))}×${n0(num(p.params, "arkH", 400))}`}</span>
+              <span aria-hidden="true" className="text-[8px] opacity-55">▾</span>
+            </>
+          )}
+        </HoldVeljar>
+        <HoldVeljar
+          items={tjuknItems}
+          activeId={String(naaTjukn)}
+          knappAttr="data-tjukn-knapp"
+          ariaLabel={mt(maal, `thickness ${tjukn(naaTjukn)} mm — tap to cycle`, `tjukn ${tjukn(naaTjukn)} mm — trykk for neste`)}
+          title={mt(maal, "tap: next thickness · hold: all thicknesses", "trykk: neste tjukn · hald: alle")}
+          menuLabel={mt(maal, "thickness", "tjukn")}
+          className="hit tab flex h-8 shrink-0 items-center gap-1 px-1 text-[11px]"
+          onTap={nesteTjukn}
+          onSelect={(id) => p.onChange({ ...p.params, tjukn: Number(id) })}
+        >
+          {() => (
+            <>
+              <span>{tjukn(naaTjukn)} mm</span>
+              <span aria-hidden="true" className="text-[8px] opacity-55">▾</span>
+            </>
+          )}
+        </HoldVeljar>
       </div>
-      <div className="flex h-9 items-center gap-1">
+      <div className="flex h-8 items-center gap-2">
         <span className="dim mr-1 shrink-0 text-[9px] uppercase tracking-[0.12em]">{mt(maal, "wedges", "kilar")}</span>
         {KILAR.map((namn, i) => (
-          <button key={namn} type="button" aria-pressed={naaKilar === i} aria-label={`${mt(maal, "wedges", "kilar")} ${omsetVerdi(maal, namn)}`} onClick={() => p.onChange({ ...p.params, kilar: i })} className={CHIP + " tab min-w-[42px] shrink-0 px-2"} style={chipStyle(naaKilar === i)}>
+          <button key={namn} type="button" aria-pressed={naaKilar === i} aria-label={`${mt(maal, "wedges", "kilar")} ${omsetVerdi(maal, namn)}`} onClick={() => p.onChange({ ...p.params, kilar: i })} className={CHIP + " tab"} style={chipStyle(naaKilar === i)}>
             {omsetVerdi(maal, namn)}
           </button>
-        ))}
-      </div>
-      <div className="rull-x flex h-8 items-center gap-1 overflow-x-auto overscroll-contain">
-        <span className="dim mr-1 shrink-0 text-[9px] uppercase tracking-[0.12em]">{mt(maal, "sheet", "ark")}</span>
-        {ARK_MALER.map(([lbl, b, h]) => (
-          <button key={lbl} type="button" onClick={() => p.onChange({ ...p.params, arkB: b, arkH: h })} className={CHIP + " tab min-h-[26px] shrink-0 px-2 text-[10px]"} style={chipStyle(p.params.arkB === b && p.params.arkH === h)}>{lbl}</button>
         ))}
       </div>
       {(["tjukn", "klaring", "arkB", "arkH"] as const).map((k) => (
@@ -361,23 +399,27 @@ function MaterialTab({ p, maal }: { p: ArketProps; maal: Maal }) {
   )
 }
 
-const KUTT_PRIORITET = ["delar", "ledd", "kutt", "plate", "snapp", "nett", "forenkling"] as const
+const KUTT_PRIORITET = ["delar", "snapp", "ledd", "kutt", "plate", "nett", "forenkling"] as const
+const KUTT_SKJULD = new Set(["nett", "forenkling", "ledd"])
 const KUTT_GRUPPER = KUTT_PRIORITET.map((id) => GROUPS.find((g) => g.id === id))
   .filter((g): g is (typeof GROUPS)[number] => !!g)
   .map((g) => ({ ...g, keys: g.keys.filter((k) => k !== "tjukn") }))
   .filter((g) => g.keys.length)
 
 function CuttingTab({ p, maal }: { p: ArketProps; maal: Maal }) {
+  const [meir, setMeir] = useState(false)
   return (
     <div className="px-3 pb-1 pt-1">
-      {KUTT_GRUPPER.map((g) => (
-        <section key={g.id} className="border-b pb-1 last:border-b-0" style={HAIR}>
-          <div className="dim h-5 px-1.5 pt-1 text-[9px] uppercase leading-none tracking-[0.18em]">{omsetGruppe(maal, g.id, g.label)}</div>
+      {KUTT_GRUPPER.filter((g) => meir || !KUTT_SKJULD.has(g.id)).map((g) => (
+        <section key={g.id} className="border-b py-1 last:border-b-0" style={HAIR}>
           {g.keys.map((k) => (
             <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(p.params, k, PARAM_RANGES[k].min)} benk={false} onChange={(key, v) => p.onChange({ ...p.params, [key]: v })} onSkrubb={p.onSkrubb} />
           ))}
         </section>
       ))}
+      <button type="button" onClick={() => setMeir((v) => !v)} className="hit dim h-7 px-1 text-[10px] uppercase tracking-[0.12em]">
+        {meir ? mt(maal, "less ▴", "færre ▴") : mt(maal, "more ▾", "meir ▾")}
+      </button>
     </div>
   )
 }
@@ -437,7 +479,7 @@ function ExportTab({ p, maal, startOpen = false }: { p: ArketProps; maal: Maal; 
                   title={stopp || hnt}
                   onClick={() => p.onExport(x.id)}
                   className={CHIP + " uppercase tracking-[0.1em]"}
-                  style={{ ...chipStyle(false), opacity: stopp ? 0.3 : undefined, color: !stopp && harde.length ? "var(--warn)" : undefined }}
+                  style={{ ...chipStyle(false), opacity: stopp ? 0.25 : 0.85 }}
                 >
                   {lbl}
                 </button>
@@ -446,7 +488,7 @@ function ExportTab({ p, maal, startOpen = false }: { p: ArketProps; maal: Maal; 
           </div>
         </section>
       ))}
-      {harde.length > 0 && <p data-uttakvarsel="" className="pt-1 text-[9px]" style={{ color: "var(--warn)" }}>{harde.map((r) => r.label).join(", ")} — {mt(maal, "cannot assemble", "går ikkje i hop")}</p>}
+      {harde.length > 0 && <p data-uttakvarsel="" className="dim pt-1 text-[9px]">{harde.map((r) => r.label).join(", ")} — {mt(maal, "cannot assemble", "går ikkje i hop")}</p>}
       <div className="flex min-h-14 items-center gap-1.5">
         {([
           ["prosjekt", mt(maal, "project", "prosjekt"), mt(maal, "current project: open, new, rename", "det du arbeider med: opne, nytt, namn")],
@@ -639,7 +681,7 @@ function MobileArket(p: ArketProps) {
                   title={mt(maal, "delete selected plane (⌫)", "slett det valde planet (⌫)")}
                   onClick={() => p.onSlett(p.vald!)}
                   className="hit flex h-12 w-12 shrink-0 items-center justify-center"
-                  style={{ ...HAIR, color: "var(--warn)" }}
+                  style={{ opacity: 0.7 }}
                 >
                   {IcoSlett}
                 </button>
@@ -690,8 +732,7 @@ function MobileArket(p: ArketProps) {
                     disabled={p.busy}
                     onClick={p.onFiksAlle}
                     title={mt(maal, "apply all safe fixes", "trykk alle trygge råd")}
-                    className="hit flex h-12 w-12 shrink-0 items-center justify-center text-[10px]"
-                    style={{ color: "var(--warn)" }}
+                    className="hit tab flex h-12 shrink-0 items-center justify-center px-1.5 text-[10px] font-medium disabled:opacity-30"
                   >
                     {mt(maal, "fix", "fiks")} · {trygge.length}
                   </button>
@@ -710,26 +751,32 @@ function MobileArket(p: ArketProps) {
                     {IcoGizmo}
                   </button>
                 )}
-                <button
-                  type="button"
-                  data-material-knapp=""
-                  onClick={sykleMat}
-                  aria-label={`${mt(maal, "material", "materiale")}: ${omsetMat(maal, naaMat, MATERIALS[naaMat].label)}`}
-                  title={mt(maal, `material: ${omsetMat(maal, naaMat, MATERIALS[naaMat].label)} (tap to cycle)`, `materiale: ${MATERIALS[naaMat].label} (trykk for neste)`)}
+                <HoldVeljar
+                  items={matKeys.map((mk) => ({ id: mk, label: omsetMat(maal, mk, MATERIALS[mk].label), hex: MATERIALS[mk].hex }))}
+                  activeId={naaMat}
+                  wrapAttr="data-material-knapp"
+                  ariaLabel={`${mt(maal, "material", "materiale")}: ${omsetMat(maal, naaMat, MATERIALS[naaMat].label)}`}
+                  title={mt(maal, `material: ${omsetMat(maal, naaMat, MATERIALS[naaMat].label)} · hold: all`, `materiale: ${MATERIALS[naaMat].label} · hald: alle`)}
+                  menuLabel={mt(maal, "material", "materiale")}
                   className="hit flex h-12 w-12 shrink-0 items-center justify-center"
+                  onTap={sykleMat}
+                  onSelect={(id) => p.onChange({ ...p.params, material: id })}
                 >
-                  <span aria-hidden="true" className="block h-4 w-4 rounded-full border" style={{ backgroundColor: MATERIALS[naaMat].hex, borderColor: "var(--ink)" }} />
-                </button>
-                <button
-                  type="button"
-                  data-tjukn-knapp=""
-                  onClick={sykleTjukn}
-                  aria-label={mt(maal, `thickness ${tjukn(naaTjukn)} mm`, `tjukn ${tjukn(naaTjukn)} mm`)}
-                  title={mt(maal, "tap to cycle sheet thickness", "trykk for neste platetjukn")}
+                  {() => <span aria-hidden="true" className="block h-4 w-4 rounded-full" style={{ backgroundColor: MATERIALS[naaMat].hex }} />}
+                </HoldVeljar>
+                <HoldVeljar
+                  items={TJUKNER.map((t) => ({ id: String(t), label: `${tjukn(t)} mm` }))}
+                  activeId={String(naaTjukn)}
+                  knappAttr="data-tjukn-knapp"
+                  ariaLabel={mt(maal, `thickness ${tjukn(naaTjukn)} mm`, `tjukn ${tjukn(naaTjukn)} mm`)}
+                  title={mt(maal, "tap: next thickness · hold: all", "trykk: neste tjukn · hald: alle")}
+                  menuLabel={mt(maal, "thickness", "tjukn")}
                   className="hit flex h-12 w-12 shrink-0 items-center justify-center"
+                  onTap={sykleTjukn}
+                  onSelect={(id) => p.onChange({ ...p.params, tjukn: Number(id) })}
                 >
-                  <span className="tab text-[10px]" aria-hidden="true">{tjukn(naaTjukn)}</span>
-                </button>
+                  {() => <span className="tab text-[10px]" aria-hidden="true">{tjukn(naaTjukn)}</span>}
+                </HoldVeljar>
               </div>
             )}
 

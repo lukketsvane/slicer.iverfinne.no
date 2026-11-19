@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState, type JSX, type RefObject } from "react"
 import { FARGE_MIN, LAG_FARGAR, MATERIALS, TJUKNER, klokke, lagFarge, nn, type ExportKind, type Kutt, type Material, type Metrics, type ParamBag, type Rule, type Vec3, type View } from "@/lib/core"
-import { useMaal, mt, omsetBolk, omsetGruppe, omsetMat, omsetRegel, UTTAK_EN, type Maal } from "@/lib/i18n"
+import { useMaal, mt, omsetBolk, omsetMat, omsetRegel, UTTAK_EN, type Maal } from "@/lib/i18n"
 import { GROUPS, PARAM_RANGES } from "@/lib/params"
 import { MJUK_TAK, type Plan } from "@/lib/plan"
 import type { Montasje, Veg } from "@/lib/montasje"
@@ -10,7 +10,7 @@ import {
   CHIP, HAIR, ICON_BTN, IcoDown, IcoReset, IcoSliders, IcoUttak, UTTAK,
   SliderRow, Tavla, chipStyle, n0, num, stengd, tjukn,
 } from "./deler"
-import { SnarUttak } from "./uttak"
+import { HoldVeljar, SnarUttak } from "./uttak"
 import type { VerktyId } from "./verkty"
 
 export type Steg = "line" | "midt" | "alt"
@@ -82,12 +82,11 @@ export type ArketProps = {
 
 function Lina({ p }: { p: ArketProps }) {
   const maal = useMaal()
-  const { metrics: m, rules, plan, feil, melding, hentar } = p
+  const { metrics: m, plan, feil, melding, hentar } = p
   if (feil) return <span style={{ color: "var(--warn)" }}>{feil}</span>
   if (melding) return <span className="opacity-70">{melding}</span>
   if (hentar) return <span className="dim">{mt(maal, "reading …", "les …")}</span>
   if (!m) return <span className="dim">{mt(maal, "slicing …", "snittar …")}</span>
-  const raud = new Set(rules.filter((r) => !r.ok && r.hard && r.rad).map((r) => r.rad))
   const tal: { id: string; text: string; smal?: boolean }[] = [
     { id: "plan", text: `${plan.length} ${mt(maal, "planes", "plan")}` },
     { id: "delar", text: `${n0(m.parts)} ${mt(maal, "parts", "delar")}` },
@@ -99,7 +98,7 @@ function Lina({ p }: { p: ArketProps }) {
       {tal.map((t, i) => (
         <span key={t.id} className={t.smal ? "hidden min-[430px]:inline" : undefined}>
           {i > 0 && <span className="px-0.5 opacity-30">·</span>}
-          <span style={raud.has(t.id) ? { color: "var(--warn)" } : { opacity: 0.62 }}>{t.text}</span>
+          <span style={{ opacity: 0.65 }}>{t.text}</span>
         </span>
       ))}
     </>
@@ -196,11 +195,11 @@ function Plana({ p }: { p: ArketProps }) {
                     {fraaMidten(pl, p.boks)}
                   </span>
                 )}
-                <span className="tab dim shrink-0" style={{ color: mine.length && !ledd ? "var(--warn)" : undefined }} title={`${mine.length} ${mt(maal, "pieces", "stykke")}, ${ledd} ${mt(maal, "joints", "ledd")}`}>
+                <span className="tab dim shrink-0" title={`${mine.length} ${mt(maal, "pieces", "stykke")}, ${ledd} ${mt(maal, "joints", "ledd")}`}>
                   {mine.length ? `· ${mine.length > 1 ? `${mine.length} ${mt(maal, "pcs", "stk")} · ` : ""}${ledd} ${mt(maal, "joints", "ledd")}` : `· ${mt(maal, "outside", "utanfor")}`}
                 </span>
                 {pl.strek.length > 0 && (
-                  <span className="tab dim shrink-0 rounded-full border px-1.5 text-[9px] leading-[14px]" style={HAIR} title={mt(maal, "cutout in profile", "handteikna strek i profilen")}>{pl.strek.length} {mt(maal, "cutout", "strek")}</span>
+                  <span className="tab dim shrink-0 px-1 text-[9px] leading-[14px]" title={mt(maal, "cutout in profile", "handteikna strek i profilen")}>{pl.strek.length} {mt(maal, "cutout", "strek")}</span>
                 )}
               </button>
               <button type="button" aria-label={mt(maal, `delete plane ${pl.id}`, `slett plan ${pl.id}`)} title={mt(maal, "delete plane", "ta planet bort")} className="hit dim h-9 w-11 shrink-0" onClick={() => p.onSlett(pl.id)}>
@@ -320,14 +319,14 @@ function Uttaka({ p, onGjort, startOpen = false }: { p: ArketProps; onGjort?: ()
       {visAlle && UTTAK.map((g) => (
         <div key={g.bolk} role="group" aria-label={omsetBolk(maal, g.bolk)} data-bolk={g.bolk}>
           <div className="flex items-start gap-1.5 py-0.5">
-            <span aria-hidden="true" className="dim mt-[13px] w-9 shrink-0 text-[9px] uppercase leading-none tracking-[0.12em]">{omsetBolk(maal, g.bolk)}</span>
+            <span aria-hidden="true" className="dim mt-[8px] w-9 shrink-0 text-[9px] uppercase leading-none tracking-[0.12em]">{omsetBolk(maal, g.bolk)}</span>
             <span className="flex min-w-0 flex-wrap items-center gap-1.5">
               {g.filer.map((x) => {
                 const stopp = stengd(x.id, metrics, maal)
                 const lbl = maal === "nn" ? x.label : (UTTAK_EN[x.id]?.label ?? x.label)
                 const hnt = maal === "nn" ? x.hint : (UTTAK_EN[x.id]?.hint ?? x.hint)
                 return (
-                  <button key={x.id} type="button" title={stopp || (varsel ? `${varsel}. ${hnt}` : hnt)} data-varsel={!stopp && varsel ? "" : undefined} disabled={p.busy || stopp !== ""} onClick={() => { p.onExport(x.id); onGjort?.() }} className={CHIP + " uppercase tracking-[0.1em]"} style={{ ...chipStyle(false), opacity: stopp ? 0.3 : undefined, textDecoration: stopp ? "line-through" : undefined, color: !stopp && varsel ? "var(--warn)" : undefined }}>
+                  <button key={x.id} type="button" title={stopp || (varsel ? `${varsel}. ${hnt}` : hnt)} data-varsel={!stopp && varsel ? "" : undefined} disabled={p.busy || stopp !== ""} onClick={() => { p.onExport(x.id); onGjort?.() }} className={CHIP + " uppercase tracking-[0.1em]"} style={{ ...chipStyle(false), opacity: stopp ? 0.25 : 0.85, textDecoration: stopp ? "line-through" : undefined }}>
                     {lbl}
                   </button>
                 )
@@ -335,14 +334,14 @@ function Uttaka({ p, onGjort, startOpen = false }: { p: ArketProps; onGjort?: ()
             </span>
           </div>
           {varsel && g.bolk === UTTAK[0].bolk && (
-            <p className="pb-0.5 pl-[42px] text-[10px]" style={{ color: "var(--warn)" }} data-uttakvarsel="">
+            <p className="dim pb-0.5 pl-[42px] text-[10px]" data-uttakvarsel="">
               {harde.map((r) => r.label).join(", ")} — {mt(maal, "cannot assemble", "går ikkje i hop")}
             </p>
           )}
           {g.bolk === "plate" && (
             <span className="dim flex items-center gap-3 pb-0.5 pl-[42px] text-[10px] uppercase tracking-[0.14em]" title={mt(maal, "black engraves, blue cuts. color is order", "svart graverer, blått kutt. fargen er rekkjefylgja")}>
               {[["#000000", mt(maal, "engrave", "graver")], ["#0000ff", mt(maal, "cut", "kutt")]].map(([farge, ord]) => (
-                <span key={ord} className="flex items-center gap-1.5"><span aria-hidden="true" className="block h-[7px] w-[7px] rounded-full border" style={{ background: farge, borderColor: "var(--rule)" }} />{ord}</span>
+                <span key={ord} className="flex items-center gap-1.5"><span aria-hidden="true" className="block h-[7px] w-[7px] rounded-full" style={{ background: farge }} />{ord}</span>
               ))}
             </span>
           )}
@@ -359,83 +358,107 @@ const ARK_MALER: readonly [string, number, number][] = [
   ["1200×900", 1200, 900],
 ]
 
+const SKJULDE_BOLK = new Set(["nett", "forenkling", "ledd"])
+
 function Alt({ p, uttak }: { p: ArketProps; uttak: RefObject<HTMLDivElement | null> }) {
   const maal = useMaal()
   const { params, onChange, metrics } = p
   const setParam = (k: string, v: number) => onChange({ ...params, [k]: v })
   const naaTjukn = num(params, "tjukn", TJUKNER[0])
+  const matKeys = Object.keys(MATERIALS) as Material[]
+  const naaMat = (String(params.material) in MATERIALS ? String(params.material) : "graa") as Material
+  const aktArk = ARK_MALER.find(([, b, h]) => params.arkB === b && params.arkH === h)
+  const nesteMat = () => onChange({ ...params, material: matKeys[(Math.max(0, matKeys.indexOf(naaMat)) + 1) % matKeys.length] })
   const nesteTjukn = (dir: 1 | -1 = 1) => {
     const idx = TJUKNER.findIndex((t) => t >= naaTjukn)
     const cur = idx < 0 ? 0 : idx
     const nxt = TJUKNER[(cur + dir + TJUKNER.length) % TJUKNER.length]
     onChange({ ...params, tjukn: nxt })
   }
-  const [bretta, setBretta] = useState<ReadonlySet<string>>(() => new Set())
-  const brett = (id: string) =>
-    setBretta((s) => {
-      const n = new Set(s)
-      if (!n.delete(id)) n.add(id)
-      return n
-    })
+  const nesteArk = () => {
+    const idx = ARK_MALER.findIndex(([, b, h]) => params.arkB === b && params.arkH === h)
+    const [, b, h] = ARK_MALER[(idx + 1) % ARK_MALER.length]
+    onChange({ ...params, arkB: b, arkH: h })
+  }
+  const [meir, setMeir] = useState(false)
   return (
     <>
-      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 py-2">
-        {(Object.keys(MATERIALS) as Material[]).map((mk) => {
-          const lbl = omsetMat(maal, mk, MATERIALS[mk].label)
-          return (
-            <button
-              key={mk}
-              type="button"
-              aria-pressed={params.material === mk}
-              aria-label={`${mt(maal, "material", "materiale")}: ${lbl}`}
-              title={lbl}
-              onClick={() => onChange({ ...params, material: mk })}
-              className="hit flex h-8 w-8 shrink-0 items-center justify-center"
-            >
-              <span aria-hidden="true" className="block h-5 w-5 rounded-full border-2" style={{ backgroundColor: MATERIALS[mk].hex, borderColor: params.material === mk ? "var(--ink)" : "var(--rule)" }} />
-            </button>
-          )
-        })}
-        <span className="ml-auto flex items-center gap-1">
-          <button
-            type="button"
-            data-tjukn-knapp=""
-            aria-label={mt(maal, `thickness ${tjukn(naaTjukn)} mm — tap to cycle`, `tjukn ${tjukn(naaTjukn)} mm — trykk for neste`)}
-            title={mt(maal, "tap: next standard thickness · shift+tap: previous", "trykk: neste standardtjukn · skift+trykk: førre")}
-            onClick={(e) => nesteTjukn(e.shiftKey ? -1 : 1)}
-            className={CHIP + " tab min-w-[64px] px-2.5"}
-            style={chipStyle(true)}
-          >
-            {tjukn(naaTjukn)} mm
-          </button>
-        </span>
-      </div>
-      <div className="flex flex-wrap items-center gap-1 pb-1">
-        {ARK_MALER.map(([lbl, b, h]) => (
-          <button key={lbl} type="button" onClick={() => onChange({ ...params, arkB: b, arkH: h })} className={CHIP + " tab min-h-[26px] px-2 text-[10px]"} style={chipStyle(params.arkB === b && params.arkH === h)}>{lbl}</button>
-        ))}
+      <div className="flex items-center justify-between gap-2 py-2">
+        <HoldVeljar
+          items={matKeys.map((mk) => ({ id: mk, label: omsetMat(maal, mk, MATERIALS[mk].label), hex: MATERIALS[mk].hex }))}
+          activeId={naaMat}
+          wrapAttr="data-material-knapp"
+          ariaLabel={`${mt(maal, "material", "materiale")}: ${omsetMat(maal, naaMat, MATERIALS[naaMat].label)}`}
+          title={mt(maal, "tap: next material · hold: all materials", "trykk: neste materiale · hald: alle")}
+          menuLabel={mt(maal, "material", "materiale")}
+          className="hit flex h-8 shrink-0 items-center gap-1.5 px-1 text-[11px]"
+          onTap={nesteMat}
+          onSelect={(id) => onChange({ ...params, material: id })}
+        >
+          {() => (
+            <>
+              <span aria-hidden="true" className="block h-4 w-4 rounded-full" style={{ backgroundColor: MATERIALS[naaMat].hex }} />
+              <span>{omsetMat(maal, naaMat, MATERIALS[naaMat].label)}</span>
+              <span aria-hidden="true" className="text-[8px] opacity-55">▾</span>
+            </>
+          )}
+        </HoldVeljar>
+        <HoldVeljar
+          items={ARK_MALER.map(([lbl, b, h]) => ({ id: `${b}x${h}`, label: lbl }))}
+          activeId={aktArk ? `${aktArk[1]}x${aktArk[2]}` : `${params.arkB}x${params.arkH}`}
+          ariaLabel={`${mt(maal, "sheet", "ark")}: ${aktArk ? aktArk[0] : `${params.arkB}×${params.arkH}`}`}
+          title={mt(maal, "tap: next sheet preset · hold: all presets", "trykk: neste arkmal · hald: alle")}
+          menuLabel={mt(maal, "sheet", "ark")}
+          className="hit tab flex h-8 shrink-0 items-center gap-1 px-1.5 text-[11px]"
+          onTap={nesteArk}
+          onSelect={(id) => {
+            const hit = ARK_MALER.find(([, b, h]) => `${b}x${h}` === id)
+            if (hit) onChange({ ...params, arkB: hit[1], arkH: hit[2] })
+          }}
+        >
+          {() => (
+            <>
+              <span>{aktArk ? aktArk[0] : `${n0(num(params, "arkB", 600))}×${n0(num(params, "arkH", 400))}`}</span>
+              <span aria-hidden="true" className="text-[8px] opacity-55">▾</span>
+            </>
+          )}
+        </HoldVeljar>
+        <HoldVeljar
+          items={TJUKNER.map((t) => ({ id: String(t), label: `${tjukn(t)} mm` }))}
+          activeId={String(naaTjukn)}
+          knappAttr="data-tjukn-knapp"
+          ariaLabel={mt(maal, `thickness ${tjukn(naaTjukn)} mm — tap to cycle`, `tjukn ${tjukn(naaTjukn)} mm — trykk for neste`)}
+          title={mt(maal, "tap: next thickness · hold: all thicknesses", "trykk: neste tjukn · hald: alle")}
+          menuLabel={mt(maal, "thickness", "tjukn")}
+          className="hit tab flex h-8 shrink-0 items-center gap-1 px-1 text-[11px]"
+          onTap={() => nesteTjukn(1)}
+          onSelect={(id) => onChange({ ...params, tjukn: Number(id) })}
+        >
+          {() => (
+            <>
+              <span>{tjukn(naaTjukn)} mm</span>
+              <span aria-hidden="true" className="text-[8px] opacity-55">▾</span>
+            </>
+          )}
+        </HoldVeljar>
       </div>
       {["arkB", "arkH"].map((k) => (
         <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(params, k, PARAM_RANGES[k].min)} benk={p.benk} onChange={setParam} onSkrubb={p.onSkrubb} />
       ))}
-      {GROUPS.map((g) => {
+      {GROUPS.filter((g) => meir || !SKJULDE_BOLK.has(g.id)).map((g) => {
         const keys = g.keys.filter((k) => !FRAMME.has(k))
         if (!keys.length) return null
-        const att = bretta.has(g.id)
-        const gLabel = omsetGruppe(maal, g.id, g.label)
         return (
-          <div key={g.id} className="pt-3">
-            <h3>
-              <button type="button" aria-expanded={!att} title={att ? `${mt(maal, "show", "syn")} ${gLabel}` : `${mt(maal, "collapse", "brett")} ${gLabel}`} onClick={() => brett(g.id)} className="hit dim block w-full pb-0.5 text-left text-[10px] uppercase leading-none tracking-[0.24em]" data-bolk={g.id}>
-                {gLabel}
-              </button>
-            </h3>
-            {!att && keys.map((k) => (
+          <div key={g.id} className="mt-1 border-t pt-1" style={HAIR}>
+            {keys.map((k) => (
               <SliderRow key={k} k={k} r={PARAM_RANGES[k]} value={num(params, k, PARAM_RANGES[k].min)} benk={p.benk} onChange={setParam} onSkrubb={p.onSkrubb} />
             ))}
           </div>
         )
       })}
+      <button type="button" onClick={() => setMeir((v) => !v)} className="hit dim mt-1 h-7 px-1 text-[10px] uppercase tracking-[0.12em]">
+        {meir ? mt(maal, "less ▴", "færre ▴") : mt(maal, "more ▾", "meir ▾")}
+      </button>
       <div className="mt-3 border-t pt-3" style={HAIR}>
         <Tavla metrics={metrics} rules={p.rules} busy={p.busy} params={params} onChange={onChange} onFiksAlle={p.onFiksAlle} />
       </div>
@@ -500,11 +523,25 @@ export function Arket(p: ArketProps): JSX.Element {
     else if (dy > 34) stegOm(-1)
   }
 
+  const tryggeTopp = p.rules.filter((r) => !r.ok && r.fiks && !r.fiks.riv)
   const linja = (
     <div className="flex items-center gap-1 px-2 py-2">
       <button type="button" onClick={() => !benk && onSteg(open ? "line" : "midt")} className="hit tab min-w-0 flex-1 truncate rounded-lg pl-2 text-left text-[10px] tracking-[0.04em]" aria-label={mt(maal, "planes, parts, sheets and time", "plan, delar, ark og tid")}>
         <Lina p={p} />
       </button>
+
+      {tryggeTopp.length > 0 && (
+        <button
+          type="button"
+          disabled={p.busy}
+          onClick={p.onFiksAlle}
+          title={mt(maal, "apply all safe fixes", "trykk alle trygge råd")}
+          className="hit tab shrink-0 border-b border-current px-1 text-[10px] font-medium"
+          style={{ opacity: p.busy ? 0.3 : 0.9 }}
+        >
+          {mt(maal, "fix", "fiks")} · {tryggeTopp.length}
+        </button>
+      )}
 
       {!benk && (
         <button type="button" aria-label={mt(maal, "export", "eksport")} aria-expanded={visUttak} title={mt(maal, "exports", "uttaka: rom — stl, glb, flat, 3mf, usdz. plate — dxf, svg, ark, png, passprøve. alt og lagre")} onClick={eksport} className={ICON_BTN} aria-pressed={visUttak} data-uttak="">
@@ -518,27 +555,24 @@ export function Arket(p: ArketProps): JSX.Element {
     <>
       <SliderRow k="storleik" r={PARAM_RANGES.storleik} value={num(p.params, "storleik", 150)} benk={benk} onChange={(k, v) => p.onChange({ ...p.params, [k]: v })} onSkrubb={p.onSkrubb} bi={p.metrics ? `${n0(p.metrics.envX)}×${n0(p.metrics.envY)}×${n0(p.metrics.envZ)}` : undefined} />
       {p.onGizmo && (
-        <div className="flex items-center justify-between gap-1 py-1">
-          <span className="dim text-[9px] uppercase tracking-[0.12em]">{mt(maal, "3d gizmo", "3d-handtak")}</span>
-          <div className="flex items-center gap-1">
-            {([
-              ["translate", mt(maal, "move (G)", "flytt (G)")],
-              ["rotate", mt(maal, "rotate (R)", "vri (R)")],
-              ["scale", mt(maal, "scale (S)", "skaler (S)")],
-            ] as const).map(([m, lbl]) => (
-              <button
-                key={m}
-                type="button"
-                data-gizmo={m}
-                aria-pressed={p.gizmo === m}
-                onClick={() => p.onGizmo?.(p.gizmo === m ? null : m)}
-                className={CHIP + " min-h-[28px] px-2 text-[10px]"}
-                style={chipStyle(p.gizmo === m)}
-              >
-                {lbl}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center justify-end gap-3 py-1">
+          {([
+            ["translate", mt(maal, "move (G)", "flytt (G)")],
+            ["rotate", mt(maal, "rotate (R)", "vri (R)")],
+            ["scale", mt(maal, "scale (S)", "skaler (S)")],
+          ] as const).map(([m, lbl]) => (
+            <button
+              key={m}
+              type="button"
+              data-gizmo={m}
+              aria-pressed={p.gizmo === m}
+              onClick={() => p.onGizmo?.(p.gizmo === m ? null : m)}
+              className={CHIP + " text-[10px]"}
+              style={chipStyle(p.gizmo === m)}
+            >
+              {lbl}
+            </button>
+          ))}
         </div>
       )}
       {p.bitFarge !== null && (

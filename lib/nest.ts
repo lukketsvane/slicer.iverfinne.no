@@ -18,6 +18,97 @@ export type Nesting = {
   kross: number
 }
 
+type Mat2 = [number, number, number, number, number, number]
+
+const ID2: Mat2 = [1, 0, 0, 0, 1, 0]
+const rotMat = (th: number): Mat2 => {
+  const c = Math.cos(th)
+  const s = Math.sin(th)
+  return [c, -s, 0, s, c, 0]
+}
+const mulMat = (a: Mat2, b: Mat2): Mat2 => [
+  a[0] * b[0] + a[1] * b[3],
+  a[0] * b[1] + a[1] * b[4],
+  a[0] * b[2] + a[1] * b[5] + a[2],
+  a[3] * b[0] + a[4] * b[3],
+  a[3] * b[1] + a[4] * b[4],
+  a[3] * b[2] + a[4] * b[5] + a[5],
+]
+
+function hull2D(pts: readonly Pt[]): Pt[] {
+  if (pts.length <= 3) return [...pts]
+  const s = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  const cross = (o: Pt, a: Pt, b: Pt) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+  const lo: Pt[] = []
+  for (const p of s) {
+    while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop()
+    lo.push(p)
+  }
+  const hi: Pt[] = []
+  for (let i = s.length - 1; i >= 0; i--) {
+    const p = s[i]
+    while (hi.length >= 2 && cross(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop()
+    hi.push(p)
+  }
+  lo.pop()
+  hi.pop()
+  return [...lo, ...hi]
+}
+
+function autoAngle(outline: Pt[], sheetW: number, sheetH: number, gap: number): Mat2 {
+  if (outline.length < 3) return ID2
+  const b0 = bbox(outline)
+  const w0 = b0.x1 - b0.x0
+  const h0 = b0.y1 - b0.y0
+  const area0 = w0 * h0
+  if (area0 < 1e-3) return ID2
+  const romW = Math.max(0, sheetW - 2 * gap)
+  const romH = Math.max(0, sheetH - 2 * gap)
+  const passerOrt0 = (w0 <= romW && h0 <= romH) || (h0 <= romW && w0 <= romH)
+  const h = hull2D(outline)
+  const vinklar: number[] = []
+  for (let i = 0; i < h.length; i++) {
+    const a = h[i]
+    const b = h[(i + 1) % h.length]
+    const dx = b[0] - a[0]
+    const dy = b[1] - a[1]
+    if (dx * dx + dy * dy > 1e-6) vinklar.push(-Math.atan2(dy, dx))
+  }
+  if (!passerOrt0 && romW > 0 && romH > 0) {
+    const dAng = Math.atan2(romH, romW)
+    vinklar.push(dAng, -dAng)
+  }
+  let bestTh = 0
+  let bestArea = area0
+  let bestPass = passerOrt0
+  for (const rawTh of vinklar) {
+    for (const th of [rawTh, rawTh + Math.PI / 2]) {
+      const c = Math.cos(th)
+      const s = Math.sin(th)
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity
+      for (const p of h) {
+        const x = p[0] * c - p[1] * s
+        const y = p[0] * s + p[1] * c
+        if (x < x0) x0 = x
+        if (x > x1) x1 = x
+        if (y < y0) y0 = y
+        if (y > y1) y1 = y
+      }
+      const w = x1 - x0
+      const hh = y1 - y0
+      const area = w * hh
+      const pass = (w <= romW && hh <= romH) || (hh <= romW && w <= romH)
+      if ((pass && !bestPass) || (pass === bestPass && area < bestArea - 1e-3)) {
+        bestArea = area
+        bestTh = th
+        bestPass = pass
+      }
+    }
+  }
+  if (bestPass === passerOrt0 && bestArea > area0 * 0.9) return ID2
+  return Math.abs(bestTh % (Math.PI / 2)) < 1e-4 ? ID2 : rotMat(bestTh)
+}
+
 export function nest(
   parts: Part[],
   sheetW: number,
@@ -29,7 +120,20 @@ export function nest(
   if (!parts.length) {
     return { sheets: [], sheetW, sheetH, util: 0, spilt: 0, kross: 0 }
   }
-  const pieces = parts.map((p) => ({ key: p.id, rings: [p.outline, ...p.holes] }))
+  const mats = new Map<string, Mat2>()
+  const alignedOut = new Map<string, Pt[]>()
+  const alignedHoles = new Map<string, Pt[][]>()
+  const pieces = parts.map((p) => {
+    let m0 = mats.get(p.id)
+    if (!m0) {
+      m0 = autoAngle(p.outline, sheetW, sheetH, gap)
+      mats.set(p.id, m0)
+    }
+    const rings = m0 === ID2 ? [p.outline, ...p.holes] : [p.outline.map((q) => apply(m0, q)), ...p.holes.map((h) => h.map((q) => apply(m0, q)))]
+    alignedOut.set(p.adr, rings[0])
+    alignedHoles.set(p.adr, rings.slice(1))
+    return { key: p.id, rings }
+  })
   let fast: Map<number, Fest> | undefined
   if (fest?.size) {
     fast = new Map()
@@ -45,26 +149,31 @@ export function nest(
     placed: [],
     used: 0,
   }))
-  for (const slot of out.slots) {
-    const part = parts[slot.piece]
+  for (const baseSlot of out.slots) {
+    const part = parts[baseSlot.piece]
+    const m0 = mats.get(part.id) ?? ID2
+    const ao = alignedOut.get(part.adr) ?? part.outline
+    const ah = alignedHoles.get(part.adr) ?? part.holes
+    const slot: Slot = m0 === ID2 ? baseSlot : { ...baseSlot, m: mulMat(baseSlot.m, m0) }
     let a = anchors.get(part.id)
     if (!a) {
-      a = anchor([part.outline, ...part.holes])
+      a = anchor([ao, ...ah])
       anchors.set(part.id, a)
     }
     const snudd = slot.rot === 1 || slot.rot === 3
-    const eige = bbox(part.outline)
-    const paa = apply(slot.m, [a.p[0] + eige.x0, a.p[1] + eige.y0])
-    const rom = prøvd(
-      part.adr,
-      {
-        outline: part.outline.map((q) => apply(slot.m, q)),
-        holes: part.holes.map((h) => h.map((q) => apply(slot.m, q))),
-      },
-      paa,
-      a.room,
-      snudd ? a.tall : a.wide,
-    )
+    const eige = bbox(ao)
+    const sheetRings = {
+      outline: part.outline.map((q) => apply(slot.m, q)),
+      holes: part.holes.map((h) => h.map((q) => apply(slot.m, q))),
+    }
+    let paa = apply(baseSlot.m, [a.p[0] + eige.x0, a.p[1] + eige.y0])
+    let rom = prøvd(part.adr, sheetRings, paa, a.room, snudd ? a.tall : a.wide)
+    if (!rom.room && m0 !== ID2) {
+      const sa = anchor([sheetRings.outline, ...sheetRings.holes])
+      const sb = bbox(sheetRings.outline)
+      paa = [sa.p[0] + sb.x0, sa.p[1] + sb.y0]
+      rom = prøvd(part.adr, sheetRings, paa, sa.room, sa.wide)
+    }
     sheets[slot.sheet].placed.push({
       part,
       slot,

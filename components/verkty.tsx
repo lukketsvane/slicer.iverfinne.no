@@ -174,7 +174,7 @@ function Kuttliste({ liste, peikt, onPeik, onOrd }: {
                       style={{ background: peikt === k.adr ? "color-mix(in srgb, var(--ink) 8%, transparent)" : undefined }}
                     >
                       {KOLONNAR.map((q) => (
-                        <td key={q.id} className={"px-2 py-[3px] " + celle(q)} style={{ color: q.id === "ledd" && k.joints === 0 ? "var(--warn)" : undefined }}>
+                        <td key={q.id} className={"px-2 py-[3px] " + celle(q)}>
                           {q.id === "id" ? (
                             <span title={mt(maal, `${former.get(k.id) ?? 1} parts share this shape`, `${former.get(k.id) ?? 1} delar har denne forma`)}>{k.id}<span className="dim">{(former.get(k.id) ?? 1) > 1 ? `·${former.get(k.id)}` : ""}</span></span>
                           ) : q.les(k)}

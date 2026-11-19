@@ -10,7 +10,7 @@ export type Packing = { slots: Slot[]; sheets: number; used: number[]; spilt: nu
 export const apply = (m: Slot["m"], p: Pt): Pt => [m[0] * p[0] + m[1] * p[1] + m[2], m[3] * p[0] + m[4] * p[1] + m[5]]
 export const placeRings = (rings: Ring[], s: Slot): Ring[] => rings.map((r) => r.map((p) => apply(s.m, p)))
 
-type Mask = { w: number; h: number; span: Int32Array; start: Int32Array; bot: Int32Array; cells: number }
+type Mask = { w: number; h: number; span: Int32Array; start: Int32Array; bot: Int32Array; cells: number; peakR: number; peakC: number }
 type Raw = { w: number; h: number; a: Uint8Array }
 
 function rasterise(rings: Ring[], ox: number, oy: number, res: number, w: number, h: number, heil = false): Raw {
@@ -101,53 +101,40 @@ function toMask(r: Raw): Mask {
   const span: number[] = []
   const start = new Int32Array(r.h + 1)
   const bot = new Int32Array(r.w).fill(-1)
-  let cells = 0
+  let cells = 0, peakR = 0, peakC = 0
   for (let j = 0; j < r.h; j++) {
     start[j] = span.length
-    let i = 0
+    let i = 0, rowC = 0
     while (i < r.w) {
-      if (!r.a[j * r.w + i]) {
-        i++
-        continue
-      }
+      if (!r.a[j * r.w + i]) { i++; continue }
       const a0 = i
       while (i < r.w && r.a[j * r.w + i]) {
         if (bot[i] < 0) bot[i] = j
         i++
       }
       span.push(a0, i)
-      cells += i - a0
+      rowC += i - a0
     }
+    cells += rowC
+    if (rowC > peakC) { peakC = rowC; peakR = j }
   }
   start[r.h] = span.length
-  return { w: r.w, h: r.h, span: new Int32Array(span), start, bot, cells }
+  return { w: r.w, h: r.h, span: new Int32Array(span), start, bot, cells, peakR, peakC }
 }
 
+const sameMask = (a: Mask, b: Mask) =>
+  a.w === b.w && a.h === b.h && a.span.length === b.span.length &&
+  a.start.every((v, i) => v === b.start[i]) && a.span.every((v, i) => v === b.span[i])
+
 type Board = {
-  w: number
-  h: number
-  words: number
-  bits: Uint32Array
-  top: Int32Array
-  solidH: Int32Array
-  used: number
-  free: number
-  nei: Set<string>
+  w: number; h: number; words: number
+  bits: Uint32Array; top: Int32Array; solidH: Int32Array; rowFree: Int32Array
+  used: number; free: number; nei: Set<string>
 }
 
 const board = (w: number, h: number): Board => {
   const words = (w + 31) >> 5
-  return {
-    w,
-    h,
-    words,
-    bits: new Uint32Array(words * h),
-    top: new Int32Array(w),
-    solidH: new Int32Array(w),
-    used: 0,
-    free: w * h,
-    nei: new Set(),
-  }
+  return { w, h, words, bits: new Uint32Array(words * h), top: new Int32Array(w), solidH: new Int32Array(w), rowFree: new Int32Array(h).fill(w), used: 0, free: w * h, nei: new Set() }
 }
 
 function anySet(bits: Uint32Array, base: number, a: number, b: number): boolean {
@@ -180,6 +167,10 @@ function setBits(bits: Uint32Array, base: number, a: number, b: number) {
 }
 
 function fits(b: Board, m: Mask, px: number, py: number): boolean {
+  const pb = (py + m.peakR) * b.words
+  for (let s = m.start[m.peakR]; s < m.start[m.peakR + 1]; s += 2) {
+    if (anySet(b.bits, pb, px + m.span[s], px + m.span[s + 1])) return false
+  }
   for (let r = 0; r < m.h; r++) {
     const base = (py + r) * b.words
     arbeid += (m.start[r + 1] - m.start[r]) >> 1
@@ -197,19 +188,20 @@ function stamp(b: Board, m: Mask, px: number, py: number) {
     for (let s = m.start[r]; s < m.start[r + 1]; s += 2) {
       const a = px + m.span[s]
       const c = px + m.span[s + 1]
-      setBits(b.bits, base, a, c)
       for (let i = a; i < c; i++) {
+        if ((b.bits[base + (i >> 5)] & (1 << (i & 31))) === 0) b.rowFree[y]--
         if (y + 1 > b.top[i]) b.top[i] = y + 1
         if (y <= b.solidH[i] && y + 1 > b.solidH[i]) b.solidH[i] = y + 1
       }
+      setBits(b.bits, base, a, c)
     }
   }
   b.free -= m.cells
   if (py + m.h > b.used) b.used = py + m.h
 }
 
-function lowest(b: Board, m: Mask, px: number, step: number): number {
-  let minPy = 0
+function lowest(b: Board, m: Mask, px: number, step: number, loY = 0): number {
+  let minPy = loY
   let ySky = 0
   arbeid += m.w
   for (let c = 0; c < m.w; c++) {
@@ -222,9 +214,11 @@ function lowest(b: Board, m: Mask, px: number, step: number): number {
   }
   if (minPy + m.h > b.h) return -1
   const cap = Math.min(ySky, b.h - m.h + 1)
-  const hop = ySky - minPy <= 24 ? 1 : Math.max(1, step >> 1)
+  const hop = ySky - minPy <= 48 ? 1 : Math.max(1, step >> 1)
   for (let py = minPy; py < cap; py += hop) {
-    if (fits(b, m, px, py)) return py
+    if (b.rowFree[py + m.peakR] < m.peakC || !fits(b, m, px, py)) continue
+    while (hop > 1 && py > minPy && b.rowFree[py - 1 + m.peakR] >= m.peakC && fits(b, m, px, py - 1)) py--
+    return py
   }
   return ySky + m.h <= b.h ? ySky : -1
 }
@@ -248,15 +242,12 @@ export function fitRoom(
 }
 
 type Poeng = "botn" | "topp" | "brei"
-type Strategi = {
-  fro: number
-  poeng: Poeng
-  lang?: boolean
-}
+type Strategi = { fro: number; poeng: Poeng; lang?: boolean; hol?: boolean }
 
 const STRATEGIAR: readonly Strategi[] = [
   { fro: 0, poeng: "topp" },
   { fro: 0, poeng: "topp", lang: true },
+  { fro: 0, poeng: "topp", hol: true },
   { fro: 0, poeng: "brei" },
   { fro: 1, poeng: "topp" },
 ]
@@ -287,7 +278,7 @@ export function pack(
   const SW = Math.floor(sheetW / res)
   const SH = Math.floor(sheetH / res)
 
-  type Form = { nokkel: string; masks: Mask[]; ox: number; oy: number; Wm: number; Hm: number; cells: number }
+  type Form = { nokkel: string; masks: Mask[]; rots: (0 | 1 | 2 | 3)[]; ox: number; oy: number; Wm: number; Hm: number; cells: number }
   const forms = new Map<string, Form>()
   const formOf = (p: Piece): Form => {
     const bb = bbox(p.rings[0])
@@ -298,9 +289,12 @@ export function pack(
     const nh = Math.ceil((bb.y1 - bb.y0) / res) + 1
     const raw = dilate(rasterise(p.rings, bb.x0, bb.y0, res, nw, nh), k)
     const masks = ([0, 1, 2, 3] as const).map((r) => toMask(turn(raw, r)))
+    const rots: (0 | 1 | 2 | 3)[] = []
+    for (const r of [0, 1, 2, 3] as const) if (!rots.some((q) => sameMask(masks[q], masks[r]))) rots.push(r)
     const f: Form = {
       nokkel,
       masks,
+      rots,
       ox: bb.x0 - k * res,
       oy: bb.y0 - k * res,
       Wm: raw.w * res,
@@ -313,6 +307,7 @@ export function pack(
   const alle = pieces.map((p, i) => { const f = formOf(p); return { i, key: f.nokkel, f } })
 
   const ordna = (s: Strategi) => {
+    if (s.hol) return [...alle].sort((a, b) => (b.f.masks[0].w * b.f.masks[0].h - b.f.cells) - (a.f.masks[0].w * a.f.masks[0].h - a.f.cells) || b.f.cells - a.f.cells || a.i - b.i)
     if (!s.fro && !s.lang) return [...alle].sort((a, b) => b.f.cells - a.f.cells || a.i - b.i)
     if (s.lang) return [...alle].sort((a, b) => Math.max(b.f.Wm, b.f.Hm) - Math.max(a.f.Wm, a.f.Hm) || b.f.cells - a.f.cells || a.i - b.i)
     const rnd = stoy(s.fro)
@@ -322,19 +317,32 @@ export function pack(
 
   const seek = (b: Board, f: Form, s: Strategi) => {
     let best: { rot: 0 | 1 | 2 | 3; px: number; py: number; sc: number } | null = null
-    for (let r = 0; r < 4; r++) {
+    const scOf = (m: Mask, px: number, py: number) => {
+      const h = py + m.h
+      return s.poeng === "brei" ? (px + m.w) * b.h + py : Math.max(b.used, h) * b.w * 2 + h * b.w + px
+    }
+    for (const r of f.rots) {
       const m = f.masks[r]
       if (m.w > b.w || m.h > b.h) continue
-      if (s.poeng === "topp" && best && m.h * b.w >= best.sc) continue
-      if (s.poeng === "brei" && best && m.w * b.h >= best.sc) continue
+      let loY = -1
+      for (let py = 0; py + m.h <= b.h; py++) if (b.rowFree[py + m.peakR] >= m.peakC) { loY = py; break }
+      if (loY < 0 || (best && scOf(m, 0, loY) >= best.sc)) continue
       for (let px = 0; px + m.w <= b.w; px += step) {
-        if (s.poeng === "topp" && best && m.h * b.w + px >= best.sc) break
-        if (s.poeng === "brei" && best && (px + m.w) * b.h >= best.sc) break
-        const py = lowest(b, m, px, step)
+        if (best && scOf(m, px, loY) >= best.sc) break
+        const py = lowest(b, m, px, step, loY)
         if (py < 0) continue
-        const sc = s.poeng === "brei" ? (px + m.w) * b.h + py : (s.poeng === "topp" ? py + m.h : py) * b.w + px
-        if (!best || sc < best.sc) best = { rot: r as 0 | 1 | 2 | 3, px, py, sc }
-        if (py === 0) break
+        const sc = scOf(m, px, py)
+        if (!best || sc < best.sc) best = { rot: r, px, py, sc }
+        if (py === loY) break
+      }
+    }
+    if (best && step > 1 && !(best.px === 0 && scOf(f.masks[best.rot], 0, 0) === best.sc)) {
+      const m = f.masks[best.rot]
+      for (let px = Math.max(0, best.px - step + 1), hi = Math.min(b.w - m.w, best.px + step - 1); px <= hi; px++) {
+        const py = lowest(b, m, px, 1)
+        if (py < 0) continue
+        const sc = scOf(m, px, py)
+        if (sc < best.sc) best = { rot: best.rot, px, py, sc }
       }
     }
     return best
@@ -439,6 +447,7 @@ export function pack(
   }
 
   const betre = (a: Passasje, b: Passasje) => {
+    if (a.spilt.length !== b.spilt.length) return a.spilt.length < b.spilt.length
     if (a.boards.length !== b.boards.length) return a.boards.length < b.boards.length
     const sist = (q: Passasje) => (q.boards.length ? q.boards[q.boards.length - 1].used : 0)
     const sa = sist(a)
